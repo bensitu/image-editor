@@ -183,6 +183,7 @@ You can download image-editor from the dist folder.
 * Edge 100+
 
 The class uses modern DOM & ES2022 features (optional chaining, class, async/await).
+
 If you need IE11 or old mobile Safari you will have to transpile.
 
 ## Dependencies
@@ -192,4 +193,5 @@ If you need IE11 or old mobile Safari you will have to transpile.
 ## License
 
 MIT © 2025 Ben Situ
+
 Fabric.js is licensed under its own MIT license.

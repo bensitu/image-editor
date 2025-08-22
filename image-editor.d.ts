@@ -1,34 +1,34 @@
-// index.d.ts - TypeScript 类型定义文件
+// image-editor.d.ts - TypeScript type definition files
 
 declare module 'image-editor' {
   import { Canvas, Image as FabricImage, Object as FabricObject } from 'fabric';
 
-  // 基础配置接口
+  // Basic configuration interface
   export interface ImageEditorOptions {
-    // 画布配置
+    // Canvas configuration
     canvasWidth?: number;
     canvasHeight?: number;
     backgroundColor?: string;
 
-    // 动画配置
+    // Animation configuration
     animationDuration?: number;
     minScale?: number;
     maxScale?: number;
     scaleStep?: number;
     rotationStep?: number;
 
-    // 图片处理配置
+    // Image processing configuration
     expandCanvasToImage?: boolean;
     fitImageToCanvas?: boolean;
     downsampleOnLoad?: boolean;
     downsampleMaxPixels?: number;
     downsampleQuality?: number;
 
-    // 导出配置
+    // Export configuration
     exportMultiplier?: number;
     exportImageAreaByDefault?: boolean;
 
-    // 遮罩配置
+    // Mask configuration
     defaultMaskWidth?: number;
     defaultMaskHeight?: number;
     maskRotatable?: boolean;
@@ -36,21 +36,21 @@ declare module 'image-editor' {
     maskLabelOffset?: number;
     maskName?: string;
 
-    // UI配置
+    // UI configuration
     showPlaceholder?: boolean;
     initialImageBase64?: string | null;
     defaultDownloadFileName?: string;
     language?: 'en' | 'zh' | 'es' | 'fr';
     theme?: 'light' | 'dark';
 
-    // 回调函数
+    // Callback function
     onImageLoaded?: () => void;
     onError?: (error: ImageEditorError) => void;
     onMaskAdded?: (mask: MaskObject) => void;
     onMaskRemoved?: (maskId: number) => void;
   }
 
-  // 元素ID映射接口
+  // Element ID Mapping Interface
   export interface ElementIdMap {
     canvas?: string;
     canvasContainer?: string;
@@ -73,7 +73,7 @@ declare module 'image-editor' {
     uploadArea?: string;
   }
 
-  // 遮罩配置接口
+  // Mask configuration interface
   export interface MaskConfig {
     width?: number;
     height?: number;
@@ -86,7 +86,7 @@ declare module 'image-editor' {
     rotatable?: boolean;
   }
 
-  // 遮罩对象接口
+  // Mask Object Interface
   export interface MaskObject extends FabricObject {
     maskId: number;
     maskName: string;
@@ -94,7 +94,7 @@ declare module 'image-editor' {
     __label?: FabricObject;
   }
 
-  // 导出选项接口
+  // Export options interface
   export interface ExportOptions {
     format?: 'png' | 'jpeg' | 'webp' | 'svg' | 'json';
     quality?: number;
@@ -104,7 +104,7 @@ declare module 'image-editor' {
     includeBackground?: boolean;
   }
 
-  // 事件数据接口
+  // Event interface
   export interface EventData {
     maskAdded: { mask: MaskObject; count: number };
     maskRemoved: { maskId: number; count: number };
@@ -119,27 +119,27 @@ declare module 'image-editor' {
     stateChanged: { canUndo: boolean; canRedo: boolean };
   }
 
-  // 事件回调类型
+  // Event callback type
   export type EventCallback<T = any> = (data: T) => void;
 
-  // 错误类
+  // Error Class
   export class ImageEditorError extends Error {
     code: string;
     originalError?: Error;
-    
+
     constructor(message: string, code: string, originalError?: Error);
   }
 
-  // 历史状态接口
+  // History Status Interface
   export interface HistoryState {
     canvasData: string;
     timestamp: number;
     description?: string;
   }
 
-  // 主类定义
+  // Main class definition
   export class ImageEditor {
-    // 公共属性
+    // Public attributes
     readonly options: Required<ImageEditorOptions>;
     readonly canvas: Canvas | null;
     readonly canvasEl: HTMLCanvasElement | null;
@@ -151,23 +151,23 @@ declare module 'image-editor' {
     readonly isAnimating: boolean;
     readonly isImageLoadedToCanvas: boolean;
 
-    // 构造函数
+    // Constructor
     constructor(options?: ImageEditorOptions);
 
-    // 初始化方法
+    // Initialization method
     init(idMap?: ElementIdMap): void;
 
-    // 图片操作方法
+    // Image operation method
     loadImage(base64: string): Promise<void>;
     isImageLoaded(): boolean;
     scaleImage(factor: number): Promise<void>;
     rotateImage(degrees: number): Promise<void>;
     reset(): Promise<void>;
 
-    // 遮罩操作方法
+    // Mask control method
     addMask(config?: MaskConfig): MaskObject | null;
     addCircleMask(config?: MaskConfig & { radius?: number }): MaskObject | null;
-    addPolygonMask(points: Array<{x: number, y: number}>, config?: MaskConfig): MaskObject | null;
+    addPolygonMask(points: Array<{ x: number, y: number }>, config?: MaskConfig): MaskObject | null;
     removeSelectedMask(): void;
     removeAllMasks(): void;
     removeMask(maskId: number): boolean;
@@ -175,50 +175,50 @@ declare module 'image-editor' {
     getAllMasks(): MaskObject[];
     selectMask(maskId: number): boolean;
 
-    // 导出方法
+    // Export method
     merge(): Promise<void>;
     downloadImage(fileName?: string, options?: ExportOptions): Promise<void>;
     getImageBase64(options?: ExportOptions): Promise<string>;
     exportAs(format: ExportOptions['format'], options?: ExportOptions): Promise<string>;
 
-    // 历史操作方法
+    // Historical control method
     undo(): boolean;
     redo(): boolean;
     canUndo(): boolean;
     canRedo(): boolean;
     saveState(description?: string): void;
 
-    // 事件系统方法
+    // Event system method
     on<K extends keyof EventData>(event: K, callback: EventCallback<EventData[K]>): void;
     off<K extends keyof EventData>(event: K, callback?: EventCallback<EventData[K]>): void;
     emit<K extends keyof EventData>(event: K, data: EventData[K]): void;
 
-    // 工具方法
+    // Tools
     setTheme(theme: 'light' | 'dark'): void;
     setLanguage(lang: string): void;
     validateOptions(options: ImageEditorOptions): boolean;
     getCanvasDimensions(): { width: number; height: number };
     setCanvasDimensions(width: number, height: number): void;
 
-    // 生命周期方法
+    // Life cycle method
     dispose(): void;
   }
 
-  // 工厂函数
+  // Factory function
   export function createImageEditor(options?: ImageEditorOptions): ImageEditor;
 
-  // 实用类型
+  // Practical type
   export type MaskShape = 'rectangle' | 'circle' | 'polygon' | 'freeform';
   export type ExportFormat = 'png' | 'jpeg' | 'webp' | 'svg' | 'json';
   export type Theme = 'light' | 'dark';
   export type Language = 'en' | 'zh' | 'es' | 'fr';
 
-  // 常量
+  // Constants
   export const DEFAULT_OPTIONS: Required<ImageEditorOptions>;
   export const SUPPORTED_FORMATS: readonly ExportFormat[];
   export const SUPPORTED_THEMES: readonly Theme[];
   export const SUPPORTED_LANGUAGES: readonly Language[];
 
-  // 版本信息
+  // Version
   export const VERSION: string;
 }

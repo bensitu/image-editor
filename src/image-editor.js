@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.0
+ * @version 1.0.0
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
