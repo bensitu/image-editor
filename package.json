@@ -1,0 +1,54 @@
+{
+    "name": "image-editor",
+    "version": "1.0.0",
+    "description": "Lightweight canvas-based image editor",
+    "main": "dist/image-editor.js",
+    "module": "dist/image-editor.esm.js",
+    "types": "image-editor.d.ts",
+    "exports": {
+        "import": "./dist/image-editor.esm.js",
+        "require": "./dist/image-editor.iife.js"
+    },
+    "scripts": {
+        "dev": "node esbuild.config.mjs --watch",
+        "build": "node esbuild.config.mjs",
+        "lint": "eslint src --ext .js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/bensitu/image-editor.git"
+    },
+    "author": "Ben Situ",
+    "license": "MIT",
+    "files": [
+        "dist"
+    ],
+    "peerDependencies": {
+        "fabric": "^5.5.2"
+    },
+    "devDependencies": {
+        "esbuild": "^0.19.12",
+        "eslint": "^8.49.0"
+    },
+    "browserslist": [
+        "defaults",
+        "ie 11"
+    ],
+    "keywords": [
+        "fabricjs",
+        "image-editor",
+        "javascript",
+        "mask",
+        "open-source"
+    ],
+    "directories": {
+        "doc": "docs"
+    },
+    "bugs": {
+        "url": "https://github.com/bensitu/image-editor/issues"
+    },
+    "homepage": "https://github.com/bensitu/image-editor#readme",
+    "dependencies": {
+        "image-editor": "^0.2.0"
+    }
+}
