@@ -1,5 +1,6 @@
 # ImageEditor
 [![npm](https://img.shields.io/npm/l/image-editor.svg)](https://github.com/bensitu/image-editor)
+[![npm](https://img.shields.io/npm/v/@bensitu/image-editor.svg)](https://www.npmjs.com/package/@bensitu/image-editor)
 
 A lightweight JavaScript wrapper around fabric.js that provides comprehensive image editing capabilities including loading, zooming, rotation, and mask management.
 
@@ -160,11 +161,11 @@ When creating the editor instance, you can pass an options object to override de
 
 ### npm / pnpm / yarn
 ```bash
-npm i image-editor fabric
+npm i @bensitu/image-editor fabric
 # or
-pnpm add image-editor fabric
+pnpm add @bensitu/image-editor fabric
 # or
-yarn add image-editor fabric
+yarn add @bensitu/image-editor fabric
 ```
 
 ### Local build
