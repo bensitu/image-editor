@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Lightweight canvas-based image editor",
     "main": "dist/image-editor.js",
     "module": "dist/image-editor.esm.js",
