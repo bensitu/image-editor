@@ -12,6 +12,7 @@
     "scripts": {
         "dev": "node esbuild.config.mjs --watch",
         "build": "node esbuild.config.mjs",
+        "build:babel": "babel src --out-dir dist --copy-files",
         "lint": "eslint src --ext .js"
     },
     "repository": {
@@ -21,13 +22,18 @@
     "author": "Ben Situ",
     "license": "MIT",
     "files": [
-        "dist"
+        "dist",
+        "src"
     ],
     "peerDependencies": {
         "fabric": "^5.5.2"
     },
     "devDependencies": {
+        "@babel/cli": "^7.22.9",
+        "@babel/core": "^7.22.9",
+        "@babel/preset-env": "^7.22.9",
         "esbuild": "^0.19.12",
+        "esbuild-plugin-babel": "^0.2.3",
         "eslint": "^8.49.0"
     },
     "browserslist": [
@@ -47,5 +53,19 @@
     "bugs": {
         "url": "https://github.com/bensitu/image-editor/issues"
     },
-    "homepage": "https://github.com/bensitu/image-editor#readme"
+    "homepage": "https://github.com/bensitu/image-editor#readme",
+    "babel": {
+        "presets": [
+            [
+                "@babel/preset-env",
+                {
+                    "targets": {
+                        "ie": "11"
+                    },
+                    "useBuiltIns": false,
+                    "modules": false
+                }
+            ]
+        ]
+    }
 }

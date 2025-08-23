@@ -52,36 +52,62 @@
         <!-- Control buttons -->
         <div class="row justify-content-start">
             <div class="col-12 col-md-5">
-                <input class="btn btn-secondary mr-2 mb-1" id="zoomInBtn" type="button" value="Zoom In" />
-                <input class="btn btn-secondary mr-2 mb-1" id="zoomOutBtn" type="button" value="Zoom Out" />
-                <input id="scaleRate" class="border text-right mb-1 px-1" style="width:60px" value="100"
-                    readonly><span>%</span>
+                <div class="input-group" role="group" aria-label="Zoom actions">
+                    <button class="btn btn-secondary mr-2" id="zoomInBtn" type="button" value="Zoom In">Zoom
+                        In</button>
+                    <button class="btn btn-secondary mr-2" id="zoomOutBtn" type="button" value="Zoom Out">Zoom
+                        Out</button>
+                    <input id="scaleRate" class="border text-right px-1" style="width:60px" value="100" readonly><span
+                        class="input-group-text">%</span>
+                </div>
+
             </div>
             <div class="col-12 col-md-3">
-                <input class="btn btn-secondary mr-2 mb-1" id="rotateLeftBtn" value="⟲" type="button" />
-                <input id="leftValue" class="border border-secondary text-right mr-3 mb-1 px-1 bg-white"
-                    style="width:60px" value="90" type="number">
-
-                <input class="btn btn-secondary mr-2 mb-1" id="rotateRightBtn" value="⟳" type="button" />
-                <input id="rightValue" class="border border-secondary text-right mr-3 mb-1 px-1 bg-white"
-                    style="width:60px" value="90" type="number">
+                <div class="row">
+                    <div class="col-12 col-md-6">
+                        <div class="input-group" role="group" aria-label="Rotate left actions">
+                            <button class="btn btn-secondary mr-2" id="rotateLeftBtn" type="button">⟲</button>
+                            <input id="leftValue"
+                                class="form-control border border-secondary text-right mr-3 px-1 bg-white"
+                                style="width:60px" value="90" type="number">
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="input-group" role="group" aria-label="Rotate right actions">
+                            <button class="btn btn-secondary mr-2" id="rotateRightBtn" type="button">⟳</button>
+                            <input id="rightValue"
+                                class="form-control border border-secondary text-right mr-3 px-1 bg-white"
+                                style="width:60px" value="90" type="number">
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="col-12 col-md-4">
-                <input class="btn btn-warning mr-2 mb-1" id="resetBtn" value="Reset View" type="button" />
+                <button class="btn btn-danger mr-2 mb-1" id="resetBtn" type="button">Reset View</button>
+                <div class="btn-group" role="group" aria-label="History actions">
+                    <button id="undoBtn" class="btn btn-warning mr-2 mb-1">Undo</button>
+                    <button id="redoBtn" class="btn btn-warning mr-2 mb-1">Redo</button>
+                </div>
             </div>
         </div>
         <div class="row justify-content-start mb-2">
             <div class="col-12 col-md-5">
-                <input class="btn btn-success mr-2 mb-1" id="addMaskBtn" value="Add Mask" type="button" />
-                <input class="btn btn-danger mr-2 mb-1" id="removeMaskBtn" value="Remove Mask" type="button" />
-                <input class="btn btn-danger mr-3 mb-1" id="removeAllMasksBtn" value="Remove All Masks" type="button" />
+                <div class="btn-group" role="group" aria-label="Mask actions">
+                    <button class="btn btn-success mr-2 mb-1" id="addMaskBtn" type="button">Add Mask</button>
+                    <button class="btn btn-danger mr-2 mb-1" id="removeMaskBtn" type="button">Remove Mask</button>
+                    <button class="btn btn-danger mr-3 mb-1" id="removeAllMasksBtn" type="button">Remove All
+                        Masks</button>
+                </div>
             </div>
             <div class="col-12 col-md-3">
-                <button id="mergeBtn" class="btn btn-warning mr-2 mb-1">Merge</button>
-                <button id="undoBtn" class="btn btn-warning mr-2 mb-1">Undo</button>
-                <button id="redoBtn" class="btn btn-warning mr-2 mb-1">Redo</button>
+                <div class="btn-group" role="group" aria-label="Crop actions">
+                    <button id="cropBtn" class="btn btn-secondary mr-2 mb-1">Crop</button>
+                    <button id="applyCropBtn" class="btn btn-success mr-2 mb-1">Apply Crop</button>
+                    <button id="cancelCropBtn" class="btn btn-success mr-2 mb-1">Cancel Crop</button>
+                </div>
             </div>
             <div class="col-12 col-md-4">
+                <button id="mergeBtn" class="btn btn-info mr-2 mb-1">Merge</button>
                 <button id="downloadBtn" class="btn btn-info mb-1">Download Image</button>
                 <button id="base64Btn" class="btn btn-info mb-1" onclick="getBase64Action()">Console Base64</button>
             </div>
@@ -112,6 +138,7 @@
         </div>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/image-editor.min.js"></script> -->
     <script src="../src/image-editor.js"></script>
     <script src="js/script.js"></script>
 </body>

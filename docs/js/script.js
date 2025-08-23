@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
         mergeBtn: 'mergeBtn',
         downloadBtn: 'downloadBtn',
         maskList: 'maskList',
+        cropBtn: 'cropBtn',
+        applyCropBtn: 'applyCropBtn',
+        cancelCropBtn: 'cancelCropBtn',
         canvasContainer: null
     });
 });

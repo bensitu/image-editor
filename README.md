@@ -1,6 +1,7 @@
 # ImageEditor
 [![npm](https://img.shields.io/npm/l/image-editor.svg)](https://github.com/bensitu/image-editor)
 [![npm](https://img.shields.io/npm/v/@bensitu/image-editor.svg)](https://www.npmjs.com/package/@bensitu/image-editor)
+[![](https://data.jsdelivr.com/v1/package/npm/@bensitu/image-editor/badge)](https://www.jsdelivr.com/package/npm/@bensitu/image-editor)
 
 A lightweight JavaScript wrapper around fabric.js that provides comprehensive image editing capabilities including loading, zooming, rotation, and mask management.
 
@@ -18,12 +19,17 @@ ImageEditor offers:
 
 **Note**: This library requires fabric.js v5.x to be loaded before instantiating the editor.
 
+## Demo
+
+[https://bensitu.github.io/image-editor/](https://bensitu.github.io/image-editor/)
+
 ## Features
 
 - **Fabric.js-powered canvas** - Built on top of the robust fabric.js library
 - **Image scaling** - Configurable min/max limits with smooth animation
 - **Image rotation** - Step control and animated transitions
 - **Auto-resizing** - Optional canvas resizing to match image or container size
+- **Image crop** - Enter a crop mode to crop image
 - **Mask management** - Add, remove, remove all, with draggable/resizable masks
 - **Mask labels** - Auto-sync with mask movement/scaling
 - **Performance optimization** - Downsampling on load to prevent large image performance issues
@@ -145,6 +151,9 @@ When creating the editor instance, you can pass an options object to override de
 | `addMask(config)` | Add a mask to the canvas. Config can include width, height, color. |
 | `removeSelectedMask()` | Remove the currently selected mask. |
 | `removeAllMasks()` | Remove all masks from the canvas. |
+| `enterCropMode()` | Create a resizable/movable selection rect on top of the image. |
+| `cancelCrop()` | Cancel crop mode and remove the temporary selection rect. |
+| `applyCrop()` | Apply the current crop rectangle in the canvas. |
 | `merge()` | Merge masks with the base image in the canvas. |
 | `downloadImage()` | Download the merged image as a file. |
 | `exportImageFile(options)` | Exports the current canvas (with or without masks) as a `File` object. |

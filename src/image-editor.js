@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.0.0
+ * @version 1.1.1
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -133,6 +133,14 @@
                     originY: 'top',
                 }
             };
+            this.options.crop = {
+                minWidth: 100,
+                minHeight: 100,
+                padding: 10,
+                hideMasksDuringCrop: true,
+                preserveMasksAfterCrop: true,
+                allowRotationOfCropRect: false
+            };
 
             // Runtime state
             this.canvas = null;
@@ -155,6 +163,10 @@
             this._lastMaskInitialLeft = null;
             this._lastMaskInitialTop = null;
             this._lastMaskInitialWidth = null;
+
+            this._cropMode = false;
+            this._cropRect = null;
+            this._cropHandlers = [];
 
             this.onImageLoaded = typeof options.onImageLoaded === 'function' ? options.onImageLoaded : null;
 
@@ -205,7 +217,10 @@
                 resetBtn: 'resetBtn',
                 undoBtn: 'undoBtn',
                 redoBtn: 'redoBtn',
-                imageInput: 'imageInput'
+                imageInput: 'imageInput',
+                cropBtn: 'cropBtn',
+                applyCropBtn: 'applyCropBtn',
+                cancelCropBtn: 'cancelCropBtn'
             };
 
             this.elements = { ...defaults, ...idMap };
@@ -318,6 +333,11 @@
                 if (el) { const p = parseFloat(el.value); if (!isNaN(p)) step = p; }
                 this.rotateImage(this.currentRotation + step);
             });
+
+            // Crop bindings (optional: bound only if element IDs exist in elements)
+            this._bindIfExists('cropBtn', 'click', () => this.enterCropMode());
+            this._bindIfExists('applyCropBtn', 'click', () => { this.applyCrop().catch(e => console.error('applyCrop failed', e)); });
+            this._bindIfExists('cancelCropBtn', 'click', () => this.cancelCrop());
         }
 
         /** 
@@ -791,30 +811,39 @@
             if (!this.canvas) return;
             const activeObj = this.canvas.getActiveObject();
             this._hideAllMaskLabels();
-            const after = JSON.stringify(this.canvas.toJSON(['maskId', 'maskName']));
-            const before = this._lastSnapshot || after;
-            let executedOnce = false;
 
-            const cmd = new Command(
-                () => {
-                    if (executedOnce) {
-                        // this.canvas.clear();
-                        this.loadFromState(after);
-                    }
-                    executedOnce = true;
-                },
-                () => {
-                    // this.canvas.clear();
-                    this.loadFromState(before);
+            try {
+                // request JSON including the custom flag 'isCropRect' so we can filter it out
+                const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
+                if (Array.isArray(jsonObj.objects)) {
+                    // filter out crop-rect objects before stringifying
+                    jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
                 }
-            );
+                const after = JSON.stringify(jsonObj);
+                const before = this._lastSnapshot || after;
+                let executedOnce = false;
 
-            this.historyManager.execute(cmd);
-            this._lastSnapshot = after;
-            if (activeObj && activeObj.maskId) {
-                this._showLabelForMask(activeObj);
+                const cmd = new Command(
+                    () => {
+                        if (executedOnce) {
+                            this.loadFromState(after);
+                        }
+                        executedOnce = true;
+                    },
+                    () => {
+                        this.loadFromState(before);
+                    }
+                );
+
+                this.historyManager.execute(cmd);
+                this._lastSnapshot = after;
+                if (activeObj && activeObj.maskId) {
+                    this._showLabelForMask(activeObj);
+                }
+                this._updateUI();
+            } catch (err) {
+                console.warn('saveState: failed to save canvas snapshot', err);
             }
-            this._updateUI();
         }
 
         /**
@@ -1496,6 +1525,274 @@
             return file;
         }
 
+        /**
+         * Enter crop mode: create a resizable/movable selection rect on top of the image.
+         * @public
+         */
+        enterCropMode() {
+            if (!this.canvas || !this.originalImage || this._cropMode) return;
+            if (!this.isImageLoaded()) return;
+            this._cropMode = true;
+
+            // Disable canvas group selection to avoid accidental group selection while cropping
+            this._prevSelectionSetting = this.canvas.selection;
+            this.canvas.selection = false;
+
+            // Make sure no active object
+            this.canvas.discardActiveObject();
+
+            // Create initial crop rect centered on the image bounding box
+            this.originalImage.setCoords();
+            const imgBr = this.originalImage.getBoundingRect(true, true);
+            // Provide small inset so user can see a margin
+            const padding = (this.options.crop && this.options.crop.padding) ? this.options.crop.padding : 10;
+            const left = Math.max(0, Math.floor(imgBr.left + padding));
+            const top = Math.max(0, Math.floor(imgBr.top + padding));
+            const width = Math.min(this.options.crop.minWidth || 50, Math.floor(imgBr.width - padding * 2));
+            const height = Math.min(this.options.crop.minHeight || 50, Math.floor(imgBr.height - padding * 2));
+
+            // Visual style: translucent fill + dashed stroke
+            const cropRect = new fabric.Rect({
+                left, top,
+                width, height,
+                fill: 'rgba(0,0,0,0.12)',
+                stroke: '#00aaff',
+                strokeDashArray: [6, 4],
+                strokeWidth: 1,
+                strokeUniform: true,
+                selectable: true,
+                hasRotatingPoint: !!(this.options.crop && this.options.crop.allowRotationOfCropRect),
+                lockRotation: !(this.options.crop && this.options.crop.allowRotationOfCropRect),
+                cornerSize: 8,
+                objectCaching: false,
+                originX: 'left',
+                originY: 'top'
+            });
+
+            // Ensure the crop rect is above everything
+            this.canvas.add(cropRect);
+            cropRect.isCropRect = true;
+            this.canvas.bringToFront(cropRect);
+            this.canvas.setActiveObject(cropRect);
+
+            // Keep reference
+            this._cropRect = cropRect;
+
+            // While in crop mode: we want only the cropRect to be interactive
+            // but still allow moving/scaling it. To be safe, set other objects evented=false temporarily.
+            this._cropPrevEvented = [];
+            this.canvas.getObjects().forEach(o => {
+                if (o !== cropRect) {
+                    this._cropPrevEvented.push({ obj: o, evented: o.evented, selectable: o.selectable });
+                    try { o.evented = false; o.selectable = false; } catch (e) { /* ignore */ }
+                }
+            });
+
+            // When the crop rect changes, re-render
+            const onModified = () => { try { cropRect.setCoords(); this.canvas.requestRenderAll(); } catch (e) { } };
+            cropRect.on('modified', onModified);
+            cropRect.on('moving', onModified);
+            cropRect.on('scaling', onModified);
+
+            // Keep handlers to remove later
+            this._cropHandlers.push({ target: cropRect, handlers: [{ evt: 'modified', fn: onModified }, { evt: 'moving', fn: onModified }, { evt: 'scaling', fn: onModified }] });
+
+            this._updateUI();
+            this.canvas.renderAll();
+        }
+
+        /**
+         * Cancel crop mode and remove the temporary selection rect.
+         * @public
+         */
+        cancelCrop() {
+            if (!this.canvas || !this._cropMode) return;
+            // Remove handlers if any and remove object
+            if (this._cropRect) {
+                try {
+                    if (this._cropHandlers && this._cropHandlers.length) {
+                        this._cropHandlers.forEach(h => {
+                            h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
+                        });
+                    }
+                } catch (e) { /* ignore */ }
+
+                try { this.canvas.remove(this._cropRect); } catch (e) { }
+                this._cropRect = null;
+            }
+            // restore evented/selectable flags
+            if (Array.isArray(this._cropPrevEvented)) {
+                this._cropPrevEvented.forEach(i => {
+                    try { i.obj.evented = i.evented; i.obj.selectable = i.selectable; } catch (e) { }
+                });
+            }
+            this._cropPrevEvented = null;
+            this._cropHandlers = [];
+            this._cropMode = false;
+            // restore selection setting
+            this.canvas.selection = !!this._prevSelectionSetting;
+            this._prevSelectionSetting = undefined;
+
+            this.canvas.discardActiveObject();
+            this._updateUI();
+            this.canvas.renderAll();
+        }
+
+        /**
+         * Apply the current crop rectangle.
+         * remove all masks and export canvas snapshot and crop via offscreen canvas
+         * @public
+         */
+        async applyCrop() {
+            if (!this.canvas || !this._cropMode || !this._cropRect) return;
+
+            // Ensure crop rect coords are fresh
+            this._cropRect.setCoords();
+            const rectBounds = this._cropRect.getBoundingRect(true, true);
+
+            // Compute integer crop region clamped to canvas
+            const sx = Math.max(0, Math.round(rectBounds.left));
+            const sy = Math.max(0, Math.round(rectBounds.top));
+            const sw = Math.max(1, Math.round(Math.min(rectBounds.width, this.canvas.getWidth() - sx)));
+            const sh = Math.max(1, Math.round(Math.min(rectBounds.height, this.canvas.getHeight() - sy)));
+
+            // Include isCropRect in toJSON whitelist so we can detect and filter them out.
+            let beforeJson = null;
+            try {
+                const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
+                if (Array.isArray(jsonObj.objects)) {
+                    jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
+                }
+                beforeJson = JSON.stringify(jsonObj);
+            } catch (e) {
+                console.warn('applyCrop: could not serialize before state', e);
+                beforeJson = null;
+            }
+
+
+            // Remove ALL un-merged masks so they won't be baked into exported pixels
+            try {
+                const masks = this.canvas.getObjects().filter(o => o.maskId);
+                if (masks && masks.length) {
+                    masks.forEach(m => {
+                        try {
+                            this._removeLabelForMask(m);
+                            this.canvas.remove(m);
+                        } catch (err) {
+                            console.warn('applyCrop: failed to remove mask', err);
+                        }
+                    });
+                    this.canvas.discardActiveObject();
+                    this.canvas.renderAll();
+                }
+            } catch (e) {
+                console.warn('applyCrop: error while removing masks', e);
+            }
+
+            try {
+                if (this._cropRect) {
+                    try {
+                        if (this._cropHandlers && this._cropHandlers.length) {
+                            this._cropHandlers.forEach(h => {
+                                h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
+                            });
+                        }
+                    } catch (e) { /* ignore */ }
+                    try { this.canvas.remove(this._cropRect); } catch (e) { /* ignore */ }
+                    this._cropRect = null;
+                }
+            } catch (e) { /* ignore */ }
+
+            // End crop mode
+            this._cropMode = false;
+            this.canvas.selection = !!this._prevSelectionSetting;
+            this._prevSelectionSetting = undefined;
+
+            // Export full canvas and crop on offscreen canvas
+            let croppedBase64;
+            try {
+                const fullDataUrl = this.canvas.toDataURL({
+                    format: 'jpeg',
+                    quality: this.options.downsampleQuality || 0.92,
+                    multiplier: 1
+                });
+
+                croppedBase64 = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            const oc = document.createElement('canvas');
+                            oc.width = sw;
+                            oc.height = sh;
+                            const ctx = oc.getContext('2d');
+                            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+                            const out = oc.toDataURL('image/jpeg', this.options.downsampleQuality || 0.92);
+                            resolve(out);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    img.onerror = (e) => reject(e);
+                    img.src = fullDataUrl;
+                });
+            } catch (e) {
+                console.error('applyCrop: failed to create cropped image', e);
+                this._updateUI();
+                return;
+            }
+
+            // Load the cropped image as the new base image
+            try {
+                await this.loadImage(croppedBase64);
+            } catch (e) {
+                console.error('applyCrop: loadImage(croppedBase64) failed', e);
+                this._updateUI();
+                return;
+            }
+
+            // Create "after" snapshot (also exclude crop rect if any) and push history command
+            let afterJson = null;
+            try {
+                const jsonObj2 = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
+                if (Array.isArray(jsonObj2.objects)) {
+                    jsonObj2.objects = jsonObj2.objects.filter(o => !o.isCropRect);
+                }
+                afterJson = JSON.stringify(jsonObj2);
+            } catch (e) {
+                console.warn('applyCrop: failed to serialize after state', e);
+                afterJson = null;
+            }
+
+            try {
+                const self = this;
+                const cmd = new Command(
+                    () => { if (afterJson) self.loadFromState(afterJson); },
+                    () => { if (beforeJson) self.loadFromState(beforeJson); }
+                );
+
+                if (!this.historyManager) this.historyManager = new HistoryManager(this.maxHistorySize || 50);
+
+                // trim future redo history
+                if (this.historyManager.currentIndex < this.historyManager.history.length - 1) {
+                    this.historyManager.history = this.historyManager.history.slice(0, this.historyManager.currentIndex + 1);
+                }
+
+                this.historyManager.history.push(cmd);
+                if (this.historyManager.history.length > this.historyManager.maxSize) {
+                    this.historyManager.history.shift();
+                } else {
+                    this.historyManager.currentIndex++;
+                }
+            } catch (e) {
+                console.warn('applyCrop: failed to push history command', e);
+            }
+
+            // Final UI update
+            this._updateUI();
+            this.canvas.renderAll();
+        }
+
+
         /* ---------- Misc / UI ---------- */
 
         /**
@@ -1522,9 +1819,26 @@
             const isDefault = this.currentScale === 1 && this.currentRotation === 0;
             const canUndo = this.historyManager?.canUndo();
             const canRedo = this.historyManager?.canRedo();
+            const inCrop = !!this._cropMode;
+
+            if (inCrop) {
+                // iterate all element keys and disable unless key is applyCropBtn or cancelCropBtn
+                for (const k of Object.keys(this.elements || {})) {
+                    const el = document.getElementById(this.elements[k]);
+                    if (!el) continue;
+                    if (k === 'applyCropBtn' || k === 'cancelCropBtn') {
+                        el.disabled = false;
+                    } else {
+                        el.disabled = true;
+                    }
+                }
+                return;
+            }
 
             this._setDisabled('zoomInBtn', !hasImg || this.isAnimating || this.currentScale >= this.options.maxScale);
             this._setDisabled('zoomOutBtn', !hasImg || this.isAnimating || this.currentScale <= this.options.minScale);
+            this._setDisabled('rotateLeftBtn', !hasImg || this.isAnimating);
+            this._setDisabled('rotateRightBtn', !hasImg || this.isAnimating);
             this._setDisabled('addMaskBtn', !hasImg || this.isAnimating);
             this._setDisabled('removeMaskBtn', !hasSelectedMask || this.isAnimating);
             this._setDisabled('removeAllMasksBtn', !hasMasks || this.isAnimating);
@@ -1533,6 +1847,9 @@
             this._setDisabled('resetBtn', !hasImg || isDefault || this.isAnimating);
             this._setDisabled('undoBtn', !hasImg || this.isAnimating || !canUndo);
             this._setDisabled('redoBtn', !hasImg || this.isAnimating || !canRedo);
+            this._setDisabled('cropBtn', !hasImg || this.isAnimating);
+            this._setDisabled('applyCropBtn', true);
+            this._setDisabled('cancelCropBtn', true);
         }
 
         /**
@@ -1591,6 +1908,11 @@
                     });
                 }
             } catch (e) { }
+
+            if (this._cropRect) {
+                try { this.canvas.remove(this._cropRect); } catch (e) { }
+                this._cropRect = null;
+            }
 
             if (this.canvas) {
                 try { this.canvas.dispose(); } catch (e) { }
