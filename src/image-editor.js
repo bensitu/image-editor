@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.1.1
+ * @version 1.1.2
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -422,7 +422,7 @@
                     const ch = Math.max(this.options.canvasHeight, minH);
                     this._setCanvasSizeInt(cw, ch);
                     const fitScale = Math.min(cw / imgW, ch / imgH, 1);
-                    fimg.set({ left: (cw - imgW * fitScale) / 2, top: (ch - imgH * fitScale) / 2 });
+                    fimg.set({ left: 0, top: 0 });
                     fimg.scale(fitScale);
                     this.baseImageScale = fimg.scaleX || 1;
                 } else if (this.options.expandCanvasToImage) {

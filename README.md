@@ -202,6 +202,6 @@ If you need IE11 or old mobile Safari you will have to transpile.
 
 ## License
 
-MIT © 2025 Ben Situ
+MIT © 2026 Ben Situ
 
 Fabric.js is licensed under its own MIT license.
