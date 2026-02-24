@@ -113,7 +113,7 @@ When creating the editor instance, you can pass an options object to override de
 |--------|---------|-------------|
 | `canvasWidth` | `800` | Initial canvas width (px) |
 | `canvasHeight` | `600` | Initial canvas height (px) |
-| `backgroundColor` | `#ffffff` | Canvas background color |
+| `backgroundColor` | `transparent` | Canvas background color |
 | `animationDuration` | `300` | Animation duration for scale/rotation (ms) |
 | `minScale` | `0.1` | Minimum scale factor |
 | `maxScale` | `5.0` | Maximum scale factor |
@@ -121,6 +121,7 @@ When creating the editor instance, you can pass an options object to override de
 | `rotationStep` | `90` | Default rotation step in degrees |
 | `expandCanvasToImage` | `true` | Expand canvas to image size on load |
 | `fitImageToCanvas` | `false` | Fit image to current canvas size |
+| `coverImageToCanvas` | `false` | Fit image to cover canvas (at least one side fits, allowing overflow). |
 | `downsampleOnLoad` | `true` | Downsample large images before rendering |
 | `downsampleMaxWidth` | `4000` | Max width count before downsampling |
 | `downsampleMaxHeight` | `3000` | Max height count before downsampling |

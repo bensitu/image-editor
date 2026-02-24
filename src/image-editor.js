@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.1.2
+ * @version 1.2.0
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -45,7 +45,7 @@
      * @param {Object} [options={}] - Customization options to override defaults.
      * @param {number} [options.canvasWidth=800] - The initial canvas width in pixels.
      * @param {number} [options.canvasHeight=600] - The initial canvas height in pixels.
-     * @param {string} [options.backgroundColor='#ffffff'] - The canvas background color.
+     * @param {string} [options.backgroundColor='transparent'] - The canvas background color.
      * @param {number} [options.animationDuration=300] - Duration in ms for scale/rotate animations.
      * @param {number} [options.minScale=0.1] - Minimum image scaling factor.
      * @param {number} [options.maxScale=5.0] - Maximum image scaling factor.
@@ -53,6 +53,7 @@
      * @param {number} [options.rotationStep=90] - Rotation step in degrees.
      * @param {boolean} [options.expandCanvasToImage=true] - If true, expands the canvas to fit image/mask.
      * @param {boolean} [options.fitImageToCanvas=false] - If true, fits loaded image inside canvas.
+     * @param {boolean} [options.coverImageToCanvas=false] - If true, scales image to cover canvas (at least one side fits, allowing overflow).
      * @param {boolean} [options.downsampleOnLoad=true] - Whether to downsample very large images on load.
      * @param {number} [options.downsampleMaxWidth=4000] - Max width for downsampling.
      * @param {number} [options.downsampleMaxHeight=3000] - Max height for downsampling.
@@ -83,7 +84,7 @@
             this.options = {
                 canvasWidth: 800,
                 canvasHeight: 600,
-                backgroundColor: '#ffffff',
+                backgroundColor: 'transparent',
 
                 animationDuration: 300,
                 minScale: 0.1,
@@ -93,6 +94,7 @@
 
                 expandCanvasToImage: true,
                 fitImageToCanvas: false,
+                coverImageToCanvas: false,
 
                 downsampleOnLoad: true,
                 downsampleMaxWidth: 4000,
@@ -417,13 +419,22 @@
                 const minH = this.containerEl ? Math.floor(this.containerEl.clientHeight || this.options.canvasHeight) : this.options.canvasHeight;
 
                 if (this.options.fitImageToCanvas) {
-                    // Fit into current canvas (shrink only)
-                    const cw = Math.max(this.options.canvasWidth, minW);
-                    const ch = Math.max(this.options.canvasHeight, minH);
+                    // Fit into current canvas (shrink only) and ensure canvas does not exceed container
+                    const cw = Math.max(1, Math.min(this.options.canvasWidth, minW) - 1)
+                    const ch = Math.max(1, Math.min(this.options.canvasHeight, minH) - 1);
                     this._setCanvasSizeInt(cw, ch);
                     const fitScale = Math.min(cw / imgW, ch / imgH, 1);
                     fimg.set({ left: 0, top: 0 });
                     fimg.scale(fitScale);
+                    this.baseImageScale = fimg.scaleX || 1;
+                } else if (this.options.coverImageToCanvas) {
+                    // Cover canvas: scale to cover, allowing overflow (at least one side fits)
+                    const cw = Math.max(this.options.canvasWidth, minW);
+                    const ch = Math.max(this.options.canvasHeight, minH);
+                    this._setCanvasSizeInt(cw, ch);
+                    const coverScale = Math.min(1, Math.max(cw / imgW, ch / imgH));
+                    fimg.set({ left: 0, top: 0 });
+                    fimg.scale(coverScale);
                     this.baseImageScale = fimg.scaleX || 1;
                 } else if (this.options.expandCanvasToImage) {
                     // Expand canvas so that it fully contains the image
@@ -439,7 +450,7 @@
                     const ch = Math.max(this.options.canvasHeight, minH);
                     this._setCanvasSizeInt(cw, ch);
                     const fitScale = Math.min(cw / imgW, ch / imgH, 1);
-                    fimg.set({ left: (cw - imgW * fitScale) / 2, top: (ch - imgH * fitScale) / 2 });
+                    fimg.set({ left: 0, top: 0 });
                     fimg.scale(fitScale);
                     this.baseImageScale = fimg.scaleX || 1;
                 }
