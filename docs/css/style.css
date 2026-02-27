@@ -4,14 +4,41 @@
     padding: 0;
 }
 
-input[type=number]::-webkit-outer-spin-button,
-input[type=number]::-webkit-inner-spin-button {
-	-webkit-appearance: none;
-	margin: 0;
+figure {
+    margin: 0;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.control-button {
+    white-space: nowrap;
+    background: -ms-linear-gradient(0deg, #cac9db, #ffffff);
+    background: linear-gradient(0deg, #cac9db, #ffffff);
+    transition: background 0.3s ease;
+    border: 1px solid #6c757d;
+}
+
+.control-button:hover {
+    background: -ms-linear-gradient(180deg, #cac9db, #ffffff);
+    background: linear-gradient(180deg, #cac9db, #ffffff);
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #6c757d;
+}
+
+.control-button:disabled {
+    background: #e0e0e0;
+    color: #a0a0a0;
+    cursor: not-allowed !important;
+    box-shadow: none;
+    opacity: 0.65;
 }
 
 body {
-    font-family: 'Arial', sans-serif;
+    font-family: "Arial", sans-serif;
 }
 
 textarea {
@@ -49,7 +76,8 @@ textarea {
 }
 
 .mask-item:hover {
-    background-color: #f0f0f0;
+    background-color: #0099ff;
+    color: white;
 }
 
 .mask-item.selected {
@@ -89,19 +117,18 @@ textarea {
 }
 
 #imageContainer {
-    border: 1px solid #ccc;
+    position: relative;
     box-shadow: 0 0 2px #555555;
     box-sizing: border-box;
     transform-origin: left top;
-    transition: transform .3s ease;
+    transition: transform 0.3s ease;
     overflow: scroll;
     height: 57vh;
-    min-height: 57vh;
     width: 100%;
 }
 
 #imageContainer.animate {
-    transition: transform .3s ease;
+    transition: transform 0.3s ease;
 }
 
 .btn-warning#restoreBtn {
@@ -109,10 +136,8 @@ textarea {
 }
 
 #imgPlaceholder {
-    border: 1px solid #ccc;
     box-shadow: 0 0 2px #555555;
     height: 57vh;
-    min-height: 57vh;
     width: 100%;
 }
 
@@ -124,6 +149,21 @@ textarea {
 .imgPlaceholderText {
     opacity: 0.5;
     user-select: none;
+}
+
+.transparent {
+    background: rgb(204, 204, 204);
+    background-image:
+        linear-gradient(45deg, rgb(255, 255, 255) 25%, transparent 0),
+        linear-gradient(45deg, transparent 75%, rgb(255, 255, 255) 0),
+        linear-gradient(45deg, rgb(255, 255, 255) 25%, transparent 0),
+        linear-gradient(45deg, transparent 75%, rgb(255, 255, 255) 0);
+    background-size: 16px 16px;
+    background-position:
+        0 0,
+        8px 8px,
+        8px 8px,
+        16px 16px;
 }
 
 #editorCanvas {
@@ -146,7 +186,10 @@ textarea {
     user-select: none;
     width: 50px;
     height: 80px;
-    transition: border-color 0.1s ease, color 0.2s ease, background-color 0.2s ease;
+    transition:
+        border-color 0.1s ease,
+        color 0.2s ease,
+        background-color 0.2s ease;
 }
 
 .mask-box.selected,
@@ -160,7 +203,7 @@ textarea {
     top: 2px;
     font-size: 12px;
     color: #fff;
-    background: rgba(0, 0, 0, .4);
+    background: rgba(0, 0, 0, 0.4);
     padding: 0 3px;
     display: none;
     pointer-events: none;
@@ -172,14 +215,9 @@ textarea {
 
 .maskListContainer {
     height: 57vh;
-    border: 1px solid #ccc;
     box-shadow: 0 0 2px #555555;
 }
 
 #maskList {
     min-width: 110px;
-
-    height: 100%;
-    overflow: auto;
-
 }
