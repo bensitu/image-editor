@@ -1,0 +1,48 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "compilerOptions": {
+        /* ── Language ────────────────────────────────────────────────────── */
+        "target": "ES2019",
+        "lib": [
+            "ES2019",
+            "DOM",
+            "DOM.Iterable"
+        ],
+        "useDefineForClassFields": true,
+        /* ── Modules ─────────────────────────────────────────────────────── */
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        /* ── Emit ────────────────────────────────────────────────────────── */
+        "outDir": "dist",
+        "rootDir": "src",
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "removeComments": false,
+        /* ── Type checking ───────────────────────────────────────────────── */
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "exactOptionalPropertyTypes": false, /* Allow undefined for optional fields */
+        /* ── Interop ─────────────────────────────────────────────────────── */
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+        "isolatedModules": true,
+        /* ── Paths ───────────────────────────────────────────────────────── */
+        "skipLibCheck": true,
+        "importHelpers": true
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+    ]
+}

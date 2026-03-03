@@ -1,3 +1,7 @@
+### 2.0.0
+
+- Migrate to TypeScript with Fabric.js v7
+
 ### 1.2.0
 
 - Add coverImageToCanvas option, allowing overflow (at least one side fits)

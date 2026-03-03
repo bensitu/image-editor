@@ -1,6 +1,13 @@
 let editor = null;
 document.addEventListener('DOMContentLoaded', () => {
-    editor = new ImageEditor({
+    // Support UMD bundle exported as global `ImageEditor` namespace
+    const ImageEditorCtor = (window.ImageEditor && window.ImageEditor.ImageEditor) || window.ImageEditor || (typeof ImageEditor !== 'undefined' ? ImageEditor : null);
+    if (!ImageEditorCtor) {
+        console.error('ImageEditor constructor not found. Make sure image-editor.umd.js is loaded before this script.');
+        return;
+    }
+
+    editor = new ImageEditorCtor({
         backgroundColor: 'transparent',
         expandCanvasToImage: true,
         fitImageToCanvas: false,

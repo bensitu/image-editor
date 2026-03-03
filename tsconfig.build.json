@@ -1,0 +1,20 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        /* ── Build-specific overrides ───────────────────────────────────── */
+        "outDir": "dist/esm",
+        "removeComments": true,
+        "inlineSources": false,
+        "sourceMap": true,
+        "declarationMap": true
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+    ]
+}
