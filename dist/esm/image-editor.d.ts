@@ -8,8 +8,16 @@ interface CanvasJSONObject {
     type?: string;
     [key: string]: unknown;
 }
+interface EditorState {
+    currentScale: number;
+    currentRotation: number;
+    baseImageScale: number;
+}
 interface CanvasJSON {
     objects?: CanvasJSONObject[];
+    width?: number;
+    height?: number;
+    _editorState?: EditorState;
     [key: string]: unknown;
 }
 export declare class ImageEditor {
@@ -40,8 +48,11 @@ export declare class ImageEditor {
     private _cropRect;
     private _cropHandlers;
     private _cropPrevEvented;
+    private _cropBeforeJson;
     private _prevSelectionSetting;
     private _boundHandlers;
+    private _disposed;
+    private _suppressSaveState;
     onImageLoaded: (() => void) | null;
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
     init(idMap?: ElementIdMap): void;
@@ -65,14 +76,16 @@ export declare class ImageEditor {
     reset(): Promise<void>;
     loadFromState(jsonString: string | CanvasJSON): Promise<void>;
     saveState(): void;
-    undo(): void;
-    redo(): void;
+    undo(): Promise<void>;
+    redo(): Promise<void>;
     addMask(config?: MaskConfig): MaskObject | null;
     removeSelectedMask(): void;
     removeAllMasks(): void;
     private _removeLabelForMask;
     private _createLabelForMask;
     private _hideAllMaskLabels;
+    private _restoreMaskPropsFromJSON;
+    private _reattachMaskHandlers;
     private _syncMaskLabel;
     private _showLabelForMask;
     private _onSelectionChanged;

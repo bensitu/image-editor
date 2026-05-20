@@ -166,6 +166,12 @@ export class ImageEditor {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "_cropBeforeJson", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "_prevSelectionSetting", {
             enumerable: true,
             configurable: true,
@@ -177,6 +183,18 @@ export class ImageEditor {
             configurable: true,
             writable: true,
             value: {}
+        });
+        Object.defineProperty(this, "_disposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "_suppressSaveState", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
         });
         Object.defineProperty(this, "onImageLoaded", {
             enumerable: true,
@@ -460,7 +478,7 @@ export class ImageEditor {
         }
         let fimg;
         try {
-            fimg = await this._fabric.Image.fromURL(loadSrc, { crossOrigin: 'anonymous' });
+            fimg = await this._fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' });
         }
         catch (err) {
             console.error('[ImageEditor] fabric.Image.fromURL failed', err);
@@ -490,10 +508,10 @@ export class ImageEditor {
             this.baseImageScale = (_c = fimg.scaleX) !== null && _c !== void 0 ? _c : 1;
         }
         else if (this.options.coverImageToCanvas) {
-            const cw = Math.max(this.options.canvasWidth, minW);
-            const ch = Math.max(this.options.canvasHeight, minH);
+            const cw = minW || this.options.canvasWidth;
+            const ch = minH || this.options.canvasHeight;
             this._setCanvasSizeInt(cw, ch);
-            const coverScale = Math.min(1, Math.max(cw / imgW, ch / imgH));
+            const coverScale = Math.max(cw / imgW, ch / imgH);
             fimg.set({ left: 0, top: 0 });
             fimg.scale(coverScale);
             this.baseImageScale = (_d = fimg.scaleX) !== null && _d !== void 0 ? _d : 1;
@@ -530,6 +548,18 @@ export class ImageEditor {
         this._updateUI();
         this.canvas.renderAll();
         this.isImageLoadedToCanvas = true;
+        try {
+            const initSnap = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']);
+            initSnap._editorState = {
+                currentScale: this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale: this.baseImageScale,
+            };
+            this._lastSnapshot = JSON.stringify(initSnap);
+        }
+        catch (e) {
+            console.warn('[ImageEditor] loadImage: failed to save initial snapshot', e);
+        }
         (_f = this.onImageLoaded) === null || _f === void 0 ? void 0 : _f.call(this);
     }
     isImageLoaded() {
@@ -558,6 +588,8 @@ export class ImageEditor {
         const iw = Math.max(1, Math.round(Number(w) || 1));
         const ih = Math.max(1, Math.round(Number(h) || 1));
         this.canvas.setDimensions({ width: iw, height: ih });
+        if (this.containerEl)
+            void this.containerEl.offsetWidth;
     }
     _getObjectTopLeftPoint(obj) {
         obj.setCoords();
@@ -615,7 +647,8 @@ export class ImageEditor {
                 try {
                     this.originalImage.animate({ scaleX: targetAbs, scaleY: targetAbs }, {
                         duration: this.options.animationDuration,
-                        onChange: () => this.canvas.requestRenderAll(),
+                        onChange: () => { var _a; if (!this._disposed)
+                            (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll(); },
                         onComplete,
                     });
                 }
@@ -623,6 +656,10 @@ export class ImageEditor {
                     reject(e);
                 }
             });
+            if (this._disposed || !this.canvas || !this.originalImage) {
+                this.isAnimating = false;
+                return;
+            }
             this.originalImage.set({ scaleX: targetAbs, scaleY: targetAbs });
             this.originalImage.setCoords();
             if (this.options.expandCanvasToImage)
@@ -658,7 +695,8 @@ export class ImageEditor {
                 try {
                     this.originalImage.animate({ angle: degrees }, {
                         duration: this.options.animationDuration,
-                        onChange: () => this.canvas.requestRenderAll(),
+                        onChange: () => { var _a; if (!this._disposed)
+                            (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll(); },
                         onComplete: () => resolve(),
                     });
                 }
@@ -666,6 +704,10 @@ export class ImageEditor {
                     reject(e);
                 }
             });
+            if (this._disposed || !this.canvas || !this.originalImage) {
+                this.isAnimating = false;
+                return;
+            }
             this.originalImage.set('angle', degrees);
             this.originalImage.setCoords();
             if (this.options.expandCanvasToImage)
@@ -690,20 +732,33 @@ export class ImageEditor {
     reset() {
         if (!this.originalImage)
             return Promise.resolve();
+        this._suppressSaveState = true;
         return this.scaleImage(1)
             .then(() => this.rotateImage(0))
-            .then(() => { this.saveState(); })
-            .catch(err => { console.error('[ImageEditor] reset() failed', err); });
+            .then(() => {
+            this._suppressSaveState = false;
+            this.saveState();
+        })
+            .catch(err => {
+            this._suppressSaveState = false;
+            console.error('[ImageEditor] reset() failed', err);
+        });
     }
     async loadFromState(jsonString) {
         var _a;
         if (!jsonString || !this.canvas)
             return;
         try {
-            const json = typeof jsonString === 'string'
-                ? JSON.parse(jsonString)
-                : jsonString;
+            const jsonStr = typeof jsonString === 'string'
+                ? jsonString
+                : JSON.stringify(jsonString);
+            const json = JSON.parse(jsonStr);
+            if (typeof json.width === 'number' && json.width > 0 &&
+                typeof json.height === 'number' && json.height > 0) {
+                this._setCanvasSizeInt(json.width, json.height);
+            }
             await this.canvas.loadFromJSON(json);
+            this._restoreMaskPropsFromJSON(json);
             this._hideAllMaskLabels();
             const objs = this.canvas.getObjects();
             this.originalImage = ((_a = objs.find(o => o.type === 'image' && !isMaskObject(o))) !== null && _a !== void 0 ? _a : null);
@@ -719,7 +774,20 @@ export class ImageEditor {
             this.maskCounter = objs
                 .filter(isMaskObject)
                 .reduce((max, m) => Math.max(max, m.maskId), 0);
+            const es = json._editorState;
+            if (es) {
+                if (typeof es.currentScale === 'number')
+                    this.currentScale = es.currentScale;
+                if (typeof es.currentRotation === 'number')
+                    this.currentRotation = es.currentRotation;
+                if (typeof es.baseImageScale === 'number')
+                    this.baseImageScale = es.baseImageScale;
+            }
+            this.isImageLoadedToCanvas = !!this.originalImage;
+            this._lastSnapshot = jsonStr;
+            objs.filter(isMaskObject).forEach(m => this._reattachMaskHandlers(m));
             this.canvas.renderAll();
+            this._updateInputs();
             this._updateMaskList();
             this._updateUI();
         }
@@ -729,21 +797,26 @@ export class ImageEditor {
     }
     saveState() {
         var _a;
-        if (!this.canvas)
+        if (!this.canvas || this._suppressSaveState)
             return;
         const activeObj = this.canvas.getActiveObject();
         this._hideAllMaskLabels();
         try {
-            const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
+            const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']);
             if (Array.isArray(jsonObj.objects)) {
                 jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
             }
+            jsonObj._editorState = {
+                currentScale: this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale: this.baseImageScale,
+            };
             const after = JSON.stringify(jsonObj);
             const before = (_a = this._lastSnapshot) !== null && _a !== void 0 ? _a : after;
             let executedOnce = false;
-            const cmd = new Command(() => { if (executedOnce) {
-                void this.loadFromState(after);
-            } executedOnce = true; }, () => { void this.loadFromState(before); });
+            const cmd = new Command(async () => { if (executedOnce) {
+                await this.loadFromState(after);
+            } executedOnce = true; }, async () => { await this.loadFromState(before); });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
             if (activeObj && isMaskObject(activeObj))
@@ -754,8 +827,12 @@ export class ImageEditor {
             console.warn('[ImageEditor] saveState: failed to save canvas snapshot', err);
         }
     }
-    undo() { this.historyManager.undo(); }
-    redo() { this.historyManager.redo(); }
+    undo() {
+        return this.animQueue.add(() => this.historyManager.undo());
+    }
+    redo() {
+        return this.animQueue.add(() => this.historyManager.redo());
+    }
     addMask(config = {}) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
         if (!this.canvas)
@@ -988,6 +1065,59 @@ export class ImageEditor {
             delete o.__label;
         }
         catch { } });
+    }
+    _restoreMaskPropsFromJSON(json) {
+        var _a, _b, _c, _d, _e, _f;
+        if (!this.canvas)
+            return;
+        const jsonObjs = ((_a = json.objects) !== null && _a !== void 0 ? _a : []);
+        const canvasObjs = this.canvas.getObjects();
+        for (const jObj of jsonObjs) {
+            if (typeof jObj.maskId !== 'number')
+                continue;
+            const jType = String((_b = jObj.type) !== null && _b !== void 0 ? _b : '');
+            const jLeft = Number((_c = jObj.left) !== null && _c !== void 0 ? _c : 0);
+            const jTop = Number((_d = jObj.top) !== null && _d !== void 0 ? _d : 0);
+            const match = canvasObjs.find(o => {
+                var _a, _b;
+                if (jType && o.type !== jType)
+                    return false;
+                return Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
+                    Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5;
+            });
+            if (!match)
+                continue;
+            match.maskId = jObj.maskId;
+            match.maskName = String((_e = jObj.maskName) !== null && _e !== void 0 ? _e : '');
+            match.originalAlpha = typeof jObj.originalAlpha === 'number'
+                ? jObj.originalAlpha
+                : ((_f = match.opacity) !== null && _f !== void 0 ? _f : 0.5);
+        }
+        jsonObjs.forEach((jObj, idx) => {
+            if (jObj.maskLabel !== true)
+                return;
+            const canvasObj = canvasObjs[idx];
+            if (canvasObj)
+                canvasObj.maskLabel = true;
+        });
+    }
+    _reattachMaskHandlers(mask) {
+        var _a, _b;
+        mask.off('mouseover');
+        mask.off('mouseout');
+        const normalOpacity = (_a = mask.originalAlpha) !== null && _a !== void 0 ? _a : ((_b = mask.opacity) !== null && _b !== void 0 ? _b : 0.5);
+        const normalStyle = {
+            stroke: typeof mask.stroke === 'string' ? mask.stroke : '#ccc',
+            strokeWidth: typeof mask.strokeWidth === 'number' ? mask.strokeWidth : 1,
+            opacity: normalOpacity,
+        };
+        const hoverStyle = {
+            stroke: '#ff5500',
+            strokeWidth: 2,
+            opacity: Math.min(normalOpacity + 0.2, 1),
+        };
+        mask.on('mouseover', () => { var _a; mask.set(hoverStyle); (_a = mask.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll(); });
+        mask.on('mouseout', () => { var _a; mask.set(normalStyle); (_a = mask.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll(); });
     }
     _syncMaskLabel(mask) {
         var _a, _b, _c;
@@ -1250,6 +1380,19 @@ export class ImageEditor {
             return;
         if (!this.isImageLoaded())
             return;
+        try {
+            const snap = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']);
+            snap._editorState = {
+                currentScale: this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale: this.baseImageScale,
+            };
+            this._cropBeforeJson = JSON.stringify(snap);
+        }
+        catch (e) {
+            console.warn('[ImageEditor] enterCropMode: could not snapshot pre-crop state', e);
+            this._cropBeforeJson = this._lastSnapshot;
+        }
         this._cropMode = true;
         this._prevSelectionSetting = this.canvas.selection;
         this.canvas.selection = false;
@@ -1270,11 +1413,13 @@ export class ImageEditor {
             strokeWidth: 1,
             strokeUniform: true,
             selectable: true,
-            hasRotatingPoint: !!((_c = this.options.crop) === null || _c === void 0 ? void 0 : _c.allowRotationOfCropRect),
-            lockRotation: !((_d = this.options.crop) === null || _d === void 0 ? void 0 : _d.allowRotationOfCropRect),
+            lockRotation: !((_c = this.options.crop) === null || _c === void 0 ? void 0 : _c.allowRotationOfCropRect),
             cornerSize: 8,
             objectCaching: false,
         });
+        if (!((_d = this.options.crop) === null || _d === void 0 ? void 0 : _d.allowRotationOfCropRect)) {
+            cropRect.setControlVisible('mtr', false);
+        }
         this.canvas.add(cropRect);
         cropRect.isCropRect = true;
         this.canvas.bringObjectToFront(cropRect);
@@ -1346,6 +1491,7 @@ export class ImageEditor {
         this._cropPrevEvented = null;
         this._cropHandlers = [];
         this._cropMode = false;
+        this._cropBeforeJson = null;
         this.canvas.selection = (_b = this._prevSelectionSetting) !== null && _b !== void 0 ? _b : false;
         this._prevSelectionSetting = undefined;
         this.canvas.discardActiveObject();
@@ -1362,16 +1508,7 @@ export class ImageEditor {
         const sy = Math.max(0, Math.round(rectBounds.top));
         const sw = Math.max(1, Math.round(Math.min(rectBounds.width, this.canvas.getWidth() - sx)));
         const sh = Math.max(1, Math.round(Math.min(rectBounds.height, this.canvas.getHeight() - sy)));
-        let beforeJson = null;
-        try {
-            const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
-            if (Array.isArray(jsonObj.objects))
-                jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
-            beforeJson = JSON.stringify(jsonObj);
-        }
-        catch (e) {
-            console.warn('[ImageEditor] applyCrop: could not serialize before state', e);
-        }
+        const beforeJson = this._cropBeforeJson;
         try {
             this.canvas.getObjects().filter(isMaskObject).forEach(m => {
                 try {
@@ -1442,32 +1579,27 @@ export class ImageEditor {
         }
         let afterJson = null;
         try {
-            const jsonObj2 = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
-            if (Array.isArray(jsonObj2.objects))
-                jsonObj2.objects = jsonObj2.objects.filter(o => !o.isCropRect);
+            const jsonObj2 = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']);
+            jsonObj2._editorState = {
+                currentScale: this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale: this.baseImageScale,
+            };
             afterJson = JSON.stringify(jsonObj2);
         }
         catch (e) {
             console.warn('[ImageEditor] applyCrop: failed to serialize after state', e);
         }
         try {
-            const cmd = new Command(() => { if (afterJson)
-                void this.loadFromState(afterJson); }, () => { if (beforeJson)
-                void this.loadFromState(beforeJson); });
-            if (this.historyManager.currentIndex < this.historyManager.history.length - 1) {
-                this.historyManager.history = this.historyManager.history.slice(0, this.historyManager.currentIndex + 1);
-            }
-            this.historyManager.history.push(cmd);
-            if (this.historyManager.history.length > this.historyManager.maxSize) {
-                this.historyManager.history.shift();
-            }
-            else {
-                this.historyManager.currentIndex++;
-            }
+            const cmd = new Command(async () => { if (afterJson)
+                await this.loadFromState(afterJson); }, async () => { if (beforeJson)
+                await this.loadFromState(beforeJson); });
+            this.historyManager.push(cmd);
         }
         catch (e) {
             console.warn('[ImageEditor] applyCrop: failed to push history', e);
         }
+        this._cropBeforeJson = null;
         this._updateUI();
         this.canvas.renderAll();
     }
@@ -1548,6 +1680,7 @@ export class ImageEditor {
         }
     }
     dispose() {
+        this._disposed = true;
         Object.keys(this._boundHandlers).forEach(key => {
             var _a;
             const id = this.elements[key];

@@ -34,9 +34,27 @@ export class HistoryManager {
             writable: true,
             value: -1
         });
+        Object.defineProperty(this, "_processing", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
     }
     execute(command) {
-        command.execute();
+        void command.execute();
+        if (this.currentIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.currentIndex + 1);
+        }
+        this.history.push(command);
+        if (this.history.length > this.maxSize) {
+            this.history.shift();
+        }
+        else {
+            this.currentIndex++;
+        }
+    }
+    push(command) {
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }
@@ -54,21 +72,33 @@ export class HistoryManager {
     canRedo() {
         return this.currentIndex < this.history.length - 1;
     }
-    undo() {
-        if (this.canUndo()) {
+    async undo() {
+        if (this._processing || !this.canUndo())
+            return;
+        this._processing = true;
+        try {
             const cmd = this.history[this.currentIndex];
             if (cmd) {
-                cmd.undo();
                 this.currentIndex--;
+                await cmd.undo();
             }
         }
+        finally {
+            this._processing = false;
+        }
     }
-    redo() {
-        if (this.canRedo()) {
+    async redo() {
+        if (this._processing || !this.canRedo())
+            return;
+        this._processing = true;
+        try {
             this.currentIndex++;
             const cmd = this.history[this.currentIndex];
             if (cmd)
-                cmd.execute();
+                await cmd.execute();
+        }
+        finally {
+            this._processing = false;
         }
     }
 }

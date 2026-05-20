@@ -1,19 +1,32 @@
-### 2.0.0
+# Changelog
 
-- Migrate to TypeScript with Fabric.js v7
+All notable changes to this project will be documented in this file.
 
-### 1.2.0
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- Add coverImageToCanvas option, allowing overflow (at least one side fits)
+## [Unreleased]
 
-### 1.1.2
+### Changed
+- Migrated codebase to TypeScript.
+- Upgraded rendering engine to Fabric.js v7.
 
-- In fitImageToCanvas, change the image placement from centered to top-left corner
+## [1.2.0] - 2026-02-24
 
-### 1.1.1
+### Added
+- New `coverImageToCanvas` option, allowing images to overflow the canvas bounds while ensuring at least one side fits perfectly.
 
-- Add historical operation logging and support rollback operations
+## [1.1.2] - 2026-02-19
 
-### 1.0.0
+### Changed
+- In the `fitImageToCanvas` function, changed image placement alignment from centered to top-left corner for more predictable positioning.
 
-- Initial release
+## [1.1.1] - 2025-08-23
+
+### Added
+- Historical operation logging with support for rollback and undo operations.
+
+## [1.0.0] - 2025-08-23
+
+### Added
+- Initial release.

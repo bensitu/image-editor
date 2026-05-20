@@ -1,17 +1,19 @@
 export declare class Command {
-    readonly execute: () => void;
-    readonly undo: () => void;
-    constructor(execute: () => void, undo: () => void);
+    readonly execute: () => Promise<void>;
+    readonly undo: () => Promise<void>;
+    constructor(execute: () => Promise<void>, undo: () => Promise<void>);
 }
 export declare class HistoryManager {
     readonly maxSize: number;
     history: Command[];
     currentIndex: number;
+    private _processing;
     constructor(maxSize?: number);
     execute(command: Command): void;
+    push(command: Command): void;
     canUndo(): boolean;
     canRedo(): boolean;
-    undo(): void;
-    redo(): void;
+    undo(): Promise<void>;
+    redo(): Promise<void>;
 }
 //# sourceMappingURL=history.d.ts.map

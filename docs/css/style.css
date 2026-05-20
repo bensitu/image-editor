@@ -122,7 +122,9 @@ textarea {
     box-sizing: border-box;
     transform-origin: left top;
     transition: transform 0.3s ease;
-    overflow: scroll;
+    overflow: auto;
+    min-width: 0;
+    min-height: 0;
     height: 57vh;
     width: 100%;
 }

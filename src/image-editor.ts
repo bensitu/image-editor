@@ -72,8 +72,20 @@ interface CanvasJSONObject {
     [key: string]: unknown;
 }
 
+interface EditorState {
+    currentScale: number;
+    currentRotation: number;
+    baseImageScale: number;
+}
+
 interface CanvasJSON {
     objects?: CanvasJSONObject[];
+    /** Canvas pixel width — included by Fabric's toJSON. */
+    width?: number;
+    /** Canvas pixel height — included by Fabric's toJSON. */
+    height?: number;
+    /** Editor-specific state embedded in snapshots for undo/redo restoration. */
+    _editorState?: EditorState;
     [key: string]: unknown;
 }
 
@@ -148,10 +160,27 @@ export class ImageEditor {
     /** @internal */ private _cropRect: FabricNS.Rect | null = null;
     /** @internal */ private _cropHandlers: CropHandler[] = [];
     /** @internal */ private _cropPrevEvented: CropPrevEvented[] | null = null;
+    /**
+     * Canvas snapshot captured in {@link enterCropMode} **before** the crop
+     * rectangle is added.  Used as the `undo` target in {@link applyCrop} so
+     * that undoing a crop restores the exact pre-crop state without any need
+     * to filter `isCropRect` objects out of a post-rect snapshot.
+     * @internal
+     */
+    private _cropBeforeJson: string | null = null;
     /** @internal */ private _prevSelectionSetting: boolean | undefined;
 
     // ── DOM event cleanup ───────────────────────────────────────────────────
     /** @internal */ private _boundHandlers: Partial<Record<ElementKey, BoundHandler[]>> = {};
+    /** @internal */ private _disposed = false;
+    /**
+     * When `true`, {@link saveState} is a no-op.  Used by {@link reset} to
+     * suppress the intermediate history entries from `scaleImage` and
+     * `rotateImage` so the entire reset is a single undoable step.
+     * @internal
+     */
+    private _suppressSaveState = false;
+
 
     // ── Callbacks ───────────────────────────────────────────────────────────
     /** Optional callback invoked once each time an image finishes loading. */
@@ -516,7 +545,7 @@ export class ImageEditor {
         let fimg: FabricNS.FabricImage;
         try {
             // v7: fromURL returns a Promise
-            fimg = await this._fabric.Image.fromURL(loadSrc, { crossOrigin: 'anonymous' });
+            fimg = await this._fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' });
         } catch (err) {
             console.error('[ImageEditor] fabric.Image.fromURL failed', err);
             return;
@@ -551,10 +580,17 @@ export class ImageEditor {
             this.baseImageScale = fimg.scaleX ?? 1;
 
         } else if (this.options.coverImageToCanvas) {
-            const cw = Math.max(this.options.canvasWidth, minW);
-            const ch = Math.max(this.options.canvasHeight, minH);
+            // Canvas = container size (not max(canvasWidth, containerWidth)).
+            // Using Math.max would make the canvas wider/taller than the
+            // container whenever options.canvasWidth > containerWidth, producing
+            // scrollbars with almost-zero scroll range.
+            const cw = minW || this.options.canvasWidth;
+            const ch = minH || this.options.canvasHeight;
             this._setCanvasSizeInt(cw, ch);
-            const coverScale = Math.min(1, Math.max(cw / imgW, ch / imgH));
+            // Cover scale: scale image so it fills the canvas on both axes.
+            // No Math.min(1, ...) cap — the image must scale UP if it is smaller
+            // than the canvas to actually "cover" the area.
+            const coverScale = Math.max(cw / imgW, ch / imgH);
             fimg.set({ left: 0, top: 0 });
             fimg.scale(coverScale);
             this.baseImageScale = fimg.scaleX ?? 1;
@@ -596,6 +632,26 @@ export class ImageEditor {
         this._updateUI();
         this.canvas.renderAll();
         this.isImageLoadedToCanvas = true;
+
+        // ── Save initial snapshot ─────────────────────────────────────────────
+        // Without this, _lastSnapshot is null after loadImage().  The very first
+        // saveState() call would then compute  before = null ?? after = after,
+        // meaning undo() is a no-op (it restores the same state it just saved).
+        // Setting _lastSnapshot here gives the correct "blank" baseline so that
+        // the first saveState() after loading has a proper before ≠ after.
+        try {
+            const initSnap = (this.canvas as any).toJSON(
+                ['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha'],
+            ) as CanvasJSON;
+            initSnap._editorState = {
+                currentScale:    this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale:  this.baseImageScale,
+            };
+            this._lastSnapshot = JSON.stringify(initSnap);
+        } catch (e) {
+            console.warn('[ImageEditor] loadImage: failed to save initial snapshot', e);
+        }
 
         this.onImageLoaded?.();
     }
@@ -656,6 +712,11 @@ export class ImageEditor {
         const iw = Math.max(1, Math.round(Number(w) || 1));
         const ih = Math.max(1, Math.round(Number(h) || 1));
         this.canvas!.setDimensions({ width: iw, height: ih });
+        // Reading offsetWidth forces a synchronous layout reflow in all major
+        // browsers so that `overflow: auto` on the container immediately detects
+        // the new canvas size and shows/hides scrollbars without waiting for the
+        // next paint cycle.
+        if (this.containerEl) void (this.containerEl as HTMLElement).offsetWidth;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -755,12 +816,18 @@ export class ImageEditor {
                         { scaleX: targetAbs, scaleY: targetAbs },
                         {
                             duration: this.options.animationDuration,
-                            onChange: () => this.canvas!.requestRenderAll(),
+                            onChange: () => { if (!this._disposed) this.canvas?.requestRenderAll(); },
                             onComplete,
                         },
                     );
                 } catch (e) { reject(e); }
             });
+
+            // Canvas may have been disposed while the animation was running.
+            if (this._disposed || !this.canvas || !this.originalImage) {
+                this.isAnimating = false;
+                return;
+            }
 
             this.originalImage.set({ scaleX: targetAbs, scaleY: targetAbs });
             this.originalImage.setCoords();
@@ -813,12 +880,17 @@ export class ImageEditor {
                         { angle: degrees },
                         {
                             duration: this.options.animationDuration,
-                            onChange: () => this.canvas!.requestRenderAll(),
+                            onChange: () => { if (!this._disposed) this.canvas?.requestRenderAll(); },
                             onComplete: () => resolve(),
                         },
                     );
                 } catch (e) { reject(e); }
             });
+
+            if (this._disposed || !this.canvas || !this.originalImage) {
+                this.isAnimating = false;
+                return;
+            }
 
             this.originalImage.set('angle', degrees);
             this.originalImage.setCoords();
@@ -850,10 +922,19 @@ export class ImageEditor {
      */
     reset(): Promise<void> {
         if (!this.originalImage) return Promise.resolve();
+        // Suppress the per-operation saveState() calls inside scaleImage/rotateImage
+        // so the entire reset is recorded as a single undoable step.
+        this._suppressSaveState = true;
         return this.scaleImage(1)
             .then(() => this.rotateImage(0))
-            .then(() => { this.saveState(); })
-            .catch(err => { console.error('[ImageEditor] reset() failed', err); });
+            .then(() => {
+                this._suppressSaveState = false;
+                this.saveState();
+            })
+            .catch(err => {
+                this._suppressSaveState = false;
+                console.error('[ImageEditor] reset() failed', err);
+            });
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -869,12 +950,34 @@ export class ImageEditor {
         if (!jsonString || !this.canvas) return;
 
         try {
-            const json: CanvasJSON = typeof jsonString === 'string'
-                ? (JSON.parse(jsonString) as CanvasJSON)
-                : jsonString;
+            const jsonStr = typeof jsonString === 'string'
+                ? jsonString
+                : JSON.stringify(jsonString);
+            const json: CanvasJSON = JSON.parse(jsonStr) as CanvasJSON;
+
+            // ── Restore canvas pixel dimensions ─────────────────────────────
+            // Fabric's toJSON includes `width` and `height`. Explicitly calling
+            // _setCanvasSizeInt before loading objects ensures the canvas is the
+            // right size even before loadFromJSON potentially sets it too.
+            if (typeof json.width === 'number' && json.width > 0 &&
+                typeof json.height === 'number' && json.height > 0) {
+                this._setCanvasSizeInt(json.width, json.height);
+            }
 
             // v7: loadFromJSON returns a Promise
             await this.canvas.loadFromJSON(json as Parameters<FabricNS.Canvas['loadFromJSON']>[0]);
+
+            // ── Defensive mask-property restoration ──────────────────────────
+            // After loadFromJSON, Fabric v7 SHOULD restore custom extra properties
+            // (maskId, maskName, originalAlpha, maskLabel) via _setOptions().
+            // However, Fabric v7 does NOT guarantee object order in getObjects()
+            // matches json.objects order, so index-based matching is unreliable.
+            //
+            // We use POSITION-BASED matching (type + left + top) to find each
+            // JSON mask object's counterpart in the freshly-loaded canvas objects,
+            // then UNCONDITIONALLY override custom props — we don't trust Fabric
+            // to have applied them, because the behaviour varies across 7.x builds.
+            this._restoreMaskPropsFromJSON(json);
 
             this._hideAllMaskLabels();
             const objs = this.canvas.getObjects();
@@ -897,7 +1000,33 @@ export class ImageEditor {
                 .filter(isMaskObject)
                 .reduce((max, m) => Math.max(max, m.maskId), 0);
 
+            // ── Restore editor-specific state ────────────────────────────────
+            // currentScale / currentRotation / baseImageScale are NOT Fabric
+            // properties; they live only in the editor instance.  Without
+            // restoring them, zoom-in/out button states and the scale input
+            // display wrong values after undo/redo.
+            const es = json._editorState;
+            if (es) {
+                if (typeof es.currentScale    === 'number') this.currentScale    = es.currentScale;
+                if (typeof es.currentRotation === 'number') this.currentRotation = es.currentRotation;
+                if (typeof es.baseImageScale  === 'number') this.baseImageScale  = es.baseImageScale;
+            }
+
+            // Keep isImageLoadedToCanvas in sync so callers and _updateUI()
+            // reflect the correct state after an undo/redo restore.
+            this.isImageLoadedToCanvas = !!this.originalImage;
+
+            // Update _lastSnapshot so that the NEXT saveState() correctly uses
+            // this restored state as its "before" baseline.  Without this, a
+            // new action after undo/redo would have a stale "before" pointer.
+            this._lastSnapshot = jsonStr;
+
+            // Re-attach the mouseover/mouseout hover handlers that are lost
+            // during JSON serialization (Fabric never serialises event listeners).
+            objs.filter(isMaskObject).forEach(m => this._reattachMaskHandlers(m));
+
             this.canvas.renderAll();
+            this._updateInputs();
             this._updateMaskList();
             this._updateUI();
         } catch (e) {
@@ -910,23 +1039,32 @@ export class ImageEditor {
      * Called automatically after transforms, mask operations, and crop.
      */
     saveState(): void {
-        if (!this.canvas) return;
+        if (!this.canvas || this._suppressSaveState) return;
         const activeObj = this.canvas.getActiveObject();
         this._hideAllMaskLabels();
 
         try {
-            const jsonObj = (this.canvas as any).toJSON(['maskId', 'maskName', 'isCropRect']) as CanvasJSON;
+            const jsonObj = (this.canvas as any).toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']) as CanvasJSON;
             if (Array.isArray(jsonObj.objects)) {
                 jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
             }
+
+            // Embed editor-specific state so loadFromState() can fully restore
+            // currentScale / currentRotation / baseImageScale during undo/redo.
+            jsonObj._editorState = {
+                currentScale:    this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale:  this.baseImageScale,
+            };
 
             const after  = JSON.stringify(jsonObj);
             const before = this._lastSnapshot ?? after;
             let executedOnce = false;
 
             const cmd = new Command(
-                () => { if (executedOnce) { void this.loadFromState(after); } executedOnce = true; },
-                () => { void this.loadFromState(before); },
+                // execute: first call is a no-op (executedOnce guard); redo calls properly await
+                async () => { if (executedOnce) { await this.loadFromState(after); } executedOnce = true; },
+                async () => { await this.loadFromState(before); },
             );
 
             this.historyManager.execute(cmd);
@@ -939,11 +1077,26 @@ export class ImageEditor {
         }
     }
 
-    /** Undoes the last recorded action. */
-    undo(): void { this.historyManager.undo(); }
+    /**
+     * Undoes the last recorded action.
+     *
+     * Routed through {@link animQueue} so that undo is serialized with any
+     * in-progress animation and rapid clicks cannot interleave canvas restores.
+     * The {@link HistoryManager._processing} lock provides a second line of
+     * defence inside the history layer itself.
+     */
+    undo(): Promise<void> {
+        return this.animQueue.add(() => this.historyManager.undo());
+    }
 
-    /** Redoes the next recorded action. */
-    redo(): void { this.historyManager.redo(); }
+    /**
+     * Redoes the next recorded action.
+     *
+     * Same serialization guarantees as {@link undo}.
+     */
+    redo(): Promise<void> {
+        return this.animQueue.add(() => this.historyManager.redo());
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // PUBLIC — mask management
@@ -1237,6 +1390,94 @@ export class ImageEditor {
         objs
             .filter(isMaskObject)
             .forEach(o => { try { delete o.__label; } catch { /* ignore */ } });
+    }
+
+    /**
+     * Restores `maskId`, `maskName`, `originalAlpha`, and `maskLabel` on canvas
+     * objects after `loadFromJSON` using **position-based matching** (type + left
+     * + top) rather than index-based matching.
+     *
+     * Why this is necessary:
+     * - Fabric v7 does NOT guarantee that `getObjects()` returns items in the
+     *   same order as `json.objects`, so `freshObjs[i] !== jsonObjects[i]` can
+     *   silently give wrong results.
+     * - Even when order matches, some Fabric 7.x builds skip unknown properties
+     *   during `_setOptions()` for certain shape types.
+     *
+     * We unconditionally override the properties (no "only if missing" guard)
+     * so the result is deterministic regardless of Fabric version behaviour.
+     * @internal
+     */
+    private _restoreMaskPropsFromJSON(json: CanvasJSON): void {
+        if (!this.canvas) return;
+        const jsonObjs   = (json.objects ?? []) as Array<CanvasJSONObject & {
+            left?: number; top?: number; type?: string;
+        }>;
+        const canvasObjs = this.canvas.getObjects();
+
+        // ── Pass 1: masks — match by type + left + top ───────────────────────
+        for (const jObj of jsonObjs) {
+            if (typeof jObj.maskId !== 'number') continue;
+
+            const jType = String(jObj.type ?? '');
+            const jLeft = Number(jObj.left ?? 0);
+            const jTop  = Number(jObj.top  ?? 0);
+
+            const match = canvasObjs.find(o => {
+                if (jType && o.type !== jType) return false;
+                return Math.abs((o.left ?? 0) - jLeft) < 0.5 &&
+                       Math.abs((o.top  ?? 0) - jTop)  < 0.5;
+            });
+            if (!match) continue;
+
+            // Unconditional override — never trust Fabric to have done it
+            (match as any).maskId       = jObj.maskId;
+            (match as any).maskName     = String(jObj.maskName ?? '');
+            (match as any).originalAlpha = typeof jObj.originalAlpha === 'number'
+                ? jObj.originalAlpha
+                : ((match as any).opacity ?? 0.5);
+        }
+
+        // ── Pass 2: label texts — mark for _hideAllMaskLabels ────────────────
+        // Labels may not be at a unique position so we fall back to index here;
+        // mismatches are harmless because _hideAllMaskLabels only uses the flag
+        // to remove objects from the canvas (not to persist any state).
+        jsonObjs.forEach((jObj, idx) => {
+            if ((jObj as any).maskLabel !== true) return;
+            const canvasObj = canvasObjs[idx];
+            if (canvasObj) (canvasObj as any).maskLabel = true;
+        });
+    }
+
+    /**
+     * Re-attaches the `mouseover`/`mouseout` hover handlers to a mask object.
+     *
+     * Fabric never serialises event listeners, so after any `loadFromJSON` call
+     * (undo, redo, crop restore …) the masks lose their hover styling.
+     * This method replaces them using the mask's current `originalAlpha`,
+     * `stroke`, and `strokeWidth` as the baseline "normal" style.
+     * @internal
+     */
+    private _reattachMaskHandlers(mask: MaskObject): void {
+        // Remove any stale listeners first to avoid duplicates.
+        // Fabric v7: `off()` with no second arg removes all listeners for that event.
+        mask.off('mouseover');
+        mask.off('mouseout');
+
+        const normalOpacity = mask.originalAlpha ?? (mask.opacity ?? 0.5);
+        const normalStyle = {
+            stroke:      typeof mask.stroke      === 'string' ? mask.stroke      : '#ccc',
+            strokeWidth: typeof mask.strokeWidth === 'number' ? mask.strokeWidth : 1,
+            opacity:     normalOpacity,
+        };
+        const hoverStyle = {
+            stroke:      '#ff5500',
+            strokeWidth: 2,
+            opacity:     Math.min(normalOpacity + 0.2, 1),
+        };
+
+        mask.on('mouseover', () => { mask.set(hoverStyle);  mask.canvas?.requestRenderAll(); });
+        mask.on('mouseout',  () => { mask.set(normalStyle); mask.canvas?.requestRenderAll(); });
     }
 
     /** @internal */
@@ -1564,6 +1805,25 @@ export class ImageEditor {
         if (!this.canvas || !this.originalImage || this._cropMode) return;
         if (!this.isImageLoaded()) return;
 
+        // ── Snapshot BEFORE the crop rect is added ───────────────────────────
+        // We store this here rather than deriving it inside applyCrop() from a
+        // filtered toJSON() call, because the filter approach depends on the
+        // `isCropRect` custom property being reliably serialised by Fabric —
+        // which can silently fail if the property is set after construction.
+        // Snapshotting here is simpler and guaranteed to be crop-rect-free.
+        try {
+            const snap = (this.canvas as any).toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']) as CanvasJSON;
+            snap._editorState = {
+                currentScale:    this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale:  this.baseImageScale,
+            };
+            this._cropBeforeJson = JSON.stringify(snap);
+        } catch (e) {
+            console.warn('[ImageEditor] enterCropMode: could not snapshot pre-crop state', e);
+            this._cropBeforeJson = this._lastSnapshot;
+        }
+
         this._cropMode             = true;
         this._prevSelectionSetting = this.canvas.selection;
         this.canvas.selection      = false;
@@ -1587,11 +1847,19 @@ export class ImageEditor {
             strokeWidth:     1,
             strokeUniform:   true,
             selectable:      true,
-            hasRotatingPoint: !!(this.options.crop?.allowRotationOfCropRect),
+            // v7: `hasRotatingPoint` was removed. Use setControlVisible('mtr', false)
+            // to hide the rotation handle instead. `lockRotation` still prevents
+            // the actual rotation transform even if the handle were visible.
             lockRotation:    !(this.options.crop?.allowRotationOfCropRect),
             cornerSize:      8,
             objectCaching:   false,
         });
+
+        // v7: hide the rotation handle when rotation is not permitted.
+        // `hasRotatingPoint` (v5 API) is ignored by Fabric v7.
+        if (!this.options.crop?.allowRotationOfCropRect) {
+            cropRect.setControlVisible('mtr', false);
+        }
 
         this.canvas.add(cropRect);
         (cropRect as FabricNS.Rect & { isCropRect?: boolean }).isCropRect = true;
@@ -1620,7 +1888,7 @@ export class ImageEditor {
         cropRect.on('scaling',  onModified);
 
         this._cropHandlers = [{
-            target: cropRect as unknown as MaskObject,
+            target: cropRect,  // FabricNS.Rect satisfies CropHandler.target union type directly
             handlers: [
                 { evt: 'modified', fn: onModified },
                 { evt: 'moving',   fn: onModified },
@@ -1654,6 +1922,7 @@ export class ImageEditor {
         this._cropPrevEvented = null;
         this._cropHandlers    = [];
         this._cropMode        = false;
+        this._cropBeforeJson  = null;
 
         this.canvas.selection = this._prevSelectionSetting ?? false;
         this._prevSelectionSetting = undefined;
@@ -1679,13 +1948,11 @@ export class ImageEditor {
         const sw = Math.max(1, Math.round(Math.min(rectBounds.width,  this.canvas.getWidth()  - sx)));
         const sh = Math.max(1, Math.round(Math.min(rectBounds.height, this.canvas.getHeight() - sy)));
 
-        // Snapshot before
-        let beforeJson: string | null = null;
-        try {
-            const jsonObj = (this.canvas as any).toJSON(['maskId', 'maskName', 'isCropRect']) as CanvasJSON;
-            if (Array.isArray(jsonObj.objects)) jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
-            beforeJson = JSON.stringify(jsonObj);
-        } catch (e) { console.warn('[ImageEditor] applyCrop: could not serialize before state', e); }
+        // Use the snapshot captured in enterCropMode() — taken BEFORE the crop
+        // rect was added to the canvas, so it is guaranteed to be crop-rect-free.
+        // This avoids the fragile approach of filtering by the `isCropRect`
+        // custom property (which can silently not serialise in some Fabric builds).
+        const beforeJson: string | null = this._cropBeforeJson;
 
         // Remove masks
         try {
@@ -1747,30 +2014,28 @@ export class ImageEditor {
         // Snapshot after + push history command
         let afterJson: string | null = null;
         try {
-            const jsonObj2 = (this.canvas as any).toJSON(['maskId', 'maskName', 'isCropRect']) as CanvasJSON;
-            if (Array.isArray(jsonObj2.objects)) jsonObj2.objects = jsonObj2.objects.filter(o => !o.isCropRect);
+            const jsonObj2 = (this.canvas as any).toJSON(['maskId', 'maskName', 'isCropRect', 'maskLabel', 'originalAlpha']) as CanvasJSON;
+            jsonObj2._editorState = {
+                currentScale:    this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale:  this.baseImageScale,
+            };
             afterJson = JSON.stringify(jsonObj2);
         } catch (e) { console.warn('[ImageEditor] applyCrop: failed to serialize after state', e); }
 
         try {
+            // Use historyManager.push() (not execute()) because the crop operation
+            // has already been applied above — we only need undo/redo wired up.
+            // Direct mutation of history/currentIndex fields is avoided here.
             const cmd = new Command(
-                () => { if (afterJson)  void this.loadFromState(afterJson); },
-                () => { if (beforeJson) void this.loadFromState(beforeJson); },
+                async () => { if (afterJson)  await this.loadFromState(afterJson); },
+                async () => { if (beforeJson) await this.loadFromState(beforeJson); },
             );
-
-            // Trim redo history, then push
-            if (this.historyManager.currentIndex < this.historyManager.history.length - 1) {
-                this.historyManager.history = this.historyManager.history.slice(
-                    0, this.historyManager.currentIndex + 1,
-                );
-            }
-            this.historyManager.history.push(cmd);
-            if (this.historyManager.history.length > this.historyManager.maxSize) {
-                this.historyManager.history.shift();
-            } else {
-                this.historyManager.currentIndex++;
-            }
+            this.historyManager.push(cmd);
         } catch (e) { console.warn('[ImageEditor] applyCrop: failed to push history', e); }
+
+        // Snapshot no longer needed after history entry is wired up.
+        this._cropBeforeJson = null;
 
         this._updateUI();
         this.canvas.renderAll();
@@ -1867,6 +2132,9 @@ export class ImageEditor {
      * Call this when the editor is no longer needed to prevent memory leaks.
      */
     dispose(): void {
+        // Signal in-flight animations to stop touching the canvas.
+        this._disposed = true;
+
         // Remove all bound DOM listeners
         (Object.keys(this._boundHandlers) as ElementKey[]).forEach(key => {
             const id = this.elements[key];

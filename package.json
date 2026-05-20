@@ -22,7 +22,8 @@
         ".": {
             "types": "./dist/types/index.d.ts",
             "import": "./dist/esm/index.js",
-            "require": "./dist/cjs/index.js"
+            "require": "./dist/cjs/index.js",
+            "default": "./dist/umd/image-editor.umd.js"
         }
     },
     "files": [
@@ -31,9 +32,9 @@
     "scripts": {
         "clean": "rimraf dist",
         "build:esm": "tsc -p tsconfig.build.json",
-        "build:cjs": "tsc -p tsconfig.cjs.json",
+        "build:cjs": "rollup -c --environment FORMAT:cjs",
         "build:types": "tsc -p tsconfig.types.json",
-        "build:umd": "rollup -c",
+        "build:umd": "rollup -c --environment FORMAT:umd",
         "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run build:umd",
         "dev": "tsc --watch"
     },
@@ -64,7 +65,7 @@
         "typescript"
     ],
     "engines": {
-        "node": ">=18"
+        "node": ">=20"
     },
     "sideEffects": false
 }

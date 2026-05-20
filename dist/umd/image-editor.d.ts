@@ -40,8 +40,19 @@ interface CanvasJSONObject {
     type?: string;
     [key: string]: unknown;
 }
+interface EditorState {
+    currentScale: number;
+    currentRotation: number;
+    baseImageScale: number;
+}
 interface CanvasJSON {
     objects?: CanvasJSONObject[];
+    /** Canvas pixel width — included by Fabric's toJSON. */
+    width?: number;
+    /** Canvas pixel height — included by Fabric's toJSON. */
+    height?: number;
+    /** Editor-specific state embedded in snapshots for undo/redo restoration. */
+    _editorState?: EditorState;
     [key: string]: unknown;
 }
 /**
@@ -98,8 +109,24 @@ export declare class ImageEditor {
     /** @internal */ private _cropRect;
     /** @internal */ private _cropHandlers;
     /** @internal */ private _cropPrevEvented;
+    /**
+     * Canvas snapshot captured in {@link enterCropMode} **before** the crop
+     * rectangle is added.  Used as the `undo` target in {@link applyCrop} so
+     * that undoing a crop restores the exact pre-crop state without any need
+     * to filter `isCropRect` objects out of a post-rect snapshot.
+     * @internal
+     */
+    private _cropBeforeJson;
     /** @internal */ private _prevSelectionSetting;
     /** @internal */ private _boundHandlers;
+    /** @internal */ private _disposed;
+    /**
+     * When `true`, {@link saveState} is a no-op.  Used by {@link reset} to
+     * suppress the intermediate history entries from `scaleImage` and
+     * `rotateImage` so the entire reset is a single undoable step.
+     * @internal
+     */
+    private _suppressSaveState;
     /** Optional callback invoked once each time an image finishes loading. */
     onImageLoaded: (() => void) | null;
     /**
@@ -208,10 +235,21 @@ export declare class ImageEditor {
      * Called automatically after transforms, mask operations, and crop.
      */
     saveState(): void;
-    /** Undoes the last recorded action. */
-    undo(): void;
-    /** Redoes the next recorded action. */
-    redo(): void;
+    /**
+     * Undoes the last recorded action.
+     *
+     * Routed through {@link animQueue} so that undo is serialized with any
+     * in-progress animation and rapid clicks cannot interleave canvas restores.
+     * The {@link HistoryManager._processing} lock provides a second line of
+     * defence inside the history layer itself.
+     */
+    undo(): Promise<void>;
+    /**
+     * Redoes the next recorded action.
+     *
+     * Same serialization guarantees as {@link undo}.
+     */
+    redo(): Promise<void>;
     /**
      * Creates and adds a mask shape to the canvas.
      *
@@ -245,6 +283,33 @@ export declare class ImageEditor {
     private _createLabelForMask;
     /** @internal */
     private _hideAllMaskLabels;
+    /**
+     * Restores `maskId`, `maskName`, `originalAlpha`, and `maskLabel` on canvas
+     * objects after `loadFromJSON` using **position-based matching** (type + left
+     * + top) rather than index-based matching.
+     *
+     * Why this is necessary:
+     * - Fabric v7 does NOT guarantee that `getObjects()` returns items in the
+     *   same order as `json.objects`, so `freshObjs[i] !== jsonObjects[i]` can
+     *   silently give wrong results.
+     * - Even when order matches, some Fabric 7.x builds skip unknown properties
+     *   during `_setOptions()` for certain shape types.
+     *
+     * We unconditionally override the properties (no "only if missing" guard)
+     * so the result is deterministic regardless of Fabric version behaviour.
+     * @internal
+     */
+    private _restoreMaskPropsFromJSON;
+    /**
+     * Re-attaches the `mouseover`/`mouseout` hover handlers to a mask object.
+     *
+     * Fabric never serialises event listeners, so after any `loadFromJSON` call
+     * (undo, redo, crop restore …) the masks lose their hover styling.
+     * This method replaces them using the mask's current `originalAlpha`,
+     * `stroke`, and `strokeWidth` as the baseline "normal" style.
+     * @internal
+     */
+    private _reattachMaskHandlers;
     /** @internal */
     private _syncMaskLabel;
     /** @internal */

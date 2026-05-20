@@ -1,0 +1,1 @@
+{"version":3,"file":"animation-queue.d.ts","sourceRoot":"","sources":["../src/animation-queue.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAQH;;;;;;;;;;GAUG;AACH,qBAAa,cAAc;IACvB,OAAO,CAAC,KAAK,CAAoB;IACjC,OAAO,CAAC,OAAO,CAAS;IAExB;;;;;;OAMG;IACH,GAAG,CAAC,WAAW,EAAE,MAAM,OAAO,CAAC,IAAI,CAAC,GAAG,OAAO,CAAC,IAAI,CAAC;IASpD,gBAAgB;YACF,QAAQ;CAkBzB"}
