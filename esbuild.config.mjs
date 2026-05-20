@@ -1,40 +1,60 @@
 import esbuild from 'esbuild'
-import babel from 'esbuild-plugin-babel';
 
 const shared = {
-  entryPoints: ['src/image-editor.js'],
   bundle: true,
-  minify: true,
   sourcemap: true,
   legalComments: 'inline',
-  external: ['fabric'],
-  plugins: [
-    babel({
-      filter: /\.m?js$/,
-      config: {
-        presets: [
-          ['@babel/preset-env', {
-            targets: { ie: '11' },
-            modules: false,
-            useBuiltIns: false
-          }]
-        ]
-      }
-    })
-  ]
+  target: ['chrome100', 'firefox100', 'safari15', 'edge100']
 };
 
-await esbuild.build({
-  ...shared,
-  format: 'esm',
-  outfile: 'dist/image-editor.esm.min.js'
-});
+const builds = [
+  {
+    entryPoints: ['src/esm.js'],
+    format: 'esm',
+    external: ['fabric'],
+    outfile: 'dist/image-editor.esm.js',
+    minify: false
+  },
+  {
+    entryPoints: ['src/esm.js'],
+    format: 'esm',
+    external: ['fabric'],
+    outfile: 'dist/image-editor.esm.min.js',
+    minify: true
+  },
+  {
+    entryPoints: ['src/esm.js'],
+    format: 'esm',
+    external: ['fabric'],
+    outfile: 'dist/image-editor.esm.mjs',
+    minify: false
+  },
+  {
+    entryPoints: ['src/esm.js'],
+    format: 'esm',
+    external: ['fabric'],
+    outfile: 'dist/image-editor.esm.min.mjs',
+    minify: true
+  },
+  {
+    entryPoints: ['src/browser.js'],
+    format: 'iife',
+    outfile: 'dist/image-editor.js',
+    minify: false
+  },
+  {
+    entryPoints: ['src/browser.js'],
+    format: 'iife',
+    outfile: 'dist/image-editor.min.js',
+    minify: true
+  }
+];
 
-await esbuild.build({
-  ...shared,
-  format: 'iife',
-  globalName: 'ImageEditor',
-  outfile: 'dist/image-editor.min.js'
-});
+for (const build of builds) {
+  await esbuild.build({
+    ...shared,
+    ...build
+  });
+}
 
 console.log('✨  build finished!  ✨');

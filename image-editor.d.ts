@@ -1,34 +1,45 @@
-// image-editor.d.ts - TypeScript type definition files
+// image-editor.d.ts - TypeScript declarations for @bensitu/image-editor
 
-declare module 'image-editor' {
+declare module '@bensitu/image-editor' {
   import { Canvas, Image as FabricImage, Object as FabricObject } from 'fabric';
 
-  // Basic configuration interface
+  export interface LabelOptions {
+    getText?: (mask: MaskObject, maskIndex: number) => string;
+    create?: (mask: MaskObject, fabric: any) => FabricObject;
+    textOptions?: Record<string, any>;
+  }
+
+  export interface CropOptions {
+    minWidth?: number;
+    minHeight?: number;
+    padding?: number;
+    hideMasksDuringCrop?: boolean;
+    preserveMasksAfterCrop?: boolean;
+    allowRotationOfCropRect?: boolean;
+  }
+
   export interface ImageEditorOptions {
-    // Canvas configuration
     canvasWidth?: number;
     canvasHeight?: number;
     backgroundColor?: string;
-
-    // Animation configuration
     animationDuration?: number;
     minScale?: number;
     maxScale?: number;
     scaleStep?: number;
     rotationStep?: number;
 
-    // Image processing configuration
     expandCanvasToImage?: boolean;
     fitImageToCanvas?: boolean;
+    coverImageToCanvas?: boolean;
+
     downsampleOnLoad?: boolean;
-    downsampleMaxPixels?: number;
+    downsampleMaxWidth?: number;
+    downsampleMaxHeight?: number;
     downsampleQuality?: number;
 
-    // Export configuration
     exportMultiplier?: number;
     exportImageAreaByDefault?: boolean;
 
-    // Mask configuration
     defaultMaskWidth?: number;
     defaultMaskHeight?: number;
     maskRotatable?: boolean;
@@ -36,24 +47,21 @@ declare module 'image-editor' {
     maskLabelOffset?: number;
     maskName?: string;
 
-    // UI configuration
+    groupSelection?: boolean;
+
     showPlaceholder?: boolean;
     initialImageBase64?: string | null;
     defaultDownloadFileName?: string;
-    language?: 'en' | 'zh' | 'es' | 'fr';
-    theme?: 'light' | 'dark';
 
-    // Callback function
+    label?: LabelOptions;
+    crop?: CropOptions;
+
     onImageLoaded?: () => void;
-    onError?: (error: ImageEditorError) => void;
-    onMaskAdded?: (mask: MaskObject) => void;
-    onMaskRemoved?: (maskId: number) => void;
   }
 
-  // Element ID Mapping Interface
   export interface ElementIdMap {
     canvas?: string;
-    canvasContainer?: string;
+    canvasContainer?: string | null;
     imgPlaceholder?: string;
     scaleRate?: string;
     rotationLeftInput?: string;
@@ -69,24 +77,41 @@ declare module 'image-editor' {
     zoomInBtn?: string;
     zoomOutBtn?: string;
     resetBtn?: string;
+    undoBtn?: string;
+    redoBtn?: string;
     imageInput?: string;
     uploadArea?: string;
+    cropBtn?: string;
+    applyCropBtn?: string;
+    cancelCropBtn?: string;
   }
 
-  // Mask configuration interface
   export interface MaskConfig {
-    width?: number;
-    height?: number;
+    shape?: 'rect' | 'circle' | 'ellipse' | 'polygon' | string;
+    width?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    height?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    radius?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    rx?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    ry?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    points?: Array<{ x: number; y: number }>;
     color?: string;
     alpha?: number;
     gap?: number;
-    left?: number;
-    top?: number;
+    left?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    top?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    angle?: number;
     selectable?: boolean;
-    rotatable?: boolean;
+    hasControls?: boolean;
+    borderColor?: string;
+    cornerColor?: string;
+    cornerSize?: number;
+    transparentCorners?: boolean;
+    strokeUniform?: boolean;
+    styles?: Record<string, any>;
+    fabricGenerator?: (config: MaskConfig, canvas: Canvas, options: ImageEditorOptions) => FabricObject;
+    onCreate?: (mask: MaskObject, canvas: Canvas) => void;
   }
 
-  // Mask Object Interface
   export interface MaskObject extends FabricObject {
     maskId: number;
     maskName: string;
@@ -94,53 +119,21 @@ declare module 'image-editor' {
     __label?: FabricObject;
   }
 
-  // Export options interface
-  export interface ExportOptions {
-    format?: 'png' | 'jpeg' | 'webp' | 'svg' | 'json';
+  export interface Base64ExportOptions {
+    exportImageArea?: boolean;
+    multiplier?: number;
+  }
+
+  export interface ImageFileExportOptions {
+    mergeMask?: boolean;
+    fileType?: 'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp';
     quality?: number;
     multiplier?: number;
-    exportImageArea?: boolean;
     fileName?: string;
-    includeBackground?: boolean;
   }
 
-  // Event interface
-  export interface EventData {
-    maskAdded: { mask: MaskObject; count: number };
-    maskRemoved: { maskId: number; count: number };
-    maskSelected: { mask: MaskObject | null };
-    imageLoaded: { image: FabricImage; dimensions: { width: number; height: number } };
-    imageScaled: { scale: number; previousScale: number };
-    imageRotated: { angle: number; previousAngle: number };
-    canvasResized: { width: number; height: number };
-    exportStarted: { format: string; options: ExportOptions };
-    exportCompleted: { format: string; dataUrl: string };
-    error: { type: string; message: string; originalError?: Error };
-    stateChanged: { canUndo: boolean; canRedo: boolean };
-  }
-
-  // Event callback type
-  export type EventCallback<T = any> = (data: T) => void;
-
-  // Error Class
-  export class ImageEditorError extends Error {
-    code: string;
-    originalError?: Error;
-
-    constructor(message: string, code: string, originalError?: Error);
-  }
-
-  // History Status Interface
-  export interface HistoryState {
-    canvasData: string;
-    timestamp: number;
-    description?: string;
-  }
-
-  // Main class definition
   export class ImageEditor {
-    // Public attributes
-    readonly options: Required<ImageEditorOptions>;
+    readonly options: ImageEditorOptions;
     readonly canvas: Canvas | null;
     readonly canvasEl: HTMLCanvasElement | null;
     readonly containerEl: HTMLElement | null;
@@ -151,74 +144,36 @@ declare module 'image-editor' {
     readonly isAnimating: boolean;
     readonly isImageLoadedToCanvas: boolean;
 
-    // Constructor
     constructor(options?: ImageEditorOptions);
 
-    // Initialization method
     init(idMap?: ElementIdMap): void;
-
-    // Image operation method
     loadImage(base64: string): Promise<void>;
     isImageLoaded(): boolean;
+
     scaleImage(factor: number): Promise<void>;
     rotateImage(degrees: number): Promise<void>;
     reset(): Promise<void>;
 
-    // Mask control method
     addMask(config?: MaskConfig): MaskObject | null;
-    addCircleMask(config?: MaskConfig & { radius?: number }): MaskObject | null;
-    addPolygonMask(points: Array<{ x: number, y: number }>, config?: MaskConfig): MaskObject | null;
     removeSelectedMask(): void;
     removeAllMasks(): void;
-    removeMask(maskId: number): boolean;
-    getMask(maskId: number): MaskObject | null;
-    getAllMasks(): MaskObject[];
-    selectMask(maskId: number): boolean;
 
-    // Export method
     merge(): Promise<void>;
-    downloadImage(fileName?: string, options?: ExportOptions): Promise<void>;
-    getImageBase64(options?: ExportOptions): Promise<string>;
-    exportAs(format: ExportOptions['format'], options?: ExportOptions): Promise<string>;
+    downloadImage(fileName?: string): void;
+    getImageBase64(opts?: Base64ExportOptions): Promise<string>;
+    exportImageFile(opts?: ImageFileExportOptions): Promise<File>;
 
-    // Historical control method
-    undo(): boolean;
-    redo(): boolean;
-    canUndo(): boolean;
-    canRedo(): boolean;
-    saveState(description?: string): void;
+    enterCropMode(): void;
+    cancelCrop(): void;
+    applyCrop(): Promise<void>;
 
-    // Event system method
-    on<K extends keyof EventData>(event: K, callback: EventCallback<EventData[K]>): void;
-    off<K extends keyof EventData>(event: K, callback?: EventCallback<EventData[K]>): void;
-    emit<K extends keyof EventData>(event: K, data: EventData[K]): void;
+    undo(): void;
+    redo(): void;
+    saveState(): void;
+    loadFromState(jsonString: string | object): void;
 
-    // Tools
-    setTheme(theme: 'light' | 'dark'): void;
-    setLanguage(lang: string): void;
-    validateOptions(options: ImageEditorOptions): boolean;
-    getCanvasDimensions(): { width: number; height: number };
-    setCanvasDimensions(width: number, height: number): void;
-
-    // Life cycle method
     dispose(): void;
   }
 
-  // Factory function
-  export function createImageEditor(options?: ImageEditorOptions): ImageEditor;
-
-  // Practical type
-  export type MaskShape = 'rectangle' | 'circle' | 'polygon' | 'freeform';
-  export type ExportFormat = 'png' | 'jpeg' | 'webp' | 'svg' | 'json';
-  export type Theme = 'light' | 'dark';
-  export type Language = 'en' | 'zh' | 'es' | 'fr';
-
-  // Constants
-  export const DEFAULT_OPTIONS: Required<ImageEditorOptions>;
-  export const SUPPORTED_FORMATS: readonly ExportFormat[];
-  export const SUPPORTED_THEMES: readonly Theme[];
-  export const SUPPORTED_LANGUAGES: readonly Language[];
-
-  // Version
-  export const VERSION: string;
+  export default ImageEditor;
 }

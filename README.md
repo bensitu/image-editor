@@ -45,9 +45,15 @@ Include fabric.js and the ImageEditor class script in your HTML:
 <script src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"></script>
 
 <!-- ImageEditor -->
-<script src="path/to/ImageEditor.js"></script>
+<script src="path/to/dist/image-editor.min.js"></script>
 <!-- or -->
 <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/image-editor.min.js"></script>
+```
+
+For ESM/bundler usage:
+
+```javascript
+import ImageEditor, { ImageEditor as NamedImageEditor } from '@bensitu/image-editor';
 ```
 
 ## Quick Start
@@ -137,13 +143,14 @@ When creating the editor instance, you can pass an options object to override de
 | `showPlaceholder` | `true` | Shows placeholder when no image is loaded |
 | `initialImageBase64` | `null` | Base64 string to auto-load as initial image |
 | `defaultDownloadFileName` | `edited_image.jpg` | Default file name for downloads |
+| `crop.preserveMasksAfterCrop` | `false` | Applying crop removes unmerged masks. Merge masks first if they should be baked into the cropped image. |
 
 ## API Methods
 
 | Method | Description |
 |--------|-------------|
 | `init(idMap)` | Bind the editor to DOM elements. Pass IDs in an object (optional). |
-| `loadImage(base64)` | Load an image from a base64 data string. |
+| `loadImage(base64)` | Load an image from a base64 data string. Resolves after the Fabric image is on the canvas. |
 | `scaleImage(factor)` | Scale image to the given factor (relative to base scale). |
 | `rotateImage(degrees)` | Rotate image to the given angle in degrees. |
 | `reset()` | Reset scale to 1 and rotation to 0. |
@@ -158,6 +165,8 @@ When creating the editor instance, you can pass an options object to override de
 | `merge()` | Merge masks with the base image in the canvas. |
 | `downloadImage()` | Download the merged image as a file. |
 | `exportImageFile(options)` | Exports the current canvas (with or without masks) as a `File` object. |
+
+Applying crop removes unmerged masks. Use `merge()` before cropping when masks should become part of the image pixels.
 
 ## Example Workflow
 
@@ -184,7 +193,7 @@ npm run build
 ```
 
 ### Load UMD js file:
-You can download image-editor from the dist folder.
+Use `dist/image-editor.js` or `dist/image-editor.min.js` for browser global script usage. Use `dist/image-editor.esm.mjs` or `dist/image-editor.esm.min.mjs` for standards-compliant ESM imports. Matching `.js` ESM builds are also generated for browser and bundler compatibility.
 
 ## Browser Support
 
@@ -193,9 +202,27 @@ You can download image-editor from the dist folder.
 * Safari 15+
 * Edge 100+
 
-The class uses modern DOM & ES2022 features (optional chaining, class, async/await).
+The package build targets these modern browsers and uses modern DOM and JavaScript features.
 
-If you need IE11 or old mobile Safari you will have to transpile.
+IE11 and old mobile Safari are not supported by the distributed build. If you need them, transpile the package and provide any required DOM or JavaScript polyfills in your application.
+
+## Automated npm Publishing
+
+This repository publishes to npm through GitHub Actions when a version tag is pushed.
+
+Repository setup:
+
+1. Create an npm automation token with publish permission.
+2. Add it to GitHub repository secrets as `NPM_TOKEN`.
+3. Make sure `package.json` version, `CHANGELOG.md`, and generated `dist/` files are committed.
+4. Push a matching tag, for example:
+
+```bash
+git tag v1.2.1
+git push origin v1.2.1
+```
+
+The workflow validates that the tag version matches `package.json`, installs dependencies, runs lint and tests, verifies package contents, and publishes the package to npm with provenance.
 
 ## Dependencies
 

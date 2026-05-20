@@ -1,0 +1,97 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      npm_tag:
+        description: 'npm dist-tag to publish with'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build, test, and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install native canvas dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libcairo2-dev \
+            libpango1.0-dev \
+            libjpeg-dev \
+            libgif-dev \
+            librsvg2-dev
+
+      - name: Install dependencies
+        run: npm install --include=optional
+
+      - name: Validate package version
+        shell: bash
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          echo "Package version: ${PACKAGE_VERSION}"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [[ "${PACKAGE_VERSION}" != "${TAG_VERSION}" ]]; then
+              echo "package.json version (${PACKAGE_VERSION}) must match pushed tag (${GITHUB_REF_NAME})." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+      - name: Check npm version availability
+        shell: bash
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
+        run: |
+          if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
+            echo "Missing NPM_TOKEN repository secret." >&2
+            exit 1
+          fi
+
+          NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
+          npm publish --access public --tag "${NPM_TAG}" --provenance

@@ -1,19 +1,23 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "Lightweight canvas-based image editor",
-    "main": "dist/image-editor.js",
-    "module": "dist/image-editor.esm.js",
-    "types": "image-editor.d.ts",
+    "main": "./dist/image-editor.js",
+    "module": "./dist/image-editor.esm.mjs",
+    "types": "./image-editor.d.ts",
     "exports": {
-        "import": "./dist/image-editor.esm.js",
-        "require": "./dist/image-editor.iife.js"
+        ".": {
+            "types": "./image-editor.d.ts",
+            "import": "./dist/image-editor.esm.mjs",
+            "default": "./dist/image-editor.js"
+        }
     },
     "scripts": {
         "dev": "node esbuild.config.mjs --watch",
         "build": "node esbuild.config.mjs",
         "build:babel": "babel src --out-dir dist --copy-files",
-        "lint": "eslint src --ext .js"
+        "lint": "eslint src --ext .js",
+        "test": "npm run build && node --test tests"
     },
     "repository": {
         "type": "git",
@@ -23,10 +27,14 @@
     "license": "MIT",
     "files": [
         "dist",
-        "src"
+        "src",
+        "image-editor.d.ts"
     ],
     "peerDependencies": {
         "fabric": "^5.5.2"
+    },
+    "publishConfig": {
+        "access": "public"
     },
     "devDependencies": {
         "@babel/cli": "^7.22.9",
@@ -37,8 +45,10 @@
         "eslint": "^8.49.0"
     },
     "browserslist": [
-        "defaults",
-        "ie 11"
+        "Chrome >= 100",
+        "Firefox >= 100",
+        "Safari >= 15",
+        "Edge >= 100"
     ],
     "keywords": [
         "fabricjs",
@@ -60,7 +70,10 @@
                 "@babel/preset-env",
                 {
                     "targets": {
-                        "ie": "11"
+                        "chrome": "100",
+                        "firefox": "100",
+                        "safari": "15",
+                        "edge": "100"
                     },
                     "useBuiltIns": false,
                     "modules": false

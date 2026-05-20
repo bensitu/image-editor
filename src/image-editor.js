@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.2.0
+ * @version 1.2.1
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -12,19 +12,30 @@
  * See the license files for details.
  */
 
-(function (root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        // AMD / RequireJS
-        define([], factory)
-    } else if (typeof module === 'object' && module.exports) {
-        // CommonJS / Node / webpack (target=commonjs)
-        module.exports = factory()
-    } else {
-        // Browser normal <script> method, hanging to the global
-        root.ImageEditor = factory()
-    }
-})(typeof self !== 'undefined' ? self : this, function () {
-    'use strict'
+let fabric = null;
+
+function getGlobalScope() {
+    if (typeof globalThis !== 'undefined') return globalThis;
+    if (typeof self !== 'undefined') return self;
+    if (typeof window !== 'undefined') return window;
+    return null;
+}
+
+function getGlobalFabric() {
+    const scope = getGlobalScope();
+    return scope && scope.fabric ? scope.fabric : null;
+}
+
+export function setFabric(fabricInstance) {
+    fabric = fabricInstance || getGlobalFabric();
+    return fabric;
+}
+
+function ensureFabric() {
+    if (!fabric) setFabric();
+    return fabric;
+}
+
     /**
      * ImageEditor
      * 
@@ -76,11 +87,36 @@
     class ImageEditor {
         constructor(options = {}) {
             // Verify that fabric.js is present
-            this._fabricLoaded = typeof fabric !== 'undefined';
+            this._fabricLoaded = !!ensureFabric();
             if (!this._fabricLoaded) {
                 console.error('fabric.js is not loaded. Please include fabric.js first. Initialization will be aborted.');
             }
             // Default options (can be overridden via ctor param)
+            const defaultLabel = {
+                getText: (mask) => mask.maskName,
+                textOptions: {
+                    fontSize: 12,
+                    fill: '#fff',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    padding: 2,
+                    fontFamily: 'monospace',
+                    fontWeight: 'bold',
+                    selectable: false,
+                    evented: false,
+                    originX: 'left',
+                    originY: 'top'
+                }
+            };
+            const defaultCrop = {
+                minWidth: 100,
+                minHeight: 100,
+                padding: 10,
+                hideMasksDuringCrop: true,
+                preserveMasksAfterCrop: false,
+                allowRotationOfCropRect: false
+            };
+            const userLabel = options.label || {};
+            const userCrop = options.crop || {};
             this.options = {
                 canvasWidth: 800,
                 canvasHeight: 600,
@@ -118,30 +154,19 @@
 
                 defaultDownloadFileName: 'edited_image.jpg',
 
-                ...options
-            };
-            this.options.label = {
-                getText: (mask, maskIndex) => mask.maskName,
-                textOptions: {
-                    fontSize: 12,
-                    fill: '#fff',
-                    backgroundColor: 'rgba(0,0,0,0.7)',
-                    padding: 2,
-                    fontFamily: "monospace",
-                    fontWeight: "bold",
-                    selectable: false,
-                    evented: false,
-                    originX: 'left',
-                    originY: 'top',
+                ...options,
+                label: {
+                    ...defaultLabel,
+                    ...userLabel,
+                    textOptions: {
+                        ...defaultLabel.textOptions,
+                        ...(userLabel.textOptions || {})
+                    }
+                },
+                crop: {
+                    ...defaultCrop,
+                    ...userCrop
                 }
-            };
-            this.options.crop = {
-                minWidth: 100,
-                minHeight: 100,
-                padding: 10,
-                hideMasksDuringCrop: true,
-                preserveMasksAfterCrop: true,
-                allowRotationOfCropRect: false
             };
 
             // Runtime state
@@ -162,6 +187,7 @@
 
             this._boundHandlers = {};
 
+            this._lastMask = null;
             this._lastMaskInitialLeft = null;
             this._lastMaskInitialTop = null;
             this._lastMaskInitialWidth = null;
@@ -381,6 +407,7 @@
         */
         async loadImage(base64) {
             if (!this._fabricLoaded) return;
+            if (!this.canvas) return;
             if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:image/')) return;
 
             this._setPlaceholderVisible(false);
@@ -404,80 +431,91 @@
             }
 
             // Create fabric.Image from URL
-            fabric.Image.fromURL(loadSrc, (fimg) => {
-                this.canvas.discardActiveObject();
-                this._hideAllMaskLabels();
-                this.canvas.clear();
-                this.canvas.setBackgroundColor(this.options.backgroundColor, this.canvas.renderAll.bind(this.canvas));
+            return new Promise((resolve, reject) => {
+                fabric.Image.fromURL(loadSrc, (fimg) => {
+                    try {
+                        if (!fimg) throw new Error('Image could not be loaded');
 
-                fimg.set({ originX: 'left', originY: 'top', selectable: false, evented: false });
+                        this.canvas.discardActiveObject();
+                        this._hideAllMaskLabels();
+                        this.canvas.clear();
+                        this.canvas.setBackgroundColor(this.options.backgroundColor, this.canvas.renderAll.bind(this.canvas));
 
-                const imgW = fimg.width;
-                const imgH = fimg.height;
+                        fimg.set({ originX: 'left', originY: 'top', selectable: false, evented: false });
 
-                const minW = this.containerEl ? Math.floor(this.containerEl.clientWidth || this.options.canvasWidth) : this.options.canvasWidth;
-                const minH = this.containerEl ? Math.floor(this.containerEl.clientHeight || this.options.canvasHeight) : this.options.canvasHeight;
+                        const imgW = fimg.width;
+                        const imgH = fimg.height;
 
-                if (this.options.fitImageToCanvas) {
-                    // Fit into current canvas (shrink only) and ensure canvas does not exceed container
-                    const cw = Math.max(1, Math.min(this.options.canvasWidth, minW) - 1)
-                    const ch = Math.max(1, Math.min(this.options.canvasHeight, minH) - 1);
-                    this._setCanvasSizeInt(cw, ch);
-                    const fitScale = Math.min(cw / imgW, ch / imgH, 1);
-                    fimg.set({ left: 0, top: 0 });
-                    fimg.scale(fitScale);
-                    this.baseImageScale = fimg.scaleX || 1;
-                } else if (this.options.coverImageToCanvas) {
-                    // Cover canvas: scale to cover, allowing overflow (at least one side fits)
-                    const cw = Math.max(this.options.canvasWidth, minW);
-                    const ch = Math.max(this.options.canvasHeight, minH);
-                    this._setCanvasSizeInt(cw, ch);
-                    const coverScale = Math.min(1, Math.max(cw / imgW, ch / imgH));
-                    fimg.set({ left: 0, top: 0 });
-                    fimg.scale(coverScale);
-                    this.baseImageScale = fimg.scaleX || 1;
-                } else if (this.options.expandCanvasToImage) {
-                    // Expand canvas so that it fully contains the image
-                    const cw = Math.max(minW, Math.floor(imgW));
-                    const ch = Math.max(minH, Math.floor(imgH));
-                    this._setCanvasSizeInt(cw, ch);
-                    fimg.set({ left: 0, top: 0 });
-                    fimg.scale(1);
-                    this.baseImageScale = 1;
-                } else {
-                    // Keep existing canvas size and center the image
-                    const cw = Math.max(this.options.canvasWidth, minW);
-                    const ch = Math.max(this.options.canvasHeight, minH);
-                    this._setCanvasSizeInt(cw, ch);
-                    const fitScale = Math.min(cw / imgW, ch / imgH, 1);
-                    fimg.set({ left: 0, top: 0 });
-                    fimg.scale(fitScale);
-                    this.baseImageScale = fimg.scaleX || 1;
-                }
-                // Put the image onto the canvas
-                this.originalImage = fimg;
-                this.canvas.add(fimg);
-                this.canvas.sendToBack(fimg);
+                        const minW = this.containerEl ? Math.floor(this.containerEl.clientWidth || this.options.canvasWidth) : this.options.canvasWidth;
+                        const minH = this.containerEl ? Math.floor(this.containerEl.clientHeight || this.options.canvasHeight) : this.options.canvasHeight;
 
-                // Reset mask placement memory
-                this._lastMaskInitialLeft = null;
-                this._lastMaskInitialTop = null;
-                this._lastMaskInitialWidth = null;
+                        if (this.options.fitImageToCanvas) {
+                            // Fit into current canvas (shrink only) and ensure canvas does not exceed container
+                            const cw = Math.max(1, Math.min(this.options.canvasWidth, minW) - 1)
+                            const ch = Math.max(1, Math.min(this.options.canvasHeight, minH) - 1);
+                            this._setCanvasSizeInt(cw, ch);
+                            const fitScale = Math.min(cw / imgW, ch / imgH, 1);
+                            fimg.set({ left: 0, top: 0 });
+                            fimg.scale(fitScale);
+                            this.baseImageScale = fimg.scaleX || 1;
+                        } else if (this.options.coverImageToCanvas) {
+                            // Cover canvas: scale to cover, allowing overflow (at least one side fits)
+                            const cw = Math.max(this.options.canvasWidth, minW);
+                            const ch = Math.max(this.options.canvasHeight, minH);
+                            this._setCanvasSizeInt(cw, ch);
+                            const coverScale = Math.min(1, Math.max(cw / imgW, ch / imgH));
+                            fimg.set({ left: 0, top: 0 });
+                            fimg.scale(coverScale);
+                            this.baseImageScale = fimg.scaleX || 1;
+                        } else if (this.options.expandCanvasToImage) {
+                            // Expand canvas so that it fully contains the image
+                            const cw = Math.max(minW, Math.floor(imgW));
+                            const ch = Math.max(minH, Math.floor(imgH));
+                            this._setCanvasSizeInt(cw, ch);
+                            fimg.set({ left: 0, top: 0 });
+                            fimg.scale(1);
+                            this.baseImageScale = 1;
+                        } else {
+                            // Keep existing canvas size and center the image
+                            const cw = Math.max(this.options.canvasWidth, minW);
+                            const ch = Math.max(this.options.canvasHeight, minH);
+                            this._setCanvasSizeInt(cw, ch);
+                            const fitScale = Math.min(cw / imgW, ch / imgH, 1);
+                            fimg.set({ left: 0, top: 0 });
+                            fimg.scale(fitScale);
+                            this.baseImageScale = fimg.scaleX || 1;
+                        }
+                        // Put the image onto the canvas
+                        this.originalImage = fimg;
+                        this.canvas.add(fimg);
+                        this.canvas.sendToBack(fimg);
 
-                this.maskCounter = 0;
-                this.currentScale = 1;
-                this.currentRotation = 0;
+                        // Reset mask placement memory
+                        this._lastMask = null;
+                        this._lastMaskInitialLeft = null;
+                        this._lastMaskInitialTop = null;
+                        this._lastMaskInitialWidth = null;
 
-                this._updateInputs();
-                this._updateMaskList();
-                this._updateUI();
-                this.canvas.renderAll();
-                this.isImageLoadedToCanvas = true;
+                        this.maskCounter = 0;
+                        this.currentScale = 1;
+                        this.currentRotation = 0;
 
-                if (typeof this.onImageLoaded === 'function') {
-                    this.onImageLoaded();
-                }
-            }, { crossOrigin: 'anonymous' });
+                        this._updateInputs();
+                        this._updateMaskList();
+                        this.isImageLoadedToCanvas = true;
+                        this._updateUI();
+                        this.canvas.renderAll();
+
+                        if (typeof this.onImageLoaded === 'function') {
+                            this.onImageLoaded();
+                        }
+
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
+                }, { crossOrigin: 'anonymous' });
+            });
         }
 
         /**
@@ -485,9 +523,11 @@
          * @returns {boolean} true if loaded, false if not
          */
         isImageLoaded() {
+            const fabricInstance = ensureFabric();
             return !!(
                 this.originalImage &&
-                this.originalImage instanceof fabric.Image &&
+                fabricInstance &&
+                this.originalImage instanceof fabricInstance.Image &&
                 this.originalImage.width > 0 &&
                 this.originalImage.height > 0
             );
@@ -794,20 +834,34 @@
                     : jsonString;
 
                 this.canvas.loadFromJSON(json, () => {
-                    this._hideAllMaskLabels();
-                    const objs = this.canvas.getObjects();
-                    this.originalImage = objs.find(o => o.type === 'image' && !o.maskId) || null;
+                    try {
+                        this._hideAllMaskLabels();
+                        const objs = this.canvas.getObjects();
+                        this.originalImage = objs.find(o => o.type === 'image' && !o.maskId) || null;
 
-                    this.originalImage.set({ originX: 'left', originY: 'top', selectable: false, evented: false, hasControls: false, hoverCursor: 'default' });
-                    this.canvas.sendToBack(this.originalImage);
+                        if (this.originalImage) {
+                            this.originalImage.set({ originX: 'left', originY: 'top', selectable: false, evented: false, hasControls: false, hoverCursor: 'default' });
+                            this.canvas.sendToBack(this.originalImage);
+                        }
 
-                    const masks = objs.filter(o => o.maskId);
-                    this.maskCounter = masks.reduce((max, m) =>
-                        Math.max(max, m.maskId), 0);
+                        const masks = objs.filter(o => o.maskId);
+                        this.maskCounter = masks.reduce((max, m) =>
+                            Math.max(max, m.maskId), 0);
+                        this._lastMask = masks.length ? masks[masks.length - 1] : null;
+                        if (!this._lastMask) {
+                            this._lastMaskInitialLeft = null;
+                            this._lastMaskInitialTop = null;
+                            this._lastMaskInitialWidth = null;
+                        }
+                        this.isImageLoadedToCanvas = !!this.originalImage;
 
-                    this.canvas.renderAll();
-                    this._updateMaskList();
-                    this._updateUI();
+                        this.canvas.renderAll();
+                        this._updateMaskList();
+                        this._updatePlaceholderStatus();
+                        this._updateUI();
+                    } catch (callbackError) {
+                        console.error('loadFromState() failed', callbackError);
+                    }
                 });
 
             } catch (e) {
@@ -979,7 +1033,7 @@
                             ...cfg.styles
                         });
                         break;
-                    case 'polygon':
+                    case 'polygon': {
                         let polyPoints = cfg.points || [];
                         if (Array.isArray(polyPoints) && polyPoints.length && typeof polyPoints[0] === 'object') {
                             // Ensure numeric {x,y} objects for fabric.Polygon
@@ -993,6 +1047,7 @@
                             ...cfg.styles
                         });
                         break;
+                    }
                     case 'rect':
                     default:
                         mask = new fabric.Rect({
@@ -1066,6 +1121,15 @@
             if (!active || !active.maskId) return;
             this._removeLabelForMask(active);
             this.canvas.remove(active);
+            if (this._lastMask === active) {
+                const masks = this.canvas.getObjects().filter(o => o.maskId);
+                this._lastMask = masks.length ? masks[masks.length - 1] : null;
+                if (!this._lastMask) {
+                    this._lastMaskInitialLeft = null;
+                    this._lastMaskInitialTop = null;
+                    this._lastMaskInitialWidth = null;
+                }
+            }
             this.canvas.discardActiveObject();
             this._updateMaskList();
             this._updateUI();
@@ -1082,6 +1146,7 @@
             masks.forEach(m => this._removeLabelForMask(m));
             masks.forEach(m => this.canvas.remove(m));
             this.canvas.discardActiveObject();
+            this._lastMask = null;
             this._lastMaskInitialLeft = null;
             this._lastMaskInitialTop = null;
             this._lastMaskInitialWidth = null;
@@ -1105,8 +1170,8 @@
                     if (objs.includes(mask.__label)) {
                         this.canvas.remove(mask.__label);
                     }
-                } catch (e) { /* ignore */ }
-                try { delete mask.__label; } catch (e) { }
+                } catch (e) { void e; }
+                try { delete mask.__label; } catch (e) { void e; }
             }
         }
 
@@ -1169,9 +1234,9 @@
             labels.forEach(l => {
                 try {
                     if (objs.includes(l)) this.canvas.remove(l);
-                } catch (e) { }
+                } catch (e) { void e; }
             });
-            objs.forEach(o => { if (o.maskId && o.__label) { try { delete o.__label; } catch (e) { } } });
+            objs.forEach(o => { if (o.maskId && o.__label) { try { delete o.__label; } catch (e) { void e; } } });
         }
 
         /**
@@ -1241,7 +1306,7 @@
             masks.forEach(m => {
                 if (m !== selectedMask) {
                     if (m.__label) {
-                        try { this.canvas.remove(m.__label); } catch (e) { }
+                        try { this.canvas.remove(m.__label); } catch (e) { void e; }
                         delete m.__label;
                     }
                     m.set({ stroke: '#ccc', strokeWidth: 1 });
@@ -1379,74 +1444,77 @@
                 lockRotation: m.lockRotation
             }));
 
-            // Remove labels, deselect
-            masks.forEach(m => this._removeLabelForMask(m));
-            this.canvas.discardActiveObject();
-            this.canvas.renderAll();
+            let finalBase64;
+            try {
+                // Remove labels, deselect
+                masks.forEach(m => this._removeLabelForMask(m));
+                this.canvas.discardActiveObject();
+                this.canvas.renderAll();
 
-            // Set masks to opaque black no border
-            masks.forEach(m => {
-                m.set({ opacity: 1, fill: '#000000', strokeWidth: 0, stroke: null, selectable: false });
-                m.setCoords();
-            });
-            this.canvas.renderAll();
+                // Set masks to opaque black no border
+                masks.forEach(m => {
+                    m.set({ opacity: 1, fill: '#000000', strokeWidth: 0, stroke: null, selectable: false });
+                    m.setCoords();
+                });
+                this.canvas.renderAll();
 
-            // Compute integer bounding box for image
-            this.originalImage.setCoords();
-            const imgBr = this.originalImage.getBoundingRect(true, true);
-            const sx = Math.max(0, Math.round(imgBr.left));
-            const sy = Math.max(0, Math.round(imgBr.top));
-            const sw = Math.max(1, Math.round(imgBr.width));
-            const sh = Math.max(1, Math.round(imgBr.height));
+                // Compute integer bounding box for image
+                this.originalImage.setCoords();
+                const imgBr = this.originalImage.getBoundingRect(true, true);
+                const sx = Math.max(0, Math.round(imgBr.left));
+                const sy = Math.max(0, Math.round(imgBr.top));
+                const sw = Math.max(1, Math.round(imgBr.width));
+                const sh = Math.max(1, Math.round(imgBr.height));
 
-            // Crop precisely in offscreen canvas
-            const finalBase64 = await new Promise((resolve, reject) => {
-                try {
-                    const fullDataUrl = this.canvas.toDataURL({
-                        format: 'jpeg',
-                        quality: this.options.downsampleQuality,
-                        multiplier: multiplier
-                    });
+                // Crop precisely in offscreen canvas
+                finalBase64 = await new Promise((resolve, reject) => {
+                    try {
+                        const fullDataUrl = this.canvas.toDataURL({
+                            format: 'jpeg',
+                            quality: this.options.downsampleQuality,
+                            multiplier: multiplier
+                        });
 
-                    const img = new Image();
-                    img.onload = () => {
-                        try {
-                            const sxM = Math.round(sx * multiplier);
-                            const syM = Math.round(sy * multiplier);
-                            const swM = Math.round(sw * multiplier);
-                            const shM = Math.round(sh * multiplier);
+                        const img = new Image();
+                        img.onload = () => {
+                            try {
+                                const sxM = Math.round(sx * multiplier);
+                                const syM = Math.round(sy * multiplier);
+                                const swM = Math.round(sw * multiplier);
+                                const shM = Math.round(sh * multiplier);
 
-                            const oc = document.createElement('canvas');
-                            oc.width = swM;
-                            oc.height = shM;
-                            const ctx = oc.getContext('2d');
+                                const oc = document.createElement('canvas');
+                                oc.width = swM;
+                                oc.height = shM;
+                                const ctx = oc.getContext('2d');
 
-                            ctx.drawImage(img, sxM, syM, swM, shM, 0, 0, swM, shM);
-                            const out = oc.toDataURL('image/jpeg', this.options.downsampleQuality);
-                            resolve(out);
-                        } catch (e) { reject(e); }
-                    };
-                    img.onerror = reject;
-                    img.src = fullDataUrl;
-                } catch (e) { reject(e); }
-            });
+                                ctx.drawImage(img, sxM, syM, swM, shM, 0, 0, swM, shM);
+                                const out = oc.toDataURL('image/jpeg', this.options.downsampleQuality);
+                                resolve(out);
+                            } catch (e) { reject(e); }
+                        };
+                        img.onerror = reject;
+                        img.src = fullDataUrl;
+                    } catch (e) { reject(e); }
+                });
+            } finally {
+                masksBackup.forEach(b => {
+                    try {
+                        b.obj.set({
+                            opacity: b.opacity,
+                            fill: b.fill,
+                            strokeWidth: b.strokeWidth,
+                            stroke: b.stroke,
+                            selectable: b.selectable,
+                            lockRotation: b.lockRotation
+                        });
+                        b.obj.setCoords();
+                    } catch (e) { void e; }
+                });
 
-            // Restore masks
-            masksBackup.forEach(b => {
-                try {
-                    b.obj.set({
-                        opacity: b.opacity,
-                        fill: b.fill,
-                        strokeWidth: b.strokeWidth,
-                        stroke: b.stroke,
-                        selectable: b.selectable,
-                        lockRotation: b.lockRotation
-                    });
-                    b.obj.setCoords();
-                } catch (e) { }
-            });
+                this.canvas.renderAll();
+            }
 
-            this.canvas.renderAll();
             return finalBase64;
         }
 
@@ -1595,12 +1663,12 @@
             this.canvas.getObjects().forEach(o => {
                 if (o !== cropRect) {
                     this._cropPrevEvented.push({ obj: o, evented: o.evented, selectable: o.selectable });
-                    try { o.evented = false; o.selectable = false; } catch (e) { /* ignore */ }
+                    try { o.evented = false; o.selectable = false; } catch (e) { void e; }
                 }
             });
 
             // When the crop rect changes, re-render
-            const onModified = () => { try { cropRect.setCoords(); this.canvas.requestRenderAll(); } catch (e) { } };
+            const onModified = () => { try { cropRect.setCoords(); this.canvas.requestRenderAll(); } catch (e) { void e; } };
             cropRect.on('modified', onModified);
             cropRect.on('moving', onModified);
             cropRect.on('scaling', onModified);
@@ -1626,15 +1694,15 @@
                             h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
                         });
                     }
-                } catch (e) { /* ignore */ }
+                } catch (e) { void e; }
 
-                try { this.canvas.remove(this._cropRect); } catch (e) { }
+                try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
                 this._cropRect = null;
             }
             // restore evented/selectable flags
             if (Array.isArray(this._cropPrevEvented)) {
                 this._cropPrevEvented.forEach(i => {
-                    try { i.obj.evented = i.evented; i.obj.selectable = i.selectable; } catch (e) { }
+                    try { i.obj.evented = i.evented; i.obj.selectable = i.selectable; } catch (e) { void e; }
                 });
             }
             this._cropPrevEvented = null;
@@ -1693,6 +1761,10 @@
                             console.warn('applyCrop: failed to remove mask', err);
                         }
                     });
+                    this._lastMask = null;
+                    this._lastMaskInitialLeft = null;
+                    this._lastMaskInitialTop = null;
+                    this._lastMaskInitialWidth = null;
                     this.canvas.discardActiveObject();
                     this.canvas.renderAll();
                 }
@@ -1708,11 +1780,11 @@
                                 h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
                             });
                         }
-                    } catch (e) { /* ignore */ }
-                    try { this.canvas.remove(this._cropRect); } catch (e) { /* ignore */ }
+                    } catch (e) { void e; }
+                    try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
                     this._cropRect = null;
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) { void e; }
 
             // End crop mode
             this._cropMode = false;
@@ -1915,18 +1987,18 @@
                     const el = document.getElementById(this.elements[key]);
                     if (!el) continue;
                     handlers.forEach(h => {
-                        try { el.removeEventListener(h.event, h.handler); } catch (e) { }
+                        try { el.removeEventListener(h.event, h.handler); } catch (e) { void e; }
                     });
                 }
-            } catch (e) { }
+            } catch (e) { void e; }
 
             if (this._cropRect) {
-                try { this.canvas.remove(this._cropRect); } catch (e) { }
+                try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
                 this._cropRect = null;
             }
 
             if (this.canvas) {
-                try { this.canvas.dispose(); } catch (e) { }
+                try { this.canvas.dispose(); } catch (e) { void e; }
                 this.canvas = null;
                 this.canvasEl = null;
                 this.isImageLoadedToCanvas = false;
@@ -2108,5 +2180,5 @@
         }
     }
 
-    return ImageEditor
-})
+export { ImageEditor };
+export default ImageEditor;
