@@ -31,8 +31,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.14.0
           registry-url: https://registry.npmjs.org
+
+      - name: Use npm with trusted publishing support
+        run: npm install -g npm@^11.5.1
 
       - name: Install native canvas dependencies
         run: |
@@ -85,13 +88,7 @@ jobs:
       - name: Publish to npm
         shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
         run: |
-          if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
-            echo "Missing NPM_TOKEN repository secret." >&2
-            exit 1
-          fi
-
           NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
-          npm publish --access public --tag "${NPM_TAG}" --provenance
+          npm publish --access public --tag "${NPM_TAG}"

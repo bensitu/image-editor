@@ -208,21 +208,20 @@ IE11 and old mobile Safari are not supported by the distributed build. If you ne
 
 ## Automated npm Publishing
 
-This repository publishes to npm through GitHub Actions when a version tag is pushed.
+This repository publishes to npm through GitHub Actions when a matching version tag is pushed. The workflow uses npm Trusted Publishing with GitHub Actions OIDC, so no long-lived npm token is required.
 
-Repository setup:
+Setup:
 
-1. Create an npm automation token with publish permission.
-2. Add it to GitHub repository secrets as `NPM_TOKEN`.
-3. Make sure `package.json` version, `CHANGELOG.md`, and generated `dist/` files are committed.
-4. Push a matching tag, for example:
+1. Configure npm Trusted Publishing for this repository and the `publish-npm.yml` workflow.
+2. Commit the version bump, changelog, source, and generated `dist/` files.
+3. Push a tag that matches the package version:
 
 ```bash
-git tag v1.2.1
-git push origin v1.2.1
+git tag v<package-version>
+git push origin v<package-version>
 ```
 
-The workflow validates that the tag version matches `package.json`, installs dependencies, runs lint and tests, verifies package contents, and publishes the package to npm with provenance.
+The workflow validates the tag, runs checks, verifies package contents, and publishes to npm.
 
 ## Dependencies
 
