@@ -98,3 +98,10 @@ test('docs demo can load ImageEditor on GitHub Pages', () => {
     assert.match(html, /cdn\.jsdelivr\.net\/npm\/@bensitu\/image-editor\/dist\/image-editor\.js/);
     assert.equal(/<script\s+src=["']\.\.\/dist\/image-editor\.js/.test(html), false);
 });
+
+test('docs canvas container only shows scrollbars when content overflows', () => {
+    const css = readFileSync('docs/css/style.css', 'utf8');
+
+    assert.match(css, /#imageContainer\s*{[\s\S]*overflow:\s*auto;/);
+    assert.equal(/#imageContainer\s*{[\s\S]*overflow:\s*scroll;/.test(css), false);
+});

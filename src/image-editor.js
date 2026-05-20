@@ -5,11 +5,6 @@
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
- *
- * This source file is free software, available under the MIT license.
- * It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the license files for details.
  */
 
 let fabric = null;
@@ -64,7 +59,7 @@ function ensureFabric() {
      * @param {number} [options.rotationStep=90] - Rotation step in degrees.
      * @param {boolean} [options.expandCanvasToImage=true] - If true, expands the canvas to fit image/mask.
      * @param {boolean} [options.fitImageToCanvas=false] - If true, fits loaded image inside canvas.
-     * @param {boolean} [options.coverImageToCanvas=false] - If true, scales image to cover canvas (at least one side fits, allowing overflow).
+     * @param {boolean} [options.coverImageToCanvas=false] - If true, scales image to cover the visible canvas viewport.
      * @param {boolean} [options.downsampleOnLoad=true] - Whether to downsample very large images on load.
      * @param {number} [options.downsampleMaxWidth=4000] - Max width for downsampling.
      * @param {number} [options.downsampleMaxHeight=3000] - Max height for downsampling.
@@ -196,10 +191,14 @@ function ensureFabric() {
             this._lastMaskInitialLeft = null;
             this._lastMaskInitialTop = null;
             this._lastMaskInitialWidth = null;
+            this._lastSnapshot = null;
 
             this._cropMode = false;
             this._cropRect = null;
             this._cropHandlers = [];
+            this._cropPrevEvented = null;
+            this._prevSelectionSetting = undefined;
+            this._containerOriginalOverflow = undefined;
 
             this.onImageLoaded = typeof options.onImageLoaded === 'function' ? options.onImageLoaded : null;
 
@@ -343,13 +342,36 @@ function ensureFabric() {
             this.canvasEl.style.display = 'block';
         }
 
+        _syncContainerOverflow() {
+            if (!this.containerEl || !this.containerEl.style) return;
+            if (this._containerOriginalOverflow === undefined) {
+                this._containerOriginalOverflow = this.containerEl.style.overflow || '';
+            }
+
+            if (this.options.coverImageToCanvas) {
+                this.containerEl.style.overflow = 'scroll';
+                this.containerEl.scrollLeft = 0;
+                this.containerEl.scrollTop = 0;
+            } else if (this.options.fitImageToCanvas) {
+                this.containerEl.style.overflow = 'auto';
+                this.containerEl.scrollLeft = 0;
+                this.containerEl.scrollTop = 0;
+            } else {
+                this.containerEl.style.overflow = this._containerOriginalOverflow;
+            }
+        }
+
         /** 
          * DOM / UI bindings
          * @private
          */
         _bindEvents() {
             // Click anywhere on the upload area opens the native file dialog
-            this._bindIfExists('uploadArea', 'click', () => document.getElementById(this.elements.imageInput)?.click());
+            this._bindIfExists('uploadArea', 'click', () => {
+                const uploadArea = document.getElementById(this.elements.uploadArea);
+                if (this._isElementDisabled(uploadArea)) return;
+                document.getElementById(this.elements.imageInput)?.click();
+            });
             // File-input change
             const inputEl = document.getElementById(this.elements.imageInput);
             if (inputEl) {
@@ -438,6 +460,7 @@ function ensureFabric() {
             if (!base64 || typeof base64 !== 'string' || !base64.startsWith('data:image/')) return;
 
             this._setPlaceholderVisible(false);
+            this._syncContainerOverflow();
 
             const imgEl = await this._createImageElement(base64);
 
@@ -473,8 +496,9 @@ function ensureFabric() {
                         const imgW = fimg.width;
                         const imgH = fimg.height;
 
-                        const minW = this.containerEl ? Math.floor(this.containerEl.clientWidth || this.options.canvasWidth) : this.options.canvasWidth;
-                        const minH = this.containerEl ? Math.floor(this.containerEl.clientHeight || this.options.canvasHeight) : this.options.canvasHeight;
+                        const viewport = this._getContainerViewportSize();
+                        const minW = viewport.width;
+                        const minH = viewport.height;
 
                         if (this.options.fitImageToCanvas) {
                             // Fit into current canvas (shrink only) and ensure canvas does not exceed container
@@ -486,13 +510,10 @@ function ensureFabric() {
                             fimg.scale(fitScale);
                             this.baseImageScale = fimg.scaleX || 1;
                         } else if (this.options.coverImageToCanvas) {
-                            // Cover canvas: scale to cover, allowing overflow (at least one side fits)
-                            const cw = Math.max(this.options.canvasWidth, minW);
-                            const ch = Math.max(this.options.canvasHeight, minH);
-                            this._setCanvasSizeInt(cw, ch);
-                            const coverScale = Math.min(1, Math.max(cw / imgW, ch / imgH));
+                            const layout = this._calculateCoverCanvasLayout(imgW, imgH);
+                            this._setCanvasSizeInt(layout.canvasWidth, layout.canvasHeight);
                             fimg.set({ left: 0, top: 0 });
-                            fimg.scale(coverScale);
+                            fimg.scale(layout.scale);
                             this.baseImageScale = fimg.scaleX || 1;
                         } else if (this.options.expandCanvasToImage) {
                             // Expand canvas so that it fully contains the image
@@ -532,6 +553,11 @@ function ensureFabric() {
                         this.isImageLoadedToCanvas = true;
                         this._updateUI();
                         this.canvas.renderAll();
+                        try {
+                            this._lastSnapshot = this._serializeCanvasState();
+                        } catch (e) {
+                            this._reportWarning('loadImage: failed to capture initial canvas snapshot', e);
+                        }
 
                         if (typeof this.onImageLoaded === 'function') {
                             this.onImageLoaded();
@@ -626,6 +652,291 @@ function ensureFabric() {
             }
         }
 
+        _ceilCanvasDimension(value) {
+            const numericValue = Number(value) || 0;
+            const roundedValue = Math.round(numericValue);
+            if (Math.abs(numericValue - roundedValue) < 0.01) return roundedValue;
+            return Math.ceil(numericValue);
+        }
+
+        _getContainerViewportSize() {
+            if (!this.containerEl) {
+                return {
+                    width: Math.max(1, Math.floor(this.options.canvasWidth || 1)),
+                    height: Math.max(1, Math.floor(this.options.canvasHeight || 1))
+                };
+            }
+
+            if (this._hasFixedContainerScrollbars()) {
+                return {
+                    width: Math.max(1, Math.floor(this.containerEl.clientWidth || this.options.canvasWidth || 1)),
+                    height: Math.max(1, Math.floor(this.containerEl.clientHeight || this.options.canvasHeight || 1))
+                };
+            }
+
+            const previousOverflow = this.containerEl.style.overflow;
+            this.containerEl.style.overflow = 'hidden';
+
+            const width = Math.max(1, Math.floor(this.containerEl.clientWidth || this.options.canvasWidth || 1));
+            const height = Math.max(1, Math.floor(this.containerEl.clientHeight || this.options.canvasHeight || 1));
+
+            this.containerEl.style.overflow = previousOverflow;
+            return { width, height };
+        }
+
+        _hasFixedContainerScrollbars() {
+            if (!this.containerEl) return false;
+            const inlineOverflow = this.containerEl.style.overflow;
+            const inlineOverflowX = this.containerEl.style.overflowX;
+            const inlineOverflowY = this.containerEl.style.overflowY;
+            let computedOverflow = '';
+            let computedOverflowX = '';
+            let computedOverflowY = '';
+
+            if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+                const style = window.getComputedStyle(this.containerEl);
+                computedOverflow = style.overflow;
+                computedOverflowX = style.overflowX;
+                computedOverflowY = style.overflowY;
+            }
+
+            return [inlineOverflow, inlineOverflowX, inlineOverflowY, computedOverflow, computedOverflowX, computedOverflowY]
+                .some(value => value === 'scroll');
+        }
+
+        _getScrollbarSize() {
+            if (typeof document === 'undefined' || !document.createElement || !document.body) {
+                return { width: 0, height: 0 };
+            }
+
+            const probe = document.createElement('div');
+            probe.style.position = 'absolute';
+            probe.style.visibility = 'hidden';
+            probe.style.overflow = 'scroll';
+            probe.style.width = '100px';
+            probe.style.height = '100px';
+            probe.style.top = '-9999px';
+            document.body.appendChild(probe);
+
+            const width = Math.max(0, probe.offsetWidth - probe.clientWidth);
+            const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
+            document.body.removeChild(probe);
+
+            return { width, height };
+        }
+
+        _getScrollSafetyMargin() {
+            return 2;
+        }
+
+        _getScrollableCanvasSize(contentWidth, contentHeight, viewport = this._getContainerViewportSize()) {
+            if (this._hasFixedContainerScrollbars()) {
+                const safetyMargin = this._getScrollSafetyMargin();
+                const safeWidth = Math.max(1, viewport.width - safetyMargin);
+                const safeHeight = Math.max(1, viewport.height - safetyMargin);
+                return {
+                    width: contentWidth > viewport.width + 0.5 ? this._ceilCanvasDimension(contentWidth) : safeWidth,
+                    height: contentHeight > viewport.height + 0.5 ? this._ceilCanvasDimension(contentHeight) : safeHeight,
+                    viewportWidth: viewport.width,
+                    viewportHeight: viewport.height,
+                    hasHorizontal: true,
+                    hasVertical: true
+                };
+            }
+
+            const scrollbar = this._getScrollbarSize();
+            let hasVertical = false;
+            let hasHorizontal = false;
+            let effectiveWidth = viewport.width;
+            let effectiveHeight = viewport.height;
+
+            for (let i = 0; i < 4; i += 1) {
+                effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
+                effectiveHeight = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
+
+                const nextHasVertical = contentHeight > effectiveHeight + 0.5;
+                const nextHasHorizontal = contentWidth > effectiveWidth + 0.5;
+
+                if (nextHasVertical === hasVertical && nextHasHorizontal === hasHorizontal) break;
+                hasVertical = nextHasVertical;
+                hasHorizontal = nextHasHorizontal;
+            }
+
+            effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
+            effectiveHeight = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
+
+            return {
+                width: hasHorizontal ? this._ceilCanvasDimension(contentWidth) : effectiveWidth,
+                height: hasVertical ? this._ceilCanvasDimension(contentHeight) : effectiveHeight,
+                viewportWidth: effectiveWidth,
+                viewportHeight: effectiveHeight,
+                hasHorizontal,
+                hasVertical
+            };
+        }
+
+        _calculateCoverCanvasLayout(imageWidth, imageHeight) {
+            const viewport = this._getContainerViewportSize();
+
+            if (this._hasFixedContainerScrollbars()) {
+                const safetyMargin = this._getScrollSafetyMargin();
+                const targetWidth = Math.max(1, viewport.width - safetyMargin);
+                const targetHeight = Math.max(1, viewport.height - safetyMargin);
+                const scale = Math.min(1, Math.max(targetWidth / imageWidth, targetHeight / imageHeight));
+                const contentWidth = imageWidth * scale;
+                const contentHeight = imageHeight * scale;
+                const canvasSize = this._getScrollableCanvasSize(contentWidth, contentHeight, viewport);
+                return {
+                    scale,
+                    canvasWidth: canvasSize.width,
+                    canvasHeight: canvasSize.height
+                };
+            }
+
+            const scrollbar = this._getScrollbarSize();
+            let hasVertical = false;
+            let hasHorizontal = false;
+            let scale = 1;
+            let contentWidth = imageWidth;
+            let contentHeight = imageHeight;
+            let effectiveWidth = viewport.width;
+            let effectiveHeight = viewport.height;
+
+            for (let i = 0; i < 4; i += 1) {
+                effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
+                effectiveHeight = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
+                scale = Math.min(1, Math.max(effectiveWidth / imageWidth, effectiveHeight / imageHeight));
+                contentWidth = imageWidth * scale;
+                contentHeight = imageHeight * scale;
+
+                const nextHasVertical = contentHeight > effectiveHeight + 0.5;
+                const nextHasHorizontal = contentWidth > effectiveWidth + 0.5;
+
+                if (nextHasVertical === hasVertical && nextHasHorizontal === hasHorizontal) break;
+                hasVertical = nextHasVertical;
+                hasHorizontal = nextHasHorizontal;
+            }
+
+            const canvasSize = this._getScrollableCanvasSize(contentWidth, contentHeight, viewport);
+            return {
+                scale,
+                canvasWidth: canvasSize.width,
+                canvasHeight: canvasSize.height
+            };
+        }
+
+        _getStateProperties() {
+            return [
+                'maskId',
+                'maskName',
+                'maskLabel',
+                'isCropRect',
+                'originalAlpha',
+                'originalStroke',
+                'originalStrokeWidth',
+                'selectable',
+                'evented',
+                'hasControls',
+                'lockRotation',
+                'borderColor',
+                'cornerColor',
+                'cornerSize',
+                'transparentCorners',
+                'strokeUniform',
+                'strokeDashArray'
+            ];
+        }
+
+        _restoreMaskControls(mask) {
+            if (!mask) return;
+
+            const cornerSize = Number(mask.cornerSize);
+            mask.set({
+                selectable: mask.selectable !== false,
+                evented: mask.evented !== false,
+                hasControls: mask.hasControls !== false,
+                lockRotation: typeof mask.lockRotation === 'boolean' ? mask.lockRotation : !this.options.maskRotatable,
+                borderColor: mask.borderColor || 'red',
+                cornerColor: mask.cornerColor || 'black',
+                cornerSize: Number.isFinite(cornerSize) ? cornerSize : 8,
+                transparentCorners: mask.transparentCorners === true,
+                strokeUniform: mask.strokeUniform !== false
+            });
+            if (typeof mask.setCoords === 'function') mask.setCoords();
+        }
+
+        _serializeCanvasState() {
+            if (!this.canvas) return null;
+            const jsonObj = this.canvas.toJSON(this._getStateProperties());
+            if (Array.isArray(jsonObj.objects)) {
+                jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect && !o.maskLabel);
+            }
+            return JSON.stringify(jsonObj);
+        }
+
+        _normalizeQuality(quality) {
+            const numericQuality = Number(quality);
+            if (!Number.isFinite(numericQuality)) return this.options.downsampleQuality ?? 0.92;
+            return Math.max(0, Math.min(1, numericQuality));
+        }
+
+        _getClampedCanvasRegion(bounds) {
+            const canvasW = Math.max(1, Math.round(this.canvas.getWidth()));
+            const canvasH = Math.max(1, Math.round(this.canvas.getHeight()));
+            const left = Number(bounds.left) || 0;
+            const top = Number(bounds.top) || 0;
+            const width = Math.max(0, Number(bounds.width) || 0);
+            const height = Math.max(0, Number(bounds.height) || 0);
+            const sx = Math.min(canvasW - 1, Math.max(0, Math.floor(left)));
+            const sy = Math.min(canvasH - 1, Math.max(0, Math.floor(top)));
+            const ex = Math.min(canvasW, Math.ceil(left + width));
+            const ey = Math.min(canvasH, Math.ceil(top + height));
+
+            return {
+                sx,
+                sy,
+                sw: Math.max(1, ex - sx),
+                sh: Math.max(1, ey - sy)
+            };
+        }
+
+        async _cropDataUrl(dataUrl, sx, sy, sw, sh, multiplier, format = 'jpeg', quality = 0.92) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const safeMultiplier = Math.max(1, Number(multiplier) || 1);
+                        const sxM = Math.round(sx * safeMultiplier);
+                        const syM = Math.round(sy * safeMultiplier);
+                        const swM = Math.max(1, Math.round(sw * safeMultiplier));
+                        const shM = Math.max(1, Math.round(sh * safeMultiplier));
+                        const oc = document.createElement('canvas');
+                        oc.width = swM;
+                        oc.height = shM;
+                        const ctx = oc.getContext('2d');
+
+                        ctx.drawImage(img, sxM, syM, swM, shM, 0, 0, swM, shM);
+                        resolve(oc.toDataURL(`image/${format}`, quality));
+                    } catch (e) {
+                        reject(e);
+                    }
+                };
+                img.onerror = reject;
+                img.src = dataUrl;
+            });
+        }
+
+        async _exportCanvasRegionToDataURL({ sx, sy, sw, sh, multiplier = 1, quality = 0.92, format = 'jpeg' }) {
+            const safeMultiplier = Math.max(1, Number(multiplier) || 1);
+            const fullDataUrl = this.canvas.toDataURL({
+                format,
+                quality,
+                multiplier: safeMultiplier
+            });
+
+            return this._cropDataUrl(fullDataUrl, sx, sy, sw, sh, safeMultiplier, format, quality);
+        }
+
         /** 
          * Gets the top-left corner coordinates of the given object.
          * Used for geometry calculations (e.g., scale, rotate).
@@ -686,20 +997,25 @@ function ensureFabric() {
             this.originalImage.setCoords();
             const br = this.originalImage.getBoundingRect(true, true);
 
-            // Container integer sizes
-            const containerW = this.containerEl ? Math.ceil(this.containerEl.clientWidth || 0) : 0;
-            const containerH = this.containerEl ? Math.ceil(this.containerEl.clientHeight || 0) : 0;
+            const size = this._getScrollableCanvasSize(br.width, br.height);
+            this._setCanvasSizeInt(size.width, size.height);
+        }
 
-            // If image smaller or equal than container in BOTH dims => keep canvas equal to container
-            if (containerW > 0 && containerH > 0 && br.width <= containerW && br.height <= containerH) {
-                this._setCanvasSizeInt(containerW, containerH);
-                return;
+        _expandCanvasToFitObject(obj, padding = 10) {
+            if (!this.canvas || !obj || !this.options.expandCanvasToImage) return;
+            try {
+                obj.setCoords();
+                const br = obj.getBoundingRect(true, true);
+                const requiredW = Math.ceil(br.left + br.width + padding);
+                const requiredH = Math.ceil(br.top + br.height + padding);
+                const minW = this.containerEl ? Math.floor(this.containerEl.clientWidth || 0) : 0;
+                const minH = this.containerEl ? Math.floor(this.containerEl.clientHeight || 0) : 0;
+                const newW = Math.max(this.canvas.getWidth(), minW, requiredW);
+                const newH = Math.max(this.canvas.getHeight(), minH, requiredH);
+                this._setCanvasSizeInt(newW, newH);
+            } catch (e) {
+                this._reportWarning('expandCanvasToFitObject: failed to expand canvas', e);
             }
-
-            // Else canvas follows image bounding box but not smaller than container dims individually
-            const newW = Math.max(containerW || 0, Math.floor(br.width));
-            const newH = Math.max(containerH || 0, Math.floor(br.height));
-            this._setCanvasSizeInt(newW, newH);
         }
 
         /** 
@@ -753,7 +1069,9 @@ function ensureFabric() {
                 this.originalImage.set({ scaleX: targetAbs, scaleY: targetAbs });
                 this.originalImage.setCoords();
 
-                if (this.options.expandCanvasToImage) this._updateCanvasSizeToImageBounds();
+                if (this.options.expandCanvasToImage || this.options.coverImageToCanvas) {
+                    this._updateCanvasSizeToImageBounds();
+                }
 
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
 
@@ -811,7 +1129,9 @@ function ensureFabric() {
                 this.originalImage.set('angle', degrees);
                 this.originalImage.setCoords();
 
-                if (this.options.expandCanvasToImage) this._updateCanvasSizeToImageBounds();
+                if (this.options.expandCanvasToImage || this.options.coverImageToCanvas) {
+                    this._updateCanvasSizeToImageBounds();
+                }
 
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
 
@@ -872,6 +1192,10 @@ function ensureFabric() {
                         }
 
                         const masks = objs.filter(o => o.maskId);
+                        masks.forEach(m => {
+                            this._restoreMaskControls(m);
+                            this._rebindMaskEvents(m);
+                        });
                         this.maskCounter = masks.reduce((max, m) =>
                             Math.max(max, m.maskId), 0);
                         this._lastMask = masks.length ? masks[masks.length - 1] : null;
@@ -885,6 +1209,7 @@ function ensureFabric() {
                         this.canvas.renderAll();
                         this._updateMaskList();
                         this._updatePlaceholderStatus();
+                        this._lastSnapshot = this._serializeCanvasState();
                         this._updateUI();
                     } catch (callbackError) {
                         this._reportError('loadFromState() failed', callbackError);
@@ -905,13 +1230,7 @@ function ensureFabric() {
             this._hideAllMaskLabels();
 
             try {
-                // request JSON including the custom flag 'isCropRect' so we can filter it out
-                const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
-                if (Array.isArray(jsonObj.objects)) {
-                    // filter out crop-rect objects before stringifying
-                    jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
-                }
-                const after = JSON.stringify(jsonObj);
+                const after = this._serializeCanvasState();
                 const before = this._lastSnapshot || after;
                 let executedOnce = false;
 
@@ -938,6 +1257,19 @@ function ensureFabric() {
             }
         }
 
+        _pushStateTransition(before, after) {
+            if (!before || !after) return;
+            if (!this.historyManager) this.historyManager = new HistoryManager(this.maxHistorySize || 50);
+
+            const cmd = new Command(
+                () => { this.loadFromState(after); },
+                () => { this.loadFromState(before); }
+            );
+            this.historyManager.push(cmd);
+            this._lastSnapshot = after;
+            this._updateUI();
+        }
+
         /**
          * Undo the last state change, if possible.
          */
@@ -950,6 +1282,48 @@ function ensureFabric() {
          */
         redo() {
             this.historyManager.redo();
+        }
+
+        _rebindMaskEvents(mask) {
+            if (!mask) return;
+            if (mask.__imageEditorMaskHandlers) {
+                try {
+                    mask.off('mouseover', mask.__imageEditorMaskHandlers.mouseover);
+                    mask.off('mouseout', mask.__imageEditorMaskHandlers.mouseout);
+                } catch (e) { void e; }
+            }
+
+            if (!Number.isFinite(Number(mask.originalAlpha))) {
+                mask.originalAlpha = Number.isFinite(Number(mask.opacity)) ? Number(mask.opacity) : 0.5;
+            }
+            if (!mask.originalStroke) mask.originalStroke = mask.stroke || '#ccc';
+            if (!Number.isFinite(Number(mask.originalStrokeWidth))) {
+                mask.originalStrokeWidth = Number.isFinite(Number(mask.strokeWidth)) ? Number(mask.strokeWidth) : 1;
+            }
+
+            const normalStyle = {
+                stroke: mask.originalStroke || '#ccc',
+                strokeWidth: mask.originalStrokeWidth,
+                opacity: mask.originalAlpha
+            };
+            const hoverStyle = {
+                stroke: '#ff5500',
+                strokeWidth: 2,
+                opacity: Math.min(mask.originalAlpha + 0.2, 1)
+            };
+
+            const mouseover = () => {
+                mask.set(hoverStyle);
+                if (mask.canvas) mask.canvas.requestRenderAll();
+            };
+            const mouseout = () => {
+                mask.set(normalStyle);
+                if (mask.canvas) mask.canvas.requestRenderAll();
+            };
+
+            mask.on('mouseover', mouseover);
+            mask.on('mouseout', mouseout);
+            mask.__imageEditorMaskHandlers = { mouseover, mouseout };
         }
 
         /** 
@@ -1104,18 +1478,10 @@ function ensureFabric() {
             if (cfg.styles && cfg.styles.strokeDashArray) mask.strokeDashArray = cfg.styles.strokeDashArray;
 
             mask.originalAlpha = cfg.alpha;
-            const normalStyle = { stroke: mask.stroke, strokeWidth: mask.strokeWidth, opacity: mask.originalAlpha };
-            const hoverStyle = { stroke: '#ff5500', strokeWidth: 2, opacity: Math.min(mask.originalAlpha + 0.2, 1) };
-
-            mask.on('mouseover', () => {
-                mask.set(hoverStyle);
-                mask.canvas.requestRenderAll();
-            });
-
-            mask.on('mouseout', () => {
-                mask.set(normalStyle);
-                mask.canvas.requestRenderAll();
-            });
+            mask.originalStroke = mask.stroke || '#ccc';
+            mask.originalStrokeWidth = Number.isFinite(Number(mask.strokeWidth)) ? Number(mask.strokeWidth) : 1;
+            this._rebindMaskEvents(mask);
+            this._expandCanvasToFitObject(mask);
 
             // Remember initial for next one
             this._lastMaskInitialLeft = left;
@@ -1168,7 +1534,8 @@ function ensureFabric() {
          * Removes all masks from the canvas, including their labels.
          * UI and internal mask placement memory are reset.
          */
-        removeAllMasks() {
+        removeAllMasks(options = {}) {
+            const saveHistory = options.saveHistory !== false;
             const masks = this.canvas.getObjects().filter(o => o.maskId);
             masks.forEach(m => this._removeLabelForMask(m));
             masks.forEach(m => this.canvas.remove(m));
@@ -1180,7 +1547,7 @@ function ensureFabric() {
             this._updateMaskList();
             this._updateUI();
             this.canvas.renderAll();
-            this.saveState();
+            if (saveHistory) this.saveState();
         }
 
         /**
@@ -1399,13 +1766,14 @@ function ensureFabric() {
             this.canvas.renderAll();
 
             try {
+                const beforeJson = this._serializeCanvasState();
                 const merged = await this.getImageBase64({ exportImageArea: true, multiplier: this.options.exportMultiplier });
-                this.removeAllMasks();
+                this.removeAllMasks({ saveHistory: false });
                 await this.loadImage(merged);
-                this.saveState();
+                const afterJson = this._serializeCanvasState();
+                this._pushStateTransition(beforeJson, afterJson);
             } catch (err) {
                 this._reportError('merge error', err);
-                if (this.canvasEl) this.canvasEl.style.visibility = '';
             }
         }
 
@@ -1437,6 +1805,7 @@ function ensureFabric() {
          * @param {Object} [opts={}] - Export options.
          * @param {boolean} [opts.exportImageArea] - If true, exports only the image bounding area with masks cropped and blended.
          * @param {number} [opts.multiplier=1] - Scaling multiplier for output (resolution).
+         * @param {number} [opts.quality=0.92] - JPEG image quality between 0 and 1.
          * @returns {Promise<string>} Promise resolving to a JPEG image data URL.
          * @throws {Error} If there is no image loaded.
          */
@@ -1444,19 +1813,35 @@ function ensureFabric() {
             if (!this.originalImage) throw new Error('No image loaded');
             const exportImageArea = typeof opts.exportImageArea === 'boolean' ? opts.exportImageArea : this.options.exportImageAreaByDefault;
             const multiplier = opts.multiplier || this.options.exportMultiplier || 1;
+            const quality = this._normalizeQuality(opts.quality ?? this.options.downsampleQuality);
 
             if (!exportImageArea) {
-                // Export original image pixels
-                const imgEl = this.originalImage.getElement ? this.originalImage.getElement() : (this.originalImage._element || null);
-                if (!imgEl) return this.canvas.toDataURL({ format: 'jpeg', quality: this.options.downsampleQuality, multiplier });
-                const w = this.originalImage.width;
-                const h = this.originalImage.height;
-                const oc = document.createElement('canvas');
-                oc.width = w;
-                oc.height = h;
-                const ctx = oc.getContext('2d');
-                ctx.drawImage(imgEl, 0, 0, w, h);
-                return oc.toDataURL('image/jpeg', this.options.downsampleQuality);
+                const masks = this.canvas.getObjects().filter(o => o.maskId || o.maskLabel);
+                const masksBackup = masks.map(m => ({ obj: m, visible: m.visible }));
+
+                try {
+                    masks.forEach(m => { m.visible = false; });
+                    this.canvas.discardActiveObject();
+                    this.canvas.renderAll();
+
+                    this.originalImage.setCoords();
+                    const imgBr = this.originalImage.getBoundingRect(true, true);
+                    const { sx, sy, sw, sh } = this._getClampedCanvasRegion(imgBr);
+                    return await this._exportCanvasRegionToDataURL({
+                        sx,
+                        sy,
+                        sw,
+                        sh,
+                        multiplier,
+                        quality,
+                        format: 'jpeg'
+                    });
+                } finally {
+                    masksBackup.forEach(b => {
+                        try { b.obj.visible = b.visible; } catch (e) { void e; }
+                    });
+                    this.canvas.renderAll();
+                }
             }
 
             // Export current scaled image area (masks clipped)
@@ -1488,41 +1873,17 @@ function ensureFabric() {
                 // Compute integer bounding box for image
                 this.originalImage.setCoords();
                 const imgBr = this.originalImage.getBoundingRect(true, true);
-                const sx = Math.max(0, Math.round(imgBr.left));
-                const sy = Math.max(0, Math.round(imgBr.top));
-                const sw = Math.max(1, Math.round(imgBr.width));
-                const sh = Math.max(1, Math.round(imgBr.height));
+                const { sx, sy, sw, sh } = this._getClampedCanvasRegion(imgBr);
 
                 // Crop precisely in offscreen canvas
-                finalBase64 = await new Promise((resolve, reject) => {
-                    try {
-                        const fullDataUrl = this.canvas.toDataURL({
-                            format: 'jpeg',
-                            quality: this.options.downsampleQuality,
-                            multiplier: multiplier
-                        });
-
-                        const img = new Image();
-                        img.onload = () => {
-                            try {
-                                const sxM = Math.round(sx * multiplier);
-                                const syM = Math.round(sy * multiplier);
-                                const swM = Math.round(sw * multiplier);
-                                const shM = Math.round(sh * multiplier);
-
-                                const oc = document.createElement('canvas');
-                                oc.width = swM;
-                                oc.height = shM;
-                                const ctx = oc.getContext('2d');
-
-                                ctx.drawImage(img, sxM, syM, swM, shM, 0, 0, swM, shM);
-                                const out = oc.toDataURL('image/jpeg', this.options.downsampleQuality);
-                                resolve(out);
-                            } catch (e) { reject(e); }
-                        };
-                        img.onerror = reject;
-                        img.src = fullDataUrl;
-                    } catch (e) { reject(e); }
+                finalBase64 = await this._exportCanvasRegionToDataURL({
+                    sx,
+                    sy,
+                    sw,
+                    sh,
+                    multiplier,
+                    quality,
+                    format: 'jpeg'
                 });
             } finally {
                 masksBackup.forEach(b => {
@@ -1588,11 +1949,13 @@ function ensureFabric() {
                 base64 = await this.getImageBase64({
                     exportImageArea: true,
                     multiplier,
+                    quality
                 });
             } else {
                 base64 = await this.getImageBase64({
                     exportImageArea: false,
                     multiplier,
+                    quality
                 });
             }
 
@@ -1629,6 +1992,41 @@ function ensureFabric() {
             }
             const file = new File([u8arr], fileName, { type: mime });
             return file;
+        }
+
+        _clearMaskPlacementMemory() {
+            this._lastMask = null;
+            this._lastMaskInitialLeft = null;
+            this._lastMaskInitialTop = null;
+            this._lastMaskInitialWidth = null;
+        }
+
+        _restoreCropObjectState() {
+            if (Array.isArray(this._cropPrevEvented)) {
+                this._cropPrevEvented.forEach(i => {
+                    try {
+                        i.obj.evented = i.evented;
+                        i.obj.selectable = i.selectable;
+                        i.obj.visible = i.visible;
+                    } catch (e) { void e; }
+                });
+            }
+            this._cropPrevEvented = null;
+        }
+
+        _removeCropRect() {
+            if (!this._cropRect) return;
+            try {
+                if (this._cropHandlers && this._cropHandlers.length) {
+                    this._cropHandlers.forEach(h => {
+                        h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
+                    });
+                }
+            } catch (e) { void e; }
+
+            try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
+            this._cropRect = null;
+            this._cropHandlers = [];
         }
 
         /**
@@ -1687,10 +2085,15 @@ function ensureFabric() {
             // While in crop mode: we want only the cropRect to be interactive
             // but still allow moving/scaling it. To be safe, set other objects evented=false temporarily.
             this._cropPrevEvented = [];
+            const hideMasks = !!(this.options.crop && this.options.crop.hideMasksDuringCrop);
             this.canvas.getObjects().forEach(o => {
                 if (o !== cropRect) {
-                    this._cropPrevEvented.push({ obj: o, evented: o.evented, selectable: o.selectable });
-                    try { o.evented = false; o.selectable = false; } catch (e) { void e; }
+                    this._cropPrevEvented.push({ obj: o, evented: o.evented, selectable: o.selectable, visible: o.visible });
+                    try {
+                        o.evented = false;
+                        o.selectable = false;
+                        if (hideMasks && (o.maskId || o.maskLabel)) o.visible = false;
+                    } catch (e) { void e; }
                 }
             });
 
@@ -1713,27 +2116,8 @@ function ensureFabric() {
          */
         cancelCrop() {
             if (!this.canvas || !this._cropMode) return;
-            // Remove handlers if any and remove object
-            if (this._cropRect) {
-                try {
-                    if (this._cropHandlers && this._cropHandlers.length) {
-                        this._cropHandlers.forEach(h => {
-                            h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
-                        });
-                    }
-                } catch (e) { void e; }
-
-                try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
-                this._cropRect = null;
-            }
-            // restore evented/selectable flags
-            if (Array.isArray(this._cropPrevEvented)) {
-                this._cropPrevEvented.forEach(i => {
-                    try { i.obj.evented = i.evented; i.obj.selectable = i.selectable; } catch (e) { void e; }
-                });
-            }
-            this._cropPrevEvented = null;
-            this._cropHandlers = [];
+            this._removeCropRect();
+            this._restoreCropObjectState();
             this._cropMode = false;
             // restore selection setting
             this.canvas.selection = !!this._prevSelectionSetting;
@@ -1756,42 +2140,49 @@ function ensureFabric() {
             this._cropRect.setCoords();
             const rectBounds = this._cropRect.getBoundingRect(true, true);
 
-            // Compute integer crop region clamped to canvas
-            const sx = Math.max(0, Math.round(rectBounds.left));
-            const sy = Math.max(0, Math.round(rectBounds.top));
-            const sw = Math.max(1, Math.round(Math.min(rectBounds.width, this.canvas.getWidth() - sx)));
-            const sh = Math.max(1, Math.round(Math.min(rectBounds.height, this.canvas.getHeight() - sy)));
+            const { sx, sy, sw, sh } = this._getClampedCanvasRegion(rectBounds);
+            const preserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
 
-            // Include isCropRect in toJSON whitelist so we can detect and filter them out.
+            this._restoreCropObjectState();
+
             let beforeJson = null;
             try {
-                const jsonObj = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
-                if (Array.isArray(jsonObj.objects)) {
-                    jsonObj.objects = jsonObj.objects.filter(o => !o.isCropRect);
-                }
-                beforeJson = JSON.stringify(jsonObj);
+                beforeJson = this._serializeCanvasState();
             } catch (e) {
                 this._reportWarning('applyCrop: could not serialize before state', e);
                 beforeJson = null;
             }
 
+            const preservedMasks = [];
 
-            // Remove ALL un-merged masks so they won't be baked into exported pixels
             try {
                 const masks = this.canvas.getObjects().filter(o => o.maskId);
                 if (masks && masks.length) {
                     masks.forEach(m => {
                         try {
+                            m.setCoords();
+                            const br = m.getBoundingRect(true, true);
+                            const intersectsCrop =
+                                br.left < sx + sw &&
+                                br.left + br.width > sx &&
+                                br.top < sy + sh &&
+                                br.top + br.height > sy;
                             this._removeLabelForMask(m);
                             this.canvas.remove(m);
+                            if (preserveMasks && intersectsCrop) {
+                                m.set({
+                                    left: (m.left || 0) - sx,
+                                    top: (m.top || 0) - sy,
+                                    visible: true
+                                });
+                                m.setCoords();
+                                preservedMasks.push(m);
+                            }
                         } catch (err) {
                             this._reportWarning('applyCrop: failed to remove mask', err);
                         }
                     });
-                    this._lastMask = null;
-                    this._lastMaskInitialLeft = null;
-                    this._lastMaskInitialTop = null;
-                    this._lastMaskInitialWidth = null;
+                    this._clearMaskPlacementMemory();
                     this.canvas.discardActiveObject();
                     this.canvas.renderAll();
                 }
@@ -1799,19 +2190,7 @@ function ensureFabric() {
                 this._reportWarning('applyCrop: error while removing masks', e);
             }
 
-            try {
-                if (this._cropRect) {
-                    try {
-                        if (this._cropHandlers && this._cropHandlers.length) {
-                            this._cropHandlers.forEach(h => {
-                                h.handlers.forEach(rec => h.target.off(rec.evt, rec.fn));
-                            });
-                        }
-                    } catch (e) { void e; }
-                    try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
-                    this._cropRect = null;
-                }
-            } catch (e) { void e; }
+            this._removeCropRect();
 
             // End crop mode
             this._cropMode = false;
@@ -1821,29 +2200,14 @@ function ensureFabric() {
             // Export full canvas and crop on offscreen canvas
             let croppedBase64;
             try {
-                const fullDataUrl = this.canvas.toDataURL({
-                    format: 'jpeg',
-                    quality: this.options.downsampleQuality || 0.92,
-                    multiplier: 1
-                });
-
-                croppedBase64 = await new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        try {
-                            const oc = document.createElement('canvas');
-                            oc.width = sw;
-                            oc.height = sh;
-                            const ctx = oc.getContext('2d');
-                            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-                            const out = oc.toDataURL('image/jpeg', this.options.downsampleQuality || 0.92);
-                            resolve(out);
-                        } catch (err) {
-                            reject(err);
-                        }
-                    };
-                    img.onerror = (e) => reject(e);
-                    img.src = fullDataUrl;
+                croppedBase64 = await this._exportCanvasRegionToDataURL({
+                    sx,
+                    sy,
+                    sw,
+                    sh,
+                    multiplier: 1,
+                    quality: this._normalizeQuality(this.options.downsampleQuality),
+                    format: 'jpeg'
                 });
             } catch (e) {
                 this._reportError('applyCrop: failed to create cropped image', e);
@@ -1854,6 +2218,17 @@ function ensureFabric() {
             // Load the cropped image as the new base image
             try {
                 await this.loadImage(croppedBase64);
+                if (preservedMasks.length) {
+                    preservedMasks.forEach(mask => {
+                        this._rebindMaskEvents(mask);
+                        this.canvas.add(mask);
+                        this.canvas.bringToFront(mask);
+                    });
+                    this._lastMask = preservedMasks[preservedMasks.length - 1];
+                    this.maskCounter = preservedMasks.reduce((max, mask) => Math.max(max, mask.maskId || 0), this.maskCounter);
+                    this._updateMaskList();
+                    this.canvas.renderAll();
+                }
             } catch (e) {
                 this._reportError('applyCrop: loadImage(croppedBase64) failed', e);
                 this._updateUI();
@@ -1863,36 +2238,14 @@ function ensureFabric() {
             // Create "after" snapshot (also exclude crop rect if any) and push history command
             let afterJson = null;
             try {
-                const jsonObj2 = this.canvas.toJSON(['maskId', 'maskName', 'isCropRect']);
-                if (Array.isArray(jsonObj2.objects)) {
-                    jsonObj2.objects = jsonObj2.objects.filter(o => !o.isCropRect);
-                }
-                afterJson = JSON.stringify(jsonObj2);
+                afterJson = this._serializeCanvasState();
             } catch (e) {
                 this._reportWarning('applyCrop: failed to serialize after state', e);
                 afterJson = null;
             }
 
             try {
-                const self = this;
-                const cmd = new Command(
-                    () => { if (afterJson) self.loadFromState(afterJson); },
-                    () => { if (beforeJson) self.loadFromState(beforeJson); }
-                );
-
-                if (!this.historyManager) this.historyManager = new HistoryManager(this.maxHistorySize || 50);
-
-                // trim future redo history
-                if (this.historyManager.currentIndex < this.historyManager.history.length - 1) {
-                    this.historyManager.history = this.historyManager.history.slice(0, this.historyManager.currentIndex + 1);
-                }
-
-                this.historyManager.history.push(cmd);
-                if (this.historyManager.history.length > this.historyManager.maxSize) {
-                    this.historyManager.history.shift();
-                } else {
-                    this.historyManager.currentIndex++;
-                }
+                this._pushStateTransition(beforeJson, afterJson);
             } catch (e) {
                 this._reportWarning('applyCrop: failed to push history command', e);
             }
@@ -1937,9 +2290,9 @@ function ensureFabric() {
                     const el = document.getElementById(this.elements[k]);
                     if (!el) continue;
                     if (k === 'applyCropBtn' || k === 'cancelCropBtn') {
-                        el.disabled = false;
+                        this._setDisabled(k, false);
                     } else {
-                        el.disabled = true;
+                        this._setDisabled(k, true);
                     }
                 }
                 return;
@@ -1960,6 +2313,8 @@ function ensureFabric() {
             this._setDisabled('cropBtn', !hasImg || this.isAnimating);
             this._setDisabled('applyCropBtn', true);
             this._setDisabled('cancelCropBtn', true);
+            this._setDisabled('imageInput', this.isAnimating);
+            this._setDisabled('uploadArea', this.isAnimating);
         }
 
         /**
@@ -1971,7 +2326,25 @@ function ensureFabric() {
          */
         _setDisabled(key, disabled) {
             const el = document.getElementById(this.elements[key]);
-            if (el) el.disabled = !!disabled;
+            if (!el) return;
+            if ('disabled' in el) {
+                el.disabled = !!disabled;
+                return;
+            }
+
+            if (disabled) {
+                el.setAttribute('aria-disabled', 'true');
+                el.style.pointerEvents = 'none';
+            } else {
+                el.removeAttribute('aria-disabled');
+                el.style.pointerEvents = '';
+            }
+        }
+
+        _isElementDisabled(el) {
+            if (!el) return false;
+            if ('disabled' in el) return !!el.disabled;
+            return el.getAttribute('aria-disabled') === 'true';
         }
 
         /**
@@ -2022,6 +2395,10 @@ function ensureFabric() {
             if (this._cropRect) {
                 try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
                 this._cropRect = null;
+            }
+
+            if (this.containerEl && this._containerOriginalOverflow !== undefined) {
+                try { this.containerEl.style.overflow = this._containerOriginalOverflow; } catch (e) { void e; }
             }
 
             if (this.canvas) {
@@ -2147,7 +2524,17 @@ function ensureFabric() {
         execute(command) {
             // Perform the command.
             command.execute();
+            this.push(command);
+        }
 
+        /**
+         * Pushes an already-applied command onto the history stack.
+         * Truncates any "future" history when branching.
+         *
+         * @param {Command} command  The command to push.
+         * @returns {void}
+         */
+        push(command) {
             // Remove any commands that are ahead of the current index.
             if (this.currentIndex < this.history.length - 1) {
                 this.history = this.history.slice(0, this.currentIndex + 1);

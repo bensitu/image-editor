@@ -124,6 +124,7 @@ declare module '@bensitu/image-editor' {
   export interface Base64ExportOptions {
     exportImageArea?: boolean;
     multiplier?: number;
+    quality?: number;
   }
 
   export interface ImageFileExportOptions {

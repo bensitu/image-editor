@@ -156,6 +156,16 @@ export async function loadFixtureImage(editor, options = {}) {
     assert.equal(editor.isImageLoadedToCanvas, true);
 }
 
+export async function getImageDimensionsFromDataUrl(dataUrl) {
+    await installFabricDom();
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = reject;
+        img.src = dataUrl;
+    });
+}
+
 export async function waitForCanvasCallbacks(ms = 50) {
     await new Promise(resolve => setTimeout(resolve, ms));
 }

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
     createEditor,
     disposeEditor,
+    getImageDimensionsFromDataUrl,
     loadFixtureImage,
     makeImageDataUrl,
     waitForCanvasCallbacks
@@ -80,6 +81,89 @@ test('loadImage downsamples images that exceed configured dimensions', async (t)
     assert.equal(editor.originalImage.height <= 30, true);
 });
 
+test('coverImageToCanvas creates a scrollable canvas when the covered image overflows', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 120,
+        canvasHeight: 80,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 120, height: 200 });
+
+    assert.equal(editor.canvas.getWidth(), 118);
+    assert.equal(editor.canvas.getHeight(), 197);
+    assert.equal(editor.originalImage.getScaledWidth(), 118);
+    assert.ok(Math.abs(editor.originalImage.getScaledHeight() - 196.66666666666669) < 0.001);
+});
+
+test('coverImageToCanvas uses the fixed scrollbar viewport and removes scrollable overflow after zooming below it', async (t) => {
+    const { editor, ids } = await createEditor({
+        canvasWidth: 800,
+        canvasHeight: 600,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false,
+        minScale: 0.1
+    }, {
+        containerWidth: 413,
+        containerHeight: 243
+    });
+    t.after(() => disposeEditor(editor));
+    const container = document.getElementById(ids.canvasContainer);
+    container.style.overflow = 'auto';
+    editor._getScrollbarSize = () => ({ width: 17, height: 17 });
+
+    await loadFixtureImage(editor, { width: 600, height: 400 });
+
+    assert.equal(editor.canvas.getWidth(), 411);
+    assert.equal(editor.canvas.getHeight(), 274);
+    assert.equal(container.style.overflow, 'scroll');
+    assert.ok(Math.abs(editor.originalImage.getScaledWidth() - 411) < 0.001);
+    assert.ok(editor.originalImage.getScaledHeight() > 243);
+
+    await editor.scaleImage(0.5);
+
+    assert.equal(editor.canvas.getWidth(), 411);
+    assert.equal(editor.canvas.getHeight(), 241);
+    assert.equal(container.style.overflow, 'scroll');
+
+    editor.options.coverImageToCanvas = false;
+    editor.options.expandCanvasToImage = true;
+    await loadFixtureImage(editor, { width: 120, height: 80 });
+
+    assert.equal(container.style.overflow, 'auto');
+});
+
+test('coverImageToCanvas does not enlarge images that are smaller than the fixed scrollbar viewport', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 800,
+        canvasHeight: 600,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    }, {
+        containerWidth: 413,
+        containerHeight: 243
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 120, height: 80 });
+
+    assert.equal(editor.originalImage.getScaledWidth(), 120);
+    assert.equal(editor.originalImage.getScaledHeight(), 80);
+    assert.equal(editor.canvas.getWidth(), 411);
+    assert.equal(editor.canvas.getHeight(), 241);
+});
+
+test('coverImageToCanvas does not add overflow for near-integer cover dimensions', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+
+    assert.equal(editor._ceilCanvasDimension(120.0000001), 120);
+    assert.equal(editor._ceilCanvasDimension(120.009), 120);
+    assert.equal(editor._ceilCanvasDimension(120.02), 121);
+});
+
 test('scaleImage, rotateImage, and reset update image transform state', async (t) => {
     const { editor } = await createEditor({
         minScale: 0.5,
@@ -99,6 +183,28 @@ test('scaleImage, rotateImage, and reset update image transform state', async (t
     await editor.reset();
     assert.equal(editor.currentScale, 1);
     assert.equal(editor.currentRotation, 0);
+});
+
+test('coverImageToCanvas updates scrollable canvas bounds after zoom changes', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 120,
+        canvasHeight: 80,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false,
+        minScale: 0.1
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 120, height: 200 });
+
+    await editor.scaleImage(0.5);
+
+    assert.equal(editor.canvas.getWidth(), 118);
+    assert.equal(editor.canvas.getHeight(), 99);
+
+    await editor.scaleImage(0.3);
+
+    assert.equal(editor.canvas.getWidth(), 118);
+    assert.equal(editor.canvas.getHeight(), 78);
 });
 
 test('addMask supports standard shapes, labels, DOM list updates, and remove operations', async (t) => {
@@ -156,6 +262,21 @@ test('mask placement memory is cleared after selected and bulk removal', async (
     assert.equal(afterRemoveAll.top, 10);
 });
 
+test('non-rectangular masks expand the canvas when placed beyond current bounds', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 100,
+        canvasHeight: 80,
+        expandCanvasToImage: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 80, height: 60 });
+
+    editor.addMask({ shape: 'circle', left: 90, top: 70, radius: 20 });
+
+    assert.equal(editor.canvas.getWidth() >= 140, true);
+    assert.equal(editor.canvas.getHeight() >= 120, true);
+});
+
 test('getImageBase64 exports image data and restores mask state when export fails', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -199,6 +320,42 @@ test('getImageBase64 exports image data and restores mask state when export fail
     assert.equal(mask.lockRotation, originalState.lockRotation);
 });
 
+test('getImageBase64 exports the scrollable image area in cover-canvas mode', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 120,
+        canvasHeight: 80,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 120, height: 200 });
+    editor.addMask({ width: 20, height: 20 });
+
+    const base64 = await editor.getImageBase64({ exportImageArea: true, multiplier: 1 });
+    const size = await getImageDimensionsFromDataUrl(base64);
+
+    assert.equal(size.width, 118);
+    assert.equal(size.height, 197);
+});
+
+test('getImageBase64 exportImageArea false preserves image transforms and omits masks', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 120,
+        canvasHeight: 120,
+        expandCanvasToImage: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 80, height: 40 });
+    editor.addMask({ width: 20, height: 20 });
+
+    await editor.rotateImage(90);
+    const base64 = await editor.getImageBase64({ exportImageArea: false, multiplier: 1 });
+    const size = await getImageDimensionsFromDataUrl(base64);
+
+    assert.equal(size.width, 40);
+    assert.equal(size.height, 80);
+});
+
 test('exportImageFile creates a typed image File with and without merged masks', async (t) => {
     const { editor } = await createEditor({
         defaultDownloadFileName: 'unit-export.jpg'
@@ -224,6 +381,26 @@ test('exportImageFile creates a typed image File with and without merged masks',
     assert.equal(plainFile.name, 'plain.jpg');
     assert.equal(plainFile.type, 'image/jpeg');
     assert.equal(plainFile.size > 0, true);
+});
+
+test('exportImageFile forwards quality to getImageBase64 for both export modes', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    const calls = [];
+    editor.getImageBase64 = async (opts) => {
+        calls.push(opts);
+        return makeImageDataUrl({ width: 8, height: 8, format: 'image/jpeg' });
+    };
+
+    await editor.exportImageFile({ mergeMask: true, quality: 0.31, multiplier: 2 });
+    await editor.exportImageFile({ mergeMask: false, quality: 0.47, multiplier: 3 });
+
+    assert.equal(calls[0].quality, 0.31);
+    assert.equal(calls[0].multiplier, 2);
+    assert.equal(calls[1].quality, 0.47);
+    assert.equal(calls[1].multiplier, 3);
 });
 
 test('downloadImage builds and clicks an anchor for the exported image', async (t) => {
@@ -270,6 +447,41 @@ test('merge flattens masks into a newly loaded base image', async (t) => {
     assert.equal(editor.canvas.getObjects().filter(object => object.type === 'image').length, 1);
 });
 
+test('merge undo restores mask control styling', async (t) => {
+    const { editor } = await createEditor({
+        maskRotatable: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    editor.addMask({
+        width: 30,
+        height: 30,
+        borderColor: '#00ff00',
+        cornerColor: '#111111',
+        cornerSize: 11,
+        transparentCorners: false,
+        styles: {
+            strokeDashArray: [4, 2]
+        }
+    });
+
+    await editor.merge();
+    editor.undo();
+    await waitForCanvasCallbacks(100);
+
+    const restoredMask = editor.canvas.getObjects().find(object => object.maskId);
+    assert.ok(restoredMask);
+    assert.equal(restoredMask.selectable, true);
+    assert.equal(restoredMask.evented, true);
+    assert.equal(restoredMask.hasControls, true);
+    assert.equal(restoredMask.lockRotation, false);
+    assert.equal(restoredMask.borderColor, '#00ff00');
+    assert.equal(restoredMask.cornerColor, '#111111');
+    assert.equal(restoredMask.cornerSize, 11);
+    assert.equal(restoredMask.transparentCorners, false);
+    assert.deepEqual(restoredMask.strokeDashArray, [4, 2]);
+});
+
 test('crop mode can be entered, canceled, and applied while removing unmerged masks', async (t) => {
     const { editor } = await createEditor({
         crop: {
@@ -299,6 +511,88 @@ test('crop mode can be entered, canceled, and applied while removing unmerged ma
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
 });
 
+test('crop mode hides masks temporarily and restores their visibility on cancel', async (t) => {
+    const { editor } = await createEditor({
+        crop: {
+            hideMasksDuringCrop: true
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const mask = editor.addMask({ width: 30, height: 30 });
+
+    editor.enterCropMode();
+    assert.equal(mask.visible, false);
+
+    editor.cancelCrop();
+    assert.equal(mask.visible, true);
+    assert.equal(mask.evented, true);
+    assert.equal(mask.selectable, true);
+});
+
+test('applyCrop undo restores interactive masks from the before snapshot', async (t) => {
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 40,
+            minHeight: 40,
+            hideMasksDuringCrop: true
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 160, height: 120 });
+    editor.addMask({ width: 30, height: 30 });
+
+    editor.enterCropMode();
+    await editor.applyCrop();
+    editor.undo();
+    await waitForCanvasCallbacks(100);
+
+    const restoredMask = editor.canvas.getObjects().find(object => object.maskId);
+    assert.ok(restoredMask);
+    assert.equal(restoredMask.visible, true);
+    assert.equal(restoredMask.evented, true);
+    assert.equal(restoredMask.selectable, true);
+});
+
+test('applyCrop preserves and shifts masks when preserveMasksAfterCrop is enabled', async (t) => {
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 40,
+            minHeight: 40,
+            preserveMasksAfterCrop: true
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+    editor.addMask({ left: 30, top: 35, width: 30, height: 30 });
+
+    editor.enterCropMode();
+    editor._cropRect.set({ left: 20, top: 25, width: 100, height: 80, scaleX: 1, scaleY: 1 });
+    editor._cropRect.setCoords();
+    await editor.applyCrop();
+
+    const masks = editor.canvas.getObjects().filter(object => object.maskId);
+    assert.equal(masks.length, 1);
+    assert.equal(masks[0].left, 10);
+    assert.equal(masks[0].top, 10);
+    assert.equal(masks[0].evented, true);
+    assert.equal(masks[0].selectable, true);
+});
+
+test('first mask addition can be undone after image load', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    editor.addMask({ width: 20, height: 20 });
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+
+    editor.undo();
+    await waitForCanvasCallbacks(100);
+
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
+});
+
 test('history undo and redo restore serialized canvas states', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -315,6 +609,39 @@ test('history undo and redo restore serialized canvas states', async (t) => {
     editor.redo();
     await waitForCanvasCallbacks(100);
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 2);
+});
+
+test('mask hover handlers are rebound after undo and redo restores state', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    editor.addMask({
+        width: 20,
+        height: 20,
+        alpha: 0.4,
+        styles: {
+            stroke: '#123456',
+            strokeWidth: 3
+        }
+    });
+    editor.undo();
+    await waitForCanvasCallbacks(100);
+    editor.redo();
+    await waitForCanvasCallbacks(100);
+
+    const mask = editor.canvas.getObjects().find(object => object.maskId);
+    assert.ok(mask);
+
+    mask.fire('mouseover');
+    assert.equal(mask.stroke, '#ff5500');
+    assert.equal(mask.strokeWidth, 2);
+    assert.equal(mask.opacity, 0.6000000000000001);
+
+    mask.fire('mouseout');
+    assert.equal(mask.stroke, '#123456');
+    assert.equal(mask.strokeWidth, 3);
+    assert.equal(mask.opacity, 0.4);
 });
 
 test('recoverable internal warnings are reported through callbacks', async (t) => {
@@ -369,13 +696,43 @@ test('UI button bindings call editor operations', async (t) => {
     assert.equal(editor._cropMode, false);
 });
 
-test('dispose releases canvas references and image loaded state', async () => {
-    const { editor } = await createEditor();
+test('upload area click is disabled while crop mode is active', async (t) => {
+    const { editor, ids } = await createEditor();
+    t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
+
+    const input = document.getElementById(ids.imageInput);
+    let inputClicks = 0;
+    input.click = () => {
+        inputClicks += 1;
+    };
+
+    editor.enterCropMode();
+    document.getElementById(ids.uploadArea).click();
+    assert.equal(inputClicks, 0);
+
+    editor.cancelCrop();
+    document.getElementById(ids.uploadArea).click();
+    assert.equal(inputClicks, 1);
+});
+
+test('dispose releases canvas references, image loaded state, and restored container overflow', async () => {
+    const { editor, ids } = await createEditor({
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    }, {
+        containerWidth: 120,
+        containerHeight: 90
+    });
+    const container = document.getElementById(ids.canvasContainer);
+    container.style.overflow = 'auto';
+    await loadFixtureImage(editor);
+    assert.equal(container.style.overflow, 'scroll');
 
     editor.dispose();
 
     assert.equal(editor.canvas, null);
     assert.equal(editor.canvasEl, null);
     assert.equal(editor.isImageLoadedToCanvas, false);
+    assert.equal(container.style.overflow, 'auto');
 });
