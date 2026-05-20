@@ -40,10 +40,6 @@ function ensureFabric() {
 }
 var ImageEditor = class {
   constructor(options = {}) {
-    this._fabricLoaded = !!ensureFabric();
-    if (!this._fabricLoaded) {
-      console.error("fabric.js is not loaded. Please include fabric.js first. Initialization will be aborted.");
-    }
     const defaultLabel = {
       getText: (mask) => mask.maskName,
       textOptions: {
@@ -98,6 +94,8 @@ var ImageEditor = class {
       initialImageBase64: null,
       // Provide a base64 'data:image/...' string here if you want auto-load
       defaultDownloadFileName: "edited_image.jpg",
+      onError: null,
+      onWarning: null,
       ...options,
       label: {
         ...defaultLabel,
@@ -112,6 +110,10 @@ var ImageEditor = class {
         ...userCrop
       }
     };
+    this._fabricLoaded = !!ensureFabric();
+    if (!this._fabricLoaded) {
+      this._reportError("fabric.js is not loaded. Please include fabric.js first. Initialization will be aborted.");
+    }
     this.canvas = null;
     this.canvasEl = null;
     this.containerEl = null;
@@ -196,6 +198,24 @@ var ImageEditor = class {
       this.loadImage(this.options.initialImageBase64);
     } else {
       this._updatePlaceholderStatus();
+    }
+  }
+  _reportError(message, error = null) {
+    const handler = this.options && this.options.onError;
+    if (typeof handler !== "function")
+      return;
+    try {
+      handler(error, message);
+    } catch {
+    }
+  }
+  _reportWarning(message, error = null) {
+    const handler = this.options && this.options.onWarning;
+    if (typeof handler !== "function")
+      return;
+    try {
+      handler(error, message);
+    } catch {
     }
   }
   /**
@@ -304,7 +324,7 @@ var ImageEditor = class {
       });
     this._bindIfExists("cropBtn", "click", () => this.enterCropMode());
     this._bindIfExists("applyCropBtn", "click", () => {
-      this.applyCrop().catch((e) => console.error("applyCrop failed", e));
+      this.applyCrop().catch((e) => this._reportError("applyCrop failed", e));
     });
     this._bindIfExists("cancelCropBtn", "click", () => this.cancelCrop());
   }
@@ -338,7 +358,7 @@ var ImageEditor = class {
     const reader = new FileReader();
     reader.onload = (e) => this.loadImage(e.target.result);
     reader.onerror = (e) => {
-      console.error(`[ImageEditor: fileReadError]`, e);
+      this._reportError("Image file could not be read", e);
     };
     reader.readAsDataURL(file);
   }
@@ -710,7 +730,7 @@ var ImageEditor = class {
     return this.scaleImage(1).then(() => this.rotateImage(0)).then(() => {
       this.saveState();
     }).catch((err) => {
-      console.error("reset() failed", err);
+      this._reportError("reset() failed", err);
     });
   }
   /**
@@ -745,11 +765,11 @@ var ImageEditor = class {
           this._updatePlaceholderStatus();
           this._updateUI();
         } catch (callbackError) {
-          console.error("loadFromState() failed", callbackError);
+          this._reportError("loadFromState() failed", callbackError);
         }
       });
     } catch (e) {
-      console.error("loadFromState() failed", e);
+      this._reportError("loadFromState() failed", e);
     }
   }
   /**
@@ -786,7 +806,7 @@ var ImageEditor = class {
       }
       this._updateUI();
     } catch (err) {
-      console.warn("saveState: failed to save canvas snapshot", err);
+      this._reportWarning("saveState: failed to save canvas snapshot", err);
     }
   }
   /**
@@ -1254,7 +1274,7 @@ var ImageEditor = class {
       await this.loadImage(merged);
       this.saveState();
     } catch (err) {
-      console.error("merge error", err);
+      this._reportError("merge error", err);
       if (this.canvasEl)
         this.canvasEl.style.visibility = "";
     }
@@ -1275,7 +1295,7 @@ var ImageEditor = class {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }).catch((err) => console.error("download error", err));
+    }).catch((err) => this._reportError("download error", err));
   }
   /**
    * Exports the image as a Base64-encoded JPEG.
@@ -1592,7 +1612,7 @@ var ImageEditor = class {
       }
       beforeJson = JSON.stringify(jsonObj);
     } catch (e) {
-      console.warn("applyCrop: could not serialize before state", e);
+      this._reportWarning("applyCrop: could not serialize before state", e);
       beforeJson = null;
     }
     try {
@@ -1603,7 +1623,7 @@ var ImageEditor = class {
             this._removeLabelForMask(m);
             this.canvas.remove(m);
           } catch (err) {
-            console.warn("applyCrop: failed to remove mask", err);
+            this._reportWarning("applyCrop: failed to remove mask", err);
           }
         });
         this._lastMask = null;
@@ -1614,7 +1634,7 @@ var ImageEditor = class {
         this.canvas.renderAll();
       }
     } catch (e) {
-      console.warn("applyCrop: error while removing masks", e);
+      this._reportWarning("applyCrop: error while removing masks", e);
     }
     try {
       if (this._cropRect) {
@@ -1663,14 +1683,14 @@ var ImageEditor = class {
         img.src = fullDataUrl;
       });
     } catch (e) {
-      console.error("applyCrop: failed to create cropped image", e);
+      this._reportError("applyCrop: failed to create cropped image", e);
       this._updateUI();
       return;
     }
     try {
       await this.loadImage(croppedBase64);
     } catch (e) {
-      console.error("applyCrop: loadImage(croppedBase64) failed", e);
+      this._reportError("applyCrop: loadImage(croppedBase64) failed", e);
       this._updateUI();
       return;
     }
@@ -1682,7 +1702,7 @@ var ImageEditor = class {
       }
       afterJson = JSON.stringify(jsonObj2);
     } catch (e) {
-      console.warn("applyCrop: failed to serialize after state", e);
+      this._reportWarning("applyCrop: failed to serialize after state", e);
       afterJson = null;
     }
     try {
@@ -1709,7 +1729,7 @@ var ImageEditor = class {
         this.historyManager.currentIndex++;
       }
     } catch (e) {
-      console.warn("applyCrop: failed to push history command", e);
+      this._reportWarning("applyCrop: failed to push history command", e);
     }
     this._updateUI();
     this.canvas.renderAll();

@@ -317,6 +317,27 @@ test('history undo and redo restore serialized canvas states', async (t) => {
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 2);
 });
 
+test('recoverable internal warnings are reported through callbacks', async (t) => {
+    const warnings = [];
+    const { editor } = await createEditor({
+        onWarning: (error, message) => warnings.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    const originalToJSON = editor.canvas.toJSON.bind(editor.canvas);
+    editor.canvas.toJSON = () => {
+        throw new Error('forced snapshot failure');
+    };
+
+    editor.saveState();
+    editor.canvas.toJSON = originalToJSON;
+
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].message, 'saveState: failed to save canvas snapshot');
+    assert.match(warnings[0].error.message, /forced snapshot failure/);
+});
+
 test('loadFromState handles empty or image-less states safely', async (t) => {
     const { editor, ids } = await createEditor();
     t.after(() => disposeEditor(editor));

@@ -5,19 +5,28 @@ export const fabric = fabricModule.fabric || fabricModule;
 
 let domCounter = 0;
 
+function defineGlobal(name, value) {
+    Object.defineProperty(globalThis, name, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value
+    });
+}
+
 export function installFabricDom() {
-    globalThis.window = fabric.window;
-    globalThis.document = fabric.document;
-    globalThis.navigator = fabric.window.navigator;
-    globalThis.Image = fabric.window.Image;
-    globalThis.File = fabric.window.File || globalThis.File;
-    globalThis.Blob = fabric.window.Blob || globalThis.Blob;
-    globalThis.HTMLCanvasElement = fabric.window.HTMLCanvasElement;
-    globalThis.HTMLImageElement = fabric.window.HTMLImageElement;
-    globalThis.HTMLElement = fabric.window.HTMLElement;
-    globalThis.Node = fabric.window.Node;
-    globalThis.atob = fabric.window.atob.bind(fabric.window);
-    globalThis.btoa = fabric.window.btoa.bind(fabric.window);
+    defineGlobal('window', fabric.window);
+    defineGlobal('document', fabric.document);
+    defineGlobal('navigator', fabric.window.navigator);
+    defineGlobal('Image', fabric.window.Image);
+    defineGlobal('File', fabric.window.File || globalThis.File);
+    defineGlobal('Blob', fabric.window.Blob || globalThis.Blob);
+    defineGlobal('HTMLCanvasElement', fabric.window.HTMLCanvasElement);
+    defineGlobal('HTMLImageElement', fabric.window.HTMLImageElement);
+    defineGlobal('HTMLElement', fabric.window.HTMLElement);
+    defineGlobal('Node', fabric.window.Node);
+    defineGlobal('atob', fabric.window.atob.bind(fabric.window));
+    defineGlobal('btoa', fabric.window.btoa.bind(fabric.window));
 }
 
 export async function loadImageEditorModule() {

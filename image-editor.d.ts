@@ -57,6 +57,8 @@ declare module '@bensitu/image-editor' {
     crop?: CropOptions;
 
     onImageLoaded?: () => void;
+    onError?: (error: unknown, message: string) => void;
+    onWarning?: (error: unknown, message: string) => void;
   }
 
   export interface ElementIdMap {
