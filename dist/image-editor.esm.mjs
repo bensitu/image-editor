@@ -5,7 +5,7 @@ import fabricModule from "fabric";
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.2.1
+ * @version 1.2.2
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
