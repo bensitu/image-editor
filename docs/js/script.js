@@ -1,6 +1,9 @@
 let editor = null;
-document.addEventListener('DOMContentLoaded', () => {
-    editor = new ImageEditor({
+
+function initEditor() {
+    if (editor || typeof window.ImageEditor !== 'function') return;
+
+    editor = new window.ImageEditor({
         backgroundColor: 'transparent',
         expandCanvasToImage: true,
         fitImageToCanvas: false,
@@ -34,7 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelCropBtn: 'cancelCropBtn',
         canvasContainer: null
     });
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initEditor);
+} else {
+    initEditor();
+}
 
 function setOptions() {
     const fitImageRadio = document.getElementById('fitImage');

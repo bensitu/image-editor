@@ -91,3 +91,10 @@ test('type declarations match the public package API', () => {
         assert.equal(declaration.includes(api), false, `${api} should not be declared`);
     }
 });
+
+test('docs demo can load ImageEditor on GitHub Pages', () => {
+    const html = readFileSync('docs/index.html', 'utf8');
+
+    assert.match(html, /cdn\.jsdelivr\.net\/npm\/@bensitu\/image-editor\/dist\/image-editor\.js/);
+    assert.equal(/<script\s+src=["']\.\.\/dist\/image-editor\.js/.test(html), false);
+});

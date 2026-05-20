@@ -206,23 +206,6 @@ The package build targets these modern browsers and uses modern DOM and JavaScri
 
 IE11 and old mobile Safari are not supported by the distributed build. If you need them, transpile the package and provide any required DOM or JavaScript polyfills in your application.
 
-## Automated npm Publishing
-
-This repository publishes to npm through GitHub Actions when a matching version tag is pushed. The workflow uses npm Trusted Publishing with GitHub Actions OIDC, so no long-lived npm token is required.
-
-Setup:
-
-1. Configure npm Trusted Publishing for this repository and the `publish-npm.yml` workflow.
-2. Commit the version bump, changelog, source, and generated `dist/` files.
-3. Push a tag that matches the package version:
-
-```bash
-git tag v<package-version>
-git push origin v<package-version>
-```
-
-The workflow validates the tag, runs checks, verifies package contents, and publishes to npm.
-
 ## Dependencies
 
 - **fabric.js v5.x** — Must be loaded before ImageEditor
