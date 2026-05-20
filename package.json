@@ -17,7 +17,7 @@
         "build": "node esbuild.config.mjs",
         "build:babel": "babel src --out-dir dist --copy-files",
         "lint": "eslint src --ext .js",
-        "test": "npm run build && node --test tests"
+        "test": "npm run build && node --test tests/image-editor.test.mjs tests/package.test.mjs"
     },
     "repository": {
         "type": "git",
