@@ -85,6 +85,69 @@ test('loadImage ignores invalid input and resolves only after a valid image is o
     assert.equal(loadedCount, 1);
 });
 
+test('loadImage warns when mutually exclusive layout modes are enabled together', async (t) => {
+    const warnings = [];
+    const { editor } = await createEditor({
+        fitImageToCanvas: true,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false,
+        onWarning: (error, message) => warnings.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl({ width: 80, height: 60 }));
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /Only one image layout mode should be enabled/);
+    assert.match(warnings[0].message, /fitImageToCanvas/);
+    assert.match(warnings[0].message, /coverImageToCanvas/);
+});
+
+test('loadImage resets cover-canvas scroll position when replacing an image explicitly', async (t) => {
+    const { editor, ids } = await createEditor({
+        canvasWidth: 120,
+        canvasHeight: 80,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    });
+    t.after(() => disposeEditor(editor));
+    const container = document.getElementById(ids.canvasContainer);
+
+    await loadFixtureImage(editor, { width: 120, height: 200 });
+    container.scrollLeft = 5;
+    container.scrollTop = 31;
+
+    await editor.loadImage(makeImageDataUrl({ width: 80, height: 80 }));
+
+    assert.equal(container.scrollLeft, 0);
+    assert.equal(container.scrollTop, 0);
+});
+
+test('image element creation rejects when decoding exceeds the configured timeout', async (t) => {
+    const { editor } = await createEditor({ imageLoadTimeoutMs: 1 });
+    t.after(() => disposeEditor(editor));
+
+    const originalImage = globalThis.Image;
+    class NeverLoadingImage {
+        set src(value) {
+            this._src = value;
+        }
+
+        get src() {
+            return this._src;
+        }
+    }
+    globalThis.Image = NeverLoadingImage;
+    t.after(() => {
+        globalThis.Image = originalImage;
+    });
+
+    await assert.rejects(
+        () => editor._createImageElement('data:image/png;base64,AAAA', 1),
+        /Image load timed out/
+    );
+});
+
 test('loadImage downsamples images that exceed configured dimensions', async (t) => {
     const { editor } = await createEditor({
         downsampleOnLoad: true,
@@ -97,6 +160,37 @@ test('loadImage downsamples images that exceed configured dimensions', async (t)
 
     assert.equal(editor.originalImage.width <= 40, true);
     assert.equal(editor.originalImage.height <= 30, true);
+});
+
+test('downsample and crop export fail clearly when a 2D canvas context is unavailable', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+
+    const imageElement = {
+        naturalWidth: 20,
+        naturalHeight: 10
+    };
+    const sourceDataUrl = makeImageDataUrl({ width: 20, height: 10 });
+    const originalCreateElement = document.createElement.bind(document);
+    document.createElement = (tagName) => {
+        const element = originalCreateElement(tagName);
+        if (tagName === 'canvas') {
+            element.getContext = () => null;
+        }
+        return element;
+    };
+    t.after(() => {
+        document.createElement = originalCreateElement;
+    });
+
+    assert.throws(
+        () => editor._resampleImageToDataURL(imageElement, 10, 5),
+        /2D canvas context is unavailable/
+    );
+    await assert.rejects(
+        () => editor._cropDataUrl(sourceDataUrl, 0, 0, 10, 5, 1),
+        /2D canvas context is unavailable/
+    );
 });
 
 test('coverImageToCanvas creates a scrollable canvas when the covered image overflows', async (t) => {
@@ -180,6 +274,26 @@ test('coverImageToCanvas does not add overflow for near-integer cover dimensions
     assert.equal(editor._ceilCanvasDimension(120.0000001), 120);
     assert.equal(editor._ceilCanvasDimension(120.009), 120);
     assert.equal(editor._ceilCanvasDimension(120.02), 121);
+});
+
+test('scrollbar measurement is cached after the first DOM probe', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    const originalAppendChild = document.body.appendChild.bind(document.body);
+    let probeCount = 0;
+    document.body.appendChild = (element) => {
+        probeCount += 1;
+        return originalAppendChild(element);
+    };
+    t.after(() => {
+        document.body.appendChild = originalAppendChild;
+    });
+
+    const first = editor._getScrollbarSize();
+    const second = editor._getScrollbarSize();
+
+    assert.deepEqual(second, first);
+    assert.equal(probeCount, 1);
 });
 
 test('scaleImage, rotateImage, and reset update image transform state', async (t) => {
@@ -283,6 +397,26 @@ test('fitImageToCanvas keeps zoomed image inside resized scrollable canvas bound
 
     assert.ok(editor.canvas.getWidth() >= Math.floor(rotatedImageBounds.width));
     assert.ok(editor.canvas.getHeight() >= Math.floor(rotatedImageBounds.height));
+});
+
+test('fitImageToCanvas uses the visible viewport instead of the default configured canvas size', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 320,
+        canvasHeight: 240,
+        fitImageToCanvas: true,
+        expandCanvasToImage: false
+    }, {
+        containerWidth: 500,
+        containerHeight: 300
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 1000, height: 500 });
+
+    assert.equal(editor.canvas.getWidth(), 499);
+    assert.equal(editor.canvas.getHeight(), 299);
+    assert.ok(Math.abs(editor.originalImage.getScaledWidth() - 499) < 0.001);
+    assert.ok(Math.abs(editor.originalImage.getScaledHeight() - 249.5) < 0.001);
 });
 
 test('post-load mask edits expand canvas consistently across image layout modes', async (t) => {
@@ -885,6 +1019,24 @@ test('crop mode can be entered, canceled, and applied while removing unmerged ma
     assert.equal(editor.isImageLoadedToCanvas, true);
     assert.equal(editor._cropMode, false);
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
+});
+
+test('crop mode enforces configured minimum resize dimensions within image bounds', async (t) => {
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 80,
+            minHeight: 70
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+
+    editor.enterCropMode();
+    editor._cropRect.set({ scaleX: 0.1, scaleY: 0.1 });
+    editor._cropRect.fire('scaling');
+
+    assert.ok(editor._cropRect.getScaledWidth() >= 80);
+    assert.ok(editor._cropRect.getScaledHeight() >= 70);
 });
 
 test('crop mode hides masks temporarily and restores their visibility on cancel', async (t) => {
@@ -1552,6 +1704,62 @@ test('workflow group-selected masks are saved as one undoable modification', asy
     assert.equal(masks[0].top, 18);
     assert.equal(masks[1].left, 70);
     assert.equal(masks[1].top, 62);
+});
+
+test('workflow group mask modification expands the canvas once for the full selection bounds', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 100,
+        canvasHeight: 80,
+        expandCanvasToImage: true,
+        groupSelection: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 100, height: 80 });
+    const first = editor.createMask({ left: 10, top: 10, width: 20, height: 20 });
+    const second = editor.createMask({ left: 40, top: 25, width: 20, height: 20 });
+    let resizeCount = 0;
+    const originalSetCanvasSizeInt = editor._setCanvasSizeInt.bind(editor);
+    editor._setCanvasSizeInt = (...args) => {
+        resizeCount += 1;
+        return originalSetCanvasSizeInt(...args);
+    };
+
+    first.set({ left: 130, top: 90 });
+    second.set({ left: 170, top: 120 });
+    first.setCoords();
+    second.setCoords();
+    editor.canvas.fire('object:modified', {
+        target: {
+            getObjects: () => [first, second]
+        }
+    });
+
+    assert.equal(resizeCount, 1);
+    assert.ok(editor.canvas.getWidth() >= 200);
+    assert.ok(editor.canvas.getHeight() >= 150);
+});
+
+test('saveState serializes without removing the selected mask label', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const mask = editor.createMask({ left: 10, top: 10, width: 20, height: 20 });
+    editor.canvas.setActiveObject(mask);
+    editor._handleSelectionChanged([mask]);
+    const label = mask.__label;
+    let removedLabels = 0;
+    const originalRemove = editor.canvas.remove.bind(editor.canvas);
+    editor.canvas.remove = (...objects) => {
+        removedLabels += objects.filter(object => object && object.maskLabel).length;
+        return originalRemove(...objects);
+    };
+
+    mask.set({ left: 30 });
+    mask.setCoords();
+    editor.saveState();
+
+    assert.equal(mask.__label, label);
+    assert.equal(removedLabels, 0);
 });
 
 test('workflow remove selected mask can be undone and redone', async (t) => {

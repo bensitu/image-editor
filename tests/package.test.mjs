@@ -99,6 +99,9 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /exportImageFile/);
     assert.match(declaration, /enterCropMode/);
     assert.match(declaration, /applyCrop/);
+    assert.match(declaration, /export interface LoadImageOptions/);
+    assert.match(declaration, /imageLoadTimeoutMs\?: number/);
+    assert.match(declaration, /loadImage\(imageBase64: string, options\?: LoadImageOptions\): Promise<void>;/);
     assert.match(declaration, /export interface RemoveAllMasksOptions/);
     assert.match(declaration, /removeAllMasks\(options\?: RemoveAllMasksOptions\): void;/);
     assert.match(declaration, /points\?: Array<\{ x: number; y: number \}> \| Array<\[number, number\]>/);
@@ -120,6 +123,8 @@ test('docs demo can load ImageEditor on GitHub Pages', () => {
     assert.equal(/<script\s+src=["']\.\.\/dist\/image-editor\.js/.test(html), false);
     assert.match(script, /exportImageBase64\(\)/);
     assert.equal(script.includes('getImageBase64('), false);
+    assert.match(script, /imageInput:\s*null/);
+    assert.match(script, /uploadArea:\s*null/);
 });
 
 test('docs canvas container only shows scrollbars when content overflows', () => {
@@ -127,4 +132,18 @@ test('docs canvas container only shows scrollbars when content overflows', () =>
 
     assert.match(css, /#imageContainer\s*{[\s\S]*overflow:\s*auto;/);
     assert.equal(/#imageContainer\s*{[\s\S]*overflow:\s*scroll;/.test(css), false);
+});
+
+test('release workflows create draft releases and publish npm after release publication', () => {
+    const draftReleaseWorkflow = readFileSync('.github/workflows/draft-release.yml', 'utf8');
+    const publishWorkflow = readFileSync('.github/workflows/publish-npm.yml', 'utf8');
+
+    assert.match(draftReleaseWorkflow, /workflow_dispatch:/);
+    assert.match(draftReleaseWorkflow, /version:/);
+    assert.match(draftReleaseWorkflow, /git tag -a "\$\{TAG_NAME\}"/);
+    assert.match(draftReleaseWorkflow, /gh release create "\$\{TAG_NAME\}" --draft/);
+    assert.equal(/1\.3\.0|v1\.3\.0/.test(draftReleaseWorkflow), false);
+    assert.equal(/1\.3\.0|v1\.3\.0/.test(publishWorkflow), false);
+    assert.match(publishWorkflow, /release:/);
+    assert.match(publishWorkflow, /types:\s*\[\s*published\s*\]/);
 });

@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.2.2
+ * @version 1.3.0
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -99,6 +99,11 @@ function ensureFabric() {
  * @returns {string} Label text.
  */
 
+/**
+ * @typedef {Object} LoadImageOptions
+ * @property {boolean} [preserveScroll=false] - If true, keeps the current scroll position while reloading.
+ */
+
     /**
      * Fabric.js-based image editor with masking, transform, crop, history, and export helpers.
      *
@@ -124,6 +129,7 @@ function ensureFabric() {
      * @param {number} [options.downsampleMaxWidth=4000] - Max width for downsampling.
      * @param {number} [options.downsampleMaxHeight=3000] - Max height for downsampling.
      * @param {number} [options.downsampleQuality=0.92] - JPEG quality for downsampling/export.
+     * @param {number} [options.imageLoadTimeoutMs=30000] - Timeout for image decode operations.
      * @param {number} [options.exportMultiplier=1] - Scale output image by this multiplier on export.
      * @param {boolean} [options.exportImageAreaByDefault=true] - Export only the image area (clipped to masks).
      * @param {number} [options.defaultMaskWidth=50] - Default width of new masks.
@@ -190,6 +196,7 @@ function ensureFabric() {
                 downsampleMaxWidth: 4000,
                 downsampleMaxHeight: 3000,
                 downsampleQuality: 0.92,
+                imageLoadTimeoutMs: 30000,
 
                 exportMultiplier: 1,
                 exportImageAreaByDefault: true,
@@ -261,6 +268,7 @@ function ensureFabric() {
             this._cropPrevEvented = null;
             this._prevSelectionSetting = undefined;
             this._containerOriginalOverflow = undefined;
+            this._scrollbarSizeCache = null;
 
             this.onImageLoaded = typeof options.onImageLoaded === 'function' ? options.onImageLoaded : null;
 
@@ -465,8 +473,8 @@ function ensureFabric() {
             masks.forEach(mask => {
                 if (typeof mask.setCoords === 'function') mask.setCoords();
                 this._syncMaskLabel(mask);
-                this._expandCanvasToFitObject(mask);
             });
+            this._expandCanvasToFitObjects(masks);
             this.saveState();
         }
 
@@ -489,26 +497,30 @@ function ensureFabric() {
         /**
          * Updates container overflow behavior for fit and cover image modes.
          *
+         * @param {Object} [options={}] - Overflow update options.
+         * @param {boolean} [options.preserveScroll=false] - If true, keeps the current scroll offsets.
          * @returns {void}
          * @private
          */
-        _syncContainerOverflow() {
+        _syncContainerOverflow(options = {}) {
             if (!this.containerElement || !this.containerElement.style) return;
             if (this._containerOriginalOverflow === undefined) {
                 this._containerOriginalOverflow = this.containerElement.style.overflow || '';
             }
 
+            const shouldPreserveScroll = options.preserveScroll === true;
             if (this.options.coverImageToCanvas) {
-                const shouldResetScroll = !this.isImageLoadedToCanvas;
                 this.containerElement.style.overflow = 'scroll';
-                if (shouldResetScroll) {
+                if (!shouldPreserveScroll) {
                     this.containerElement.scrollLeft = 0;
                     this.containerElement.scrollTop = 0;
                 }
             } else if (this.options.fitImageToCanvas) {
                 this.containerElement.style.overflow = 'auto';
-                this.containerElement.scrollLeft = 0;
-                this.containerElement.scrollTop = 0;
+                if (!shouldPreserveScroll) {
+                    this.containerElement.scrollLeft = 0;
+                    this.containerElement.scrollTop = 0;
+                }
             } else {
                 this.containerElement.style.overflow = this._containerOriginalOverflow;
             }
@@ -604,20 +616,41 @@ function ensureFabric() {
         }
 
         /**
+         * Warns when more than one mutually exclusive image layout mode is enabled.
+         *
+         * @returns {void}
+         * @private
+         */
+        _warnOnImageLayoutOptionConflict() {
+            const activeModes = [
+                ['fitImageToCanvas', this.options.fitImageToCanvas],
+                ['coverImageToCanvas', this.options.coverImageToCanvas],
+                ['expandCanvasToImage', this.options.expandCanvasToImage]
+            ].filter(([, isEnabled]) => !!isEnabled).map(([name]) => name);
+
+            if (activeModes.length <= 1) return;
+            this._reportWarning(
+                `Only one image layout mode should be enabled. Active modes: ${activeModes.join(', ')}.`
+            );
+        }
+
+        /**
          * Loads a base64 data URL into the Fabric canvas as the base image.
          *
          * @async
          * @param {string} imageBase64 - Image data URL beginning with `data:image/`.
+         * @param {LoadImageOptions} [options={}] - Optional load behavior.
          * @returns {Promise<void>} Resolves after the Fabric image is added to the canvas.
          * @public
          */
-        async loadImage(imageBase64) {
+        async loadImage(imageBase64, options = {}) {
             if (!this._fabricLoaded) return;
             if (!this.canvas) return;
             if (!imageBase64 || typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) return;
 
+            this._warnOnImageLayoutOptionConflict();
             this._setPlaceholderVisible(false);
-            this._syncContainerOverflow();
+            this._syncContainerOverflow({ preserveScroll: options.preserveScroll === true });
 
             const imageElement = await this._createImageElement(imageBase64);
 
@@ -658,9 +691,9 @@ function ensureFabric() {
                         const minHeight = viewport.height;
 
                         if (this.options.fitImageToCanvas) {
-                            // Fit into current canvas (shrink only) and ensure canvas does not exceed container
-                            const canvasWidth = Math.max(1, Math.min(this.options.canvasWidth, minWidth) - 1)
-                            const canvasHeight = Math.max(1, Math.min(this.options.canvasHeight, minHeight) - 1);
+                            // Fit into the visible viewport, shrinking only when the image is larger.
+                            const canvasWidth = Math.max(1, minWidth - 1);
+                            const canvasHeight = Math.max(1, minHeight - 1);
                             this._setCanvasSizeInt(canvasWidth, canvasHeight);
                             const fitScale = Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight, 1);
                             fabricImage.set({ left: 0, top: 0 });
@@ -747,22 +780,32 @@ function ensureFabric() {
          * Creates an HTMLImageElement from a given data URL.
          * 
          * @param {string} dataUrl - A data URL representing the image (e.g., "data:image/png;base64,...").
+         * @param {number} [timeoutMs=this.options.imageLoadTimeoutMs] - Maximum decode time before rejecting.
          * @returns {Promise<HTMLImageElement>} A promise that resolves to the created image element when loaded, or rejects on error.
          * @private
          */
-        _createImageElement(dataUrl) {
+        _createImageElement(dataUrl, timeoutMs = this.options.imageLoadTimeoutMs) {
             return new Promise((resolve, reject) => {
                 const imageElement = new Image();
-                imageElement.onload = () => {
+                let isSettled = false;
+                const safeTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0
+                    ? Number(timeoutMs)
+                    : 30000;
+                let timerId;
+                const settle = (callback) => {
+                    if (isSettled) return;
+                    isSettled = true;
+                    clearTimeout(timerId);
                     imageElement.onload = null;
                     imageElement.onerror = null;
-                    resolve(imageElement);
+                    callback();
                 };
-                imageElement.onerror = (error) => {
-                    imageElement.onload = null;
-                    imageElement.onerror = null;
-                    reject(error);
-                };
+                timerId = setTimeout(() => {
+                    settle(() => reject(new Error('Image load timed out')));
+                    try { imageElement.src = ''; } catch (error) { void error; }
+                }, safeTimeoutMs);
+                imageElement.onload = () => settle(() => resolve(imageElement));
+                imageElement.onerror = (error) => settle(() => reject(error));
                 imageElement.src = dataUrl;
             });
         }
@@ -782,6 +825,7 @@ function ensureFabric() {
             offscreenCanvas.width = targetWidth;
             offscreenCanvas.height = targetHeight;
             const context = offscreenCanvas.getContext('2d');
+            if (!context) throw new Error('2D canvas context is unavailable');
             context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, targetWidth, targetHeight);
             return offscreenCanvas.toDataURL('image/jpeg', quality);
         }
@@ -831,13 +875,9 @@ function ensureFabric() {
                 };
             }
 
-            const previousOverflow = this.containerElement.style.overflow;
-            this.containerElement.style.overflow = 'hidden';
-
             const width = Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1));
             const height = Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1));
 
-            this.containerElement.style.overflow = previousOverflow;
             return { width, height };
         }
 
@@ -862,6 +902,9 @@ function ensureFabric() {
         }
 
         _getScrollbarSize() {
+            if (this._scrollbarSizeCache) {
+                return { ...this._scrollbarSizeCache };
+            }
             if (typeof document === 'undefined' || !document.createElement || !document.body) {
                 return { width: 0, height: 0 };
             }
@@ -879,7 +922,8 @@ function ensureFabric() {
             const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
             document.body.removeChild(probe);
 
-            return { width, height };
+            this._scrollbarSizeCache = { width, height };
+            return { ...this._scrollbarSizeCache };
         }
 
         _getScrollSafetyMargin() {
@@ -1175,6 +1219,22 @@ function ensureFabric() {
         async _cropDataUrl(dataUrl, sourceX, sourceY, sourceWidth, sourceHeight, multiplier, format = 'jpeg', quality = 0.92) {
             return new Promise((resolve, reject) => {
                 const imageElement = new Image();
+                let isSettled = false;
+                const timeoutMs = Number(this.options.imageLoadTimeoutMs);
+                const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30000;
+                let timerId;
+                const settle = (callback) => {
+                    if (isSettled) return;
+                    isSettled = true;
+                    clearTimeout(timerId);
+                    imageElement.onload = null;
+                    imageElement.onerror = null;
+                    callback();
+                };
+                timerId = setTimeout(() => {
+                    settle(() => reject(new Error('Image crop load timed out')));
+                    try { imageElement.src = ''; } catch (error) { void error; }
+                }, safeTimeoutMs);
                 imageElement.onload = () => {
                     try {
                         const safeMultiplier = Math.max(1, Number(multiplier) || 1);
@@ -1186,14 +1246,15 @@ function ensureFabric() {
                         offscreenCanvas.width = scaledSourceWidth;
                         offscreenCanvas.height = scaledSourceHeight;
                         const context = offscreenCanvas.getContext('2d');
+                        if (!context) throw new Error('2D canvas context is unavailable');
 
                         context.drawImage(imageElement, scaledSourceX, scaledSourceY, scaledSourceWidth, scaledSourceHeight, 0, 0, scaledSourceWidth, scaledSourceHeight);
-                        resolve(offscreenCanvas.toDataURL(`image/${format}`, quality));
+                        settle(() => resolve(offscreenCanvas.toDataURL(`image/${format}`, quality)));
                     } catch (error) {
-                        reject(error);
+                        settle(() => reject(error));
                     }
                 };
-                imageElement.onerror = reject;
+                imageElement.onerror = (error) => settle(() => reject(error));
                 imageElement.src = dataUrl;
             });
         }
@@ -1297,21 +1358,48 @@ function ensureFabric() {
             return !!(this.options.expandCanvasToImage || this.options.coverImageToCanvas || this.options.fitImageToCanvas);
         }
 
-        _expandCanvasToFitObject(fabricObject, padding = 10) {
-            if (!this.canvas || !fabricObject || !this._shouldResizeCanvasToContentBounds()) return;
+        /**
+         * Expands the canvas once so all provided objects remain visible after an edit.
+         *
+         * @param {Array<fabric.Object>} fabricObjects - Objects whose bounds should fit inside the canvas.
+         * @param {number} [padding=10] - Extra canvas space after the farthest object edge.
+         * @returns {void}
+         * @private
+         */
+        _expandCanvasToFitObjects(fabricObjects, padding = 10) {
+            if (!this.canvas || !Array.isArray(fabricObjects) || !fabricObjects.length || !this._shouldResizeCanvasToContentBounds()) return;
             try {
-                fabricObject.setCoords();
-                const boundingRect = fabricObject.getBoundingRect(true, true);
-                const requiredWidth = Math.ceil(boundingRect.left + boundingRect.width + padding);
-                const requiredHeight = Math.ceil(boundingRect.top + boundingRect.height + padding);
+                let requiredWidth = this.canvas.getWidth();
+                let requiredHeight = this.canvas.getHeight();
+                fabricObjects.forEach(fabricObject => {
+                    if (!fabricObject) return;
+                    if (typeof fabricObject.setCoords === 'function') fabricObject.setCoords();
+                    const boundingRect = fabricObject.getBoundingRect(true, true);
+                    requiredWidth = Math.max(requiredWidth, Math.ceil(boundingRect.left + boundingRect.width + padding));
+                    requiredHeight = Math.max(requiredHeight, Math.ceil(boundingRect.top + boundingRect.height + padding));
+                });
                 const minWidth = this.containerElement ? Math.floor(this.containerElement.clientWidth || 0) : 0;
                 const minHeight = this.containerElement ? Math.floor(this.containerElement.clientHeight || 0) : 0;
                 const newWidth = Math.max(this.canvas.getWidth(), minWidth, requiredWidth);
                 const newHeight = Math.max(this.canvas.getHeight(), minHeight, requiredHeight);
-                this._setCanvasSizeInt(newWidth, newHeight);
+                if (newWidth !== this.canvas.getWidth() || newHeight !== this.canvas.getHeight()) {
+                    this._setCanvasSizeInt(newWidth, newHeight);
+                }
             } catch (error) {
-                this._reportWarning('expandCanvasToFitObject: failed to expand canvas', error);
+                this._reportWarning('expandCanvasToFitObjects: failed to expand canvas', error);
             }
+        }
+
+        /**
+         * Expands the canvas so one object remains visible after an edit.
+         *
+         * @param {fabric.Object} fabricObject - Object whose bounds should fit inside the canvas.
+         * @param {number} [padding=10] - Extra canvas space after the object edge.
+         * @returns {void}
+         * @private
+         */
+        _expandCanvasToFitObject(fabricObject, padding = 10) {
+            this._expandCanvasToFitObjects([fabricObject], padding);
         }
 
         /** 
@@ -1459,7 +1547,7 @@ function ensureFabric() {
             if (!this.originalImage) return Promise.resolve();
 
             return this.animationQueue.add(async () => {
-                const before = this._serializeCanvasState();
+                const before = this._lastSnapshot || this._serializeCanvasState();
                 await this._scaleImageImpl(1, { saveHistory: false });
                 await this._rotateImageImpl(0, { saveHistory: false });
                 const after = this._serializeCanvasState();
@@ -1582,7 +1670,6 @@ function ensureFabric() {
         saveState() {
             if (!this.canvas) return;
             const activeObject = this.canvas.getActiveObject();
-            this._hideAllMaskLabels();
 
             try {
                 const after = this._serializeCanvasState();
@@ -1606,7 +1693,7 @@ function ensureFabric() {
             } catch (error) {
                 this._reportWarning('saveState: failed to save canvas snapshot', error);
             } finally {
-                if (activeObject && activeObject.maskId && this.canvas.getObjects().includes(activeObject)) {
+                if (activeObject && activeObject.maskId && !activeObject.__label && this.canvas.getObjects().includes(activeObject)) {
                     this._handleSelectionChanged([activeObject]);
                 }
                 this._updateUI();
@@ -2211,7 +2298,7 @@ function ensureFabric() {
                 const beforeJson = this._serializeCanvasState();
                 const merged = await this.exportImageBase64({ exportImageArea: true, multiplier: this.options.exportMultiplier });
                 this.removeAllMasks({ saveHistory: false });
-                await this.loadImage(merged);
+                await this.loadImage(merged, { preserveScroll: true });
                 const afterJson = this._serializeCanvasState();
                 this._pushStateTransition(beforeJson, afterJson);
             } catch (error) {
@@ -2543,8 +2630,14 @@ function ensureFabric() {
             const padding = (this.options.crop && this.options.crop.padding) ? this.options.crop.padding : 10;
             const left = Math.max(0, Math.floor(imageBounds.left + padding));
             const top = Math.max(0, Math.floor(imageBounds.top + padding));
-            const width = Math.min(this.options.crop.minWidth || 50, Math.floor(imageBounds.width - padding * 2));
-            const height = Math.min(this.options.crop.minHeight || 50, Math.floor(imageBounds.height - padding * 2));
+            const maxCropWidth = Math.max(1, Math.floor(imageBounds.width - padding * 2));
+            const maxCropHeight = Math.max(1, Math.floor(imageBounds.height - padding * 2));
+            const configuredMinWidth = Math.max(1, Number(this.options.crop.minWidth) || 50);
+            const configuredMinHeight = Math.max(1, Number(this.options.crop.minHeight) || 50);
+            const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
+            const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
+            const width = minCropWidth;
+            const height = minCropHeight;
 
             // Visual style for the temporary crop rectangle.
             const cropRect = new fabric.Rect({
@@ -2561,7 +2654,8 @@ function ensureFabric() {
                 cornerSize: 8,
                 objectCaching: false,
                 originX: 'left',
-                originY: 'top'
+                originY: 'top',
+                lockScalingFlip: true
             });
 
             // Ensure the crop rect is above everything
@@ -2590,8 +2684,18 @@ function ensureFabric() {
                 }
             });
 
-            // Keep Fabric controls in sync as the crop rectangle changes.
-            const handleCropRectModified = () => { try { cropRect.setCoords(); this.canvas.requestRenderAll(); } catch (error) { void error; } };
+            // Keep Fabric controls and configured size limits in sync as the crop rectangle changes.
+            const handleCropRectModified = () => {
+                try {
+                    const cropWidth = Math.max(1, Number(cropRect.width) || 1);
+                    const cropHeight = Math.max(1, Number(cropRect.height) || 1);
+                    const nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
+                    const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
+                    cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
+                    cropRect.setCoords();
+                    this.canvas.requestRenderAll();
+                } catch (error) { void error; }
+            };
             cropRect.on('modified', handleCropRectModified);
             cropRect.on('moving', handleCropRectModified);
             cropRect.on('scaling', handleCropRectModified);
@@ -2866,7 +2970,7 @@ function ensureFabric() {
          * @private
          */
         _setPlaceholderVisible(show) {
-            if (!this.placeholderElement) return;
+            if (!this.placeholderElement || !this.containerElement) return;
             if (show) {
                 this.placeholderElement.classList.remove('d-none');
                 this.placeholderElement.classList.add('d-flex');
@@ -3003,7 +3107,7 @@ function ensureFabric() {
                 reject(error);
             }
 
-            this._drainQueue();
+            await this._drainQueue();
         }
     }
 

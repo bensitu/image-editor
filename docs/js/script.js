@@ -5,8 +5,8 @@ function initEditor() {
 
     editor = new window.ImageEditor({
         backgroundColor: 'transparent',
-        expandCanvasToImage: true,
-        fitImageToCanvas: false,
+        expandCanvasToImage: false,
+        fitImageToCanvas: true,
         coverImageToCanvas: false,
         downsampleOnLoad: true,
         initialImageBase64: null,
@@ -35,7 +35,9 @@ function initEditor() {
         cropBtn: 'cropBtn',
         applyCropBtn: 'applyCropBtn',
         cancelCropBtn: 'cancelCropBtn',
-        canvasContainer: null
+        canvasContainer: null,
+        imageInput: null,
+        uploadArea: null
     });
 }
 
@@ -91,8 +93,12 @@ if (imageInputElement) {
 
 const uploadAreaElement = document.getElementById('uploadArea');
 if (uploadAreaElement) {
+    uploadAreaElement.addEventListener('click', function() {
+        imageInputElement?.click();
+    });
     uploadAreaElement.addEventListener('drop', function(event) {
         event.preventDefault();
+        uploadAreaElement.classList.remove('dragover');
         const files = event.dataTransfer.files;
         if (files.length > 0) {
             const file = files[0];
@@ -107,6 +113,10 @@ if (uploadAreaElement) {
     });
     uploadAreaElement.addEventListener('dragover', function(event) {
         event.preventDefault();
+        uploadAreaElement.classList.add('dragover');
+    });
+    uploadAreaElement.addEventListener('dragleave', function() {
+        uploadAreaElement.classList.remove('dragover');
     });
 }
 

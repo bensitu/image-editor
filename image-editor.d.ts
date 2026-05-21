@@ -11,7 +11,9 @@ declare module '@bensitu/image-editor' {
   }
 
   export interface CropOptions {
+    /** Minimum crop rectangle width, clamped to the current image bounds. */
     minWidth?: number;
+    /** Minimum crop rectangle height, clamped to the current image bounds. */
     minHeight?: number;
     padding?: number;
     hideMasksDuringCrop?: boolean;
@@ -37,6 +39,7 @@ declare module '@bensitu/image-editor' {
     downsampleMaxWidth?: number;
     downsampleMaxHeight?: number;
     downsampleQuality?: number;
+    imageLoadTimeoutMs?: number;
 
     exportMultiplier?: number;
     exportImageAreaByDefault?: boolean;
@@ -142,6 +145,10 @@ declare module '@bensitu/image-editor' {
     saveHistory?: boolean;
   }
 
+  export interface LoadImageOptions {
+    preserveScroll?: boolean;
+  }
+
   export class ImageEditor {
     readonly options: ImageEditorOptions;
     readonly canvas: Canvas | null;
@@ -164,10 +171,12 @@ declare module '@bensitu/image-editor' {
     constructor(options?: ImageEditorOptions);
 
     init(idMap?: ElementIdMap): void;
-    loadImage(imageBase64: string): Promise<void>;
+    loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     isImageLoaded(): boolean;
 
+    /** Public callers should pass only `factor`; internal history control options are intentionally not exposed. */
     scaleImage(factor: number): Promise<void>;
+    /** Public callers should pass only `degrees`; internal history control options are intentionally not exposed. */
     rotateImage(degrees: number): Promise<void>;
     resetImageTransform(): Promise<void>;
     /** @deprecated Use resetImageTransform() instead. This alias will be removed in v2.0.0. */

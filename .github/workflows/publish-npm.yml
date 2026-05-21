@@ -1,11 +1,14 @@
 name: Publish npm package
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Package semantic version to publish. Prefix with v is optional.'
+        required: true
+        type: string
       npm_tag:
         description: 'npm dist-tag to publish with'
         required: false
@@ -53,16 +56,24 @@ jobs:
 
       - name: Validate package version
         shell: bash
+        env:
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          WORKFLOW_VERSION: ${{ github.event.inputs.version }}
         run: |
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           echo "Package version: ${PACKAGE_VERSION}"
 
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            TAG_VERSION="${GITHUB_REF_NAME#v}"
-            if [[ "${PACKAGE_VERSION}" != "${TAG_VERSION}" ]]; then
-              echo "package.json version (${PACKAGE_VERSION}) must match pushed tag (${GITHUB_REF_NAME})." >&2
-              exit 1
-            fi
+          EXPECTED_VERSION="${RELEASE_TAG_NAME:-${WORKFLOW_VERSION}}"
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}"
+
+          if [[ -z "${EXPECTED_VERSION}" ]]; then
+            echo "A release tag or workflow version is required." >&2
+            exit 1
+          fi
+
+          if [[ "${PACKAGE_VERSION}" != "${EXPECTED_VERSION}" ]]; then
+            echo "package.json version (${PACKAGE_VERSION}) must match release version (${EXPECTED_VERSION})." >&2
+            exit 1
           fi
 
       - name: Lint

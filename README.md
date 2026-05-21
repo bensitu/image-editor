@@ -126,12 +126,13 @@ When creating the editor instance, you can pass an options object to override de
 | `scaleStep` | `0.05` | Scale step for zoom buttons |
 | `rotationStep` | `90` | Default rotation step in degrees |
 | `expandCanvasToImage` | `true` | Expand canvas to image size on load |
-| `fitImageToCanvas` | `false` | Fit image to current canvas size |
+| `fitImageToCanvas` | `false` | Fit image to the visible canvas viewport |
 | `coverImageToCanvas` | `false` | Fit image to cover canvas (at least one side fits, allowing overflow). |
 | `downsampleOnLoad` | `true` | Downsample large images before rendering |
 | `downsampleMaxWidth` | `4000` | Max width count before downsampling |
 | `downsampleMaxHeight` | `3000` | Max height count before downsampling |
 | `downsampleQuality` | `0.92` | JPEG quality when downsampling |
+| `imageLoadTimeoutMs` | `30000` | Timeout for image decode operations |
 | `exportMultiplier` | `1` | Scale factor for export |
 | `exportImageAreaByDefault` | `true` | Export only the image area (clipped to masks) |
 | `defaultMaskWidth` | `50` | Default mask width (px) |
@@ -146,12 +147,14 @@ When creating the editor instance, you can pass an options object to override de
 | `defaultDownloadFileName` | `edited_image.jpg` | Default file name for downloads |
 | `crop.preserveMasksAfterCrop` | `false` | Keep masks that intersect the crop area, shifted into the cropped canvas. Merge masks first if they should be baked into the image pixels. |
 
+`expandCanvasToImage`, `fitImageToCanvas`, and `coverImageToCanvas` are mutually exclusive layout modes. If more than one is enabled, the editor reports a warning and uses the first active mode in its existing load order.
+
 ## API Methods
 
 | Method | Description |
 |--------|-------------|
 | `init(idMap)` | Bind the editor to DOM elements. Pass IDs in an object (optional). |
-| `loadImage(imageBase64)` | Load an image from a base64 data string. Resolves after the Fabric image is on the canvas. |
+| `loadImage(imageBase64, options)` | Load an image from a base64 data string. Resolves after the Fabric image is on the canvas. |
 | `scaleImage(factor)` | Scale image to the given factor (relative to base scale). |
 | `rotateImage(degrees)` | Rotate image to the given angle in degrees. |
 | `resetImageTransform()` | Reset scale to 1 and rotation to 0. |
