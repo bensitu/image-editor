@@ -1184,8 +1184,8 @@
               resolve();
             }
           });
-        } catch (e) {
-          this._reportError("loadFromState() failed", e);
+        } catch (error) {
+          this._reportError("loadFromState() failed", error);
           resolve();
         }
       });
@@ -1196,7 +1196,7 @@
     saveState() {
       if (!this.canvas)
         return;
-      const activeObj = this.canvas.getActiveObject();
+      const activeObject = this.canvas.getActiveObject();
       this._hideAllMaskLabels();
       try {
         const after = this._serializeCanvasState();
@@ -1204,7 +1204,7 @@
         if (after === before)
           return;
         let executedOnce = false;
-        const cmd = new Command(
+        const command = new Command(
           () => {
             if (executedOnce) {
               return this.loadFromState(after);
@@ -1214,13 +1214,13 @@
           },
           () => this.loadFromState(before)
         );
-        this.historyManager.execute(cmd);
+        this.historyManager.execute(command);
         this._lastSnapshot = after;
-      } catch (err) {
-        this._reportWarning("saveState: failed to save canvas snapshot", err);
+      } catch (error) {
+        this._reportWarning("saveState: failed to save canvas snapshot", error);
       } finally {
-        if (activeObj && activeObj.maskId && this.canvas.getObjects().includes(activeObj)) {
-          this._handleSelectionChanged([activeObj]);
+        if (activeObject && activeObject.maskId && this.canvas.getObjects().includes(activeObject)) {
+          this._handleSelectionChanged([activeObject]);
         }
         this._updateUI();
       }
@@ -1232,11 +1232,11 @@
         return;
       if (!this.historyManager)
         this.historyManager = new HistoryManager(this.maxHistorySize || 50);
-      const cmd = new Command(
+      const command = new Command(
         () => this.loadFromState(after),
         () => this.loadFromState(before)
       );
-      this.historyManager.push(cmd);
+      this.historyManager.push(command);
       this._lastSnapshot = after;
       this._updateUI();
     }
@@ -1246,8 +1246,8 @@
     undo() {
       return this.historyManager.undo().then(() => {
         this._updateUI();
-      }).catch((err) => {
-        this._reportError("undo failed", err);
+      }).catch((error) => {
+        this._reportError("undo failed", error);
       });
     }
     /**
@@ -1256,8 +1256,8 @@
     redo() {
       return this.historyManager.redo().then(() => {
         this._updateUI();
-      }).catch((err) => {
-        this._reportError("redo failed", err);
+      }).catch((error) => {
+        this._reportError("redo failed", error);
       });
     }
     _rebindMaskEvents(mask) {
