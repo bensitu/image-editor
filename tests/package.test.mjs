@@ -83,9 +83,26 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /declare module '@bensitu\/image-editor'/);
     assert.match(declaration, /export default ImageEditor/);
     assert.match(declaration, /export class ImageEditor/);
+    assert.match(declaration, /canvasElement/);
+    assert.match(declaration, /containerElement/);
+    assert.match(declaration, /@deprecated Use canvasElement instead/);
+    assert.match(declaration, /createMask/);
+    assert.match(declaration, /@deprecated Use createMask\(\) instead/);
+    assert.match(declaration, /mergeMasks/);
+    assert.match(declaration, /@deprecated Use mergeMasks\(\) instead/);
+    assert.match(declaration, /resetImageTransform/);
+    assert.match(declaration, /@deprecated Use resetImageTransform\(\) instead/);
+    assert.match(declaration, /exportImageBase64/);
+    assert.match(declaration, /@deprecated Use exportImageBase64\(\) instead/);
     assert.match(declaration, /exportImageFile/);
     assert.match(declaration, /enterCropMode/);
     assert.match(declaration, /applyCrop/);
+    assert.match(declaration, /export interface RemoveAllMasksOptions/);
+    assert.match(declaration, /removeAllMasks\(options\?: RemoveAllMasksOptions\): void;/);
+    assert.match(declaration, /fileType\?: 'jpeg' \| 'jpg' \| 'png' \| 'webp'/);
+    assert.match(declaration, /undo\(\): Promise<void>;/);
+    assert.match(declaration, /redo\(\): Promise<void>;/);
+    assert.match(declaration, /loadFromState\(jsonString: string \| object\): Promise<void>;/);
 
     for (const api of removedApis) {
         assert.equal(declaration.includes(api), false, `${api} should not be declared`);

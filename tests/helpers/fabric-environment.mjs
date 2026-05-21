@@ -20,6 +20,7 @@ export function installFabricDom() {
     defineGlobal('navigator', fabric.window.navigator);
     defineGlobal('Image', fabric.window.Image);
     defineGlobal('File', fabric.window.File || globalThis.File);
+    defineGlobal('FileReader', fabric.window.FileReader || globalThis.FileReader);
     defineGlobal('Blob', fabric.window.Blob || globalThis.Blob);
     defineGlobal('HTMLCanvasElement', fabric.window.HTMLCanvasElement);
     defineGlobal('HTMLImageElement', fabric.window.HTMLImageElement);

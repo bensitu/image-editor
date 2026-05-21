@@ -125,6 +125,8 @@ declare module '@bensitu/image-editor' {
     exportImageArea?: boolean;
     multiplier?: number;
     quality?: number;
+    fileType?: 'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp';
+    format?: 'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp';
   }
 
   export interface ImageFileExportOptions {
@@ -135,11 +137,22 @@ declare module '@bensitu/image-editor' {
     fileName?: string;
   }
 
+  export interface RemoveAllMasksOptions {
+    saveHistory?: boolean;
+  }
+
   export class ImageEditor {
     readonly options: ImageEditorOptions;
     readonly canvas: Canvas | null;
+    readonly canvasElement: HTMLCanvasElement | null;
+    readonly containerElement: HTMLElement | null;
+    readonly placeholderElement: HTMLElement | null;
+    /** @deprecated Use canvasElement instead. */
     readonly canvasEl: HTMLCanvasElement | null;
+    /** @deprecated Use containerElement instead. */
     readonly containerEl: HTMLElement | null;
+    /** @deprecated Use placeholderElement instead. */
+    readonly placeholderEl: HTMLElement | null;
     readonly originalImage: FabricImage | null;
     readonly currentScale: number;
     readonly currentRotation: number;
@@ -150,30 +163,38 @@ declare module '@bensitu/image-editor' {
     constructor(options?: ImageEditorOptions);
 
     init(idMap?: ElementIdMap): void;
-    loadImage(base64: string): Promise<void>;
+    loadImage(imageBase64: string): Promise<void>;
     isImageLoaded(): boolean;
 
     scaleImage(factor: number): Promise<void>;
     rotateImage(degrees: number): Promise<void>;
+    resetImageTransform(): Promise<void>;
+    /** @deprecated Use resetImageTransform() instead. */
     reset(): Promise<void>;
 
+    createMask(config?: MaskConfig): MaskObject | null;
+    /** @deprecated Use createMask() instead. */
     addMask(config?: MaskConfig): MaskObject | null;
     removeSelectedMask(): void;
-    removeAllMasks(): void;
+    removeAllMasks(options?: RemoveAllMasksOptions): void;
 
+    mergeMasks(): Promise<void>;
+    /** @deprecated Use mergeMasks() instead. */
     merge(): Promise<void>;
     downloadImage(fileName?: string): void;
-    getImageBase64(opts?: Base64ExportOptions): Promise<string>;
-    exportImageFile(opts?: ImageFileExportOptions): Promise<File>;
+    exportImageBase64(options?: Base64ExportOptions): Promise<string>;
+    /** @deprecated Use exportImageBase64() instead. */
+    getImageBase64(options?: Base64ExportOptions): Promise<string>;
+    exportImageFile(options?: ImageFileExportOptions): Promise<File>;
 
     enterCropMode(): void;
     cancelCrop(): void;
     applyCrop(): Promise<void>;
 
-    undo(): void;
-    redo(): void;
+    undo(): Promise<void>;
+    redo(): Promise<void>;
     saveState(): void;
-    loadFromState(jsonString: string | object): void;
+    loadFromState(jsonString: string | object): Promise<void>;
 
     dispose(): void;
   }

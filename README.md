@@ -143,30 +143,33 @@ When creating the editor instance, you can pass an options object to override de
 | `showPlaceholder` | `true` | Shows placeholder when no image is loaded |
 | `initialImageBase64` | `null` | Base64 string to auto-load as initial image |
 | `defaultDownloadFileName` | `edited_image.jpg` | Default file name for downloads |
-| `crop.preserveMasksAfterCrop` | `false` | Applying crop removes unmerged masks. Merge masks first if they should be baked into the cropped image. |
+| `crop.preserveMasksAfterCrop` | `false` | Keep masks that intersect the crop area, shifted into the cropped canvas. Merge masks first if they should be baked into the image pixels. |
 
 ## API Methods
 
 | Method | Description |
 |--------|-------------|
 | `init(idMap)` | Bind the editor to DOM elements. Pass IDs in an object (optional). |
-| `loadImage(base64)` | Load an image from a base64 data string. Resolves after the Fabric image is on the canvas. |
+| `loadImage(imageBase64)` | Load an image from a base64 data string. Resolves after the Fabric image is on the canvas. |
 | `scaleImage(factor)` | Scale image to the given factor (relative to base scale). |
 | `rotateImage(degrees)` | Rotate image to the given angle in degrees. |
-| `reset()` | Reset scale to 1 and rotation to 0. |
-| `undo()` | Undo the last state change. |
-| `redo()` | Redo the next state change. |
-| `addMask(config)` | Add a mask to the canvas. Config can include width, height, color. |
+| `resetImageTransform()` | Reset scale to 1 and rotation to 0. |
+| `undo()` | Undo the last state change. Resolves after the canvas state is restored. |
+| `redo()` | Redo the next state change. Resolves after the canvas state is restored. |
+| `createMask(config)` | Create a mask on the canvas. Config can include width, height, color. |
 | `removeSelectedMask()` | Remove the currently selected mask. |
 | `removeAllMasks()` | Remove all masks from the canvas. |
 | `enterCropMode()` | Create a resizable/movable selection rect on top of the image. |
 | `cancelCrop()` | Cancel crop mode and remove the temporary selection rect. |
 | `applyCrop()` | Apply the current crop rectangle in the canvas. |
-| `merge()` | Merge masks with the base image in the canvas. |
+| `mergeMasks()` | Merge masks with the base image in the canvas. |
 | `downloadImage()` | Download the merged image as a file. |
-| `exportImageFile(options)` | Exports the current canvas (with or without masks) as a `File` object. |
+| `exportImageBase64(options)` | Export an image data URL. `fileType` can be `jpeg`, `png`, or `webp`. |
+| `exportImageFile(options)` | Exports the current canvas (with or without masks) as a `File` object. `fileType` is exported directly when supported. |
 
-Applying crop removes unmerged masks. Use `merge()` before cropping when masks should become part of the image pixels.
+Deprecated aliases are still available for compatibility: `reset()`, `addMask(config)`, `merge()`, and `getImageBase64(options)`.
+
+By default, applying crop removes unmerged masks. Set `crop.preserveMasksAfterCrop` to keep intersecting masks, or use `mergeMasks()` before cropping when masks should become part of the image pixels.
 
 ## Example Workflow
 
