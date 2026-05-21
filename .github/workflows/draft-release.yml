@@ -43,7 +43,7 @@ jobs:
             librsvg2-dev
 
       - name: Install dependencies
-        run: npm install --include=optional
+        run: npm ci --include=optional
 
       - name: Validate requested version
         shell: bash
@@ -85,11 +85,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Build and test
+      - name: Build, test, and pack release artifact
+        shell: bash
         run: |
           npm run lint
           npm test
-          npm pack --dry-run
+
+          PACKAGE_TARBALL="$(
+            npm pack --json | node -e '
+              let input = "";
+              process.stdin.setEncoding("utf8");
+              process.stdin.on("data", (chunk) => input += chunk);
+              process.stdin.on("end", () => {
+                const [packResult] = JSON.parse(input);
+                console.log(packResult.filename);
+              });
+            '
+          )"
+          sha256sum "${PACKAGE_TARBALL}" > "${PACKAGE_TARBALL}.sha256"
+
+          {
+            echo "PACKAGE_TARBALL=${PACKAGE_TARBALL}"
+            echo "PACKAGE_CHECKSUM=${PACKAGE_TARBALL}.sha256"
+          } >> "${GITHUB_ENV}"
 
       - name: Extract changelog notes
         shell: bash
@@ -116,7 +134,7 @@ jobs:
       - name: Create draft release
         shell: bash
         run: |
-          if ! gh release create "${TAG_NAME}" --draft --title "${TAG_NAME}" --notes-file release-notes.md --target "${GITHUB_SHA}"; then
+          if ! gh release create "${TAG_NAME}" "${PACKAGE_TARBALL}" "${PACKAGE_CHECKSUM}" --draft --title "${TAG_NAME}" --notes-file release-notes.md --target "${GITHUB_SHA}"; then
             git push --delete origin "${TAG_NAME}" || true
             git tag -d "${TAG_NAME}" || true
             exit 1

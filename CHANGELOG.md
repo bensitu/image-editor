@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Normalize canvas growth behavior after image load across `expandCanvasToImage`, `fitImageToCanvas`, and `coverImageToCanvas`.
 - Refresh the docs demo into a compact tool-style workspace and use Fit Image as the default demo mode.
 - Add cache-busted docs asset URLs so browsers do not reuse stale demo CSS or scripts after an update.
-- Publish npm packages from the GitHub Release publication event so draft releases can be reviewed first.
+- Publish npm packages from the reviewed GitHub Release tarball instead of rebuilding during npm publication.
 
 ### Fixed
 

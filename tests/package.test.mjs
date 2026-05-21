@@ -134,16 +134,22 @@ test('docs canvas container only shows scrollbars when content overflows', () =>
     assert.equal(/#imageContainer\s*{[\s\S]*overflow:\s*scroll;/.test(css), false);
 });
 
-test('release workflows create draft releases and publish npm after release publication', () => {
+test('release workflows attach npm artifacts and publish the reviewed artifact manually', () => {
     const draftReleaseWorkflow = readFileSync('.github/workflows/draft-release.yml', 'utf8');
     const publishWorkflow = readFileSync('.github/workflows/publish-npm.yml', 'utf8');
 
     assert.match(draftReleaseWorkflow, /workflow_dispatch:/);
     assert.match(draftReleaseWorkflow, /version:/);
+    assert.match(draftReleaseWorkflow, /npm ci --include=optional/);
+    assert.match(draftReleaseWorkflow, /npm pack --json/);
+    assert.match(draftReleaseWorkflow, /sha256sum "\$\{PACKAGE_TARBALL\}"/);
     assert.match(draftReleaseWorkflow, /git tag -a "\$\{TAG_NAME\}"/);
-    assert.match(draftReleaseWorkflow, /gh release create "\$\{TAG_NAME\}" --draft/);
+    assert.match(draftReleaseWorkflow, /gh release create "\$\{TAG_NAME\}" "\$\{PACKAGE_TARBALL\}" "\$\{PACKAGE_CHECKSUM\}" --draft/);
     assert.equal(/1\.3\.0|v1\.3\.0/.test(draftReleaseWorkflow), false);
     assert.equal(/1\.3\.0|v1\.3\.0/.test(publishWorkflow), false);
-    assert.match(publishWorkflow, /release:/);
-    assert.match(publishWorkflow, /types:\s*\[\s*published\s*\]/);
+    assert.match(publishWorkflow, /workflow_dispatch:/);
+    assert.match(publishWorkflow, /gh release download "\$\{TAG_NAME\}" --pattern '\*\.tgz' --pattern '\*\.sha256'/);
+    assert.match(publishWorkflow, /sha256sum -c "\$\{PACKAGE_CHECKSUMS\[0\]\}"/);
+    assert.match(publishWorkflow, /npm publish "\.\/\$\{PACKAGE_TARBALL\}" --access public --tag "\$\{NPM_TAG\}"/);
+    assert.equal(/^\s*(npm run lint|npm test|npm pack\b)/m.test(publishWorkflow), false);
 });

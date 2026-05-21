@@ -1,8 +1,6 @@
 name: Publish npm package
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -19,18 +17,15 @@ permissions:
   id-token: write
 
 concurrency:
-  group: npm-publish-${{ github.ref }}
+  group: npm-publish-${{ github.event.inputs.version }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    name: Build, test, and publish
+    name: Publish release artifact
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
@@ -40,66 +35,78 @@ jobs:
       - name: Use npm with trusted publishing support
         run: npm install -g npm@^11.5.1
 
-      - name: Install native canvas dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            libcairo2-dev \
-            libpango1.0-dev \
-            libjpeg-dev \
-            libgif-dev \
-            librsvg2-dev
-
-      - name: Install dependencies
-        run: npm install --include=optional
-
-      - name: Validate package version
+      - name: Validate requested version
         shell: bash
-        env:
-          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
-          WORKFLOW_VERSION: ${{ github.event.inputs.version }}
         run: |
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          echo "Package version: ${PACKAGE_VERSION}"
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
 
-          EXPECTED_VERSION="${RELEASE_TAG_NAME:-${WORKFLOW_VERSION}}"
-          EXPECTED_VERSION="${EXPECTED_VERSION#v}"
-
-          if [[ -z "${EXPECTED_VERSION}" ]]; then
-            echo "A release tag or workflow version is required." >&2
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must be a semantic version. Prefix with v is optional." >&2
             exit 1
           fi
 
-          if [[ "${PACKAGE_VERSION}" != "${EXPECTED_VERSION}" ]]; then
-            echo "package.json version (${PACKAGE_VERSION}) must match release version (${EXPECTED_VERSION})." >&2
+          {
+            echo "VERSION=${VERSION}"
+            echo "TAG_NAME=v${VERSION}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Download release artifact
+        shell: bash
+        run: |
+          IS_DRAFT="$(gh release view "${TAG_NAME}" --json isDraft --jq '.isDraft')"
+          if [[ "${IS_DRAFT}" != "false" ]]; then
+            echo "Release ${TAG_NAME} must be published before publishing to npm." >&2
             exit 1
           fi
 
-      - name: Lint
-        run: npm run lint
+          rm -f ./*.tgz ./*.sha256
+          gh release download "${TAG_NAME}" --pattern '*.tgz' --pattern '*.sha256' --clobber
 
-      - name: Test
-        run: npm test
+          shopt -s nullglob
+          PACKAGE_TARBALLS=(*.tgz)
+          PACKAGE_CHECKSUMS=(*.sha256)
+          if [[ "${#PACKAGE_TARBALLS[@]}" -ne 1 || "${#PACKAGE_CHECKSUMS[@]}" -ne 1 ]]; then
+            echo "Release ${TAG_NAME} must contain exactly one .tgz package and one .sha256 checksum." >&2
+            exit 1
+          fi
 
-      - name: Verify package contents
-        run: npm pack --dry-run
+          sha256sum -c "${PACKAGE_CHECKSUMS[0]}"
+          echo "PACKAGE_TARBALL=${PACKAGE_TARBALLS[0]}" >> "${GITHUB_ENV}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Validate release artifact metadata
+        shell: bash
+        run: |
+          tar -xOf "${PACKAGE_TARBALL}" package/package.json > package-from-tarball.json
+          PACKAGE_NAME="$(node -p "require('./package-from-tarball.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package-from-tarball.json').version")"
+
+          echo "Package: ${PACKAGE_NAME}@${PACKAGE_VERSION}"
+          if [[ "${PACKAGE_VERSION}" != "${VERSION}" ]]; then
+            echo "Package artifact version (${PACKAGE_VERSION}) must match requested version (${VERSION})." >&2
+            exit 1
+          fi
+
+          {
+            echo "PACKAGE_NAME=${PACKAGE_NAME}"
+            echo "PACKAGE_VERSION=${PACKAGE_VERSION}"
+          } >> "${GITHUB_ENV}"
 
       - name: Check npm version availability
         shell: bash
         run: |
-          PACKAGE_NAME="$(node -p "require('./package.json').name")"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
             echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
             exit 1
           fi
 
-      - name: Publish to npm
+      - name: Publish release artifact to npm
         shell: bash
         env:
           WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
         run: |
           NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
-          npm publish --access public --tag "${NPM_TAG}"
+          npm publish "./${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}"
