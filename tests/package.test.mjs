@@ -153,3 +153,17 @@ test('release workflows attach npm artifacts and publish the reviewed artifact m
     assert.match(publishWorkflow, /npm publish "\.\/\$\{PACKAGE_TARBALL\}" --access public --tag "\$\{NPM_TAG\}"/);
     assert.equal(/^\s*(npm run lint|npm test|npm pack\b)/m.test(publishWorkflow), false);
 });
+
+test('Pages workflow deploys the demo with Node 24 compatible actions', () => {
+    const pagesWorkflow = readFileSync('.github/workflows/deploy-pages.yml', 'utf8');
+
+    assert.match(pagesWorkflow, /workflow_dispatch:/);
+    assert.match(pagesWorkflow, /branches:\s*\[main\]/);
+    assert.match(pagesWorkflow, /uses:\s*actions\/checkout@v6/);
+    assert.match(pagesWorkflow, /uses:\s*actions\/upload-pages-artifact@v5/);
+    assert.match(pagesWorkflow, /uses:\s*actions\/deploy-pages@v5/);
+    assert.match(pagesWorkflow, /path:\s*docs/);
+    assert.match(pagesWorkflow, /pages:\s*write/);
+    assert.match(pagesWorkflow, /id-token:\s*write/);
+    assert.equal(/actions\/checkout@v4|actions\/upload-artifact@v4|actions\/upload-pages-artifact@v3|actions\/deploy-pages@v4/.test(pagesWorkflow), false);
+});
