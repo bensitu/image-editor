@@ -133,11 +133,14 @@
       this._prevSelectionSetting = void 0;
       this._containerOriginalOverflow = void 0;
       this.onImageLoaded = typeof options.onImageLoaded === "function" ? options.onImageLoaded : null;
-      this.animQueue = new AnimationQueue();
+      this.animationQueue = new AnimationQueue();
       this.historyManager = new HistoryManager(this.maxHistorySize);
     }
     /**
-     * @deprecated Use canvasElement instead.
+     * Backward-compatible alias for {@link ImageEditor#canvasElement}.
+     *
+     * @deprecated Use canvasElement instead. This alias will be removed in v2.0.0.
+     * @returns {HTMLCanvasElement|null} The canvas element currently owned by the editor.
      */
     get canvasEl() {
       return this.canvasElement;
@@ -146,7 +149,10 @@
       this.canvasElement = value;
     }
     /**
-     * @deprecated Use containerElement instead.
+     * Backward-compatible alias for {@link ImageEditor#containerElement}.
+     *
+     * @deprecated Use containerElement instead. This alias will be removed in v2.0.0.
+     * @returns {HTMLElement|null} The canvas viewport/container element.
      */
     get containerEl() {
       return this.containerElement;
@@ -155,7 +161,10 @@
       this.containerElement = value;
     }
     /**
-     * @deprecated Use placeholderElement instead.
+     * Backward-compatible alias for {@link ImageEditor#placeholderElement}.
+     *
+     * @deprecated Use placeholderElement instead. This alias will be removed in v2.0.0.
+     * @returns {HTMLElement|null} The placeholder element shown before an image loads.
      */
     get placeholderEl() {
       return this.placeholderElement;
@@ -169,9 +178,10 @@
      * Use this method to set up the editor UI before interacting with it.
      *
      * @param {Object} [idMap={}] - Optional mapping from logical element names to actual DOM element IDs.
-     *   Supported keys include: canvas, canvasContainer, imgPlaceholder, scaleRate, rotationLeftInput, rotationRightInput,
-     *   rotateLeftBtn, rotateRightBtn, addMaskBtn, removeMaskBtn, removeAllMasksBtn, mergeBtn, downloadBtn, maskList,
-     *   zoomInBtn, zoomOutBtn, resetBtn, imageInput. Unknown keys are ignored.
+     *   Supported keys include: canvas, canvasContainer, imgPlaceholder, scaleRate, rotationLeftInput,
+     *   rotationRightInput, rotateLeftBtn, rotateRightBtn, addMaskBtn, removeMaskBtn, removeAllMasksBtn,
+     *   mergeBtn, downloadBtn, maskList, zoomInBtn, zoomOutBtn, resetBtn, undoBtn, redoBtn, imageInput,
+     *   uploadArea, cropBtn, applyCropBtn, and cancelCropBtn. Unknown keys are ignored.
      *
      * @returns {void}
      *
@@ -243,7 +253,9 @@
       }
     }
     /**
-     * Canvas setup helpers
+     * Initializes the Fabric canvas, viewport elements, and selection event handlers.
+     *
+     * @returns {void}
      * @private
      */
     _initCanvas() {
@@ -293,6 +305,13 @@
       this.canvas.on("object:modified", (event) => this._handleObjectModified(event.target));
       this.canvasElement.style.display = "block";
     }
+    /**
+     * Records a history entry after Fabric finishes modifying one or more masks.
+     *
+     * @param {fabric.Object|fabric.ActiveSelection|null} target - Modified Fabric object or selection.
+     * @returns {void}
+     * @private
+     */
     _handleObjectModified(target) {
       const masks = this._getModifiedMasks(target);
       if (!masks.length)
@@ -305,6 +324,13 @@
       });
       this.saveState();
     }
+    /**
+     * Extracts editable mask objects from a Fabric modification target.
+     *
+     * @param {fabric.Object|fabric.ActiveSelection|null} target - Fabric object or active selection.
+     * @returns {Array<fabric.Object>} Modified mask objects.
+     * @private
+     */
     _getModifiedMasks(target) {
       if (!target)
         return [];
@@ -313,6 +339,12 @@
       const objects = typeof target.getObjects === "function" ? target.getObjects() : [];
       return Array.isArray(objects) ? objects.filter((object) => object && object.maskId) : [];
     }
+    /**
+     * Updates container overflow behavior for fit and cover image modes.
+     *
+     * @returns {void}
+     * @private
+     */
     _syncContainerOverflow() {
       if (!this.containerElement || !this.containerElement.style)
         return;
@@ -388,12 +420,12 @@
       });
       this._bindIfExists("cancelCropBtn", "click", () => this.cancelCrop());
     }
-    /** 
-     * Event binding element check
-     * 
-     * @param {*} eventName
-     * @param {*} handler 
-     * @param {*} key 
+    /**
+     * Binds a DOM event listener when the configured element exists and records it for disposal.
+     *
+     * @param {string} key - Key in this.elements for the target DOM element.
+     * @param {string} eventName - DOM event name to listen for.
+     * @param {EventListener} handler - Event listener callback.
      * @private
      */
     _bindIfExists(key, eventName, handler) {
@@ -406,10 +438,10 @@
         this._handlersByElementKey[key].push({ eventName, handler });
       }
     }
-    /** 
-     * Image loading helpers
-     * 
-     * @param {File} file 
+    /**
+     * Reads an image File as a data URL and loads it into the Fabric canvas.
+     *
+     * @param {File} file - Image file selected by the user.
      * @private
      */
     _loadImageFile(file) {
@@ -423,9 +455,12 @@
       reader.readAsDataURL(file);
     }
     /**
-    * Load a base64 encoded image string into fabric.
-    * @async
-     * @param {String} imageBase64
+     * Loads a base64 data URL into the Fabric canvas as the base image.
+     *
+     * @async
+     * @param {string} imageBase64 - Image data URL beginning with `data:image/`.
+     * @returns {Promise<void>} Resolves after the Fabric image is added to the canvas.
+     * @public
      */
     async loadImage(imageBase64) {
       if (!this._fabricLoaded)
@@ -578,20 +613,20 @@
      * Sets canvas size to integer width and height values to prevent scrollbars due to sub-pixel rendering.
      * Also updates the corresponding style attributes.
      * 
-     * @param {number} w - Canvas width (in pixels).
-     * @param {number} h - Canvas height (in pixels).
+     * @param {number} width - Canvas width in pixels.
+     * @param {number} height - Canvas height in pixels.
      * @private
      */
-    _setCanvasSizeInt(w, h) {
-      const iw = Math.max(1, Math.round(Number(w) || 1));
-      const ih = Math.max(1, Math.round(Number(h) || 1));
-      this.canvas.setWidth(iw);
-      this.canvas.setHeight(ih);
+    _setCanvasSizeInt(width, height) {
+      const integerWidth = Math.max(1, Math.round(Number(width) || 1));
+      const integerHeight = Math.max(1, Math.round(Number(height) || 1));
+      this.canvas.setWidth(integerWidth);
+      this.canvas.setHeight(integerHeight);
       if (typeof this.canvas.calcOffset === "function")
         this.canvas.calcOffset();
       if (this.canvasElement) {
-        this.canvasElement.style.width = iw + "px";
-        this.canvasElement.style.height = ih + "px";
+        this.canvasElement.style.width = integerWidth + "px";
+        this.canvasElement.style.height = integerHeight + "px";
         this.canvasElement.style.maxWidth = "none";
       }
     }
@@ -821,6 +856,25 @@
       if (typeof mask.setCoords === "function")
         mask.setCoords();
     }
+    /**
+     * Captures editor-owned runtime state that Fabric does not include in canvas JSON.
+     *
+     * @returns {{version:number, baseImageScale:number, currentScale:number, currentRotation:number, maskCounter:number}} Serializable editor metadata.
+     * @private
+     */
+    _serializeEditorMetadata() {
+      const baseImageScale = Number(this.baseImageScale);
+      const currentScale = Number(this.currentScale);
+      const currentRotation = Number(this.currentRotation);
+      const maskCounter = Number(this.maskCounter);
+      return {
+        version: 1,
+        baseImageScale: Number.isFinite(baseImageScale) && baseImageScale > 0 ? baseImageScale : 1,
+        currentScale: Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1,
+        currentRotation: Number.isFinite(currentRotation) ? currentRotation : 0,
+        maskCounter: Number.isFinite(maskCounter) && maskCounter > 0 ? Math.floor(maskCounter) : 0
+      };
+    }
     _serializeCanvasState() {
       if (!this.canvas)
         return null;
@@ -829,15 +883,30 @@
         if (Array.isArray(jsonObject.objects)) {
           jsonObject.objects = jsonObject.objects.filter((object) => !object.isCropRect && !object.maskLabel);
         }
+        jsonObject.imageEditorMetadata = this._serializeEditorMetadata();
         return JSON.stringify(jsonObject);
       });
     }
+    /**
+     * Normalizes a lossy image quality value to Fabric/canvas's 0..1 range.
+     *
+     * @param {number} quality - Requested image quality.
+     * @returns {number} A finite quality value between 0 and 1.
+     * @private
+     */
     _normalizeQuality(quality) {
       const numericQuality = Number(quality);
       if (!Number.isFinite(numericQuality))
         return this.options.downsampleQuality ?? 0.92;
       return Math.max(0, Math.min(1, numericQuality));
     }
+    /**
+     * Normalizes public image format aliases to canvas export format names.
+     *
+     * @param {string} format - Requested image format or MIME type.
+     * @returns {'jpeg'|'png'|'webp'} Canvas-compatible image format.
+     * @private
+     */
     _normalizeImageFormat(format) {
       const typeMapping = {
         "jpeg": "jpeg",
@@ -850,6 +919,15 @@
       };
       return typeMapping[String(format || "jpeg").toLowerCase()] || "jpeg";
     }
+    /**
+     * Converts a bounding rectangle into a canvas-safe integer source region.
+     *
+     * @param {{left:number, top:number, width:number, height:number}} bounds - Bounds in canvas coordinates.
+     * @param {Object} [options={}] - Region rounding options.
+     * @param {boolean} [options.includePartialPixels=true] - If false, excludes partially covered trailing pixels.
+     * @returns {{sourceX:number, sourceY:number, sourceWidth:number, sourceHeight:number}} Clamped source region.
+     * @private
+     */
     _getClampedCanvasRegion(bounds, options = {}) {
       const canvasWidth = Math.max(1, Math.round(this.canvas.getWidth()));
       const canvasHeight = Math.max(1, Math.round(this.canvas.getHeight()));
@@ -864,12 +942,26 @@
       const endX = Math.min(canvasWidth, Math.max(sourceX + 1, roundEnd(left + width)));
       const endY = Math.min(canvasHeight, Math.max(sourceY + 1, roundEnd(top + height)));
       return {
-        sx: sourceX,
-        sy: sourceY,
-        sw: Math.max(1, endX - sourceX),
-        sh: Math.max(1, endY - sourceY)
+        sourceX,
+        sourceY,
+        sourceWidth: Math.max(1, endX - sourceX),
+        sourceHeight: Math.max(1, endY - sourceY)
       };
     }
+    /**
+     * Crops an image data URL to a source region using an offscreen canvas.
+     *
+     * @param {string} dataUrl - Source image data URL.
+     * @param {number} sourceX - Source region x coordinate.
+     * @param {number} sourceY - Source region y coordinate.
+     * @param {number} sourceWidth - Source region width.
+     * @param {number} sourceHeight - Source region height.
+     * @param {number} multiplier - Export multiplier already applied to the source data URL.
+     * @param {'jpeg'|'png'|'webp'} [format='jpeg'] - Output image format.
+     * @param {number} [quality=0.92] - Output image quality for lossy formats.
+     * @returns {Promise<string>} Resolves with the cropped image data URL.
+     * @private
+     */
     async _cropDataUrl(dataUrl, sourceX, sourceY, sourceWidth, sourceHeight, multiplier, format = "jpeg", quality = 0.92) {
       return new Promise((resolve, reject) => {
         const imageElement = new Image();
@@ -894,14 +986,28 @@
         imageElement.src = dataUrl;
       });
     }
-    async _exportCanvasRegionToDataURL({ sx, sy, sw, sh, multiplier = 1, quality = 0.92, format = "jpeg" }) {
+    /**
+     * Exports the whole Fabric canvas, then crops the requested source region from that export.
+     *
+     * @param {Object} region - Canvas source region and export options.
+     * @param {number} region.sourceX - Source region x coordinate.
+     * @param {number} region.sourceY - Source region y coordinate.
+     * @param {number} region.sourceWidth - Source region width.
+     * @param {number} region.sourceHeight - Source region height.
+     * @param {number} [region.multiplier=1] - Export multiplier.
+     * @param {number} [region.quality=0.92] - Output image quality for lossy formats.
+     * @param {'jpeg'|'png'|'webp'} [region.format='jpeg'] - Output image format.
+     * @returns {Promise<string>} Resolves with an image data URL for the cropped region.
+     * @private
+     */
+    async _exportCanvasRegionToDataURL({ sourceX, sourceY, sourceWidth, sourceHeight, multiplier = 1, quality = 0.92, format = "jpeg" }) {
       const safeMultiplier = Math.max(1, Number(multiplier) || 1);
       const fullDataUrl = this.canvas.toDataURL({
         format,
         quality,
         multiplier: safeMultiplier
       });
-      return this._cropDataUrl(fullDataUrl, sx, sy, sw, sh, safeMultiplier, format, quality);
+      return this._cropDataUrl(fullDataUrl, sourceX, sourceY, sourceWidth, sourceHeight, safeMultiplier, format, quality);
     }
     /** 
      * Gets the top-left corner coordinates of the given object.
@@ -967,8 +1073,17 @@
       const size = this._getScrollableCanvasSize(imageBounds.width, imageBounds.height);
       this._setCanvasSizeInt(size.width, size.height);
     }
+    /**
+     * Whether post-load edits should resize the canvas to keep transformed content visible.
+     *
+     * @returns {boolean} True when canvas bounds should follow edited image or mask bounds.
+     * @private
+     */
+    _shouldResizeCanvasToContentBounds() {
+      return !!(this.options.expandCanvasToImage || this.options.coverImageToCanvas || this.options.fitImageToCanvas);
+    }
     _expandCanvasToFitObject(fabricObject, padding = 10) {
-      if (!this.canvas || !fabricObject || !this.options.expandCanvasToImage)
+      if (!this.canvas || !fabricObject || !this._shouldResizeCanvasToContentBounds())
         return;
       try {
         fabricObject.setCoords();
@@ -992,7 +1107,7 @@
      * @public
      */
     scaleImage(factor, options = {}) {
-      return this.animQueue.add(() => this._scaleImageImpl(factor, options));
+      return this.animationQueue.add(() => this._scaleImageImpl(factor, options));
     }
     /** 
      * Scales the original image by a given factor, with animation.
@@ -1031,7 +1146,7 @@
       return Promise.all([scaleXAnimation, scaleYAnimation]).then(() => {
         this.originalImage.set({ scaleX: targetScale, scaleY: targetScale });
         this.originalImage.setCoords();
-        if (this.options.expandCanvasToImage || this.options.coverImageToCanvas) {
+        if (this._shouldResizeCanvasToContentBounds()) {
           this._updateCanvasSizeToImageBounds();
         }
         this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
@@ -1057,7 +1172,7 @@
      * @public
      */
     rotateImage(degrees, options = {}) {
-      return this.animQueue.add(() => this._rotateImageImpl(degrees, options));
+      return this.animationQueue.add(() => this._rotateImageImpl(degrees, options));
     }
     /** 
      * Rotates the original image by a given number of degrees, with animation.
@@ -1089,7 +1204,7 @@
       return rotationAnimation.then(() => {
         this.originalImage.set("angle", degrees);
         this.originalImage.setCoords();
-        if (this.options.expandCanvasToImage || this.options.coverImageToCanvas) {
+        if (this._shouldResizeCanvasToContentBounds()) {
           this._updateCanvasSizeToImageBounds();
         }
         this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
@@ -1111,38 +1226,47 @@
     }
     /**
      * Resets the image transform: scales to 1 and rotates to 0 degrees.
-     * @returns {Promise<void>} Promise that resolves when reset is complete.
+     *
+     * @returns {Promise<void>} Resolves when the reset history transition has been recorded.
+     * @public
      */
     resetImageTransform() {
       if (!this.originalImage)
         return Promise.resolve();
-      return this.animQueue.add(async () => {
+      return this.animationQueue.add(async () => {
         const before = this._serializeCanvasState();
         await this._scaleImageImpl(1, { saveHistory: false });
         await this._rotateImageImpl(0, { saveHistory: false });
         const after = this._serializeCanvasState();
         this._pushStateTransition(before, after);
-      }).catch((err) => {
-        this._reportError("resetImageTransform() failed", err);
+      }).catch((error) => {
+        this._reportError("resetImageTransform() failed", error);
       });
     }
     /**
-     * @deprecated Use resetImageTransform() instead.
+     * Backward-compatible alias for {@link ImageEditor#resetImageTransform}.
+     *
+     * @deprecated Use resetImageTransform() instead. This alias will be removed in v2.0.0.
+     * @returns {Promise<void>} Resolves when the image transform reset is complete.
      */
     reset() {
       return this.resetImageTransform();
     }
     /**
-     * Restores a canvas state that was previously stored by saveState().
-     * @param {string} jsonString - the JSON string returned by fabric.toJSON().
+     * Restores a serialized canvas state and rebinds editor-specific mask/image metadata.
+     *
+     * @param {string|Object} serializedState - State returned by `_serializeCanvasState()` as a JSON string or object.
+     * @returns {Promise<void>} Resolves after Fabric has loaded the state and UI state has been refreshed.
+     * @public
      */
-    loadFromState(jsonString) {
-      if (!jsonString || !this.canvas)
+    loadFromState(serializedState) {
+      if (!serializedState || !this.canvas)
         return Promise.resolve();
       return new Promise((resolve) => {
         try {
-          const json = typeof jsonString === "string" ? JSON.parse(jsonString) : jsonString;
-          this.canvas.loadFromJSON(json, () => {
+          const state = typeof serializedState === "string" ? JSON.parse(serializedState) : serializedState;
+          const editorMetadata = state && state.imageEditorMetadata ? state.imageEditorMetadata : null;
+          this.canvas.loadFromJSON(state, () => {
             try {
               this._hideAllMaskLabels();
               const canvasObjects = this.canvas.getObjects();
@@ -1150,11 +1274,22 @@
               if (this.originalImage) {
                 this.originalImage.set({ originX: "left", originY: "top", selectable: false, evented: false, hasControls: false, hoverCursor: "default" });
                 this.canvas.sendToBack(this.originalImage);
-                this.currentRotation = Number(this.originalImage.angle) || 0;
-                const baseScale = Number(this.baseImageScale) || 1;
-                const imageScale = Number(this.originalImage.scaleX) || baseScale;
-                this.currentScale = imageScale / baseScale;
+                const restoredBaseScale = Number(editorMetadata && editorMetadata.baseImageScale);
+                const restoredCurrentScale = Number(editorMetadata && editorMetadata.currentScale);
+                const restoredCurrentRotation = Number(editorMetadata && editorMetadata.currentRotation);
+                if (Number.isFinite(restoredBaseScale) && restoredBaseScale > 0) {
+                  this.baseImageScale = restoredBaseScale;
+                }
+                if (Number.isFinite(restoredCurrentScale) && restoredCurrentScale > 0) {
+                  this.currentScale = restoredCurrentScale;
+                } else {
+                  const baseScale = Number(this.baseImageScale) || 1;
+                  const imageScale = Number(this.originalImage.scaleX) || baseScale;
+                  this.currentScale = imageScale / baseScale;
+                }
+                this.currentRotation = Number.isFinite(restoredCurrentRotation) ? restoredCurrentRotation : Number(this.originalImage.angle) || 0;
               } else {
+                this.baseImageScale = 1;
                 this.currentScale = 1;
                 this.currentRotation = 0;
               }
@@ -1164,7 +1299,9 @@
                 this._rebindMaskEvents(mask);
                 mask.set(this._getMaskNormalStyle(mask));
               });
-              this.maskCounter = masks.reduce((max, mask) => Math.max(max, mask.maskId), 0);
+              const restoredMaskCounter = Number(editorMetadata && editorMetadata.maskCounter);
+              const maxMaskId = masks.reduce((max, mask) => Math.max(max, mask.maskId), 0);
+              this.maskCounter = Number.isFinite(restoredMaskCounter) && restoredMaskCounter >= maxMaskId ? Math.floor(restoredMaskCounter) : maxMaskId;
               this._lastMask = masks.length ? masks[masks.length - 1] : null;
               if (!this._lastMask) {
                 this._lastMaskInitialLeft = null;
@@ -1191,7 +1328,13 @@
       });
     }
     /**
-     * Saves the current state of the canvas to history, storing any mask/raster label information.
+     * Saves the current editable canvas state as an undoable history transition.
+     *
+     * Labels are hidden before serialization because labels are UI overlays, while mask metadata is kept on
+     * mask objects and restored by `loadFromState()`.
+     *
+     * @returns {void}
+     * @public
      */
     saveState() {
       if (!this.canvas)
@@ -1225,6 +1368,17 @@
         this._updateUI();
       }
     }
+    /**
+     * Pushes a precomputed before/after state transition into history.
+     *
+     * Use this for operations such as crop and merge that build their snapshots around asynchronous image
+     * loading, where the "after" state is already applied before the history command is recorded.
+     *
+     * @param {string} before - Serialized state before the operation.
+     * @param {string} after - Serialized state after the operation.
+     * @returns {void}
+     * @private
+     */
     _pushStateTransition(before, after) {
       if (!before || !after)
         return;
@@ -1242,6 +1396,9 @@
     }
     /**
      * Undo the last state change, if possible.
+     *
+     * @returns {Promise<void>} Resolves after the history manager finishes the queued undo.
+     * @public
      */
     undo() {
       return this.historyManager.undo().then(() => {
@@ -1252,6 +1409,9 @@
     }
     /**
      * Redo the next state change, if possible.
+     *
+     * @returns {Promise<void>} Resolves after the history manager finishes the queued redo.
+     * @public
      */
     redo() {
       return this.historyManager.redo().then(() => {
@@ -1267,7 +1427,7 @@
         try {
           mask.off("mouseover", mask.__imageEditorMaskHandlers.mouseover);
           mask.off("mouseout", mask.__imageEditorMaskHandlers.mouseout);
-        } catch (e) {
+        } catch (error) {
         }
       }
       const metadata = {};
@@ -1305,23 +1465,32 @@
       mask.on("mouseout", mouseout);
       mask.__imageEditorMaskHandlers = { mouseover, mouseout };
     }
-    /** 
+    /**
      * Creates a mask and adds it to the canvas.
-     * Mask placement and properties are determined by the provided config and instance options.
-     * Canvas and list UI are updated accordingly.
-     * @param {Object} [config={}] - Optional mask configuration overrides:
-     *   @param {string} [config.shape='rect'] - 'rect', 'circle', 'ellipse', 'polygon', ...
-     *   @param {Object|Array} [config.points] - Required for polygon: [{x, y}, ...] or [[x, y], ...]
-     *   @param {number|function} [config.width/height/rx/ry/radius] - Can be number or function(canvas, options) 
-     *   @param {number|string|function} [config.left/top] - Absolute, %, or function
-     *   @param {number|string} [config.angle] - Rotation angle (degree)
-     *   @param {string} [config.color] - Fill color in CSS color format (default 'rgba(0,0,0,0.5)')
-     *   @param {number} [config.alpha] - Opacity, from 0 to 1 (default 0.5)
-     *   @param {boolean} [config.selectable=true]
-     *   @param {Object} [config.styles] - Custom styles (stroke, dashArray, etc)
-     *   @param {function} [config.onCreate] - Callback after mask created (receives Fabric object)
-     *   @param {function} [config.fabricGenerator] - (maskConfig) => new FabricObj
-     * @returns {fabric.Rect|null} The created mask object, or null if canvas is not available.
+     *
+     * Placement is based on explicit `left`/`top` values when provided; otherwise each new mask is placed
+     * after the previously created mask. Fabric object properties are applied through `set()` and `setCoords()`
+     * so controls and hit testing stay in sync with Fabric 5.x behavior.
+     *
+     * @param {Object} [config={}] - Optional mask configuration overrides.
+     * @param {string} [config.shape='rect'] - Mask shape: `rect`, `circle`, `ellipse`, `polygon`, or a custom shape handled by `fabricGenerator`.
+     * @param {Array<{x:number,y:number}>|Array<Array<number>>} [config.points] - Polygon points.
+     * @param {number|string|MaskValueResolver} [config.width] - Width in pixels, percentage string, or resolver callback.
+     * @param {number|string|MaskValueResolver} [config.height] - Height in pixels, percentage string, or resolver callback.
+     * @param {number|string|MaskValueResolver} [config.radius] - Circle radius in pixels, percentage string, or resolver callback.
+     * @param {number|string|MaskValueResolver} [config.rx] - Ellipse horizontal radius or rectangle corner radius.
+     * @param {number|string|MaskValueResolver} [config.ry] - Ellipse vertical radius or rectangle corner radius.
+     * @param {number|string|MaskValueResolver} [config.left] - Left position in pixels, percentage string, or resolver callback.
+     * @param {number|string|MaskValueResolver} [config.top] - Top position in pixels, percentage string, or resolver callback.
+     * @param {number} [config.angle=0] - Rotation angle in degrees.
+     * @param {string} [config.color='rgba(0,0,0,0.5)'] - Fill color.
+     * @param {number} [config.alpha=0.5] - Opacity from 0 to 1.
+     * @param {boolean} [config.selectable=true] - Whether the mask can be selected.
+     * @param {boolean} [config.hasControls=true] - Whether Fabric transform controls are shown.
+     * @param {Object} [config.styles] - Additional Fabric style properties, such as `stroke` or `strokeDashArray`.
+     * @param {MaskFabricGenerator} [config.fabricGenerator] - Factory callback that returns a custom Fabric object.
+     * @param {MaskCreateCallback} [config.onCreate] - Callback invoked after the mask is added to the canvas.
+     * @returns {fabric.Object|null} The created mask object, or null if the canvas is not initialized.
      * @public
      */
     createMask(config = {}) {
@@ -1369,6 +1538,8 @@
       }
       maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
       maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight);
+      maskConfig.left = left;
+      maskConfig.top = top;
       let mask;
       if (typeof maskConfig.fabricGenerator === "function") {
         mask = maskConfig.fabricGenerator(maskConfig, this.canvas, this.options);
@@ -1399,8 +1570,8 @@
             break;
           case "polygon": {
             let polygonPoints = maskConfig.points || [];
-            if (Array.isArray(polygonPoints) && polygonPoints.length && typeof polygonPoints[0] === "object") {
-              polygonPoints = polygonPoints.map((point) => ({ x: Number(point.x), y: Number(point.y) }));
+            if (Array.isArray(polygonPoints) && polygonPoints.length) {
+              polygonPoints = polygonPoints.map((point) => Array.isArray(point) ? { x: Number(point[0]), y: Number(point[1]) } : { x: Number(point.x), y: Number(point.y) });
             }
             mask = new fabric.Polygon(polygonPoints, {
               left,
@@ -1423,7 +1594,6 @@
               opacity: maskConfig.alpha,
               angle: maskConfig.angle,
               rx: maskConfig.rx,
-              // Rounded Corners
               ry: maskConfig.ry,
               ...maskConfig.styles
             });
@@ -1441,6 +1611,7 @@
         transparentCorners: "transparentCorners" in maskConfig ? maskConfig.transparentCorners : false,
         stroke: hasStyle("stroke") ? styles.stroke : "#ccc",
         strokeWidth: hasStyle("strokeWidth") ? styles.strokeWidth : 1,
+        opacity: hasStyle("opacity") ? styles.opacity : maskConfig.alpha,
         strokeUniform: "strokeUniform" in maskConfig ? maskConfig.strokeUniform : hasStyle("strokeUniform") ? styles.strokeUniform : true
       };
       if (hasStyle("strokeDashArray"))
@@ -1448,7 +1619,7 @@
       mask.set(maskSettings);
       mask.setCoords();
       mask.set({
-        originalAlpha: maskConfig.alpha,
+        originalAlpha: Number.isFinite(Number(mask.opacity)) ? Number(mask.opacity) : maskConfig.alpha,
         originalStroke: mask.stroke || "#ccc",
         originalStrokeWidth: Number.isFinite(Number(mask.strokeWidth)) ? Number(mask.strokeWidth) : 1
       });
@@ -1477,7 +1648,11 @@
       return mask;
     }
     /**
-     * @deprecated Use createMask() instead.
+     * Backward-compatible alias for {@link ImageEditor#createMask}.
+     *
+     * @deprecated Use createMask() instead. This alias will be removed in v2.0.0.
+     * @param {Object} [config={}] - Mask configuration passed to createMask().
+     * @returns {fabric.Object|null} The created mask object, or null if the canvas is not initialized.
      */
     addMask(config = {}) {
       return this.createMask(config);
@@ -1552,6 +1727,23 @@
       }
     }
     /**
+     * Returns a stable zero-based creation index for label callbacks.
+     *
+     * Mask ids are one-based and are not renumbered after deletion, so this value remains stable for the
+     * lifetime of a mask.
+     *
+     * @param {fabric.Object} mask - Mask object.
+     * @returns {number} Stable zero-based creation index.
+     * @private
+     */
+    _getMaskCreationIndex(mask) {
+      const maskId = Number(mask && mask.maskId);
+      if (Number.isFinite(maskId) && maskId > 0)
+        return Math.floor(maskId) - 1;
+      const masks = this.canvas ? this.canvas.getObjects().filter((object) => object.maskId) : [];
+      return Math.max(0, masks.indexOf(mask));
+    }
+    /**
      * Creates and adds a custom label (fabric.Text or fabric.IText) for the mask.
      * The label is default bound to the top-left of the mask and managed as a non-interactive overlay.
      * 
@@ -1582,9 +1774,7 @@
         };
         if (this.options.label) {
           if (typeof this.options.label.getText === "function") {
-            const masks = this.canvas ? this.canvas.getObjects().filter((object) => object.maskId) : [];
-            const maskIndex = Math.max(0, masks.indexOf(mask));
-            labelText = this.options.label.getText(mask, maskIndex);
+            labelText = this.options.label.getText(mask, this._getMaskCreationIndex(mask));
           }
           if (this.options.label.textOptions) {
             Object.assign(textOptions, this.options.label.textOptions);
@@ -1754,10 +1944,14 @@
       });
     }
     /**
-     * Merges current masks into the image: exports a masked/cropped image, removes all masks, and re-imports the merged image.
-     * Will not run if no original image or no masks exist.
+     * Flattens the current masks into the base image and reloads the flattened image.
+     *
+     * This removes editable mask objects after export and records the operation as one undoable history transition.
+     * It does nothing when no base image or no masks exist.
+     *
      * @async
-     * @returns {Promise<void>} Resolves when merge and load are complete.
+     * @returns {Promise<void>} Resolves when the flattened image has been loaded.
+     * @public
      */
     async mergeMasks() {
       if (!this.originalImage)
@@ -1774,46 +1968,55 @@
         await this.loadImage(merged);
         const afterJson = this._serializeCanvasState();
         this._pushStateTransition(beforeJson, afterJson);
-      } catch (err) {
-        this._reportError("merge error", err);
+      } catch (error) {
+        this._reportError("merge error", error);
       }
     }
     /**
-     * @deprecated Use mergeMasks() instead.
+     * Backward-compatible alias for {@link ImageEditor#mergeMasks}.
+     *
+     * @deprecated Use mergeMasks() instead. This alias will be removed in v2.0.0.
+     * @returns {Promise<void>} Resolves when mask flattening is complete.
      */
     async merge() {
       return this.mergeMasks();
     }
     /**
-     * Triggers a JPEG image download of the current canvas (image plus masks if configured).
+     * Triggers a JPEG image download of the current canvas.
+     *
      * The image area and multiplier are controlled by options.
      * @param {string} [fileName=this.options.defaultDownloadFileName] - Desired download file name.
+     * @returns {void}
+     * @public
      */
     downloadImage(fileName = this.options.defaultDownloadFileName) {
       if (!this.originalImage)
         return;
       const exportImageArea = this.options.exportImageAreaByDefault;
-      this.exportImageBase64({ exportImageArea, multiplier: this.options.exportMultiplier }).then((base64) => {
+      this.exportImageBase64({ exportImageArea, multiplier: this.options.exportMultiplier }).then((imageBase64) => {
         const link = document.createElement("a");
         link.download = fileName;
-        link.href = base64;
+        link.href = imageBase64;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      }).catch((err) => this._reportError("download error", err));
+      }).catch((error) => this._reportError("download error", error));
     }
     /**
-     * Exports the image as a Base64-encoded image data URL.
-     * Can export either the original, or the current view including masks (clipped/cropped).
-     * Will restore masks' state after temporary modifications for export.
+     * Exports the current image as a Base64-encoded data URL.
+     *
+     * When `exportImageArea` is false, the export omits masks and labels. When it is true, masks are
+     * temporarily rendered as opaque export shapes and then restored, so editable mask state is not mutated.
+     *
      * @async
      * @param {Object} [options={}] - Export options.
      * @param {boolean} [options.exportImageArea] - If true, exports only the image bounding area with masks cropped and blended.
      * @param {number} [options.multiplier=1] - Scaling multiplier for output (resolution).
      * @param {number} [options.quality=0.92] - Image quality between 0 and 1 for lossy formats.
      * @param {string} [options.fileType='jpeg'] - Output file type ('jpeg' | 'png' | 'webp').
-     * @returns {Promise<string>} Promise resolving to an image data URL.
+     * @returns {Promise<string>} Resolves with an image data URL.
      * @throws {Error} If there is no image loaded.
+     * @public
      */
     async exportImageBase64(options = {}) {
       if (!this.originalImage)
@@ -1833,12 +2036,9 @@
           this.canvas.renderAll();
           this.originalImage.setCoords();
           const imageBounds = this.originalImage.getBoundingRect(true, true);
-          const { sx, sy, sw, sh } = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
+          const exportRegion = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
           return await this._exportCanvasRegionToDataURL({
-            sx,
-            sy,
-            sw,
-            sh,
+            ...exportRegion,
             multiplier,
             quality,
             format
@@ -1875,12 +2075,9 @@
         this.canvas.renderAll();
         this.originalImage.setCoords();
         const imageBounds = this.originalImage.getBoundingRect(true, true);
-        const { sx, sy, sw, sh } = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
+        const exportRegion = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
         finalBase64 = await this._exportCanvasRegionToDataURL({
-          sx,
-          sy,
-          sw,
-          sh,
+          ...exportRegion,
           multiplier,
           quality,
           format
@@ -1905,14 +2102,20 @@
       return finalBase64;
     }
     /**
-     * @deprecated Use exportImageBase64() instead.
+     * Backward-compatible alias for {@link ImageEditor#exportImageBase64}.
+     *
+     * @deprecated Use exportImageBase64() instead. This alias will be removed in v2.0.0.
+     * @param {Object} [options={}] - Export options passed to exportImageBase64().
+     * @returns {Promise<string>} Resolves with an image data URL.
      */
     async getImageBase64(options = {}) {
       return this.exportImageBase64(options);
     }
     /**
-     * Exports the current canvas (with or without masks) as a File object.
-     * Allows you to choose whether to merge masks and specify file type (jpeg/png/webp).
+     * Exports the current image as a File object.
+     *
+     * The export can include flattened masks (`mergeMask: true`) or only the plain base image (`mergeMask: false`).
+     * Supported output formats are JPEG, PNG, and WebP.
      * 
      * @async
      * @param {Object} [options={}] - Export options.
@@ -1937,23 +2140,23 @@
         fileName = this.options.defaultDownloadFileName ?? "exported_image.jpg"
       } = options;
       const safeFileType = this._normalizeImageFormat(fileType);
-      let base64;
+      let imageBase64;
       if (mergeMask) {
-        base64 = await this.exportImageBase64({
+        imageBase64 = await this.exportImageBase64({
           exportImageArea: true,
           multiplier,
           quality,
           fileType: safeFileType
         });
       } else {
-        base64 = await this.exportImageBase64({
+        imageBase64 = await this.exportImageBase64({
           exportImageArea: false,
           multiplier,
           quality,
           fileType: safeFileType
         });
       }
-      let imageDataUrl = base64;
+      let imageDataUrl = imageBase64;
       if (!imageDataUrl.startsWith(`data:image/${safeFileType}`)) {
         imageDataUrl = await new Promise((resolve, reject) => {
           const imageElement = new window.Image();
@@ -1972,7 +2175,7 @@
             }
           };
           imageElement.onerror = reject;
-          imageElement.src = base64;
+          imageElement.src = imageBase64;
         });
       }
       const binaryString = atob(imageDataUrl.split(",")[1]);
@@ -2047,7 +2250,12 @@
       this._cropHandlers = [];
     }
     /**
-     * Enter crop mode: create a resizable/movable selection rect on top of the image.
+     * Enters crop mode by creating a resizable crop rectangle above the base image.
+     *
+     * Other canvas objects are made non-interactive while crop mode is active. Masks can be hidden during
+     * cropping when `crop.hideMasksDuringCrop` is enabled.
+     *
+     * @returns {void}
      * @public
      */
     enterCropMode() {
@@ -2128,7 +2336,9 @@
       this.canvas.renderAll();
     }
     /**
-     * Cancel crop mode and remove the temporary selection rect.
+     * Cancels crop mode and removes the temporary crop rectangle.
+     *
+     * @returns {void}
      * @public
      */
     cancelCrop() {
@@ -2144,8 +2354,14 @@
       this.canvas.renderAll();
     }
     /**
-     * Apply the current crop rectangle.
-     * remove all masks and export canvas snapshot and crop via offscreen canvas
+     * Applies the current crop rectangle to the base image.
+     *
+     * Masks are removed by default. When `crop.preserveMasksAfterCrop` is true, masks that intersect the crop
+     * region are shifted into the cropped coordinate space and remain editable. The operation is recorded as a
+     * single undoable history transition.
+     *
+     * @async
+     * @returns {Promise<void>} Resolves after the cropped image has been loaded and history is updated.
      * @public
      */
     async applyCrop() {
@@ -2153,7 +2369,7 @@
         return;
       this._cropRect.setCoords();
       const rectBounds = this._cropRect.getBoundingRect(true, true);
-      const { sx, sy, sw, sh } = this._getClampedCanvasRegion(rectBounds);
+      const cropRegion = this._getClampedCanvasRegion(rectBounds);
       const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
       this._restoreCropObjectState();
       let beforeJson = null;
@@ -2171,13 +2387,13 @@
             try {
               mask.setCoords();
               const maskBounds = mask.getBoundingRect(true, true);
-              const intersectsCrop = maskBounds.left < sx + sw && maskBounds.left + maskBounds.width > sx && maskBounds.top < sy + sh && maskBounds.top + maskBounds.height > sy;
+              const intersectsCrop = maskBounds.left < cropRegion.sourceX + cropRegion.sourceWidth && maskBounds.left + maskBounds.width > cropRegion.sourceX && maskBounds.top < cropRegion.sourceY + cropRegion.sourceHeight && maskBounds.top + maskBounds.height > cropRegion.sourceY;
               this._removeLabelForMask(mask);
               this.canvas.remove(mask);
               if (shouldPreserveMasks && intersectsCrop) {
                 mask.set({
-                  left: (mask.left || 0) - sx,
-                  top: (mask.top || 0) - sy,
+                  left: (mask.left || 0) - cropRegion.sourceX,
+                  top: (mask.top || 0) - cropRegion.sourceY,
                   visible: true
                 });
                 mask.setCoords();
@@ -2201,10 +2417,7 @@
       let croppedBase64;
       try {
         croppedBase64 = await this._exportCanvasRegionToDataURL({
-          sx,
-          sy,
-          sw,
-          sh,
+          ...cropRegion,
           multiplier: 1,
           quality: this._normalizeQuality(this.options.downsampleQuality),
           format: "jpeg"
@@ -2226,21 +2439,21 @@
           this._updateMaskList();
           this.canvas.renderAll();
         }
-      } catch (e) {
-        await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: loadImage(croppedBase64) failed", e);
+      } catch (error) {
+        await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: loadImage(croppedBase64) failed", error);
         return;
       }
       let afterJson = null;
       try {
         afterJson = this._serializeCanvasState();
-      } catch (e) {
-        this._reportWarning("applyCrop: failed to serialize after state", e);
+      } catch (error) {
+        this._reportWarning("applyCrop: failed to serialize after state", error);
         afterJson = null;
       }
       try {
         this._pushStateTransition(beforeJson, afterJson);
-      } catch (e) {
-        this._reportWarning("applyCrop: failed to push history command", e);
+      } catch (error) {
+        this._reportWarning("applyCrop: failed to push history command", error);
       }
       this._updateUI();
       this.canvas.renderAll();
@@ -2333,7 +2546,7 @@
       return element.getAttribute("aria-disabled") === "true";
     }
     /**
-     * Automatically display and hide placeholders and containers based on the current image content
+     * Updates placeholder and canvas container visibility based on whether an image is loaded.
      * @private
      */
     _updatePlaceholderStatus() {
@@ -2342,8 +2555,9 @@
       this._setPlaceholderVisible(!this.originalImage);
     }
     /**
-     * Controls the display/hiding of the Placeholder and Canvas container.
-     * @param {boolean} show - true displays the placeholder, false displays the canvas container
+     * Shows or hides the placeholder and canvas container.
+     *
+     * @param {boolean} show - If true, displays the placeholder; otherwise displays the canvas container.
      * @private
      */
     _setPlaceholderVisible(show) {
@@ -2383,20 +2597,20 @@
       if (this._cropRect) {
         try {
           this.canvas.remove(this._cropRect);
-        } catch (e) {
+        } catch (error) {
         }
         this._cropRect = null;
       }
       if (this.containerElement && this._containerOriginalOverflow !== void 0) {
         try {
           this.containerElement.style.overflow = this._containerOriginalOverflow;
-        } catch (e) {
+        } catch (error) {
         }
       }
       if (this.canvas) {
         try {
           this.canvas.dispose();
-        } catch (e) {
+        } catch (error) {
         }
         this.canvas = null;
         this.canvasElement = null;
@@ -2407,54 +2621,52 @@
   };
   var AnimationQueue = class {
     /**
-     * Creates a new AnimationQueue.
-     *
-     * @constructor
+     * Creates an empty animation queue.
      */
     constructor() {
-      this.queue = [];
-      this.running = false;
+      this.animationTasks = [];
+      this.isRunning = false;
     }
     /**
      * Adds an animation function to the queue.
      *
-     * @param   {Function} animationFn  A function that returns a Promise or any await-able.
-     * @returns {Promise<*>}            A Promise that resolves/rejects with the animation result.
+     * @param {AnimationTaskCallback} animationFn - Function that returns a value, Promise, or awaitable animation result.
+     * @returns {Promise<unknown>} Resolves or rejects with the queued animation result.
      */
     async add(animationFn) {
       return new Promise((resolve, reject) => {
-        this.queue.push({ fn: animationFn, resolve, reject });
-        if (!this.running) {
-          this.processQueue();
+        this.animationTasks.push({ animationFn, resolve, reject });
+        if (!this.isRunning) {
+          this._drainQueue();
         }
       });
     }
     /**
-     * Internal helper that processes the animation queue sequentially until it is empty.
+     * Runs queued animation tasks sequentially until the queue is empty.
      *
      * @private
      * @returns {Promise<void>}
      */
-    async processQueue() {
-      if (this.queue.length === 0) {
-        this.running = false;
+    async _drainQueue() {
+      if (this.animationTasks.length === 0) {
+        this.isRunning = false;
         return;
       }
-      this.running = true;
-      const { fn, resolve, reject } = this.queue.shift();
+      this.isRunning = true;
+      const { animationFn, resolve, reject } = this.animationTasks.shift();
       try {
-        const result = await fn();
+        const result = await animationFn();
         resolve(result);
       } catch (error) {
         reject(error);
       }
-      this.processQueue();
+      this._drainQueue();
     }
   };
   var Command = class {
     /**
-     * @param {Function} execute  The function that performs the action.
-     * @param {Function} undo     The function that reverts the action.
+     * @param {HistoryTaskCallback} execute - Function that performs the action.
+     * @param {HistoryTaskCallback} undo - Function that reverts the action.
      */
     constructor(execute, undo) {
       this.execute = execute;
@@ -2463,7 +2675,7 @@
   };
   var HistoryManager = class {
     /**
-     * @param {number} [maxSize=50]  Maximum number of commands to keep in history.
+     * @param {number} [maxSize=50] - Maximum number of commands to keep in history.
      */
     constructor(maxSize = 50) {
       this.history = [];
@@ -2471,11 +2683,24 @@
       this.maxSize = maxSize;
       this.pending = Promise.resolve();
     }
+    /**
+     * Queues a history task after the previously queued undo/redo task completes.
+     *
+     * @param {HistoryTaskCallback} task - Task to run after earlier history work settles.
+     * @returns {Promise<void>} Resolves or rejects with the queued task result.
+     * @private
+     */
     enqueue(task) {
-      const run = this.pending.then(task, task);
-      this.pending = run.catch(() => {
-      });
-      return run;
+      const nextTask = this.pending.then(task, task);
+      let pendingAfterTask;
+      const resetPending = () => {
+        if (this.pending === pendingAfterTask) {
+          this.pending = Promise.resolve();
+        }
+      };
+      pendingAfterTask = nextTask.then(resetPending, resetPending);
+      this.pending = pendingAfterTask;
+      return nextTask;
     }
     /**
      * Executes a new command and pushes it onto the history stack.
@@ -2525,7 +2750,7 @@
     /**
      * Undoes the last executed command if possible.
      *
-     * @returns {void}
+     * @returns {Promise<void>} Resolves after the undo task completes.
      */
     undo() {
       return this.enqueue(async () => {
@@ -2539,7 +2764,7 @@
     /**
      * Redoes the next command in history if possible.
      *
-     * @returns {void}
+     * @returns {Promise<void>} Resolves after the redo task completes.
      */
     redo() {
       return this.enqueue(async () => {

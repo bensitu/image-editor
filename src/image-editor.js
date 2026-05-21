@@ -9,6 +9,12 @@
 
 let fabric = null;
 
+/**
+ * Returns the ambient global scope used to discover a globally loaded Fabric.js namespace.
+ *
+ * @returns {typeof globalThis|null} The global scope, or null when no standard scope is available.
+ * @private
+ */
 function getGlobalScope() {
     if (typeof globalThis !== 'undefined') return globalThis;
     if (typeof self !== 'undefined') return self;
@@ -16,37 +22,91 @@ function getGlobalScope() {
     return null;
 }
 
+/**
+ * Returns the globally registered Fabric.js namespace when one is available.
+ *
+ * @returns {Object|null} The Fabric.js namespace, or null when Fabric is not registered globally.
+ * @private
+ */
 function getGlobalFabric() {
     const scope = getGlobalScope();
     return scope && scope.fabric ? scope.fabric : null;
 }
 
+/**
+ * Registers the Fabric.js namespace used by ImageEditor instances.
+ *
+ * This helper is exported for the package entry wrappers, not as part of the documented package API.
+ *
+ * @param {Object} [fabricInstance] - Fabric.js namespace object. When omitted, the global `fabric` namespace is used.
+ * @returns {Object|null} The active Fabric.js namespace.
+ * @private
+ */
 export function setFabric(fabricInstance) {
     fabric = fabricInstance || getGlobalFabric();
     return fabric;
 }
 
+/**
+ * Resolves the active Fabric.js namespace, trying the global namespace as a fallback.
+ *
+ * @returns {Object|null} The active Fabric.js namespace.
+ * @private
+ */
 function ensureFabric() {
     if (!fabric) setFabric();
     return fabric;
 }
 
+/**
+ * @callback ImageLoadedCallback
+ * @returns {void}
+ */
+
+/**
+ * @callback EditorErrorCallback
+ * @param {*} error - Recoverable error or warning value, when available.
+ * @param {string} message - Human-readable context for the error or warning.
+ * @returns {void}
+ */
+
+/**
+ * @callback MaskValueResolver
+ * @param {fabric.Canvas} canvas - Active Fabric canvas.
+ * @param {Object} options - Editor options.
+ * @returns {number} Resolved numeric mask value.
+ */
+
+/**
+ * @callback MaskFabricGenerator
+ * @param {Object} config - Normalized mask configuration.
+ * @param {fabric.Canvas} canvas - Active Fabric canvas.
+ * @param {Object} options - Editor options.
+ * @returns {fabric.Object} Custom Fabric object to use as the mask.
+ */
+
+/**
+ * @callback MaskCreateCallback
+ * @param {fabric.Object} mask - Created mask object.
+ * @param {fabric.Canvas} canvas - Active Fabric canvas.
+ * @returns {void}
+ */
+
+/**
+ * @callback MaskLabelTextCallback
+ * @param {fabric.Object} mask - Mask object whose label is being created.
+ * @param {number} creationIndex - Stable zero-based creation index derived from the mask id.
+ * @returns {string} Label text.
+ */
+
     /**
-     * ImageEditor
-     * 
-     * A lightweight wrapper around fabric.js providing masking, scaling, rotation,
-     * merging/export helpers, and UI integrations for image editing.
+     * Fabric.js-based image editor with masking, transform, crop, history, and export helpers.
      *
-     * <b>Note:</b> Requires fabric.js (v5.x) to be loaded on the page before use.
+     * Requires Fabric.js v5.x through the ESM package entry or a globally available `fabric` namespace.
      *
-     * <pre>
-     * Example usage:
+     * @example
      * const editor = new ImageEditor({ canvasWidth: 1024, canvasHeight: 768 });
      * editor.init();
-     * </pre>
-     *
-     * @class ImageEditor
-     * @classdesc Fabric.js-based image editor with simple mask, transform, export and UI features.
      *
      * @param {Object} [options={}] - Customization options to override defaults.
      * @param {number} [options.canvasWidth=800] - The initial canvas width in pixels.
@@ -57,7 +117,7 @@ function ensureFabric() {
      * @param {number} [options.maxScale=5.0] - Maximum image scaling factor.
      * @param {number} [options.scaleStep=0.05] - Scale increment/decrement per step.
      * @param {number} [options.rotationStep=90] - Rotation step in degrees.
-     * @param {boolean} [options.expandCanvasToImage=true] - If true, expands the canvas to fit image/mask.
+     * @param {boolean} [options.expandCanvasToImage=true] - If true, expands the canvas to fit the loaded image.
      * @param {boolean} [options.fitImageToCanvas=false] - If true, fits loaded image inside canvas.
      * @param {boolean} [options.coverImageToCanvas=false] - If true, scales image to cover the visible canvas viewport.
      * @param {boolean} [options.downsampleOnLoad=true] - Whether to downsample very large images on load.
@@ -66,24 +126,26 @@ function ensureFabric() {
      * @param {number} [options.downsampleQuality=0.92] - JPEG quality for downsampling/export.
      * @param {number} [options.exportMultiplier=1] - Scale output image by this multiplier on export.
      * @param {boolean} [options.exportImageAreaByDefault=true] - Export only the image area (clipped to masks).
-     * @param {number} [options.defaultMaskWidth=50] - Default width of new mask rectangles.
+     * @param {number} [options.defaultMaskWidth=50] - Default width of new masks.
      * @param {number} [options.defaultMaskHeight=80] - Default height of new masks.
      * @param {boolean} [options.maskRotatable=false] - If true, masks can be rotated.
      * @param {boolean} [options.maskLabelOnSelect=true] - Show label on selected mask.
      * @param {number} [options.maskLabelOffset=3] - Offset for mask labels from top-left corner.
      * @param {string} [options.maskName='mask'] - Prefix for mask names/labels.
+     * @param {boolean} [options.groupSelection=false] - If true, Fabric can select multiple masks as an ActiveSelection.
      * @param {boolean} [options.showPlaceholder=true] - If true, shows placeholder when no image is loaded.
      * @param {string|null} [options.initialImageBase64=null] - Base64 string to auto-load as initial image, if any.
      * @param {string} [options.defaultDownloadFileName='edited_image.jpg'] - Default file name for downloads.
-     * @param {function} [options.onImageLoaded] - Optional callback to invoke after an image loads.
-     * @param {function} [options.onError] - Optional callback for recoverable internal errors.
-     * @param {function} [options.onWarning] - Optional callback for recoverable internal warnings.
-     * 
-     * @constructor
+     * @param {Object} [options.label] - Mask label customization options.
+     * @param {MaskLabelTextCallback} [options.label.getText] - Callback for label text; receives a stable zero-based creation index.
+     * @param {Object} [options.crop] - Crop mode customization options.
+     * @param {ImageLoadedCallback} [options.onImageLoaded] - Callback invoked after an image load completes.
+     * @param {EditorErrorCallback} [options.onError] - Callback invoked for recoverable internal errors.
+     * @param {EditorErrorCallback} [options.onWarning] - Callback invoked for recoverable internal warnings.
      */
     class ImageEditor {
         constructor(options = {}) {
-            // Default options (can be overridden via ctor param)
+            // Default options that callers can override with constructor options.
             const defaultLabel = {
                 getText: (mask) => mask.maskName,
                 textOptions: {
@@ -163,19 +225,19 @@ function ensureFabric() {
                 }
             };
 
-            // Verify that fabric.js is present
+            // Verify that Fabric.js is present before any canvas work starts.
             this._fabricLoaded = !!ensureFabric();
             if (!this._fabricLoaded) {
                 this._reportError('fabric.js is not loaded. Please include fabric.js first. Initialization will be aborted.');
             }
 
-            // Runtime state
+            // Runtime state owned by this editor instance.
             this.canvas = null;
             this.canvasElement = null;
             this.containerElement = null;
             this.placeholderElement = null;
 
-            this.originalImage = null; // fabric.Image
+            this.originalImage = null;
             this.baseImageScale = 1;
             this.currentScale = 1;
             this.currentRotation = 0;
@@ -202,12 +264,15 @@ function ensureFabric() {
 
             this.onImageLoaded = typeof options.onImageLoaded === 'function' ? options.onImageLoaded : null;
 
-            this.animQueue = new AnimationQueue();
+            this.animationQueue = new AnimationQueue();
             this.historyManager = new HistoryManager(this.maxHistorySize);
         }
 
         /**
-         * @deprecated Use canvasElement instead.
+         * Backward-compatible alias for {@link ImageEditor#canvasElement}.
+         *
+         * @deprecated Use canvasElement instead. This alias will be removed in v2.0.0.
+         * @returns {HTMLCanvasElement|null} The canvas element currently owned by the editor.
          */
         get canvasEl() {
             return this.canvasElement;
@@ -218,7 +283,10 @@ function ensureFabric() {
         }
 
         /**
-         * @deprecated Use containerElement instead.
+         * Backward-compatible alias for {@link ImageEditor#containerElement}.
+         *
+         * @deprecated Use containerElement instead. This alias will be removed in v2.0.0.
+         * @returns {HTMLElement|null} The canvas viewport/container element.
          */
         get containerEl() {
             return this.containerElement;
@@ -229,7 +297,10 @@ function ensureFabric() {
         }
 
         /**
-         * @deprecated Use placeholderElement instead.
+         * Backward-compatible alias for {@link ImageEditor#placeholderElement}.
+         *
+         * @deprecated Use placeholderElement instead. This alias will be removed in v2.0.0.
+         * @returns {HTMLElement|null} The placeholder element shown before an image loads.
          */
         get placeholderEl() {
             return this.placeholderElement;
@@ -245,9 +316,10 @@ function ensureFabric() {
          * Use this method to set up the editor UI before interacting with it.
          *
          * @param {Object} [idMap={}] - Optional mapping from logical element names to actual DOM element IDs.
-         *   Supported keys include: canvas, canvasContainer, imgPlaceholder, scaleRate, rotationLeftInput, rotationRightInput,
-         *   rotateLeftBtn, rotateRightBtn, addMaskBtn, removeMaskBtn, removeAllMasksBtn, mergeBtn, downloadBtn, maskList,
-         *   zoomInBtn, zoomOutBtn, resetBtn, imageInput. Unknown keys are ignored.
+         *   Supported keys include: canvas, canvasContainer, imgPlaceholder, scaleRate, rotationLeftInput,
+         *   rotationRightInput, rotateLeftBtn, rotateRightBtn, addMaskBtn, removeMaskBtn, removeAllMasksBtn,
+         *   mergeBtn, downloadBtn, maskList, zoomInBtn, zoomOutBtn, resetBtn, undoBtn, redoBtn, imageInput,
+         *   uploadArea, cropBtn, applyCropBtn, and cancelCropBtn. Unknown keys are ignored.
          *
          * @returns {void}
          *
@@ -327,7 +399,9 @@ function ensureFabric() {
         }
 
         /**
-         * Canvas setup helpers
+         * Initializes the Fabric canvas, viewport elements, and selection event handlers.
+         *
+         * @returns {void}
          * @private
          */
         _initCanvas() {
@@ -335,7 +409,7 @@ function ensureFabric() {
             if (!canvasElement) throw new Error('Canvas is not found: ' + this.elements.canvas);
             this.canvasElement = canvasElement;
 
-            // Decide which element acts as "viewport" (for width/height fallback)
+            // Decide which element acts as the viewport for size fallback and scrolling.
             if (this.elements.canvasContainer) {
                 const containerElement = document.getElementById(this.elements.canvasContainer);
                 this.containerElement = containerElement || canvasElement.parentElement;
@@ -345,7 +419,7 @@ function ensureFabric() {
 
             this.placeholderElement = document.getElementById(this.elements.imgPlaceholder) || null;
 
-            // Initial size — take container size if available
+            // Prefer a measured container size when it is available.
             let initialWidth = this.options.canvasWidth;
             let initialHeight = this.options.canvasHeight;
             if (this.containerElement) {
@@ -365,7 +439,7 @@ function ensureFabric() {
                 preserveObjectStacking: true
             });
 
-            // Fabric event wiring
+            // Fabric event wiring keeps selection, mask labels, and history in sync.
             this.canvas.on('selection:created', (event) => this._handleSelectionChanged(event.selected));
             this.canvas.on('selection:updated', (event) => this._handleSelectionChanged(event.selected));
             this.canvas.on('selection:cleared', () => this._handleSelectionChanged([]));
@@ -374,10 +448,17 @@ function ensureFabric() {
             this.canvas.on('object:rotating', (event) => { if (event.target && event.target.maskId) this._syncMaskLabel(event.target); });
             this.canvas.on('object:modified', (event) => this._handleObjectModified(event.target));
 
-            // Avoid inline-element whitespace artefacts
+            // Avoid inline-element whitespace artifacts around the canvas.
             this.canvasElement.style.display = 'block';
         }
 
+        /**
+         * Records a history entry after Fabric finishes modifying one or more masks.
+         *
+         * @param {fabric.Object|fabric.ActiveSelection|null} target - Modified Fabric object or selection.
+         * @returns {void}
+         * @private
+         */
         _handleObjectModified(target) {
             const masks = this._getModifiedMasks(target);
             if (!masks.length) return;
@@ -389,6 +470,13 @@ function ensureFabric() {
             this.saveState();
         }
 
+        /**
+         * Extracts editable mask objects from a Fabric modification target.
+         *
+         * @param {fabric.Object|fabric.ActiveSelection|null} target - Fabric object or active selection.
+         * @returns {Array<fabric.Object>} Modified mask objects.
+         * @private
+         */
         _getModifiedMasks(target) {
             if (!target) return [];
             if (target.maskId) return [target];
@@ -398,6 +486,12 @@ function ensureFabric() {
             return Array.isArray(objects) ? objects.filter(object => object && object.maskId) : [];
         }
 
+        /**
+         * Updates container overflow behavior for fit and cover image modes.
+         *
+         * @returns {void}
+         * @private
+         */
         _syncContainerOverflow() {
             if (!this.containerElement || !this.containerElement.style) return;
             if (this._containerOriginalOverflow === undefined) {
@@ -477,12 +571,12 @@ function ensureFabric() {
             this._bindIfExists('cancelCropBtn', 'click', () => this.cancelCrop());
         }
 
-        /** 
-         * Event binding element check
-         * 
-         * @param {*} eventName
-         * @param {*} handler 
-         * @param {*} key 
+        /**
+         * Binds a DOM event listener when the configured element exists and records it for disposal.
+         *
+         * @param {string} key - Key in this.elements for the target DOM element.
+         * @param {string} eventName - DOM event name to listen for.
+         * @param {EventListener} handler - Event listener callback.
          * @private
          */
         _bindIfExists(key, eventName, handler) {
@@ -495,10 +589,10 @@ function ensureFabric() {
             }
         }
 
-        /** 
-         * Image loading helpers
-         * 
-         * @param {File} file 
+        /**
+         * Reads an image File as a data URL and loads it into the Fabric canvas.
+         *
+         * @param {File} file - Image file selected by the user.
          * @private
          */
         _loadImageFile(file) {
@@ -510,9 +604,12 @@ function ensureFabric() {
         }
 
         /**
-        * Load a base64 encoded image string into fabric.
-        * @async
-         * @param {String} imageBase64
+         * Loads a base64 data URL into the Fabric canvas as the base image.
+         *
+         * @async
+         * @param {string} imageBase64 - Image data URL beginning with `data:image/`.
+         * @returns {Promise<void>} Resolves after the Fabric image is added to the canvas.
+         * @public
          */
         async loadImage(imageBase64) {
             if (!this._fabricLoaded) return;
@@ -693,21 +790,21 @@ function ensureFabric() {
          * Sets canvas size to integer width and height values to prevent scrollbars due to sub-pixel rendering.
          * Also updates the corresponding style attributes.
          * 
-         * @param {number} w - Canvas width (in pixels).
-         * @param {number} h - Canvas height (in pixels).
+         * @param {number} width - Canvas width in pixels.
+         * @param {number} height - Canvas height in pixels.
          * @private
          */
-        _setCanvasSizeInt(w, h) {
-            const iw = Math.max(1, Math.round(Number(w) || 1));
-            const ih = Math.max(1, Math.round(Number(h) || 1));
+        _setCanvasSizeInt(width, height) {
+            const integerWidth = Math.max(1, Math.round(Number(width) || 1));
+            const integerHeight = Math.max(1, Math.round(Number(height) || 1));
             // Set fabric internal and also style attributes to keep DOM consistent
-            this.canvas.setWidth(iw);
-            this.canvas.setHeight(ih);
+            this.canvas.setWidth(integerWidth);
+            this.canvas.setHeight(integerHeight);
             if (typeof this.canvas.calcOffset === 'function') this.canvas.calcOffset();
             // Keep DOM element in sync (avoid fractional CSS pixels)
             if (this.canvasElement) {
-                this.canvasElement.style.width = iw + 'px';
-                this.canvasElement.style.height = ih + 'px';
+                this.canvasElement.style.width = integerWidth + 'px';
+                this.canvasElement.style.height = integerHeight + 'px';
                 this.canvasElement.style.maxWidth = 'none';
             }
         }
@@ -964,6 +1061,27 @@ function ensureFabric() {
             if (typeof mask.setCoords === 'function') mask.setCoords();
         }
 
+        /**
+         * Captures editor-owned runtime state that Fabric does not include in canvas JSON.
+         *
+         * @returns {{version:number, baseImageScale:number, currentScale:number, currentRotation:number, maskCounter:number}} Serializable editor metadata.
+         * @private
+         */
+        _serializeEditorMetadata() {
+            const baseImageScale = Number(this.baseImageScale);
+            const currentScale = Number(this.currentScale);
+            const currentRotation = Number(this.currentRotation);
+            const maskCounter = Number(this.maskCounter);
+
+            return {
+                version: 1,
+                baseImageScale: Number.isFinite(baseImageScale) && baseImageScale > 0 ? baseImageScale : 1,
+                currentScale: Number.isFinite(currentScale) && currentScale > 0 ? currentScale : 1,
+                currentRotation: Number.isFinite(currentRotation) ? currentRotation : 0,
+                maskCounter: Number.isFinite(maskCounter) && maskCounter > 0 ? Math.floor(maskCounter) : 0
+            };
+        }
+
         _serializeCanvasState() {
             if (!this.canvas) return null;
             return this._withNormalizedMaskStyles(() => {
@@ -971,16 +1089,31 @@ function ensureFabric() {
                 if (Array.isArray(jsonObject.objects)) {
                     jsonObject.objects = jsonObject.objects.filter(object => !object.isCropRect && !object.maskLabel);
                 }
+                jsonObject.imageEditorMetadata = this._serializeEditorMetadata();
                 return JSON.stringify(jsonObject);
             });
         }
 
+        /**
+         * Normalizes a lossy image quality value to Fabric/canvas's 0..1 range.
+         *
+         * @param {number} quality - Requested image quality.
+         * @returns {number} A finite quality value between 0 and 1.
+         * @private
+         */
         _normalizeQuality(quality) {
             const numericQuality = Number(quality);
             if (!Number.isFinite(numericQuality)) return this.options.downsampleQuality ?? 0.92;
             return Math.max(0, Math.min(1, numericQuality));
         }
 
+        /**
+         * Normalizes public image format aliases to canvas export format names.
+         *
+         * @param {string} format - Requested image format or MIME type.
+         * @returns {'jpeg'|'png'|'webp'} Canvas-compatible image format.
+         * @private
+         */
         _normalizeImageFormat(format) {
             const typeMapping = {
                 'jpeg': 'jpeg',
@@ -994,6 +1127,15 @@ function ensureFabric() {
             return typeMapping[String(format || 'jpeg').toLowerCase()] || 'jpeg';
         }
 
+        /**
+         * Converts a bounding rectangle into a canvas-safe integer source region.
+         *
+         * @param {{left:number, top:number, width:number, height:number}} bounds - Bounds in canvas coordinates.
+         * @param {Object} [options={}] - Region rounding options.
+         * @param {boolean} [options.includePartialPixels=true] - If false, excludes partially covered trailing pixels.
+         * @returns {{sourceX:number, sourceY:number, sourceWidth:number, sourceHeight:number}} Clamped source region.
+         * @private
+         */
         _getClampedCanvasRegion(bounds, options = {}) {
             const canvasWidth = Math.max(1, Math.round(this.canvas.getWidth()));
             const canvasHeight = Math.max(1, Math.round(this.canvas.getHeight()));
@@ -1009,13 +1151,27 @@ function ensureFabric() {
             const endY = Math.min(canvasHeight, Math.max(sourceY + 1, roundEnd(top + height)));
 
             return {
-                sx: sourceX,
-                sy: sourceY,
-                sw: Math.max(1, endX - sourceX),
-                sh: Math.max(1, endY - sourceY)
+                sourceX,
+                sourceY,
+                sourceWidth: Math.max(1, endX - sourceX),
+                sourceHeight: Math.max(1, endY - sourceY)
             };
         }
 
+        /**
+         * Crops an image data URL to a source region using an offscreen canvas.
+         *
+         * @param {string} dataUrl - Source image data URL.
+         * @param {number} sourceX - Source region x coordinate.
+         * @param {number} sourceY - Source region y coordinate.
+         * @param {number} sourceWidth - Source region width.
+         * @param {number} sourceHeight - Source region height.
+         * @param {number} multiplier - Export multiplier already applied to the source data URL.
+         * @param {'jpeg'|'png'|'webp'} [format='jpeg'] - Output image format.
+         * @param {number} [quality=0.92] - Output image quality for lossy formats.
+         * @returns {Promise<string>} Resolves with the cropped image data URL.
+         * @private
+         */
         async _cropDataUrl(dataUrl, sourceX, sourceY, sourceWidth, sourceHeight, multiplier, format = 'jpeg', quality = 0.92) {
             return new Promise((resolve, reject) => {
                 const imageElement = new Image();
@@ -1042,7 +1198,21 @@ function ensureFabric() {
             });
         }
 
-        async _exportCanvasRegionToDataURL({ sx, sy, sw, sh, multiplier = 1, quality = 0.92, format = 'jpeg' }) {
+        /**
+         * Exports the whole Fabric canvas, then crops the requested source region from that export.
+         *
+         * @param {Object} region - Canvas source region and export options.
+         * @param {number} region.sourceX - Source region x coordinate.
+         * @param {number} region.sourceY - Source region y coordinate.
+         * @param {number} region.sourceWidth - Source region width.
+         * @param {number} region.sourceHeight - Source region height.
+         * @param {number} [region.multiplier=1] - Export multiplier.
+         * @param {number} [region.quality=0.92] - Output image quality for lossy formats.
+         * @param {'jpeg'|'png'|'webp'} [region.format='jpeg'] - Output image format.
+         * @returns {Promise<string>} Resolves with an image data URL for the cropped region.
+         * @private
+         */
+        async _exportCanvasRegionToDataURL({ sourceX, sourceY, sourceWidth, sourceHeight, multiplier = 1, quality = 0.92, format = 'jpeg' }) {
             const safeMultiplier = Math.max(1, Number(multiplier) || 1);
             const fullDataUrl = this.canvas.toDataURL({
                 format,
@@ -1050,7 +1220,7 @@ function ensureFabric() {
                 multiplier: safeMultiplier
             });
 
-            return this._cropDataUrl(fullDataUrl, sx, sy, sw, sh, safeMultiplier, format, quality);
+            return this._cropDataUrl(fullDataUrl, sourceX, sourceY, sourceWidth, sourceHeight, safeMultiplier, format, quality);
         }
 
         /** 
@@ -1117,8 +1287,18 @@ function ensureFabric() {
             this._setCanvasSizeInt(size.width, size.height);
         }
 
+        /**
+         * Whether post-load edits should resize the canvas to keep transformed content visible.
+         *
+         * @returns {boolean} True when canvas bounds should follow edited image or mask bounds.
+         * @private
+         */
+        _shouldResizeCanvasToContentBounds() {
+            return !!(this.options.expandCanvasToImage || this.options.coverImageToCanvas || this.options.fitImageToCanvas);
+        }
+
         _expandCanvasToFitObject(fabricObject, padding = 10) {
-            if (!this.canvas || !fabricObject || !this.options.expandCanvasToImage) return;
+            if (!this.canvas || !fabricObject || !this._shouldResizeCanvasToContentBounds()) return;
             try {
                 fabricObject.setCoords();
                 const boundingRect = fabricObject.getBoundingRect(true, true);
@@ -1142,7 +1322,7 @@ function ensureFabric() {
          * @public
          */
         scaleImage(factor, options = {}) {
-            return this.animQueue.add(() => this._scaleImageImpl(factor, options));
+            return this.animationQueue.add(() => this._scaleImageImpl(factor, options));
         }
 
         /** 
@@ -1186,7 +1366,7 @@ function ensureFabric() {
                 this.originalImage.set({ scaleX: targetScale, scaleY: targetScale });
                 this.originalImage.setCoords();
 
-                if (this.options.expandCanvasToImage || this.options.coverImageToCanvas) {
+                if (this._shouldResizeCanvasToContentBounds()) {
                     this._updateCanvasSizeToImageBounds();
                 }
 
@@ -1213,7 +1393,7 @@ function ensureFabric() {
          * @public
          */
         rotateImage(degrees, options = {}) {
-            return this.animQueue.add(() => this._rotateImageImpl(degrees, options));
+            return this.animationQueue.add(() => this._rotateImageImpl(degrees, options));
         }
 
         /** 
@@ -1247,7 +1427,7 @@ function ensureFabric() {
                 this.originalImage.set('angle', degrees);
                 this.originalImage.setCoords();
 
-                if (this.options.expandCanvasToImage || this.options.coverImageToCanvas) {
+                if (this._shouldResizeCanvasToContentBounds()) {
                     this._updateCanvasSizeToImageBounds();
                 }
 
@@ -1271,43 +1451,52 @@ function ensureFabric() {
 
         /**
          * Resets the image transform: scales to 1 and rotates to 0 degrees.
-         * @returns {Promise<void>} Promise that resolves when reset is complete.
+         *
+         * @returns {Promise<void>} Resolves when the reset history transition has been recorded.
+         * @public
          */
         resetImageTransform() {
             if (!this.originalImage) return Promise.resolve();
 
-            return this.animQueue.add(async () => {
+            return this.animationQueue.add(async () => {
                 const before = this._serializeCanvasState();
                 await this._scaleImageImpl(1, { saveHistory: false });
                 await this._rotateImageImpl(0, { saveHistory: false });
                 const after = this._serializeCanvasState();
                 this._pushStateTransition(before, after);
-            }).catch(err => {
-                this._reportError('resetImageTransform() failed', err);
+            }).catch(error => {
+                this._reportError('resetImageTransform() failed', error);
             });
         }
 
         /**
-         * @deprecated Use resetImageTransform() instead.
+         * Backward-compatible alias for {@link ImageEditor#resetImageTransform}.
+         *
+         * @deprecated Use resetImageTransform() instead. This alias will be removed in v2.0.0.
+         * @returns {Promise<void>} Resolves when the image transform reset is complete.
          */
         reset() {
             return this.resetImageTransform();
         }
 
         /**
-         * Restores a canvas state that was previously stored by saveState().
-         * @param {string} jsonString - the JSON string returned by fabric.toJSON().
+         * Restores a serialized canvas state and rebinds editor-specific mask/image metadata.
+         *
+         * @param {string|Object} serializedState - State returned by `_serializeCanvasState()` as a JSON string or object.
+         * @returns {Promise<void>} Resolves after Fabric has loaded the state and UI state has been refreshed.
+         * @public
          */
-        loadFromState(jsonString) {
-            if (!jsonString || !this.canvas) return Promise.resolve();
+        loadFromState(serializedState) {
+            if (!serializedState || !this.canvas) return Promise.resolve();
 
             return new Promise((resolve) => {
                 try {
-                    const json = (typeof jsonString === 'string')
-                        ? JSON.parse(jsonString)
-                        : jsonString;
+                    const state = (typeof serializedState === 'string')
+                        ? JSON.parse(serializedState)
+                        : serializedState;
+                    const editorMetadata = state && state.imageEditorMetadata ? state.imageEditorMetadata : null;
 
-                    this.canvas.loadFromJSON(json, () => {
+                    this.canvas.loadFromJSON(state, () => {
                         try {
                             this._hideAllMaskLabels();
                             const canvasObjects = this.canvas.getObjects();
@@ -1316,11 +1505,27 @@ function ensureFabric() {
                             if (this.originalImage) {
                                 this.originalImage.set({ originX: 'left', originY: 'top', selectable: false, evented: false, hasControls: false, hoverCursor: 'default' });
                                 this.canvas.sendToBack(this.originalImage);
-                                this.currentRotation = Number(this.originalImage.angle) || 0;
-                                const baseScale = Number(this.baseImageScale) || 1;
-                                const imageScale = Number(this.originalImage.scaleX) || baseScale;
-                                this.currentScale = imageScale / baseScale;
+                                const restoredBaseScale = Number(editorMetadata && editorMetadata.baseImageScale);
+                                const restoredCurrentScale = Number(editorMetadata && editorMetadata.currentScale);
+                                const restoredCurrentRotation = Number(editorMetadata && editorMetadata.currentRotation);
+
+                                if (Number.isFinite(restoredBaseScale) && restoredBaseScale > 0) {
+                                    this.baseImageScale = restoredBaseScale;
+                                }
+
+                                if (Number.isFinite(restoredCurrentScale) && restoredCurrentScale > 0) {
+                                    this.currentScale = restoredCurrentScale;
+                                } else {
+                                    const baseScale = Number(this.baseImageScale) || 1;
+                                    const imageScale = Number(this.originalImage.scaleX) || baseScale;
+                                    this.currentScale = imageScale / baseScale;
+                                }
+
+                                this.currentRotation = Number.isFinite(restoredCurrentRotation)
+                                    ? restoredCurrentRotation
+                                    : (Number(this.originalImage.angle) || 0);
                             } else {
+                                this.baseImageScale = 1;
                                 this.currentScale = 1;
                                 this.currentRotation = 0;
                             }
@@ -1331,8 +1536,12 @@ function ensureFabric() {
                                 this._rebindMaskEvents(mask);
                                 mask.set(this._getMaskNormalStyle(mask));
                             });
-                            this.maskCounter = masks.reduce((max, mask) =>
+                            const restoredMaskCounter = Number(editorMetadata && editorMetadata.maskCounter);
+                            const maxMaskId = masks.reduce((max, mask) =>
                                 Math.max(max, mask.maskId), 0);
+                            this.maskCounter = Number.isFinite(restoredMaskCounter) && restoredMaskCounter >= maxMaskId
+                                ? Math.floor(restoredMaskCounter)
+                                : maxMaskId;
                             this._lastMask = masks.length ? masks[masks.length - 1] : null;
                             if (!this._lastMask) {
                                 this._lastMaskInitialLeft = null;
@@ -1362,7 +1571,13 @@ function ensureFabric() {
         }
 
         /**
-         * Saves the current state of the canvas to history, storing any mask/raster label information.
+         * Saves the current editable canvas state as an undoable history transition.
+         *
+         * Labels are hidden before serialization because labels are UI overlays, while mask metadata is kept on
+         * mask objects and restored by `loadFromState()`.
+         *
+         * @returns {void}
+         * @public
          */
         saveState() {
             if (!this.canvas) return;
@@ -1398,6 +1613,17 @@ function ensureFabric() {
             }
         }
 
+        /**
+         * Pushes a precomputed before/after state transition into history.
+         *
+         * Use this for operations such as crop and merge that build their snapshots around asynchronous image
+         * loading, where the "after" state is already applied before the history command is recorded.
+         *
+         * @param {string} before - Serialized state before the operation.
+         * @param {string} after - Serialized state after the operation.
+         * @returns {void}
+         * @private
+         */
         _pushStateTransition(before, after) {
             if (!before || !after) return;
             if (before === after) return;
@@ -1414,6 +1640,9 @@ function ensureFabric() {
 
         /**
          * Undo the last state change, if possible.
+         *
+         * @returns {Promise<void>} Resolves after the history manager finishes the queued undo.
+         * @public
          */
         undo() {
             return this.historyManager.undo()
@@ -1423,6 +1652,9 @@ function ensureFabric() {
 
         /**
          * Redo the next state change, if possible.
+         *
+         * @returns {Promise<void>} Resolves after the history manager finishes the queued redo.
+         * @public
          */
         redo() {
             return this.historyManager.redo()
@@ -1436,7 +1668,7 @@ function ensureFabric() {
                 try {
                     mask.off('mouseover', mask.__imageEditorMaskHandlers.mouseover);
                     mask.off('mouseout', mask.__imageEditorMaskHandlers.mouseout);
-                } catch (e) { void e; }
+                } catch (error) { void error; }
             }
 
             const metadata = {};
@@ -1474,29 +1706,38 @@ function ensureFabric() {
             mask.__imageEditorMaskHandlers = { mouseover, mouseout };
         }
 
-        /** 
+        /**
          * Creates a mask and adds it to the canvas.
-         * Mask placement and properties are determined by the provided config and instance options.
-         * Canvas and list UI are updated accordingly.
-         * @param {Object} [config={}] - Optional mask configuration overrides:
-         *   @param {string} [config.shape='rect'] - 'rect', 'circle', 'ellipse', 'polygon', ...
-         *   @param {Object|Array} [config.points] - Required for polygon: [{x, y}, ...] or [[x, y], ...]
-         *   @param {number|function} [config.width/height/rx/ry/radius] - Can be number or function(canvas, options) 
-         *   @param {number|string|function} [config.left/top] - Absolute, %, or function
-         *   @param {number|string} [config.angle] - Rotation angle (degree)
-         *   @param {string} [config.color] - Fill color in CSS color format (default 'rgba(0,0,0,0.5)')
-         *   @param {number} [config.alpha] - Opacity, from 0 to 1 (default 0.5)
-         *   @param {boolean} [config.selectable=true]
-         *   @param {Object} [config.styles] - Custom styles (stroke, dashArray, etc)
-         *   @param {function} [config.onCreate] - Callback after mask created (receives Fabric object)
-         *   @param {function} [config.fabricGenerator] - (maskConfig) => new FabricObj
-         * @returns {fabric.Rect|null} The created mask object, or null if canvas is not available.
+         *
+         * Placement is based on explicit `left`/`top` values when provided; otherwise each new mask is placed
+         * after the previously created mask. Fabric object properties are applied through `set()` and `setCoords()`
+         * so controls and hit testing stay in sync with Fabric 5.x behavior.
+         *
+         * @param {Object} [config={}] - Optional mask configuration overrides.
+         * @param {string} [config.shape='rect'] - Mask shape: `rect`, `circle`, `ellipse`, `polygon`, or a custom shape handled by `fabricGenerator`.
+         * @param {Array<{x:number,y:number}>|Array<Array<number>>} [config.points] - Polygon points.
+         * @param {number|string|MaskValueResolver} [config.width] - Width in pixels, percentage string, or resolver callback.
+         * @param {number|string|MaskValueResolver} [config.height] - Height in pixels, percentage string, or resolver callback.
+         * @param {number|string|MaskValueResolver} [config.radius] - Circle radius in pixels, percentage string, or resolver callback.
+         * @param {number|string|MaskValueResolver} [config.rx] - Ellipse horizontal radius or rectangle corner radius.
+         * @param {number|string|MaskValueResolver} [config.ry] - Ellipse vertical radius or rectangle corner radius.
+         * @param {number|string|MaskValueResolver} [config.left] - Left position in pixels, percentage string, or resolver callback.
+         * @param {number|string|MaskValueResolver} [config.top] - Top position in pixels, percentage string, or resolver callback.
+         * @param {number} [config.angle=0] - Rotation angle in degrees.
+         * @param {string} [config.color='rgba(0,0,0,0.5)'] - Fill color.
+         * @param {number} [config.alpha=0.5] - Opacity from 0 to 1.
+         * @param {boolean} [config.selectable=true] - Whether the mask can be selected.
+         * @param {boolean} [config.hasControls=true] - Whether Fabric transform controls are shown.
+         * @param {Object} [config.styles] - Additional Fabric style properties, such as `stroke` or `strokeDashArray`.
+         * @param {MaskFabricGenerator} [config.fabricGenerator] - Factory callback that returns a custom Fabric object.
+         * @param {MaskCreateCallback} [config.onCreate] - Callback invoked after the mask is added to the canvas.
+         * @returns {fabric.Object|null} The created mask object, or null if the canvas is not initialized.
          * @public
          */
         createMask(config = {}) {
             if (!this.canvas) return null;
             const shapeType = config.shape || 'rect';
-            // Default config
+            // Normalize mask defaults before applying caller-provided overrides.
             const maskConfig = {
                 shape: shapeType,
                 width: this.options.defaultMaskWidth,
@@ -1544,6 +1785,8 @@ function ensureFabric() {
 
             maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
             maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight);
+            maskConfig.left = left;
+            maskConfig.top = top;
 
             let mask;
             if (typeof maskConfig.fabricGenerator === 'function') {
@@ -1573,9 +1816,11 @@ function ensureFabric() {
                         break;
                     case 'polygon': {
                         let polygonPoints = maskConfig.points || [];
-                        if (Array.isArray(polygonPoints) && polygonPoints.length && typeof polygonPoints[0] === 'object') {
-                            // Ensure numeric {x,y} objects for fabric.Polygon
-                            polygonPoints = polygonPoints.map(point => ({ x: Number(point.x), y: Number(point.y) }));
+                        if (Array.isArray(polygonPoints) && polygonPoints.length) {
+                            // Ensure numeric {x,y} objects for fabric.Polygon.
+                            polygonPoints = polygonPoints.map(point => Array.isArray(point)
+                                ? { x: Number(point[0]), y: Number(point[1]) }
+                                : { x: Number(point.x), y: Number(point.y) });
                         }
                         mask = new fabric.Polygon(polygonPoints, {
                             left, top,
@@ -1595,7 +1840,7 @@ function ensureFabric() {
                             fill: maskConfig.color,
                             opacity: maskConfig.alpha,
                             angle: maskConfig.angle,
-                            rx: maskConfig.rx, // Rounded Corners
+                            rx: maskConfig.rx,
                             ry: maskConfig.ry,
                             ...maskConfig.styles
                         });
@@ -1614,6 +1859,7 @@ function ensureFabric() {
                 transparentCorners: ('transparentCorners' in maskConfig) ? maskConfig.transparentCorners : false,
                 stroke: hasStyle('stroke') ? styles.stroke : '#ccc',
                 strokeWidth: hasStyle('strokeWidth') ? styles.strokeWidth : 1,
+                opacity: hasStyle('opacity') ? styles.opacity : maskConfig.alpha,
                 strokeUniform: ('strokeUniform' in maskConfig) ? maskConfig.strokeUniform : (hasStyle('strokeUniform') ? styles.strokeUniform : true)
             };
             if (hasStyle('strokeDashArray')) maskSettings.strokeDashArray = styles.strokeDashArray;
@@ -1621,14 +1867,14 @@ function ensureFabric() {
             mask.setCoords();
 
             mask.set({
-                originalAlpha: maskConfig.alpha,
+                originalAlpha: Number.isFinite(Number(mask.opacity)) ? Number(mask.opacity) : maskConfig.alpha,
                 originalStroke: mask.stroke || '#ccc',
                 originalStrokeWidth: Number.isFinite(Number(mask.strokeWidth)) ? Number(mask.strokeWidth) : 1
             });
             this._rebindMaskEvents(mask);
             this._expandCanvasToFitObject(mask);
 
-            // Remember initial for next one
+            // Store placement values so the next mask can be positioned beside this one.
             this._lastMaskInitialLeft = left;
             this._lastMaskInitialTop = top;
             this._lastMaskInitialWidth = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
@@ -1654,7 +1900,11 @@ function ensureFabric() {
         }
 
         /**
-         * @deprecated Use createMask() instead.
+         * Backward-compatible alias for {@link ImageEditor#createMask}.
+         *
+         * @deprecated Use createMask() instead. This alias will be removed in v2.0.0.
+         * @param {Object} [config={}] - Mask configuration passed to createMask().
+         * @returns {fabric.Object|null} The created mask object, or null if the canvas is not initialized.
          */
         addMask(config = {}) {
             return this.createMask(config);
@@ -1728,6 +1978,24 @@ function ensureFabric() {
         }
 
         /**
+         * Returns a stable zero-based creation index for label callbacks.
+         *
+         * Mask ids are one-based and are not renumbered after deletion, so this value remains stable for the
+         * lifetime of a mask.
+         *
+         * @param {fabric.Object} mask - Mask object.
+         * @returns {number} Stable zero-based creation index.
+         * @private
+         */
+        _getMaskCreationIndex(mask) {
+            const maskId = Number(mask && mask.maskId);
+            if (Number.isFinite(maskId) && maskId > 0) return Math.floor(maskId) - 1;
+
+            const masks = this.canvas ? this.canvas.getObjects().filter(object => object.maskId) : [];
+            return Math.max(0, masks.indexOf(mask));
+        }
+
+        /**
          * Creates and adds a custom label (fabric.Text or fabric.IText) for the mask.
          * The label is default bound to the top-left of the mask and managed as a non-interactive overlay.
          * 
@@ -1757,9 +2025,7 @@ function ensureFabric() {
                 };
                 if (this.options.label) {
                     if (typeof this.options.label.getText === 'function') {
-                        const masks = this.canvas ? this.canvas.getObjects().filter(object => object.maskId) : [];
-                        const maskIndex = Math.max(0, masks.indexOf(mask));
-                        labelText = this.options.label.getText(mask, maskIndex);
+                        labelText = this.options.label.getText(mask, this._getMaskCreationIndex(mask));
                     }
                     // Merge external styles
                     if (this.options.label.textOptions) {
@@ -1924,10 +2190,14 @@ function ensureFabric() {
         }
 
         /**
-         * Merges current masks into the image: exports a masked/cropped image, removes all masks, and re-imports the merged image.
-         * Will not run if no original image or no masks exist.
+         * Flattens the current masks into the base image and reloads the flattened image.
+         *
+         * This removes editable mask objects after export and records the operation as one undoable history transition.
+         * It does nothing when no base image or no masks exist.
+         *
          * @async
-         * @returns {Promise<void>} Resolves when merge and load are complete.
+         * @returns {Promise<void>} Resolves when the flattened image has been loaded.
+         * @public
          */
         async mergeMasks() {
             if (!this.originalImage) return;
@@ -1944,50 +2214,59 @@ function ensureFabric() {
                 await this.loadImage(merged);
                 const afterJson = this._serializeCanvasState();
                 this._pushStateTransition(beforeJson, afterJson);
-            } catch (err) {
-                this._reportError('merge error', err);
+            } catch (error) {
+                this._reportError('merge error', error);
             }
         }
 
         /**
-         * @deprecated Use mergeMasks() instead.
+         * Backward-compatible alias for {@link ImageEditor#mergeMasks}.
+         *
+         * @deprecated Use mergeMasks() instead. This alias will be removed in v2.0.0.
+         * @returns {Promise<void>} Resolves when mask flattening is complete.
          */
         async merge() {
             return this.mergeMasks();
         }
 
         /**
-         * Triggers a JPEG image download of the current canvas (image plus masks if configured).
+         * Triggers a JPEG image download of the current canvas.
+         *
          * The image area and multiplier are controlled by options.
          * @param {string} [fileName=this.options.defaultDownloadFileName] - Desired download file name.
+         * @returns {void}
+         * @public
          */
         downloadImage(fileName = this.options.defaultDownloadFileName) {
             if (!this.originalImage) return;
             const exportImageArea = this.options.exportImageAreaByDefault;
             this.exportImageBase64({ exportImageArea, multiplier: this.options.exportMultiplier })
-                .then(base64 => {
+                .then(imageBase64 => {
                     const link = document.createElement('a');
                     link.download = fileName;
-                    link.href = base64;
+                    link.href = imageBase64;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
                 })
-                .catch(err => this._reportError('download error', err));
+                .catch(error => this._reportError('download error', error));
         }
 
         /**
-         * Exports the image as a Base64-encoded image data URL.
-         * Can export either the original, or the current view including masks (clipped/cropped).
-         * Will restore masks' state after temporary modifications for export.
+         * Exports the current image as a Base64-encoded data URL.
+         *
+         * When `exportImageArea` is false, the export omits masks and labels. When it is true, masks are
+         * temporarily rendered as opaque export shapes and then restored, so editable mask state is not mutated.
+         *
          * @async
          * @param {Object} [options={}] - Export options.
          * @param {boolean} [options.exportImageArea] - If true, exports only the image bounding area with masks cropped and blended.
          * @param {number} [options.multiplier=1] - Scaling multiplier for output (resolution).
          * @param {number} [options.quality=0.92] - Image quality between 0 and 1 for lossy formats.
          * @param {string} [options.fileType='jpeg'] - Output file type ('jpeg' | 'png' | 'webp').
-         * @returns {Promise<string>} Promise resolving to an image data URL.
+         * @returns {Promise<string>} Resolves with an image data URL.
          * @throws {Error} If there is no image loaded.
+         * @public
          */
         async exportImageBase64(options = {}) {
             if (!this.originalImage) throw new Error('No image loaded');
@@ -2007,12 +2286,9 @@ function ensureFabric() {
 
                     this.originalImage.setCoords();
                     const imageBounds = this.originalImage.getBoundingRect(true, true);
-                    const { sx, sy, sw, sh } = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
+                    const exportRegion = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
                     return await this._exportCanvasRegionToDataURL({
-                        sx,
-                        sy,
-                        sw,
-                        sh,
+                        ...exportRegion,
                         multiplier,
                         quality,
                         format
@@ -2025,7 +2301,7 @@ function ensureFabric() {
                 }
             }
 
-            // Export current scaled image area (masks clipped)
+            // Render masks as export shapes without mutating their editable styles.
             const masks = this.canvas.getObjects().filter(object => object.maskId);
             const maskStyleBackups = masks.map(mask => ({
                 object: mask,
@@ -2039,29 +2315,26 @@ function ensureFabric() {
 
             let finalBase64;
             try {
-                // Remove labels, deselect
+                // Labels are UI overlays and should not be part of the flattened export.
                 masks.forEach(mask => this._removeLabelForMask(mask));
                 this.canvas.discardActiveObject();
                 this.canvas.renderAll();
 
-                // Set masks to opaque black no border
+                // The export treats masks as opaque shapes with no editable border.
                 masks.forEach(mask => {
                     mask.set({ opacity: 1, fill: '#000000', strokeWidth: 0, stroke: null, selectable: false });
                     mask.setCoords();
                 });
                 this.canvas.renderAll();
 
-                // Compute integer bounding box for image
+                // Compute an integer canvas region for the base image.
                 this.originalImage.setCoords();
                 const imageBounds = this.originalImage.getBoundingRect(true, true);
-                const { sx, sy, sw, sh } = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
+                const exportRegion = this._getClampedCanvasRegion(imageBounds, { includePartialPixels: false });
 
                 // Crop precisely in offscreen canvas
                 finalBase64 = await this._exportCanvasRegionToDataURL({
-                    sx,
-                    sy,
-                    sw,
-                    sh,
+                    ...exportRegion,
                     multiplier,
                     quality,
                     format
@@ -2088,15 +2361,21 @@ function ensureFabric() {
         }
 
         /**
-         * @deprecated Use exportImageBase64() instead.
+         * Backward-compatible alias for {@link ImageEditor#exportImageBase64}.
+         *
+         * @deprecated Use exportImageBase64() instead. This alias will be removed in v2.0.0.
+         * @param {Object} [options={}] - Export options passed to exportImageBase64().
+         * @returns {Promise<string>} Resolves with an image data URL.
          */
         async getImageBase64(options = {}) {
             return this.exportImageBase64(options);
         }
 
         /**
-         * Exports the current canvas (with or without masks) as a File object.
-         * Allows you to choose whether to merge masks and specify file type (jpeg/png/webp).
+         * Exports the current image as a File object.
+         *
+         * The export can include flattened masks (`mergeMask: true`) or only the plain base image (`mergeMask: false`).
+         * Supported output formats are JPEG, PNG, and WebP.
          * 
          * @async
          * @param {Object} [options={}] - Export options.
@@ -2122,17 +2401,17 @@ function ensureFabric() {
 
             const safeFileType = this._normalizeImageFormat(fileType);
 
-            // Get Base64
-            let base64;
+            // Generate the data URL in the requested export mode.
+            let imageBase64;
             if (mergeMask) {
-                base64 = await this.exportImageBase64({
+                imageBase64 = await this.exportImageBase64({
                     exportImageArea: true,
                     multiplier,
                     quality,
                     fileType: safeFileType
                 });
             } else {
-                base64 = await this.exportImageBase64({
+                imageBase64 = await this.exportImageBase64({
                     exportImageArea: false,
                     multiplier,
                     quality,
@@ -2141,9 +2420,9 @@ function ensureFabric() {
             }
 
             // Convert to the required image format
-            let imageDataUrl = base64;
+            let imageDataUrl = imageBase64;
             if (!imageDataUrl.startsWith(`data:image/${safeFileType}`)) {
-                // Redraw if not required format
+                // Redraw the exported data URL when the browser returned a different image format.
                 imageDataUrl = await new Promise((resolve, reject) => {
                     const imageElement = new window.Image();
                     imageElement.crossOrigin = "Anonymous";
@@ -2159,11 +2438,11 @@ function ensureFabric() {
                         } catch (error) { reject(error); }
                     };
                     imageElement.onerror = reject;
-                    imageElement.src = base64;
+                    imageElement.src = imageBase64;
                 });
             }
 
-            // Convert DataURL to Blob and then to File
+            // Convert the final data URL to a File with the requested MIME type.
             const binaryString = atob(imageDataUrl.split(',')[1]);
             const mime = `image/${safeFileType}`;
             let byteIndex = binaryString.length;
@@ -2237,7 +2516,12 @@ function ensureFabric() {
         }
 
         /**
-         * Enter crop mode: create a resizable/movable selection rect on top of the image.
+         * Enters crop mode by creating a resizable crop rectangle above the base image.
+         *
+         * Other canvas objects are made non-interactive while crop mode is active. Masks can be hidden during
+         * cropping when `crop.hideMasksDuringCrop` is enabled.
+         *
+         * @returns {void}
          * @public
          */
         enterCropMode() {
@@ -2245,24 +2529,24 @@ function ensureFabric() {
             if (!this.isImageLoaded()) return;
             this._cropMode = true;
 
-            // Disable canvas group selection to avoid accidental group selection while cropping
+            // Disable group selection so only the crop rectangle can be manipulated.
             this._prevSelectionSetting = this.canvas.selection;
             this.canvas.selection = false;
 
-            // Make sure no active object
+            // Clear the current selection before activating the crop rectangle.
             this.canvas.discardActiveObject();
 
-            // Create initial crop rect centered on the image bounding box
+            // Create the initial crop rectangle inside the image bounds.
             this.originalImage.setCoords();
             const imageBounds = this.originalImage.getBoundingRect(true, true);
-            // Provide small inset so user can see a margin
+            // Use a small inset so the user can see the crop boundary.
             const padding = (this.options.crop && this.options.crop.padding) ? this.options.crop.padding : 10;
             const left = Math.max(0, Math.floor(imageBounds.left + padding));
             const top = Math.max(0, Math.floor(imageBounds.top + padding));
             const width = Math.min(this.options.crop.minWidth || 50, Math.floor(imageBounds.width - padding * 2));
             const height = Math.min(this.options.crop.minHeight || 50, Math.floor(imageBounds.height - padding * 2));
 
-            // Visual style: translucent fill + dashed stroke
+            // Visual style for the temporary crop rectangle.
             const cropRect = new fabric.Rect({
                 left, top,
                 width, height,
@@ -2286,11 +2570,10 @@ function ensureFabric() {
             this.canvas.bringToFront(cropRect);
             this.canvas.setActiveObject(cropRect);
 
-            // Keep reference
+            // Store the crop rectangle so apply/cancel can clean it up.
             this._cropRect = cropRect;
 
-            // While in crop mode: we want only the cropRect to be interactive
-            // but still allow moving/scaling it. To be safe, set other objects evented=false temporarily.
+            // Keep only the crop rectangle interactive while preserving each object's previous state.
             this._cropPrevEvented = [];
             const shouldHideMasks = !!(this.options.crop && this.options.crop.hideMasksDuringCrop);
             this.canvas.getObjects().forEach(object => {
@@ -2307,13 +2590,13 @@ function ensureFabric() {
                 }
             });
 
-            // When the crop rect changes, re-render
+            // Keep Fabric controls in sync as the crop rectangle changes.
             const handleCropRectModified = () => { try { cropRect.setCoords(); this.canvas.requestRenderAll(); } catch (error) { void error; } };
             cropRect.on('modified', handleCropRectModified);
             cropRect.on('moving', handleCropRectModified);
             cropRect.on('scaling', handleCropRectModified);
 
-            // Keep handlers to remove later
+            // Store handlers so cancel/apply/dispose can unbind them.
             this._cropHandlers.push({
                 target: cropRect,
                 handlers: [
@@ -2328,7 +2611,9 @@ function ensureFabric() {
         }
 
         /**
-         * Cancel crop mode and remove the temporary selection rect.
+         * Cancels crop mode and removes the temporary crop rectangle.
+         *
+         * @returns {void}
          * @public
          */
         cancelCrop() {
@@ -2336,7 +2621,7 @@ function ensureFabric() {
             this._removeCropRect();
             this._restoreCropObjectState();
             this._cropMode = false;
-            // restore selection setting
+            // Restore the canvas selection setting that was active before crop mode.
             this.canvas.selection = !!this._prevSelectionSetting;
             this._prevSelectionSetting = undefined;
 
@@ -2346,18 +2631,24 @@ function ensureFabric() {
         }
 
         /**
-         * Apply the current crop rectangle.
-         * remove all masks and export canvas snapshot and crop via offscreen canvas
+         * Applies the current crop rectangle to the base image.
+         *
+         * Masks are removed by default. When `crop.preserveMasksAfterCrop` is true, masks that intersect the crop
+         * region are shifted into the cropped coordinate space and remain editable. The operation is recorded as a
+         * single undoable history transition.
+         *
+         * @async
+         * @returns {Promise<void>} Resolves after the cropped image has been loaded and history is updated.
          * @public
          */
         async applyCrop() {
             if (!this.canvas || !this._cropMode || !this._cropRect) return;
 
-            // Ensure crop rect coords are fresh
+            // Fabric does not update control coordinates automatically after programmatic transforms.
             this._cropRect.setCoords();
             const rectBounds = this._cropRect.getBoundingRect(true, true);
 
-            const { sx, sy, sw, sh } = this._getClampedCanvasRegion(rectBounds);
+            const cropRegion = this._getClampedCanvasRegion(rectBounds);
             const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
 
             this._restoreCropObjectState();
@@ -2380,16 +2671,16 @@ function ensureFabric() {
                             mask.setCoords();
                             const maskBounds = mask.getBoundingRect(true, true);
                             const intersectsCrop =
-                                maskBounds.left < sx + sw &&
-                                maskBounds.left + maskBounds.width > sx &&
-                                maskBounds.top < sy + sh &&
-                                maskBounds.top + maskBounds.height > sy;
+                                maskBounds.left < cropRegion.sourceX + cropRegion.sourceWidth &&
+                                maskBounds.left + maskBounds.width > cropRegion.sourceX &&
+                                maskBounds.top < cropRegion.sourceY + cropRegion.sourceHeight &&
+                                maskBounds.top + maskBounds.height > cropRegion.sourceY;
                             this._removeLabelForMask(mask);
                             this.canvas.remove(mask);
                             if (shouldPreserveMasks && intersectsCrop) {
                                 mask.set({
-                                    left: (mask.left || 0) - sx,
-                                    top: (mask.top || 0) - sy,
+                                    left: (mask.left || 0) - cropRegion.sourceX,
+                                    top: (mask.top || 0) - cropRegion.sourceY,
                                     visible: true
                                 });
                                 mask.setCoords();
@@ -2409,19 +2700,16 @@ function ensureFabric() {
 
             this._removeCropRect();
 
-            // End crop mode
+            // End crop mode before loading the cropped image.
             this._cropMode = false;
             this.canvas.selection = !!this._prevSelectionSetting;
             this._prevSelectionSetting = undefined;
 
-            // Export full canvas and crop on offscreen canvas
+            // Export the crop region from the current canvas.
             let croppedBase64;
             try {
                 croppedBase64 = await this._exportCanvasRegionToDataURL({
-                    sx,
-                    sy,
-                    sw,
-                    sh,
+                    ...cropRegion,
                     multiplier: 1,
                     quality: this._normalizeQuality(this.options.downsampleQuality),
                     format: 'jpeg'
@@ -2431,7 +2719,7 @@ function ensureFabric() {
                 return;
             }
 
-            // Load the cropped image as the new base image
+            // Load the cropped image as the new base image.
             try {
                 await this.loadImage(croppedBase64);
                 if (preservedMasks.length) {
@@ -2445,27 +2733,27 @@ function ensureFabric() {
                     this._updateMaskList();
                     this.canvas.renderAll();
                 }
-            } catch (e) {
-                await this._restoreStateAfterCropFailure(beforeJson, 'applyCrop: loadImage(croppedBase64) failed', e);
+            } catch (error) {
+                await this._restoreStateAfterCropFailure(beforeJson, 'applyCrop: loadImage(croppedBase64) failed', error);
                 return;
             }
 
-            // Create "after" snapshot (also exclude crop rect if any) and push history command
+            // Create an after snapshot and push one history command for the crop operation.
             let afterJson = null;
             try {
                 afterJson = this._serializeCanvasState();
-            } catch (e) {
-                this._reportWarning('applyCrop: failed to serialize after state', e);
+            } catch (error) {
+                this._reportWarning('applyCrop: failed to serialize after state', error);
                 afterJson = null;
             }
 
             try {
                 this._pushStateTransition(beforeJson, afterJson);
-            } catch (e) {
-                this._reportWarning('applyCrop: failed to push history command', e);
+            } catch (error) {
+                this._reportWarning('applyCrop: failed to push history command', error);
             }
 
-            // Final UI update
+            // Refresh UI state after crop completion.
             this._updateUI();
             this.canvas.renderAll();
         }
@@ -2500,7 +2788,7 @@ function ensureFabric() {
             const isInCropMode = !!this._cropMode;
 
             if (isInCropMode) {
-                // iterate all element keys and disable unless key is applyCropBtn or cancelCropBtn
+                // Disable all controls except the crop action buttons while crop mode is active.
                 for (const key of Object.keys(this.elements || {})) {
                     const element = document.getElementById(this.elements[key]);
                     if (!element) continue;
@@ -2563,7 +2851,7 @@ function ensureFabric() {
         }
 
         /**
-         * Automatically display and hide placeholders and containers based on the current image content
+         * Updates placeholder and canvas container visibility based on whether an image is loaded.
          * @private
          */
         _updatePlaceholderStatus() {
@@ -2572,8 +2860,9 @@ function ensureFabric() {
         }
 
         /**
-         * Controls the display/hiding of the Placeholder and Canvas container.
-         * @param {boolean} show - true displays the placeholder, false displays the canvas container
+         * Shows or hides the placeholder and canvas container.
+         *
+         * @param {boolean} show - If true, displays the placeholder; otherwise displays the canvas container.
          * @private
          */
         _setPlaceholderVisible(show) {
@@ -2608,16 +2897,16 @@ function ensureFabric() {
             } catch (error) { void error; }
 
             if (this._cropRect) {
-                try { this.canvas.remove(this._cropRect); } catch (e) { void e; }
+                try { this.canvas.remove(this._cropRect); } catch (error) { void error; }
                 this._cropRect = null;
             }
 
             if (this.containerElement && this._containerOriginalOverflow !== undefined) {
-                try { this.containerElement.style.overflow = this._containerOriginalOverflow; } catch (e) { void e; }
+                try { this.containerElement.style.overflow = this._containerOriginalOverflow; } catch (error) { void error; }
             }
 
             if (this.canvas) {
-                try { this.canvas.dispose(); } catch (e) { void e; }
+                try { this.canvas.dispose(); } catch (error) { void error; }
                 this.canvas = null;
                 this.canvasElement = null;
                 this.isImageLoadedToCanvas = false;
@@ -2627,113 +2916,160 @@ function ensureFabric() {
     }
 
     /**
-     * A simple FIFO queue that guarantees animations are executed sequentially.
-     * @class AnimationQueue
+     * @callback AnimationTaskCallback
+     * @returns {unknown} Animation result or awaitable animation result.
+     */
+
+    /**
+     * @callback PromiseResolveCallback
+     * @param {unknown} value - Promise resolution value.
+     * @returns {void}
+     */
+
+    /**
+     * @callback PromiseRejectCallback
+     * @param {unknown} reason - Promise rejection reason.
+     * @returns {void}
+     */
+
+    /**
+     * @typedef {Object} QueuedAnimationTask
+     * @property {AnimationTaskCallback} animationFn - Queued animation function.
+     * @property {PromiseResolveCallback} resolve - Promise resolver for the queued animation.
+     * @property {PromiseRejectCallback} reject - Promise rejecter for the queued animation.
+     */
+
+    /**
+     * @callback HistoryTaskCallback
+     * @returns {void|Promise<void>} Result of a history operation.
+     */
+
+    /**
+     * FIFO queue that serializes transform animations so Fabric state changes do not overlap.
+     *
+     * @private
      */
     class AnimationQueue {
         /**
-         * Creates a new AnimationQueue.
-         *
-         * @constructor
+         * Creates an empty animation queue.
          */
         constructor() {
             /**
-             * Internal queue holding animation descriptors.
-             * @type {Array<{fn: Function, resolve: Function, reject: Function}>}
+             * Pending animation descriptors.
+             * @type {Array<QueuedAnimationTask>}
              */
-            this.queue = [];
+            this.animationTasks = [];
             /**
-             * Flag indicating whether an animation is currently running.
+             * Whether an animation task is currently running.
              * @type {boolean}
              */
-            this.running = false;
+            this.isRunning = false;
         }
 
         /**
          * Adds an animation function to the queue.
          *
-         * @param   {Function} animationFn  A function that returns a Promise or any await-able.
-         * @returns {Promise<*>}            A Promise that resolves/rejects with the animation result.
+         * @param {AnimationTaskCallback} animationFn - Function that returns a value, Promise, or awaitable animation result.
+         * @returns {Promise<unknown>} Resolves or rejects with the queued animation result.
          */
         async add(animationFn) {
             return new Promise((resolve, reject) => {
-                // Push the animation into the queue.
-                this.queue.push({ fn: animationFn, resolve, reject });
-                // Start processing if it's not already running.
-                if (!this.running) {
-                    this.processQueue();
+                this.animationTasks.push({ animationFn, resolve, reject });
+                if (!this.isRunning) {
+                    this._drainQueue();
                 }
             });
         }
 
         /**
-         * Internal helper that processes the animation queue sequentially until it is empty.
+         * Runs queued animation tasks sequentially until the queue is empty.
          *
          * @private
          * @returns {Promise<void>}
          */
-        async processQueue() {
-            if (this.queue.length === 0) {
-                this.running = false;
+        async _drainQueue() {
+            if (this.animationTasks.length === 0) {
+                this.isRunning = false;
                 return;
             }
 
-            this.running = true;
-            const { fn, resolve, reject } = this.queue.shift();
+            this.isRunning = true;
+            const { animationFn, resolve, reject } = this.animationTasks.shift();
 
             try {
-                const result = await fn();
+                const result = await animationFn();
                 resolve(result);
             } catch (error) {
                 reject(error);
             }
 
-            this.processQueue();
+            this._drainQueue();
         }
     }
 
     /**
-     * Command object encapsulating an executable action and its corresponding undo operation.
-     * @class Command
+     * Undoable command with paired execute and undo operations.
+     *
+     * @private
      */
     class Command {
         /**
-         * @param {Function} execute  The function that performs the action.
-         * @param {Function} undo     The function that reverts the action.
+         * @param {HistoryTaskCallback} execute - Function that performs the action.
+         * @param {HistoryTaskCallback} undo - Function that reverts the action.
          */
         constructor(execute, undo) {
             /**
              * Executes the command.
-             * @type {Function}
+             * @type {HistoryTaskCallback}
              */
             this.execute = execute;
             /**
              * Undoes the command.
-             * @type {Function}
+             * @type {HistoryTaskCallback}
              */
             this.undo = undo;
         }
     }
 
     /**
-     * Manages a history of Command objects enabling undo/redo functionality.
-     * @class HistoryManager
+     * Manages undo/redo history and serializes asynchronous history operations.
+     *
+     * @private
      */
     class HistoryManager {
         /**
-         * @param {number} [maxSize=50]  Maximum number of commands to keep in history.
+         * @param {number} [maxSize=50] - Maximum number of commands to keep in history.
          */
         constructor(maxSize = 50) {
+            /** @type {Array<Command>} */
             this.history = [];
+            /** @type {number} */
             this.currentIndex = -1;
+            /** @type {number} */
             this.maxSize = maxSize;
+            /** @type {Promise<void>} */
             this.pending = Promise.resolve();
         }
 
+        /**
+         * Queues a history task after the previously queued undo/redo task completes.
+         *
+         * @param {HistoryTaskCallback} task - Task to run after earlier history work settles.
+         * @returns {Promise<void>} Resolves or rejects with the queued task result.
+         * @private
+         */
         enqueue(task) {
-            const run = this.pending.then(task, task);
-            this.pending = run.catch(() => {});
-            return run;
+            const nextTask = this.pending.then(task, task);
+            let pendingAfterTask;
+            const resetPending = () => {
+                if (this.pending === pendingAfterTask) {
+                    this.pending = Promise.resolve();
+                }
+            };
+
+            pendingAfterTask = nextTask.then(resetPending, resetPending);
+            this.pending = pendingAfterTask;
+            return nextTask;
         }
 
         /**
@@ -2744,7 +3080,6 @@ function ensureFabric() {
          * @returns {void}
          */
         execute(command) {
-            // Perform the command.
             command.execute();
             this.push(command);
         }
@@ -2757,17 +3092,15 @@ function ensureFabric() {
          * @returns {void}
          */
         push(command) {
-            // Remove any commands that are ahead of the current index.
+            // Discard redo commands when a new branch is created.
             if (this.currentIndex < this.history.length - 1) {
                 this.history = this.history.slice(0, this.currentIndex + 1);
             }
 
-            // Add the new command.
             this.history.push(command);
 
-            // Maintain the max size of the buffer.
             if (this.history.length > this.maxSize) {
-                this.history.shift(); // Remove the oldest command.
+                this.history.shift();
             } else {
                 this.currentIndex++;
             }
@@ -2794,7 +3127,7 @@ function ensureFabric() {
         /**
          * Undoes the last executed command if possible.
          *
-         * @returns {void}
+         * @returns {Promise<void>} Resolves after the undo task completes.
          */
         undo() {
             return this.enqueue(async () => {
@@ -2809,7 +3142,7 @@ function ensureFabric() {
         /**
          * Redoes the next command in history if possible.
          *
-         * @returns {void}
+         * @returns {Promise<void>} Resolves after the redo task completes.
          */
         redo() {
             return this.enqueue(async () => {

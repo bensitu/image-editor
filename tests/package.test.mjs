@@ -77,7 +77,8 @@ test('type declarations match the public package API', () => {
         'createImageEditor',
         'DEFAULT_OPTIONS',
         'SUPPORTED_FORMATS',
-        'VERSION'
+        'VERSION',
+        'setFabric('
     ];
 
     assert.match(declaration, /declare module '@bensitu\/image-editor'/);
@@ -86,6 +87,7 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /canvasElement/);
     assert.match(declaration, /containerElement/);
     assert.match(declaration, /@deprecated Use canvasElement instead/);
+    assert.match(declaration, /will be removed in v2\.0\.0/);
     assert.match(declaration, /createMask/);
     assert.match(declaration, /@deprecated Use createMask\(\) instead/);
     assert.match(declaration, /mergeMasks/);
@@ -99,10 +101,11 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /applyCrop/);
     assert.match(declaration, /export interface RemoveAllMasksOptions/);
     assert.match(declaration, /removeAllMasks\(options\?: RemoveAllMasksOptions\): void;/);
+    assert.match(declaration, /points\?: Array<\{ x: number; y: number \}> \| Array<\[number, number\]>/);
     assert.match(declaration, /fileType\?: 'jpeg' \| 'jpg' \| 'png' \| 'webp'/);
     assert.match(declaration, /undo\(\): Promise<void>;/);
     assert.match(declaration, /redo\(\): Promise<void>;/);
-    assert.match(declaration, /loadFromState\(jsonString: string \| object\): Promise<void>;/);
+    assert.match(declaration, /loadFromState\(serializedState: string \| object\): Promise<void>;/);
 
     for (const api of removedApis) {
         assert.equal(declaration.includes(api), false, `${api} should not be declared`);
@@ -111,9 +114,12 @@ test('type declarations match the public package API', () => {
 
 test('docs demo can load ImageEditor on GitHub Pages', () => {
     const html = readFileSync('docs/index.html', 'utf8');
+    const script = readFileSync('docs/js/script.js', 'utf8');
 
     assert.match(html, /cdn\.jsdelivr\.net\/npm\/@bensitu\/image-editor\/dist\/image-editor\.js/);
     assert.equal(/<script\s+src=["']\.\.\/dist\/image-editor\.js/.test(html), false);
+    assert.match(script, /exportImageBase64\(\)/);
+    assert.equal(script.includes('getImageBase64('), false);
 });
 
 test('docs canvas container only shows scrollbars when content overflows', () => {

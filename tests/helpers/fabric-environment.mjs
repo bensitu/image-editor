@@ -160,10 +160,10 @@ export async function loadFixtureImage(editor, options = {}) {
 export async function getImageDimensionsFromDataUrl(dataUrl) {
     await installFabricDom();
     return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve({ width: img.width, height: img.height });
-        img.onerror = reject;
-        img.src = dataUrl;
+        const imageElement = new Image();
+        imageElement.onload = () => resolve({ width: imageElement.width, height: imageElement.height });
+        imageElement.onerror = reject;
+        imageElement.src = dataUrl;
     });
 }
 

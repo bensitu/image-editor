@@ -4,7 +4,8 @@ declare module '@bensitu/image-editor' {
   import { Canvas, Image as FabricImage, Object as FabricObject } from 'fabric';
 
   export interface LabelOptions {
-    getText?: (mask: MaskObject, maskIndex: number) => string;
+    /** Receives the mask and its stable zero-based creation index (`mask.maskId - 1`). */
+    getText?: (mask: MaskObject, creationIndex: number) => string;
     create?: (mask: MaskObject, fabric: any) => FabricObject;
     textOptions?: Record<string, any>;
   }
@@ -95,7 +96,7 @@ declare module '@bensitu/image-editor' {
     radius?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
     rx?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
     ry?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
-    points?: Array<{ x: number; y: number }>;
+    points?: Array<{ x: number; y: number }> | Array<[number, number]>;
     color?: string;
     alpha?: number;
     gap?: number;
@@ -147,11 +148,11 @@ declare module '@bensitu/image-editor' {
     readonly canvasElement: HTMLCanvasElement | null;
     readonly containerElement: HTMLElement | null;
     readonly placeholderElement: HTMLElement | null;
-    /** @deprecated Use canvasElement instead. */
+    /** @deprecated Use canvasElement instead. This alias will be removed in v2.0.0. */
     readonly canvasEl: HTMLCanvasElement | null;
-    /** @deprecated Use containerElement instead. */
+    /** @deprecated Use containerElement instead. This alias will be removed in v2.0.0. */
     readonly containerEl: HTMLElement | null;
-    /** @deprecated Use placeholderElement instead. */
+    /** @deprecated Use placeholderElement instead. This alias will be removed in v2.0.0. */
     readonly placeholderEl: HTMLElement | null;
     readonly originalImage: FabricImage | null;
     readonly currentScale: number;
@@ -169,21 +170,21 @@ declare module '@bensitu/image-editor' {
     scaleImage(factor: number): Promise<void>;
     rotateImage(degrees: number): Promise<void>;
     resetImageTransform(): Promise<void>;
-    /** @deprecated Use resetImageTransform() instead. */
+    /** @deprecated Use resetImageTransform() instead. This alias will be removed in v2.0.0. */
     reset(): Promise<void>;
 
     createMask(config?: MaskConfig): MaskObject | null;
-    /** @deprecated Use createMask() instead. */
+    /** @deprecated Use createMask() instead. This alias will be removed in v2.0.0. */
     addMask(config?: MaskConfig): MaskObject | null;
     removeSelectedMask(): void;
     removeAllMasks(options?: RemoveAllMasksOptions): void;
 
     mergeMasks(): Promise<void>;
-    /** @deprecated Use mergeMasks() instead. */
+    /** @deprecated Use mergeMasks() instead. This alias will be removed in v2.0.0. */
     merge(): Promise<void>;
     downloadImage(fileName?: string): void;
     exportImageBase64(options?: Base64ExportOptions): Promise<string>;
-    /** @deprecated Use exportImageBase64() instead. */
+    /** @deprecated Use exportImageBase64() instead. This alias will be removed in v2.0.0. */
     getImageBase64(options?: Base64ExportOptions): Promise<string>;
     exportImageFile(options?: ImageFileExportOptions): Promise<File>;
 
@@ -194,7 +195,7 @@ declare module '@bensitu/image-editor' {
     undo(): Promise<void>;
     redo(): Promise<void>;
     saveState(): void;
-    loadFromState(jsonString: string | object): Promise<void>;
+    loadFromState(serializedState: string | object): Promise<void>;
 
     dispose(): void;
   }

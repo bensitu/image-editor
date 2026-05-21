@@ -64,57 +64,57 @@ function setOptions() {
     }
 }
 
-const loadBtnEl = document.getElementById('loadBtn');
-if (loadBtnEl) {
-    loadBtnEl.addEventListener('click', function () {
+const loadButtonElement = document.getElementById('loadBtn');
+if (loadButtonElement) {
+    loadButtonElement.addEventListener('click', function () {
         setOptions();
-        const base64 = document.getElementById('base64Input')?.value || '';
-        editor.loadImage(base64);
+        const imageBase64 = document.getElementById('base64Input')?.value || '';
+        editor.loadImage(imageBase64);
     });
 }
 
-const imageInputEl = document.getElementById('imageInput');
-if (imageInputEl) {
-    imageInputEl.addEventListener('change', function(event) {
+const imageInputElement = document.getElementById('imageInput');
+if (imageInputElement) {
+    imageInputElement.addEventListener('change', function(event) {
         const file = event.target.files[0];
         if (file) {
             setOptions();
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64 = e.target.result;
-                editor.loadImage(base64);
+            reader.onload = function(loadEvent) {
+                const imageBase64 = loadEvent.target.result;
+                editor.loadImage(imageBase64);
             };
             reader.readAsDataURL(file);
         }
     });
 }
 
-const uploadAreaEl = document.getElementById('uploadArea');
-if (uploadAreaEl) {
-    uploadAreaEl.addEventListener('drop', function(event) {
+const uploadAreaElement = document.getElementById('uploadArea');
+if (uploadAreaElement) {
+    uploadAreaElement.addEventListener('drop', function(event) {
         event.preventDefault();
         const files = event.dataTransfer.files;
         if (files.length > 0) {
             const file = files[0];
             setOptions();
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64 = e.target.result;
-                editor.loadImage(base64);
+            reader.onload = function(loadEvent) {
+                const imageBase64 = loadEvent.target.result;
+                editor.loadImage(imageBase64);
             };
             reader.readAsDataURL(file);
         }
     });
-    uploadAreaEl.addEventListener('dragover', function(event) {
+    uploadAreaElement.addEventListener('dragover', function(event) {
         event.preventDefault();
     });
 }
 
 async function getBase64Action() {
     try {
-        const img64 = await editor.getImageBase64();
-        console.log(img64);
-    } catch (e) {
-        console.error(e);
+        const imageBase64 = await editor.exportImageBase64();
+        console.log(imageBase64);
+    } catch (error) {
+        console.error(error);
     }
 }

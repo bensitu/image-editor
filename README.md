@@ -140,6 +140,7 @@ When creating the editor instance, you can pass an options object to override de
 | `maskLabelOnSelect` | `true` | Show label when mask is selected |
 | `maskLabelOffset` | `3` | Offset for mask labels from top-left corner |
 | `maskName` | `mask` | Prefix for mask names/labels |
+| `label.getText` | `(mask) => mask.maskName` | Callback for custom label text. The second argument is the mask's stable zero-based creation index (`mask.maskId - 1`). |
 | `showPlaceholder` | `true` | Shows placeholder when no image is loaded |
 | `initialImageBase64` | `null` | Base64 string to auto-load as initial image |
 | `defaultDownloadFileName` | `edited_image.jpg` | Default file name for downloads |
@@ -167,7 +168,7 @@ When creating the editor instance, you can pass an options object to override de
 | `exportImageBase64(options)` | Export an image data URL. `fileType` can be `jpeg`, `png`, or `webp`. |
 | `exportImageFile(options)` | Exports the current canvas (with or without masks) as a `File` object. `fileType` is exported directly when supported. |
 
-Deprecated aliases are still available for compatibility: `reset()`, `addMask(config)`, `merge()`, and `getImageBase64(options)`.
+Deprecated aliases are still available for compatibility and will be removed in `v2.0.0`: `reset()`, `addMask(config)`, `merge()`, and `getImageBase64(options)`.
 
 By default, applying crop removes unmerged masks. Set `crop.preserveMasksAfterCrop` to keep intersecting masks, or use `mergeMasks()` before cropping when masks should become part of the image pixels.
 

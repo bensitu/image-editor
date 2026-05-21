@@ -11,9 +11,9 @@ import {
 } from './helpers/fabric-environment.mjs';
 
 function dataUrlToFile(dataUrl, fileName = 'fixture.png') {
-    const [header, base64] = dataUrl.split(',');
+    const [header, base64Payload] = dataUrl.split(',');
     const mime = (header.match(/^data:([^;]+);base64$/) || [])[1] || 'image/png';
-    const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    const bytes = Uint8Array.from(atob(base64Payload), char => char.charCodeAt(0));
     return new File([bytes], fileName, { type: mime });
 }
 
@@ -251,6 +251,81 @@ test('coverImageToCanvas updates scrollable canvas bounds after zoom changes', a
     assert.equal(editor.canvas.getHeight(), 78);
 });
 
+test('fitImageToCanvas keeps zoomed image inside resized scrollable canvas bounds', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 200,
+        canvasHeight: 120,
+        fitImageToCanvas: true,
+        expandCanvasToImage: false,
+        maxScale: 3
+    }, {
+        containerWidth: 200,
+        containerHeight: 120
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 400, height: 200 });
+
+    const initialCanvasWidth = editor.canvas.getWidth();
+    const initialCanvasHeight = editor.canvas.getHeight();
+
+    await editor.scaleImage(1.5);
+    editor.originalImage.setCoords();
+    const scaledImageBounds = editor.originalImage.getBoundingRect(true, true);
+
+    assert.ok(editor.canvas.getWidth() > initialCanvasWidth);
+    assert.ok(editor.canvas.getHeight() > initialCanvasHeight);
+    assert.ok(editor.canvas.getWidth() >= Math.floor(scaledImageBounds.width));
+    assert.ok(editor.canvas.getHeight() >= Math.floor(scaledImageBounds.height));
+
+    await editor.rotateImage(90);
+    editor.originalImage.setCoords();
+    const rotatedImageBounds = editor.originalImage.getBoundingRect(true, true);
+
+    assert.ok(editor.canvas.getWidth() >= Math.floor(rotatedImageBounds.width));
+    assert.ok(editor.canvas.getHeight() >= Math.floor(rotatedImageBounds.height));
+});
+
+test('post-load mask edits expand canvas consistently across image layout modes', async (t) => {
+    const editors = [];
+    t.after(() => editors.forEach(disposeEditor));
+
+    const modeConfigs = [
+        ['expand', { expandCanvasToImage: true, fitImageToCanvas: false, coverImageToCanvas: false }],
+        ['fit', { expandCanvasToImage: false, fitImageToCanvas: true, coverImageToCanvas: false }],
+        ['cover', { expandCanvasToImage: false, fitImageToCanvas: false, coverImageToCanvas: true }]
+    ];
+
+    for (const [modeName, modeOptions] of modeConfigs) {
+        const { editor } = await createEditor({
+            canvasWidth: 100,
+            canvasHeight: 80,
+            maxScale: 2,
+            ...modeOptions
+        }, {
+            containerWidth: 100,
+            containerHeight: 80
+        });
+        editors.push(editor);
+        await loadFixtureImage(editor, { width: 80, height: 60 });
+
+        const initialWidth = editor.canvas.getWidth();
+        const initialHeight = editor.canvas.getHeight();
+        const mask = editor.createMask({ shape: 'circle', left: 90, top: 70, radius: 20 });
+
+        assert.equal(editor.canvas.getWidth() > initialWidth, true, `${modeName} should expand canvas when adding an out-of-bounds mask`);
+        assert.equal(editor.canvas.getHeight() > initialHeight, true, `${modeName} should expand canvas height when adding an out-of-bounds mask`);
+
+        const widthAfterCreate = editor.canvas.getWidth();
+        const heightAfterCreate = editor.canvas.getHeight();
+        mask.set({ left: 130, top: 95, scaleX: 1.5, scaleY: 1.5 });
+        mask.setCoords();
+        editor.canvas.fire('object:modified', { target: mask });
+
+        assert.equal(editor.canvas.getWidth() > widthAfterCreate, true, `${modeName} should expand canvas when resizing a mask`);
+        assert.equal(editor.canvas.getHeight() > heightAfterCreate, true, `${modeName} should expand canvas height when resizing a mask`);
+    }
+});
+
 test('createMask supports standard shapes, labels, DOM list updates, and remove operations', async (t) => {
     const { editor, ids } = await createEditor({
         maskName: 'unit-mask-',
@@ -285,6 +360,81 @@ test('createMask supports standard shapes, labels, DOM list updates, and remove 
     editor.removeAllMasks();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
     assert.equal(document.getElementById(ids.maskList).children.length, 0);
+});
+
+test('all mask shape variants share hover, history, and expansion behavior', async (t) => {
+    const editors = [];
+    t.after(() => editors.forEach(disposeEditor));
+
+    const shapeConfigs = [
+        ['rect', () => ({ shape: 'rect', left: 90, top: 70, width: 30, height: 24, alpha: 0.4 })],
+        ['circle', () => ({ shape: 'circle', left: 90, top: 70, radius: 18, alpha: 0.4 })],
+        ['ellipse', () => ({ shape: 'ellipse', left: 90, top: 70, width: 36, height: 24, alpha: 0.4 })],
+        ['polygon', () => ({ shape: 'polygon', left: 90, top: 70, points: [[0, 0], [30, 0], [12, 24]], alpha: 0.4 })],
+        ['custom', () => ({
+            shape: 'custom-triangle',
+            left: 90,
+            top: 70,
+            width: 34,
+            height: 26,
+            alpha: 0.4,
+            fabricGenerator: (config) => new fabric.Triangle({
+                left: config.left,
+                top: config.top,
+                width: config.width,
+                height: config.height,
+                fill: config.color
+            })
+        })]
+    ];
+
+    for (const [shapeName, createConfig] of shapeConfigs) {
+        const { editor } = await createEditor({
+            canvasWidth: 100,
+            canvasHeight: 80,
+            expandCanvasToImage: true,
+            maskLabelOnSelect: true,
+            maskRotatable: true
+        });
+        editors.push(editor);
+        await loadFixtureImage(editor, { width: 80, height: 60 });
+
+        const mask = editor.createMask(createConfig());
+        assert.ok(mask.maskId, `${shapeName} should be tracked as a mask`);
+        assert.ok(mask.__label, `${shapeName} should create a selectable label`);
+        assert.equal(mask.selectable, true, `${shapeName} should be selectable`);
+        assert.equal(mask.hasControls, true, `${shapeName} should expose Fabric controls`);
+        assert.equal(mask.lockRotation, false, `${shapeName} should follow maskRotatable`);
+        assert.equal(mask.opacity, 0.4, `${shapeName} should apply normalized mask opacity`);
+        assert.equal(typeof mask.__imageEditorMaskHandlers.mouseover, 'function', `${shapeName} should bind hover handlers`);
+        assert.equal(editor.canvas.getWidth() >= 130, true, `${shapeName} should expand canvas width`);
+        assert.equal(editor.canvas.getHeight() >= 100, true, `${shapeName} should expand canvas height`);
+
+        if (shapeName === 'polygon') {
+            assert.equal(mask.points.every(point => Number.isFinite(point.x) && Number.isFinite(point.y)), true);
+        }
+
+        editor._handleSelectionChanged([]);
+        mask.fire('mouseover');
+        assert.equal(mask.stroke, '#ff5500', `${shapeName} hover should use shared hover stroke`);
+        assert.ok(Math.abs(mask.opacity - 0.6) < 0.001, `${shapeName} hover should increase opacity`);
+        mask.fire('mouseout');
+        assert.equal(mask.stroke, mask.originalStroke, `${shapeName} mouseout should restore stroke`);
+        assert.equal(mask.opacity, mask.originalAlpha, `${shapeName} mouseout should restore opacity`);
+
+        const originalLeft = mask.left;
+        mask.set({ left: originalLeft + 20, scaleX: 1.4 });
+        mask.setCoords();
+        editor.canvas.fire('object:modified', { target: mask });
+
+        await editor.undo();
+        const undoneMask = editor.canvas.getObjects().find(object => object.maskId === mask.maskId);
+        assert.ok(Math.abs(undoneMask.left - originalLeft) < 0.001, `${shapeName} undo should restore previous position`);
+
+        await editor.redo();
+        const redoneMask = editor.canvas.getObjects().find(object => object.maskId === mask.maskId);
+        assert.ok(Math.abs(redoneMask.left - (originalLeft + 20)) < 0.001, `${shapeName} redo should restore modified position`);
+    }
 });
 
 test('createMask applies explicit Fabric style and control values without truthy fallbacks', async (t) => {
@@ -437,24 +587,36 @@ test('history snapshots omit transient selected mask styling', async (t) => {
     assert.equal(restoredMask.strokeWidth, 3);
 });
 
-test('label getText receives the current mask list index', async (t) => {
+test('label getText receives a stable zero-based mask creation index', async (t) => {
     const calls = [];
     const { editor } = await createEditor({
         maskLabelOnSelect: true,
         label: {
-            getText: (mask, maskIndex) => {
-                calls.push({ maskName: mask.maskName, maskIndex });
-                return `${maskIndex}:${mask.maskName}`;
+            getText: (mask, creationIndex) => {
+                calls.push({ maskName: mask.maskName, creationIndex });
+                return `${creationIndex}:${mask.maskName}`;
             }
         }
     });
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
 
-    editor.createMask({ width: 20, height: 20 });
-    editor.createMask({ width: 20, height: 20 });
+    const first = editor.createMask({ width: 20, height: 20 });
+    const second = editor.createMask({ width: 20, height: 20 });
+    const third = editor.createMask({ width: 20, height: 20 });
 
-    assert.deepEqual([...new Set(calls.map(call => call.maskIndex))], [0, 1]);
+    assert.deepEqual([...new Set(calls.map(call => call.creationIndex))], [0, 1, 2]);
+
+    editor.canvas.setActiveObject(second);
+    editor.removeSelectedMask();
+    editor._hideAllMaskLabels();
+    editor._showLabelForMask(first);
+    editor._showLabelForMask(third);
+
+    assert.deepEqual(calls.slice(-2), [
+        { maskName: first.maskName, creationIndex: 0 },
+        { maskName: third.maskName, creationIndex: 2 }
+    ]);
 });
 
 test('exportImageBase64 exports image data and restores mask state when export fails', async (t) => {
@@ -470,8 +632,8 @@ test('exportImageBase64 exports image data and restores mask state when export f
             strokeWidth: 3
         }
     });
-    const base64 = await editor.exportImageBase64({ exportImageArea: true, multiplier: 1 });
-    assert.match(base64, /^data:image\/jpeg;base64,/);
+    const imageBase64 = await editor.exportImageBase64({ exportImageArea: true, multiplier: 1 });
+    assert.match(imageBase64, /^data:image\/jpeg;base64,/);
 
     const originalState = {
         opacity: mask.opacity,
@@ -505,9 +667,9 @@ test('exportImageBase64 can export directly to PNG', async (t) => {
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
 
-    const base64 = await editor.exportImageBase64({ exportImageArea: false, fileType: 'png', multiplier: 1 });
+    const imageBase64 = await editor.exportImageBase64({ exportImageArea: false, fileType: 'png', multiplier: 1 });
 
-    assert.match(base64, /^data:image\/png;base64,/);
+    assert.match(imageBase64, /^data:image\/png;base64,/);
 });
 
 test('exportImageBase64 exports the scrollable image area in cover-canvas mode', async (t) => {
@@ -521,8 +683,8 @@ test('exportImageBase64 exports the scrollable image area in cover-canvas mode',
     await loadFixtureImage(editor, { width: 120, height: 200 });
     editor.createMask({ width: 20, height: 20 });
 
-    const base64 = await editor.exportImageBase64({ exportImageArea: true, multiplier: 1 });
-    const size = await getImageDimensionsFromDataUrl(base64);
+    const imageBase64 = await editor.exportImageBase64({ exportImageArea: true, multiplier: 1 });
+    const size = await getImageDimensionsFromDataUrl(imageBase64);
 
     assert.equal(editor.canvas.getHeight(), 197);
     assert.equal(size.width, 118);
@@ -540,8 +702,8 @@ test('exportImageBase64 exportImageArea false preserves image transforms and omi
     editor.createMask({ width: 20, height: 20 });
 
     await editor.rotateImage(90);
-    const base64 = await editor.exportImageBase64({ exportImageArea: false, multiplier: 1 });
-    const size = await getImageDimensionsFromDataUrl(base64);
+    const imageBase64 = await editor.exportImageBase64({ exportImageArea: false, multiplier: 1 });
+    const size = await getImageDimensionsFromDataUrl(imageBase64);
 
     assert.equal(size.width, 40);
     assert.equal(size.height, 80);
@@ -875,6 +1037,25 @@ test('history undo and redo restore serialized canvas states', async (t) => {
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 2);
 });
 
+test('overlapping undo and redo calls remain serialized by the history queue', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    editor.createMask({ width: 20, height: 20 });
+    editor.createMask({ width: 20, height: 20 });
+
+    const firstUndo = editor.undo();
+    const secondUndo = editor.undo();
+    const firstRedo = editor.redo();
+
+    await Promise.all([firstUndo, secondUndo, firstRedo]);
+
+    const masks = editor.canvas.getObjects().filter(object => object.maskId);
+    assert.equal(masks.length, 1);
+    assert.equal(masks[0].maskId, 1);
+});
+
 test('mask hover handlers are rebound after undo and redo restores state', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -1141,18 +1322,20 @@ test('workflow crop can leave masks visible when hideMasksDuringCrop is disabled
     assert.equal(mask.evented, true);
 });
 
-test('workflow cover mode merges masks, then undo and redo switch between editable and flattened states', async (t) => {
-    const { editor } = await createEditor({
-        canvasWidth: 120,
-        canvasHeight: 80,
+test('workflow cover mode merges masks, then undo and redo restore editable scale metadata', async (t) => {
+    const { editor, ids } = await createEditor({
+        canvasWidth: 200,
+        canvasHeight: 100,
         coverImageToCanvas: true,
         expandCanvasToImage: false,
-        minScale: 0.1
+        minScale: 0.1,
+        maxScale: 3
     });
     t.after(() => disposeEditor(editor));
-    await loadFixtureImage(editor, { width: 120, height: 200 });
+    await loadFixtureImage(editor, { width: 400, height: 200 });
 
-    await editor.scaleImage(0.5);
+    await editor.scaleImage(1.5);
+    const baseImageScaleBeforeMerge = editor.baseImageScale;
     editor.createMask({ left: 20, top: 20, width: 25, height: 25 });
     await editor.mergeMasks();
 
@@ -1160,6 +1343,10 @@ test('workflow cover mode merges masks, then undo and redo switch between editab
 
     await editor.undo();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+    assert.equal(editor.baseImageScale, baseImageScaleBeforeMerge);
+    assert.equal(editor.currentScale, 1.5);
+    assert.equal(document.getElementById(ids.scaleRate).value, '150');
+    assert.ok(Math.abs(editor.originalImage.scaleX - (baseImageScaleBeforeMerge * 1.5)) < 0.01);
 
     await editor.redo();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
@@ -1222,8 +1409,8 @@ test('workflow with rotatable ellipse and polygon masks exports merged PNG', asy
     assert.equal(ellipse.lockRotation, false);
     assert.equal(polygon.maskName, 'workflow-mask-2');
 
-    const base64 = await editor.exportImageBase64({ exportImageArea: true, fileType: 'png', multiplier: 1 });
-    assert.match(base64, /^data:image\/png;base64,/);
+    const imageBase64 = await editor.exportImageBase64({ exportImageArea: true, fileType: 'png', multiplier: 1 });
+    assert.match(imageBase64, /^data:image\/png;base64,/);
 });
 
 test('workflow initialImageBase64 loads automatically and participates in undo and redo', async (t) => {
@@ -1261,9 +1448,9 @@ test('workflow crop followed by multiplier export scales the final output dimens
     editor._cropRect.setCoords();
     await editor.applyCrop();
 
-    const base64 = await editor.exportImageBase64({ exportImageArea: true, fileType: 'png', multiplier: 1 });
+    const imageBase64 = await editor.exportImageBase64({ exportImageArea: true, fileType: 'png', multiplier: 1 });
     const doubledBase64 = await editor.exportImageBase64({ exportImageArea: true, fileType: 'png', multiplier: 2 });
-    const size = await getImageDimensionsFromDataUrl(base64);
+    const size = await getImageDimensionsFromDataUrl(imageBase64);
     const doubledSize = await getImageDimensionsFromDataUrl(doubledBase64);
 
     assert.equal(doubledSize.width, size.width * 2);
