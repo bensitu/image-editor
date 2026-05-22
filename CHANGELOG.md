@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-05-23
+
+### Changed
+
+- Update build and lint tooling to current esbuild and ESLint flat config versions.
+
+### Fixed
+
+- Resolve mask percentage values against the correct canvas axis for positions, sizes, circle radius, and ellipse radii.
+- Avoid unnecessary Fabric `set()` calls while serializing mask styles for history snapshots.
+- Exclude trailing partial pixels when applying crop regions to prevent possible 1px JPEG edge artifacts.
+- Compensate for existing auto scrollbars when measuring the canvas container viewport.
+
 ## [1.3.0] - 2026-05-22
 
 ### Added

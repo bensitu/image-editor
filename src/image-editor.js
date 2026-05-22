@@ -1,7 +1,7 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.3.0
+ * @version 1.3.1
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -868,21 +868,36 @@ function ensureFabric() {
                 };
             }
 
+            let width = Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1));
+            let height = Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1));
+
             if (this._hasFixedContainerScrollbars()) {
-                return {
-                    width: Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1)),
-                    height: Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1))
-                };
+                return { width, height };
             }
 
-            const width = Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1));
-            const height = Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1));
+            const overflow = this._getContainerOverflowValues();
+            const canScrollX = overflow.x.some(value => value === 'auto' || value === 'scroll');
+            const canScrollY = overflow.y.some(value => value === 'auto' || value === 'scroll');
+            const hasHorizontalScrollbar = canScrollX && this.containerElement.scrollWidth > this.containerElement.clientWidth;
+            const hasVerticalScrollbar = canScrollY && this.containerElement.scrollHeight > this.containerElement.clientHeight;
+
+            if (hasHorizontalScrollbar || hasVerticalScrollbar) {
+                const scrollbar = this._getScrollbarSize();
+                if (hasVerticalScrollbar) width += scrollbar.width;
+                if (hasHorizontalScrollbar) height += scrollbar.height;
+            }
 
             return { width, height };
         }
 
-        _hasFixedContainerScrollbars() {
-            if (!this.containerElement) return false;
+        /**
+         * Reads inline and computed overflow values for both scroll axes.
+         *
+         * @returns {{x:string[], y:string[]}} Overflow values grouped by axis.
+         * @private
+         */
+        _getContainerOverflowValues() {
+            if (!this.containerElement) return { x: [], y: [] };
             const inlineOverflow = this.containerElement.style.overflow;
             const inlineOverflowX = this.containerElement.style.overflowX;
             const inlineOverflowY = this.containerElement.style.overflowY;
@@ -897,8 +912,16 @@ function ensureFabric() {
                 computedOverflowY = style.overflowY;
             }
 
-            return [inlineOverflow, inlineOverflowX, inlineOverflowY, computedOverflow, computedOverflowX, computedOverflowY]
-                .some(value => value === 'scroll');
+            return {
+                x: [inlineOverflow, inlineOverflowX, computedOverflow, computedOverflowX],
+                y: [inlineOverflow, inlineOverflowY, computedOverflow, computedOverflowY]
+            };
+        }
+
+        _hasFixedContainerScrollbars() {
+            if (!this.containerElement) return false;
+            const overflow = this._getContainerOverflowValues();
+            return [...overflow.x, ...overflow.y].some(value => value === 'scroll');
         }
 
         _getScrollbarSize() {
@@ -948,8 +971,8 @@ function ensureFabric() {
             const scrollbar = this._getScrollbarSize();
             let hasVertical = false;
             let hasHorizontal = false;
-            let effectiveWidth = viewport.width;
-            let effectiveHeight = viewport.height;
+            let effectiveWidth;
+            let effectiveHeight;
 
             for (let i = 0; i < 4; i += 1) {
                 effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
@@ -1000,8 +1023,8 @@ function ensureFabric() {
             let scale = 1;
             let contentWidth = imageWidth;
             let contentHeight = imageHeight;
-            let effectiveWidth = viewport.width;
-            let effectiveHeight = viewport.height;
+            let effectiveWidth;
+            let effectiveHeight;
 
             for (let i = 0; i < 4; i += 1) {
                 effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
@@ -1062,26 +1085,36 @@ function ensureFabric() {
         _withNormalizedMaskStyles(callback) {
             if (!this.canvas) return callback();
             const masks = this.canvas.getObjects().filter(object => object.maskId);
-            const maskStyleBackups = masks.map(mask => ({
-                object: mask,
-                stroke: mask.stroke,
-                strokeWidth: mask.strokeWidth,
-                opacity: mask.opacity
-            }));
+            const maskStyleBackups = [];
 
             try {
                 masks.forEach(mask => {
-                    mask.set(this._getMaskNormalStyle(mask));
+                    const normalStyle = this._getMaskNormalStyle(mask);
+                    const stylePatch = {};
+                    Object.keys(normalStyle).forEach(property => {
+                        if (mask[property] !== normalStyle[property]) {
+                            stylePatch[property] = normalStyle[property];
+                        }
+                    });
+                    const changedProperties = Object.keys(stylePatch);
+                    if (!changedProperties.length) return;
+
+                    const backup = { object: mask };
+                    changedProperties.forEach(property => {
+                        backup[property] = mask[property];
+                    });
+                    maskStyleBackups.push(backup);
+                    mask.set(stylePatch);
                 });
                 return callback();
             } finally {
                 maskStyleBackups.forEach(backup => {
                     try {
-                        backup.object.set({
-                            stroke: backup.stroke,
-                            strokeWidth: backup.strokeWidth,
-                            opacity: backup.opacity
+                        const restorePatch = {};
+                        Object.keys(backup).forEach(property => {
+                            if (property !== 'object') restorePatch[property] = backup[property];
                         });
+                        backup.object.set(restorePatch);
                     } catch (error) { void error; }
                 });
             }
@@ -1841,18 +1874,27 @@ function ensureFabric() {
 
             // Always start placement relative to canvas left/top.
             const firstOffset = 10;
-            let left = firstOffset;
-            let top = firstOffset;
+            let left;
+            let top;
 
-            const resolveValue = (value, fallback) => {
+            const getCanvasBasis = (axis) => {
+                const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
+                const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
+                if (axis === 'height') return canvasHeight;
+                if (axis === 'min') return Math.min(canvasWidth, canvasHeight);
+                return canvasWidth;
+            };
+
+            const resolveValue = (value, fallback, axis = 'width') => {
                 if (typeof value === 'function')
                     return value(this.canvas, this.options);
                 if (typeof value === 'string' && value.endsWith('%')) {
-                    const percent = parseFloat(value) / 100;
-                    return Math.floor((this.canvas ? this.canvas.getWidth() : 0) * percent);
+                    const percent = Number.parseFloat(value) / 100;
+                    if (!Number.isFinite(percent)) return fallback;
+                    return Math.floor(getCanvasBasis(axis) * percent);
                 }
                 return value != null ? value : fallback;
-            }
+            };
 
             if (maskConfig.left === undefined && this._lastMask) {
                 const previousMask = this._lastMask;
@@ -1866,12 +1908,12 @@ function ensureFabric() {
                 left = Math.round(previousMaskRight + maskConfig.gap);
                 top = previousMask.top ?? firstOffset;
             } else {
-                left = resolveValue(maskConfig.left, firstOffset);
-                top = resolveValue(maskConfig.top, firstOffset);
+                left = resolveValue(maskConfig.left, firstOffset, 'width');
+                top = resolveValue(maskConfig.top, firstOffset, 'height');
             }
 
-            maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
-            maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight);
+            maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth, 'width');
+            maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight, 'height');
             maskConfig.left = left;
             maskConfig.top = top;
 
@@ -1883,7 +1925,7 @@ function ensureFabric() {
                     case 'circle':
                         mask = new fabric.Circle({
                             left, top,
-                            radius: resolveValue(maskConfig.radius, Math.min(maskConfig.width, maskConfig.height) / 2),
+                            radius: resolveValue(maskConfig.radius, Math.min(maskConfig.width, maskConfig.height) / 2, 'min'),
                             fill: maskConfig.color,
                             opacity: maskConfig.alpha,
                             angle: maskConfig.angle,
@@ -1893,8 +1935,8 @@ function ensureFabric() {
                     case 'ellipse':
                         mask = new fabric.Ellipse({
                             left, top,
-                            rx: resolveValue(maskConfig.rx, maskConfig.width / 2),
-                            ry: resolveValue(maskConfig.ry, maskConfig.height / 2),
+                            rx: resolveValue(maskConfig.rx, maskConfig.width / 2, 'width'),
+                            ry: resolveValue(maskConfig.ry, maskConfig.height / 2, 'height'),
                             fill: maskConfig.color,
                             opacity: maskConfig.alpha,
                             angle: maskConfig.angle,
@@ -1922,8 +1964,8 @@ function ensureFabric() {
                     default:
                         mask = new fabric.Rect({
                             left, top,
-                            width: resolveValue(maskConfig.width, this.options.defaultMaskWidth),
-                            height: resolveValue(maskConfig.height, this.options.defaultMaskHeight),
+                            width: resolveValue(maskConfig.width, this.options.defaultMaskWidth, 'width'),
+                            height: resolveValue(maskConfig.height, this.options.defaultMaskHeight, 'height'),
                             fill: maskConfig.color,
                             opacity: maskConfig.alpha,
                             angle: maskConfig.angle,
@@ -1964,7 +2006,7 @@ function ensureFabric() {
             // Store placement values so the next mask can be positioned beside this one.
             this._lastMaskInitialLeft = left;
             this._lastMaskInitialTop = top;
-            this._lastMaskInitialWidth = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
+            this._lastMaskInitialWidth = resolveValue(maskConfig.width, this.options.defaultMaskWidth, 'width');
 
             const maskId = ++this.maskCounter;
             mask.set({
@@ -2752,12 +2794,12 @@ function ensureFabric() {
             this._cropRect.setCoords();
             const rectBounds = this._cropRect.getBoundingRect(true, true);
 
-            const cropRegion = this._getClampedCanvasRegion(rectBounds);
+            const cropRegion = this._getClampedCanvasRegion(rectBounds, { includePartialPixels: false });
             const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
 
             this._restoreCropObjectState();
 
-            let beforeJson = null;
+            let beforeJson;
             try {
                 beforeJson = this._serializeCanvasState();
             } catch (error) {
@@ -2843,7 +2885,7 @@ function ensureFabric() {
             }
 
             // Create an after snapshot and push one history command for the crop operation.
-            let afterJson = null;
+            let afterJson;
             try {
                 afterJson = this._serializeCanvasState();
             } catch (error) {

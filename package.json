@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "description": "Lightweight canvas-based image editor",
     "main": "./dist/image-editor.js",
     "module": "./dist/image-editor.esm.mjs",
@@ -16,7 +16,7 @@
         "dev": "node esbuild.config.mjs --watch",
         "build": "node esbuild.config.mjs",
         "build:babel": "babel src --out-dir dist --copy-files",
-        "lint": "eslint src --ext .js",
+        "lint": "eslint src",
         "test": "npm run build && node --test tests/image-editor.test.mjs tests/package.test.mjs"
     },
     "repository": {
@@ -33,6 +33,9 @@
     "peerDependencies": {
         "fabric": "^5.5.2"
     },
+    "overrides": {
+        "canvas": "^3.2.3"
+    },
     "publishConfig": {
         "access": "public"
     },
@@ -40,9 +43,11 @@
         "@babel/cli": "^7.22.9",
         "@babel/core": "^7.22.9",
         "@babel/preset-env": "^7.22.9",
-        "esbuild": "^0.19.12",
+        "@eslint/js": "^10.0.1",
+        "esbuild": "^0.28.0",
         "esbuild-plugin-babel": "^0.2.3",
-        "eslint": "^8.49.0"
+        "eslint": "^10.4.0",
+        "globals": "^17.6.0"
     },
     "browserslist": [
         "Chrome >= 100",

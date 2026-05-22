@@ -296,6 +296,36 @@ test('scrollbar measurement is cached after the first DOM probe', async (t) => {
     assert.equal(probeCount, 1);
 });
 
+test('container viewport measurement compensates for existing auto scrollbars', async (t) => {
+    const { editor, ids } = await createEditor({}, {
+        containerWidth: 183,
+        containerHeight: 103
+    });
+    t.after(() => disposeEditor(editor));
+    const container = document.getElementById(ids.canvasContainer);
+    container.style.overflow = 'auto';
+    Object.defineProperty(container, 'scrollWidth', {
+        configurable: true,
+        value: 260
+    });
+    Object.defineProperty(container, 'scrollHeight', {
+        configurable: true,
+        value: 220
+    });
+    editor._getScrollbarSize = () => ({ width: 17, height: 17 });
+
+    assert.deepEqual(editor._getContainerViewportSize(), {
+        width: 200,
+        height: 120
+    });
+
+    container.style.overflow = 'scroll';
+    assert.deepEqual(editor._getContainerViewportSize(), {
+        width: 183,
+        height: 103
+    });
+});
+
 test('scaleImage, rotateImage, and reset update image transform state', async (t) => {
     const { editor } = await createEditor({
         minScale: 0.5,
@@ -494,6 +524,43 @@ test('createMask supports standard shapes, labels, DOM list updates, and remove 
     editor.removeAllMasks();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
     assert.equal(document.getElementById(ids.maskList).children.length, 0);
+});
+
+test('createMask resolves percentage values against the correct canvas axis', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 800,
+        canvasHeight: 600,
+        expandCanvasToImage: false
+    });
+    t.after(() => disposeEditor(editor));
+
+    const rect = editor.createMask({
+        left: '25%',
+        top: '50%',
+        width: '50%',
+        height: '50%'
+    });
+    const circle = editor.createMask({
+        shape: 'circle',
+        left: 0,
+        top: 0,
+        radius: '10%'
+    });
+    const ellipse = editor.createMask({
+        shape: 'ellipse',
+        left: 0,
+        top: 0,
+        rx: '25%',
+        ry: '25%'
+    });
+
+    assert.equal(rect.left, 200);
+    assert.equal(rect.top, 300);
+    assert.equal(rect.width, 400);
+    assert.equal(rect.height, 300);
+    assert.equal(circle.radius, 60);
+    assert.equal(ellipse.rx, 200);
+    assert.equal(ellipse.ry, 150);
 });
 
 test('all mask shape variants share hover, history, and expansion behavior', async (t) => {
@@ -1107,6 +1174,34 @@ test('applyCrop preserves and shifts masks when preserveMasksAfterCrop is enable
     assert.equal(masks[0].selectable, true);
 });
 
+test('applyCrop exports crop regions without trailing partial pixels', async (t) => {
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 40,
+            minHeight: 40
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+
+    editor.enterCropMode();
+    const originalGetClampedCanvasRegion = editor._getClampedCanvasRegion.bind(editor);
+    let capturedOptions = null;
+    editor._getClampedCanvasRegion = (bounds, options = {}) => {
+        capturedOptions = options;
+        return originalGetClampedCanvasRegion(bounds, options);
+    };
+    editor._exportCanvasRegionToDataURL = async (region) => makeImageDataUrl({
+        width: region.sourceWidth,
+        height: region.sourceHeight,
+        format: 'image/jpeg'
+    });
+
+    await editor.applyCrop();
+
+    assert.equal(capturedOptions.includePartialPixels, false);
+});
+
 test('applyCrop rolls back image and masks when crop export fails', async (t) => {
     const errors = [];
     const { editor } = await createEditor({
@@ -1260,6 +1355,42 @@ test('recoverable internal warnings are reported through callbacks', async (t) =
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].message, 'saveState: failed to save canvas snapshot');
     assert.match(warnings[0].error.message, /forced snapshot failure/);
+});
+
+test('saveState only normalizes masks with temporary selection styles', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    const normalMask = editor.createMask({
+        width: 20,
+        height: 20,
+        styles: {
+            stroke: '#123456',
+            strokeWidth: 3
+        }
+    });
+    const selectedMask = editor.createMask({ width: 20, height: 20 });
+
+    let normalSetCalls = 0;
+    let selectedSetCalls = 0;
+    const normalSet = normalMask.set.bind(normalMask);
+    const selectedSet = selectedMask.set.bind(selectedMask);
+    normalMask.set = (...args) => {
+        normalSetCalls += 1;
+        return normalSet(...args);
+    };
+    selectedMask.set = (...args) => {
+        selectedSetCalls += 1;
+        return selectedSet(...args);
+    };
+
+    editor.saveState();
+
+    assert.equal(normalSetCalls, 0);
+    assert.equal(selectedSetCalls, 2);
+    assert.equal(selectedMask.stroke, '#ff0000');
+    assert.equal(selectedMask.strokeWidth, 1);
 });
 
 test('loadFromState handles empty or image-less states safely', async (t) => {

@@ -5,19 +5,16 @@ import fabricModule from "fabric";
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.3.0
+ * @version 1.3.1
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
  */
 var fabric = null;
 function getGlobalScope() {
-  if (typeof globalThis !== "undefined")
-    return globalThis;
-  if (typeof self !== "undefined")
-    return self;
-  if (typeof window !== "undefined")
-    return window;
+  if (typeof globalThis !== "undefined") return globalThis;
+  if (typeof self !== "undefined") return self;
+  if (typeof window !== "undefined") return window;
   return null;
 }
 function getGlobalFabric() {
@@ -29,8 +26,7 @@ function setFabric(fabricInstance2) {
   return fabric;
 }
 function ensureFabric() {
-  if (!fabric)
-    setFabric();
+  if (!fabric) setFabric();
   return fabric;
 }
 var ImageEditor = class {
@@ -198,8 +194,7 @@ var ImageEditor = class {
    * });
    */
   init(idMap = {}) {
-    if (!this._fabricLoaded)
-      return;
+    if (!this._fabricLoaded) return;
     const defaults = {
       canvas: "fabricCanvas",
       canvasContainer: null,
@@ -240,8 +235,7 @@ var ImageEditor = class {
   }
   _reportError(message, error = null) {
     const handler = this.options && this.options.onError;
-    if (typeof handler !== "function")
-      return;
+    if (typeof handler !== "function") return;
     try {
       handler(error, message);
     } catch {
@@ -249,8 +243,7 @@ var ImageEditor = class {
   }
   _reportWarning(message, error = null) {
     const handler = this.options && this.options.onWarning;
-    if (typeof handler !== "function")
-      return;
+    if (typeof handler !== "function") return;
     try {
       handler(error, message);
     } catch {
@@ -264,8 +257,7 @@ var ImageEditor = class {
    */
   _initCanvas() {
     const canvasElement = document.getElementById(this.elements.canvas);
-    if (!canvasElement)
-      throw new Error("Canvas is not found: " + this.elements.canvas);
+    if (!canvasElement) throw new Error("Canvas is not found: " + this.elements.canvas);
     this.canvasElement = canvasElement;
     if (this.elements.canvasContainer) {
       const containerElement = document.getElementById(this.elements.canvasContainer);
@@ -295,16 +287,13 @@ var ImageEditor = class {
     this.canvas.on("selection:updated", (event) => this._handleSelectionChanged(event.selected));
     this.canvas.on("selection:cleared", () => this._handleSelectionChanged([]));
     this.canvas.on("object:moving", (event) => {
-      if (event.target && event.target.maskId)
-        this._syncMaskLabel(event.target);
+      if (event.target && event.target.maskId) this._syncMaskLabel(event.target);
     });
     this.canvas.on("object:scaling", (event) => {
-      if (event.target && event.target.maskId)
-        this._syncMaskLabel(event.target);
+      if (event.target && event.target.maskId) this._syncMaskLabel(event.target);
     });
     this.canvas.on("object:rotating", (event) => {
-      if (event.target && event.target.maskId)
-        this._syncMaskLabel(event.target);
+      if (event.target && event.target.maskId) this._syncMaskLabel(event.target);
     });
     this.canvas.on("object:modified", (event) => this._handleObjectModified(event.target));
     this.canvasElement.style.display = "block";
@@ -318,11 +307,9 @@ var ImageEditor = class {
    */
   _handleObjectModified(target) {
     const masks = this._getModifiedMasks(target);
-    if (!masks.length)
-      return;
+    if (!masks.length) return;
     masks.forEach((mask) => {
-      if (typeof mask.setCoords === "function")
-        mask.setCoords();
+      if (typeof mask.setCoords === "function") mask.setCoords();
       this._syncMaskLabel(mask);
     });
     this._expandCanvasToFitObjects(masks);
@@ -336,10 +323,8 @@ var ImageEditor = class {
    * @private
    */
   _getModifiedMasks(target) {
-    if (!target)
-      return [];
-    if (target.maskId)
-      return [target];
+    if (!target) return [];
+    if (target.maskId) return [target];
     const objects = typeof target.getObjects === "function" ? target.getObjects() : [];
     return Array.isArray(objects) ? objects.filter((object) => object && object.maskId) : [];
   }
@@ -352,8 +337,7 @@ var ImageEditor = class {
    * @private
    */
   _syncContainerOverflow(options = {}) {
-    if (!this.containerElement || !this.containerElement.style)
-      return;
+    if (!this.containerElement || !this.containerElement.style) return;
     if (this._containerOriginalOverflow === void 0) {
       this._containerOriginalOverflow = this.containerElement.style.overflow || "";
     }
@@ -381,14 +365,12 @@ var ImageEditor = class {
   _bindEvents() {
     this._bindIfExists("uploadArea", "click", () => {
       const uploadAreaElement = document.getElementById(this.elements.uploadArea);
-      if (this._isElementDisabled(uploadAreaElement))
-        return;
+      if (this._isElementDisabled(uploadAreaElement)) return;
       document.getElementById(this.elements.imageInput)?.click();
     });
     this._bindIfExists("imageInput", "change", (event) => {
       const file = event.target.files && event.target.files[0];
-      if (file)
-        this._loadImageFile(file);
+      if (file) this._loadImageFile(file);
     });
     this._bindIfExists("zoomInBtn", "click", () => this.scaleImage(this.currentScale + this.options.scaleStep));
     this._bindIfExists("zoomOutBtn", "click", () => this.scaleImage(this.currentScale - this.options.scaleStep));
@@ -407,8 +389,7 @@ var ImageEditor = class {
       let step = this.options.rotationStep;
       if (rotationInputElement) {
         const parsedStep = parseFloat(rotationInputElement.value);
-        if (!isNaN(parsedStep))
-          step = parsedStep;
+        if (!isNaN(parsedStep)) step = parsedStep;
       }
       this.rotateImage(this.currentRotation - step);
     });
@@ -417,8 +398,7 @@ var ImageEditor = class {
       let step = this.options.rotationStep;
       if (rotationInputElement) {
         const parsedStep = parseFloat(rotationInputElement.value);
-        if (!isNaN(parsedStep))
-          step = parsedStep;
+        if (!isNaN(parsedStep)) step = parsedStep;
       }
       this.rotateImage(this.currentRotation + step);
     });
@@ -441,8 +421,7 @@ var ImageEditor = class {
     if (element) {
       element.addEventListener(eventName, handler);
       this._handlersByElementKey = this._handlersByElementKey || {};
-      if (!this._handlersByElementKey[key])
-        this._handlersByElementKey[key] = [];
+      if (!this._handlersByElementKey[key]) this._handlersByElementKey[key] = [];
       this._handlersByElementKey[key].push({ eventName, handler });
     }
   }
@@ -453,8 +432,7 @@ var ImageEditor = class {
    * @private
    */
   _loadImageFile(file) {
-    if (!file || !file.type.startsWith("image/"))
-      return;
+    if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (event) => this.loadImage(event.target.result);
     reader.onerror = (event) => {
@@ -474,8 +452,7 @@ var ImageEditor = class {
       ["coverImageToCanvas", this.options.coverImageToCanvas],
       ["expandCanvasToImage", this.options.expandCanvasToImage]
     ].filter(([, isEnabled]) => !!isEnabled).map(([name]) => name);
-    if (activeModes.length <= 1)
-      return;
+    if (activeModes.length <= 1) return;
     this._reportWarning(
       `Only one image layout mode should be enabled. Active modes: ${activeModes.join(", ")}.`
     );
@@ -490,12 +467,9 @@ var ImageEditor = class {
    * @public
    */
   async loadImage(imageBase64, options = {}) {
-    if (!this._fabricLoaded)
-      return;
-    if (!this.canvas)
-      return;
-    if (!imageBase64 || typeof imageBase64 !== "string" || !imageBase64.startsWith("data:image/"))
-      return;
+    if (!this._fabricLoaded) return;
+    if (!this.canvas) return;
+    if (!imageBase64 || typeof imageBase64 !== "string" || !imageBase64.startsWith("data:image/")) return;
     this._warnOnImageLayoutOptionConflict();
     this._setPlaceholderVisible(false);
     this._syncContainerOverflow({ preserveScroll: options.preserveScroll === true });
@@ -516,8 +490,7 @@ var ImageEditor = class {
     return new Promise((resolve, reject) => {
       fabric.Image.fromURL(loadSource, (fabricImage) => {
         try {
-          if (!fabricImage)
-            throw new Error("Image could not be loaded");
+          if (!fabricImage) throw new Error("Image could not be loaded");
           this.canvas.discardActiveObject();
           this._hideAllMaskLabels();
           this.canvas.clear();
@@ -611,8 +584,7 @@ var ImageEditor = class {
       const safeTimeoutMs = Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0 ? Number(timeoutMs) : 3e4;
       let timerId;
       const settle = (callback) => {
-        if (isSettled)
-          return;
+        if (isSettled) return;
         isSettled = true;
         clearTimeout(timerId);
         imageElement.onload = null;
@@ -624,6 +596,7 @@ var ImageEditor = class {
         try {
           imageElement.src = "";
         } catch (error) {
+          void error;
         }
       }, safeTimeoutMs);
       imageElement.onload = () => settle(() => resolve(imageElement));
@@ -646,8 +619,7 @@ var ImageEditor = class {
     offscreenCanvas.width = targetWidth;
     offscreenCanvas.height = targetHeight;
     const context = offscreenCanvas.getContext("2d");
-    if (!context)
-      throw new Error("2D canvas context is unavailable");
+    if (!context) throw new Error("2D canvas context is unavailable");
     context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, targetWidth, targetHeight);
     return offscreenCanvas.toDataURL("image/jpeg", quality);
   }
@@ -664,8 +636,7 @@ var ImageEditor = class {
     const integerHeight = Math.max(1, Math.round(Number(height) || 1));
     this.canvas.setWidth(integerWidth);
     this.canvas.setHeight(integerHeight);
-    if (typeof this.canvas.calcOffset === "function")
-      this.canvas.calcOffset();
+    if (typeof this.canvas.calcOffset === "function") this.canvas.calcOffset();
     if (this.canvasElement) {
       this.canvasElement.style.width = integerWidth + "px";
       this.canvasElement.style.height = integerHeight + "px";
@@ -675,8 +646,7 @@ var ImageEditor = class {
   _ceilCanvasDimension(value) {
     const numericValue = Number(value) || 0;
     const roundedValue = Math.round(numericValue);
-    if (Math.abs(numericValue - roundedValue) < 0.01)
-      return roundedValue;
+    if (Math.abs(numericValue - roundedValue) < 0.01) return roundedValue;
     return Math.ceil(numericValue);
   }
   _getContainerViewportSize() {
@@ -686,19 +656,31 @@ var ImageEditor = class {
         height: Math.max(1, Math.floor(this.options.canvasHeight || 1))
       };
     }
+    let width = Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1));
+    let height = Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1));
     if (this._hasFixedContainerScrollbars()) {
-      return {
-        width: Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1)),
-        height: Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1))
-      };
+      return { width, height };
     }
-    const width = Math.max(1, Math.floor(this.containerElement.clientWidth || this.options.canvasWidth || 1));
-    const height = Math.max(1, Math.floor(this.containerElement.clientHeight || this.options.canvasHeight || 1));
+    const overflow = this._getContainerOverflowValues();
+    const canScrollX = overflow.x.some((value) => value === "auto" || value === "scroll");
+    const canScrollY = overflow.y.some((value) => value === "auto" || value === "scroll");
+    const hasHorizontalScrollbar = canScrollX && this.containerElement.scrollWidth > this.containerElement.clientWidth;
+    const hasVerticalScrollbar = canScrollY && this.containerElement.scrollHeight > this.containerElement.clientHeight;
+    if (hasHorizontalScrollbar || hasVerticalScrollbar) {
+      const scrollbar = this._getScrollbarSize();
+      if (hasVerticalScrollbar) width += scrollbar.width;
+      if (hasHorizontalScrollbar) height += scrollbar.height;
+    }
     return { width, height };
   }
-  _hasFixedContainerScrollbars() {
-    if (!this.containerElement)
-      return false;
+  /**
+   * Reads inline and computed overflow values for both scroll axes.
+   *
+   * @returns {{x:string[], y:string[]}} Overflow values grouped by axis.
+   * @private
+   */
+  _getContainerOverflowValues() {
+    if (!this.containerElement) return { x: [], y: [] };
     const inlineOverflow = this.containerElement.style.overflow;
     const inlineOverflowX = this.containerElement.style.overflowX;
     const inlineOverflowY = this.containerElement.style.overflowY;
@@ -711,7 +693,15 @@ var ImageEditor = class {
       computedOverflowX = style.overflowX;
       computedOverflowY = style.overflowY;
     }
-    return [inlineOverflow, inlineOverflowX, inlineOverflowY, computedOverflow, computedOverflowX, computedOverflowY].some((value) => value === "scroll");
+    return {
+      x: [inlineOverflow, inlineOverflowX, computedOverflow, computedOverflowX],
+      y: [inlineOverflow, inlineOverflowY, computedOverflow, computedOverflowY]
+    };
+  }
+  _hasFixedContainerScrollbars() {
+    if (!this.containerElement) return false;
+    const overflow = this._getContainerOverflowValues();
+    return [...overflow.x, ...overflow.y].some((value) => value === "scroll");
   }
   _getScrollbarSize() {
     if (this._scrollbarSizeCache) {
@@ -754,15 +744,14 @@ var ImageEditor = class {
     const scrollbar = this._getScrollbarSize();
     let hasVertical = false;
     let hasHorizontal = false;
-    let effectiveWidth = viewport.width;
-    let effectiveHeight = viewport.height;
+    let effectiveWidth;
+    let effectiveHeight;
     for (let i = 0; i < 4; i += 1) {
       effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
       effectiveHeight = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
       const nextHasVertical = contentHeight > effectiveHeight + 0.5;
       const nextHasHorizontal = contentWidth > effectiveWidth + 0.5;
-      if (nextHasVertical === hasVertical && nextHasHorizontal === hasHorizontal)
-        break;
+      if (nextHasVertical === hasVertical && nextHasHorizontal === hasHorizontal) break;
       hasVertical = nextHasVertical;
       hasHorizontal = nextHasHorizontal;
     }
@@ -799,8 +788,8 @@ var ImageEditor = class {
     let scale = 1;
     let contentWidth = imageWidth;
     let contentHeight = imageHeight;
-    let effectiveWidth = viewport.width;
-    let effectiveHeight = viewport.height;
+    let effectiveWidth;
+    let effectiveHeight;
     for (let i = 0; i < 4; i += 1) {
       effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
       effectiveHeight = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
@@ -809,8 +798,7 @@ var ImageEditor = class {
       contentHeight = imageHeight * scale;
       const nextHasVertical = contentHeight > effectiveHeight + 0.5;
       const nextHasHorizontal = contentWidth > effectiveWidth + 0.5;
-      if (nextHasVertical === hasVertical && nextHasHorizontal === hasHorizontal)
-        break;
+      if (nextHasVertical === hasVertical && nextHasHorizontal === hasHorizontal) break;
       hasVertical = nextHasVertical;
       hasHorizontal = nextHasHorizontal;
     }
@@ -849,41 +837,48 @@ var ImageEditor = class {
       stroke: mask && mask.originalStroke || "#ccc",
       strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : 1
     };
-    if (Number.isFinite(opacity))
-      style.opacity = opacity;
+    if (Number.isFinite(opacity)) style.opacity = opacity;
     return style;
   }
   _withNormalizedMaskStyles(callback) {
-    if (!this.canvas)
-      return callback();
+    if (!this.canvas) return callback();
     const masks = this.canvas.getObjects().filter((object) => object.maskId);
-    const maskStyleBackups = masks.map((mask) => ({
-      object: mask,
-      stroke: mask.stroke,
-      strokeWidth: mask.strokeWidth,
-      opacity: mask.opacity
-    }));
+    const maskStyleBackups = [];
     try {
       masks.forEach((mask) => {
-        mask.set(this._getMaskNormalStyle(mask));
+        const normalStyle = this._getMaskNormalStyle(mask);
+        const stylePatch = {};
+        Object.keys(normalStyle).forEach((property) => {
+          if (mask[property] !== normalStyle[property]) {
+            stylePatch[property] = normalStyle[property];
+          }
+        });
+        const changedProperties = Object.keys(stylePatch);
+        if (!changedProperties.length) return;
+        const backup = { object: mask };
+        changedProperties.forEach((property) => {
+          backup[property] = mask[property];
+        });
+        maskStyleBackups.push(backup);
+        mask.set(stylePatch);
       });
       return callback();
     } finally {
       maskStyleBackups.forEach((backup) => {
         try {
-          backup.object.set({
-            stroke: backup.stroke,
-            strokeWidth: backup.strokeWidth,
-            opacity: backup.opacity
+          const restorePatch = {};
+          Object.keys(backup).forEach((property) => {
+            if (property !== "object") restorePatch[property] = backup[property];
           });
+          backup.object.set(restorePatch);
         } catch (error) {
+          void error;
         }
       });
     }
   }
   _restoreMaskControls(mask) {
-    if (!mask)
-      return;
+    if (!mask) return;
     const cornerSize = Number(mask.cornerSize);
     mask.set({
       selectable: mask.selectable !== false,
@@ -896,8 +891,7 @@ var ImageEditor = class {
       transparentCorners: mask.transparentCorners === true,
       strokeUniform: mask.strokeUniform !== false
     });
-    if (typeof mask.setCoords === "function")
-      mask.setCoords();
+    if (typeof mask.setCoords === "function") mask.setCoords();
   }
   /**
    * Captures editor-owned runtime state that Fabric does not include in canvas JSON.
@@ -919,8 +913,7 @@ var ImageEditor = class {
     };
   }
   _serializeCanvasState() {
-    if (!this.canvas)
-      return null;
+    if (!this.canvas) return null;
     return this._withNormalizedMaskStyles(() => {
       const jsonObject = this.canvas.toJSON(this._getStateProperties());
       if (Array.isArray(jsonObject.objects)) {
@@ -939,8 +932,7 @@ var ImageEditor = class {
    */
   _normalizeQuality(quality) {
     const numericQuality = Number(quality);
-    if (!Number.isFinite(numericQuality))
-      return this.options.downsampleQuality ?? 0.92;
+    if (!Number.isFinite(numericQuality)) return this.options.downsampleQuality ?? 0.92;
     return Math.max(0, Math.min(1, numericQuality));
   }
   /**
@@ -1013,8 +1005,7 @@ var ImageEditor = class {
       const safeTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 3e4;
       let timerId;
       const settle = (callback) => {
-        if (isSettled)
-          return;
+        if (isSettled) return;
         isSettled = true;
         clearTimeout(timerId);
         imageElement.onload = null;
@@ -1026,6 +1017,7 @@ var ImageEditor = class {
         try {
           imageElement.src = "";
         } catch (error) {
+          void error;
         }
       }, safeTimeoutMs);
       imageElement.onload = () => {
@@ -1039,8 +1031,7 @@ var ImageEditor = class {
           offscreenCanvas.width = scaledSourceWidth;
           offscreenCanvas.height = scaledSourceHeight;
           const context = offscreenCanvas.getContext("2d");
-          if (!context)
-            throw new Error("2D canvas context is unavailable");
+          if (!context) throw new Error("2D canvas context is unavailable");
           context.drawImage(imageElement, scaledSourceX, scaledSourceY, scaledSourceWidth, scaledSourceHeight, 0, 0, scaledSourceWidth, scaledSourceHeight);
           settle(() => resolve(offscreenCanvas.toDataURL(`image/${format}`, quality)));
         } catch (error) {
@@ -1083,12 +1074,10 @@ var ImageEditor = class {
    * @private
    */
   _getObjectTopLeftPoint(fabricObject) {
-    if (!fabricObject)
-      return { x: 0, y: 0 };
+    if (!fabricObject) return { x: 0, y: 0 };
     fabricObject.setCoords();
     const coords = typeof fabricObject.getCoords === "function" ? fabricObject.getCoords() : null;
-    if (coords && coords.length)
-      return coords[0];
+    if (coords && coords.length) return coords[0];
     const boundingRect = fabricObject.getBoundingRect(true, true);
     return { x: boundingRect.left, y: boundingRect.top };
   }
@@ -1102,8 +1091,7 @@ var ImageEditor = class {
    * @private
    */
   _setObjectOriginKeepingPosition(fabricObject, originX, originY, refPoint) {
-    if (!fabricObject || !refPoint || !fabricObject.setPositionByOrigin)
-      return;
+    if (!fabricObject || !refPoint || !fabricObject.setPositionByOrigin) return;
     fabricObject.set({ originX, originY });
     fabricObject.setPositionByOrigin(refPoint, originX, originY);
     fabricObject.setCoords();
@@ -1115,8 +1103,7 @@ var ImageEditor = class {
    * @private
    */
   _alignObjectBoundingBoxToCanvasTopLeft(fabricObject) {
-    if (!fabricObject)
-      return;
+    if (!fabricObject) return;
     fabricObject.setCoords();
     const boundingRect = fabricObject.getBoundingRect(true, true);
     const deltaX = boundingRect.left;
@@ -1131,8 +1118,7 @@ var ImageEditor = class {
    * @private
    */
   _updateCanvasSizeToImageBounds() {
-    if (!this.originalImage)
-      return;
+    if (!this.originalImage) return;
     this.originalImage.setCoords();
     const imageBounds = this.originalImage.getBoundingRect(true, true);
     const size = this._getScrollableCanvasSize(imageBounds.width, imageBounds.height);
@@ -1156,16 +1142,13 @@ var ImageEditor = class {
    * @private
    */
   _expandCanvasToFitObjects(fabricObjects, padding = 10) {
-    if (!this.canvas || !Array.isArray(fabricObjects) || !fabricObjects.length || !this._shouldResizeCanvasToContentBounds())
-      return;
+    if (!this.canvas || !Array.isArray(fabricObjects) || !fabricObjects.length || !this._shouldResizeCanvasToContentBounds()) return;
     try {
       let requiredWidth = this.canvas.getWidth();
       let requiredHeight = this.canvas.getHeight();
       fabricObjects.forEach((fabricObject) => {
-        if (!fabricObject)
-          return;
-        if (typeof fabricObject.setCoords === "function")
-          fabricObject.setCoords();
+        if (!fabricObject) return;
+        if (typeof fabricObject.setCoords === "function") fabricObject.setCoords();
         const boundingRect = fabricObject.getBoundingRect(true, true);
         requiredWidth = Math.max(requiredWidth, Math.ceil(boundingRect.left + boundingRect.width + padding));
         requiredHeight = Math.max(requiredHeight, Math.ceil(boundingRect.top + boundingRect.height + padding));
@@ -1210,10 +1193,8 @@ var ImageEditor = class {
    * @private
    */
   _scaleImageImpl(factor, options = {}) {
-    if (!this.originalImage)
-      return Promise.resolve();
-    if (this.isAnimating)
-      return Promise.resolve();
+    if (!this.originalImage) return Promise.resolve();
+    if (this.isAnimating) return Promise.resolve();
     const saveHistory = options.saveHistory !== false;
     factor = Math.max(this.options.minScale, Math.min(this.options.maxScale, factor));
     this.currentScale = factor;
@@ -1244,14 +1225,12 @@ var ImageEditor = class {
       }
       this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
       this.canvas.getObjects().forEach((object) => {
-        if (object.maskId)
-          this._syncMaskLabel(object);
+        if (object.maskId) this._syncMaskLabel(object);
       });
       this.isAnimating = false;
       this._updateInputs();
       this._updateUI();
-      if (saveHistory)
-        this.saveState();
+      if (saveHistory) this.saveState();
     }).catch(() => {
       this.isAnimating = false;
       this._updateUI();
@@ -1275,12 +1254,9 @@ var ImageEditor = class {
    * @private
    */
   _rotateImageImpl(degrees, options = {}) {
-    if (!this.originalImage)
-      return Promise.resolve();
-    if (this.isAnimating)
-      return Promise.resolve();
-    if (isNaN(degrees))
-      return Promise.resolve();
+    if (!this.originalImage) return Promise.resolve();
+    if (this.isAnimating) return Promise.resolve();
+    if (isNaN(degrees)) return Promise.resolve();
     const saveHistory = options.saveHistory !== false;
     this.currentRotation = degrees;
     this.isAnimating = true;
@@ -1304,14 +1280,12 @@ var ImageEditor = class {
       const newTopLeft = this._getObjectTopLeftPoint(this.originalImage);
       this._setObjectOriginKeepingPosition(this.originalImage, "left", "top", newTopLeft);
       this.canvas.getObjects().forEach((object) => {
-        if (object.maskId)
-          this._syncMaskLabel(object);
+        if (object.maskId) this._syncMaskLabel(object);
       });
       this.isAnimating = false;
       this._updateInputs();
       this._updateUI();
-      if (saveHistory)
-        this.saveState();
+      if (saveHistory) this.saveState();
     }).catch(() => {
       this.isAnimating = false;
       this._updateUI();
@@ -1324,8 +1298,7 @@ var ImageEditor = class {
    * @public
    */
   resetImageTransform() {
-    if (!this.originalImage)
-      return Promise.resolve();
+    if (!this.originalImage) return Promise.resolve();
     return this.animationQueue.add(async () => {
       const before = this._lastSnapshot || this._serializeCanvasState();
       await this._scaleImageImpl(1, { saveHistory: false });
@@ -1353,8 +1326,7 @@ var ImageEditor = class {
    * @public
    */
   loadFromState(serializedState) {
-    if (!serializedState || !this.canvas)
-      return Promise.resolve();
+    if (!serializedState || !this.canvas) return Promise.resolve();
     return new Promise((resolve) => {
       try {
         const state = typeof serializedState === "string" ? JSON.parse(serializedState) : serializedState;
@@ -1430,14 +1402,12 @@ var ImageEditor = class {
    * @public
    */
   saveState() {
-    if (!this.canvas)
-      return;
+    if (!this.canvas) return;
     const activeObject = this.canvas.getActiveObject();
     try {
       const after = this._serializeCanvasState();
       const before = this._lastSnapshot || after;
-      if (after === before)
-        return;
+      if (after === before) return;
       let executedOnce = false;
       const command = new Command(
         () => {
@@ -1472,12 +1442,9 @@ var ImageEditor = class {
    * @private
    */
   _pushStateTransition(before, after) {
-    if (!before || !after)
-      return;
-    if (before === after)
-      return;
-    if (!this.historyManager)
-      this.historyManager = new HistoryManager(this.maxHistorySize || 50);
+    if (!before || !after) return;
+    if (before === after) return;
+    if (!this.historyManager) this.historyManager = new HistoryManager(this.maxHistorySize || 50);
     const command = new Command(
       () => this.loadFromState(after),
       () => this.loadFromState(before)
@@ -1513,26 +1480,24 @@ var ImageEditor = class {
     });
   }
   _rebindMaskEvents(mask) {
-    if (!mask)
-      return;
+    if (!mask) return;
     if (mask.__imageEditorMaskHandlers) {
       try {
         mask.off("mouseover", mask.__imageEditorMaskHandlers.mouseover);
         mask.off("mouseout", mask.__imageEditorMaskHandlers.mouseout);
       } catch (error) {
+        void error;
       }
     }
     const metadata = {};
     if (!Number.isFinite(Number(mask.originalAlpha))) {
       metadata.originalAlpha = Number.isFinite(Number(mask.opacity)) ? Number(mask.opacity) : 0.5;
     }
-    if (!mask.originalStroke)
-      metadata.originalStroke = mask.stroke || "#ccc";
+    if (!mask.originalStroke) metadata.originalStroke = mask.stroke || "#ccc";
     if (!Number.isFinite(Number(mask.originalStrokeWidth))) {
       metadata.originalStrokeWidth = Number.isFinite(Number(mask.strokeWidth)) ? Number(mask.strokeWidth) : 1;
     }
-    if (Object.keys(metadata).length)
-      mask.set(metadata);
+    if (Object.keys(metadata).length) mask.set(metadata);
     const normalStyle = {
       stroke: mask.originalStroke || "#ccc",
       strokeWidth: mask.originalStrokeWidth,
@@ -1545,13 +1510,11 @@ var ImageEditor = class {
     };
     const mouseover = () => {
       mask.set(hoverStyle);
-      if (mask.canvas)
-        mask.canvas.requestRenderAll();
+      if (mask.canvas) mask.canvas.requestRenderAll();
     };
     const mouseout = () => {
       mask.set(normalStyle);
-      if (mask.canvas)
-        mask.canvas.requestRenderAll();
+      if (mask.canvas) mask.canvas.requestRenderAll();
     };
     mask.on("mouseover", mouseover);
     mask.on("mouseout", mouseout);
@@ -1586,8 +1549,7 @@ var ImageEditor = class {
    * @public
    */
   createMask(config = {}) {
-    if (!this.canvas)
-      return null;
+    if (!this.canvas) return null;
     const shapeType = config.shape || "rect";
     const maskConfig = {
       shape: shapeType,
@@ -1603,14 +1565,22 @@ var ImageEditor = class {
       ...config
     };
     const firstOffset = 10;
-    let left = firstOffset;
-    let top = firstOffset;
-    const resolveValue = (value, fallback) => {
+    let left;
+    let top;
+    const getCanvasBasis = (axis) => {
+      const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
+      const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
+      if (axis === "height") return canvasHeight;
+      if (axis === "min") return Math.min(canvasWidth, canvasHeight);
+      return canvasWidth;
+    };
+    const resolveValue = (value, fallback, axis = "width") => {
       if (typeof value === "function")
         return value(this.canvas, this.options);
       if (typeof value === "string" && value.endsWith("%")) {
-        const percent = parseFloat(value) / 100;
-        return Math.floor((this.canvas ? this.canvas.getWidth() : 0) * percent);
+        const percent = Number.parseFloat(value) / 100;
+        if (!Number.isFinite(percent)) return fallback;
+        return Math.floor(getCanvasBasis(axis) * percent);
       }
       return value != null ? value : fallback;
     };
@@ -1625,11 +1595,11 @@ var ImageEditor = class {
       left = Math.round(previousMaskRight + maskConfig.gap);
       top = previousMask.top ?? firstOffset;
     } else {
-      left = resolveValue(maskConfig.left, firstOffset);
-      top = resolveValue(maskConfig.top, firstOffset);
+      left = resolveValue(maskConfig.left, firstOffset, "width");
+      top = resolveValue(maskConfig.top, firstOffset, "height");
     }
-    maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
-    maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight);
+    maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth, "width");
+    maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight, "height");
     maskConfig.left = left;
     maskConfig.top = top;
     let mask;
@@ -1641,7 +1611,7 @@ var ImageEditor = class {
           mask = new fabric.Circle({
             left,
             top,
-            radius: resolveValue(maskConfig.radius, Math.min(maskConfig.width, maskConfig.height) / 2),
+            radius: resolveValue(maskConfig.radius, Math.min(maskConfig.width, maskConfig.height) / 2, "min"),
             fill: maskConfig.color,
             opacity: maskConfig.alpha,
             angle: maskConfig.angle,
@@ -1652,8 +1622,8 @@ var ImageEditor = class {
           mask = new fabric.Ellipse({
             left,
             top,
-            rx: resolveValue(maskConfig.rx, maskConfig.width / 2),
-            ry: resolveValue(maskConfig.ry, maskConfig.height / 2),
+            rx: resolveValue(maskConfig.rx, maskConfig.width / 2, "width"),
+            ry: resolveValue(maskConfig.ry, maskConfig.height / 2, "height"),
             fill: maskConfig.color,
             opacity: maskConfig.alpha,
             angle: maskConfig.angle,
@@ -1680,8 +1650,8 @@ var ImageEditor = class {
           mask = new fabric.Rect({
             left,
             top,
-            width: resolveValue(maskConfig.width, this.options.defaultMaskWidth),
-            height: resolveValue(maskConfig.height, this.options.defaultMaskHeight),
+            width: resolveValue(maskConfig.width, this.options.defaultMaskWidth, "width"),
+            height: resolveValue(maskConfig.height, this.options.defaultMaskHeight, "height"),
             fill: maskConfig.color,
             opacity: maskConfig.alpha,
             angle: maskConfig.angle,
@@ -1706,8 +1676,7 @@ var ImageEditor = class {
       opacity: hasStyle("opacity") ? styles.opacity : maskConfig.alpha,
       strokeUniform: "strokeUniform" in maskConfig ? maskConfig.strokeUniform : hasStyle("strokeUniform") ? styles.strokeUniform : true
     };
-    if (hasStyle("strokeDashArray"))
-      maskSettings.strokeDashArray = styles.strokeDashArray;
+    if (hasStyle("strokeDashArray")) maskSettings.strokeDashArray = styles.strokeDashArray;
     mask.set(maskSettings);
     mask.setCoords();
     mask.set({
@@ -1719,7 +1688,7 @@ var ImageEditor = class {
     this._expandCanvasToFitObject(mask);
     this._lastMaskInitialLeft = left;
     this._lastMaskInitialTop = top;
-    this._lastMaskInitialWidth = resolveValue(maskConfig.width, this.options.defaultMaskWidth);
+    this._lastMaskInitialWidth = resolveValue(maskConfig.width, this.options.defaultMaskWidth, "width");
     const maskId = ++this.maskCounter;
     mask.set({
       maskId,
@@ -1728,15 +1697,13 @@ var ImageEditor = class {
     this._lastMask = mask;
     this.canvas.add(mask);
     this.canvas.bringToFront(mask);
-    if (maskConfig.selectable)
-      this.canvas.setActiveObject(mask);
+    if (maskConfig.selectable) this.canvas.setActiveObject(mask);
     this._handleSelectionChanged([mask]);
     this._updateMaskList();
     this._updateUI();
     this.canvas.renderAll();
     this.saveState();
-    if (typeof maskConfig.onCreate === "function")
-      maskConfig.onCreate(mask, this.canvas);
+    if (typeof maskConfig.onCreate === "function") maskConfig.onCreate(mask, this.canvas);
     return mask;
   }
   /**
@@ -1756,8 +1723,7 @@ var ImageEditor = class {
   removeSelectedMask() {
     const activeObject = this.canvas.getActiveObject();
     const selectedMasks = this._getModifiedMasks(activeObject);
-    if (!selectedMasks.length)
-      return;
+    if (!selectedMasks.length) return;
     this.canvas.discardActiveObject();
     selectedMasks.forEach((mask) => {
       this._removeLabelForMask(mask);
@@ -1792,8 +1758,7 @@ var ImageEditor = class {
     this._updateMaskList();
     this._updateUI();
     this.canvas.renderAll();
-    if (saveHistory)
-      this.saveState();
+    if (saveHistory) this.saveState();
   }
   /**
    * Removes the label associated with the specified mask object, if it exists.
@@ -1802,8 +1767,7 @@ var ImageEditor = class {
    * @private
    */
   _removeLabelForMask(mask) {
-    if (!mask || !this.canvas)
-      return;
+    if (!mask || !this.canvas) return;
     if (mask.__label) {
       try {
         const canvasObjects = this.canvas.getObjects();
@@ -1811,10 +1775,12 @@ var ImageEditor = class {
           this.canvas.remove(mask.__label);
         }
       } catch (error) {
+        void error;
       }
       try {
         delete mask.__label;
       } catch (error) {
+        void error;
       }
     }
   }
@@ -1830,8 +1796,7 @@ var ImageEditor = class {
    */
   _getMaskCreationIndex(mask) {
     const maskId = Number(mask && mask.maskId);
-    if (Number.isFinite(maskId) && maskId > 0)
-      return Math.floor(maskId) - 1;
+    if (Number.isFinite(maskId) && maskId > 0) return Math.floor(maskId) - 1;
     const masks = this.canvas ? this.canvas.getObjects().filter((object) => object.maskId) : [];
     return Math.max(0, masks.indexOf(mask));
   }
@@ -1843,8 +1808,7 @@ var ImageEditor = class {
    * @private
    */
   _createLabelForMask(mask) {
-    if (!mask || !this.options.maskLabelOnSelect)
-      return;
+    if (!mask || !this.options.maskLabelOnSelect) return;
     this._removeLabelForMask(mask);
     let textObject = null;
     if (this.options.label && typeof this.options.label.create === "function") {
@@ -1886,15 +1850,14 @@ var ImageEditor = class {
    * @private
    */
   _hideAllMaskLabels() {
-    if (!this.canvas)
-      return;
+    if (!this.canvas) return;
     const canvasObjects = this.canvas.getObjects();
     const labels = canvasObjects.filter((object) => object.maskLabel);
     labels.forEach((label) => {
       try {
-        if (canvasObjects.includes(label))
-          this.canvas.remove(label);
+        if (canvasObjects.includes(label)) this.canvas.remove(label);
       } catch (error) {
+        void error;
       }
     });
     canvasObjects.forEach((object) => {
@@ -1902,6 +1865,7 @@ var ImageEditor = class {
         try {
           delete object.__label;
         } catch (error) {
+          void error;
         }
       }
     });
@@ -1913,15 +1877,11 @@ var ImageEditor = class {
    * @private
    */
   _syncMaskLabel(mask) {
-    if (!mask)
-      return;
-    if (!this.options.maskLabelOnSelect)
-      return;
-    if (!mask.__label)
-      return;
+    if (!mask) return;
+    if (!this.options.maskLabelOnSelect) return;
+    if (!mask.__label) return;
     const coords = mask.getCoords ? mask.getCoords() : null;
-    if (!coords || coords.length < 4)
-      return;
+    if (!coords || coords.length < 4) return;
     const tl = coords[0];
     const center = mask.getCenterPoint();
     const vx = center.x - tl.x;
@@ -1954,12 +1914,9 @@ var ImageEditor = class {
    * @private
    */
   _showLabelForMask(mask) {
-    if (!mask)
-      return;
-    if (!this.options.maskLabelOnSelect)
-      return;
-    if (!mask.__label)
-      this._createLabelForMask(mask);
+    if (!mask) return;
+    if (!this.options.maskLabelOnSelect) return;
+    if (!mask.__label) this._createLabelForMask(mask);
     mask.__label.set({ visible: true });
     this._syncMaskLabel(mask);
   }
@@ -1979,6 +1936,7 @@ var ImageEditor = class {
           try {
             this.canvas.remove(mask.__label);
           } catch (error) {
+            void error;
           }
           delete mask.__label;
         }
@@ -1991,8 +1949,7 @@ var ImageEditor = class {
         mask.set({ stroke: "#ff0000", strokeWidth: 1 });
       }
     });
-    if (selectedMask)
-      this._showLabelForMask(selectedMask);
+    if (selectedMask) this._showLabelForMask(selectedMask);
     this._updateMaskListSelection(selectedMask);
     this.canvas.renderAll();
     this._updateUI();
@@ -2004,8 +1961,7 @@ var ImageEditor = class {
    */
   _updateMaskList() {
     const maskListElement = document.getElementById(this.elements.maskList);
-    if (!maskListElement)
-      return;
+    if (!maskListElement) return;
     maskListElement.innerHTML = "";
     const masks = this.canvas.getObjects().filter((object) => object.maskId);
     masks.forEach((mask) => {
@@ -2027,8 +1983,7 @@ var ImageEditor = class {
    */
   _updateMaskListSelection(selectedMask) {
     const maskListElement = document.getElementById(this.elements.maskList);
-    if (!maskListElement)
-      return;
+    if (!maskListElement) return;
     const maskItems = maskListElement.querySelectorAll(".mask-item");
     maskItems.forEach((item) => {
       const isSelected = !!selectedMask && item.textContent === selectedMask.maskName;
@@ -2046,11 +2001,9 @@ var ImageEditor = class {
    * @public
    */
   async mergeMasks() {
-    if (!this.originalImage)
-      return;
+    if (!this.originalImage) return;
     const masks = this.canvas.getObjects().filter((object) => object.maskId);
-    if (!masks.length)
-      return;
+    if (!masks.length) return;
     this.canvas.discardActiveObject();
     this.canvas.renderAll();
     try {
@@ -2082,8 +2035,7 @@ var ImageEditor = class {
    * @public
    */
   downloadImage(fileName = this.options.defaultDownloadFileName) {
-    if (!this.originalImage)
-      return;
+    if (!this.originalImage) return;
     const exportImageArea = this.options.exportImageAreaByDefault;
     this.exportImageBase64({ exportImageArea, multiplier: this.options.exportMultiplier }).then((imageBase64) => {
       const link = document.createElement("a");
@@ -2111,8 +2063,7 @@ var ImageEditor = class {
    * @public
    */
   async exportImageBase64(options = {}) {
-    if (!this.originalImage)
-      throw new Error("No image loaded");
+    if (!this.originalImage) throw new Error("No image loaded");
     const exportImageArea = typeof options.exportImageArea === "boolean" ? options.exportImageArea : this.options.exportImageAreaByDefault;
     const multiplier = options.multiplier || this.options.exportMultiplier || 1;
     const quality = this._normalizeQuality(options.quality ?? this.options.downsampleQuality);
@@ -2140,6 +2091,7 @@ var ImageEditor = class {
           try {
             backup.object.set({ visible: backup.visible });
           } catch (error) {
+            void error;
           }
         });
         this.canvas.renderAll();
@@ -2187,6 +2139,7 @@ var ImageEditor = class {
           });
           backup.object.setCoords();
         } catch (error) {
+          void error;
         }
       });
       this.canvas.renderAll();
@@ -2222,8 +2175,7 @@ var ImageEditor = class {
    *   const file = await this.exportImageFile({ mergeMask: false, fileType: 'png' });
    */
   async exportImageFile(options = {}) {
-    if (!this.originalImage)
-      throw new Error("No image loaded");
+    if (!this.originalImage) throw new Error("No image loaded");
     const {
       mergeMask = true,
       fileType = "jpeg",
@@ -2287,8 +2239,7 @@ var ImageEditor = class {
   }
   async _restoreStateAfterCropFailure(beforeJson, message, error) {
     this._reportError(message, error);
-    if (this._cropRect && this.canvas)
-      this._removeCropRect();
+    if (this._cropRect && this.canvas) this._removeCropRect();
     this._cropRect = null;
     this._cropMode = false;
     if (this.canvas && this._prevSelectionSetting !== void 0) {
@@ -2303,8 +2254,7 @@ var ImageEditor = class {
       }
     }
     this._updateUI();
-    if (this.canvas)
-      this.canvas.renderAll();
+    if (this.canvas) this.canvas.renderAll();
   }
   _restoreCropObjectState() {
     if (Array.isArray(this._cropPrevEvented)) {
@@ -2316,14 +2266,14 @@ var ImageEditor = class {
             visible: state.visible
           });
         } catch (error) {
+          void error;
         }
       });
     }
     this._cropPrevEvented = null;
   }
   _removeCropRect() {
-    if (!this._cropRect)
-      return;
+    if (!this._cropRect) return;
     try {
       if (this._cropHandlers && this._cropHandlers.length) {
         this._cropHandlers.forEach((targetHandlers) => {
@@ -2333,10 +2283,12 @@ var ImageEditor = class {
         });
       }
     } catch (error) {
+      void error;
     }
     try {
       this.canvas.remove(this._cropRect);
     } catch (error) {
+      void error;
     }
     this._cropRect = null;
     this._cropHandlers = [];
@@ -2351,10 +2303,8 @@ var ImageEditor = class {
    * @public
    */
   enterCropMode() {
-    if (!this.canvas || !this.originalImage || this._cropMode)
-      return;
-    if (!this.isImageLoaded())
-      return;
+    if (!this.canvas || !this.originalImage || this._cropMode) return;
+    if (!this.isImageLoaded()) return;
     this._cropMode = true;
     this._prevSelectionSetting = this.canvas.selection;
     this.canvas.selection = false;
@@ -2406,10 +2356,10 @@ var ImageEditor = class {
             evented: false,
             selectable: false
           };
-          if (shouldHideMasks && (object.maskId || object.maskLabel))
-            updates.visible = false;
+          if (shouldHideMasks && (object.maskId || object.maskLabel)) updates.visible = false;
           object.set(updates);
         } catch (error) {
+          void error;
         }
       }
     });
@@ -2423,6 +2373,7 @@ var ImageEditor = class {
         cropRect.setCoords();
         this.canvas.requestRenderAll();
       } catch (error) {
+        void error;
       }
     };
     cropRect.on("modified", handleCropRectModified);
@@ -2446,8 +2397,7 @@ var ImageEditor = class {
    * @public
    */
   cancelCrop() {
-    if (!this.canvas || !this._cropMode)
-      return;
+    if (!this.canvas || !this._cropMode) return;
     this._removeCropRect();
     this._restoreCropObjectState();
     this._cropMode = false;
@@ -2469,14 +2419,13 @@ var ImageEditor = class {
    * @public
    */
   async applyCrop() {
-    if (!this.canvas || !this._cropMode || !this._cropRect)
-      return;
+    if (!this.canvas || !this._cropMode || !this._cropRect) return;
     this._cropRect.setCoords();
     const rectBounds = this._cropRect.getBoundingRect(true, true);
-    const cropRegion = this._getClampedCanvasRegion(rectBounds);
+    const cropRegion = this._getClampedCanvasRegion(rectBounds, { includePartialPixels: false });
     const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
     this._restoreCropObjectState();
-    let beforeJson = null;
+    let beforeJson;
     try {
       beforeJson = this._serializeCanvasState();
     } catch (error) {
@@ -2547,7 +2496,7 @@ var ImageEditor = class {
       await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: loadImage(croppedBase64) failed", error);
       return;
     }
-    let afterJson = null;
+    let afterJson;
     try {
       afterJson = this._serializeCanvasState();
     } catch (error) {
@@ -2570,8 +2519,7 @@ var ImageEditor = class {
    */
   _updateInputs() {
     const scaleInputElement = document.getElementById(this.elements.scaleRate);
-    if (scaleInputElement)
-      scaleInputElement.value = Math.round(this.currentScale * 100);
+    if (scaleInputElement) scaleInputElement.value = Math.round(this.currentScale * 100);
   }
   /**
    * Updates the enabled/disabled state of various UI controls (buttons)
@@ -2591,8 +2539,7 @@ var ImageEditor = class {
     if (isInCropMode) {
       for (const key of Object.keys(this.elements || {})) {
         const element = document.getElementById(this.elements[key]);
-        if (!element)
-          continue;
+        if (!element) continue;
         if (key === "applyCropBtn" || key === "cancelCropBtn") {
           this._setDisabled(key, false);
         } else {
@@ -2628,8 +2575,7 @@ var ImageEditor = class {
    */
   _setDisabled(key, disabled) {
     const element = document.getElementById(this.elements[key]);
-    if (!element)
-      return;
+    if (!element) return;
     if ("disabled" in element) {
       element.disabled = !!disabled;
       return;
@@ -2643,10 +2589,8 @@ var ImageEditor = class {
     }
   }
   _isElementDisabled(element) {
-    if (!element)
-      return false;
-    if ("disabled" in element)
-      return !!element.disabled;
+    if (!element) return false;
+    if ("disabled" in element) return !!element.disabled;
     return element.getAttribute("aria-disabled") === "true";
   }
   /**
@@ -2654,8 +2598,7 @@ var ImageEditor = class {
    * @private
    */
   _updatePlaceholderStatus() {
-    if (!this.options.showPlaceholder)
-      return;
+    if (!this.options.showPlaceholder) return;
     this._setPlaceholderVisible(!this.originalImage);
   }
   /**
@@ -2665,8 +2608,7 @@ var ImageEditor = class {
    * @private
    */
   _setPlaceholderVisible(show) {
-    if (!this.placeholderElement || !this.containerElement)
-      return;
+    if (!this.placeholderElement || !this.containerElement) return;
     if (show) {
       this.placeholderElement.classList.remove("d-none");
       this.placeholderElement.classList.add("d-flex");
@@ -2687,21 +2629,23 @@ var ImageEditor = class {
       for (const key in this._handlersByElementKey || {}) {
         const handlers = this._handlersByElementKey[key] || [];
         const element = document.getElementById(this.elements[key]);
-        if (!element)
-          continue;
+        if (!element) continue;
         handlers.forEach((handlerRecord) => {
           try {
             element.removeEventListener(handlerRecord.eventName, handlerRecord.handler);
           } catch (error) {
+            void error;
           }
         });
       }
     } catch (error) {
+      void error;
     }
     if (this._cropRect) {
       try {
         this.canvas.remove(this._cropRect);
       } catch (error) {
+        void error;
       }
       this._cropRect = null;
     }
@@ -2709,12 +2653,14 @@ var ImageEditor = class {
       try {
         this.containerElement.style.overflow = this._containerOriginalOverflow;
       } catch (error) {
+        void error;
       }
     }
     if (this.canvas) {
       try {
         this.canvas.dispose();
       } catch (error) {
+        void error;
       }
       this.canvas = null;
       this.canvasElement = null;
