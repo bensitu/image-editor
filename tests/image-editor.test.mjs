@@ -63,6 +63,32 @@ test('init wires DOM elements and default UI state before an image is loaded', a
     assert.equal(document.getElementById(ids.downloadBtn).disabled, true);
 });
 
+test('placeholder visibility uses standard DOM state without Bootstrap CSS', async (t) => {
+    const { editor, ids } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+    const containerElement = document.getElementById(ids.canvasContainer);
+
+    placeholderElement.className = 'd-none';
+    containerElement.className = '';
+
+    editor._setPlaceholderVisible(true);
+
+    assert.equal(placeholderElement.hidden, false);
+    assert.equal(placeholderElement.getAttribute('aria-hidden'), 'false');
+    assert.equal(placeholderElement.classList.contains('d-none'), false);
+    assert.equal(containerElement.hidden, true);
+    assert.equal(containerElement.getAttribute('aria-hidden'), 'true');
+    assert.equal(containerElement.classList.contains('d-none'), false);
+
+    editor._setPlaceholderVisible(false);
+
+    assert.equal(placeholderElement.hidden, true);
+    assert.equal(placeholderElement.getAttribute('aria-hidden'), 'true');
+    assert.equal(containerElement.hidden, false);
+    assert.equal(containerElement.getAttribute('aria-hidden'), 'false');
+});
+
 test('loadImage ignores invalid input and resolves only after a valid image is on canvas', async (t) => {
     let loadedCount = 0;
     const { editor } = await createEditor({

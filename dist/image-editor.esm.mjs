@@ -2609,15 +2609,22 @@ var ImageEditor = class {
    */
   _setPlaceholderVisible(show) {
     if (!this.placeholderElement || !this.containerElement) return;
-    if (show) {
-      this.placeholderElement.classList.remove("d-none");
-      this.placeholderElement.classList.add("d-flex");
-      this.containerElement.classList.add("d-none");
-    } else {
-      this.placeholderElement.classList.remove("d-flex");
-      this.placeholderElement.classList.add("d-none");
-      this.containerElement.classList.remove("d-none");
-    }
+    this._setElementVisible(this.placeholderElement, show);
+    this._setElementVisible(this.containerElement, !show);
+  }
+  /**
+   * Updates element visibility.
+   *
+   * @param {HTMLElement} element - Element whose visibility should be updated.
+   * @param {boolean} isVisible - If true, removes the hidden state.
+   * @returns {void}
+   * @private
+   */
+  _setElementVisible(element, isVisible) {
+    if (!element) return;
+    element.hidden = !isVisible;
+    element.setAttribute("aria-hidden", isVisible ? "false" : "true");
+    if (isVisible && element.classList) element.classList.remove("d-none");
   }
   /**
    * Cleans up and disposes of the canvas and related references.

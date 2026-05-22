@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avoid unnecessary Fabric `set()` calls while serializing mask styles for history snapshots.
 - Exclude trailing partial pixels when applying crop regions to prevent possible 1px JPEG edge artifacts.
 - Compensate for existing auto scrollbars when measuring the canvas container viewport.
+- Use standard DOM visibility state for placeholders instead of relying on Bootstrap utility classes.
 
 ## [1.3.0] - 2026-05-22
 
