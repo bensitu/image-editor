@@ -125,6 +125,36 @@ test('docs demo can load ImageEditor on GitHub Pages', () => {
     assert.equal(script.includes('getImageBase64('), false);
     assert.match(script, /imageInput:\s*null/);
     assert.match(script, /uploadArea:\s*null/);
+    assert.equal(/uploadArea:\s*['"]uploadArea['"]/.test(script), false);
+});
+
+test('docs demo exposes language switching, dark mode, and compact layout controls', () => {
+    const html = readFileSync('docs/index.html', 'utf8');
+    const css = readFileSync('docs/css/style.css', 'utf8');
+    const script = readFileSync('docs/js/script.js', 'utf8');
+
+    assert.match(html, /id="darkModeToggle"/);
+    assert.match(html, /data-language="en"[\s\S]*Flag_of_the_United_States\.svg/);
+    assert.match(html, /data-language="zh"[\s\S]*Flag_of_the_People%27s_Republic_of_China\.svg/);
+    assert.match(html, /data-language="ja"[\s\S]*Flag_of_Japan\.svg/);
+    assert.match(html, /data-language="ko"[\s\S]*Flag_of_South_Korea\.svg/);
+    assert.match(html, /data-language="fr"[\s\S]*Flag_of_France\.svg/);
+    assert.match(html, /data-language="es"[\s\S]*Flag_of_Spain\.svg/);
+    assert.match(html, /<section class="load-panel"[\s\S]*id="fitImage"[\s\S]*id="uploadArea"[\s\S]*id="base64Input"/);
+    assert.match(html, /id="legacyDemoToggle"[\s\S]*hidden/);
+    assert.match(html, /id="maskShapeSelect"[\s\S]*value="rect"[\s\S]*value="circle"[\s\S]*value="ellipse"[\s\S]*value="polygon"/);
+    assert.match(html, /data-bs-theme="light"/);
+    assert.match(css, /\.theme-switch\s*{/);
+    assert.match(css, /\.language-button\s*{/);
+    assert.match(css, /\[data-bs-theme="dark"\]\s*{/);
+    assert.match(script, /const translations = {/);
+    assert.match(script, /supportedLanguages = \['en', 'zh', 'ja', 'ko', 'fr', 'es'\]/);
+    assert.match(script, /applyLanguage\(buttonElement\.dataset\.language\)/);
+    assert.match(script, /document\.documentElement\.setAttribute\('data-bs-theme', theme\)/);
+    assert.match(script, /window\.matchMedia\('\(prefers-color-scheme: dark\)'\)/);
+    assert.match(script, /addMaskBtn:\s*null/);
+    assert.match(script, /editor\.createMask\(getSelectedMaskConfig\(\)\)/);
+    assert.match(script, /function canLoadImage\(\)/);
 });
 
 test('docs canvas container only shows scrollbars when content overflows', () => {
