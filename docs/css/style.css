@@ -473,7 +473,7 @@ input[type="number"]::-webkit-inner-spin-button {
 
 #canvasWrapper {
     width: 100%;
-    height: 100%;
+    height: clamp(460px, calc(100vh - 204px), 820px);
 }
 
 #imageContainer {
