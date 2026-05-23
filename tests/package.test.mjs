@@ -123,7 +123,7 @@ test('docs demo can load ImageEditor on GitHub Pages', () => {
 
     assert.match(html, /cdn\.jsdelivr\.net\/npm\/@bensitu\/image-editor\/dist\/image-editor\.js/);
     assert.equal(/<script\s+src=["']\.\.\/dist\/image-editor\.js/.test(html), false);
-    assert.match(html, /js\/script\.js\?v=1\.4\.0/);
+    assert.match(html, /loadScript\(['"]js\/script\.js['"]\)/);
     assert.equal(html.includes('onclick="getBase64Action()"'), false);
     assert.match(script, /exportImageBase64\(\)/);
     assert.equal(/\bgetImageBase64\s*\(/.test(script), false);
