@@ -68,7 +68,7 @@ jobs:
           fi
 
           TAG_NAME="v${VERSION}"
-          if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
             echo "Tag ${TAG_NAME} already exists." >&2
             exit 1
           fi

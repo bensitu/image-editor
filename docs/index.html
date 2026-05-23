@@ -79,6 +79,7 @@
                     <textarea id="base64Input" class="form-control" rows="2" placeholder="Paste data:image/jpeg;base64,..." data-i18n-placeholder="base64Placeholder"></textarea>
                     <button id="loadBtn" class="btn btn-primary" type="button" data-i18n="loadImage">Load</button>
                 </div>
+                <div id="demoError" class="demo-error" role="alert" hidden></div>
             </div>
         </section>
 
@@ -126,7 +127,7 @@
             <div class="tool-group" role="group" aria-label="Export actions">
                 <button id="mergeBtn" class="btn tool-button" type="button" data-i18n="merge">Merge</button>
                 <button id="downloadBtn" class="btn tool-button primary-action" type="button" data-i18n="download">Download</button>
-                <button id="base64Btn" class="btn tool-button" type="button" onclick="getBase64Action()" data-i18n="consoleBase64">Console Base64</button>
+                <button id="base64Btn" class="btn tool-button" type="button" data-i18n="consoleBase64">Console Base64</button>
             </div>
         </section>
 
@@ -165,7 +166,7 @@
             }
 
             function loadDemoScript() {
-                loadScript('js/script.js');
+                loadScript('js/script.js?v=1.4.0');
             }
 
             function loadImageEditor(index) {

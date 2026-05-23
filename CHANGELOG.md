@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-05-24
+
+### Added
+
+- Add transactional image loading, Fabric image creation timeout handling, and broader regression coverage for failed loads, history errors, crop undo, animation disposal, and mask ID restoration.
+- Add demo error feedback for failed image loads and direct event binding for the Base64 export action.
+
+### Changed
+
+- Export canvas regions directly through Fabric region export options to reduce peak memory usage and avoid asynchronous exposure of export-only mask styles.
+- Run independent esbuild outputs in parallel and include `docs/js/**/*.js` in lint coverage.
+- Preserve alpha-capable PNG/WebP formats during downsampling unless an explicit downsample MIME type is configured.
+- Preserve developer-defined canvas CSS sizing and reuse the last visible container viewport when layout is temporarily hidden.
+
+### Fixed
+
+- Fix history queue rejection handling, history overflow indexing, and async command execution ordering.
+- Fix animation cancellation during disposal and restore rotation origins on animation failure paths.
+- Fix `loadImage()` rollback for placeholder visibility, overflow, image state, and canvas state after load failures.
+- Fix duplicate mask IDs after merge, undo, and new mask creation.
+- Fix shared-parent placeholder layouts, Bootstrap visibility restoration, stale crop handlers, and crop preservation for rotated masks.
+- Fix public destructive/export operations so they reject or no-op clearly while animations are running.
+- Fix file loading for empty MIME types with image file extensions and reset file inputs after load attempts.
+- Fix demo null tolerance, dragleave flicker, release tag checks, mask list selection targeting, and export conversion failures when a 2D context is unavailable.
+
 ## [1.3.1] - 2026-05-23
 
 ### Changed

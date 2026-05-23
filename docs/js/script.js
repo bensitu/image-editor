@@ -198,10 +198,32 @@ const maskShapeConfigs = {
     polygon: { shape: 'polygon', points: [[0, 0], [80, 0], [40, 64]] }
 };
 
+function getOptionalElement(id) {
+    return document.getElementById(id);
+}
+
+function getErrorMessage(error) {
+    return error && error.message ? error.message : 'Image operation failed';
+}
+
+function showDemoError(error) {
+    const demoErrorElement = getOptionalElement('demoError');
+    if (!demoErrorElement) return;
+    demoErrorElement.textContent = getErrorMessage(error);
+    demoErrorElement.hidden = false;
+}
+
+function clearDemoError() {
+    const demoErrorElement = getOptionalElement('demoError');
+    if (!demoErrorElement) return;
+    demoErrorElement.textContent = '';
+    demoErrorElement.hidden = true;
+}
+
 function getStoredValue(key) {
     try {
         return window.localStorage.getItem(key);
-    } catch (error) {
+    } catch {
         return null;
     }
 }
@@ -209,7 +231,7 @@ function getStoredValue(key) {
 function setStoredValue(key, value) {
     try {
         window.localStorage.setItem(key, value);
-    } catch (error) {
+    } catch {
         return null;
     }
 }
@@ -250,7 +272,7 @@ function applyLanguage(language) {
         }
     });
 
-    const darkModeToggleElement = document.getElementById('darkModeToggle');
+    const darkModeToggleElement = getOptionalElement('darkModeToggle');
     if (darkModeToggleElement) {
         darkModeToggleElement.setAttribute('aria-label', languageTranslations.darkMode);
         darkModeToggleElement.closest('.theme-switch')?.setAttribute('title', languageTranslations.darkMode);
@@ -318,10 +340,11 @@ if (document.readyState === 'loading') {
 }
 
 function setOptions() {
-    const fitImageRadio = document.getElementById('fitImage');
-    const coverCanvasRadio = document.getElementById('coverCanvas');
-    const expandCanvasRadio = document.getElementById('expandCanvas');
-    if (fitImageRadio.checked) {
+    if (!editor) return;
+    const fitImageRadio = getOptionalElement('fitImage');
+    const coverCanvasRadio = getOptionalElement('coverCanvas');
+    const expandCanvasRadio = getOptionalElement('expandCanvas');
+    if (fitImageRadio?.checked || (!coverCanvasRadio?.checked && !expandCanvasRadio?.checked)) {
         editor.options.fitImageToCanvas = true;
         editor.options.coverImageToCanvas = false;
         editor.options.expandCanvasToImage = false;
@@ -343,9 +366,9 @@ function canLoadImage() {
 function updateDemoControls() {
     const hasLoadedImage = !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
     const isBusy = !!editor && (editor.isAnimating || editor._cropMode);
-    const addMaskButtonElement = document.getElementById('addMaskBtn');
-    const maskShapeSelectElement = document.getElementById('maskShapeSelect');
-    const loadButtonElement = document.getElementById('loadBtn');
+    const addMaskButtonElement = getOptionalElement('addMaskBtn');
+    const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
+    const loadButtonElement = getOptionalElement('loadBtn');
 
     if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || isBusy;
     if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
@@ -363,7 +386,7 @@ function scheduleDemoControlUpdate() {
 }
 
 function getSelectedMaskConfig() {
-    const selectedShape = document.getElementById('maskShapeSelect')?.value || 'rect';
+    const selectedShape = getOptionalElement('maskShapeSelect')?.value || 'rect';
     return { ...(maskShapeConfigs[selectedShape] || maskShapeConfigs.rect) };
 }
 
@@ -374,27 +397,44 @@ function handleAddMaskButtonClick() {
 }
 
 function loadFile(file) {
-    if (!file || !canLoadImage()) return;
+    if (!file || !canLoadImage()) return Promise.resolve();
 
+    clearDemoError();
     setOptions();
-    const reader = new FileReader();
-    reader.onload = function(loadEvent) {
-        const imageBase64 = loadEvent.target.result;
-        editor.loadImage(imageBase64).finally(updateDemoControls);
-    };
-    reader.readAsDataURL(file);
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(loadEvent) {
+            const imageBase64 = loadEvent.target.result;
+            editor.loadImage(imageBase64)
+                .then(resolve)
+                .catch(reject);
+        };
+        reader.onerror = () => reject(new Error('Image file could not be read'));
+        reader.readAsDataURL(file);
+    }).catch(function(error) {
+        showDemoError(error);
+        console.error(error);
+    }).finally(updateDemoControls);
 }
 
 function handleLoadButtonClick() {
     if (!canLoadImage()) return;
 
+    clearDemoError();
     setOptions();
-    const imageBase64 = document.getElementById('base64Input')?.value || '';
-    editor.loadImage(imageBase64).finally(updateDemoControls);
+    const imageBase64 = getOptionalElement('base64Input')?.value || '';
+    editor.loadImage(imageBase64)
+        .catch(function(error) {
+            showDemoError(error);
+            console.error(error);
+        })
+        .finally(updateDemoControls);
 }
 
 function handleImageInputChange(event) {
-    loadFile(event.target.files[0]);
+    loadFile(event.target.files[0]).finally(function() {
+        event.target.value = '';
+    });
 }
 
 function handleUploadAreaClick() {
@@ -405,7 +445,7 @@ function handleUploadAreaClick() {
 
 function handleUploadAreaDrop(event) {
     event.preventDefault();
-    uploadAreaElement.classList.remove('dragover');
+    uploadAreaElement?.classList.remove('dragover');
     if (!canLoadImage()) return;
 
     loadFile(event.dataTransfer.files[0]);
@@ -415,33 +455,34 @@ function handleUploadAreaDragOver(event) {
     event.preventDefault();
     if (!canLoadImage()) return;
 
-    uploadAreaElement.classList.add('dragover');
+    uploadAreaElement?.classList.add('dragover');
 }
 
-function handleUploadAreaDragLeave() {
-    uploadAreaElement.classList.remove('dragover');
+function handleUploadAreaDragLeave(event) {
+    if (event.relatedTarget && uploadAreaElement?.contains(event.relatedTarget)) return;
+    uploadAreaElement?.classList.remove('dragover');
 }
 
-const loadButtonElement = document.getElementById('loadBtn');
+const loadButtonElement = getOptionalElement('loadBtn');
 if (loadButtonElement) {
     loadButtonElement.addEventListener('click', handleLoadButtonClick);
 }
 
-const addMaskButtonElement = document.getElementById('addMaskBtn');
+const addMaskButtonElement = getOptionalElement('addMaskBtn');
 if (addMaskButtonElement) {
     addMaskButtonElement.addEventListener('click', handleAddMaskButtonClick);
 }
 
 ['cropBtn', 'applyCropBtn', 'cancelCropBtn'].forEach(function(buttonId) {
-    document.getElementById(buttonId)?.addEventListener('click', scheduleDemoControlUpdate);
+    getOptionalElement(buttonId)?.addEventListener('click', scheduleDemoControlUpdate);
 });
 
-const imageInputElement = document.getElementById('imageInput');
+const imageInputElement = getOptionalElement('imageInput');
 if (imageInputElement) {
     imageInputElement.addEventListener('change', handleImageInputChange);
 }
 
-const uploadAreaElement = document.getElementById('uploadArea');
+const uploadAreaElement = getOptionalElement('uploadArea');
 if (uploadAreaElement) {
     uploadAreaElement.addEventListener('click', handleUploadAreaClick);
     uploadAreaElement.addEventListener('drop', handleUploadAreaDrop);
@@ -455,7 +496,7 @@ document.querySelectorAll('.language-button').forEach(function(buttonElement) {
     });
 });
 
-const darkModeToggleElement = document.getElementById('darkModeToggle');
+const darkModeToggleElement = getOptionalElement('darkModeToggle');
 if (darkModeToggleElement) {
     const storedTheme = getStoredValue('imageEditorDemoTheme');
     const isDarkModeEnabled = getInitialTheme() === 'dark';
@@ -487,4 +528,9 @@ async function getBase64Action() {
     } catch (error) {
         console.error(error);
     }
+}
+
+const base64ButtonElement = getOptionalElement('base64Btn');
+if (base64ButtonElement) {
+    base64ButtonElement.addEventListener('click', getBase64Action);
 }

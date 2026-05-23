@@ -39,6 +39,8 @@ declare module '@bensitu/image-editor' {
     downsampleMaxWidth?: number;
     downsampleMaxHeight?: number;
     downsampleQuality?: number;
+    preserveSourceFormat?: boolean;
+    downsampleMimeType?: 'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp' | null;
     imageLoadTimeoutMs?: number;
 
     exportMultiplier?: number;

@@ -50,11 +50,9 @@ const builds = [
   }
 ];
 
-for (const build of builds) {
-  await esbuild.build({
+await Promise.all(builds.map(build => esbuild.build({
     ...shared,
     ...build
-  });
-}
+  })));
 
 console.log('✨  build finished!  ✨');

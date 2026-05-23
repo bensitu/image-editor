@@ -79,14 +79,50 @@ test('placeholder visibility uses standard DOM state without Bootstrap CSS', asy
     assert.equal(placeholderElement.classList.contains('d-none'), false);
     assert.equal(containerElement.hidden, true);
     assert.equal(containerElement.getAttribute('aria-hidden'), 'true');
-    assert.equal(containerElement.classList.contains('d-none'), false);
+    assert.equal(containerElement.classList.contains('d-none'), true);
 
     editor._setPlaceholderVisible(false);
 
     assert.equal(placeholderElement.hidden, true);
     assert.equal(placeholderElement.getAttribute('aria-hidden'), 'true');
+    assert.equal(placeholderElement.classList.contains('d-none'), true);
     assert.equal(containerElement.hidden, false);
     assert.equal(containerElement.getAttribute('aria-hidden'), 'false');
+    assert.equal(containerElement.classList.contains('d-none'), false);
+});
+
+test('placeholder visibility does not hide a shared canvas parent', async (t) => {
+    const { editor, ids } = await createEditor({ showPlaceholder: false });
+    t.after(() => disposeEditor(editor));
+    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+    const containerElement = document.getElementById(ids.canvasContainer);
+
+    containerElement.appendChild(placeholderElement);
+    editor.placeholderElement = placeholderElement;
+    editor._setPlaceholderVisible(true);
+
+    assert.equal(containerElement.hidden, false);
+    assert.equal(placeholderElement.hidden, false);
+    assert.equal(editor.canvas.wrapperEl.hidden, true);
+});
+
+test('disposing restores Bootstrap visibility and canvas inline sizing', async (t) => {
+    const { editor, ids } = await createEditor({ showPlaceholder: false });
+    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+    const containerElement = document.getElementById(ids.canvasContainer);
+    const canvasElement = document.getElementById(ids.canvas);
+
+    placeholderElement.className = 'd-flex custom-placeholder';
+    canvasElement.style.maxWidth = '100%';
+    editor._setPlaceholderVisible(false);
+    editor._setCanvasSizeInt(123, 77);
+
+    editor.dispose();
+    t.after(() => disposeEditor(editor));
+
+    assert.equal(placeholderElement.className, 'd-flex custom-placeholder');
+    assert.equal(containerElement.classList.contains('d-none'), false);
+    assert.equal(canvasElement.style.maxWidth, '100%');
 });
 
 test('loadImage ignores invalid input and resolves only after a valid image is on canvas', async (t) => {
@@ -109,6 +145,39 @@ test('loadImage ignores invalid input and resolves only after a valid image is o
     assert.equal(editor.originalImage.height, 60);
     assert.equal(editor.canvas.getObjects().filter(object => object.type === 'image').length, 1);
     assert.equal(loadedCount, 1);
+});
+
+test('loadImage rolls back canvas, placeholder, and overflow when Fabric image creation fails', async (t) => {
+    const { editor, ids } = await createEditor({
+        showPlaceholder: true,
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 80, height: 60 });
+    const originalImage = editor.originalImage;
+    const mask = editor.createMask({ width: 20, height: 20 });
+    const containerElement = document.getElementById(ids.canvasContainer);
+    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+
+    const originalFromURL = fabric.Image.fromURL;
+    fabric.Image.fromURL = (source, callback) => callback(null);
+    t.after(() => {
+        fabric.Image.fromURL = originalFromURL;
+    });
+
+    await assert.rejects(
+        () => editor.loadImage(makeImageDataUrl({ width: 40, height: 30 })),
+        /Image could not be loaded/
+    );
+
+    assert.equal(editor.originalImage.type, originalImage.type);
+    assert.equal(editor.isImageLoadedToCanvas, true);
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+    assert.equal(editor.canvas.getObjects().find(object => object.maskId).maskId, mask.maskId);
+    assert.equal(containerElement.hidden, false);
+    assert.equal(placeholderElement.hidden, true);
+    assert.equal(containerElement.style.overflow, 'scroll');
 });
 
 test('loadImage warns when mutually exclusive layout modes are enabled together', async (t) => {
@@ -186,6 +255,28 @@ test('loadImage downsamples images that exceed configured dimensions', async (t)
 
     assert.equal(editor.originalImage.width <= 40, true);
     assert.equal(editor.originalImage.height <= 30, true);
+});
+
+test('downsampling preserves alpha-capable source formats by default', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    const pngDataUrl = makeImageDataUrl({ width: 60, height: 40, format: 'image/png' });
+    const imageElement = await editor._createImageElement(pngDataUrl);
+
+    const resampled = editor._resampleImageToDataURL(imageElement, 30, 20, 0.92, pngDataUrl);
+
+    assert.match(resampled, /^data:image\/png;base64,/);
+});
+
+test('downsampling can explicitly convert alpha-capable sources to JPEG', async (t) => {
+    const { editor } = await createEditor({ downsampleMimeType: 'image/jpeg' });
+    t.after(() => disposeEditor(editor));
+    const pngDataUrl = makeImageDataUrl({ width: 60, height: 40, format: 'image/png' });
+    const imageElement = await editor._createImageElement(pngDataUrl);
+
+    const resampled = editor._resampleImageToDataURL(imageElement, 30, 20, 0.92, pngDataUrl);
+
+    assert.match(resampled, /^data:image\/jpeg;base64,/);
 });
 
 test('downsample and crop export fail clearly when a 2D canvas context is unavailable', async (t) => {
@@ -352,6 +443,34 @@ test('container viewport measurement compensates for existing auto scrollbars', 
     });
 });
 
+test('container viewport measurement reuses the last visible size when hidden', async (t) => {
+    const { editor, ids } = await createEditor({}, {
+        containerWidth: 220,
+        containerHeight: 140
+    });
+    t.after(() => disposeEditor(editor));
+    const container = document.getElementById(ids.canvasContainer);
+
+    assert.deepEqual(editor._getContainerViewportSize(), {
+        width: 220,
+        height: 140
+    });
+
+    Object.defineProperty(container, 'clientWidth', {
+        configurable: true,
+        value: 0
+    });
+    Object.defineProperty(container, 'clientHeight', {
+        configurable: true,
+        value: 0
+    });
+
+    assert.deepEqual(editor._getContainerViewportSize(), {
+        width: 220,
+        height: 140
+    });
+});
+
 test('scaleImage, rotateImage, and reset update image transform state', async (t) => {
     const { editor } = await createEditor({
         minScale: 0.5,
@@ -371,6 +490,41 @@ test('scaleImage, rotateImage, and reset update image transform state', async (t
     await editor.resetImageTransform();
     assert.equal(editor.currentScale, 1);
     assert.equal(editor.currentRotation, 0);
+});
+
+test('dispose rejects an active animation instead of leaving the queue stalled', async (t) => {
+    const { editor } = await createEditor({ animationDuration: 10000 });
+    await loadFixtureImage(editor);
+    editor.originalImage.animate = () => undefined;
+    const scalePromise = editor.scaleImage(1.2);
+    await waitForCanvasCallbacks(20);
+
+    editor.dispose();
+    t.after(() => disposeEditor(editor));
+
+    await assert.rejects(scalePromise, /disposed/i);
+    assert.equal(editor.canvas, null);
+});
+
+test('rotateImage restores origin when animation setup fails', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const image = editor.originalImage;
+    const originalAnimate = image.animate;
+    image.animate = () => {
+        throw new Error('forced animation failure');
+    };
+
+    await assert.rejects(
+        () => editor.rotateImage(45),
+        /forced animation failure/
+    );
+
+    assert.equal(image.originX, 'left');
+    assert.equal(image.originY, 'top');
+    assert.equal(editor.isAnimating, false);
+    image.animate = originalAnimate;
 });
 
 test('reset records a single undoable history transition', async (t) => {
@@ -533,10 +687,13 @@ test('createMask supports standard shapes, labels, DOM list updates, and remove 
     assert.equal(rect.lockRotation, false);
     assert.ok(rect.__label);
     assert.equal(document.getElementById(ids.maskList).children.length, 1);
+    assert.equal(document.getElementById(ids.maskList).children[0].dataset.maskId, '1');
 
     const circle = editor.createMask({ shape: 'circle', radius: 10 });
     assert.equal(circle.type, 'circle');
-    assert.equal(circle.left, rect.left + rect.getScaledWidth() + 5);
+    rect.setCoords();
+    const rectBounds = rect.getBoundingRect(true, true);
+    assert.equal(circle.left, Math.round(rectBounds.left + rectBounds.width + 5));
 
     const polygon = editor.createMask({
         shape: 'polygon',
@@ -846,6 +1003,23 @@ test('label getText receives a stable zero-based mask creation index', async (t)
     ]);
 });
 
+test('invalid custom label factories emit a warning and fall back to default labels', async (t) => {
+    const warnings = [];
+    const { editor } = await createEditor({
+        label: {
+            create: () => null
+        },
+        onWarning: (error, message) => warnings.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    const mask = editor.createMask({ width: 20, height: 20 });
+
+    assert.equal(mask.__label.type, 'text');
+    assert.equal(warnings.some(entry => /label\.create/.test(entry.message)), true);
+});
+
 test('exportImageBase64 exports image data and restores mask state when export fails', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -936,6 +1110,28 @@ test('exportImageBase64 exportImageArea false preserves image transforms and omi
     assert.equal(size.height, 80);
 });
 
+test('export and merge APIs reject while an animation is running', async (t) => {
+    const { editor } = await createEditor({ animationDuration: 10000 });
+    await loadFixtureImage(editor);
+    editor.createMask({ width: 20, height: 20 });
+    editor.originalImage.animate = () => undefined;
+    const scalePromise = editor.scaleImage(1.2);
+    await waitForCanvasCallbacks(20);
+
+    await assert.rejects(
+        () => editor.exportImageBase64(),
+        /animation is running/
+    );
+    await assert.rejects(
+        () => editor.mergeMasks(),
+        /animation is running/
+    );
+
+    editor.dispose();
+    t.after(() => disposeEditor(editor));
+    await assert.rejects(scalePromise, /disposed/i);
+});
+
 test('exportImageFile creates a typed image File with and without merged masks', async (t) => {
     const { editor } = await createEditor({
         defaultDownloadFileName: 'unit-export.jpg'
@@ -985,6 +1181,28 @@ test('exportImageFile forwards quality to exportImageBase64 for both export mode
     assert.equal(calls[1].fileType, 'jpeg');
 });
 
+test('exportImageFile fails clearly when conversion cannot create a 2D context', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const pngDataUrl = makeImageDataUrl({ width: 8, height: 8, format: 'image/png' });
+    editor.exportImageBase64 = async () => pngDataUrl;
+    const originalCreateElement = document.createElement.bind(document);
+    document.createElement = (tagName) => {
+        const element = originalCreateElement(tagName);
+        if (tagName === 'canvas') element.getContext = () => null;
+        return element;
+    };
+    t.after(() => {
+        document.createElement = originalCreateElement;
+    });
+
+    await assert.rejects(
+        () => editor.exportImageFile({ fileType: 'jpeg' }),
+        /Unable to create 2D canvas context/
+    );
+});
+
 test('downloadImage builds and clicks an anchor for the exported image', async (t) => {
     const { editor } = await createEditor({
         defaultDownloadFileName: 'download.jpg'
@@ -1027,6 +1245,24 @@ test('mergeMasks flattens masks into a newly loaded base image', async (t) => {
     assert.equal(editor.isImageLoadedToCanvas, true);
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
     assert.equal(editor.canvas.getObjects().filter(object => object.type === 'image').length, 1);
+});
+
+test('mergeMasks undo followed by createMask does not reuse restored mask ids', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    editor.createMask({ width: 30, height: 30 });
+
+    await editor.mergeMasks();
+    await editor.undo();
+    const newMask = editor.createMask({ width: 20, height: 20 });
+    const maskIds = editor.canvas.getObjects()
+        .filter(object => object.maskId)
+        .map(object => object.maskId)
+        .sort((a, b) => a - b);
+
+    assert.deepEqual(maskIds, [1, 2]);
+    assert.equal(newMask.maskId, 2);
 });
 
 test('mergeMasks preserves cover-canvas scroll position while reloading the flattened image', async (t) => {
@@ -1161,18 +1397,35 @@ test('applyCrop undo restores interactive masks from the before snapshot', async
     });
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor, { width: 160, height: 120 });
-    editor.createMask({ width: 30, height: 30 });
+    const mask = editor.createMask({
+        left: 24,
+        top: 28,
+        width: 30,
+        height: 30,
+        styles: {
+            stroke: '#123456',
+            strokeWidth: 4
+        }
+    });
+    editor._showLabelForMask(mask);
 
     editor.enterCropMode();
     await editor.applyCrop();
-    editor.undo();
-    await waitForCanvasCallbacks(100);
+    await editor.undo();
 
     const restoredMask = editor.canvas.getObjects().find(object => object.maskId);
     assert.ok(restoredMask);
+    assert.equal(restoredMask.maskId, mask.maskId);
+    assert.equal(restoredMask.maskName, mask.maskName);
+    assert.equal(restoredMask.left, 24);
+    assert.equal(restoredMask.top, 28);
+    assert.equal(restoredMask.originalStroke, '#123456');
+    assert.equal(restoredMask.originalStrokeWidth, 4);
     assert.equal(restoredMask.visible, true);
     assert.equal(restoredMask.evented, true);
     assert.equal(restoredMask.selectable, true);
+    editor._showLabelForMask(restoredMask);
+    assert.ok(restoredMask.__label);
 });
 
 test('applyCrop preserves and shifts masks when preserveMasksAfterCrop is enabled', async (t) => {
@@ -1198,6 +1451,32 @@ test('applyCrop preserves and shifts masks when preserveMasksAfterCrop is enable
     assert.equal(masks[0].top, 10);
     assert.equal(masks[0].evented, true);
     assert.equal(masks[0].selectable, true);
+});
+
+test('applyCrop shifts preserved rotated masks by visual center', async (t) => {
+    const { editor } = await createEditor({
+        maskRotatable: true,
+        crop: {
+            minWidth: 40,
+            minHeight: 40,
+            preserveMasksAfterCrop: true
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+    const mask = editor.createMask({ left: 50, top: 55, width: 30, height: 30, angle: 35 });
+    const centerBefore = mask.getCenterPoint();
+
+    editor.enterCropMode();
+    editor._cropRect.set({ left: 20, top: 25, width: 120, height: 90, scaleX: 1, scaleY: 1 });
+    editor._cropRect.setCoords();
+    await editor.applyCrop();
+
+    const restoredMask = editor.canvas.getObjects().find(object => object.maskId);
+    const centerAfter = restoredMask.getCenterPoint();
+    assert.ok(Math.abs(centerAfter.x - (centerBefore.x - 20)) < 0.001);
+    assert.ok(Math.abs(centerAfter.y - (centerBefore.y - 25)) < 0.001);
+    assert.equal(restoredMask.angle, 35);
 });
 
 test('applyCrop exports crop regions without trailing partial pixels', async (t) => {
@@ -1327,6 +1606,53 @@ test('overlapping undo and redo calls remain serialized by the history queue', a
     const masks = editor.canvas.getObjects().filter(object => object.maskId);
     assert.equal(masks.length, 1);
     assert.equal(masks[0].maskId, 1);
+});
+
+test('history undo rejection preserves the current index and reports the failure', async (t) => {
+    const errors = [];
+    const { editor } = await createEditor({
+        onError: (error, message) => errors.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    editor.createMask({ width: 20, height: 20 });
+    const currentIndex = editor.historyManager.currentIndex;
+    const originalLoadFromState = editor.loadFromState.bind(editor);
+    editor.loadFromState = () => Promise.reject(new Error('forced restore failure'));
+
+    await assert.rejects(
+        () => editor.undo(),
+        /forced restore failure/
+    );
+
+    assert.equal(editor.historyManager.currentIndex, currentIndex);
+    assert.equal(errors.some(entry => entry.message === 'undo failed'), true);
+
+    editor.loadFromState = originalLoadFromState;
+    await editor.undo();
+    assert.equal(editor.historyManager.currentIndex, currentIndex - 1);
+});
+
+test('history overflow keeps the current index aligned with shifted commands', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    editor.historyManager.maxSize = 2;
+
+    editor.createMask({ width: 20, height: 20 });
+    editor.createMask({ width: 20, height: 20 });
+    editor.createMask({ width: 20, height: 20 });
+
+    assert.equal(editor.historyManager.history.length, 2);
+    assert.equal(editor.historyManager.currentIndex, 1);
+
+    await editor.undo();
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 2);
+    assert.equal(editor.historyManager.currentIndex, 0);
+
+    await editor.undo();
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+    assert.equal(editor.historyManager.currentIndex, -1);
 });
 
 test('mask hover handlers are rebound after undo and redo restores state', async (t) => {
@@ -1550,6 +1876,32 @@ test('workflow loads through file input, zooms, adds a mask, and exports PNG', a
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
     assert.equal(file.name, 'plain-workflow.png');
     assert.equal(file.type, 'image/png');
+});
+
+test('file loading accepts image extensions when MIME type is empty and resets the input', async (t) => {
+    let resolveLoaded;
+    const loadedPromise = new Promise(resolve => { resolveLoaded = resolve; });
+    const { editor, ids } = await createEditor({
+        onImageLoaded: resolveLoaded
+    });
+    t.after(() => disposeEditor(editor));
+
+    const input = document.getElementById(ids.imageInput);
+    const file = dataUrlToFile(makeImageDataUrl({ width: 48, height: 32 }), 'empty-type.png');
+    Object.defineProperty(file, 'type', {
+        configurable: true,
+        value: ''
+    });
+    Object.defineProperty(input, 'files', {
+        configurable: true,
+        value: [file]
+    });
+    input.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await loadedPromise;
+    await waitForCanvasCallbacks(20);
+
+    assert.equal(editor.isImageLoaded(), true);
+    assert.equal(input.value, '');
 });
 
 test('workflow loads base64, fits image, rotates, crops, then undo and redo restore crop states', async (t) => {

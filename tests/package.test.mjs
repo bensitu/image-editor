@@ -101,6 +101,8 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /applyCrop/);
     assert.match(declaration, /export interface LoadImageOptions/);
     assert.match(declaration, /imageLoadTimeoutMs\?: number/);
+    assert.match(declaration, /preserveSourceFormat\?: boolean/);
+    assert.match(declaration, /downsampleMimeType\?:/);
     assert.match(declaration, /loadImage\(imageBase64: string, options\?: LoadImageOptions\): Promise<void>;/);
     assert.match(declaration, /export interface RemoveAllMasksOptions/);
     assert.match(declaration, /removeAllMasks\(options\?: RemoveAllMasksOptions\): void;/);
@@ -121,8 +123,10 @@ test('docs demo can load ImageEditor on GitHub Pages', () => {
 
     assert.match(html, /cdn\.jsdelivr\.net\/npm\/@bensitu\/image-editor\/dist\/image-editor\.js/);
     assert.equal(/<script\s+src=["']\.\.\/dist\/image-editor\.js/.test(html), false);
+    assert.match(html, /js\/script\.js\?v=1\.4\.0/);
+    assert.equal(html.includes('onclick="getBase64Action()"'), false);
     assert.match(script, /exportImageBase64\(\)/);
-    assert.equal(script.includes('getImageBase64('), false);
+    assert.equal(/\bgetImageBase64\s*\(/.test(script), false);
     assert.match(script, /imageInput:\s*null/);
     assert.match(script, /uploadArea:\s*null/);
     assert.equal(/uploadArea:\s*['"]uploadArea['"]/.test(script), false);
@@ -155,6 +159,8 @@ test('docs demo exposes language switching, dark mode, and compact layout contro
     assert.match(script, /addMaskBtn:\s*null/);
     assert.match(script, /editor\.createMask\(getSelectedMaskConfig\(\)\)/);
     assert.match(script, /function canLoadImage\(\)/);
+    assert.match(script, /function getOptionalElement\(id\)/);
+    assert.match(script, /base64ButtonElement\.addEventListener\('click', getBase64Action\)/);
 });
 
 test('docs canvas container only shows scrollbars when content overflows', () => {
@@ -173,6 +179,7 @@ test('release workflows attach npm artifacts and publish the reviewed artifact m
     assert.match(draftReleaseWorkflow, /npm ci --include=optional/);
     assert.match(draftReleaseWorkflow, /npm pack --json/);
     assert.match(draftReleaseWorkflow, /sha256sum "\$\{PACKAGE_TARBALL\}"/);
+    assert.match(draftReleaseWorkflow, /git ls-remote --exit-code --tags origin "refs\/tags\/\$\{TAG_NAME\}"/);
     assert.match(draftReleaseWorkflow, /git tag -a "\$\{TAG_NAME\}"/);
     assert.match(draftReleaseWorkflow, /gh release create "\$\{TAG_NAME\}" "\$\{PACKAGE_TARBALL\}" "\$\{PACKAGE_CHECKSUM\}" --draft/);
     assert.equal(/1\.3\.0|v1\.3\.0/.test(draftReleaseWorkflow), false);

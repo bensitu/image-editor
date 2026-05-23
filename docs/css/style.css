@@ -345,6 +345,17 @@ input[type="number"]::-webkit-inner-spin-button {
     background: var(--accent-strong);
 }
 
+.demo-error {
+    min-height: 18px;
+    color: var(--bs-danger-text-emphasis);
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+.demo-error[hidden] {
+    display: none;
+}
+
 .tool-panel {
     display: flex;
     flex-wrap: nowrap;

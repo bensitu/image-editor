@@ -10,7 +10,7 @@ export default [
     },
     js.configs.recommended,
     {
-        files: ['src/**/*.js'],
+        files: ['src/**/*.js', 'docs/js/**/*.js'],
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'module',
@@ -22,6 +22,12 @@ export default [
         rules: {
             'no-console': 'warn',
             'no-unused-vars': 'warn'
+        }
+    },
+    {
+        files: ['docs/js/**/*.js'],
+        rules: {
+            'no-console': 'off'
         }
     }
 ];
