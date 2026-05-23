@@ -1,0 +1,143 @@
+name: Draft GitHub release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version to release. Prefix with v is optional.'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: draft-release-${{ github.event.inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  draft-release:
+    name: Create tag and draft release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.14.0
+
+      - name: Install native canvas dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libcairo2-dev \
+            libpango1.0-dev \
+            libjpeg-dev \
+            libgif-dev \
+            librsvg2-dev
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Validate requested version
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${VERSION#v}"
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must be a semantic version. Prefix with v is optional." >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "${PACKAGE_VERSION}" != "${VERSION}" ]]; then
+            echo "package.json version (${PACKAGE_VERSION}) must match requested version (${VERSION})." >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "Draft releases must be created from main. Current ref: ${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+
+          TAG_NAME="v${VERSION}"
+          if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Tag ${TAG_NAME} already exists." >&2
+            exit 1
+          fi
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Release ${TAG_NAME} already exists." >&2
+            exit 1
+          fi
+
+          {
+            echo "VERSION=${VERSION}"
+            echo "TAG_NAME=${TAG_NAME}"
+          } >> "${GITHUB_ENV}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build, test, and pack release artifact
+        shell: bash
+        run: |
+          npm run lint
+          npm test
+
+          PACKAGE_TARBALL="$(
+            npm pack --json | node -e '
+              let input = "";
+              process.stdin.setEncoding("utf8");
+              process.stdin.on("data", (chunk) => input += chunk);
+              process.stdin.on("end", () => {
+                const [packResult] = JSON.parse(input);
+                console.log(packResult.filename);
+              });
+            '
+          )"
+          sha256sum "${PACKAGE_TARBALL}" > "${PACKAGE_TARBALL}.sha256"
+
+          {
+            echo "PACKAGE_TARBALL=${PACKAGE_TARBALL}"
+            echo "PACKAGE_CHECKSUM=${PACKAGE_TARBALL}.sha256"
+          } >> "${GITHUB_ENV}"
+
+      - name: Extract changelog notes
+        shell: bash
+        run: |
+          awk -v version="${VERSION}" '
+            $0 ~ "^## \\[" version "\\]" { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > release-notes.md
+
+          if [[ ! -s release-notes.md ]]; then
+            echo "CHANGELOG.md does not contain notes for ${VERSION}." >&2
+            exit 1
+          fi
+
+      - name: Create tag
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+          git push origin "${TAG_NAME}"
+
+      - name: Create draft release
+        shell: bash
+        run: |
+          if ! gh release create "${TAG_NAME}" "${PACKAGE_TARBALL}" "${PACKAGE_CHECKSUM}" --draft --title "${TAG_NAME}" --notes-file release-notes.md --target "${GITHUB_SHA}"; then
+            git push --delete origin "${TAG_NAME}" || true
+            git tag -d "${TAG_NAME}" || true
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
