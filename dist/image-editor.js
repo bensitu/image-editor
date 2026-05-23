@@ -298,6 +298,10 @@
         if (containerWidth > 0 && containerHeight > 0) {
           initialWidth = containerWidth;
           initialHeight = containerHeight;
+          this._lastContainerViewportSize = {
+            width: containerWidth,
+            height: containerHeight
+          };
         }
       }
       this.canvas = new fabric.Canvas(canvasElement, {
@@ -572,12 +576,13 @@
         }
         const fabricImage = await this._createFabricImageFromURL(loadSource);
         if (this._disposed || !this.canvas) throw new Error("Editor was disposed while loading image");
-        this._syncContainerOverflow({ preserveScroll: options.preserveScroll === true });
         this.canvas.discardActiveObject();
         this._hideAllMaskLabels();
         this.canvas.clear();
         this.canvas.setBackgroundColor(this.options.backgroundColor, this.canvas.renderAll.bind(this.canvas));
         fabricImage.set({ originX: "left", originY: "top", selectable: false, evented: false });
+        this._setPlaceholderVisible(false);
+        this._syncContainerOverflow({ preserveScroll: options.preserveScroll === true });
         const imageWidth = fabricImage.width;
         const imageHeight = fabricImage.height;
         const viewport = this._getContainerViewportSize();
@@ -620,7 +625,6 @@
         if (options.resetMaskCounter !== false) this.maskCounter = 0;
         this.currentScale = 1;
         this.currentRotation = 0;
-        this._setPlaceholderVisible(false);
         this._updateInputs();
         this._updateMaskList();
         this.isImageLoadedToCanvas = true;
@@ -1359,8 +1363,10 @@
     _expandCanvasToFitObjects(fabricObjects, padding = 10) {
       if (!this.canvas || !Array.isArray(fabricObjects) || !fabricObjects.length || !this._shouldResizeCanvasToContentBounds()) return;
       try {
-        let requiredWidth = this.canvas.getWidth();
-        let requiredHeight = this.canvas.getHeight();
+        const currentWidth = this.canvas.getWidth();
+        const currentHeight = this.canvas.getHeight();
+        let requiredWidth = currentWidth;
+        let requiredHeight = currentHeight;
         fabricObjects.forEach((fabricObject) => {
           if (!fabricObject) return;
           if (typeof fabricObject.setCoords === "function") fabricObject.setCoords();
@@ -1368,11 +1374,21 @@
           requiredWidth = Math.max(requiredWidth, Math.ceil(boundingRect.left + boundingRect.width + padding));
           requiredHeight = Math.max(requiredHeight, Math.ceil(boundingRect.top + boundingRect.height + padding));
         });
-        const minWidth = this.containerElement ? Math.floor(this.containerElement.clientWidth || 0) : 0;
-        const minHeight = this.containerElement ? Math.floor(this.containerElement.clientHeight || 0) : 0;
-        const newWidth = Math.max(this.canvas.getWidth(), minWidth, requiredWidth);
-        const newHeight = Math.max(this.canvas.getHeight(), minHeight, requiredHeight);
-        if (newWidth !== this.canvas.getWidth() || newHeight !== this.canvas.getHeight()) {
+        const shouldUseScrollSafeViewport = this.options.fitImageToCanvas || this.options.coverImageToCanvas;
+        let minWidth = 0;
+        let minHeight = 0;
+        if (shouldUseScrollSafeViewport) {
+          const viewport = this._getContainerViewportSize();
+          const safetyMargin = this._getScrollSafetyMargin();
+          minWidth = Math.max(1, viewport.width - safetyMargin);
+          minHeight = Math.max(1, viewport.height - safetyMargin);
+        } else if (this.containerElement) {
+          minWidth = Math.floor(this.containerElement.clientWidth || 0);
+          minHeight = Math.floor(this.containerElement.clientHeight || 0);
+        }
+        const newWidth = Math.max(currentWidth, minWidth, requiredWidth);
+        const newHeight = Math.max(currentHeight, minHeight, requiredHeight);
+        if (newWidth !== currentWidth || newHeight !== currentHeight) {
           this._setCanvasSizeInt(newWidth, newHeight);
         }
       } catch (error) {
