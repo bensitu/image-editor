@@ -1,0 +1,140 @@
+/**
+ * @file fabric-animation.ts
+ * @description Promise-shaped wrapper around Fabric.js v7's
+ *              {@link FabricNS.FabricObject.animate} for the v2 transform
+ *              pipeline. v7's `animate(props, opts)` returns an
+ *              `Animation[]`-like map of contexts (one per animated
+ *              property) and signals completion through the `onComplete`
+ *              callback rather than a Promise. To plug it into the
+ *              {@link../animation/animation-queue.AnimationQueue}, we wrap
+ *              the call into a single Promise that resolves only after
+ *              every property animation has fired its callback.
+ *
+ * ## Owned contracts
+ *
+ * - Wrap only Fabric v7-compatible APIs. v7's
+ *   `obj.animate` returns `Animation[]` (a map of per-property contexts)
+ *   and reports completion via `onComplete`; multi-property tweens fire
+ *   the callback once per property. {@link animateProps} hides that shape
+ *   behind a single Promise so callers do not encode v7-specific shapes.
+ * - `scaleImage(factor)` animates the original
+ *   image over `options.animationDuration`. `scaleX` and `scaleY` are
+ *   tweened together, so the resolution count is two — see
+ *   {@link animateProps}.
+ * - `rotateImage(degrees)` animates `angle` over
+ *   `options.animationDuration`. The single-property case still flows
+ *   through the same wrapper and resolves on the first `onComplete`.
+ * - In-flight animation callbacks check
+ *   `_disposed` (via {@link../core/operation-guard.OperationGuard.isDisposed})
+ *   before touching the canvas. {@link animateProps} short-circuits the
+ *   `onChange` invocation when the editor has been disposed and still
+ *   settles its Promise so queued callers never hang
+ *   ({@link../animation/animation-queue.AnimationQueue} contract).
+ * - Rotation animations temporarily set the image
+ *   origin to `'center'/'center'` so Fabric tweens around the visual
+ *   centroid. If dispose interrupts the animation between begin and the
+ *   post-animation origin restore in `image/transform-controller.ts`,
+ *   {@link restoreOrigin} replays the origin restore on the original
+ *   image so it is not left in the temporary center-origin state.
+ *
+ * The wrapper does not call `saveState`, mark the queue, or set
+ * `isAnimating` — those live in the orchestrator and {@link
+ *../core/operation-guard.OperationGuard}. This file is intentionally
+ * tiny: it owns one Fabric v7 quirk (the `Animation[]` return shape) and
+ * one dispose-safety detail (origin restore on interrupt). Per the
+ * Module Responsibilities table, it is NOT re-exported from
+ * `src/index.ts`.
+ */
+import type * as FabricNS from 'fabric';
+import type { OperationGuard } from '../core/operation-guard.js';
+/**
+ * Options accepted by {@link animateProps}.
+ *
+ * Mirrors the subset of Fabric's `AnimationOptions` that the v2 transform
+ * pipeline uses. Additional fields (easing, duration jitter, etc.) are
+ * intentionally omitted so the wrapper has a single observable shape per
+ */
+export interface AnimateOptions {
+    /** Animation duration in milliseconds (matches `options.animationDuration`). */
+    duration: number;
+    /**
+     * Per-frame hook. Called on every Fabric animation tick while the
+     * editor is not disposed. Typically used to call
+     * `canvas.requestRenderAll`.
+     *
+     * The wrapper guards this call with {@link OperationGuard.isDisposed}
+     * so post-dispose ticks become no-ops.
+     */
+    onChange?: () => void;
+}
+/**
+ * Animate one or more numeric properties on a Fabric object and resolve
+ * a single Promise once **all** property animations have completed.
+ *
+ * In Fabric v7, `obj.animate(props, opts)` returns a per-property
+ * `Animation[]`-like map and signals completion via the `onComplete`
+ * callback. For multi-property tweens (e.g. `scale` requires both
+ * `scaleX` and `scaleY`), `onComplete` fires once per property — so we
+ * count completions before resolving.
+ *
+ * Dispose safety:
+ *
+ * - When the editor is disposed mid-animation, {@link AnimateOptions.onChange}
+ *   becomes a no-op so canvas references that may already be torn down
+ *   are not touched.
+ * - The Promise still settles (resolves) so the
+ *   {@link../animation/animation-queue.AnimationQueue} can drain queued
+ *   callers without hanging.
+ *
+ * Caller responsibilities:
+ *
+ * - The caller (transform controller) is responsible for the post-animation
+ *   `obj.set({...}); obj.setCoords;` snap so the final value is exact even
+ *   if Fabric rounds the last tick. The wrapper does not commit values.
+ * - The caller is responsible for `OperationGuard.runAnimation` bracketing
+ *   so `isAnimating` is `false` before the returned Promise resolves.
+ *
+ * @typeParam T  Concrete Fabric object subtype (FabricImage, Rect, etc.).
+ * @param obj      Fabric object to animate.
+ * @param props    Map of property names to target numeric values (e.g.
+ *                 `{ scaleX: 1.5, scaleY: 1.5}` or `{ angle: 90}`).
+ * @param options  Duration and per-tick hook.
+ * @param guard    Operation guard providing the `_disposed` flag that
+ *                 inner callbacks consult before touching the canvas.
+ * @returns        Resolves once every animated property has signalled
+ *                 completion. Rejects only if `obj.animate` itself throws
+ *                 synchronously (an empty `props` map resolves immediately).
+ *
+ */
+export declare function animateProps<T extends FabricNS.FabricObject>(obj: T, props: Record<string, number>, options: AnimateOptions, guard: OperationGuard): Promise<void>;
+/**
+ * Restore the `originX` / `originY` pair on a Fabric object after a
+ * rotation animation has been interrupted by dispose.
+ *
+ * `image/transform-controller.ts.rotateImage` temporarily sets the image
+ * origin to `'center'/'center'` so Fabric tweens the angle around the
+ * visual centroid (Fabric v7 defaults `originX`/`originY` to `'center'`,
+ * but the v1-compat path uses `'left'/'top'` for placement math). The
+ * controller restores the original origin after the animation resolves.
+ * If dispose runs between begin and the post-animation restore, the
+ * controller's restore branch is skipped — leaving the image in the
+ * temporary center-origin state. This helper replays the restore so a
+ * post-dispose inspector (or a re-init that reuses the image reference)
+ * sees the documented top-left origin.
+ *
+ * The helper is intentionally side-effect-tolerant:
+ *
+ * - Errors are swallowed because the canvas may already have been
+ *   disposed and `setCoords` could throw on a torn-down object. The
+ *   point of the helper is best-effort cleanup, not a hard guarantee.
+ * - It does NOT request a render. The canvas is, by contract, on its way
+ *   out (this is only called from the dispose path).
+ *
+ * @param obj      Fabric object whose origin pair needs restoring.
+ *                 In practice this is the editor's `originalImage`.
+ * @param originX  Origin to restore on the X axis (typically `'left'`).
+ * @param originY  Origin to restore on the Y axis (typically `'top'`).
+ *
+ */
+export declare function restoreOrigin(obj: FabricNS.FabricObject, originX: FabricNS.TOriginX, originY: FabricNS.TOriginY): void;
+//# sourceMappingURL=fabric-animation.d.ts.map

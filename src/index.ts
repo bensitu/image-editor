@@ -1,38 +1,57 @@
 /**
  * @file index.ts
- * @description Public API barrel for the image-editor library.
+ * @description Canonical public API barrel for the image-editor library.
+ *
+ * The package surface consists of:
+ *   - `ImageEditor` (default and named export) — the only public class.
+ *   - `isMaskObject` — runtime type guard for mask objects.
+ *   - The documented public types listed below.
+ *
+ * Internal helpers (animation queue, command, history manager, controllers,
+ * services, managers, and utility modules) are intentionally not re-exported;
+ * they are implementation details and may change without notice.
  *
  * @example
  * ```ts
  * import * as fabric from 'fabric';
- * import { ImageEditor } from 'image-editor';
- * import type { ImageEditorOptions, MaskConfig, MaskObject } from 'image-editor';
+ * import { ImageEditor} from 'image-editor';
+ * import type { ImageEditorOptions, MaskConfig, MaskObject} from 'image-editor';
  * ```
  */
 
-export { ImageEditor } from './image-editor.js';
-export { AnimationQueue } from './animation-queue.js';
-export { Command, HistoryManager } from './history.js';
+import { ImageEditor } from './image-editor.js';
+
+export { ImageEditor };
+export default ImageEditor;
+
+export { isMaskObject } from './core/public-types.js';
+
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 export type {
     // Core options
     ImageEditorOptions,
-    ElementIdMap,
+    ResolvedOptions,
+    // Sub-configs
+    LabelConfig,
+    CropConfig,
+    // loadImage / removeAllMasks options
+    LoadImageOptions,
+    RemoveAllMasksOptions,
     // Mask
     MaskConfig,
     MaskObject,
     MaskNumericProp,
     ResolvedMaskConfig,
-    // Sub-configs
-    LabelConfig,
-    CropConfig,
-    // Export
-    ExportOptions,
-    ExportFileOptions,
-    // Fabric module type (for injection)
+    // Image format primitives
+    ImageMimeType,
+    ImageFileType,
+    NormalizedImageFormat,
+    // Export options
+    Base64ExportOptions,
+    ImageFileExportOptions,
+    // DOM wiring
+    ElementIdMap,
+    // Fabric module type (for explicit injection)
     FabricModule,
-    // Internal (exposed for extensibility)
-    ResolvedOptions,
-} from './types.js';
-
-export { isMaskObject } from './types.js';
+} from './core/public-types.js';

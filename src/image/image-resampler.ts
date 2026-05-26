@@ -1,0 +1,241 @@
+/**
+ * @file image-resampler.ts
+ * @description Aspect-preserving downsampling and alpha-aware MIME selection
+ * for oversized source images loaded by `image/image-loader.ts`.
+ *
+ * The resampler is a pure helper module: it does not know about the editor,
+ * the canvas, or the rollback bundle. It exposes three small, individually
+ * testable building blocks plus one orchestrating function:
+ *
+ *   - {@link computeDownsampleDimensions} — pure aspect-ratio math used by
+ *     property tests for the resampler size contract.
+ *   - {@link selectDownsampleMimeType}   — pure MIME-resolution table used by
+ *     property tests for the alpha-preserving fallback path.
+ *   - {@link detectSourceMimeType}       — extracts the MIME prefix from a
+ *     base64 data URL.
+ *   - {@link resampleImage}              — composes the above with a real
+ *     `<canvas>` to produce the downsampled data URL. Throws
+ *     {@link DownsampleError} when the offscreen canvas fails to obtain a
+ *     2D context so the loader can replay its rollback
+ *     bundle transactionally.
+ *
+ * Requirement references:
+ *   - 8.1  Aspect-preserving downsampling against `(maxW, maxH)` bounds.
+ *   - 8.2  PNG/WebP source preserves source MIME only when
+ *          `preserveSourceFormat` is `true` and `downsampleMimeType` is unset.
+ *   - 8.3  JPEG, `preserveSourceFormat: false`, or explicit override resolves
+ *          to the configured MIME using `downsampleQuality`.
+ *   - 8.4  Throw {@link DownsampleError} when the offscreen canvas cannot get
+ *          a 2D context (so `image-loader.ts` rolls back transactionally).
+ *
+ * This module is internal — it is NOT re-exported from `src/index.ts`.
+ */
+
+import type { ImageMimeType} from '../core/public-types.js';
+import { DownsampleError} from '../core/errors.js';
+
+/**
+ * Result returned by {@link resampleImage}.
+ *
+ * `dataUrl` is the rasterised data URL produced by the offscreen canvas,
+ * `width` / `height` are the integer pixel dimensions used for that raster,
+ * and `mimeType` is the MIME chosen by {@link selectDownsampleMimeType}.
+ */
+export interface ResampleResult {
+    /** Rasterised data URL (`data:image/...;base64...`). */
+    dataUrl: string;
+    /** Output width in pixels (integer). */
+    width: number;
+    /** Output height in pixels (integer). */
+    height: number;
+    /** Resolved output MIME type. */
+    mimeType: ImageMimeType;
+}
+
+/**
+ * Compute target dimensions while preserving the source aspect ratio.
+ *
+ * Returns the source dimensions unchanged when both axes are already within
+ * `(maxWidth, maxHeight)`. When either bound is exceeded, returns the
+ * largest box that fits inside both bounds and matches the source aspect
+ * ratio, with each axis rounded to an integer.
+ *
+ * Pure function — no DOM access, safe to call from property tests.
+ *
+ * @param srcWidth  Source pixel width (must be > 0 for meaningful output).
+ * @param srcHeight Source pixel height (must be > 0 for meaningful output).
+ * @param maxWidth  Maximum allowed output width in pixels.
+ * @param maxHeight Maximum allowed output height in pixels.
+ * @returns `{ width, height, needsResize}` where `needsResize` is `true`
+ *          only when at least one source axis exceeded its bound.
+ *
+ */
+export function computeDownsampleDimensions(
+    srcWidth: number,
+    srcHeight: number,
+    maxWidth: number,
+    maxHeight: number,
+): { width: number; height: number; needsResize: boolean} {
+    const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
+    if (!needsResize) {
+        return { width: srcWidth, height: srcHeight, needsResize: false};
+}
+    const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+    // Clamp to at least 1 px on each axis so the offscreen canvas is
+    // never zero-sized. At extreme bounds (e.g. a 3×1 source against a
+    // 1×1 bound) the minor-axis ratio rounds to 0; preserving aspect
+    // ratio exactly there would require sub-pixel output, which Fabric
+    // cannot raster. The 1-px floor is the documented invariant — output
+    // dimensions are valid raster targets.
+    return {
+        width: Math.max(1, Math.round(srcWidth * ratio)),
+        height: Math.max(1, Math.round(srcHeight * ratio)),
+        needsResize: true,
+};
+}
+
+/**
+ * Select the output MIME type for downsampling.
+ *
+ * Selection table:
+ *
+ * | sourceMime          | preserveSourceFormat | downsampleMimeType | result               |
+ * | ------------------- | -------------------- | ------------------ | -------------------- |
+ * | image/png           | true                 | unset              | image/png            |
+ * | image/webp          | true                 | unset              | image/webp           |
+ * | image/png           | false                | unset              | image/jpeg           |
+ * | image/png           | true                 | image/jpeg         | image/jpeg           |
+ * | image/jpeg          | (any)                | unset              | image/jpeg           |
+ * | image/jpeg          | (any)                | image/webp         | image/webp           |
+ * | null / unknown      | (any)                | unset              | image/jpeg           |
+ *
+ * Pure function — no DOM access, safe to call from property tests.
+ *
+ * @param sourceMime           Detected source MIME (e.g. from
+ *                             {@link detectSourceMimeType}) or `null` if
+ *                             unknown.
+ * @param preserveSourceFormat When `true`, alpha-capable source MIMEs
+ *                             survive downsampling unless overridden by
+ *                             `downsampleMimeType`.
+ * @param downsampleMimeType   Explicit MIME override; when truthy, wins over
+ *                             both `sourceMime` and `preserveSourceFormat`.
+ * @returns The MIME type to emit from the offscreen canvas.
+ *
+ */
+export function selectDownsampleMimeType(
+    sourceMime: string | null,
+    preserveSourceFormat: boolean,
+    downsampleMimeType: ImageMimeType | null | undefined,
+): ImageMimeType {
+    // Explicit override always wins.
+    if (downsampleMimeType) return downsampleMimeType;
+
+    // Alpha-capable source MIME survives only when both conditions hold
+    // and no override was supplied.
+    if (preserveSourceFormat && (sourceMime === 'image/png' || sourceMime === 'image/webp')) {
+        return sourceMime;
+}
+
+    // JPEG source, preserveSourceFormat=false, or unknown source MIME falls
+    // back to the lossy default.
+    return 'image/jpeg';
+}
+
+/**
+ * Detect the MIME type embedded in a base64 data URL.
+ *
+ * Matches the standard `data:<mime>;...` prefix. Returns `null` when the
+ * input does not start with a recognizable image data URL prefix, so callers
+ * can pass the result straight into {@link selectDownsampleMimeType}.
+ *
+ * @param dataUrl Base64 data URL (e.g. `data:image/png;base64,iVBOR...`).
+ * @returns The lowercased MIME type, or `null` when no `image/*` prefix is
+ *          present.
+ */
+export function detectSourceMimeType(dataUrl: string): string | null {
+    const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
+    return match ? match[1]!.toLowerCase() : null;
+}
+
+/**
+ * Downsample an `HTMLImageElement` to fit within `(maxWidth, maxHeight)` and
+ * return the resampled data URL alongside its final dimensions and MIME.
+ *
+ * The function is the only piece of the resampler that touches the DOM. It
+ * creates an offscreen `<canvas>`, paints the source image into it at the
+ * computed dimensions, and reads back a data URL using the MIME selected by
+ * {@link selectDownsampleMimeType}. PNG output ignores `quality` because PNG
+ * is lossless; JPEG and WebP output use `quality` as the
+ * lossy compression knob.
+ *
+ * Failure mode: when `<canvas>.getContext('2d')` returns
+ * `null`, this function throws {@link DownsampleError} so
+ * `image/image-loader.ts` can replay its Transactional_Load rollback bundle
+ * before rejecting the public `loadImage` promise.
+ *
+ * @param imgEl                Decoded source image element.
+ * @param maxWidth             Maximum allowed output width in pixels.
+ * @param maxHeight            Maximum allowed output height in pixels.
+ * @param sourceMime           Detected source MIME from the original data
+ *                             URL (or `null` if unknown).
+ * @param preserveSourceFormat When `true`, alpha-capable MIMEs survive.
+ * @param downsampleMimeType   Optional explicit MIME override.
+ * @param quality              Lossy compression quality in `[0, 1]` for
+ *                             JPEG/WebP output. Ignored for PNG.
+ * @returns The resampled data URL plus its dimensions and MIME.
+ *
+ * @throws {@link DownsampleError} when the offscreen canvas cannot obtain a
+ *         2D rendering context.
+ *
+ */
+export function resampleImage(
+    imgEl: HTMLImageElement,
+    maxWidth: number,
+    maxHeight: number,
+    sourceMime: string | null,
+    preserveSourceFormat: boolean,
+    downsampleMimeType: ImageMimeType | null | undefined,
+    quality: number,
+): ResampleResult {
+    const { width, height} = computeDownsampleDimensions(
+        imgEl.naturalWidth,
+        imgEl.naturalHeight,
+        maxWidth,
+        maxHeight,
+);
+
+    const mimeType = selectDownsampleMimeType(
+        sourceMime,
+        preserveSourceFormat,
+        downsampleMimeType,
+);
+
+    // Offscreen raster. We use a plain detached <canvas> rather than
+    // `OffscreenCanvas` for broader browser support; the failure semantics
+    // (null context => DownsampleError) are identical either way.
+    const oc = document.createElement('canvas');
+    oc.width = width;
+    oc.height = height;
+
+    const ctx = oc.getContext('2d');
+    if (!ctx) {
+        throw new DownsampleError(
+            'Failed to obtain a 2D context for downsampling.',
+);
+}
+
+    ctx.drawImage(
+        imgEl,
+        0, 0, imgEl.naturalWidth, imgEl.naturalHeight,
+        0, 0, width, height,
+);
+
+    // PNG is lossless; passing `quality` to `toDataURL('image/png', q)` is a
+    // no-op in spec but some engines warn. Branch explicitly to keep call
+    // sites and stack traces clean.
+    const dataUrl = mimeType === 'image/png'
+        ? oc.toDataURL(mimeType)
+        : oc.toDataURL(mimeType, quality);
+
+    return { dataUrl, width, height, mimeType};
+}

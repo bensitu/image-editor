@@ -1,60 +1,74 @@
 /**
  * rollup.config.mjs
  *
- * Builds two bundle formats that tsc alone cannot produce cleanly:
+ * Builds the CJS and UMD bundles for `@bensitu/image-editor` from the
+ * already-emitted ESM tree under `dist/esm/`. Both passes share the same
+ * input so TypeScript is compiled exactly once (by `tsc -p
+ * tsconfig.build.json`) and Rollup only re-bundles the resulting JS.
  *
- *   FORMAT=cjs  →  dist/cjs/index.js       (CommonJS, unminified)
- *   FORMAT=umd  →  dist/umd/image-editor.umd.js  (UMD, minified)
+ *   FORMAT=cjs  →  dist/cjs/index.cjs              (CommonJS, unminified)
+ *   FORMAT=umd  →  dist/umd/image-editor.umd.js    (UMD, minified)
  *
- * Both use the same Rollup resolver, so .js-extension imports in source files
- * (required for ESM interop) resolve correctly without needing a special
- * moduleResolution setting in tsconfig.cjs.json.
+ * Build pipeline (npm run build):
  *
- * The previous tsc-based CJS build (tsconfig.cjs.json) failed because
- * `moduleResolution: "node"` does not map `.js` imports → `.ts` source files.
- * Rollup handles this transparently through @rollup/plugin-node-resolve.
+ *   clean → build:esm → build:cjs → build:types → build:umd
+ *           (tsc)       (rollup)    (tsc)         (rollup)
+ *
+ * Ordering matters: the CJS and UMD passes depend on the ESM emit being
+ * present at `dist/esm/index.js` before Rollup runs.
+ *
+ * `fabric` is declared as an external global in both passes so the UMD
+ * bundle picks it up from `globalThis.fabric` at runtime, matching the
+ * peerDependency contract from `package.json`.
  *
  * npm scripts:
  *   npm run build:cjs  →  rollup -c --environment FORMAT:cjs
  *   npm run build:umd  →  rollup -c --environment FORMAT:umd
  */
 
-import resolve  from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import typescript from '@rollup/plugin-typescript';
-import terser from '@rollup/plugin-terser';
+import resolve from '@rollup/plugin-node-resolve';
+import terser  from '@rollup/plugin-terser';
 
 const FORMAT = process.env.FORMAT ?? 'umd';
 
-const sharedPlugins = [
-    resolve(),
-    commonjs(),
-    typescript({ tsconfig: './tsconfig.json' }),
-];
+/**
+ * Both passes consume the ESM emit produced by `tsc -p tsconfig.build.json`.
+ * Rollup performs whole-program bundling on this entry, collapsing the
+ * decomposed `dist/esm/<subsystem>/...` tree into a single output file.
+ */
+const INPUT = 'dist/esm/index.js';
+
+/**
+ * `fabric` is a peer dependency. It must never be inlined into the CJS or
+ * UMD bundles: ESM/CJS consumers import it themselves, and UMD consumers
+ * load it via `<script>` so it lives on `globalThis.fabric`.
+ */
+const EXTERNAL = ['fabric'];
 
 const configs = {
     cjs: {
-        input: 'src/index.ts',
-        external: ['fabric'],
+        input: INPUT,
+        external: EXTERNAL,
         output: {
-            file: 'dist/cjs/index.js',
+            file: 'dist/cjs/index.cjs',
             format: 'cjs',
             exports: 'named',
             sourcemap: true,
         },
-        plugins: sharedPlugins,
+        plugins: [resolve()],
     },
     umd: {
-        input: 'src/index.ts',
-        external: ['fabric'],
+        input: INPUT,
+        external: EXTERNAL,
         output: {
             file: 'dist/umd/image-editor.umd.js',
             format: 'umd',
             name: 'ImageEditor',
+            exports: 'named',
             globals: { fabric: 'fabric' },
             sourcemap: true,
         },
-        plugins: [...sharedPlugins, terser()],
+        plugins: [resolve(), terser()],
     },
 };
 

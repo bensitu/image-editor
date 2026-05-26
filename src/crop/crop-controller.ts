@@ -1,0 +1,1139 @@
+/**
+ * @file crop/crop-controller.ts
+ * @description Crop session lifecycle owner. Implements the
+ *              `enterCropMode → applyCrop` and
+ *              `enterCropMode → cancelCrop` transitions atop the
+ *              v1 crop pipeline, plus the dedicated crop rectangle
+ *              shape, its drag/scale clamps, and the per-object
+ *              `evented`/`selectable` freeze that keeps only the crop
+ *              rectangle interactive while a session is open.
+ *
+ * ## Owned contracts
+ *
+ * - `enterCropMode`, `applyCrop`, and `cancelCrop`
+ *   each discard any active Fabric `ActiveSelection` BEFORE mutating crop
+ *   state. The state serializer's `saveState` also discards on its own
+ *   path, so the explicit call here is a defense-in-depth that keeps the
+ *   contract independent of the serializer's internal behaviour.
+ * - `enterCropMode` creates a {@link CropSession}
+ *   that captures the pre-crop canvas snapshot (without the crop rectangle),
+ *   the prior `canvas.selection` setting, and per-object `evented` /
+ *   `selectable` values. The pre-crop snapshot is taken *before* the crop
+ *   rectangle is added so the JSON is guaranteed crop-rect-free without
+ *   relying on Fabric's serialization of the `isCropRect` custom key.
+ * - `applyCrop` pushes exactly one
+ *   {@link Command} whose `undo` restores the pre-crop snapshot and whose
+ *   `execute` re-applies the post-crop snapshot. The command is pushed via
+ *   {@link HistoryManager.push} (NOT `execute`) because the cropped state
+ *   is already on the canvas — the first `redo` after an `undo` should
+ *   re-run the post-crop restore, but the initial commit must not
+ *   double-render.
+ * - On any failure between the crop region read
+ *   and the history push, the pre-crop snapshot is restored via
+ *   `ctx.loadFromState`, the {@link CropSession} is dropped, all
+ *   crop-specific Fabric event handlers are detached, and the returned
+ *   promise rejects with {@link CropApplyError} wrapping the original
+ *   cause. A failure inside the rollback itself is logged but does not
+ *   mask the original error.
+ * - `cancelCrop` restores the pre-crop snapshot
+ *   (via the captured `prevEvented` / `prevSelection` values, plus the
+ *   per-mask style backups captured on entry), removes the crop
+ *   rectangle, and drops the session WITHOUT producing a history entry.
+ * - All three transitions detach every Fabric
+ *   event handler bound on the crop rectangle when the session ends, so
+ *   no stale handlers remain attached to the disposed shape.
+ * - `enterCropMode` honours
+ *   `options.crop.hideMasksDuringCrop`: when `true`, every mask's prior
+ *   live style is captured into `session.maskBackups` via
+ *   {@link captureMaskStyleBackup} and the mask is then forced to
+ *   `opacity: 0`, `evented: false`, `selectable: false` via
+ *   {@link applyCropHideMaskStyle}. Backups are captured BEFORE the
+ *   freeze loop so the recorded `selectable` value is the true pre-crop
+ *   value and not the freeze-loop's enforced `false`.
+ * - `cancelCrop` restores every entry in
+ *   `session.maskBackups` via {@link restoreMaskStyleBackup} after the
+ *   per-object `evented` / `selectable` restore so the mask backup's
+ *   fields (`opacity`, `fill`, `strokeWidth`, `stroke`, `selectable`,
+ *   `lockRotation`) are the final word.
+ * - `applyCrop` honours
+ *   `options.crop.preserveMasksAfterCrop` defaulting to `false` in v2:
+ *   the inner `ctx.loadImage(croppedBase64)` replaces every canvas
+ *   object with the cropped base image, so masks disappear naturally
+ *   when the option is `false`.
+ * - When `options.crop.preserveMasksAfterCrop`
+ *   is `true`, `applyCrop` captures each mask's `left`, `top`,
+ *   `angle`, `scaleX`, and `scaleY` BEFORE the canvas is exported, and
+ *   re-adds the masks AFTER the loader commits the cropped image with
+ *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
+ *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
+ *   the visible mask shape does not change size or orientation
+ *. The cropRegion-relative shift matches v1's
+ *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
+ *   -cropRegion.sourceY)` and is the documented v1 behavior to
+ *   preserve. Because shifting `left` / `top` by a constant translates
+ *   the entire object (including its rotated visual) by the same
+ *   constant in canvas pixels, the post-crop position relative to the
+ *   new image bounding box matches the pre-crop position relative to
+ *   the old image bounding box without any explicit trig in this
+ *   module — the rotation angle is encoded in the rotated image's
+ *   bounding rect, which moves with the same translation as the masks.
+ *
+ * ## Scope of THIS task (20.3)
+ *
+ * Task 20.2 already implemented hide-on-entry and restore-on-cancel for
+ * `hideMasksDuringCrop`. Task 20.3 fills the post-load seam: when
+ * `preserveMasksAfterCrop === true`, capture each mask's `left`, `top`,
+ * `angle`, `scaleX`, and `scaleY` before the export and re-add the
+ * masks shifted by `-cropRegion.left, -cropRegion.top` after
+ * `ctx.loadImage(croppedBase64)` commits. The intersection filter
+ * (drop masks that do not overlap the crop region) matches v1
+ * observable behavior — masks fully outside the cropped region are
+ * removed, masks that intersect are preserved.
+ *
+ * ## Design notes
+ *
+ * - The controller is a set of stateless functions taking a
+ *   {@link CropControllerContext}. The `ImageEditor` facade keeps
+ *   ownership of the canonical session pointer (`getCropSession` /
+ *   `setCropSession`) so multiple editors on the same page do not share
+ *   crop state and a sub-agent unit test can exercise the controller
+ *   without instantiating the full facade.
+ * - The crop rectangle's drag/scale handlers clamp `scaleX` / `scaleY`
+ *   so the rect cannot grow past the available image bounding box and
+ *   cannot shrink below the configured `crop.minWidth` / `crop.minHeight`.
+ *   This matches v1's `handleCropRectModified`.
+ * - In Fabric v7 the rotation handle (`mtr`) is hidden via
+ *   `setControlVisible('mtr', false)` because `hasRotatingPoint` is
+ *   silently ignored. `lockRotation: true` is also set as runtime
+ *   defence so the rotation transform itself cannot fire even if the
+ *   handle were somehow shown.
+ * - The pre-crop snapshot is captured once, in `enterCropMode`, and
+ *   reused by `applyCrop`'s history command and rollback path. This
+ *   avoids a re-serialization right before the crop, and — more
+ *   importantly — avoids the v1 fragility of filtering `isCropRect`
+ *   objects out of a post-rect snapshot when Fabric's custom-key
+ *   serializer occasionally drops the marker.
+ *
+ * Owner module references (per the design's "Mapping requirements to
+ * modules" table): this module is imported only by `image-editor.ts` and
+ * is intentionally NOT re-exported from `src/index.ts`.
+ *
+ */
+
+import type * as FabricNS from 'fabric';
+
+import { CropApplyError} from '../core/errors.js';
+import type {
+    CropHandler,
+    CropPrevEvented,
+    FabricModule,
+    LoadImageOptions,
+    MaskBackup,
+    MaskObject,
+    ResolvedOptions,
+} from '../core/public-types.js';
+import { isMaskObject} from '../core/public-types.js';
+import { Command, type HistoryManager} from '../history/history-manager.js';
+import {
+    applyCropHideMaskStyle,
+    attachMaskHoverHandlers,
+    captureMaskStyleBackup,
+    restoreMaskStyleBackup,
+} from '../mask/mask-style.js';
+import {
+    clampRegionToCanvas,
+    floorRegion,
+    getObjectBBox,
+} from '../utils/canvas-region.js';
+
+// ─── Crop session state ──────────────────────────────────────────────────────
+
+/**
+ * Internal state of an open crop session. Built by {@link enterCropMode},
+ * consumed and discarded by {@link applyCrop} / {@link cancelCrop}.
+ *
+ * The `ImageEditor` facade owns the live pointer to this object; the
+ * controller reads and writes it through the
+ * {@link CropControllerContext.getCropSession} /
+ * {@link CropControllerContext.setCropSession} callbacks so multiple
+ * editor instances do not share crop state.
+ *
+ * Fields:
+ *
+ * - `beforeJson` — JSON snapshot of the canvas captured BEFORE the crop
+ *   rectangle was added. Used as both the rollback target on
+ *   `applyCrop` failure and the `undo` payload of
+ *   the history entry pushed on success.
+ * - `prevSelection` — value of `canvas.selection` immediately before the
+ *   controller forced it to `false` to keep only the crop rectangle
+ *   interactive. Restored on apply or cancel.
+ * - `prevEvented` — list of `{ obj, evented, selectable}` records for
+ *   every canvas object that was frozen on entry. Restored on apply or
+ *   cancel.
+ * - `maskBackups` — per-mask style backup list. Populated by
+ *   `enterCropMode` when `options.crop.hideMasksDuringCrop` is `true`,
+ *   consumed by `cancelCrop` to restore each mask's pre-crop visual
+ *   state. Empty when the option is `false`.
+ * - `cropRect` — the active crop rectangle, or `null` after the rect has
+ *   been removed (so subsequent calls to {@link removeCropRect} are
+ *   idempotent on the success and rollback paths).
+ * - `handlers` — bound `modified` / `moving` / `scaling` handler records
+ *   on the crop rectangle. Detached when the session ends.
+ *
+ * @internal
+ */
+export interface CropSession {
+    beforeJson: string;
+    prevSelection: boolean;
+    prevEvented: CropPrevEvented[];
+    /** Populated by task 20.2; empty in 20.1's lifecycle core. */
+    maskBackups: MaskBackup[];
+    cropRect: FabricNS.Rect | null;
+    handlers: CropHandler[];
+}
+
+// ─── Context ─────────────────────────────────────────────────────────────────
+
+/**
+ * Dependency bundle passed by the `ImageEditor` facade into every crop
+ * entry point. The controller has no class state of its own — every
+ * editor field it reads is exposed here as a value or callback so the
+ * facade keeps ownership of the canonical state.
+ *
+ * Mirrors the shape of
+ * {@link import('../export/export-service.js').MergeMasksContext} for
+ * consistency across pipeline modules.
+ *
+ * The orchestrator wiring (task 21.x) is responsible for constructing
+ * this bundle from its own state.
+ */
+export interface CropControllerContext {
+    /** Fabric module providing `Rect` for the crop rectangle. */
+    readonly fabric: FabricModule;
+    /** Live Fabric canvas. */
+    readonly canvas: FabricNS.Canvas;
+    /** Resolved editor options — supplies `crop.padding`, `crop.minWidth`,
+     *  `crop.minHeight`, `crop.allowRotationOfCropRect`, and
+     *  `downsampleQuality` (used as the cropped JPEG export quality). */
+    readonly options: ResolvedOptions;
+    /** History manager that records the single crop command on success. */
+    readonly historyManager: HistoryManager;
+
+    /**
+     * Predicate matching `ImageEditor.isImageLoaded`. Returns `true`
+     * only when an `originalImage` has been committed and has positive
+     * dimensions. `enterCropMode` and `applyCrop` no-op when this is
+     * `false` so a caller cannot open a crop session against an empty
+     * canvas (matches v1's `isImageLoaded` gate).
+     */
+    isImageLoaded(): boolean;
+
+    /**
+     * The currently committed `originalImage`, or `null`. Read by
+     * {@link enterCropMode} to derive the initial crop rectangle bounds
+     * from the image bounding box.
+     */
+    getOriginalImage(): FabricNS.FabricImage | null;
+
+    /** Reads the live crop session, or `null`. */
+    getCropSession(): CropSession | null;
+    /** Writes the live crop session pointer (or clears it with `null`). */
+    setCropSession(session: CropSession | null): void;
+
+    /**
+     * Capture a snapshot suitable for {@link loadFromState}. Used in
+     * `enterCropMode` to record the pre-crop state and again in
+     * `applyCrop` after the cropped image is on the canvas to record
+     * the post-crop state for the redo command.
+     */
+    saveState(): string;
+
+    /**
+     * Restore a snapshot produced by {@link saveState}. Used as the
+     * `undo` callback of the crop command and as the rollback step on
+     * any `applyCrop` failure.
+     */
+    loadFromState(snapshot: string): Promise<void>;
+
+    /**
+     * Transactional image loader (`image/image-loader.ts`). `applyCrop`
+     * routes the cropped data URL through this so a failed reload
+     * propagates back here and the rollback path catches it.
+     */
+    loadImage(
+        imageBase64: string,
+        options?: LoadImageOptions,
+): Promise<void>;
+
+    /**
+     * Reads the orchestrator's mask counter. Used by the
+     * `preserveMasksAfterCrop` path so re-added masks restore the
+     * counter to `max(maskId)` after `ctx.loadImage` reset it to `0`
+     * on commit (invariant: subsequent `createMask`
+     * calls must not collide with a preserved mask's `maskId`).
+     *
+     * Optional — only consulted by the preserve path. The orchestrator
+     * may omit this in unit-test contexts that never enable
+     * `preserveMasksAfterCrop`.
+     */
+    getMaskCounter?(): number;
+
+    /**
+     * Writes the orchestrator's mask counter. See {@link getMaskCounter}
+     * for the contract.
+     */
+    setMaskCounter?(n: number): void;
+
+    /**
+     * Re-render the mask list DOM after preserved masks are re-added to
+     * the post-crop canvas. Optional — the orchestrator may omit this
+     * when no DOM list is wired (e.g., headless unit tests). Mirrors
+     * v1's `_updateMaskList` call after preserved masks land.
+     */
+    updateMaskList?(): void;
+}
+
+// ─── Crop rectangle visual constants (match v1 verbatim) ─────────────────────
+
+/** Crop rectangle fill (translucent). Matches v1's `_cropRect` style. */
+const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
+/** Crop rectangle stroke colour. */
+const CROP_RECT_STROKE = '#00aaff';
+/** Crop rectangle stroke dash pattern. */
+const CROP_RECT_DASH: [number, number] = [6, 4];
+/** Crop rectangle corner size in pixels. */
+const CROP_RECT_CORNER_SIZE = 8;
+/** Default padding inset when `options.crop.padding` is missing. */
+const CROP_DEFAULT_PADDING = 10;
+/** Cropped image export format — matches v1 (`jpeg`). */
+const CROPPED_EXPORT_FORMAT = 'jpeg';
+/** Floor for the cropped JPEG export quality if `downsampleQuality` is
+ *  missing or non-finite. Matches v1's `0.92`. */
+const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Clamp the cropped JPEG export quality to `[0, 1]`. Matches v1's
+ * `_normalizeQuality`. A non-finite input falls back to the constant
+ * fallback so `canvas.toDataURL` never receives `NaN`.
+ *
+ * @internal
+ */
+function clampQuality(quality: unknown): number {
+    const num = Number(quality);
+    if (!Number.isFinite(num)) return CROPPED_EXPORT_QUALITY_FALLBACK;
+    return Math.max(0, Math.min(1, num));
+}
+
+/**
+ * Detach every handler bound on the crop rectangle and remove the rect
+ * from the canvas. Idempotent: if the rect has already been removed
+ * (e.g., the success path called this and then the catch ran on a later
+ * failure), the function is a no-op.
+ *
+ * @internal
+ */
+function removeCropRect(
+    ctx: CropControllerContext,
+    session: CropSession,
+): void {
+    // Detach handlers first.
+    for (const targetHandlers of session.handlers) {
+        for (const rec of targetHandlers.handlers) {
+            try {
+                (targetHandlers.target as FabricNS.FabricObject).off(
+                    rec.evt as keyof FabricNS.ObjectEvents,
+                    rec.fn,
+);
+} catch {
+                /* ignore — handler may already be detached */
+}
+}
+}
+    session.handlers = [];
+
+    // Remove the rect — best-effort because Fabric may have already
+    // disposed the shape during a `loadFromState` rollback.
+    if (session.cropRect) {
+        try {
+            ctx.canvas.remove(session.cropRect);
+} catch {
+            /* ignore */
+}
+        session.cropRect = null;
+}
+}
+
+/**
+ * Restore the per-object `evented` / `selectable` values captured on
+ * `enterCropMode`. Idempotent: clears the list after applying so a
+ * second call (e.g., from a catch-then-finally pattern) is a no-op.
+ *
+ * @internal
+ */
+function restoreCropObjectState(session: CropSession): void {
+    for (const rec of session.prevEvented) {
+        try {
+            rec.obj.set({ evented: rec.evented, selectable: rec.selectable});
+} catch {
+            /* ignore — object may have been removed mid-session */
+}
+}
+    session.prevEvented = [];
+}
+
+/**
+ * Restore every per-mask style backup captured on `enterCropMode` when
+ * `options.crop.hideMasksDuringCrop` was `true`. Reverts the
+ * `applyCropHideMaskStyle` mutation (opacity 0, evented/selectable false)
+ * along with the rest of the backed-up fields (`fill`, `strokeWidth`,
+ * `stroke`, `selectable`, `lockRotation`).
+ *
+ * Idempotent: clears the list after applying so a second call (e.g.,
+ * from a catch-then-finally pattern) is a no-op.
+ *
+ * Runs AFTER {@link restoreCropObjectState} in {@link teardownSession}
+ * so the per-mask backup's `selectable` value wins over the
+ * `prevEvented` capture (which was forced to its pre-freeze value).
+ * Both happen to record the same "true pre-crop" value because
+ * {@link enterCropMode} captures both BEFORE any mutation, but ordering
+ * the mask restore last keeps the contract explicit:
+ * the mask backup's fields are the final word.
+ *
+ * @internal
+ *
+ */
+function restoreCropMaskBackups(session: CropSession): void {
+    for (const backup of session.maskBackups) {
+        restoreMaskStyleBackup(backup);
+}
+    session.maskBackups = [];
+}
+
+/**
+ * Tear down a session in place: detach handlers, remove the rect,
+ * restore per-object evented/selectable, restore per-mask style backups
+ * (when `options.crop.hideMasksDuringCrop` populated them), and restore
+ * `canvas.selection`. Used by both the rollback path of
+ * {@link applyCrop} and by {@link cancelCrop}.
+ *
+ * Does NOT clear the session pointer on the orchestrator — callers
+ * decide when to call `ctx.setCropSession(null)` so the catch path can
+ * still read `session.beforeJson` after teardown.
+ *
+ * Order of operations is significant:
+ *
+ * 1. `removeCropRect` — detaches handlers and removes the rect so it is
+ *    not visible while the rest of the restore runs.
+ * 2. `restoreCropObjectState` — reverts every object's `evented` /
+ *    `selectable` to the pre-crop value.
+ * 3. `restoreCropMaskBackups` — reverts every mask's `opacity`, `fill`,
+ *    `strokeWidth`, `stroke`, `selectable`, and `lockRotation`. Runs
+ *    AFTER step 2 so the mask backup is the final word on `selectable`
+ *    when `hideMasksDuringCrop` was active.
+ * 4. `canvas.selection` reset — last so any side-effect of the previous
+ *    steps does not flip it back.
+ *
+ * @internal
+ *
+ */
+function teardownSession(
+    ctx: CropControllerContext,
+    session: CropSession,
+): void {
+    removeCropRect(ctx, session);
+    restoreCropObjectState(session);
+    restoreCropMaskBackups(session);
+    try {
+        ctx.canvas.selection = !!session.prevSelection;
+} catch {
+        /* ignore — canvas may have been disposed mid-session */
+}
+}
+
+// ─── Mask preservation across crop ──────────
+
+/**
+ * Per-mask record captured BEFORE the crop region is exported, used by
+ * the `preserveMasksAfterCrop === true` path to re-add masks after the
+ * cropped image has been committed by the transactional loader.
+ *
+ * Captured fields:
+ *
+ * - `mask` — the live Fabric mask object. Removed from the canvas by
+ *   {@link capturePreservedMasks} so the export does not bake the mask
+ *   into the cropped JPEG (and so the inner `ctx.loadImage` clear does
+ *   not dispose the captured reference); re-added by
+ *   {@link reapplyPreservedMasks}.
+ * - `left`, `top` — the mask's pre-crop top-left coordinates in canvas
+ *   pixels. Captured BEFORE the export so a later transform mutation
+ *   inside `ctx.loadImage` cannot affect the values; the post-crop
+ *   placement step shifts these by `-cropRegion.left, -cropRegion.top`
+ *   so the mask's position relative to the new image bounding box
+ *   matches its prior position relative to the pre-crop image bounding
+ *   box. Matches v1's
+ *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
+ *   -cropRegion.sourceY)`.
+ * - `angle`, `scaleX`, `scaleY` — preserved verbatim across the crop so
+ *   the visible mask shape does not change size or orientation.
+ *
+ * @internal
+ */
+interface PreservedMaskRecord {
+    mask: MaskObject;
+    left: number;
+    top: number;
+    angle: number;
+    scaleX: number;
+    scaleY: number;
+}
+
+/**
+ * Decide whether `mask`'s axis-aligned bounding rect intersects the
+ * integer crop region. Matches v1's `intersectsCrop` predicate so masks
+ * fully outside the crop are dropped and masks that overlap survive.
+ *
+ * The intersection is computed in canvas coordinates because both the
+ * mask bbox and the crop region are already in canvas space.
+ *
+ * @internal
+ */
+function maskIntersectsRegion(
+    mask: MaskObject,
+    region: { left: number; top: number; width: number; height: number},
+): boolean {
+    const bbox = getObjectBBox(mask);
+    return (
+        bbox.left < region.left + region.width &&
+        bbox.left + bbox.width > region.left &&
+        bbox.top < region.top + region.height &&
+        bbox.top + bbox.height > region.top
+);
+}
+
+/**
+ * Capture every mask whose bounding rect intersects `cropRegion`,
+ * record its pre-crop `left`, `top`, `angle`, `scaleX`, `scaleY`, and
+ * remove it from the canvas so the cropped JPEG export does not bake
+ * the mask in (and so the inner `ctx.loadImage`'s `canvas.clear` does
+ * not dispose the captured Fabric reference).
+ *
+ * Only the masks that survive the intersection filter are returned —
+ * masks fully outside the crop region are removed without a record so
+ * {@link reapplyPreservedMasks} does not re-add them (matches v1's
+ * `intersectsCrop` filter and observable behavior in the v1 test
+ * `'workflow preserveMasksAfterCrop keeps intersecting masks and
+ * removes outside masks'`).
+ *
+ * The captured `left` and `top` are read directly off the live mask
+ * (matches v1's `_translateObjectByCanvasOffset` operating on
+ * `mask.left` / `mask.top`) so the post-load reapply step can shift
+ * them by `-cropRegion.left, -cropRegion.top` and land the mask at the
+ * same canvas position relative to the new image bounding box. Because
+ * a constant translation moves the rotated mask's visual by the same
+ * constant in canvas pixels, the rotation angle does not need to be
+ * re-applied to the offset — `angle` is preserved
+ * verbatim.
+ *
+ * Each removal is wrapped in `try/catch` so a stale Fabric reference
+ * mid-iteration cannot break the loop.
+ *
+ * @internal
+ */
+function capturePreservedMasks(
+    canvas: FabricNS.Canvas,
+    cropRegion: { left: number; top: number; width: number; height: number},
+): PreservedMaskRecord[] {
+    const records: PreservedMaskRecord[] = [];
+
+    const masks = canvas.getObjects().filter(isMaskObject);
+    for (const mask of masks) {
+        try {
+            mask.setCoords();
+            const intersects = maskIntersectsRegion(mask, cropRegion);
+
+            if (intersects) {
+                records.push({
+                    mask,
+                    // capture pre-crop
+                    // canvas-pixel coordinates verbatim. The post-crop
+                    // reapply step shifts these by `-cropRegion.left,
+                    // -cropRegion.top` (matches v1).
+                    left: Number(mask.left) || 0,
+                    top: Number(mask.top) || 0,
+                    // preserve verbatim.
+                    angle: Number(mask.angle) || 0,
+                    scaleX: Number(mask.scaleX) || 1,
+                    scaleY: Number(mask.scaleY) || 1,
+});
+}
+
+            canvas.remove(mask);
+} catch {
+            /* ignore — best-effort: mask may already be detached */
+}
+}
+
+    return records;
+}
+
+/**
+ * Re-add every captured mask to the post-crop canvas with its `left`
+ * and `top` shifted by `-cropRegion.left, -cropRegion.top` so its
+ * position relative to the new image bounding box matches its prior
+ * position relative to the pre-crop image bounding box (Requirements
+ * 31.4, 32.1).
+ *
+ * Per-mask `angle`, `scaleX`, and `scaleY` are restored from the captured
+ * record so the visible mask shape does not change size or orientation
+ *. Hover handlers are reattached because Fabric event
+ * listeners are not preserved across `canvas.remove` / `canvas.add`
+ * pairs — matches v1's `_rebindMaskEvents` call after the same
+ * remove/re-add round-trip.
+ *
+ * The orchestrator's mask counter is bumped to
+ * `max(getMaskCounter, max(maskId over preserved))` so subsequent
+ * `createMask` calls produce unique IDs (the loader resets the counter
+ * to `0`). The mask list DOM is re-rendered when the orchestrator
+ * supplied an `updateMaskList` callback (matches v1's `_updateMaskList`
+ * call after preserved masks land).
+ *
+ * Each `add` / `set` is wrapped in `try/catch` so a single mask that
+ * fails to land does not abort the rest of the preservation work.
+ *
+ * @internal
+ */
+function reapplyPreservedMasks(
+    ctx: CropControllerContext,
+    cropRegion: { left: number; top: number; width: number; height: number},
+    records: PreservedMaskRecord[],
+): void {
+    if (records.length === 0) return;
+
+    const { canvas} = ctx;
+
+    let maxRestoredId = 0;
+    for (const record of records) {
+        try {
+            // apply the v1 cropRegion-relative
+            // shift: a constant translation in canvas pixels moves the
+            // rotated mask visual by the same constant, so the post-crop
+            // position relative to the new image bbox matches the
+            // pre-crop position relative to the old image bbox.
+            //
+            // restore `angle`, `scaleX`, `scaleY`
+            // verbatim and force `visible: true` (matches v1's
+            // `mask.set({ visible: true})` after the offset).
+            record.mask.set({
+                left: record.left - cropRegion.left,
+                top: record.top - cropRegion.top,
+                angle: record.angle,
+                scaleX: record.scaleX,
+                scaleY: record.scaleY,
+                visible: true,
+});
+            record.mask.setCoords();
+
+            canvas.add(record.mask);
+            canvas.bringObjectToFront(record.mask);
+
+            // Re-bind hover handlers so the post-crop mask responds the
+            // same way as a freshly-created one (matches v1's
+            // `_rebindMaskEvents` after the remove/re-add round-trip).
+            attachMaskHoverHandlers(record.mask);
+
+            const id = Number(record.mask.maskId);
+            if (Number.isFinite(id) && id > maxRestoredId) maxRestoredId = id;
+} catch {
+            /* ignore — best-effort: Fabric may have torn down the object */
+}
+}
+
+    // restore the mask counter so subsequent
+    // `createMask` calls do not collide with preserved mask IDs.
+    if (typeof ctx.getMaskCounter === 'function' && typeof ctx.setMaskCounter === 'function') {
+        const liveCounter = Number(ctx.getMaskCounter());
+        const safeCounter = Number.isFinite(liveCounter) ? liveCounter : 0;
+        ctx.setMaskCounter(Math.max(safeCounter, maxRestoredId));
+}
+
+    // Mirror v1's `_updateMaskList` call after preserved masks land.
+    try {
+        ctx.updateMaskList?.();
+    } catch {
+        /* ignore — DOM list update is best-effort */
+}
+}
+
+// ─── enterCropMode ──────────────────────────────────────────────────────────
+
+/**
+ * Open a crop session. Builds a {@link CropSession} that captures:
+ *
+ * - the pre-crop canvas JSON snapshot (without the crop rectangle),
+ * - the prior `canvas.selection` setting,
+ * - per-object `evented` / `selectable` values for every existing canvas
+ *   object,
+ * - per-mask style backups when `options.crop.hideMasksDuringCrop` is
+ *   `true` so {@link cancelCrop} can revert the hide.
+ *
+ * After capturing the session, the function:
+ *
+ * 1. Adds an interactive crop rectangle inside the image bounding box
+ *    (with the configured padding inset) and binds drag/scale clamp
+ *    handlers so it cannot grow past the image bounds nor shrink below
+ *    `crop.minWidth` / `crop.minHeight`.
+ * 2. Forces `canvas.selection = false` and freezes every other canvas
+ *    object (`evented = false`, `selectable = false`) so only the crop
+ *    rectangle responds to pointer events.
+ * 3. Marks the rectangle with the `isCropRect` custom property so the
+ *    state serializer's session-only filter excludes it from any future
+ *    snapshot taken while the session is open.
+ * 4. When `options.crop.hideMasksDuringCrop` is `true`, captures a
+ *    {@link MaskBackup} for every mask BEFORE the freeze loop runs and
+ *    then applies the crop-mode hide style (`opacity: 0`,
+ *    `evented: false`, `selectable: false`) via
+ *    {@link applyCropHideMaskStyle}. Capturing first ensures the
+ *    backup's `selectable` field reflects the true pre-crop value
+ *    rather than the freeze-loop's enforced `false`.
+ *
+ * No-ops when:
+ *
+ * - a session is already open (idempotent re-entry),
+ * - no `originalImage` is committed,
+ * - `isImageLoaded` returns `false`.
+ *
+ * `discardActiveObject` runs at the very top so the
+ * pre-crop snapshot does not capture an `ActiveSelection` wrapper. The
+ * state serializer's own discard provides a second line of defence.
+ *
+ * @param ctx Editor dependency bundle — see {@link CropControllerContext}.
+ *
+ */
+export function enterCropMode(ctx: CropControllerContext): void {
+    const { canvas, options} = ctx;
+    if (ctx.getCropSession()) return;
+    const originalImage = ctx.getOriginalImage();
+    if (!originalImage) return;
+    if (!ctx.isImageLoaded()) return;
+
+    // discard ActiveSelection BEFORE mutating crop state.
+    canvas.discardActiveObject();
+
+    // capture the pre-crop snapshot BEFORE the crop
+    // rectangle is added so the JSON is guaranteed crop-rect-free. The
+    // state serializer also discards ActiveSelection on its own path.
+    const beforeJson = ctx.saveState();
+    const prevSelection = !!canvas.selection;
+    canvas.selection = false;
+
+    // Derive the initial crop rectangle bounds from the image bounding
+    // box and the configured padding inset. Mirrors v1's enterCropMode.
+    originalImage.setCoords();
+    const imageBounds = originalImage.getBoundingRect();
+    const padding = Number.isFinite(Number(options.crop.padding))
+        ? Number(options.crop.padding)
+        : CROP_DEFAULT_PADDING;
+    const rectLeft = Math.max(0, Math.floor(imageBounds.left + padding));
+    const rectTop = Math.max(0, Math.floor(imageBounds.top + padding));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width - padding * 2));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height - padding * 2));
+    const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
+    const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
+    const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
+    const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
+    const allowRotation = !!options.crop.allowRotationOfCropRect;
+
+    const cropRect = new ctx.fabric.Rect({
+        left: rectLeft,
+        top: rectTop,
+        width: minCropWidth,
+        height: minCropHeight,
+        originX: 'left',
+        originY: 'top',
+        fill: CROP_RECT_FILL,
+        stroke: CROP_RECT_STROKE,
+        strokeDashArray: CROP_RECT_DASH,
+        strokeWidth: 1,
+        strokeUniform: true,
+        selectable: true,
+        // Fabric v7 ignores `hasRotatingPoint`; `lockRotation: true`
+        // prevents the rotation transform itself, and the
+        // `setControlVisible('mtr', false)` call below hides the handle.
+        lockRotation: !allowRotation,
+        cornerSize: CROP_RECT_CORNER_SIZE,
+        objectCaching: false,
+        lockScalingFlip: true,
+});
+    if (!allowRotation) {
+        cropRect.setControlVisible('mtr', false);
+}
+
+    canvas.add(cropRect);
+    // Tag the rect so the state serializer's session-only filter
+    // excludes it from snapshots taken while the session is open.
+    (cropRect as FabricNS.Rect & { isCropRect?: boolean}).isCropRect = true;
+    canvas.bringObjectToFront(cropRect);
+    canvas.setActiveObject(cropRect);
+
+    // Capture per-mask style backups BEFORE the freeze
+    // loop runs and BEFORE any hide-style is applied so the recorded
+    // values (`opacity`, `fill`, `strokeWidth`, `stroke`, `selectable`,
+    // `lockRotation`) are the true pre-crop live values. The actual hide
+    // style is applied AFTER the freeze loop below so the freeze loop's
+    // own `prevEvented` capture also sees pre-crop values.
+    const hideMasks = !!options.crop.hideMasksDuringCrop;
+    const maskBackups: MaskBackup[] = [];
+    if (hideMasks) {
+        canvas.getObjects().forEach(obj => {
+            if (obj === cropRect) return;
+            if (!isMaskObject(obj)) return;
+            maskBackups.push(captureMaskStyleBackup(obj));
+});
+}
+
+    // freeze every existing object and capture its
+    // prior `evented` / `selectable` state. The crop rectangle itself
+    // is excluded so it remains interactive.
+    const prevEvented: CropPrevEvented[] = [];
+    canvas.getObjects().forEach(obj => {
+        if (obj === cropRect) return;
+        prevEvented.push({
+            obj,
+            evented: obj.evented ?? true,
+            selectable: obj.selectable ?? true,
+});
+        try {
+            obj.set({ evented: false, selectable: false});
+} catch {
+            /* ignore — best-effort freeze */
+}
+});
+
+    // Apply the crop-mode hide style on every backed-up
+    // mask. Runs AFTER the freeze loop so both the mask backup (above)
+    // and `prevEvented` (just above) recorded pre-crop values. The hide
+    // style additionally forces `opacity: 0` so the mask is visually
+    // hidden while the crop session is open.
+    if (hideMasks) {
+        for (const backup of maskBackups) {
+            applyCropHideMaskStyle(backup.obj);
+}
+}
+
+    // Bind drag/scale clamps so the rect cannot exit the image bounds
+    // nor shrink below the configured minimum dimensions. Matches v1's
+    // `handleCropRectModified`.
+    const handleCropRectModified = (): void => {
+        try {
+            const cropWidth = Math.max(1, Number(cropRect.width) || 1);
+            const cropHeight = Math.max(1, Number(cropRect.height) || 1);
+            const nextScaleX = Math.min(
+                maxCropWidth / cropWidth,
+                Math.max(
+                    minCropWidth / cropWidth,
+                    Number(cropRect.scaleX) || 1,
+),
+);
+            const nextScaleY = Math.min(
+                maxCropHeight / cropHeight,
+                Math.max(
+                    minCropHeight / cropHeight,
+                    Number(cropRect.scaleY) || 1,
+),
+);
+            cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY});
+            cropRect.setCoords();
+            canvas.requestRenderAll();
+} catch {
+            /* ignore — defensive against torn-down canvases */
+}
+};
+    cropRect.on('modified', handleCropRectModified);
+    cropRect.on('moving', handleCropRectModified);
+    cropRect.on('scaling', handleCropRectModified);
+
+    const session: CropSession = {
+        beforeJson,
+        prevSelection,
+        prevEvented,
+        // Populated above when `options.crop.hideMasksDuringCrop` is true;
+        // empty array otherwise.
+        maskBackups,
+        cropRect,
+        handlers: [
+             {
+                target: cropRect,
+                handlers: [
+                     { evt: 'modified', fn: handleCropRectModified},
+                    { evt: 'moving', fn: handleCropRectModified},
+                    { evt: 'scaling', fn: handleCropRectModified},
+],
+},
+],
+};
+    ctx.setCropSession(session);
+    canvas.renderAll();
+}
+
+// ─── cancelCrop ─────────────────────────────────────────────────────────────
+
+/**
+ * Close an open crop session WITHOUT applying the crop. Restores the
+ * pre-crop `canvas.selection`, the per-object `evented` / `selectable`
+ * values, removes the crop rectangle, detaches every crop-bound Fabric
+ * handler, and drops the session.
+ *
+ * Produces NO history entry — the user explicitly chose to abandon the
+ * crop, and the canvas state at the end of `cancelCrop` is the same one
+ * the previous history entry already covers.
+ *
+ * No-op when no session is open.
+ *
+ * `discardActiveObject` runs at the very top so any
+ * currently-active selection (typically the crop rectangle itself) is
+ * cleared before the rect is removed.
+ *
+ * @param ctx Editor dependency bundle — see {@link CropControllerContext}.
+ *
+ */
+export function cancelCrop(ctx: CropControllerContext): void {
+    const session = ctx.getCropSession();
+    if (!session) return;
+
+    // discard ActiveSelection BEFORE mutating crop state.
+    ctx.canvas.discardActiveObject();
+
+    teardownSession(ctx, session);
+    ctx.setCropSession(null);
+
+    try {
+        ctx.canvas.renderAll();
+} catch {
+        /* ignore — canvas may have been disposed mid-cancel */
+}
+}
+
+// ─── applyCrop ──────────────────────────────────────────────────────────────
+
+/**
+ * Apply the active crop session: export the crop region as a JPEG data
+ * URL, reload it as the new base image through the transactional
+ * loader, and push exactly one history entry whose `undo` restores the
+ * pre-crop snapshot and whose `execute` re-applies the post-crop
+ * snapshot.
+ *
+ * Atomic: either the cropped image is committed and one history entry
+ * is pushed, or the editor is rewound to its pre-crop state and the
+ * returned promise rejects with {@link CropApplyError}.
+ *
+ * Steps, in order:
+ *
+ * 1. **No-op gates** — return without mutating anything when no session
+ *    is open or the session has no crop rectangle.
+ * 2. **Discard ActiveSelection** — drop any active
+ *    selection wrapper before reading the crop rect's bounding box so
+ *    the export region is computed against the rect itself.
+ * 3. **Read crop region** — refresh the rect's coordinate cache, read
+ *    its bounding rect, floor and clamp it to integer pixels via
+ *    {@link floorRegion} + {@link clampRegionToCanvas} so Fabric's
+ *    region export receives a region inside the source canvas with no
+ *    sub-pixel dimensions.
+ * 3a. **Capture preserved masks** — when
+ *    `options.crop.preserveMasksAfterCrop === true`, capture each mask's
+ *    pre-crop `left`, `top`, `angle`, `scaleX`, and `scaleY`, then
+ *    remove the masks from the canvas so the cropped JPEG export does
+ *    not bake them in (and so the inner `ctx.loadImage`'s
+ *    `canvas.clear` does not dispose the captured reference). Masks
+ *    fully outside the crop region are removed without a record so
+ *    they do not reappear after the load (matches v1's `intersectsCrop`
+ *    filter).
+ * 4. **Tear down session in place** — restore per-object evented /
+ *    selectable values (so the export sees masks in their pre-crop
+ *    state) and remove the crop rectangle along with its handlers
+ *. The session pointer is NOT cleared yet
+ *    because the catch path may still need `session.beforeJson`.
+ * 5. **Restore `canvas.selection`** — back to the pre-crop value before
+ *    the cropped image is exported.
+ * 6. **Export the crop region** via `canvas.toDataURL` with the
+ *    integer region as `left` / `top` / `width` / `height` (matches
+ *    v1's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
+ *    at the configured downsample quality.
+ * 7. **Reload the cropped image** through `ctx.loadImage`. The
+ *    transactional loader either commits the new image or rolls back —
+ *    a failure propagates here so the rollback path below catches it.
+ * 7a. **Reapply preserved masks** — when
+ *    records were captured in step 3a, re-add each mask to the
+ *    post-crop canvas with `left` and `top` shifted by
+ *    `-cropRegion.left, -cropRegion.top` and `angle`, `scaleX`,
+ *    `scaleY` restored verbatim. Restores the orchestrator's mask
+ *    counter to `max(maskId)` so subsequent `createMask` calls do not
+ *    collide with preserved IDs.
+ * 8. **Capture post-crop snapshot** for the redo command.
+ * 9. **Drop the session pointer** before pushing history.
+ * 10. **Push exactly one history command** whose
+ *    `undo` restores the pre-crop snapshot and whose `execute`
+ *    re-applies the post-crop snapshot.
+ *
+ * On any failure between step 3 and step 10, the helper:
+ *
+ * - tears down the session (handlers detached, rect removed,
+ *   per-object state restored, `canvas.selection` reverted) so no
+ *   stale crop state remains,
+ * - clears the session pointer,
+ * - restores the pre-crop snapshot via `ctx.loadFromState`,
+ * - rejects with {@link CropApplyError} wrapping the original cause.
+ *
+ * Mask handling note: when `options.crop.preserveMasksAfterCrop` is
+ * `false` (the v2 default), the inner
+ * `ctx.loadImage(croppedBase64)` call replaces every canvas object
+ * with the cropped base image, so any masks are removed naturally
+ * with no extra work in this function. When `preserveMasksAfterCrop`
+ * is `true`, masks intersecting the crop region are captured before
+ * the export and re-added after the load via
+ * {@link capturePreservedMasks} / {@link reapplyPreservedMasks}.
+ * Crop-mode mask hiding on entry / restoration on cancel is handled
+ * in {@link enterCropMode} and the {@link teardownSession} chain.
+ *
+ * @param ctx Editor dependency bundle — see {@link CropControllerContext}.
+ * @returns   Resolves on success; rejects with {@link CropApplyError}
+ *            on any pipeline failure (after the pre-crop snapshot has
+ *            been restored).
+ *
+ */
+export async function applyCrop(ctx: CropControllerContext): Promise<void> {
+    const session = ctx.getCropSession();
+    if (!session || !session.cropRect) return;
+    const { canvas} = ctx;
+
+    // discard ActiveSelection BEFORE mutating crop state.
+    canvas.discardActiveObject();
+
+    const beforeJson = session.beforeJson;
+    const cropRect = session.cropRect;
+    const preserveMasks = !!ctx.options.crop.preserveMasksAfterCrop;
+
+    try {
+        // 3. Read the crop region. Refresh coords first because Fabric v7
+        //    caches the absolute bounding rect; without `setCoords` a
+        //    freshly-resized rect returns stale bounds.
+        cropRect.setCoords();
+        const rectBounds = cropRect.getBoundingRect();
+        const cropRegion = clampRegionToCanvas(
+            floorRegion(rectBounds),
+            canvas.getWidth(),
+            canvas.getHeight(),
+);
+
+        // 3a. when
+        //     `preserveMasksAfterCrop` is `true`, capture each mask's
+        //     pre-crop `left`, `top`, `angle`, `scaleX`, `scaleY`
+        //     BEFORE the export and remove the masks from the canvas
+        //     so the cropped JPEG does not bake them in. Removing the
+        //     masks BEFORE `ctx.loadImage` also keeps the captured
+        //     Fabric reference alive across the loader's `canvas.clear`
+        //     call (the masks are detached from the canvas but the
+        //     records still hold the live objects). The post-load
+        //     reapply step shifts each mask by `-cropRegion.left,
+        //     -cropRegion.top` (matches v1's
+        //     `_translateObjectByCanvasOffset`).
+        //
+        //     The intersection filter (matches v1's `intersectsCrop`)
+        //     drops masks fully outside the crop region — they are
+        //     removed from the canvas without a record so they do not
+        //     reappear after the load.
+        const preservedRecords: PreservedMaskRecord[] = preserveMasks
+            ? capturePreservedMasks(canvas, cropRegion)
+            : [];
+
+        // 4. Tear down session in place. Restoring per-object evented and
+        //    selectable BEFORE the export means the cropped JPEG sees
+        //    masks (and any other interactive objects) in their original
+        //    visual state. Removing the crop rectangle here also keeps
+        //    it out of the exported region.
+        restoreCropObjectState(session);
+        removeCropRect(ctx, session);
+
+        // 5. Restore `canvas.selection` to its pre-crop value.
+        canvas.selection = !!session.prevSelection;
+
+        // 6. Export the crop region. Mirrors v1's
+        //    `_exportCanvasRegionToDataURL` — `canvas.toDataURL` with the
+        //    integer region as `left` / `top` / `width` / `height`.
+        const quality = clampQuality(ctx.options.downsampleQuality);
+        const exportOptions: Record<string, unknown> = {
+            format: CROPPED_EXPORT_FORMAT,
+            quality,
+            multiplier: 1,
+            left: cropRegion.left,
+            top: cropRegion.top,
+            width: cropRegion.width,
+            height: cropRegion.height,
+};
+        const croppedBase64 = canvas.toDataURL(
+            exportOptions as Parameters<typeof canvas.toDataURL>[0],
+);
+
+        // 7. Reload through the transactional loader. A decode / Fabric /
+        //    timeout failure rejects here and the rollback path catches.
+        await ctx.loadImage(croppedBase64);
+
+        // 7a. re-add every captured mask
+        //     to the post-crop canvas with its `left` / `top` shifted
+        //     by `-cropRegion.left, -cropRegion.top`. The loader has
+        //     reset `maskCounter` to 0 and committed a fresh
+        //     `originalImage`; the helper bumps the counter back to
+        //     `max(maskId)` so subsequent `createMask` calls do not
+        //     collide.
+        if (preservedRecords.length > 0) {
+            reapplyPreservedMasks(ctx, cropRegion, preservedRecords);
+            canvas.renderAll();
+}
+
+        // 8. Capture the post-crop snapshot for the redo command.
+        const afterJson = ctx.saveState();
+
+        // 9. Drop the session pointer BEFORE pushing the history entry.
+        //    The session itself was already torn down in step 4; this
+        //    just clears the orchestrator's pointer.
+        ctx.setCropSession(null);
+
+        // 10. push exactly one history entry. Use
+        //     `push` (not `execute`) because the cropped state is
+        //     already on the canvas; the first `redo` after an `undo`
+        //     should re-run the post-crop restore via the command's
+        //     `execute`.
+        if (beforeJson && afterJson && beforeJson !== afterJson) {
+            ctx.historyManager.push(
+                new Command(
+                     () => ctx.loadFromState(afterJson),
+                     () => ctx.loadFromState(beforeJson),
+),
+);
+}
+} catch (err) {
+        // restore the pre-crop snapshot, drop the
+        // session, and reject with `CropApplyError`. A failure inside
+        // the rollback itself is logged but does NOT mask the original
+        // error.
+        teardownSession(ctx, session);
+        ctx.setCropSession(null);
+
+        try {
+            await ctx.loadFromState(beforeJson);
+} catch (rollbackErr) {
+            // eslint-disable-next-line no-console -- diagnostic only.
+            console.warn(
+                '[ImageEditor] applyCrop: rollback failed',
+                rollbackErr,
+);
+}
+
+        if (err instanceof CropApplyError) throw err;
+        const message = err instanceof Error
+            ? `applyCrop failed: ${err.message}`
+            : 'applyCrop failed';
+        throw new CropApplyError(message, err);
+}
+}

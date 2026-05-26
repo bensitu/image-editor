@@ -1,0 +1,424 @@
+// Property 21: Mask list DOM correctness
+//
+// Property statement (design.md §"Property 21"):
+//   For any mask population on the canvas, the mask list helpers SHALL
+//   render exactly one `<li>` per canvas mask in canvas object order
+//   (Req 24.1), tag every `<li>` with a `data-mask-id` equal to the
+//   mask's `maskId` (Req 24.2), select by `maskId` lookup on click —
+//   regardless of where the item currently sits in the list (Req 24.3) —
+//   and compute label text via
+//   `options.label.getText(mask, mask.maskId - 1)` so the index argument
+//   is the stable creation index rather than the live list position
+//   (Req 24.4).
+//
+// Owner modules under test:
+//
+//   - `src/mask/mask-list.ts` (Reqs 24.1, 24.2, 24.3) — pure(ish)
+//     helpers `renderMaskList` / `updateMaskListSelection` that the
+//     orchestrator delegates to from its `_updateMaskList` and
+//     `_handleMaskListClick` paths.
+//   - `src/mask/mask-label-manager.ts` (Req 24.4) — `createLabelForMask`,
+//     which is the only call site that invokes
+//     `options.label.getText`.
+//
+// ─── Scope of this test ─────────────────────────────────────────────────────
+//
+// Both modules are unit-testable in isolation: they take a `*Context`
+// argument that abstracts the canvas, Fabric module, resolved options,
+// and selection-changed callback, so a fake Fabric environment plus a
+// per-iteration JSDOM document is enough to exercise the full DOM
+// contract. We do NOT need to instantiate `ImageEditor` here — the
+// orchestrator-level wiring is exercised by the mask-factory and
+// barrel-export tests.
+//
+// `numRuns: 100` matches the rest of the property suite. Each
+// iteration installs a fresh JSDOM document, builds an arbitrary mask
+// population, and asserts the four sub-properties below.
+//
+// Sub-properties exercised here:
+//
+//   21.1 Exactly one `<li>` per canvas mask, in canvas object order
+//        (Req 24.1).
+//   21.2 Each `<li>` has `data-mask-id` equal to its mask's `maskId`
+//        (Req 24.2).
+//   21.3 Clicking a list item selects by `maskId` lookup, regardless
+//        of where the item currently sits in the list — i.e. after
+//        the canvas re-orders its objects, clicks still resolve to
+//        the same mask the `data-mask-id` identifies (Req 24.3).
+//   21.4 Label text is computed via
+//        `options.label.getText(mask, mask.maskId - 1)` — the index
+//        argument is the stable creation index, not the live list
+//        position (Req 24.4).
+//
+// Runtime note: Node 24+ strips TypeScript syntax natively, so the
+// test imports the modules under test directly from source. The
+// shared `ts-resolve-hook` rewrites `.js` import specifiers in the
+// loaded TypeScript files to their `.ts` siblings, mirroring the
+// project's `moduleResolution: "bundler"` setting.
+
+import { register } from 'node:module';
+
+register('./helpers/ts-resolve-hook.mjs', import.meta.url);
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fc from 'fast-check';
+import { JSDOM } from 'jsdom';
+
+const { renderMaskList } = await import('../src/mask/mask-list.ts');
+const { createLabelForMask } = await import(
+    '../src/mask/mask-label-manager.ts'
+);
+const { resolveOptions } = await import('../src/core/default-options.ts');
+
+// ─── JSDOM setup helper ────────────────────────────────────────────────────
+
+/**
+ * Install a fresh JSDOM document on `globalThis`, append a
+ * `<ul id="maskList">` host element, and return both the document and
+ * the chosen list element ID. Returning the list ID (rather than
+ * hardcoding it at the call site) keeps the helper symmetric with how
+ * the orchestrator drives the module via `ctx.getListElementId()`.
+ */
+function installDom() {
+    const dom = new JSDOM('<!DOCTYPE html><body></body>');
+    const { document, HTMLElement } = dom.window;
+    globalThis.document = document;
+    globalThis.HTMLElement = HTMLElement;
+    const listId = 'maskList';
+    const ul = document.createElement('ul');
+    ul.id = listId;
+    document.body.appendChild(ul);
+    return { document, listId };
+}
+
+// ─── Fake Fabric environment ───────────────────────────────────────────────
+
+/**
+ * Minimal fake `MaskObject`. The mask-list helpers only read
+ * `maskId` and `maskName`, and only call `canvas.setActiveObject(mask)`
+ * with the resolved object, so we don't need a full Fabric shape — a
+ * plain object with the runtime metadata is sufficient.
+ *
+ * The label manager additionally calls `mask.getCoords()`,
+ * `mask.getCenterPoint()`, and reads `mask.angle`, so we add those for
+ * the Property 21.4 case below.
+ */
+function makeMask(id, name) {
+    return {
+        maskId: id,
+        maskName: name,
+        angle: 0,
+        getCoords() {
+            return [
+                { x: 10, y: 10 },
+                { x: 50, y: 10 },
+                { x: 50, y: 30 },
+                { x: 10, y: 30 },
+            ];
+        },
+        getCenterPoint() {
+            return { x: 30, y: 20 };
+        },
+    };
+}
+
+/**
+ * Minimal fake `fabric.Canvas`. Holds an ordered object list (the
+ * canvas object order Req 24.1 / Req 24.3 keys off), records the most
+ * recent `setActiveObject` argument so the click assertions can read
+ * it back, and supports the small subset of methods the label manager
+ * touches (`add` / `remove` / `bringObjectToFront` / `renderAll`).
+ */
+function makeCanvas(objects) {
+    return {
+        _objects: [...objects],
+        _activeObject: null,
+        getObjects() {
+            return this._objects;
+        },
+        setActiveObject(o) {
+            this._activeObject = o;
+        },
+        add(o) {
+            this._objects.push(o);
+        },
+        remove(o) {
+            const idx = this._objects.indexOf(o);
+            if (idx >= 0) this._objects.splice(idx, 1);
+        },
+        bringObjectToFront() {},
+        renderAll() {},
+    };
+}
+
+/**
+ * Minimal fake Fabric module. Only `Text` is invoked — the label
+ * manager calls `new fabric.Text(text, opts)` to build the default
+ * label overlay.  The constructor records the constructor arguments
+ * so the Req 24.4 assertion can read back the rendered text.
+ */
+function makeFabric() {
+    function Text(txt, opts) {
+        this._kind = 'text';
+        this.text = txt;
+        Object.assign(this, opts ?? {});
+        this.set = function (p, v) {
+            if (typeof p === 'string') this[p] = v;
+            else Object.assign(this, p);
+        };
+        this.setCoords = function () {};
+    }
+    return { Text };
+}
+
+// ─── Arbitraries ───────────────────────────────────────────────────────────
+
+/**
+ * A "mask population" is a non-empty array of unique `maskId` values.
+ * `uniqueArray` plus a maskId range of 1..50 keeps the universe small
+ * enough that shrinking lands on minimal counter-examples while still
+ * exercising orderings the orchestrator can plausibly produce after
+ * arbitrary `createMask` / `removeSelectedMask` / `undo` / `redo`
+ * sequences. The `maskName` is derived from the id so the click
+ * assertion can sanity-check the textContent independently of the
+ * label-text contract owned by Req 24.4.
+ */
+const maskIdArb = fc.integer({ min: 1, max: 50 });
+const maskListArb = fc
+    .uniqueArray(maskIdArb, { minLength: 1, maxLength: 8 })
+    .map((ids) => ids.map((id) => makeMask(id, `mask${id}`)));
+
+/**
+ * A permutation of an array of length `n` (returned as the indices
+ * 0..n-1 in some order). `shuffledSubarray` returns a permutation of
+ * the input when its length matches the input length, which is the
+ * case here because we feed it the full index range. We then map back
+ * onto the input array.
+ */
+function permutationArb(items) {
+    const indices = items.map((_, i) => i);
+    return fc.shuffledSubarray(indices, {
+        minLength: indices.length,
+        maxLength: indices.length,
+    });
+}
+
+// ─── Property 21.1 / 21.2: render produces canonical DOM ────────────────────
+
+test(
+    'Property 21.1 + 21.2: renderMaskList renders one <li> per mask in canvas order with data-mask-id (Reqs 24.1, 24.2)',
+    () => {
+        fc.assert(
+            fc.property(maskListArb, (masks) => {
+                const { document, listId } = installDom();
+                const canvas = makeCanvas(masks);
+                const ctx = {
+                    canvas,
+                    getListElementId: () => listId,
+                    onMaskSelected: () => {},
+                };
+
+                renderMaskList(ctx);
+
+                const ul = document.getElementById(listId);
+                const items = Array.from(
+                    ul.querySelectorAll('li.mask-item'),
+                );
+
+                // ── Req 24.1 — exactly one <li> per canvas mask ──────────
+                assert.equal(
+                    items.length,
+                    masks.length,
+                    'Req 24.1: number of <li> must equal number of canvas masks',
+                );
+                // The list MUST contain ONLY mask-item entries — no stray
+                // children left over from a prior render.
+                assert.equal(
+                    ul.children.length,
+                    masks.length,
+                    'Req 24.1: <ul> must contain only mask-item children',
+                );
+
+                // ── Req 24.1 — canvas object order is preserved ──────────
+                masks.forEach((mask, i) => {
+                    assert.equal(
+                        items[i].dataset.maskId,
+                        String(mask.maskId),
+                        `Req 24.1: <li>[${i}].data-mask-id must equal canvas object [${i}].maskId`,
+                    );
+                });
+
+                // ── Req 24.2 — every <li>'s data-mask-id matches its mask
+                items.forEach((li) => {
+                    const id = Number(li.dataset.maskId);
+                    assert.ok(
+                        Number.isFinite(id),
+                        'Req 24.2: data-mask-id must parse as a finite number',
+                    );
+                    const mask = masks.find((m) => m.maskId === id);
+                    assert.ok(
+                        mask,
+                        `Req 24.2: every <li> must correspond to a mask on the canvas (got data-mask-id=${id})`,
+                    );
+                });
+                return true;
+            }),
+            { numRuns: 100 },
+        );
+    },
+);
+
+// ─── Property 21.3: clicking selects by maskId regardless of list ordering ─
+
+test(
+    'Property 21.3: clicking a <li> selects by maskId lookup regardless of list ordering (Req 24.3)',
+    () => {
+        fc.assert(
+            fc.property(
+                maskListArb.chain((masks) =>
+                    fc.tuple(fc.constant(masks), permutationArb(masks)),
+                ),
+                ([masks, permutation]) => {
+                    const { document, listId } = installDom();
+                    const canvas = makeCanvas(masks);
+                    const selected = [];
+                    const ctx = {
+                        canvas,
+                        getListElementId: () => listId,
+                        onMaskSelected: (m) => selected.push(m),
+                    };
+
+                    renderMaskList(ctx);
+
+                    // Re-order the canvas objects under the rendered
+                    // DOM. The list was rendered in the original order
+                    // but the click handler reads `canvas.getObjects()`
+                    // at click time, so it MUST resolve clicks via the
+                    // `data-mask-id` attribute rather than the list
+                    // position. After this swap, "list position" and
+                    // "canvas object index" differ for every entry that
+                    // moved.
+                    canvas._objects = permutation.map((i) => masks[i]);
+
+                    const ul = document.getElementById(listId);
+                    const items = Array.from(
+                        ul.querySelectorAll('li.mask-item'),
+                    );
+
+                    // Click each <li> in DOM order. After every click,
+                    // both the canvas-recorded active object AND the
+                    // selection callback's last argument MUST be the
+                    // mask whose maskId matches the clicked item's
+                    // data-mask-id — even though the canvas object list
+                    // was permuted before the click.
+                    items.forEach((li) => {
+                        const expectedId = Number(li.dataset.maskId);
+                        const expectedMask = masks.find(
+                            (m) => m.maskId === expectedId,
+                        );
+                        assert.ok(
+                            expectedMask,
+                            'sanity: clicked data-mask-id must correspond to a generated mask',
+                        );
+                        const beforeCount = selected.length;
+                        li.click();
+                        assert.equal(
+                            selected.length,
+                            beforeCount + 1,
+                            'Req 24.3: each click must invoke onMaskSelected exactly once',
+                        );
+                        assert.equal(
+                            canvas._activeObject,
+                            expectedMask,
+                            'Req 24.3: canvas.setActiveObject must receive the mask whose maskId matches data-mask-id',
+                        );
+                        assert.equal(
+                            selected[selected.length - 1],
+                            expectedMask,
+                            'Req 24.3: onMaskSelected must receive the mask whose maskId matches data-mask-id',
+                        );
+                    });
+                    return true;
+                },
+            ),
+            { numRuns: 100 },
+        );
+    },
+);
+
+// ─── Property 21.4: label getText receives mask.maskId - 1 (Req 24.4) ──────
+
+test(
+    'Property 21.4: label text uses options.label.getText(mask, mask.maskId - 1) (Req 24.4)',
+    () => {
+        fc.assert(
+            fc.property(maskListArb, (masks) => {
+                installDom();
+                const canvas = makeCanvas(masks);
+                const fabric = makeFabric();
+
+                // Recorded `(mask, index)` arguments to `getText`. The
+                // assertion below checks (a) the index argument is the
+                // STABLE creation index `mask.maskId - 1`, NOT the live
+                // canvas object position, and (b) the resulting Fabric
+                // text node is constructed with that exact text.
+                const calls = [];
+                const options = resolveOptions({
+                    maskLabelOnSelect: true,
+                    label: {
+                        getText: (mask, idx) => {
+                            calls.push({ mask, idx });
+                            return `M#${mask.maskId}@${idx}`;
+                        },
+                    },
+                });
+
+                const ctx = { fabric, canvas, options };
+
+                masks.forEach((mask) => {
+                    createLabelForMask(ctx, mask);
+
+                    // ── Req 24.4 — getText was invoked with the right
+                    //                 (mask, index) pair.
+                    const last = calls[calls.length - 1];
+                    assert.equal(
+                        last.mask,
+                        mask,
+                        'Req 24.4: getText must receive the mask object',
+                    );
+                    assert.equal(
+                        last.idx,
+                        mask.maskId - 1,
+                        `Req 24.4: getText must receive mask.maskId - 1 as the index (got ${last.idx}, expected ${mask.maskId - 1})`,
+                    );
+
+                    // The Text constructor must have been called with
+                    // the value `getText` returned, and the resulting
+                    // label must be attached to the mask via
+                    // `mask.__label`.
+                    assert.ok(mask.__label, 'label must be attached to the mask');
+                    assert.equal(mask.__label._kind, 'text');
+                    assert.equal(
+                        mask.__label.text,
+                        `M#${mask.maskId}@${mask.maskId - 1}`,
+                        'Req 24.4: label text must reflect the (mask, mask.maskId - 1) call',
+                    );
+                });
+
+                // The total number of `getText` calls must equal the
+                // mask population. If `getText` ever fired with a
+                // different index for the same mask, the per-iteration
+                // assertions above would have caught it; this final
+                // count check guards against silently-skipped calls.
+                assert.equal(
+                    calls.length,
+                    masks.length,
+                    'Req 24.4: getText must be called exactly once per createLabelForMask',
+                );
+                return true;
+            }),
+            { numRuns: 100 },
+        );
+    },
+);

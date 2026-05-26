@@ -1,23 +1,19 @@
-# ImageEditor
-[![npm](https://img.shields.io/npm/l/image-editor.svg)](https://github.com/bensitu/image-editor)
+# @bensitu/image-editor
+
+[![npm](https://img.shields.io/npm/l/@bensitu/image-editor.svg)](https://github.com/bensitu/image-editor)
 [![npm](https://img.shields.io/npm/v/@bensitu/image-editor.svg)](https://www.npmjs.com/package/@bensitu/image-editor)
 [![](https://data.jsdelivr.com/v1/package/npm/@bensitu/image-editor/badge)](https://www.jsdelivr.com/package/npm/@bensitu/image-editor)
 
-A lightweight JavaScript wrapper around fabric.js that provides comprehensive image editing capabilities including loading, zooming, rotation, and mask management.
+A lightweight, TypeScript-first canvas image editor built on top of
+[Fabric.js](https://fabricjs.com/) v7. `ImageEditor` wraps a Fabric canvas
+with image loading, scale and rotation, mask creation, crop, history
+(undo/redo), and base64/file export — exposed as a single canonical class
+with a stable public surface.
 
-## Overview
-
-ImageEditor offers:
-
-- Image loading from base64 or file input
-- Zoom in/out and reset scale functionality
-- Rotation (with custom degrees or step-based)
-- Mask creation, selection, and removal
-- Optional mask labels
-- Merge/export helpers
-- Basic UI element binding
-
-**Note**: This library requires fabric.js v5.x to be loaded before instantiating the editor.
+> **v2.0.0 is a behavior-preserving migration.** The v1 deprecated method
+> and property aliases have been removed in favor of the canonical names
+> documented below. See [`CHANGELOG.md`](./CHANGELOG.md) for the complete
+> rename map.
 
 ## Demo
 
@@ -25,68 +21,139 @@ ImageEditor offers:
 
 ## Features
 
-- **Fabric.js-powered canvas** - Built on top of the robust fabric.js library
-- **Image scaling** - Configurable min/max limits with smooth animation
-- **Image rotation** - Step control and animated transitions
-- **Auto-resizing** - Optional canvas resizing to match image or container size
-- **Image crop** - Enter a crop mode to crop image
-- **Mask management** - Add, remove, remove all, with draggable/resizable masks
-- **Mask labels** - Auto-sync with mask movement/scaling
-- **Performance optimization** - Downsampling on load to prevent large image performance issues
-- **Export & Download** - Base64 output or direct file save support
-- **DOM/UI binding** - Easy integration with buttons, inputs, and placeholders
+- TypeScript source with `.d.ts` declarations published alongside the runtime
+- Single canonical class `ImageEditor` exported as both default and named
+- Fabric.js v7 declared as a peer dependency (no bundled Fabric copy)
+- Multi-format publish: ESM (`import`), CommonJS (`require`), UMD (`<script>`),
+  TypeScript declarations (`types`)
+- Transactional `loadImage` with rollback on decode, Fabric, downsample, or
+  timeout failures
+- Animation queue serializes `scaleImage`, `rotateImage`,
+  `resetImageTransform`, `undo`, and `redo` so concurrent clicks never
+  interleave
+- Bounded history stack with idempotent dispose
+- Crop session with mask preservation toggle and atomic apply/cancel
+- Base64 and `File` exports with PNG/JPEG/WebP support, configurable
+  multiplier, and mask compositing
+
+## Requirements
+
+- **Node.js**: `>= 20` for development / building from source
+- **Fabric.js**: peer dependency `^7.0.0` (must be installed by the consumer)
+- **Browsers**: modern evergreen (Chrome, Firefox, Safari, Edge). The library
+  uses ES2022 features and the Fabric v7 promise-based API.
 
 ## Installation
 
-Include fabric.js and the ImageEditor class script in your HTML:
-
-```html
-<!-- Fabric.js (required) -->
-<script src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"></script>
-
-<!-- ImageEditor -->
-<script src="path/to/ImageEditor.js"></script>
-<!-- or -->
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/image-editor.min.js"></script>
+```bash
+npm install @bensitu/image-editor fabric
+# or
+pnpm add @bensitu/image-editor fabric
+# or
+yarn add @bensitu/image-editor fabric
 ```
 
-## Quick Start
+`fabric@^7.0.0` is a peer dependency: install it explicitly so the editor
+resolves the exact version your application uses.
 
-### HTML Structure
+## Module formats and entry points
+
+The package ships a single public entry, resolved by tooling via the
+`exports` map in `package.json`:
+
+| Consumer                              | Resolves to                          |
+| ------------------------------------- | ------------------------------------ |
+| ESM (`import`)                        | `dist/esm/index.js`                  |
+| CommonJS (`require`)                  | `dist/cjs/index.cjs`                 |
+| TypeScript (`types`)                  | `dist/types/index.d.ts`              |
+| UMD (`<script>`, `unpkg`, `jsdelivr`) | `dist/umd/image-editor.umd.js`       |
+| `default` fallback                    | `dist/esm/index.js`                  |
+
+The UMD bundle exposes a global named `ImageEditor` and treats `fabric` as an
+external global named `fabric`.
+
+## Dual entry-point convention
+
+`ImageEditor`'s constructor accepts the Fabric module either explicitly (ESM
+consumers) or via `globalThis.fabric` (UMD consumers). The same source ships
+in all four formats:
+
+- **Explicit module form** (recommended for bundled apps): pass the Fabric
+  module as the first argument.
+
+  ```ts
+  import * as fabric from 'fabric';
+  import { ImageEditor } from '@bensitu/image-editor';
+
+  const editor = new ImageEditor(fabric, {
+    canvasWidth: 800,
+    canvasHeight: 600,
+  });
+  ```
+
+- **Global form** (UMD `<script>` consumers): omit the first argument; the
+  constructor reads `globalThis.fabric`.
+
+  ```html
+  <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
+  <script>
+    const editor = new ImageEditor({
+      canvasWidth: 800,
+      canvasHeight: 600,
+    });
+  </script>
+  ```
+
+If neither form yields a usable Fabric module, the constructor logs a single
+descriptive `console.error` and `init()` and `loadImage()` become no-ops that
+resolve to `undefined`.
+
+## Quick start
+
+### HTML
 
 ```html
-<!-- Canvas -->
 <canvas id="fabricCanvas"></canvas>
 
-<!-- Optional Controls -->
 <button id="zoomInBtn">Zoom In</button>
 <button id="zoomOutBtn">Zoom Out</button>
 <button id="rotateLeftBtn">Rotate Left</button>
-<input id="rotationLeftInput" type="number" value="90">
+<input  id="rotationLeftInput" type="number" value="90">
 <button id="rotateRightBtn">Rotate Right</button>
-<input id="rotationRightInput" type="number" value="90">
+<input  id="rotationRightInput" type="number" value="90">
 
 <button id="addMaskBtn">Add Mask</button>
 <button id="removeMaskBtn">Remove Mask</button>
+<button id="removeAllMasksBtn">Remove All Masks</button>
+
+<button id="cropBtn">Crop</button>
+<button id="applyCropBtn">Apply Crop</button>
+<button id="cancelCropBtn">Cancel Crop</button>
 
 <button id="mergeBtn">Merge</button>
 <button id="downloadBtn">Download</button>
+<button id="undoBtn">Undo</button>
+<button id="redoBtn">Redo</button>
+<button id="resetBtn">Reset</button>
 
 <input id="imageInput" type="file" accept="image/*">
+<ul    id="maskList"></ul>
 ```
 
-### JavaScript Implementation
+### TypeScript / ESM
 
-```javascript
-// Create instance
-const editor = new ImageEditor({
+```ts
+import * as fabric from 'fabric';
+import { ImageEditor } from '@bensitu/image-editor';
+import type { ImageEditorOptions, MaskConfig } from '@bensitu/image-editor';
+
+const editor = new ImageEditor(fabric, {
   canvasWidth: 800,
   canvasHeight: 600,
   backgroundColor: '#ffffff',
-  initialImageBase64: null // optional
-});
+} satisfies ImageEditorOptions);
 
-// Initialize (binds to DOM elements)
 editor.init({
   canvas: 'fabricCanvas',
   zoomInBtn: 'zoomInBtn',
@@ -96,113 +163,235 @@ editor.init({
   rotateRightBtn: 'rotateRightBtn',
   rotationRightInput: 'rotationRightInput',
   addMaskBtn: 'addMaskBtn',
+  removeMaskBtn: 'removeMaskBtn',
+  removeAllMasksBtn: 'removeAllMasksBtn',
+  cropBtn: 'cropBtn',
+  applyCropBtn: 'applyCropBtn',
+  cancelCropBtn: 'cancelCropBtn',
   mergeBtn: 'mergeBtn',
   downloadBtn: 'downloadBtn',
-  imageInput: 'imageInput'
+  undoBtn: 'undoBtn',
+  redoBtn: 'redoBtn',
+  resetBtn: 'resetBtn',
+  imageInput: 'imageInput',
+  maskList: 'maskList',
 });
 
-// Load an image manually (base64 string)
-// editor.loadImage('data:image/jpeg;base64,...');
+// Load an image programmatically (base64 data URL).
+await editor.loadImage('data:image/jpeg;base64,...');
+
+// Add a rectangular mask, then export the result as base64.
+const mask: MaskConfig = { shape: 'rect', width: 120, height: 80, left: '25%', top: '25%' };
+editor.createMask(mask);
+
+const dataUrl = await editor.exportImageBase64({ fileType: 'png' });
 ```
 
-## Configuration Options
+### CommonJS
 
-When creating the editor instance, you can pass an options object to override defaults:
+```js
+const fabric = require('fabric');
+const { ImageEditor } = require('@bensitu/image-editor');
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `canvasWidth` | `800` | Initial canvas width (px) |
-| `canvasHeight` | `600` | Initial canvas height (px) |
-| `backgroundColor` | `transparent` | Canvas background color |
-| `animationDuration` | `300` | Animation duration for scale/rotation (ms) |
-| `minScale` | `0.1` | Minimum scale factor |
-| `maxScale` | `5.0` | Maximum scale factor |
-| `scaleStep` | `0.05` | Scale step for zoom buttons |
-| `rotationStep` | `90` | Default rotation step in degrees |
-| `expandCanvasToImage` | `true` | Expand canvas to image size on load |
-| `fitImageToCanvas` | `false` | Fit image to current canvas size |
-| `coverImageToCanvas` | `false` | Fit image to cover canvas (at least one side fits, allowing overflow). |
-| `downsampleOnLoad` | `true` | Downsample large images before rendering |
-| `downsampleMaxWidth` | `4000` | Max width count before downsampling |
-| `downsampleMaxHeight` | `3000` | Max height count before downsampling |
-| `downsampleQuality` | `0.92` | JPEG quality when downsampling |
-| `exportMultiplier` | `1` | Scale factor for export |
-| `exportImageAreaByDefault` | `true` | Export only the image area (clipped to masks) |
-| `defaultMaskWidth` | `50` | Default mask width (px) |
-| `defaultMaskHeight` | `80` | Default mask height (px) |
-| `maskRotatable` | `false` | Whether masks can be rotated |
-| `maskLabelOnSelect` | `true` | Show label when mask is selected |
-| `maskLabelOffset` | `3` | Offset for mask labels from top-left corner |
-| `maskName` | `mask` | Prefix for mask names/labels |
-| `showPlaceholder` | `true` | Shows placeholder when no image is loaded |
-| `initialImageBase64` | `null` | Base64 string to auto-load as initial image |
-| `defaultDownloadFileName` | `edited_image.jpg` | Default file name for downloads |
-
-## API Methods
-
-| Method | Description |
-|--------|-------------|
-| `init(idMap)` | Bind the editor to DOM elements. Pass IDs in an object (optional). |
-| `loadImage(base64)` | Load an image from a base64 data string. |
-| `scaleImage(factor)` | Scale image to the given factor (relative to base scale). |
-| `rotateImage(degrees)` | Rotate image to the given angle in degrees. |
-| `reset()` | Reset scale to 1 and rotation to 0. |
-| `undo()` | Undo the last state change. |
-| `redo()` | Redo the next state change. |
-| `addMask(config)` | Add a mask to the canvas. Config can include width, height, color. |
-| `removeSelectedMask()` | Remove the currently selected mask. |
-| `removeAllMasks()` | Remove all masks from the canvas. |
-| `enterCropMode()` | Create a resizable/movable selection rect on top of the image. |
-| `cancelCrop()` | Cancel crop mode and remove the temporary selection rect. |
-| `applyCrop()` | Apply the current crop rectangle in the canvas. |
-| `merge()` | Merge masks with the base image in the canvas. |
-| `downloadImage()` | Download the merged image as a file. |
-| `exportImageFile(options)` | Exports the current canvas (with or without masks) as a `File` object. |
-
-## Example Workflow
-
-1. **Load an image** - Via file input or base64 string
-2. **Adjust positioning** - Zoom in/out or rotate as needed
-3. **Add masks** - Highlight or cover specific areas (drag, resize)
-4. **Merge result** - Create a flattened export (optional)
-5. **Download / export** - Save the final image
-
-## Installing
-
-### npm / pnpm / yarn
-```bash
-npm i @bensitu/image-editor fabric
-# or
-pnpm add @bensitu/image-editor fabric
-# or
-yarn add @bensitu/image-editor fabric
+const editor = new ImageEditor(fabric, { canvasWidth: 800, canvasHeight: 600 });
 ```
 
-### Local build
+## Public API
+
+`ImageEditor` is the only public class. The package barrel re-exports it as
+both the default export and a named export, alongside `isMaskObject` and the
+documented public types. Internal helpers (animation queue, command, history
+manager, controllers, services, managers, utility modules) are intentionally
+not exported and may change without notice.
+
+### Constructor
+
+```ts
+new ImageEditor(fabric: FabricModule, options?: ImageEditorOptions)
+new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
+```
+
+### Lifecycle
+
+| Method                       | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `init(idMap?)`               | Bind the editor to DOM elements. Pass an `ElementIdMap`; any key may be omitted. |
+| `dispose()`                  | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent. |
+
+### Image loading
+
+| Method                             | Description                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `loadImage(base64, options?)`      | Load an image from a `data:image/...` URL. Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
+| `isImageLoaded()`                  | Returns `true` if a valid image is currently loaded on the canvas.       |
+
+`LoadImageOptions` currently includes `preserveScroll?: boolean` for
+preserving the container's scroll position across both successful loads and
+rollback paths.
+
+### Transforms
+
+| Method                       | Description                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `scaleImage(factor)`         | Scale to `factor` (clamped to `[minScale, maxScale]`). Animated. Returns `Promise<void>`.              |
+| `rotateImage(degrees)`       | Rotate to `degrees`. `NaN` resolves immediately without changing canvas state. Animated.               |
+| `resetImageTransform()`      | Animate to scale 1 and rotation 0. Records exactly one history entry covering the entire transform.    |
+
+### Masks
+
+| Method                            | Description                                                              |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| `createMask(config?)`             | The single mask-creation entry point. Returns the new `MaskObject` or `null`. |
+| `removeSelectedMask()`            | Remove the currently selected mask and push one history entry.           |
+| `removeAllMasks(options?)`        | Remove every mask. `options.saveHistory` defaults to `true`.             |
+
+`MaskConfig` supports rect, circle, ellipse, polygon, and a custom
+`fabricGenerator`. Falsy values in `styles` (`0`, `false`, `null`, `''`,
+`NaN`) are applied verbatim.
+
+### Crop
+
+| Method            | Description                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `enterCropMode()` | Add an interactive crop rectangle on top of the image.                                            |
+| `applyCrop()`     | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.               |
+| `cancelCrop()`    | Cancel crop mode and restore the prior canvas state without pushing a history entry.              |
+
+### Merge and export
+
+| Method                              | Description                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| `mergeMasks()`                      | Bake masks into the base image atomically. Returns `Promise<void>`.                          |
+| `exportImageBase64(options?)`       | Returns `Promise<string>` (data URL). Resolves to `''` with a warning when no image is loaded. |
+| `exportImageFile(options?)`         | Returns `Promise<File>`. Rejects when no image is loaded.                                    |
+| `downloadImage(fileName?)`          | Triggers a browser download. No-op when no image is loaded.                                  |
+
+`Base64ExportOptions` and `ImageFileExportOptions` accept `fileType`
+(`'png' | 'jpeg' | 'jpg' | 'webp'` plus full MIME forms), `quality` (clamped
+to `[0, 1]`, ignored for PNG), `multiplier`, and a flag controlling whether
+masks are baked in.
+
+### State and history
+
+| Method                       | Description                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `saveState()`                | Capture a snapshot of the canvas plus editor metadata into the history stack.              |
+| `loadFromState(snapshot)`    | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.        |
+| `undo()`                     | Undo the last state change. Routed through the animation queue. No-op while disposed.      |
+| `redo()`                     | Redo the next state change. Routed through the animation queue. No-op while disposed.      |
+
+## Configuration options
+
+Pass an `ImageEditorOptions` object as the second constructor argument
+(or as the only argument when using the UMD global form). Unknown keys are
+ignored; nested `label` and `crop` objects are deep-merged with the defaults.
+
+| Option                     | Default              | Description                                                                                  |
+| -------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
+| `canvasWidth`              | `800`                | Initial canvas width in pixels.                                                              |
+| `canvasHeight`             | `600`                | Initial canvas height in pixels.                                                             |
+| `backgroundColor`          | `'transparent'`      | Fabric canvas background color.                                                              |
+| `animationDuration`        | `300`                | Duration of scale and rotate animations (ms).                                                |
+| `minScale`                 | `0.1`                | Minimum scale factor.                                                                        |
+| `maxScale`                 | `5.0`                | Maximum scale factor.                                                                        |
+| `scaleStep`                | `0.05`               | Scale delta per zoom step.                                                                   |
+| `rotationStep`             | `90`                 | Rotation step in degrees.                                                                    |
+| `expandCanvasToImage`      | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                          |
+| `fitImageToCanvas`         | `false`              | Fit the image inside the current canvas (highest layout precedence).                         |
+| `coverImageToCanvas`       | `false`              | Cover the canvas viewport with the image (overrides `expandCanvasToImage`).                  |
+| `downsampleOnLoad`         | `true`               | Downsample large images on load.                                                             |
+| `downsampleMaxWidth`       | `4000`               | Max width before downsampling kicks in.                                                      |
+| `downsampleMaxHeight`      | `3000`               | Max height before downsampling kicks in.                                                     |
+| `downsampleQuality`        | `0.92`               | Lossy quality used when downsampling and exporting.                                          |
+| `preserveSourceFormat`     | `true`               | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.              |
+| `downsampleMimeType`       | `null`               | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                             |
+| `imageLoadTimeoutMs`       | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.               |
+| `exportMultiplier`         | `1`                  | Output resolution multiplier.                                                                |
+| `exportImageAreaByDefault` | `true`               | Clip exports to the image bounding box and bake in masks by default.                         |
+| `defaultMaskWidth`         | `50`                 | Default mask width.                                                                          |
+| `defaultMaskHeight`        | `80`                 | Default mask height.                                                                         |
+| `maskRotatable`            | `false`              | Allow masks to be rotated by the user.                                                       |
+| `maskLabelOnSelect`        | `true`               | Show a label above a selected mask.                                                          |
+| `maskLabelOffset`          | `3`                  | Pixel offset of the label from the mask's top-left corner.                                   |
+| `maskName`                 | `'mask'`             | Prefix used for auto-generated mask names.                                                   |
+| `groupSelection`           | `false`              | Allow Fabric multi-object group selection on the canvas.                                     |
+| `showPlaceholder`          | `true`               | Show a placeholder element while no image is loaded.                                         |
+| `initialImageBase64`       | `null`               | Base64 data URL auto-loaded after construction.                                              |
+| `defaultDownloadFileName`  | `'edited_image.jpg'` | Default file name used by `downloadImage()`.                                                 |
+| `onImageLoaded`            | `null`               | Called once after a successful `loadImage`. Errors are caught and logged.                    |
+| `onError`                  | `null`               | Called as `(error, message)` when the editor reports an error.                               |
+| `onWarning`                | `null`               | Called as `(error, message)` when the editor reports a recoverable warning.                  |
+| `label`                    | see source           | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                 |
+| `crop`                     | see source           | `CropConfig` (`minWidth`, `minHeight`, `padding`, `hideMasksDuringCrop`, `preserveMasksAfterCrop` (default `false`), `allowRotationOfCropRect`). |
+
+## Example workflow
+
+1. Construct `ImageEditor` with options and call `init(idMap)` to wire it up.
+2. Load an image via `loadImage(base64)` or the bound file input.
+3. Adjust with `scaleImage`, `rotateImage`, `resetImageTransform`, and the
+   crop session.
+4. Add `createMask` calls and inspect via the `maskList` element.
+5. Use `mergeMasks` to bake masks into the image, then
+   `exportImageBase64`, `exportImageFile`, or `downloadImage` to produce
+   the final output.
+6. Call `dispose()` when the editor is unmounted.
+
+## Building from source
+
 ```bash
+npm install
 npm run build
 ```
 
-### Load UMD js file:
-You can download image-editor from the dist folder.
+`npm run build` runs `clean → build:esm → build:cjs → build:types →
+build:umd` in order, emitting:
 
-## Browser Support
+- `dist/esm/index.js` (and the rest of the decomposed source tree)
+- `dist/cjs/index.cjs`
+- `dist/types/index.d.ts`
+- `dist/umd/image-editor.umd.js`
 
-* Chrome 100+
-* Firefox 100+
-* Safari 15+
-* Edge 100+
+`npm test` runs the Node-based unit and property tests under `tests/`.
 
-The class uses modern DOM & ES2022 features (optional chaining, class, async/await).
+## Browser support
 
-If you need IE11 or old mobile Safari you will have to transpile.
+- Chrome 100+
+- Firefox 100+
+- Safari 15+
+- Edge 100+
 
-## Dependencies
+The library uses modern DOM and ES2022 features (optional chaining, classes,
+`async`/`await`, native promises). Older targets must be transpiled by the
+consumer.
 
-- **fabric.js v5.x** — Must be loaded before ImageEditor
+## Type declarations
+
+Public types are re-exported from the package root:
+
+```ts
+import type {
+  ImageEditorOptions,
+  ResolvedOptions,
+  LabelConfig,
+  CropConfig,
+  LoadImageOptions,
+  RemoveAllMasksOptions,
+  MaskConfig,
+  MaskObject,
+  MaskNumericProp,
+  ResolvedMaskConfig,
+  ImageMimeType,
+  ImageFileType,
+  NormalizedImageFormat,
+  Base64ExportOptions,
+  ImageFileExportOptions,
+  ElementIdMap,
+  FabricModule,
+} from '@bensitu/image-editor';
+```
 
 ## License
 
-MIT © 2026 Ben Situ
+MIT © Ben Situ.
 
-Fabric.js is licensed under its own MIT license.
+Fabric.js is distributed under its own MIT license.

@@ -1,17 +1,26 @@
 /**
  * @file index.ts
- * @description Public API barrel for the image-editor library.
+ * @description Canonical public API barrel for the image-editor library.
+ *
+ * The package surface consists of:
+ *   - `ImageEditor` (default and named export) — the only public class.
+ *   - `isMaskObject` — runtime type guard for mask objects.
+ *   - The documented public types listed below.
+ *
+ * Internal helpers (animation queue, command, history manager, controllers,
+ * services, managers, and utility modules) are intentionally not re-exported;
+ * they are implementation details and may change without notice.
  *
  * @example
  * ```ts
  * import * as fabric from 'fabric';
- * import { ImageEditor } from 'image-editor';
- * import type { ImageEditorOptions, MaskConfig, MaskObject } from 'image-editor';
+ * import { ImageEditor} from 'image-editor';
+ * import type { ImageEditorOptions, MaskConfig, MaskObject} from 'image-editor';
  * ```
  */
-export { ImageEditor } from './image-editor.js';
-export { AnimationQueue } from './animation-queue.js';
-export { Command, HistoryManager } from './history.js';
-export type { ImageEditorOptions, ElementIdMap, MaskConfig, MaskObject, MaskNumericProp, ResolvedMaskConfig, LabelConfig, CropConfig, ExportOptions, ExportFileOptions, FabricModule, ResolvedOptions, } from './types.js';
-export { isMaskObject } from './types.js';
+import { ImageEditor } from './image-editor.js';
+export { ImageEditor };
+export default ImageEditor;
+export { isMaskObject } from './core/public-types.js';
+export type { ImageEditorOptions, ResolvedOptions, LabelConfig, CropConfig, LoadImageOptions, RemoveAllMasksOptions, MaskConfig, MaskObject, MaskNumericProp, ResolvedMaskConfig, ImageMimeType, ImageFileType, NormalizedImageFormat, Base64ExportOptions, ImageFileExportOptions, ElementIdMap, FabricModule, } from './core/public-types.js';
 //# sourceMappingURL=index.d.ts.map

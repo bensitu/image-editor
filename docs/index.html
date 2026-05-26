@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageEditor - Demo</title>
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
     <meta content="IE=edge" http-equiv="X-UA-Compatible">
     <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control">
     <meta content="0" http-equiv="Expires">
@@ -101,7 +103,7 @@
             </div>
 
             <div class="tool-group" role="group" aria-label="History actions">
-                <button class="btn tool-button" id="resetBtn" type="button" data-i18n="reset">Reset</button>
+                <button class="btn tool-button" id="resetBtn" type="button" data-i18n="resetTransform">Reset</button>
                 <button id="undoBtn" class="btn tool-button" type="button" data-i18n="undo">Undo</button>
                 <button id="redoBtn" class="btn tool-button" type="button" data-i18n="redo">Redo</button>
             </div>
@@ -125,7 +127,7 @@
             </div>
 
             <div class="tool-group" role="group" aria-label="Export actions">
-                <button id="mergeBtn" class="btn tool-button" type="button" data-i18n="merge">Merge</button>
+                <button id="mergeBtn" class="btn tool-button" type="button" data-i18n="mergeMasks">Merge</button>
                 <button id="downloadBtn" class="btn tool-button primary-action" type="button" data-i18n="download">Download</button>
                 <button id="base64Btn" class="btn tool-button" type="button" data-i18n="consoleBase64">Console Base64</button>
             </div>
@@ -150,12 +152,21 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <!--
+        Fabric.js v7 dual entry-point: the package ships an ESM build for
+        bundlers and a UMD build for `<script>` tags. The UMD build below
+        publishes the Fabric module on `globalThis.fabric`, which is what
+        the ImageEditor v2 UMD bundle reads when constructed without an
+        explicit module argument.
+    -->
     <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
     <script>
         (function () {
+            // The published UMD bundle is the documented browser entry-point
+            // for `@bensitu/image-editor` v2 (registered global: `ImageEditor`).
             const imageEditorSources = window.location.hostname.endsWith('github.io')
-                ? ['https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/image-editor.min.js']
-                : ['../dist/umd/image-editor.umd.js', 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/image-editor.min.js'];
+                ? ['https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js']
+                : ['../dist/umd/image-editor.umd.js', 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js'];
 
             function loadScript(src, onload, onerror) {
                 const script = document.createElement('script');

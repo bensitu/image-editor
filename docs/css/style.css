@@ -215,10 +215,6 @@ input[type="number"]::-webkit-inner-spin-button {
     border-radius: 3px;
 }
 
-.legacy-demo-toggle[hidden] {
-    display: none;
-}
-
 .load-panel {
     display: grid;
     grid-template-columns: minmax(180px, 240px) minmax(240px, 330px) minmax(0, 1fr);

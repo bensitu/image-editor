@@ -1,0 +1,847 @@
+/**
+ * @file export/export-service.ts
+ * @description Base64, file, and download entry points for the v2 export
+ *              pipeline. The orchestrator (`image-editor.ts`) delegates
+ *              `exportImageBase64`, `exportImageFile`, and `downloadImage`
+ *              to the helpers in this module so the export logic lives in
+ *              a single owner module per the design's module-decomposition
+ *              table.
+ *
+ * ## Owned contracts (this task — 18.4 builds on 18.3)
+ *
+ * - Before computing the export region, every
+ *   export entry point SHALL discard any active Fabric `ActiveSelection`
+ *   so it is not serialized into the output. The discard is performed
+ *   unconditionally; calling `canvas.discardActiveObject` with no active
+ *   selection is a documented no-op.
+ * - `exportImageBase64(options?: Base64ExportOptions)`
+ *   is the only canonical base64 export entry point. It accepts both
+ *   `fileType` and `format` for ergonomic interop and
+ *   returns a `Promise<string>` resolving to a `data:image/...;base64...`
+ *   data URL.
+ * - `exportImageFile(options?: ImageFileExportOptions)`
+ *   resolves to a `File` whose name comes from `options.fileName` or the
+ *   editor's `defaultDownloadFileName`.
+ * - `downloadImage(fileName?: string)` triggers a
+ *   browser download with the resolved filename. The bytes match the same
+ *   pipeline used by `exportImageBase64`.
+ * - When `isImageLoaded` is `false`, the three
+ *   entry points exhibit the documented "no image loaded" shapes:
+ *
+ *     | entry point          | shape on no image                   |
+ *     | -------------------- | ----------------------------------- |
+ *     | `exportImageBase64`  | resolves to `''`                    |
+ *     | `exportImageFile`    | rejects with `ExportNotReadyError`  |
+ *     | `downloadImage`      | no-op (returns synchronously)       |
+ *
+ *   Each path emits a single `console.warn` naming the missing image so
+ *   the consumer's logs identify which export attempt was skipped.
+ * - When `exportImageArea` resolves
+ *   to `true` and a valid `originalImage` exists, the export region is
+ *   computed from `originalImage.getBoundingRect` and passed directly
+ *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
+ *   No intermediate `<canvas>` element is created (27.2), and sub-pixel
+ *   width/height values are floored to integer pixels (27.3) through
+ *   the {@link floorRegion} helper.
+ * - When `exportImageArea` is
+ *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
+ *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
+ *   mutator forces the bake-in style (`opacity: 1, fill: '#000',
+ *   strokeWidth: 0, stroke: null, selectable: false`) and restored
+ *   inside a `finally` block whether the inner render resolved or
+ *   rejected. The backup/restore bracket is owned by
+ *   {@link withMaskStyleBackup} in `mask/mask-style.ts`; this module
+ *   only contributes the bake-in mutator.
+ * - **mergeMasks pre-export** — Before computing the merged
+ *   bitmap, {@link mergeMasks} discards any active Fabric
+ *   `ActiveSelection`. {@link exportImageBase64} also discards on its
+ *   own entry, so the discard runs at most twice (both calls are
+ *   idempotent no-ops when nothing is selected).
+ * - **mergeMasks atomicity** —
+ *   {@link mergeMasks} is the canonical merge entry point
+ *   (`Promise<void>`). It captures a pre-merge snapshot suitable for
+ *   `loadFromState`, renders the merged bitmap via
+ *   {@link exportImageBase64}, removes every mask without history,
+ *   reloads the merged data URL through the transactional
+ *   `image/image-loader.ts`, and on success pushes exactly one
+ *   {@link Command} whose `undo` restores the pre-merge snapshot and
+ *   whose `execute` re-applies the merged image. On any failure
+ *   between snapshot capture and history push, the pre-merge snapshot
+ *   is restored and the promise rejects with
+ *   {@link MergeMasksError}. Container scroll position is preserved
+ *   across the success path (canonically via
+ *   `loadImage(..., { preserveScroll: true})`, with a defensive
+ *   restore at the tail of the merge).
+ *
+ * ## Why a service-shaped module
+ *
+ * Per the design's "Mapping requirements to modules" table the export
+ * pipeline owns its own module so the orchestrator stays thin. The
+ * service is a stateless function-collection (matching
+ * `image/image-loader.ts` and `core/state-serializer.ts`) and reads every
+ * editor field through an explicit {@link ExportServiceContext} bundle.
+ * This keeps the orchestrator authoritative for editor state — the export
+ * helpers never store a reference to the canvas or options between
+ * invocations — and makes the module trivially mockable from unit and
+ * property tests.
+ *
+ * The module is intentionally NOT re-exported from `src/index.ts`
+ * (only `ImageEditor`, `isMaskObject`, and the
+ * documented public types are root-exported).
+ */
+
+import type * as FabricNS from 'fabric';
+
+import type {
+    Base64ExportOptions,
+    FabricModule,
+    ImageFileExportOptions,
+    LoadImageOptions,
+    MaskObject,
+    NormalizedImageFormat,
+    ResolvedOptions,
+} from '../core/public-types.js';
+import { ExportNotReadyError, MergeMasksError} from '../core/errors.js';
+import { Command, type HistoryManager} from '../history/history-manager.js';
+import { withMaskStyleBackup} from '../mask/mask-style.js';
+import { floorRegion, getObjectBBox, type IntegerRegion} from '../utils/canvas-region.js';
+import { resolveExportFormat, type ResolvedExportFormat} from './export-format.js';
+
+// ─── Context ─────────────────────────────────────────────────────────────────
+
+/**
+ * Dependency bundle passed by the `ImageEditor` facade into every export
+ * entry point. The service has no class state of its own — every editor
+ * field it reads is exposed here as a value or callback so the facade
+ * keeps ownership of the canonical state.
+ *
+ * Mirrors the shape of {@link import('../image/image-loader.js').LoadImageContext}
+ * for consistency across pipeline modules.
+ *
+ * @see image/image-loader.ts (the same context-bundle pattern)
+ */
+export interface ExportServiceContext {
+    /** The Fabric module providing `Canvas` / `FabricImage`. */
+    readonly fabric: FabricModule;
+    /** The live Fabric canvas. Always non-null on a constructed editor. */
+    readonly canvas: FabricNS.Canvas;
+    /** Resolved editor options — supplies `defaultDownloadFileName`,
+     *  `downsampleQuality`, `exportMultiplier`, and
+     *  `exportImageAreaByDefault`. */
+    readonly options: ResolvedOptions;
+
+    /**
+     * Predicate matching `ImageEditor.isImageLoaded`. Returns `true`
+     * only when an `originalImage` has been committed and has positive
+     * dimensions (reads through this gate).
+     */
+    isImageLoaded(): boolean;
+
+    /**
+     * The currently committed `originalImage`, or `null` when no image is
+     * loaded. {@link computeExportRegion} reads it through this callback
+     * to derive the floored bounding box for `exportImageArea === true`
+     * exports. When the image has been disposed or
+     * never loaded the seam falls through to a full-canvas export.
+     */
+    getOriginalImage(): FabricNS.FabricImage | null;
+}
+
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+/**
+ * Numeric resolution of `multiplier` against the editor defaults. Mirrors
+ * v1's `options.multiplier || this.options.exportMultiplier || 1` so a
+ * caller-supplied `0` or non-finite value falls through to the resolved
+ * default and finally to `1`.
+ *
+ * @param requested  Caller-supplied multiplier from the export options.
+ * @param fallback   `options.exportMultiplier` from {@link ResolvedOptions}.
+ * @returns          A finite multiplier `>= 1`, never `NaN`.
+ */
+function resolveMultiplier(requested: unknown, fallback: number): number {
+    const num = Number(requested);
+    if (Number.isFinite(num) && num > 0) return num;
+    const fb = Number(fallback);
+    return Number.isFinite(fb) && fb > 0 ? fb : 1;
+}
+
+/**
+ * Compute the export region passed to Fabric's `toDataURL`. Returns
+ * `null` to mean "no region clipping — emit the full canvas", which
+ * Fabric treats as omitting `left`/`top`/`width`/`height` from the
+ * options object.
+ *
+ * Region semantics:
+ *
+ * - When `exportImageArea` is `false`, the full canvas is exported
+ *   regardless of whether an `originalImage` is present (the masks
+ *   stencil is what the consumer asked for).
+ * - When `exportImageArea` is `true` and `ctx.getOriginalImage`
+ *   returns a valid image, the image's absolute bounding rect is read
+ *   through {@link getObjectBBox} (which calls `setCoords` so a
+ *   freshly mutated image returns fresh coordinates) and discretized
+ *   through {@link floorRegion}. The resulting integer region is
+ *   handed straight to Fabric's region export options — there is no
+ *   intermediate `<canvas>`, and the floor on
+ *   `width`/`height` prevents the 1-pixel JPEG edge artifact called
+ *   out by the integer-region floor.
+ * - When `exportImageArea` is `true` but no `originalImage` is
+ *   committed (a defensive case the `isImageLoaded` gate above
+ *   normally rules out), fall through to a full-canvas export so the
+ *   `toDataURL` call still emits a valid frame instead of throwing on
+ *   a `null` bounding rect.
+ *
+ * @param ctx              Export context for `originalImage` access.
+ * @param exportImageArea  Resolved `exportImageArea` flag (caller
+ *                         default already applied by the entry point).
+ * @returns                `null` for full-canvas exports; otherwise an
+ *                         {@link IntegerRegion} suitable for
+ *                         `canvas.toDataURL({ left, top, width, height})`.
+ */
+function computeExportRegion(
+    ctx: ExportServiceContext,
+    exportImageArea: boolean,
+): IntegerRegion | null {
+    if (!exportImageArea) return null;
+    const originalImage = ctx.getOriginalImage();
+    if (!originalImage) return null;
+    return floorRegion(getObjectBBox(originalImage));
+}
+
+/**
+ * Bracket helper that captures every mask's live style, applies the
+ * export-only bake-in style, runs `fn`, and restores the captured live
+ * styles inside a `finally` block — even if `fn` rejected.
+ *
+ * Bake-in is only applied when `exportImageArea === true`, matching v1's
+ * mergeMask path where the rendered raster needs solid black masks so
+ * the masked-out regions are flattened into the JPEG/PNG output. When
+ * `exportImageArea === false` the canvas is rendered with mask styles
+ * untouched, so there is nothing to back up and `fn` runs directly.
+ *
+ * For each mask the bake-in mutator forces:
+ *
+ *   `opacity: 1, fill: '#000', strokeWidth: 0, stroke: null,
+ *    selectable: false`
+ *
+ * matching v1's `_mergeMasks`/`exportImageBase64` (`#000000` collapsed to
+ * `#000`; both serialize identically through Fabric to a solid black
+ * fill). The restoration step is owned by `withMaskStyleBackup` in
+ * `mask/mask-style.ts`, which captures `opacity`/`fill`/`stroke`/
+ * `strokeWidth`/`selectable`/`lockRotation` BEFORE the mutator runs and
+ * restores all six fields in a `finally` even when the inner step
+ * rejected.
+ *
+ * @param ctx              Export context — supplies the live canvas to
+ *                         the canonical backup helper.
+ * @param exportImageArea  Resolved `exportImageArea` flag. `true`
+ *                         triggers the bake-in; `false` is a thin
+ *                         pass-through.
+ * @param fn               The async data-URL rendering step. Already
+ *                         knows the resolved format/quality/multiplier
+ *                         and the export region, and calls
+ *                         `canvas.toDataURL` directly.
+ * @returns                Whatever `fn` resolves to.
+ *
+ */
+async function bakeMasksForExport<T>(
+    ctx: ExportServiceContext,
+    exportImageArea: boolean,
+    fn: () => Promise<T>,
+): Promise<T> {
+    if (!exportImageArea) return fn();
+    return withMaskStyleBackup(
+        { canvas: ctx.canvas, options: ctx.options },
+        applyExportBakeInStyle,
+        fn,
+    );
+}
+
+/**
+ * Mutator passed to {@link withMaskStyleBackup} that forces a single
+ * mask to the export bake-in style. Matches v1's mergeMask path
+ * literal-for-literal (`#000` ≡ `#000000` once Fabric normalizes the
+ * fill). Wrapped in `try/catch` so a stale Fabric reference does not
+ * break the iteration over a multi-mask canvas — the surrounding
+ * `withMaskStyleBackup` is responsible for the restore regardless.
+ */
+function applyExportBakeInStyle(mask: MaskObject): void {
+    try {
+        mask.set({
+            opacity: 1,
+            fill: '#000',
+            strokeWidth: 0,
+            stroke: null,
+            selectable: false,
+});
+        if (typeof mask.setCoords() === 'function') mask.setCoords();
+} catch {
+        /* ignore — mask may have been removed mid-iteration */
+}
+}
+
+/**
+ * Produce a base64 data URL from the live canvas using the resolved
+ * format, quality, multiplier, and (optional) export region. Calls
+ * `canvas.toDataURL` directly — there is no intermediate `<canvas>`.
+ *
+ * The `region` argument is `null` for full-canvas exports and an
+ * {@link IntegerRegion} when `exportImageArea === true` (Requirements
+ * 27.1, 27.3).
+ */
+function renderCanvasToDataURL(
+    canvas: FabricNS.Canvas,
+    format: NormalizedImageFormat,
+    quality: number | undefined,
+    multiplier: number,
+    region: IntegerRegion | null,
+): string {
+    const fabricOptions: Record<string, unknown> = {
+        format,
+        multiplier,
+};
+    // PNG ignores `quality`; `resolveExportFormat`
+    // returns `undefined` for PNG so the key is omitted entirely.
+    if (quality !== undefined) fabricOptions.quality = quality;
+    if (region) {
+        fabricOptions.left = region.left;
+        fabricOptions.top = region.top;
+        fabricOptions.width = region.width;
+        fabricOptions.height = region.height;
+}
+    // Cast: Fabric's `TDataUrlOptions` is structurally identical to the
+    // shape we built but is not re-exported as a public type from the
+    // package surface, so we erase the dictionary type at the boundary.
+    return canvas.toDataURL(fabricOptions as Parameters<typeof canvas.toDataURL>[0]);
+}
+
+/**
+ * Convert a `data:image/...;base64...` URL into the byte array that
+ * `new File([...]...)` consumes. Mirrors v1's reverse-loop decode so
+ * large data URLs do not allocate intermediate `Array.from` storage.
+ *
+ * Splits on the first comma rather than `.split(',')[1]` — some browsers
+ * historically embedded base64 padding `=` characters that are safe but
+ * not guaranteed to be comma-free in every consumer's downstream
+ * pipeline; joining the tail back together preserves the full payload.
+ *
+ * @throws DOMException if the data URL is malformed and `atob` rejects.
+ */
+function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
+    const commaAt = dataUrl.indexOf(',');
+    const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
+    const binary = atob(base64);
+    // Explicitly allocate a fresh ArrayBuffer so the resulting
+    // Uint8Array's `buffer` is typed as `ArrayBuffer` (rather than
+    // `ArrayBufferLike`, which the lib.dom `BlobPart` union rejects
+    // because it admits `SharedArrayBuffer`).
+    const buffer = new ArrayBuffer(binary.length);
+    const bytes = new Uint8Array(buffer);
+    for (let i = binary.length - 1; i >= 0; i -= 1) {
+        bytes[i] = binary.charCodeAt(i);
+}
+    return bytes;
+}
+
+/**
+ * Repaint a base64 data URL through an offscreen `<canvas>` so the
+ * resulting URL carries the requested MIME type. Mirrors v1's behavior
+ * for `exportImageFile` — the underlying `canvas.toDataURL` may quietly
+ * fall back to PNG when the requested format is unsupported by the
+ * browser, and the file output should still match the requested MIME.
+ *
+ * The conversion only runs when the source URL's MIME prefix does not
+ * match the requested format; the matching-prefix fast path returns the
+ * URL unchanged and skips the extra decode entirely.
+ */
+function reencodeDataUrlAs(
+    sourceDataUrl: string,
+    target: ResolvedExportFormat,
+): Promise<string> {
+    if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
+        return Promise.resolve(sourceDataUrl);
+}
+    return new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload =  () => {
+            try {
+                const off = document.createElement('canvas');
+                off.width = img.naturalWidth || img.width;
+                off.height = img.naturalHeight || img.height;
+                const ctx2d = off.getContext('2d');
+                if (!ctx2d) throw new Error('Unable to acquire 2D context for export conversion');
+                ctx2d.drawImage(img, 0, 0);
+                resolve(off.toDataURL(target.mimeType, target.quality));
+} catch (error) {
+                reject(error);
+}
+};
+        img.onerror =  () => {
+            reject(new Error('Failed to decode export data URL during MIME conversion'));
+};
+        img.src = sourceDataUrl;
+});
+}
+
+/** Single source of truth for the "no image" warning text. */
+function warnNoImageLoaded(operation: string): void {
+    // eslint-disable-next-line no-console -- the warning is part of the documented contract.
+    console.warn(
+        `[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`,
+);
+}
+
+// ─── exportImageBase64 ───────────────────────────────────────────────────────
+
+/**
+ * Render the live canvas to a base64 data URL.
+ *
+ * Steps, in order:
+ *
+ * 1. **No-image gate** — when `ctx.isImageLoaded`
+ *    is `false`, emit a `console.warn` and resolve to `''` without
+ *    touching the canvas.
+ * 2. **Discard ActiveSelection** — call
+ *    `canvas.discardActiveObject` once before computing the export
+ *    region. Subsequent steps render against the post-discard canvas
+ *    state, which never carries a top-level `ActiveSelection`.
+ * 3. **Resolve format/quality**
+ *    via {@link resolveExportFormat}.
+ * 4. **Resolve multiplier** — `options.multiplier || exportMultiplier || 1`.
+ * 5. **Compute region** — see {@link computeExportRegion}. Returns
+ *    `null` for full-canvas exports and a floored {@link IntegerRegion}
+ *    when `exportImageArea` is `true` and an `originalImage` is
+ *    committed.
+ * 6. **Render** through {@link bakeMasksForExport} so mask styles are
+ *    captured, the export bake-in (`opacity: 1, fill: '#000',
+ *    strokeWidth: 0, stroke: null, selectable: false`) is applied for
+ *    `exportImageArea === true` exports, and the live styles are
+ *    restored in a `finally` block whether the render resolved or
+ *    threw. The inner step is a single
+ *    `canvas.toDataURL` call — no intermediate `<canvas>`.
+ *
+ * @param ctx      Export context bundle.
+ * @param options  Optional {@link Base64ExportOptions}. Both `fileType`
+ *                 and `format` are accepted; when
+ *                 both are supplied, `fileType` wins.
+ * @returns        Resolves to a `data:image/...;base64...` URL on
+ *                 success, or `''` when no image is loaded.
+ *
+ */
+export async function exportImageBase64(
+    ctx: ExportServiceContext,
+    options?: Base64ExportOptions,
+): Promise<string> {
+    if (!ctx.isImageLoaded()) {
+        warnNoImageLoaded('exportImageBase64');
+        return '';
+}
+
+    const opts = options ?? {};
+    const exportImageArea = typeof opts.exportImageArea === 'boolean'
+        ? opts.exportImageArea
+        : ctx.options.exportImageAreaByDefault;
+
+    // drop any active selection BEFORE region math.
+    // `discardActiveObject` is a no-op when nothing is selected, so the
+    // call is safe to make unconditionally.
+    ctx.canvas.discardActiveObject();
+
+    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+    const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
+    const region = computeExportRegion(ctx, exportImageArea);
+
+    return bakeMasksForExport(ctx, exportImageArea, async () =>
+        renderCanvasToDataURL(
+            ctx.canvas,
+            resolved.format,
+            resolved.quality,
+            multiplier,
+            region,
+),
+);
+}
+
+// ─── exportImageFile ─────────────────────────────────────────────────────────
+
+/**
+ * Render the live canvas to a `File`.
+ *
+ * The bytes come from {@link exportImageBase64} so format/quality/
+ * multiplier resolution stays consistent with the base64 path. The
+ * resulting data URL is repainted through an offscreen `<canvas>` only
+ * when its MIME prefix does not match the requested type — some browsers
+ * silently fall back to PNG when the requested format is unsupported,
+ * and the export contract requires the output MIME to match the resolved
+ * `fileType`.
+ *
+ * @param ctx      Export context bundle.
+ * @param options  Optional {@link ImageFileExportOptions}.
+ * @returns        Resolves with the rendered `File`.
+ * @throws         {@link ExportNotReadyError} when no image is loaded.
+ *
+ */
+export async function exportImageFile(
+    ctx: ExportServiceContext,
+    options?: ImageFileExportOptions,
+): Promise<File> {
+    if (!ctx.isImageLoaded()) {
+        warnNoImageLoaded('exportImageFile');
+        throw new ExportNotReadyError('exportImageFile');
+}
+
+    const opts = options ?? {};
+    const mergeMask = opts.mergeMask !== false;
+    const fileName = opts.fileName ?? ctx.options.defaultDownloadFileName;
+    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+
+    // Reuse `exportImageBase64` so format/quality/multiplier resolution,
+    // ActiveSelection discard, and the bake-in/restore bracket are all
+    // defined once. `mergeMask` maps to v1's `exportImageArea` flag.
+    const base64 = await exportImageBase64(ctx, {
+        exportImageArea: mergeMask,
+        multiplier: opts.multiplier,
+        quality: opts.quality,
+        fileType: opts.fileType,
+});
+    if (!base64) {
+        // exportImageBase64 already warned about the missing image; the
+        // file path still owes its own typed rejection per Requirement
+        // 25.4.  In practice this branch is unreachable because the
+        // `isImageLoaded` gate above already returned, but the guard
+        // keeps the function total even if a caller bypasses the gate
+        // by mutating the context between awaits.
+        throw new ExportNotReadyError('exportImageFile');
+}
+
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved);
+    const bytes = dataUrlToBytes(finalDataUrl);
+    return new File([bytes], fileName, { type: resolved.mimeType});
+}
+
+// ─── downloadImage ───────────────────────────────────────────────────────────
+
+/**
+ * Trigger a browser download of the live canvas.
+ *
+ * Mirrors v1's "anchor with `download` attribute" approach: an `<a>`
+ * element is created, pointed at the data URL, appended to the document
+ * so Firefox dispatches the click, clicked, and removed. The function
+ * returns synchronously; the data URL is rendered
+ * asynchronously and the click is deferred until that promise resolves.
+ *
+ * No-image gate emits the same `console.warn` as the
+ * other entry points and returns without touching the DOM.
+ *
+ * Errors raised by the underlying `exportImageBase64` call are reported
+ * with `console.error` rather than rethrown — `downloadImage` returns
+ * `void` and there is no caller-visible promise to reject.
+ *
+ * @param ctx       Export context bundle.
+ * @param fileName  Optional filename override. Defaults to
+ *                  `options.defaultDownloadFileName`.
+ *
+ */
+export function downloadImage(
+    ctx: ExportServiceContext,
+    fileName?: string,
+): void {
+    if (!ctx.isImageLoaded()) {
+        warnNoImageLoaded('downloadImage');
+        return;
+}
+
+    const resolvedFileName = fileName ?? ctx.options.defaultDownloadFileName;
+
+    // The download path mirrors v1: an anchor with `download` and an
+    // `href` set to the data URL emitted by `exportImageBase64`. The
+    // anchor is appended to `document.body` because some browsers
+    // (notably Firefox) ignore programmatic clicks on detached nodes.
+    void exportImageBase64(ctx, {
+        exportImageArea: ctx.options.exportImageAreaByDefault,
+        multiplier: ctx.options.exportMultiplier,
+})
+.then((dataUrl) => {
+            if (!dataUrl) return; // already warned by `exportImageBase64`
+            const link = document.createElement('a');
+            link.download = resolvedFileName;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            try {
+                link.click();
+} finally {
+                document.body.removeChild(link);
+}
+})
+.catch((error: unknown) => {
+            // eslint-disable-next-line no-console -- diagnostic only; downloadImage returns void.
+            console.error('[ImageEditor] downloadImage failed', error);
+});
+}
+
+// ─── mergeMasks ──────────────────────────────────────────────────────────────
+
+/**
+ * Dependency bundle passed by the `ImageEditor` facade into
+ * {@link mergeMasks}. Extends {@link ExportServiceContext} with the
+ * extra slots the merge pipeline needs:
+ *
+ * - the {@link HistoryManager} that records the merge as one undoable
+ *   step;
+ * - the canonical `loadImage` entry point (transactional load with
+ *   rollback) so a failed reload of the merged bitmap propagates back
+ *   to the merge's own rollback path;
+ * - the `saveState` / `loadFromState` callbacks the orchestrator
+ *   already wires for `undo` / `redo`, so the merge can capture and
+ *   restore the pre-merge snapshot through the same
+ *   `core/state-serializer.ts` helpers used by the rest of the editor;
+ * - a `removeAllMasks(saveHistory: false)` callback so the merge's
+ *   single enclosing history entry is the only one pushed for the
+ *   operation (exactly one history entry);
+ * - the live container element so the success path can preserve scroll
+ *   even when the inner `loadImage` did not honor `preserveScroll`.
+ *
+ * Mirrors the shape of `image/image-loader.ts → LoadImageContext` for
+ * consistency across pipeline modules. The orchestrator wiring
+ * (task 21.6) is responsible for constructing this bundle from its
+ * own state.
+ *
+ */
+export interface MergeMasksContext extends ExportServiceContext {
+    /** History manager that records the single merge command. */
+    readonly historyManager: HistoryManager;
+    /**
+     * Scrollable container wrapping the canvas, or `null`. Read at the
+     * head of `mergeMasks` so the success path can restore the captured
+     * scroll position regardless of the layout
+     * strategy applied by the inner `loadImage`.
+     */
+    readonly containerEl: HTMLElement | null;
+
+    /**
+     * Transactional image loader. The merge passes
+     * `{ preserveScroll: true}` so the inner load tries to keep scroll
+     * stable; the merge also restores scroll defensively at the tail of
+     * the success path.
+     */
+    loadImage(
+        imageBase64: string,
+        options?: LoadImageOptions,
+): Promise<void>;
+
+    /**
+     * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
+     * orchestrator's `_lastSnapshot`-producing path so the merge stores
+     * exactly the same wire format used by `undo` / `redo`.
+     */
+    saveState(): string;
+
+    /**
+     * Restore a snapshot produced by {@link saveStateFn}. Used both as
+     * the `undo` callback of the merge command and
+     * as the rollback step on any merge-pipeline failure.
+     */
+    loadFromState(snapshot: string): Promise<void>;
+
+    /**
+     * Remove every mask from the canvas WITHOUT pushing a history
+     * entry. The merge owns the single enclosing history entry
+     *, so the inner mask-removal step must opt out
+     * of its own history push.
+     */
+    removeAllMasksNoHistory(): void;
+}
+
+/**
+ * Flatten every mask into the base image and reload the flattened
+ * image as the new canvas state. Atomic with respect to the editor:
+ * either the merged image is committed and exactly one history entry
+ * is pushed, or the editor is rewound to its pre-merge state and the
+ * returned promise rejects with {@link MergeMasksError}.
+ *
+ * Steps, in order:
+ *
+ * 1. **No-op gates** — return without mutating anything when no image
+ *    is loaded or when the canvas carries no mask objects (matches
+ *    v1's `if (!this.originalImage) return; … if (!masks.length) return;`).
+ * 2. **Discard ActiveSelection** — drop any active
+ *    selection wrapper before computing the merged bitmap.
+ * 3. **Capture pre-merge snapshot** — call
+ *    `ctx.saveState` so the snapshot is suitable for
+ *    `ctx.loadFromState(...)`. The snapshot is the one source of
+ *    truth for both the merge command's `undo` and
+ *    the rollback path.
+ * 4. **Capture container scroll** — read `scrollTop` / `scrollLeft`
+ *    from the editor container so the success path can restore them
+ *    after the inner `loadImage` runs.
+ * 5. **Render the merged bitmap** — delegate to
+ *    {@link exportImageBase64} with `exportImageArea: true` and
+ *    `multiplier: options.exportMultiplier`. The bake-in/restore
+ *    bracket inside `exportImageBase64` ensures every live mask style
+ *    is captured before the export-only style is applied and restored
+ *    on both success and failure.
+ * 6. **Remove all masks** without pushing history — the merge owns
+ *    the single enclosing history entry, so the
+ *    inner removal step opts out of its own history push.
+ * 7. **Reload the merged image** through the transactional
+ *    `image/image-loader.ts` with `preserveScroll: true`. A failed
+ *    reload propagates here so the rollback path catches it.
+ * 8. **Capture post-merge snapshot** — call `ctx.saveState` again so
+ *    the merge command's `execute` can replay the merged state on
+ *    redo.
+ * 9. **Restore scroll defensively** — write the
+ *    captured `scrollTop` / `scrollLeft` back to the container even
+ *    though the inner `loadImage` was asked to preserve scroll, so
+ *    the user's view does not jump regardless of the layout strategy
+ *    chosen by the loader.
+ * 10. **Push exactly one history command** whose
+ *    `undo` restores the pre-merge snapshot via `ctx.loadFromState`
+ *    and whose `execute` re-applies the merged snapshot via
+ *    `ctx.loadFromState`. The command is pushed via
+ *    {@link HistoryManager.push} (NOT `execute`) because the merged
+ *    state is already on the canvas — the first `redo` call should
+ *    re-run the merged-state restore, but the initial commit should
+ *    not double-render.
+ *
+ * On any failure between step 3 and step 10, the pre-merge snapshot
+ * captured in step 3 is restored via `ctx.loadFromState` and the
+ * promise rejects with {@link MergeMasksError} wrapping the original
+ * cause. A failure inside the rollback itself is
+ * logged via `console.warn` but does not mask the original error.
+ *
+ * @param ctx Editor dependency bundle — see {@link MergeMasksContext}.
+ * @returns   Resolves on success; rejects with
+ *            {@link MergeMasksError} on any pipeline failure (after
+ *            the pre-merge snapshot has been restored).
+ *
+ */
+export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
+    // 1. No-op gates — match v1's `if (!this.originalImage) return; …
+    //    if (!masks.length) return;`. These run before the snapshot is
+    //    captured so a no-op merge does not produce an empty history
+    //    entry.
+    if (!ctx.isImageLoaded()) return;
+
+    const masks = ctx.canvas.getObjects().filter(
+        (o): o is MaskObject =>
+            'maskId' in o &&
+            typeof (o as { maskId?: unknown}).maskId === 'number',
+);
+    if (masks.length === 0) return;
+
+    // 2. drop any active selection BEFORE computing
+    //    the merged bitmap. `discardActiveObject` is a no-op when no
+    //    selection is active. `exportImageBase64` also discards on its
+    //    own entry; the duplicate call is harmless and keeps this
+    //    function readable as a self-contained pipeline.
+    ctx.canvas.discardActiveObject();
+    ctx.canvas.renderAll();
+
+    // 3. capture a snapshot suitable for
+    //    `loadFromState`. The snapshot is the single source of truth
+    //    for both the rollback path and the merge
+    //    command's `undo`.
+    const beforeSnapshot = ctx.saveState();
+
+    // 4. Capture pre-merge container scroll. Read
+    //    BEFORE any mutation so the values reflect the user's pre-merge
+    //    viewport, not the post-merge canvas size.
+    const preScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
+    const preScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+
+    try {
+        // 5. Render the merged bitmap. `exportImageBase64` runs the
+        //    bake-in/restore bracket internally.
+        const merged = await exportImageBase64(ctx, {
+            exportImageArea: true,
+            multiplier: ctx.options.exportMultiplier,
+});
+        if (!merged) {
+            // `exportImageBase64` only resolves to '' when no image is
+            // loaded. The `isImageLoaded` gate at the top should
+            // prevent this branch, but a defensive throw keeps the
+            // pipeline total even if the orchestrator's predicate
+            // disagrees with the bake-in step about image presence.
+            throw new MergeMasksError(
+                'mergeMasks: exportImageBase64 returned an empty data URL.',
+);
+}
+
+        // 6. Remove every mask WITHOUT pushing a history entry. The
+        //    merge owns the single enclosing entry.
+        ctx.removeAllMasksNoHistory();
+
+        // 7. Reload the merged image through the transactional loader
+        //    so a decode/Fabric/timeout failure propagates back here
+        //    and the rollback path catches it. `preserveScroll: true`
+        //    nudges the loader to preserve scroll for the layouts that
+        //    honor it; the explicit step 9 below handles the layouts
+        //    that don't.
+        await ctx.loadImage(merged, { preserveScroll: true});
+
+        // 8. Capture the post-merge snapshot for the merge command's
+        //    `execute` (used on redo).
+        const afterSnapshot = ctx.saveState();
+
+        // 9. Defensive scroll restore — even when
+        //    the inner `loadImage` honored `preserveScroll`, the layout
+        //    strategy may have resized the canvas in a way that
+        //    altered scroll metrics. Writing the captured values back
+        //    here guarantees the user's view does not jump regardless
+        //    of which layout strategy was selected for the merged
+        //    image.
+        if (ctx.containerEl) {
+            try {
+                if (preScrollTop !== null) {
+                    ctx.containerEl.scrollTop = preScrollTop;
+}
+                if (preScrollLeft !== null) {
+                    ctx.containerEl.scrollLeft = preScrollLeft;
+}
+} catch (scrollErr) {
+                // eslint-disable-next-line no-console -- diagnostic only.
+                console.warn(
+                    '[ImageEditor] mergeMasks: scroll restore failed',
+                    scrollErr,
+);
+}
+}
+
+        // 10. push exactly one history entry. Use
+        //     `push` (not `execute`) because the merged state is
+        //     already on the canvas; the first `redo` after an `undo`
+        //     should re-run the merged-state restore via the
+        //     command's `execute`.
+        if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
+            ctx.historyManager.push(
+                new Command(
+                     () => ctx.loadFromState(afterSnapshot),
+                     () => ctx.loadFromState(beforeSnapshot),
+),
+);
+}
+} catch (err) {
+        // restore the pre-merge snapshot and
+        // reject with `MergeMasksError`. A failure inside the rollback
+        // itself is logged but does NOT mask the original error.
+        try {
+            await ctx.loadFromState(beforeSnapshot);
+} catch (rollbackErr) {
+            // eslint-disable-next-line no-console -- diagnostic only.
+            console.warn(
+                '[ImageEditor] mergeMasks: rollback failed',
+                rollbackErr,
+);
+}
+        // If the inner step already raised a `MergeMasksError`, keep
+        // it; otherwise wrap so the public surface always reports a
+        // consistent error type.
+        if (err instanceof MergeMasksError) throw err;
+        const message = err instanceof Error
+            ? `mergeMasks failed: ${err.message}`
+            : 'mergeMasks failed';
+        throw new MergeMasksError(message, err);
+}
+}

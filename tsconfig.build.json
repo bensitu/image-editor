@@ -1,12 +1,38 @@
+/**
+ * tsconfig.build.json — ESM emit for the distribution.
+ *
+ * Emits the ESM JavaScript bundle that Rollup consumes for the CJS and UMD passes, and that ships under
+ * `dist/esm/` for consumers using `import`.
+ *
+ * Companion files:
+ *   - tsconfig.types.json  -> emits the canonical `.d.ts` bundle to
+ *                             `dist/types/` so consumers see types.
+ *   - rollup.config.mjs    -> reads `dist/esm/` as input for CJS / UMD.
+ *
+ * The decomposed source tree under `src/` is preserved one-to-one under `dist/esm/`
+ * because `rootDir` is `src`.
+ */
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        /* ── Build-specific overrides ───────────────────────────────────── */
+        /* -- Output layout --------------------------------------------- */
+        "rootDir": "src",
         "outDir": "dist/esm",
-        "removeComments": true,
-        "inlineSources": false,
+        /* -- Module format --------------------------------------------- */
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        /* -- Source maps ----------------------------------------------- */
         "sourceMap": true,
-        "declarationMap": true
+        "inlineSources": false,
+        /* -- Declarations ---------------------------------------------- */
+        /* Declarations are the responsibility of tsconfig.types.json,
+         * which emits the canonical bundle to `dist/types/`. Disabling
+         * them here avoids duplicating `.d.ts` files inside `dist/esm/`
+         * and keeps the package `exports.types` pointer unambiguous. */
+        "declaration": false,
+        "declarationMap": false,
+        /* -- Comments -------------------------------------------------- */
+        "removeComments": true
     },
     "include": [
         "src/**/*.ts"

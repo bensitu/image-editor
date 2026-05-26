@@ -1,0 +1,3320 @@
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+class AnimationQueue {
+    constructor() {
+        Object.defineProperty(this, "queue", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
+        Object.defineProperty(this, "running", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+    }
+    add(animationFn) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ fn: animationFn, resolve, reject });
+            if (!this.running) {
+                void this._process();
+            }
+        });
+    }
+    clear(reason) {
+        const pending = this.queue;
+        this.queue = [];
+        if (reason !== undefined) {
+            for (const entry of pending) {
+                entry.reject(reason);
+            }
+        }
+        else {
+            for (const entry of pending) {
+                entry.resolve();
+            }
+        }
+    }
+    isRunning() {
+        return this.running;
+    }
+    waitForIdle() {
+        if (!this.running && this.queue.length === 0) {
+            return Promise.resolve();
+        }
+        return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
+    }
+    async _process() {
+        if (this.queue.length === 0) {
+            this.running = false;
+            return;
+        }
+        this.running = true;
+        const entry = this.queue.shift();
+        try {
+            await entry.fn();
+            entry.resolve();
+        }
+        catch (err) {
+            entry.reject(err);
+        }
+        void this._process();
+    }
+}
+
+function reportWarning(options, error, message) {
+    const cb = options.onWarning;
+    if (typeof cb !== 'function')
+        return;
+    try {
+        cb(error, message);
+    }
+    catch (callbackError) {
+        console.warn('[ImageEditor] onWarning callback threw', callbackError);
+    }
+}
+function reportError(options, error, message) {
+    const cb = options.onError;
+    if (typeof cb !== 'function')
+        return;
+    try {
+        cb(error, message);
+    }
+    catch (callbackError) {
+        console.error('[ImageEditor] onError callback threw', callbackError);
+    }
+}
+
+const DEFAULT_OPTIONS = {
+    canvasWidth: 800,
+    canvasHeight: 600,
+    backgroundColor: 'transparent',
+    animationDuration: 300,
+    minScale: 0.1,
+    maxScale: 5.0,
+    scaleStep: 0.05,
+    rotationStep: 90,
+    expandCanvasToImage: true,
+    fitImageToCanvas: false,
+    coverImageToCanvas: false,
+    downsampleOnLoad: true,
+    downsampleMaxWidth: 4000,
+    downsampleMaxHeight: 3000,
+    downsampleQuality: 0.92,
+    preserveSourceFormat: true,
+    downsampleMimeType: null,
+    imageLoadTimeoutMs: 30000,
+    exportMultiplier: 1,
+    exportImageAreaByDefault: true,
+    defaultMaskWidth: 50,
+    defaultMaskHeight: 80,
+    maskRotatable: false,
+    maskLabelOnSelect: true,
+    maskLabelOffset: 3,
+    maskName: 'mask',
+    groupSelection: false,
+    showPlaceholder: true,
+    initialImageBase64: null,
+    defaultDownloadFileName: 'edited_image.jpg',
+    onImageLoaded: null,
+    onError: null,
+    onWarning: null,
+};
+const DEFAULT_LABEL_TEXT_OPTIONS = {
+    fontSize: 12,
+    fill: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 2,
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+    selectable: false,
+    evented: false,
+    originX: 'left',
+    originY: 'top',
+};
+const DEFAULT_LABEL = {
+    getText: (mask) => mask.maskName};
+const DEFAULT_CROP = {
+    minWidth: 100,
+    minHeight: 100,
+    padding: 10,
+    hideMasksDuringCrop: true,
+    preserveMasksAfterCrop: false,
+    allowRotationOfCropRect: false,
+};
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+    'canvasWidth',
+    'canvasHeight',
+    'backgroundColor',
+    'animationDuration',
+    'minScale',
+    'maxScale',
+    'scaleStep',
+    'rotationStep',
+    'expandCanvasToImage',
+    'fitImageToCanvas',
+    'coverImageToCanvas',
+    'downsampleOnLoad',
+    'downsampleMaxWidth',
+    'downsampleMaxHeight',
+    'downsampleQuality',
+    'preserveSourceFormat',
+    'downsampleMimeType',
+    'imageLoadTimeoutMs',
+    'exportMultiplier',
+    'exportImageAreaByDefault',
+    'defaultMaskWidth',
+    'defaultMaskHeight',
+    'maskRotatable',
+    'maskLabelOnSelect',
+    'maskLabelOffset',
+    'maskName',
+    'groupSelection',
+    'showPlaceholder',
+    'initialImageBase64',
+    'defaultDownloadFileName',
+    'onImageLoaded',
+    'onError',
+    'onWarning',
+    'label',
+    'crop',
+]);
+function normalizeCallback(value) {
+    return typeof value === 'function' ? value : null;
+}
+function resolveOptions(input) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    const raw = input !== null && input !== void 0 ? input : {};
+    const resolved = { ...DEFAULT_OPTIONS };
+    for (const key of Object.keys(raw)) {
+        if (!KNOWN_TOP_LEVEL_KEYS.has(key))
+            continue;
+        if (key === 'label' || key === 'crop')
+            continue;
+        if (key === 'onImageLoaded' || key === 'onError' || key === 'onWarning')
+            continue;
+        const value = raw[key];
+        if (value === undefined)
+            continue;
+        resolved[key] = value;
+    }
+    resolved.onImageLoaded =
+        (_a = normalizeCallback(raw.onImageLoaded)) !== null && _a !== void 0 ? _a : null;
+    resolved.onError =
+        (_b = normalizeCallback(raw.onError)) !== null && _b !== void 0 ? _b : null;
+    resolved.onWarning =
+        (_c = normalizeCallback(raw.onWarning)) !== null && _c !== void 0 ? _c : null;
+    const userLabel = (raw.label && typeof raw.label === 'object') ? raw.label : {};
+    const mergedTextOptions = {
+        ...DEFAULT_LABEL_TEXT_OPTIONS,
+        ...(userLabel.textOptions && typeof userLabel.textOptions === 'object'
+            ? userLabel.textOptions
+            : {}),
+    };
+    const label = {
+        getText: typeof userLabel.getText === 'function'
+            ? userLabel.getText
+            : DEFAULT_LABEL.getText,
+        textOptions: mergedTextOptions,
+    };
+    if (typeof userLabel.create === 'function') {
+        label.create = userLabel.create;
+    }
+    Object.freeze(label.textOptions);
+    Object.freeze(label);
+    const userCrop = (raw.crop && typeof raw.crop === 'object') ? raw.crop : {};
+    const crop = {
+        minWidth: (_d = userCrop.minWidth) !== null && _d !== void 0 ? _d : DEFAULT_CROP.minWidth,
+        minHeight: (_e = userCrop.minHeight) !== null && _e !== void 0 ? _e : DEFAULT_CROP.minHeight,
+        padding: (_f = userCrop.padding) !== null && _f !== void 0 ? _f : DEFAULT_CROP.padding,
+        hideMasksDuringCrop: (_g = userCrop.hideMasksDuringCrop) !== null && _g !== void 0 ? _g : DEFAULT_CROP.hideMasksDuringCrop,
+        preserveMasksAfterCrop: (_h = userCrop.preserveMasksAfterCrop) !== null && _h !== void 0 ? _h : DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect: (_j = userCrop.allowRotationOfCropRect) !== null && _j !== void 0 ? _j : DEFAULT_CROP.allowRotationOfCropRect,
+    };
+    Object.freeze(crop);
+    return {
+        ...resolved,
+        label,
+        crop,
+    };
+}
+
+class OperationGuard {
+    constructor() {
+        Object.defineProperty(this, "_isAnimating", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "_isDisposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+    }
+    isAnimating() {
+        return this._isAnimating;
+    }
+    isDisposed() {
+        return this._isDisposed;
+    }
+    beginAnimation() {
+        this._isAnimating = true;
+    }
+    endAnimation() {
+        this._isAnimating = false;
+    }
+    markDisposed() {
+        this._isDisposed = true;
+        this._isAnimating = false;
+    }
+    async runAnimation(fn) {
+        this.beginAnimation();
+        try {
+            return await fn();
+        }
+        finally {
+            this.endAnimation();
+        }
+    }
+    assertNotAnimating(operationLabel) {
+        if (this._isAnimating) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+        }
+    }
+}
+
+function isMaskObject(obj) {
+    return 'maskId' in obj && typeof obj.maskId === 'number';
+}
+
+const SNAPSHOT_CUSTOM_KEYS = [
+    'maskId',
+    'maskName',
+    'isCropRect',
+    'maskLabel',
+    'originalAlpha',
+];
+function saveState(input) {
+    const { canvas, currentScale, currentRotation, baseImageScale } = input;
+    canvas.discardActiveObject();
+    const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
+    if (Array.isArray(jsonObj.objects)) {
+        jsonObj.objects = jsonObj.objects.filter(o => o.isCropRect !== true && o.maskLabel !== true);
+    }
+    jsonObj._editorState = {
+        currentScale,
+        currentRotation,
+        baseImageScale,
+    };
+    return JSON.stringify(jsonObj);
+}
+async function loadFromState(input) {
+    var _a, _b;
+    const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
+    const jsonString = typeof snapshotInput === 'string'
+        ? snapshotInput
+        : JSON.stringify(snapshotInput);
+    const json = JSON.parse(jsonString);
+    if (typeof json.width === 'number' &&
+        json.width > 0 &&
+        typeof json.height === 'number' &&
+        json.height > 0) {
+        setCanvasSize(json.width, json.height);
+    }
+    await canvas.loadFromJSON(json);
+    const objects = canvas.getObjects();
+    restoreMaskPropsFromJSON(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
+    const editorState = json._editorState && typeof json._editorState === 'object'
+        ? {
+            currentScale: typeof json._editorState.currentScale === 'number'
+                ? json._editorState.currentScale
+                : 1,
+            currentRotation: typeof json._editorState.currentRotation === 'number'
+                ? json._editorState.currentRotation
+                : 0,
+            baseImageScale: typeof json._editorState.baseImageScale === 'number'
+                ? json._editorState.baseImageScale
+                : 1,
+        }
+        : null;
+    const maxMaskId = objects
+        .filter(isMaskObject)
+        .reduce((max, m) => Math.max(max, m.maskId), 0);
+    const originalImage = ((_b = objects.find(o => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
+    return {
+        editorState,
+        maxMaskId,
+        originalImage,
+        objects,
+        jsonString,
+    };
+}
+function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
+    var _a, _b, _c, _d, _e;
+    for (const jObj of jsonObjs) {
+        if (typeof jObj.maskId !== 'number')
+            continue;
+        const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
+        const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
+        const jTop = Number((_c = jObj.top) !== null && _c !== void 0 ? _c : 0);
+        const match = canvasObjs.find(o => {
+            var _a, _b;
+            if (jType && o.type !== jType)
+                return false;
+            return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
+                Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5);
+        });
+        if (!match)
+            continue;
+        const m = match;
+        m.maskId = jObj.maskId;
+        m.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
+        m.originalAlpha =
+            typeof jObj.originalAlpha === 'number'
+                ? jObj.originalAlpha
+                : ((_e = m.opacity) !== null && _e !== void 0 ? _e : 0.5);
+    }
+    jsonObjs.forEach((jObj, idx) => {
+        if (jObj.maskLabel !== true)
+            return;
+        const canvasObj = canvasObjs[idx];
+        if (canvasObj) {
+            canvasObj.maskLabel = true;
+        }
+    });
+}
+
+class Command {
+    constructor(execute, undo) {
+        Object.defineProperty(this, "execute", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "undo", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.execute = execute;
+        this.undo = undo;
+    }
+}
+class HistoryManager {
+    constructor(maxSize = 50) {
+        Object.defineProperty(this, "history", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
+        Object.defineProperty(this, "currentIndex", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: -1
+        });
+        Object.defineProperty(this, "_processing", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "maxSize", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.maxSize = maxSize;
+    }
+    execute(command) {
+        void command.execute();
+        this._pushAndTrim(command);
+    }
+    push(command) {
+        this._pushAndTrim(command);
+    }
+    canUndo() {
+        return this.currentIndex >= 0;
+    }
+    canRedo() {
+        return this.currentIndex < this.history.length - 1;
+    }
+    async undo() {
+        if (this._processing || !this.canUndo())
+            return;
+        this._processing = true;
+        try {
+            const cmd = this.history[this.currentIndex];
+            if (!cmd)
+                return;
+            await cmd.undo();
+            this.currentIndex--;
+        }
+        finally {
+            this._processing = false;
+        }
+    }
+    async redo() {
+        if (this._processing || !this.canRedo())
+            return;
+        this._processing = true;
+        try {
+            const cmd = this.history[this.currentIndex + 1];
+            if (!cmd)
+                return;
+            await cmd.execute();
+            this.currentIndex++;
+        }
+        finally {
+            this._processing = false;
+        }
+    }
+    _pushAndTrim(command) {
+        if (this.currentIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.currentIndex + 1);
+        }
+        this.history.push(command);
+        if (this.history.length > this.maxSize) {
+            this.history.shift();
+        }
+        else {
+            this.currentIndex++;
+        }
+    }
+}
+
+function looksLikeFabricModule(value) {
+    if (value === null || typeof value !== 'object')
+        return false;
+    const candidate = value.Canvas;
+    return typeof candidate === 'function';
+}
+function readGlobalFabric(globalScope) {
+    return globalScope.fabric;
+}
+function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
+    var _a;
+    if (looksLikeFabricModule(fabricOrOptions)) {
+        return {
+            fabric: fabricOrOptions,
+            _fabricLoaded: true,
+            options: maybeOptions !== null && maybeOptions !== void 0 ? maybeOptions : {},
+        };
+    }
+    const options = (_a = fabricOrOptions) !== null && _a !== void 0 ? _a : {};
+    const globalFabric = readGlobalFabric(globalScope);
+    if (looksLikeFabricModule(globalFabric)) {
+        return {
+            fabric: globalFabric,
+            _fabricLoaded: true,
+            options,
+        };
+    }
+    console.error('[ImageEditor] fabric.js v7 is not available. ' +
+        'Pass it as the first constructor argument (ESM) or ' +
+        'load it as a global <script> before instantiation.');
+    return {
+        fabric: null,
+        _fabricLoaded: false,
+        options,
+    };
+}
+
+function fixPrototype(self, ctor) {
+    Object.setPrototypeOf(self, ctor.prototype);
+}
+class ImageDecodeError extends Error {
+    constructor(message = 'Failed to decode image data URL.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageDecodeError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, ImageDecodeError);
+    }
+}
+class ImageLoadTimeoutError extends Error {
+    constructor(label, elapsedMs) {
+        super(`Image load timed out after ${elapsedMs}ms during ${label}`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageLoadTimeoutError'
+        });
+        Object.defineProperty(this, "label", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "elapsedMs", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.label = label;
+        this.elapsedMs = elapsedMs;
+        fixPrototype(this, ImageLoadTimeoutError);
+    }
+}
+class DownsampleError extends Error {
+    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'DownsampleError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, DownsampleError);
+    }
+}
+class MergeMasksError extends Error {
+    constructor(message = 'Failed to merge masks into the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'MergeMasksError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, MergeMasksError);
+    }
+}
+class CropApplyError extends Error {
+    constructor(message = 'Failed to apply crop to the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'CropApplyError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, CropApplyError);
+    }
+}
+class ExportNotReadyError extends Error {
+    constructor(operation = 'exportImageFile') {
+        super(`Cannot ${operation}: no image is loaded on the canvas.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ExportNotReadyError'
+        });
+        Object.defineProperty(this, "operation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.operation = operation;
+        fixPrototype(this, ExportNotReadyError);
+    }
+}
+
+const HOVER_STROKE = '#ff5500';
+const HOVER_STROKE_WIDTH = 2;
+const HOVER_OPACITY_BUMP = 0.2;
+const DEFAULT_STROKE_FALLBACK = '#ccc';
+const DEFAULT_STROKE_WIDTH_FALLBACK = 1;
+const DEFAULT_ALPHA_FALLBACK = 0.5;
+function getMaskNormalStyle(mask) {
+    var _a;
+    const strokeWidth = Number(mask.originalStrokeWidth);
+    const opacity = Number(mask.originalAlpha);
+    return {
+        stroke: (_a = mask.originalStroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK,
+        strokeWidth: Number.isFinite(strokeWidth)
+            ? strokeWidth
+            : DEFAULT_STROKE_WIDTH_FALLBACK,
+        opacity: Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK,
+    };
+}
+function getMaskHoverStyle(mask) {
+    const opacity = Number(mask.originalAlpha);
+    const baseAlpha = Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK;
+    return {
+        stroke: HOVER_STROKE,
+        strokeWidth: HOVER_STROKE_WIDTH,
+        opacity: Math.min(baseAlpha + HOVER_OPACITY_BUMP, 1),
+    };
+}
+function attachMaskHoverHandlers(mask) {
+    const tagged = mask;
+    const mouseover = () => {
+        var _a;
+        tagged.set(getMaskHoverStyle(tagged));
+        (_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
+    };
+    const mouseout = () => {
+        var _a;
+        tagged.set(getMaskNormalStyle(tagged));
+        (_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
+    };
+    tagged.on('mouseover', mouseover);
+    tagged.on('mouseout', mouseout);
+    tagged.__imageEditorMaskHandlers = { mouseover, mouseout };
+}
+function reattachMaskHoverHandlers(mask) {
+    var _a;
+    const tagged = mask;
+    if (tagged.__imageEditorMaskHandlers) {
+        try {
+            tagged.off('mouseover', tagged.__imageEditorMaskHandlers.mouseover);
+            tagged.off('mouseout', tagged.__imageEditorMaskHandlers.mouseout);
+        }
+        catch {
+        }
+        delete tagged.__imageEditorMaskHandlers;
+    }
+    const patch = {};
+    if (!Number.isFinite(Number(tagged.originalAlpha))) {
+        const opacity = Number(tagged.opacity);
+        patch.originalAlpha = Number.isFinite(opacity)
+            ? opacity
+            : DEFAULT_ALPHA_FALLBACK;
+    }
+    if (tagged.originalStroke == null) {
+        patch.originalStroke = (_a = tagged.stroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK;
+    }
+    if (!Number.isFinite(Number(tagged.originalStrokeWidth))) {
+        const sw = Number(tagged.strokeWidth);
+        patch.originalStrokeWidth = Number.isFinite(sw)
+            ? sw
+            : DEFAULT_STROKE_WIDTH_FALLBACK;
+    }
+    if (Object.keys(patch).length > 0)
+        tagged.set(patch);
+    attachMaskHoverHandlers(tagged);
+}
+function captureMaskStyleBackup(mask) {
+    var _a, _b, _c, _d, _e, _f;
+    return {
+        obj: mask,
+        opacity: (_a = mask.opacity) !== null && _a !== void 0 ? _a : 1,
+        fill: ((_b = mask.fill) !== null && _b !== void 0 ? _b : null),
+        strokeWidth: (_c = mask.strokeWidth) !== null && _c !== void 0 ? _c : 0,
+        stroke: ((_d = mask.stroke) !== null && _d !== void 0 ? _d : null),
+        selectable: (_e = mask.selectable) !== null && _e !== void 0 ? _e : true,
+        lockRotation: (_f = mask.lockRotation) !== null && _f !== void 0 ? _f : false,
+    };
+}
+function restoreMaskStyleBackup(backup) {
+    try {
+        backup.obj.set({
+            opacity: backup.opacity,
+            fill: backup.fill,
+            strokeWidth: backup.strokeWidth,
+            stroke: backup.stroke,
+            selectable: backup.selectable,
+            lockRotation: backup.lockRotation,
+        });
+        if (typeof backup.obj.setCoords() === 'function') {
+            backup.obj.setCoords();
+        }
+    }
+    catch {
+    }
+}
+async function withMaskStyleBackup(ctx, mutator, callback) {
+    if (!ctx.canvas)
+        return await callback();
+    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+    const backups = masks.map(captureMaskStyleBackup);
+    try {
+        masks.forEach((mask, idx) => mutator(mask, idx));
+        return await callback();
+    }
+    finally {
+        for (const backup of backups)
+            restoreMaskStyleBackup(backup);
+    }
+}
+function applyCropHideMaskStyle(mask) {
+    try {
+        mask.set({ opacity: 0, evented: false, selectable: false });
+    }
+    catch {
+    }
+}
+
+function floorRegion(rect) {
+    const safeLeft = Number.isFinite(rect.left) ? rect.left : 0;
+    const safeTop = Number.isFinite(rect.top) ? rect.top : 0;
+    const safeWidth = Number.isFinite(rect.width) ? rect.width : 1;
+    const safeHeight = Number.isFinite(rect.height) ? rect.height : 1;
+    const left = Math.max(0, Math.floor(safeLeft));
+    const top = Math.max(0, Math.floor(safeTop));
+    const width = Math.max(1, Math.round(safeWidth));
+    const height = Math.max(1, Math.round(safeHeight));
+    return { left, top, width, height };
+}
+function getObjectBBox(obj) {
+    obj.setCoords();
+    const br = obj.getBoundingRect();
+    return { left: br.left, top: br.top, width: br.width, height: br.height };
+}
+function clampRegionToCanvas(region, canvasWidth, canvasHeight) {
+    const safeCw = Math.max(1, Math.floor(Number.isFinite(canvasWidth) ? canvasWidth : 1));
+    const safeCh = Math.max(1, Math.floor(Number.isFinite(canvasHeight) ? canvasHeight : 1));
+    const left = Math.max(0, Math.min(region.left, safeCw - 1));
+    const top = Math.max(0, Math.min(region.top, safeCh - 1));
+    const width = Math.max(1, Math.min(region.width, safeCw - left));
+    const height = Math.max(1, Math.min(region.height, safeCh - top));
+    return { left, top, width, height };
+}
+
+const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
+const CROP_RECT_STROKE = '#00aaff';
+const CROP_RECT_DASH = [6, 4];
+const CROP_RECT_CORNER_SIZE = 8;
+const CROP_DEFAULT_PADDING = 10;
+const CROPPED_EXPORT_FORMAT = 'jpeg';
+const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
+function clampQuality$1(quality) {
+    const num = Number(quality);
+    if (!Number.isFinite(num))
+        return CROPPED_EXPORT_QUALITY_FALLBACK;
+    return Math.max(0, Math.min(1, num));
+}
+function removeCropRect(ctx, session) {
+    for (const targetHandlers of session.handlers) {
+        for (const rec of targetHandlers.handlers) {
+            try {
+                targetHandlers.target.off(rec.evt, rec.fn);
+            }
+            catch {
+            }
+        }
+    }
+    session.handlers = [];
+    if (session.cropRect) {
+        try {
+            ctx.canvas.remove(session.cropRect);
+        }
+        catch {
+        }
+        session.cropRect = null;
+    }
+}
+function restoreCropObjectState(session) {
+    for (const rec of session.prevEvented) {
+        try {
+            rec.obj.set({ evented: rec.evented, selectable: rec.selectable });
+        }
+        catch {
+        }
+    }
+    session.prevEvented = [];
+}
+function restoreCropMaskBackups(session) {
+    for (const backup of session.maskBackups) {
+        restoreMaskStyleBackup(backup);
+    }
+    session.maskBackups = [];
+}
+function teardownSession(ctx, session) {
+    removeCropRect(ctx, session);
+    restoreCropObjectState(session);
+    restoreCropMaskBackups(session);
+    try {
+        ctx.canvas.selection = !!session.prevSelection;
+    }
+    catch {
+    }
+}
+function maskIntersectsRegion(mask, region) {
+    const bbox = getObjectBBox(mask);
+    return (bbox.left < region.left + region.width &&
+        bbox.left + bbox.width > region.left &&
+        bbox.top < region.top + region.height &&
+        bbox.top + bbox.height > region.top);
+}
+function capturePreservedMasks(canvas, cropRegion) {
+    const records = [];
+    const masks = canvas.getObjects().filter(isMaskObject);
+    for (const mask of masks) {
+        try {
+            mask.setCoords();
+            const intersects = maskIntersectsRegion(mask, cropRegion);
+            if (intersects) {
+                records.push({
+                    mask,
+                    left: Number(mask.left) || 0,
+                    top: Number(mask.top) || 0,
+                    angle: Number(mask.angle) || 0,
+                    scaleX: Number(mask.scaleX) || 1,
+                    scaleY: Number(mask.scaleY) || 1,
+                });
+            }
+            canvas.remove(mask);
+        }
+        catch {
+        }
+    }
+    return records;
+}
+function reapplyPreservedMasks(ctx, cropRegion, records) {
+    var _a;
+    if (records.length === 0)
+        return;
+    const { canvas } = ctx;
+    let maxRestoredId = 0;
+    for (const record of records) {
+        try {
+            record.mask.set({
+                left: record.left - cropRegion.left,
+                top: record.top - cropRegion.top,
+                angle: record.angle,
+                scaleX: record.scaleX,
+                scaleY: record.scaleY,
+                visible: true,
+            });
+            record.mask.setCoords();
+            canvas.add(record.mask);
+            canvas.bringObjectToFront(record.mask);
+            attachMaskHoverHandlers(record.mask);
+            const id = Number(record.mask.maskId);
+            if (Number.isFinite(id) && id > maxRestoredId)
+                maxRestoredId = id;
+        }
+        catch {
+        }
+    }
+    if (typeof ctx.getMaskCounter === 'function' && typeof ctx.setMaskCounter === 'function') {
+        const liveCounter = Number(ctx.getMaskCounter());
+        const safeCounter = Number.isFinite(liveCounter) ? liveCounter : 0;
+        ctx.setMaskCounter(Math.max(safeCounter, maxRestoredId));
+    }
+    try {
+        (_a = ctx.updateMaskList) === null || _a === void 0 ? void 0 : _a.call(ctx);
+    }
+    catch {
+    }
+}
+function enterCropMode(ctx) {
+    const { canvas, options } = ctx;
+    if (ctx.getCropSession())
+        return;
+    const originalImage = ctx.getOriginalImage();
+    if (!originalImage)
+        return;
+    if (!ctx.isImageLoaded())
+        return;
+    canvas.discardActiveObject();
+    const beforeJson = ctx.saveState();
+    const prevSelection = !!canvas.selection;
+    canvas.selection = false;
+    originalImage.setCoords();
+    const imageBounds = originalImage.getBoundingRect();
+    const padding = Number.isFinite(Number(options.crop.padding))
+        ? Number(options.crop.padding)
+        : CROP_DEFAULT_PADDING;
+    const rectLeft = Math.max(0, Math.floor(imageBounds.left + padding));
+    const rectTop = Math.max(0, Math.floor(imageBounds.top + padding));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width - padding * 2));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height - padding * 2));
+    const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
+    const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
+    const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
+    const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
+    const allowRotation = !!options.crop.allowRotationOfCropRect;
+    const cropRect = new ctx.fabric.Rect({
+        left: rectLeft,
+        top: rectTop,
+        width: minCropWidth,
+        height: minCropHeight,
+        originX: 'left',
+        originY: 'top',
+        fill: CROP_RECT_FILL,
+        stroke: CROP_RECT_STROKE,
+        strokeDashArray: CROP_RECT_DASH,
+        strokeWidth: 1,
+        strokeUniform: true,
+        selectable: true,
+        lockRotation: !allowRotation,
+        cornerSize: CROP_RECT_CORNER_SIZE,
+        objectCaching: false,
+        lockScalingFlip: true,
+    });
+    if (!allowRotation) {
+        cropRect.setControlVisible('mtr', false);
+    }
+    canvas.add(cropRect);
+    cropRect.isCropRect = true;
+    canvas.bringObjectToFront(cropRect);
+    canvas.setActiveObject(cropRect);
+    const hideMasks = !!options.crop.hideMasksDuringCrop;
+    const maskBackups = [];
+    if (hideMasks) {
+        canvas.getObjects().forEach(obj => {
+            if (obj === cropRect)
+                return;
+            if (!isMaskObject(obj))
+                return;
+            maskBackups.push(captureMaskStyleBackup(obj));
+        });
+    }
+    const prevEvented = [];
+    canvas.getObjects().forEach(obj => {
+        var _a, _b;
+        if (obj === cropRect)
+            return;
+        prevEvented.push({
+            obj,
+            evented: (_a = obj.evented) !== null && _a !== void 0 ? _a : true,
+            selectable: (_b = obj.selectable) !== null && _b !== void 0 ? _b : true,
+        });
+        try {
+            obj.set({ evented: false, selectable: false });
+        }
+        catch {
+        }
+    });
+    if (hideMasks) {
+        for (const backup of maskBackups) {
+            applyCropHideMaskStyle(backup.obj);
+        }
+    }
+    const handleCropRectModified = () => {
+        try {
+            const cropWidth = Math.max(1, Number(cropRect.width) || 1);
+            const cropHeight = Math.max(1, Number(cropRect.height) || 1);
+            const nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
+            const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
+            cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
+            cropRect.setCoords();
+            canvas.requestRenderAll();
+        }
+        catch {
+        }
+    };
+    cropRect.on('modified', handleCropRectModified);
+    cropRect.on('moving', handleCropRectModified);
+    cropRect.on('scaling', handleCropRectModified);
+    const session = {
+        beforeJson,
+        prevSelection,
+        prevEvented,
+        maskBackups,
+        cropRect,
+        handlers: [
+            {
+                target: cropRect,
+                handlers: [
+                    { evt: 'modified', fn: handleCropRectModified },
+                    { evt: 'moving', fn: handleCropRectModified },
+                    { evt: 'scaling', fn: handleCropRectModified },
+                ],
+            },
+        ],
+    };
+    ctx.setCropSession(session);
+    canvas.renderAll();
+}
+function cancelCrop(ctx) {
+    const session = ctx.getCropSession();
+    if (!session)
+        return;
+    ctx.canvas.discardActiveObject();
+    teardownSession(ctx, session);
+    ctx.setCropSession(null);
+    try {
+        ctx.canvas.renderAll();
+    }
+    catch {
+    }
+}
+async function applyCrop(ctx) {
+    const session = ctx.getCropSession();
+    if (!session || !session.cropRect)
+        return;
+    const { canvas } = ctx;
+    canvas.discardActiveObject();
+    const beforeJson = session.beforeJson;
+    const cropRect = session.cropRect;
+    const preserveMasks = !!ctx.options.crop.preserveMasksAfterCrop;
+    try {
+        cropRect.setCoords();
+        const rectBounds = cropRect.getBoundingRect();
+        const cropRegion = clampRegionToCanvas(floorRegion(rectBounds), canvas.getWidth(), canvas.getHeight());
+        const preservedRecords = preserveMasks
+            ? capturePreservedMasks(canvas, cropRegion)
+            : [];
+        restoreCropObjectState(session);
+        removeCropRect(ctx, session);
+        canvas.selection = !!session.prevSelection;
+        const quality = clampQuality$1(ctx.options.downsampleQuality);
+        const exportOptions = {
+            format: CROPPED_EXPORT_FORMAT,
+            quality,
+            multiplier: 1,
+            left: cropRegion.left,
+            top: cropRegion.top,
+            width: cropRegion.width,
+            height: cropRegion.height,
+        };
+        const croppedBase64 = canvas.toDataURL(exportOptions);
+        await ctx.loadImage(croppedBase64);
+        if (preservedRecords.length > 0) {
+            reapplyPreservedMasks(ctx, cropRegion, preservedRecords);
+            canvas.renderAll();
+        }
+        const afterJson = ctx.saveState();
+        ctx.setCropSession(null);
+        if (beforeJson && afterJson && beforeJson !== afterJson) {
+            ctx.historyManager.push(new Command(() => ctx.loadFromState(afterJson), () => ctx.loadFromState(beforeJson)));
+        }
+    }
+    catch (err) {
+        teardownSession(ctx, session);
+        ctx.setCropSession(null);
+        try {
+            await ctx.loadFromState(beforeJson);
+        }
+        catch (rollbackErr) {
+            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackErr);
+        }
+        if (err instanceof CropApplyError)
+            throw err;
+        const message = err instanceof Error
+            ? `applyCrop failed: ${err.message}`
+            : 'applyCrop failed';
+        throw new CropApplyError(message, err);
+    }
+}
+
+const FORMAT_ALIAS_TABLE = Object.freeze({
+    jpeg: 'jpeg',
+    jpg: 'jpeg',
+    'image/jpeg': 'jpeg',
+    png: 'png',
+    'image/png': 'png',
+    webp: 'webp',
+    'image/webp': 'webp',
+});
+const MIME_TABLE = Object.freeze({
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+});
+function normalizeImageFormat(input) {
+    var _a;
+    const key = String(input || 'jpeg').toLowerCase();
+    return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : 'jpeg';
+}
+function mimeTypeFor(format) {
+    return MIME_TABLE[format];
+}
+function clampQuality(quality, fallback) {
+    const numeric = Number(quality);
+    if (!Number.isFinite(numeric))
+        return fallback;
+    return Math.max(0, Math.min(1, numeric));
+}
+function resolveExportFormat(options, downsampleQuality) {
+    var _a;
+    const opts = options !== null && options !== void 0 ? options : {};
+    const fileType = opts.fileType;
+    const formatAlias = opts.format;
+    const requested = fileType || formatAlias;
+    const format = normalizeImageFormat(requested);
+    const mimeType = mimeTypeFor(format);
+    if (format === 'png') {
+        return { format, mimeType, quality: undefined };
+    }
+    const rawQuality = (_a = opts.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
+    const quality = clampQuality(rawQuality, downsampleQuality);
+    return { format, mimeType, quality };
+}
+
+function resolveMultiplier(requested, fallback) {
+    const num = Number(requested);
+    if (Number.isFinite(num) && num > 0)
+        return num;
+    const fb = Number(fallback);
+    return Number.isFinite(fb) && fb > 0 ? fb : 1;
+}
+function computeExportRegion(ctx, exportImageArea) {
+    if (!exportImageArea)
+        return null;
+    const originalImage = ctx.getOriginalImage();
+    if (!originalImage)
+        return null;
+    return floorRegion(getObjectBBox(originalImage));
+}
+async function bakeMasksForExport(ctx, exportImageArea, fn) {
+    if (!exportImageArea)
+        return fn();
+    return withMaskStyleBackup({ canvas: ctx.canvas, options: ctx.options }, applyExportBakeInStyle, fn);
+}
+function applyExportBakeInStyle(mask) {
+    try {
+        mask.set({
+            opacity: 1,
+            fill: '#000',
+            strokeWidth: 0,
+            stroke: null,
+            selectable: false,
+        });
+        if (typeof mask.setCoords() === 'function')
+            mask.setCoords();
+    }
+    catch {
+    }
+}
+function renderCanvasToDataURL(canvas, format, quality, multiplier, region) {
+    const fabricOptions = {
+        format,
+        multiplier,
+    };
+    if (quality !== undefined)
+        fabricOptions.quality = quality;
+    if (region) {
+        fabricOptions.left = region.left;
+        fabricOptions.top = region.top;
+        fabricOptions.width = region.width;
+        fabricOptions.height = region.height;
+    }
+    return canvas.toDataURL(fabricOptions);
+}
+function dataUrlToBytes(dataUrl) {
+    const commaAt = dataUrl.indexOf(',');
+    const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
+    const binary = atob(base64);
+    const buffer = new ArrayBuffer(binary.length);
+    const bytes = new Uint8Array(buffer);
+    for (let i = binary.length - 1; i >= 0; i -= 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+function reencodeDataUrlAs(sourceDataUrl, target) {
+    if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
+        return Promise.resolve(sourceDataUrl);
+    }
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+            try {
+                const off = document.createElement('canvas');
+                off.width = img.naturalWidth || img.width;
+                off.height = img.naturalHeight || img.height;
+                const ctx2d = off.getContext('2d');
+                if (!ctx2d)
+                    throw new Error('Unable to acquire 2D context for export conversion');
+                ctx2d.drawImage(img, 0, 0);
+                resolve(off.toDataURL(target.mimeType, target.quality));
+            }
+            catch (error) {
+                reject(error);
+            }
+        };
+        img.onerror = () => {
+            reject(new Error('Failed to decode export data URL during MIME conversion'));
+        };
+        img.src = sourceDataUrl;
+    });
+}
+function warnNoImageLoaded(operation) {
+    console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
+}
+async function exportImageBase64(ctx, options) {
+    if (!ctx.isImageLoaded()) {
+        warnNoImageLoaded('exportImageBase64');
+        return '';
+    }
+    const opts = options !== null && options !== void 0 ? options : {};
+    const exportImageArea = typeof opts.exportImageArea === 'boolean'
+        ? opts.exportImageArea
+        : ctx.options.exportImageAreaByDefault;
+    ctx.canvas.discardActiveObject();
+    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+    const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
+    const region = computeExportRegion(ctx, exportImageArea);
+    return bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, resolved.format, resolved.quality, multiplier, region));
+}
+async function exportImageFile(ctx, options) {
+    var _a;
+    if (!ctx.isImageLoaded()) {
+        warnNoImageLoaded('exportImageFile');
+        throw new ExportNotReadyError('exportImageFile');
+    }
+    const opts = options !== null && options !== void 0 ? options : {};
+    const mergeMask = opts.mergeMask !== false;
+    const fileName = (_a = opts.fileName) !== null && _a !== void 0 ? _a : ctx.options.defaultDownloadFileName;
+    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+    const base64 = await exportImageBase64(ctx, {
+        exportImageArea: mergeMask,
+        multiplier: opts.multiplier,
+        quality: opts.quality,
+        fileType: opts.fileType,
+    });
+    if (!base64) {
+        throw new ExportNotReadyError('exportImageFile');
+    }
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved);
+    const bytes = dataUrlToBytes(finalDataUrl);
+    return new File([bytes], fileName, { type: resolved.mimeType });
+}
+function downloadImage(ctx, fileName) {
+    if (!ctx.isImageLoaded()) {
+        warnNoImageLoaded('downloadImage');
+        return;
+    }
+    const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : ctx.options.defaultDownloadFileName;
+    void exportImageBase64(ctx, {
+        exportImageArea: ctx.options.exportImageAreaByDefault,
+        multiplier: ctx.options.exportMultiplier,
+    })
+        .then((dataUrl) => {
+        if (!dataUrl)
+            return;
+        const link = document.createElement('a');
+        link.download = resolvedFileName;
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        try {
+            link.click();
+        }
+        finally {
+            document.body.removeChild(link);
+        }
+    })
+        .catch((error) => {
+        console.error('[ImageEditor] downloadImage failed', error);
+    });
+}
+async function mergeMasks(ctx) {
+    if (!ctx.isImageLoaded())
+        return;
+    const masks = ctx.canvas.getObjects().filter((o) => 'maskId' in o &&
+        typeof o.maskId === 'number');
+    if (masks.length === 0)
+        return;
+    ctx.canvas.discardActiveObject();
+    ctx.canvas.renderAll();
+    const beforeSnapshot = ctx.saveState();
+    const preScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
+    const preScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+    try {
+        const merged = await exportImageBase64(ctx, {
+            exportImageArea: true,
+            multiplier: ctx.options.exportMultiplier,
+        });
+        if (!merged) {
+            throw new MergeMasksError('mergeMasks: exportImageBase64 returned an empty data URL.');
+        }
+        ctx.removeAllMasksNoHistory();
+        await ctx.loadImage(merged, { preserveScroll: true });
+        const afterSnapshot = ctx.saveState();
+        if (ctx.containerEl) {
+            try {
+                if (preScrollTop !== null) {
+                    ctx.containerEl.scrollTop = preScrollTop;
+                }
+                if (preScrollLeft !== null) {
+                    ctx.containerEl.scrollLeft = preScrollLeft;
+                }
+            }
+            catch (scrollErr) {
+                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollErr);
+            }
+        }
+        if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
+            ctx.historyManager.push(new Command(() => ctx.loadFromState(afterSnapshot), () => ctx.loadFromState(beforeSnapshot)));
+        }
+    }
+    catch (err) {
+        try {
+            await ctx.loadFromState(beforeSnapshot);
+        }
+        catch (rollbackErr) {
+            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackErr);
+        }
+        if (err instanceof MergeMasksError)
+            throw err;
+        const message = err instanceof Error
+            ? `mergeMasks failed: ${err.message}`
+            : 'mergeMasks failed';
+        throw new MergeMasksError(message, err);
+    }
+}
+
+function withTimeout(promise, ms, label) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const timeoutId = setTimeout(() => {
+            reject(new ImageLoadTimeoutError(label, Date.now() - start));
+        }, ms);
+        promise.then((value) => {
+            clearTimeout(timeoutId);
+            resolve(value);
+        }, (err) => {
+            clearTimeout(timeoutId);
+            reject(err);
+        });
+    });
+}
+
+function forceReflow(el) {
+    if (!el)
+        return;
+    void el.offsetWidth;
+}
+
+function selectLayoutStrategy(options) {
+    if (options.fitImageToCanvas)
+        return 'fit';
+    if (options.coverImageToCanvas)
+        return 'cover';
+    return 'expand';
+}
+function detectLayoutConflict(options) {
+    if (!options.fitImageToCanvas || !options.coverImageToCanvas)
+        return null;
+    const enabled = ['fit', 'cover'];
+    if (options.expandCanvasToImage)
+        enabled.push('expand');
+    const selected = selectLayoutStrategy(options);
+    return {
+        enabled,
+        selected,
+        message: `Layout flags ${enabled.map(s => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
+            `Using precedence \`fit > cover > expand\`; selected \`${selected}\`.`,
+    };
+}
+class ViewportCache {
+    constructor() {
+        Object.defineProperty(this, "lastVisible", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+    }
+    measure(container, fallback) {
+        var _a;
+        if (!container)
+            return fallback;
+        const cw = Math.floor(container.clientWidth);
+        const ch = Math.floor(container.clientHeight);
+        if (cw > 0 && ch > 0) {
+            this.lastVisible = { width: cw, height: ch };
+            return this.lastVisible;
+        }
+        return (_a = this.lastVisible) !== null && _a !== void 0 ? _a : fallback;
+    }
+    peek() {
+        return this.lastVisible;
+    }
+    clear() {
+        this.lastVisible = null;
+    }
+}
+function computeFitLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
+    const cw = Math.max(1, Math.min(optionsCanvasWidth, containerSize.width) - 1);
+    const ch = Math.max(1, Math.min(optionsCanvasHeight, containerSize.height) - 1);
+    const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
+    return {
+        canvasWidth: cw,
+        canvasHeight: ch,
+        imageScale: fitScale,
+        imageLeft: 0,
+        imageTop: 0,
+        baseImageScale: fitScale,
+    };
+}
+function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
+    const cw = containerSize.width || optionsCanvasWidth;
+    const ch = containerSize.height || optionsCanvasHeight;
+    const coverScale = Math.max(cw / imageWidth, ch / imageHeight);
+    return {
+        canvasWidth: cw,
+        canvasHeight: ch,
+        imageScale: coverScale,
+        imageLeft: 0,
+        imageTop: 0,
+        baseImageScale: coverScale,
+    };
+}
+function computeExpandLayout(imageWidth, imageHeight, _optionsCanvasWidth, _optionsCanvasHeight, containerSize) {
+    const cw = Math.max(containerSize.width, Math.floor(imageWidth));
+    const ch = Math.max(containerSize.height, Math.floor(imageHeight));
+    return {
+        canvasWidth: cw,
+        canvasHeight: ch,
+        imageScale: 1,
+        imageLeft: 0,
+        imageTop: 0,
+        baseImageScale: 1,
+    };
+}
+function applyCanvasDimensions(canvas, width, height, containerEl) {
+    const iw = Math.max(1, Math.round(Number(width) || 1));
+    const ih = Math.max(1, Math.round(Number(height) || 1));
+    canvas.setDimensions({ width: iw, height: ih });
+    forceReflow(containerEl);
+}
+
+function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHeight) {
+    const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
+    if (!needsResize) {
+        return { width: srcWidth, height: srcHeight, needsResize: false };
+    }
+    const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+    return {
+        width: Math.max(1, Math.round(srcWidth * ratio)),
+        height: Math.max(1, Math.round(srcHeight * ratio)),
+        needsResize: true,
+    };
+}
+function selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType) {
+    if (downsampleMimeType)
+        return downsampleMimeType;
+    if (preserveSourceFormat && (sourceMime === 'image/png' || sourceMime === 'image/webp')) {
+        return sourceMime;
+    }
+    return 'image/jpeg';
+}
+function detectSourceMimeType(dataUrl) {
+    const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
+    return match ? match[1].toLowerCase() : null;
+}
+function resampleImage(imgEl, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
+    const { width, height } = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, maxWidth, maxHeight);
+    const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
+    const oc = document.createElement('canvas');
+    oc.width = width;
+    oc.height = height;
+    const ctx = oc.getContext('2d');
+    if (!ctx) {
+        throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
+    }
+    ctx.drawImage(imgEl, 0, 0, imgEl.naturalWidth, imgEl.naturalHeight, 0, 0, width, height);
+    const dataUrl = mimeType === 'image/png'
+        ? oc.toDataURL(mimeType)
+        : oc.toDataURL(mimeType, quality);
+    return { dataUrl, width, height, mimeType };
+}
+
+async function loadImage(ctx, imageBase64, loadOptions = {}) {
+    if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
+        return;
+    }
+    const placeholderHidden = ctx.placeholderEl ? !!ctx.placeholderEl.hidden : null;
+    const containerScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
+    const containerScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+    const containerOverflow = ctx.containerEl ? ctx.containerEl.style.overflow : null;
+    const bundle = {
+        placeholderHidden,
+        containerScrollTop,
+        containerScrollLeft,
+        containerOverflow,
+        originalImage: ctx.getOriginalImage(),
+        isImageLoadedToCanvas: ctx.getIsImageLoadedToCanvas(),
+        lastSnapshot: ctx.getLastSnapshot(),
+        canvasJson: serializeCanvas(ctx.canvas),
+        maskCounter: ctx.getMaskCounter(),
+        currentScale: ctx.getCurrentScale(),
+        currentRotation: ctx.getCurrentRotation(),
+        baseImageScale: ctx.getBaseImageScale(),
+    };
+    try {
+        ctx.setPlaceholderVisible(false);
+        const imgEl = await withTimeout(decodeImageElement(imageBase64), ctx.options.imageLoadTimeoutMs, 'image decode');
+        const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
+        const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
+        ctx.canvas.discardActiveObject();
+        ctx.canvas.clear();
+        ctx.canvas.backgroundColor = ctx.options.backgroundColor;
+        fimg.set({
+            originX: 'left',
+            originY: 'top',
+            selectable: false,
+            evented: false,
+        });
+        const layout = computeLayout(ctx, fimg);
+        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerEl);
+        fimg.set({ left: layout.imageLeft, top: layout.imageTop });
+        fimg.scale(layout.imageScale);
+        ctx.canvas.add(fimg);
+        ctx.canvas.sendObjectToBack(fimg);
+        ctx.setOriginalImage(fimg);
+        ctx.setBaseImageScale(layout.baseImageScale);
+        ctx.setCurrentScale(1);
+        ctx.setCurrentRotation(0);
+        ctx.setMaskCounter(0);
+        ctx.setIsImageLoadedToCanvas(true);
+        ctx.canvas.renderAll();
+        ctx.setLastSnapshot(saveState({
+            canvas: ctx.canvas,
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: layout.baseImageScale,
+        }));
+        if (loadOptions.preserveScroll === true && ctx.containerEl) {
+            try {
+                if (bundle.containerScrollTop !== null) {
+                    ctx.containerEl.scrollTop = bundle.containerScrollTop;
+                }
+                if (bundle.containerScrollLeft !== null) {
+                    ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
+                }
+            }
+            catch (err) {
+                console.warn('[ImageEditor] preserveScroll restore failed', err);
+            }
+        }
+        const cb = ctx.options.onImageLoaded;
+        if (typeof cb === 'function') {
+            try {
+                cb();
+            }
+            catch (err) {
+                console.error('[ImageEditor] onImageLoaded callback threw', err);
+            }
+        }
+    }
+    catch (err) {
+        await replayRollback(ctx, bundle);
+        const errorMessage = err instanceof Error
+            ? `loadImage failed: ${err.message}`
+            : 'loadImage failed';
+        reportError(ctx.options, err, errorMessage);
+        throw err;
+    }
+}
+function decodeImageElement(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            img.onload = img.onerror = null;
+            resolve(img);
+        };
+        img.onerror = (e) => {
+            img.onload = img.onerror = null;
+            reject(new ImageDecodeError('Failed to decode image data URL.', e));
+        };
+        img.src = dataUrl;
+    });
+}
+function maybeDownsample(imgEl, originalDataUrl, options) {
+    if (!options.downsampleOnLoad)
+        return originalDataUrl;
+    const dims = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
+    if (!dims.needsResize)
+        return originalDataUrl;
+    const sourceMime = detectSourceMimeType(originalDataUrl);
+    return resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality).dataUrl;
+}
+function computeLayout(ctx, fimg) {
+    var _a, _b;
+    const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
+    const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
+    const viewport = ctx.viewportCache.measure(ctx.containerEl, {
+        width: ctx.options.canvasWidth,
+        height: ctx.options.canvasHeight,
+    });
+    const strategy = selectLayoutStrategy(ctx.options);
+    if (strategy === 'fit') {
+        return computeFitLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+    }
+    if (strategy === 'cover') {
+        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+    }
+    return computeExpandLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+}
+function serializeCanvas(canvas) {
+    canvas.discardActiveObject();
+    const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
+    return JSON.stringify(json);
+}
+async function replayRollback(ctx, bundle) {
+    if (ctx.containerEl && bundle.containerOverflow !== null) {
+        try {
+            ctx.containerEl.style.overflow = bundle.containerOverflow;
+        }
+        catch (err) {
+            console.warn('[ImageEditor] rollback: overflow restore failed', err);
+        }
+    }
+    try {
+        await ctx.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
+        ctx.canvas.renderAll();
+    }
+    catch (err) {
+        console.warn('[ImageEditor] rollback: loadFromJSON failed', err);
+    }
+    ctx.setOriginalImage(bundle.originalImage);
+    ctx.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
+    ctx.setLastSnapshot(bundle.lastSnapshot);
+    ctx.setMaskCounter(bundle.maskCounter);
+    ctx.setCurrentScale(bundle.currentScale);
+    ctx.setCurrentRotation(bundle.currentRotation);
+    ctx.setBaseImageScale(bundle.baseImageScale);
+    if (ctx.containerEl) {
+        try {
+            if (bundle.containerScrollTop !== null) {
+                ctx.containerEl.scrollTop = bundle.containerScrollTop;
+            }
+            if (bundle.containerScrollLeft !== null) {
+                ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
+            }
+        }
+        catch (err) {
+            console.warn('[ImageEditor] rollback: scroll restore failed', err);
+        }
+    }
+    if (bundle.placeholderHidden !== null) {
+        ctx.setPlaceholderVisible(!bundle.placeholderHidden);
+    }
+}
+
+function animateProps(obj, props, options, guard) {
+    return new Promise((resolve, reject) => {
+        const propCount = Object.keys(props).length;
+        if (propCount === 0) {
+            resolve();
+            return;
+        }
+        let completed = 0;
+        try {
+            obj.animate(props, {
+                duration: options.duration,
+                onChange: () => {
+                    var _a;
+                    if (guard.isDisposed())
+                        return;
+                    (_a = options.onChange) === null || _a === void 0 ? void 0 : _a.call(options);
+                },
+                onComplete: () => {
+                    if (++completed >= propCount)
+                        resolve();
+                },
+            });
+        }
+        catch (err) {
+            reject(err);
+        }
+    });
+}
+function restoreOrigin(obj, originX, originY) {
+    try {
+        obj.set({ originX, originY });
+        obj.setCoords();
+    }
+    catch {
+    }
+}
+
+class TransformController {
+    constructor(ctx) {
+        Object.defineProperty(this, "ctx", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.ctx = ctx;
+    }
+    async scaleImage(factor) {
+        const img = this.ctx.getOriginalImage();
+        if (!img)
+            return;
+        if (this.ctx.guard.isAnimating())
+            return;
+        if (this.ctx.guard.isDisposed())
+            return;
+        const clamped = Math.max(this.ctx.options.minScale, Math.min(this.ctx.options.maxScale, factor));
+        this.ctx.setCurrentScale(clamped);
+        const targetAbs = this.ctx.getBaseImageScale() * clamped;
+        try {
+            const topLeft = computeTopLeftPoint(img);
+            img.set({ originX: 'left', originY: 'top' });
+            img.setPositionByOrigin(topLeft, 'left', 'top');
+            img.setCoords();
+        }
+        catch (err) {
+            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', err);
+        }
+        try {
+            await this.ctx.guard.runAnimation(() => animateProps(img, { scaleX: targetAbs, scaleY: targetAbs }, {
+                duration: this.ctx.options.animationDuration,
+                onChange: () => this.ctx.canvas.requestRenderAll(),
+            }, this.ctx.guard));
+        }
+        catch (err) {
+            console.warn('[ImageEditor] scaleImage animation error', err);
+            return;
+        }
+        if (this.ctx.guard.isDisposed())
+            return;
+        img.set({ scaleX: targetAbs, scaleY: targetAbs });
+        img.setCoords();
+        if (this.ctx.afterTransformSnap)
+            this.ctx.afterTransformSnap();
+        this.ctx.saveCanvasState();
+    }
+    async rotateImage(degrees) {
+        if (Number.isNaN(degrees))
+            return;
+        const img = this.ctx.getOriginalImage();
+        if (!img)
+            return;
+        if (this.ctx.guard.isAnimating())
+            return;
+        if (this.ctx.guard.isDisposed())
+            return;
+        this.ctx.setCurrentRotation(degrees);
+        try {
+            const centre = img.getCenterPoint();
+            img.set({ originX: 'center', originY: 'center' });
+            img.setPositionByOrigin(centre, 'center', 'center');
+            img.setCoords();
+        }
+        catch (err) {
+            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', err);
+        }
+        let animationFailed = false;
+        try {
+            await this.ctx.guard.runAnimation(() => animateProps(img, { angle: degrees }, {
+                duration: this.ctx.options.animationDuration,
+                onChange: () => this.ctx.canvas.requestRenderAll(),
+            }, this.ctx.guard));
+        }
+        catch (err) {
+            animationFailed = true;
+            console.warn('[ImageEditor] rotateImage animation error', err);
+        }
+        finally {
+            if (this.ctx.guard.isDisposed()) {
+                restoreOrigin(img, 'left', 'top');
+            }
+        }
+        if (animationFailed)
+            return;
+        if (this.ctx.guard.isDisposed())
+            return;
+        img.set('angle', degrees);
+        img.setCoords();
+        if (this.ctx.afterTransformSnap)
+            this.ctx.afterTransformSnap();
+        try {
+            const newTopLeft = computeTopLeftPoint(img);
+            img.set({ originX: 'left', originY: 'top' });
+            img.setPositionByOrigin(newTopLeft, 'left', 'top');
+            img.setCoords();
+        }
+        catch (err) {
+            console.warn('[ImageEditor] rotateImage: origin post-restore failed', err);
+        }
+        this.ctx.saveCanvasState();
+    }
+    async resetImageTransform() {
+        if (!this.ctx.getOriginalImage())
+            return;
+        let chainSucceeded = false;
+        this.ctx.setSuppressSaveState(true);
+        try {
+            await this.scaleImage(1);
+            await this.rotateImage(0);
+            chainSucceeded = true;
+        }
+        finally {
+            this.ctx.setSuppressSaveState(false);
+        }
+        if (!chainSucceeded)
+            return;
+        if (this.ctx.guard.isDisposed())
+            return;
+        this.ctx.saveCanvasState();
+    }
+}
+function computeTopLeftPoint(obj) {
+    obj.setCoords();
+    const coords = obj.getCoords();
+    const first = coords[0];
+    if (first)
+        return first;
+    const br = obj.getBoundingRect();
+    return { x: br.left, y: br.top };
+}
+
+function resolveNumeric(val, axis, fallback, canvas, options) {
+    if (typeof val === 'number') {
+        return val;
+    }
+    if (typeof val === 'function') {
+        return val(canvas, options);
+    }
+    if (typeof val === 'string' && val.endsWith('%')) {
+        const pct = parseFloat(val);
+        if (!Number.isFinite(pct)) {
+            return fallback;
+        }
+        const dim = axis === 'x' ? canvas.getWidth() : canvas.getHeight();
+        return Math.floor(dim * (pct / 100));
+    }
+    return fallback;
+}
+function coercePoint(pt) {
+    if (Array.isArray(pt)) {
+        return { x: Number(pt[0]), y: Number(pt[1]) };
+    }
+    return { x: Number(pt.x), y: Number(pt.y) };
+}
+
+function createMask(ctx, config = {}) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
+    const { canvas, options, fabric: fb } = ctx;
+    if (!canvas)
+        return null;
+    const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
+    const cfg = {
+        shape: shapeType,
+        width: options.defaultMaskWidth,
+        height: options.defaultMaskHeight,
+        color: 'rgba(0,0,0,0.5)',
+        alpha: 0.5,
+        gap: 5,
+        left: undefined,
+        top: undefined,
+        angle: 0,
+        selectable: true,
+        ...config,
+    };
+    const firstOffset = 10;
+    let left;
+    let top;
+    const prev = ctx.getLastMask();
+    if (config.left === undefined && prev) {
+        const prevRight = ((_b = prev.left) !== null && _b !== void 0 ? _b : 0) +
+            (typeof prev.getScaledWidth === 'function'
+                ? prev.getScaledWidth()
+                : ((_c = prev.width) !== null && _c !== void 0 ? _c : 0) * ((_d = prev.scaleX) !== null && _d !== void 0 ? _d : 1));
+        left = Math.round(prevRight + ((_e = cfg.gap) !== null && _e !== void 0 ? _e : 5));
+        top = (_f = prev.top) !== null && _f !== void 0 ? _f : firstOffset;
+    }
+    else {
+        left = resolveNumeric(config.left, 'x', firstOffset, canvas, options);
+        top = resolveNumeric(config.top, 'y', firstOffset, canvas, options);
+    }
+    cfg.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
+    cfg.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
+    if (options.expandCanvasToImage) {
+        const reqW = Math.ceil(left + cfg.width + 10);
+        const reqH = Math.ceil(top + cfg.height + 10);
+        const newW = Math.max(canvas.getWidth(), reqW);
+        const newH = Math.max(canvas.getHeight(), reqH);
+        if (newW !== canvas.getWidth() || newH !== canvas.getHeight()) {
+            if (ctx.expandCanvasIfNeeded) {
+                ctx.expandCanvasIfNeeded(newW, newH);
+            }
+            else {
+                canvas.setDimensions({ width: newW, height: newH });
+            }
+        }
+    }
+    let mask;
+    if (typeof cfg.fabricGenerator === 'function') {
+        mask = cfg.fabricGenerator(cfg, canvas, options);
+    }
+    else {
+        const originProps = {
+            originX: 'left',
+            originY: 'top',
+        };
+        const rx = config.rx !== undefined
+            ? resolveNumeric(config.rx, 'x', 0, canvas, options)
+            : undefined;
+        const ry = config.ry !== undefined
+            ? resolveNumeric(config.ry, 'y', 0, canvas, options)
+            : undefined;
+        switch (shapeType) {
+            case 'circle':
+                mask = new fb.Circle({
+                    left,
+                    top,
+                    ...originProps,
+                    radius: resolveNumeric(config.radius, 'x', Math.min(cfg.width, cfg.height) / 2, canvas, options),
+                    fill: cfg.color,
+                    opacity: cfg.alpha,
+                    angle: (_g = cfg.angle) !== null && _g !== void 0 ? _g : 0,
+                    ...cfg.styles,
+                });
+                break;
+            case 'ellipse':
+                mask = new fb.Ellipse({
+                    left,
+                    top,
+                    ...originProps,
+                    rx: rx !== null && rx !== void 0 ? rx : cfg.width / 2,
+                    ry: ry !== null && ry !== void 0 ? ry : cfg.height / 2,
+                    fill: cfg.color,
+                    opacity: cfg.alpha,
+                    angle: (_h = cfg.angle) !== null && _h !== void 0 ? _h : 0,
+                    ...cfg.styles,
+                });
+                break;
+            case 'polygon': {
+                const pts = ((_j = config.points) !== null && _j !== void 0 ? _j : []).map(coercePoint);
+                const polygon = new fb.Polygon(pts, {
+                    ...originProps,
+                    fill: cfg.color,
+                    opacity: cfg.alpha,
+                    angle: (_k = cfg.angle) !== null && _k !== void 0 ? _k : 0,
+                    ...cfg.styles,
+                });
+                polygon.setCoords();
+                const br = polygon.getBoundingRect();
+                const dx = left - br.left;
+                const dy = top - br.top;
+                polygon.set({
+                    left: ((_l = polygon.left) !== null && _l !== void 0 ? _l : 0) + dx,
+                    top: ((_m = polygon.top) !== null && _m !== void 0 ? _m : 0) + dy,
+                });
+                polygon.setCoords();
+                mask = polygon;
+                break;
+            }
+            case 'rect':
+            default:
+                mask = new fb.Rect({
+                    left,
+                    top,
+                    ...originProps,
+                    width: cfg.width,
+                    height: cfg.height,
+                    fill: cfg.color,
+                    opacity: cfg.alpha,
+                    angle: (_o = cfg.angle) !== null && _o !== void 0 ? _o : 0,
+                    ...(rx !== undefined ? { rx } : {}),
+                    ...(ry !== undefined ? { ry } : {}),
+                    ...cfg.styles,
+                });
+        }
+    }
+    const m = mask;
+    m.selectable = 'selectable' in config ? !!config.selectable : true;
+    m.hasControls = 'hasControls' in config ? !!config.hasControls : true;
+    m.transparentCorners =
+        'transparentCorners' in config ? !!config.transparentCorners : false;
+    m.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
+    m.lockRotation = !options.maskRotatable;
+    m.borderColor = (_p = config.borderColor) !== null && _p !== void 0 ? _p : 'red';
+    m.cornerColor = (_q = config.cornerColor) !== null && _q !== void 0 ? _q : 'black';
+    m.cornerSize = (_r = config.cornerSize) !== null && _r !== void 0 ? _r : 8;
+    const styles = ((_s = cfg.styles) !== null && _s !== void 0 ? _s : {});
+    if ('stroke' in styles) {
+        m.stroke = styles.stroke;
+    }
+    else {
+        m.stroke = '#ccc';
+    }
+    if ('strokeWidth' in styles) {
+        m.strokeWidth = styles.strokeWidth;
+    }
+    else {
+        m.strokeWidth = 1;
+    }
+    if ('strokeDashArray' in styles) {
+        m.strokeDashArray = styles.strokeDashArray;
+    }
+    m.originalAlpha = cfg.alpha;
+    const normalStyle = {
+        stroke: m.stroke,
+        strokeWidth: m.strokeWidth,
+        opacity: m.originalAlpha,
+    };
+    const hoverStyle = {
+        stroke: '#ff5500',
+        strokeWidth: 2,
+        opacity: Math.min(m.originalAlpha + 0.2, 1),
+    };
+    m.on('mouseover', () => {
+        var _a;
+        m.set(hoverStyle);
+        (_a = m.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
+    });
+    m.on('mouseout', () => {
+        var _a;
+        m.set(normalStyle);
+        (_a = m.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
+    });
+    const nextId = ctx.getMaskCounter() + 1;
+    ctx.setMaskCounter(nextId);
+    m.maskId = nextId;
+    m.maskName = `${options.maskName}${nextId}`;
+    ctx.setLastMask(m);
+    canvas.add(m);
+    canvas.bringObjectToFront(m);
+    ctx.updateMaskList();
+    if (cfg.selectable !== false) {
+        canvas.setActiveObject(m);
+    }
+    canvas.renderAll();
+    ctx.saveCanvasState();
+    (_t = cfg.onCreate) === null || _t === void 0 ? void 0 : _t.call(cfg, m, canvas);
+    return m;
+}
+function removeSelectedMask(ctx) {
+    const active = ctx.canvas.getActiveObject();
+    if (!active || !isMaskObject(active))
+        return;
+    ctx.removeLabelForMask(active);
+    ctx.canvas.remove(active);
+    ctx.canvas.discardActiveObject();
+    ctx.updateMaskList();
+    ctx.canvas.renderAll();
+    ctx.saveCanvasState();
+}
+function removeAllMasks(ctx, options = {}) {
+    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+    if (masks.length === 0)
+        return;
+    for (const m of masks) {
+        ctx.removeLabelForMask(m);
+        ctx.canvas.remove(m);
+    }
+    ctx.canvas.discardActiveObject();
+    ctx.setLastMask(null);
+    ctx.updateMaskList();
+    ctx.canvas.renderAll();
+    if (options.saveHistory !== false) {
+        ctx.saveCanvasState();
+    }
+}
+
+function removeLabelForMask(ctx, mask) {
+    if (!ctx.canvas || !mask.__label)
+        return;
+    try {
+        if (ctx.canvas.getObjects().includes(mask.__label)) {
+            ctx.canvas.remove(mask.__label);
+        }
+    }
+    catch {
+    }
+    try {
+        delete mask.__label;
+    }
+    catch {
+    }
+}
+function createLabelForMask(ctx, mask) {
+    var _a;
+    const { canvas, options, fabric: fb } = ctx;
+    if (!canvas || !options.maskLabelOnSelect)
+        return;
+    removeLabelForMask(ctx, mask);
+    let textObj = null;
+    if (typeof options.label.create === 'function') {
+        textObj = options.label.create(mask, fb);
+    }
+    if (!textObj) {
+        const indexForGetText = mask.maskId - 1;
+        const txt = typeof options.label.getText === 'function'
+            ? options.label.getText(mask, indexForGetText)
+            : mask.maskName;
+        const textOptions = {
+            left: 0,
+            top: 0,
+            ...((_a = options.label.textOptions) !== null && _a !== void 0 ? _a : {}),
+            originX: 'left',
+            originY: 'top',
+        };
+        textObj = new fb.Text(txt, textOptions);
+    }
+    textObj.maskLabel = true;
+    mask.__label = textObj;
+    canvas.add(textObj);
+    canvas.bringObjectToFront(textObj);
+    syncMaskLabel(ctx, mask);
+}
+function syncMaskLabel(ctx, mask) {
+    var _a, _b, _c;
+    const { canvas, options } = ctx;
+    if (!canvas || !options.maskLabelOnSelect || !mask.__label)
+        return;
+    const coords = (_a = mask.getCoords) === null || _a === void 0 ? void 0 : _a.call(mask);
+    if (!(coords === null || coords === void 0 ? void 0 : coords.length))
+        return;
+    const tl = coords[0];
+    if (!tl)
+        return;
+    const center = mask.getCenterPoint();
+    const vx = center.x - tl.x;
+    const vy = center.y - tl.y;
+    const dist = Math.sqrt(vx * vx + vy * vy) || 1;
+    const offset = Math.max(0, (_b = options.maskLabelOffset) !== null && _b !== void 0 ? _b : 3);
+    mask.__label.set({
+        left: Math.round(tl.x + (vx / dist) * offset),
+        top: Math.round(tl.y + (vy / dist) * offset),
+        angle: (_c = mask.angle) !== null && _c !== void 0 ? _c : 0,
+        originX: 'left',
+        originY: 'top',
+        visible: true,
+    });
+    mask.__label.setCoords();
+    canvas.renderAll();
+}
+function showLabelForMask(ctx, mask) {
+    if (!ctx.options.maskLabelOnSelect)
+        return;
+    if (!mask.__label) {
+        createLabelForMask(ctx, mask);
+    }
+    if (mask.__label) {
+        mask.__label.visible = true;
+        syncMaskLabel(ctx, mask);
+    }
+}
+function hideAllMaskLabels(ctx) {
+    const { canvas } = ctx;
+    if (!canvas)
+        return;
+    const objs = canvas.getObjects();
+    objs
+        .filter((o) => o.maskLabel)
+        .forEach((l) => {
+        try {
+            canvas.remove(l);
+        }
+        catch {
+        }
+    });
+    objs.filter(isMaskObject).forEach((o) => {
+        try {
+            delete o.__label;
+        }
+        catch {
+        }
+    });
+}
+
+function renderMaskList(ctx) {
+    const listId = ctx.getListElementId();
+    if (!listId)
+        return;
+    const listEl = document.getElementById(listId);
+    if (!listEl || !ctx.canvas)
+        return;
+    listEl.innerHTML = '';
+    const canvas = ctx.canvas;
+    canvas.getObjects().filter(isMaskObject).forEach((mask) => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item mask-item';
+        li.textContent = mask.maskName;
+        li.dataset.maskId = String(mask.maskId);
+        li.onclick = () => {
+            const id = Number(li.dataset.maskId);
+            if (!Number.isFinite(id))
+                return;
+            const target = canvas
+                .getObjects()
+                .find((o) => isMaskObject(o) && o.maskId === id);
+            if (!target)
+                return;
+            canvas.setActiveObject(target);
+            ctx.onMaskSelected(target);
+        };
+        listEl.appendChild(li);
+    });
+}
+function updateMaskListSelection(ctx, selectedMask) {
+    const listId = ctx.getListElementId();
+    if (!listId)
+        return;
+    const listEl = document.getElementById(listId);
+    if (!listEl)
+        return;
+    const selectedId = selectedMask ? String(selectedMask.maskId) : null;
+    listEl.querySelectorAll('.mask-item').forEach((item) => {
+        const isSelected = selectedId !== null && item.dataset.maskId === selectedId;
+        item.classList.toggle('active', isSelected);
+    });
+}
+
+class DomBindings {
+    constructor(resolveElementId, isDisposed) {
+        Object.defineProperty(this, "registry", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
+        Object.defineProperty(this, "resolveElementId", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "isDisposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.resolveElementId = resolveElementId;
+        this.isDisposed = isDisposed;
+    }
+    bindIfExists(key, eventType, handler) {
+        const id = this.resolveElementId(key);
+        if (!id)
+            return false;
+        const el = document.getElementById(id);
+        if (!el)
+            return false;
+        const wrapped = (event) => {
+            if (this.isDisposed())
+                return;
+            handler(event);
+        };
+        el.addEventListener(eventType, wrapped);
+        this.registry.push({ elementKey: key, eventType, handler: wrapped });
+        return true;
+    }
+    removeAll() {
+        for (const entry of this.registry) {
+            const id = this.resolveElementId(entry.elementKey);
+            if (!id)
+                continue;
+            const el = document.getElementById(id);
+            if (!el)
+                continue;
+            try {
+                el.removeEventListener(entry.eventType, entry.handler);
+            }
+            catch {
+            }
+        }
+        this.registry = [];
+    }
+    size() {
+        return this.registry.length;
+    }
+}
+
+function setPlaceholderVisible(placeholderElement, containerElement, show) {
+    if (placeholderElement) {
+        placeholderElement.hidden = !show;
+        placeholderElement.setAttribute('aria-hidden', show ? 'false' : 'true');
+    }
+    if (containerElement) {
+        containerElement.hidden = show;
+        containerElement.setAttribute('aria-hidden', show ? 'true' : 'false');
+    }
+}
+
+const SUPPORTED_IMAGE_EXTENSIONS = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+};
+function inferImageMimeType(file) {
+    var _a, _b;
+    if (file.type && file.type.startsWith('image/'))
+        return file.type;
+    if (file.type)
+        return null;
+    const match = /\.([a-z0-9]+)$/i.exec(file.name);
+    const ext = (_a = match === null || match === void 0 ? void 0 : match[1]) === null || _a === void 0 ? void 0 : _a.toLowerCase();
+    if (!ext)
+        return null;
+    return (_b = SUPPORTED_IMAGE_EXTENSIONS[ext]) !== null && _b !== void 0 ? _b : null;
+}
+function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            if (typeof result === 'string') {
+                resolve(result);
+            }
+            else {
+                reject(new Error('FileReader returned a non-string result'));
+            }
+        };
+        reader.onerror = () => {
+            var _a;
+            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function resetFileInput(input) {
+    if (!input)
+        return;
+    try {
+        input.value = '';
+    }
+    catch {
+    }
+}
+
+class ImageEditor {
+    constructor(fabricModuleOrOptions = {}, options = {}) {
+        var _a;
+        Object.defineProperty(this, "_fabric", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "_fabricLoaded", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "options", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "canvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "canvasElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "containerElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "placeholderElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "elements", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: {}
+        });
+        Object.defineProperty(this, "originalImage", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "baseImageScale", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 1
+        });
+        Object.defineProperty(this, "currentScale", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 1
+        });
+        Object.defineProperty(this, "currentRotation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "isImageLoadedToCanvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "maskCounter", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "_lastMask", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "_lastSnapshot", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "historyManager", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "maxHistorySize", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "_guard", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "animQueue", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "_transformController", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "_viewportCache", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new ViewportCache()
+        });
+        Object.defineProperty(this, "_cropSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "_bindings", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "_disposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "_suppressSaveState", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        const detected = detectFabric(fabricModuleOrOptions, options);
+        this._fabric = ((_a = detected.fabric) !== null && _a !== void 0 ? _a : {});
+        this._fabricLoaded = detected._fabricLoaded;
+        this.options = resolveOptions(detected.options);
+        const layoutConflict = detectLayoutConflict(this.options);
+        if (layoutConflict) {
+            reportWarning(this.options, null, layoutConflict.message);
+        }
+        this.maxHistorySize = 50;
+        this._guard = new OperationGuard();
+        this.animQueue = new AnimationQueue();
+        this.historyManager = new HistoryManager(this.maxHistorySize);
+    }
+    init(idMap = {}) {
+        if (!this._fabricLoaded)
+            return;
+        if (this._disposed)
+            return;
+        const defaults = {
+            canvas: 'fabricCanvas',
+            canvasContainer: null,
+            imgPlaceholder: 'imgPlaceholder',
+            scaleRate: 'scaleRate',
+            rotationLeftInput: 'rotationLeftInput',
+            rotationRightInput: 'rotationRightInput',
+            rotateLeftBtn: 'rotateLeftBtn',
+            rotateRightBtn: 'rotateRightBtn',
+            addMaskBtn: 'addMaskBtn',
+            removeMaskBtn: 'removeMaskBtn',
+            removeAllMasksBtn: 'removeAllMasksBtn',
+            mergeBtn: 'mergeBtn',
+            downloadBtn: 'downloadBtn',
+            maskList: 'maskList',
+            zoomInBtn: 'zoomInBtn',
+            zoomOutBtn: 'zoomOutBtn',
+            resetBtn: 'resetBtn',
+            undoBtn: 'undoBtn',
+            redoBtn: 'redoBtn',
+            imageInput: 'imageInput',
+            cropBtn: 'cropBtn',
+            applyCropBtn: 'applyCropBtn',
+            cancelCropBtn: 'cancelCropBtn',
+            uploadArea: 'uploadArea',
+        };
+        this.elements = { ...defaults, ...idMap };
+        this._bindings = new DomBindings((key) => this.elements[key], () => this._disposed);
+        this._initCanvas();
+        this._transformController = new TransformController(this._buildTransformContext());
+        this._bindEvents();
+        this._updateInputs();
+        this._updateMaskList();
+        this._updateUI();
+        if (this.options.initialImageBase64) {
+            void this.loadImage(this.options.initialImageBase64);
+        }
+        else {
+            this._updatePlaceholderStatus();
+        }
+    }
+    _initCanvas() {
+        var _a;
+        const id = this.elements.canvas;
+        const canvasElement = id ? document.getElementById(id) : null;
+        if (!canvasElement)
+            throw new Error(`[ImageEditor] Canvas element not found: "${id}"`);
+        this.canvasElement = canvasElement;
+        const containerId = this.elements.canvasContainer;
+        if (containerId) {
+            this.containerElement = (_a = document.getElementById(containerId)) !== null && _a !== void 0 ? _a : canvasElement.parentElement;
+        }
+        else {
+            this.containerElement = canvasElement.parentElement;
+        }
+        const phId = this.elements.imgPlaceholder;
+        this.placeholderElement = phId ? document.getElementById(phId) : null;
+        let initialW = this.options.canvasWidth;
+        let initialH = this.options.canvasHeight;
+        if (this.containerElement) {
+            const cw = Math.floor(this.containerElement.clientWidth);
+            const ch = Math.floor(this.containerElement.clientHeight);
+            if (cw > 0 && ch > 0) {
+                initialW = cw;
+                initialH = ch;
+            }
+        }
+        this.canvas = new this._fabric.Canvas(canvasElement, {
+            width: initialW,
+            height: initialH,
+            backgroundColor: this.options.backgroundColor,
+            selection: this.options.groupSelection,
+            preserveObjectStacking: true,
+        });
+        this.canvas.on('selection:created', (e) => {
+            this._onSelectionChanged(e.selected);
+        });
+        this.canvas.on('selection:updated', (e) => {
+            this._onSelectionChanged(e.selected);
+        });
+        this.canvas.on('selection:cleared', () => this._onSelectionChanged([]));
+        const onObjectEvent = (e) => {
+            if (e.target && isMaskObject(e.target))
+                this._syncMaskLabel(e.target);
+        };
+        this.canvas.on('object:moving', onObjectEvent);
+        this.canvas.on('object:scaling', onObjectEvent);
+        this.canvas.on('object:rotating', onObjectEvent);
+        this.canvas.on('object:modified', onObjectEvent);
+    }
+    _bindEvents() {
+        this._bindIfExists('uploadArea', 'click', () => {
+            var _a;
+            const inputId = this.elements.imageInput;
+            if (inputId)
+                (_a = document.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+        });
+        this._bindIfExists('imageInput', 'change', (e) => {
+            var _a;
+            const f = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
+            if (f)
+                void this._loadImageFile(f);
+        });
+        this._bindIfExists('zoomInBtn', 'click', () => { void this.scaleImage(this.currentScale + this.options.scaleStep); });
+        this._bindIfExists('zoomOutBtn', 'click', () => { void this.scaleImage(this.currentScale - this.options.scaleStep); });
+        this._bindIfExists('resetBtn', 'click', () => { void this.resetImageTransform(); });
+        this._bindIfExists('addMaskBtn', 'click', () => { this.createMask(); });
+        this._bindIfExists('removeMaskBtn', 'click', () => { this.removeSelectedMask(); });
+        this._bindIfExists('removeAllMasksBtn', 'click', () => { this.removeAllMasks(); });
+        this._bindIfExists('mergeBtn', 'click', () => { void this.mergeMasks(); });
+        this._bindIfExists('downloadBtn', 'click', () => { this.downloadImage(); });
+        this._bindIfExists('undoBtn', 'click', () => { this.undo(); });
+        this._bindIfExists('redoBtn', 'click', () => { this.redo(); });
+        this._bindIfExists('rotateLeftBtn', 'click', () => {
+            const inputId = this.elements.rotationLeftInput;
+            const inputEl = inputId ? document.getElementById(inputId) : null;
+            let step = this.options.rotationStep;
+            if (inputEl) {
+                const p = parseFloat(inputEl.value);
+                if (!isNaN(p))
+                    step = p;
+            }
+            void this.rotateImage(this.currentRotation - step);
+        });
+        this._bindIfExists('rotateRightBtn', 'click', () => {
+            const inputId = this.elements.rotationRightInput;
+            const inputEl = inputId ? document.getElementById(inputId) : null;
+            let step = this.options.rotationStep;
+            if (inputEl) {
+                const p = parseFloat(inputEl.value);
+                if (!isNaN(p))
+                    step = p;
+            }
+            void this.rotateImage(this.currentRotation + step);
+        });
+        this._bindIfExists('cropBtn', 'click', () => { this.enterCropMode(); });
+        this._bindIfExists('applyCropBtn', 'click', () => {
+            void this.applyCrop().catch(err => {
+                reportError(this.options, err, 'Crop apply failed.');
+            });
+        });
+        this._bindIfExists('cancelCropBtn', 'click', () => { this.cancelCrop(); });
+    }
+    _bindIfExists(key, event, handler) {
+        var _a;
+        (_a = this._bindings) === null || _a === void 0 ? void 0 : _a.bindIfExists(key, event, handler);
+    }
+    async _loadImageFile(file) {
+        const inputId = this.elements.imageInput;
+        const inputEl = inputId
+            ? document.getElementById(inputId)
+            : null;
+        const mime = inferImageMimeType(file);
+        if (!mime) {
+            resetFileInput(inputEl);
+            return;
+        }
+        try {
+            const dataUrl = await readFileAsDataURL(file);
+            await this.loadImage(dataUrl);
+        }
+        catch (err) {
+            reportError(this.options, err, 'Failed to read selected image file.');
+        }
+        finally {
+            resetFileInput(inputEl);
+        }
+    }
+    async loadImage(base64, options = {}) {
+        if (!this._fabricLoaded || !this.canvas)
+            return;
+        if (this._disposed)
+            return;
+        if (this._guard.isAnimating())
+            return;
+        this._hideAllMaskLabels();
+        const ctx = {
+            fabric: this._fabric,
+            canvas: this.canvas,
+            options: this.options,
+            containerEl: this.containerElement,
+            placeholderEl: this.placeholderElement,
+            viewportCache: this._viewportCache,
+            getOriginalImage: () => this.originalImage,
+            setOriginalImage: v => { this.originalImage = v; },
+            getIsImageLoadedToCanvas: () => this.isImageLoadedToCanvas,
+            setIsImageLoadedToCanvas: v => { this.isImageLoadedToCanvas = v; },
+            getLastSnapshot: () => this._lastSnapshot,
+            setLastSnapshot: v => { this._lastSnapshot = v; },
+            getMaskCounter: () => this.maskCounter,
+            setMaskCounter: v => { this.maskCounter = v; },
+            getCurrentScale: () => this.currentScale,
+            setCurrentScale: v => { this.currentScale = v; },
+            getCurrentRotation: () => this.currentRotation,
+            setCurrentRotation: v => { this.currentRotation = v; },
+            getBaseImageScale: () => this.baseImageScale,
+            setBaseImageScale: v => { this.baseImageScale = v; },
+            setPlaceholderVisible: show => {
+                setPlaceholderVisible(this.placeholderElement, this.containerElement, show);
+            },
+        };
+        try {
+            await loadImage(ctx, base64, options);
+        }
+        catch (err) {
+            throw err;
+        }
+        this._lastMask = null;
+        this._updateInputs();
+        this._updateMaskList();
+        this._updateUI();
+    }
+    isImageLoaded() {
+        var _a, _b;
+        return !!(this.originalImage &&
+            this.originalImage instanceof this._fabric.Image &&
+            ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
+            ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+    }
+    _setCanvasSizeInt(w, h) {
+        if (!this.canvas)
+            return;
+        applyCanvasDimensions(this.canvas, w, h, this.containerElement);
+    }
+    _alignObjectBoundingBoxToCanvasTopLeft(obj) {
+        var _a, _b;
+        obj.setCoords();
+        const br = obj.getBoundingRect();
+        obj.set({ left: ((_a = obj.left) !== null && _a !== void 0 ? _a : 0) - br.left, top: ((_b = obj.top) !== null && _b !== void 0 ? _b : 0) - br.top });
+        obj.setCoords();
+        this.canvas.renderAll();
+    }
+    _updateCanvasSizeToImageBounds() {
+        if (!this.originalImage)
+            return;
+        this.originalImage.setCoords();
+        const br = this.originalImage.getBoundingRect();
+        const containerW = this.containerElement ? Math.ceil(this.containerElement.clientWidth || 0) : 0;
+        const containerH = this.containerElement ? Math.ceil(this.containerElement.clientHeight || 0) : 0;
+        if (containerW > 0 && containerH > 0 && br.width <= containerW && br.height <= containerH) {
+            this._setCanvasSizeInt(containerW, containerH);
+            return;
+        }
+        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(br.width)), Math.max(containerH || 0, Math.floor(br.height)));
+    }
+    _buildTransformContext() {
+        return {
+            canvas: this.canvas,
+            options: this.options,
+            guard: this._guard,
+            getOriginalImage: () => this.originalImage,
+            getCurrentScale: () => this.currentScale,
+            setCurrentScale: (n) => { this.currentScale = n; },
+            getCurrentRotation: () => this.currentRotation,
+            setCurrentRotation: (n) => { this.currentRotation = n; },
+            getBaseImageScale: () => this.baseImageScale,
+            saveCanvasState: () => { this.saveState(); },
+            setSuppressSaveState: (suppress) => { this._suppressSaveState = suppress; },
+            afterTransformSnap: () => {
+                if (this._disposed || !this.canvas || !this.originalImage)
+                    return;
+                if (this.options.expandCanvasToImage)
+                    this._updateCanvasSizeToImageBounds();
+                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+                this.canvas.getObjects()
+                    .filter(isMaskObject)
+                    .forEach(m => this._syncMaskLabel(m));
+            },
+        };
+    }
+    scaleImage(factor) {
+        if (this._disposed || !this._transformController)
+            return Promise.resolve();
+        const controller = this._transformController;
+        return this.animQueue.add(async () => {
+            if (this._disposed)
+                return;
+            this._updateUI();
+            try {
+                await controller.scaleImage(factor);
+            }
+            finally {
+                if (!this._disposed) {
+                    this._updateInputs();
+                    this._updateUI();
+                }
+            }
+        });
+    }
+    rotateImage(degrees) {
+        if (this._disposed || !this._transformController)
+            return Promise.resolve();
+        const controller = this._transformController;
+        return this.animQueue.add(async () => {
+            if (this._disposed)
+                return;
+            this._updateUI();
+            try {
+                await controller.rotateImage(degrees);
+            }
+            finally {
+                if (!this._disposed) {
+                    this._updateInputs();
+                    this._updateUI();
+                }
+            }
+        });
+    }
+    resetImageTransform() {
+        if (this._disposed || !this._transformController)
+            return Promise.resolve();
+        const controller = this._transformController;
+        return this.animQueue.add(async () => {
+            if (this._disposed)
+                return;
+            this._updateUI();
+            try {
+                await controller.resetImageTransform();
+            }
+            finally {
+                if (!this._disposed) {
+                    this._updateInputs();
+                    this._updateUI();
+                }
+            }
+        });
+    }
+    async loadFromState(jsonString) {
+        if (!jsonString || !this.canvas)
+            return;
+        if (this._disposed)
+            return;
+        try {
+            const result = await loadFromState({
+                canvas: this.canvas,
+                jsonString,
+                setCanvasSize: (w, h) => this._setCanvasSizeInt(w, h),
+            });
+            if (this._disposed || !this.canvas)
+                return;
+            this._hideAllMaskLabels();
+            this.originalImage = result.originalImage;
+            if (this.originalImage) {
+                this.originalImage.set({
+                    originX: 'left', originY: 'top',
+                    selectable: false, evented: false,
+                    hasControls: false,
+                    hoverCursor: 'default',
+                });
+                this.canvas.sendObjectToBack(this.originalImage);
+            }
+            this.maskCounter = result.maxMaskId;
+            const es = result.editorState;
+            if (es) {
+                this.currentScale = es.currentScale;
+                this.currentRotation = es.currentRotation;
+                this.baseImageScale = es.baseImageScale;
+            }
+            this.isImageLoadedToCanvas = !!this.originalImage;
+            this._lastSnapshot = result.jsonString;
+            result.objects
+                .filter(isMaskObject)
+                .forEach(m => reattachMaskHoverHandlers(m));
+            this.canvas.renderAll();
+            this._updateInputs();
+            this._updateMaskList();
+            this._updateUI();
+        }
+        catch (err) {
+            reportError(this.options, err, 'Failed to restore canvas state.');
+            throw err;
+        }
+    }
+    saveState() {
+        var _a;
+        if (!this.canvas || this._suppressSaveState)
+            return;
+        const activeObj = this.canvas.getActiveObject();
+        this._hideAllMaskLabels();
+        try {
+            const after = saveState({
+                canvas: this.canvas,
+                currentScale: this.currentScale,
+                currentRotation: this.currentRotation,
+                baseImageScale: this.baseImageScale,
+            });
+            const before = (_a = this._lastSnapshot) !== null && _a !== void 0 ? _a : after;
+            let executedOnce = false;
+            const cmd = new Command(async () => { if (executedOnce) {
+                await this.loadFromState(after);
+            } executedOnce = true; }, async () => { await this.loadFromState(before); });
+            this.historyManager.execute(cmd);
+            this._lastSnapshot = after;
+            if (activeObj && isMaskObject(activeObj))
+                this._showLabelForMask(activeObj);
+            this._updateUI();
+        }
+        catch (err) {
+            reportWarning(this.options, err, 'Failed to capture canvas snapshot.');
+        }
+    }
+    undo() {
+        if (this._disposed)
+            return Promise.resolve();
+        return this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
+    }
+    redo() {
+        if (this._disposed)
+            return Promise.resolve();
+        return this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
+    }
+    createMask(config = {}) {
+        if (!this.canvas)
+            return null;
+        const ctx = this._buildCreateMaskContext();
+        return createMask(ctx, config);
+    }
+    removeSelectedMask() {
+        if (!this.canvas)
+            return;
+        const ctx = this._buildRemoveMaskContext();
+        removeSelectedMask(ctx);
+        this._updateUI();
+    }
+    removeAllMasks(options = {}) {
+        if (!this.canvas)
+            return;
+        if (this._guard.isAnimating())
+            return;
+        const ctx = this._buildRemoveMaskContext();
+        removeAllMasks(ctx, options);
+        this._updateUI();
+    }
+    _buildCreateMaskContext() {
+        return {
+            fabric: this._fabric,
+            canvas: this.canvas,
+            options: this.options,
+            getLastMask: () => this._lastMask,
+            setLastMask: (m) => { this._lastMask = m; },
+            getMaskCounter: () => this.maskCounter,
+            setMaskCounter: (n) => { this.maskCounter = n; },
+            updateMaskList: () => { this._updateMaskList(); },
+            saveCanvasState: () => { this.saveState(); },
+            expandCanvasIfNeeded: (w, h) => { this._setCanvasSizeInt(w, h); },
+        };
+    }
+    _buildRemoveMaskContext() {
+        return {
+            canvas: this.canvas,
+            removeLabelForMask: (mask) => { this._removeLabelForMask(mask); },
+            updateMaskList: () => { this._updateMaskList(); },
+            saveCanvasState: () => { this.saveState(); },
+            setLastMask: (m) => { this._lastMask = m; },
+        };
+    }
+    _maskLabelContext() {
+        if (!this.canvas)
+            return null;
+        return { fabric: this._fabric, canvas: this.canvas, options: this.options };
+    }
+    _removeLabelForMask(mask) {
+        const ctx = this._maskLabelContext();
+        if (!ctx)
+            return;
+        removeLabelForMask(ctx, mask);
+    }
+    _createLabelForMask(mask) {
+        const ctx = this._maskLabelContext();
+        if (!ctx)
+            return;
+        createLabelForMask(ctx, mask);
+    }
+    _hideAllMaskLabels() {
+        const ctx = this._maskLabelContext();
+        if (!ctx)
+            return;
+        hideAllMaskLabels(ctx);
+    }
+    _syncMaskLabel(mask) {
+        const ctx = this._maskLabelContext();
+        if (!ctx)
+            return;
+        syncMaskLabel(ctx, mask);
+    }
+    _showLabelForMask(mask) {
+        const ctx = this._maskLabelContext();
+        if (!ctx)
+            return;
+        showLabelForMask(ctx, mask);
+    }
+    _onSelectionChanged(selected) {
+        var _a;
+        if (!this.canvas)
+            return;
+        const selectedMask = (_a = selected.find(isMaskObject)) !== null && _a !== void 0 ? _a : null;
+        const masks = this.canvas.getObjects().filter(isMaskObject);
+        masks.forEach(m => {
+            if (m !== selectedMask) {
+                if (m.__label) {
+                    this._removeLabelForMask(m);
+                }
+                m.set({ stroke: '#ccc', strokeWidth: 1 });
+            }
+            else {
+                m.set({ stroke: '#ff0000', strokeWidth: 1 });
+            }
+        });
+        if (selectedMask)
+            this._showLabelForMask(selectedMask);
+        this._updateMaskListSelection(selectedMask);
+        this.canvas.renderAll();
+        this._updateUI();
+    }
+    _maskListContext() {
+        return {
+            canvas: this.canvas,
+            getListElementId: () => this.elements.maskList,
+            onMaskSelected: (mask) => this._onSelectionChanged([mask]),
+        };
+    }
+    _updateMaskList() {
+        renderMaskList(this._maskListContext());
+    }
+    _updateMaskListSelection(selectedMask) {
+        updateMaskListSelection(this._maskListContext(), selectedMask);
+    }
+    async mergeMasks() {
+        if (!this.canvas)
+            return;
+        if (this._guard.isAnimating())
+            return;
+        const ctx = this._buildMergeMasksContext();
+        await mergeMasks(ctx);
+        this._updateInputs();
+        this._updateMaskList();
+        this._updateUI();
+    }
+    downloadImage(fileName) {
+        if (!this.canvas)
+            return;
+        if (this._guard.isAnimating())
+            return;
+        const ctx = this._buildExportServiceContext();
+        downloadImage(ctx, fileName);
+    }
+    async exportImageBase64(options) {
+        if (!this.canvas)
+            return '';
+        if (this._guard.isAnimating())
+            return '';
+        const ctx = this._buildExportServiceContext();
+        return exportImageBase64(ctx, options);
+    }
+    async exportImageFile(options) {
+        this._guard.assertNotAnimating('exportImageFile');
+        const ctx = this._buildExportServiceContext();
+        return exportImageFile(ctx, options);
+    }
+    _buildExportServiceContext() {
+        return {
+            fabric: this._fabric,
+            canvas: this.canvas,
+            options: this.options,
+            isImageLoaded: () => this.isImageLoaded(),
+            getOriginalImage: () => this.originalImage,
+        };
+    }
+    _buildMergeMasksContext() {
+        return {
+            ...this._buildExportServiceContext(),
+            historyManager: this.historyManager,
+            containerEl: this.containerElement,
+            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            saveState: () => this._captureSnapshot(),
+            loadFromState: (snapshot) => this.loadFromState(snapshot),
+            removeAllMasksNoHistory: () => {
+                const ctx = this._buildRemoveMaskContext();
+                removeAllMasks(ctx, { saveHistory: false });
+            },
+        };
+    }
+    _captureSnapshot() {
+        if (!this.canvas)
+            return '';
+        this._hideAllMaskLabels();
+        return saveState({
+            canvas: this.canvas,
+            currentScale: this.currentScale,
+            currentRotation: this.currentRotation,
+            baseImageScale: this.baseImageScale,
+        });
+    }
+    enterCropMode() {
+        if (!this.canvas || !this.originalImage)
+            return;
+        if (this._cropSession)
+            return;
+        if (!this.isImageLoaded())
+            return;
+        if (this._guard.isAnimating())
+            return;
+        const ctx = this._buildCropControllerContext();
+        enterCropMode(ctx);
+        this._updateUI();
+    }
+    cancelCrop() {
+        if (!this.canvas || !this._cropSession)
+            return;
+        const ctx = this._buildCropControllerContext();
+        cancelCrop(ctx);
+        this._cropSession = null;
+        this._updateUI();
+        this.canvas.renderAll();
+    }
+    async applyCrop() {
+        if (!this.canvas || !this._cropSession)
+            return;
+        if (this._guard.isAnimating())
+            return;
+        const ctx = this._buildCropControllerContext();
+        await applyCrop(ctx);
+        this._updateInputs();
+        this._updateMaskList();
+        this._updateUI();
+    }
+    _buildCropControllerContext() {
+        return {
+            fabric: this._fabric,
+            canvas: this.canvas,
+            options: this.options,
+            historyManager: this.historyManager,
+            isImageLoaded: () => this.isImageLoaded(),
+            getOriginalImage: () => this.originalImage,
+            getCropSession: () => this._cropSession,
+            setCropSession: (s) => { this._cropSession = s; },
+            saveState: () => this._captureSnapshot(),
+            loadFromState: (snapshot) => this.loadFromState(snapshot),
+            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            getMaskCounter: () => this.maskCounter,
+            setMaskCounter: (n) => { this.maskCounter = n; },
+            updateMaskList: () => { this._updateMaskList(); },
+        };
+    }
+    _updateInputs() {
+        const scaleId = this.elements.scaleRate;
+        if (!scaleId)
+            return;
+        const scaleEl = document.getElementById(scaleId);
+        if (scaleEl)
+            scaleEl.value = String(Math.round(this.currentScale * 100));
+    }
+    _updateUI() {
+        if (!this.canvas)
+            return;
+        const hasImg = !!this.originalImage;
+        const masks = hasImg ? this.canvas.getObjects().filter(isMaskObject) : [];
+        const hasMasks = masks.length > 0;
+        const active = this.canvas.getActiveObject();
+        const hasSelectedMask = !!(active && isMaskObject(active));
+        const isDefault = this.currentScale === 1 && this.currentRotation === 0;
+        const canUndo = this.historyManager.canUndo();
+        const canRedo = this.historyManager.canRedo();
+        const inCrop = this._cropSession !== null;
+        const isAnimating = this._guard.isAnimating();
+        if (inCrop) {
+            Object.keys(this.elements).forEach(k => {
+                const id = this.elements[k];
+                if (!id)
+                    return;
+                const el = document.getElementById(id);
+                if (!el)
+                    return;
+                el.disabled = !(k === 'applyCropBtn' || k === 'cancelCropBtn');
+            });
+            return;
+        }
+        this._setDisabled('zoomInBtn', !hasImg || isAnimating || this.currentScale >= this.options.maxScale);
+        this._setDisabled('zoomOutBtn', !hasImg || isAnimating || this.currentScale <= this.options.minScale);
+        this._setDisabled('rotateLeftBtn', !hasImg || isAnimating);
+        this._setDisabled('rotateRightBtn', !hasImg || isAnimating);
+        this._setDisabled('addMaskBtn', !hasImg || isAnimating);
+        this._setDisabled('removeMaskBtn', !hasSelectedMask || isAnimating);
+        this._setDisabled('removeAllMasksBtn', !hasMasks || isAnimating);
+        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isAnimating);
+        this._setDisabled('downloadBtn', !hasImg || isAnimating);
+        this._setDisabled('resetBtn', !hasImg || isDefault || isAnimating);
+        this._setDisabled('undoBtn', !hasImg || isAnimating || !canUndo);
+        this._setDisabled('redoBtn', !hasImg || isAnimating || !canRedo);
+        this._setDisabled('cropBtn', !hasImg || isAnimating);
+        this._setDisabled('applyCropBtn', true);
+        this._setDisabled('cancelCropBtn', true);
+    }
+    _setDisabled(key, disabled) {
+        const id = this.elements[key];
+        if (!id)
+            return;
+        const el = document.getElementById(id);
+        if (el)
+            el.disabled = disabled;
+    }
+    _updatePlaceholderStatus() {
+        if (!this.options.showPlaceholder)
+            return;
+        setPlaceholderVisible(this.placeholderElement, this.containerElement, !this.originalImage);
+    }
+    dispose() {
+        var _a;
+        if (this._disposed)
+            return;
+        this._disposed = true;
+        this._guard.markDisposed();
+        this.animQueue.clear();
+        (_a = this._bindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+        if (this._cropSession && this.canvas) {
+            try {
+                const ctx = this._buildCropControllerContext();
+                cancelCrop(ctx);
+            }
+            catch { }
+            this._cropSession = null;
+        }
+        if (this.canvas) {
+            try {
+                this.canvas.dispose();
+            }
+            catch { }
+            this.canvas = null;
+            this.canvasElement = null;
+            this.isImageLoadedToCanvas = false;
+        }
+        this._transformController = null;
+        this._viewportCache.clear();
+    }
+}
+
+exports.ImageEditor = ImageEditor;
+exports.default = ImageEditor;
+exports.isMaskObject = isMaskObject;
+//# sourceMappingURL=index.cjs.map

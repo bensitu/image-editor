@@ -5,11 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2026-05-28
+
+This release is a behavior-preserving migration of the v1 image editor onto
+a TypeScript and Fabric.js v7 foundation, published in multiple module
+formats from a single source tree. On-screen behavior is carried forward
+from v1.4.0 — sizing, scroll, overflow, rollback, mask metadata, history
+snapshots, export framing, crop session lifecycle, and dispose ordering
+all match v1. The only intentional default change is
+`crop.preserveMasksAfterCrop` (see Changed). The public API is canonical
+to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
+
+### Added
+
+- Publish ESM, CJS (`.cjs`), UMD, and TypeScript declaration files (`.d.ts`)
+  from a single `npm run build`. The `package.json` `exports` map exposes
+  the documented entry points (`import`, `require`, `default`, `types`),
+  and the UMD bundle declares `fabric` as an external global.
+- Add `fabric@^7` as a peer dependency. Consumers pass the Fabric module
+  to the editor explicitly through the constructor, with a
+  `globalThis.fabric` fallback for UMD usage.
 
 ### Changed
-- Migrated codebase to TypeScript.
-- Upgraded rendering engine to Fabric.js v7.
+
+- Migrate the runtime source tree to TypeScript and decompose the editor
+  into one module per subsystem under `src/<subsystem>/` (animation,
+  history, image, mask, crop, export, ui, core, fabric, utils).
+  `ImageEditor` remains the only public class and the package facade.
+- Upgrade the rendering engine to Fabric.js v7 and use Fabric v7 promise
+  APIs (`FabricImage.fromURL`, `canvas.loadFromJSON`, promise-wrapped
+  `obj.animate`) throughout the async control flow for image load,
+  scale, rotate, merge, crop, and export.
+- Change `crop.preserveMasksAfterCrop` to default to `false`. v1
+  defaulted to `true`; callers that relied on the old default must now
+  pass `crop: { preserveMasksAfterCrop: true }` explicitly.
+
+### Removed
+
+- Remove every v1 alias from runtime, type declarations, demo, and
+  documentation in favor of the canonical v2 names that were introduced
+  alongside the deprecated aliases in v1.3.0:
+  - `reset()` → `resetImageTransform()`
+  - `addMask()` → `createMask()`
+  - `merge()` → `mergeMasks()`
+  - `getImageBase64()` → `exportImageBase64()` (and `exportImageFile()`
+    for direct `File` exports)
+  - `canvasEl`, `containerEl`, `placeholderEl` public DOM fields →
+    removed; DOM references are now private to the editor and are not
+    part of the public surface.
+- Remove root-level exports of internal helpers such as `AnimationQueue`,
+  `Command`, `HistoryManager`, subsystem controllers, services, managers,
+  and utility modules. The package root exports only `ImageEditor`
+  (default and named), `isMaskObject`, and the documented public types.
 
 ## [1.4.0] - 2026-05-24
 

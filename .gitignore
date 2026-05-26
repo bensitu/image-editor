@@ -35,6 +35,14 @@ bower_components
 # node-waf configuration
 .lock-wscript
 
+# editor
+.vscode
+.kiro
+.cursor
+
+# agent-base
+AGENTS.md
+
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 

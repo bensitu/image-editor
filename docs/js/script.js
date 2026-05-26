@@ -1,4 +1,8 @@
 let editor = null;
+// Demo-local busy flag covering operations the demo itself drives
+// (image loads). The editor manages its own toolbar disabled-state during
+// animations and crop sessions through the IDs passed to `init`.
+let demoLoading = false;
 
 const defaultLanguage = 'en';
 const supportedLanguages = ['en', 'zh', 'ja', 'ko', 'fr', 'es'];
@@ -13,7 +17,7 @@ const translations = {
         base64Input: 'Base64 input',
         base64Placeholder: 'Paste data:image/jpeg;base64,...',
         loadImage: 'Load',
-        reset: 'Reset',
+        resetTransform: 'Reset',
         undo: 'Undo',
         redo: 'Redo',
         createMask: 'Create Mask',
@@ -22,13 +26,12 @@ const translations = {
         crop: 'Crop',
         apply: 'Apply',
         cancel: 'Cancel',
-        merge: 'Merge',
+        mergeMasks: 'Merge',
         download: 'Download',
         consoleBase64: 'Console Base64',
         maskList: 'Mask list',
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
-        legacyDemo: 'Legacy v1 demo',
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
@@ -44,7 +47,7 @@ const translations = {
         base64Input: 'Base64 输入',
         base64Placeholder: '粘贴 data:image/jpeg;base64,...',
         loadImage: '加载',
-        reset: '重置',
+        resetTransform: '重置',
         undo: '撤销',
         redo: '重做',
         createMask: '创建遮罩',
@@ -53,13 +56,12 @@ const translations = {
         crop: '裁剪',
         apply: '应用',
         cancel: '取消',
-        merge: '合并',
+        mergeMasks: '合并',
         download: '下载',
         consoleBase64: '输出 Base64',
         maskList: '遮罩列表',
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
-        legacyDemo: '旧版 v1 演示',
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
@@ -75,7 +77,7 @@ const translations = {
         base64Input: 'Base64 入力',
         base64Placeholder: 'data:image/jpeg;base64,... を貼り付け',
         loadImage: '読み込み',
-        reset: 'リセット',
+        resetTransform: 'リセット',
         undo: '元に戻す',
         redo: 'やり直す',
         createMask: 'マスク作成',
@@ -84,13 +86,12 @@ const translations = {
         crop: '切り抜き',
         apply: '適用',
         cancel: 'キャンセル',
-        merge: '結合',
+        mergeMasks: '結合',
         download: 'ダウンロード',
         consoleBase64: 'Base64 出力',
         maskList: 'マスクリスト',
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
-        legacyDemo: '旧 v1 デモ',
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
@@ -106,7 +107,7 @@ const translations = {
         base64Input: 'Base64 입력',
         base64Placeholder: 'data:image/jpeg;base64,... 붙여넣기',
         loadImage: '불러오기',
-        reset: '초기화',
+        resetTransform: '초기화',
         undo: '실행 취소',
         redo: '다시 실행',
         createMask: '마스크 생성',
@@ -115,13 +116,12 @@ const translations = {
         crop: '자르기',
         apply: '적용',
         cancel: '취소',
-        merge: '병합',
+        mergeMasks: '병합',
         download: '다운로드',
         consoleBase64: 'Base64 출력',
         maskList: '마스크 목록',
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
-        legacyDemo: '이전 v1 데모',
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
@@ -137,7 +137,7 @@ const translations = {
         base64Input: 'Entrée Base64',
         base64Placeholder: 'Collez data:image/jpeg;base64,...',
         loadImage: 'Charger',
-        reset: 'Réinitialiser',
+        resetTransform: 'Réinitialiser',
         undo: 'Annuler',
         redo: 'Rétablir',
         createMask: 'Créer un masque',
@@ -146,13 +146,12 @@ const translations = {
         crop: 'Recadrer',
         apply: 'Appliquer',
         cancel: 'Annuler',
-        merge: 'Fusionner',
+        mergeMasks: 'Fusionner',
         download: 'Télécharger',
         consoleBase64: 'Afficher Base64',
         maskList: 'Liste des masques',
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
-        legacyDemo: 'Démo v1 historique',
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
@@ -168,7 +167,7 @@ const translations = {
         base64Input: 'Entrada Base64',
         base64Placeholder: 'Pega data:image/jpeg;base64,...',
         loadImage: 'Cargar',
-        reset: 'Restablecer',
+        resetTransform: 'Restablecer',
         undo: 'Deshacer',
         redo: 'Rehacer',
         createMask: 'Crear máscara',
@@ -177,13 +176,12 @@ const translations = {
         crop: 'Recortar',
         apply: 'Aplicar',
         cancel: 'Cancelar',
-        merge: 'Fusionar',
+        mergeMasks: 'Fusionar',
         download: 'Descargar',
         consoleBase64: 'Mostrar Base64',
         maskList: 'Lista de máscaras',
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
-        legacyDemo: 'Demo v1 anterior',
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
@@ -294,14 +292,22 @@ function applyTheme(isDarkMode, shouldPersist = true) {
 }
 
 function initEditor() {
-    // Support UMD bundle exported as global `ImageEditor` namespace
-    const ImageEditorCtor = (window.ImageEditor && window.ImageEditor.ImageEditor) || window.ImageEditor || (typeof ImageEditor !== 'undefined' ? ImageEditor : null);
+    // The UMD bundle exposes the constructor on `globalThis.ImageEditor`
+    // (Rollup `name: 'ImageEditor'`, `exports: 'named'`). Depending on the
+    // host environment, the global may be the bare constructor or a
+    // namespace object that re-exports it as `.ImageEditor`.
+    const ImageEditorCtor =
+        (window.ImageEditor && window.ImageEditor.ImageEditor) ||
+        window.ImageEditor ||
+        (typeof ImageEditor !== 'undefined' ? ImageEditor : null);
     if (!ImageEditorCtor) {
-        console.error('ImageEditor constructor not found. Make sure image-editor.umd.js is loaded before this script.');
+        console.error('ImageEditor constructor not found. Make sure the UMD bundle is loaded before this script.');
         return;
     }
 
-    editor = new window.ImageEditor({
+    // UMD form: when `globalThis.fabric` is present (loaded via the
+    // documented `<script>` tag) the constructor reads it automatically.
+    editor = new ImageEditorCtor({
         backgroundColor: 'transparent',
         expandCanvasToImage: false,
         fitImageToCanvas: true,
@@ -323,6 +329,9 @@ function initEditor() {
         rotateRightBtn: 'rotateRightBtn',
         rotationLeftInput: 'leftValue',
         rotationRightInput: 'rightValue',
+        // The demo binds its own Create Mask button so the shape selector
+        // is honored. Setting the ID to `null` tells the editor to skip
+        // the default click binding.
         addMaskBtn: null,
         removeMaskBtn: 'removeMaskBtn',
         removeAllMasksBtn: 'removeAllMasksBtn',
@@ -364,24 +373,30 @@ function setOptions() {
     }
 }
 
+function isEditorReady() {
+    return !!editor && typeof editor.isImageLoaded === 'function';
+}
+
 function canLoadImage() {
-    return !!editor && !editor.isAnimating && !editor._cropMode;
+    // Only refuse to start a new load while a previous demo-driven load
+    // is still in flight. The editor itself rejects concurrent loads
+    // during animations, so we do not duplicate that check here.
+    return !!editor && !demoLoading;
 }
 
 function updateDemoControls() {
-    const hasLoadedImage = !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
-    const isBusy = !!editor && (editor.isAnimating || editor._cropMode);
+    const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
     const addMaskButtonElement = getOptionalElement('addMaskBtn');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadButtonElement = getOptionalElement('loadBtn');
 
-    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || isBusy;
-    if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
-    if (loadButtonElement) loadButtonElement.disabled = isBusy;
-    if (imageInputElement) imageInputElement.disabled = isBusy;
+    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || demoLoading;
+    if (maskShapeSelectElement) maskShapeSelectElement.disabled = demoLoading;
+    if (loadButtonElement) loadButtonElement.disabled = demoLoading;
+    if (imageInputElement) imageInputElement.disabled = demoLoading;
     if (uploadAreaElement) {
-        uploadAreaElement.classList.toggle('disabled', isBusy);
-        uploadAreaElement.setAttribute('aria-disabled', isBusy ? 'true' : 'false');
+        uploadAreaElement.classList.toggle('disabled', demoLoading);
+        uploadAreaElement.setAttribute('aria-disabled', demoLoading ? 'true' : 'false');
     }
 }
 
@@ -396,7 +411,9 @@ function getSelectedMaskConfig() {
 }
 
 function handleAddMaskButtonClick() {
-    if (!editor || editor.isAnimating || editor._cropMode) return;
+    if (!editor || !editor.isImageLoaded()) return;
+    // `createMask` is the canonical v2 entry point; it returns the new
+    // mask object or `null`. The editor handles its own animation guard.
     editor.createMask(getSelectedMaskConfig());
     updateDemoControls();
 }
@@ -406,6 +423,8 @@ function loadFile(file) {
 
     clearDemoError();
     setOptions();
+    demoLoading = true;
+    updateDemoControls();
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = function(loadEvent) {
@@ -419,7 +438,10 @@ function loadFile(file) {
     }).catch(function(error) {
         showDemoError(error);
         console.error(error);
-    }).finally(updateDemoControls);
+    }).finally(function() {
+        demoLoading = false;
+        updateDemoControls();
+    });
 }
 
 function handleLoadButtonClick() {
@@ -428,12 +450,17 @@ function handleLoadButtonClick() {
     clearDemoError();
     setOptions();
     const imageBase64 = getOptionalElement('base64Input')?.value || '';
+    demoLoading = true;
+    updateDemoControls();
     editor.loadImage(imageBase64)
         .catch(function(error) {
             showDemoError(error);
             console.error(error);
         })
-        .finally(updateDemoControls);
+        .finally(function() {
+            demoLoading = false;
+            updateDemoControls();
+        });
 }
 
 function handleImageInputChange(event) {
@@ -527,7 +554,11 @@ if (window.matchMedia) {
 }
 
 async function getBase64Action() {
+    if (!editor) return;
     try {
+        // `exportImageBase64` is the canonical v2 export entry point.
+        // It resolves to an empty string when no image is loaded, with a
+        // console warning emitted by the editor.
         const imageBase64 = await editor.exportImageBase64();
         console.log(imageBase64);
     } catch (error) {

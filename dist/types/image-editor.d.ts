@@ -10,19 +10,19 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Fabric.js v5 → v7 migration notes (kept here for historical reference)
  * ─────────────────────────────────────────────────────────────────────────────
- *  1. Image.fromURL()           — now Promise-based; no callback parameter.
- *  2. Canvas.loadFromJSON()     — now Promise-based; no callback parameter.
- *  3. FabricObject.animate()    — returns Animation[] (NOT a Promise).
- *                                 Wrap with new Promise() + onComplete callback.
+ *  1. Image.fromURL           — now Promise-based; no callback parameter.
+ *  2. Canvas.loadFromJSON     — now Promise-based; no callback parameter.
+ *  3. FabricObject.animate    — returns Animation[] (NOT a Promise).
+ *                                 Wrap with new Promise + onComplete callback.
  *                                 Multi-prop animation fires onComplete per prop;
  *                                 count completions to detect full finish.
  *  4. canvas.bringToFront(o)    → canvas.bringObjectToFront(o)
  *     canvas.sendToBack(o)      → canvas.sendObjectToBack(o)
- *  5. canvas.calcOffset()       — removed; managed internally.
+ *  5. canvas.calcOffset       — removed; managed internally.
  *  6. canvas.setBackgroundColor(c, cb) → `canvas.backgroundColor = c`
  *  7. getBoundingRect(abs,calc) — signature removed; always returns absolute rect.
- *  8. canvas.renderAll()        — replaced with requestRenderAll() in animation loop.
- *  9. canvas.setWidth()/setHeight() → canvas.setDimensions({ width, height })
+ *  8. canvas.renderAll        — replaced with requestRenderAll in animation loop.
+ *  9. canvas.setWidth/setHeight → canvas.setDimensions({ width, height})
  *     CRITICAL: setDimensions keeps the upper (event) canvas in sync with the
  *     lower (render) canvas. Manual style mutation breaks pointer-event mapping.
  * 10. All new FabricObject origins now default to 'center'/'center'.
@@ -30,31 +30,8 @@
  *     left/top coordinate system matching the top-left corner of the shape.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import type * as FabricNS from 'fabric';
-import { HistoryManager } from './history.js';
-import type { ElementIdMap, ExportFileOptions, ExportOptions, FabricModule, ImageEditorOptions, MaskConfig, MaskObject, ResolvedOptions } from './types.js';
-interface CanvasJSONObject {
-    isCropRect?: boolean;
-    maskId?: number;
-    maskName?: string;
-    type?: string;
-    [key: string]: unknown;
-}
-interface EditorState {
-    currentScale: number;
-    currentRotation: number;
-    baseImageScale: number;
-}
-interface CanvasJSON {
-    objects?: CanvasJSONObject[];
-    /** Canvas pixel width — included by Fabric's toJSON. */
-    width?: number;
-    /** Canvas pixel height — included by Fabric's toJSON. */
-    height?: number;
-    /** Editor-specific state embedded in snapshots for undo/redo restoration. */
-    _editorState?: EditorState;
-    [key: string]: unknown;
-}
+import { type CanvasJSON } from './core/state-serializer.js';
+import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LoadImageOptions, MaskConfig, MaskObject, RemoveAllMasksOptions } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
  * crop, undo/redo, and multi-format export.
@@ -62,80 +39,50 @@ interface CanvasJSON {
  * ## Quick start (ESM)
  * ```ts
  * import * as fabric from 'fabric';
- * import { ImageEditor } from 'image-editor';
+ * import { ImageEditor} from 'image-editor';
  *
- * const editor = new ImageEditor(fabric, { canvasWidth: 1024, canvasHeight: 768 });
- * editor.init({ canvas: 'myCanvas' });
+ * const editor = new ImageEditor(fabric, { canvasWidth: 1024, canvasHeight: 768});
+ * editor.init({ canvas: 'myCanvas'});
  * ```
  *
  * ## Quick start (CDN / `<script>` tag)
  * ```ts
  * // Assumes window.fabric is populated by a Fabric.js CDN script
- * const editor = new ImageEditor({ canvasWidth: 1024 });
- * editor.init();
+ * const editor = new ImageEditor({ canvasWidth: 1024});
+ * editor.init;
  * ```
  */
 export declare class ImageEditor {
-    /** @internal */ private readonly _fabric;
-    /** @internal */ private readonly _fabricLoaded;
-    /** @internal */ readonly options: ResolvedOptions;
-    /** The underlying Fabric.js Canvas instance (available after {@link init}). */
-    canvas: FabricNS.Canvas | null;
-    /** @internal */ private canvasEl;
-    /** @internal */ private containerEl;
-    /** @internal */ private placeholderEl;
-    /** @internal */ private elements;
-    /** The primary image object on the canvas (set after a successful {@link loadImage}). */
-    originalImage: FabricNS.FabricImage | null;
-    /** @internal */ private baseImageScale;
-    /** Current scale factor (1 = original size). */
-    currentScale: number;
-    /** Current rotation angle in degrees. */
-    currentRotation: number;
-    /** Whether a valid image is currently rendered on the canvas. */
-    isImageLoadedToCanvas: boolean;
-    /** @internal */ private maskCounter;
-    /** @internal */ private _lastMask;
-    /** @internal */ private _lastMaskInitialLeft;
-    /** @internal */ private _lastMaskInitialTop;
-    /** @internal */ private _lastMaskInitialWidth;
-    /** @internal */ private _lastSnapshot;
-    /** @internal */ readonly historyManager: HistoryManager;
-    /** Maximum history entries retained. */
-    readonly maxHistorySize: number;
-    /** @internal */ private isAnimating;
-    /** @internal */ private readonly animQueue;
-    /** @internal */ private _cropMode;
-    /** @internal */ private _cropRect;
-    /** @internal */ private _cropHandlers;
-    /** @internal */ private _cropPrevEvented;
     /**
-     * Canvas snapshot captured in {@link enterCropMode} **before** the crop
-     * rectangle is added.  Used as the `undo` target in {@link applyCrop} so
-     * that undoing a crop restores the exact pre-crop state without any need
-     * to filter `isCropRect` objects out of a post-rect snapshot.
-     * @internal
-     */
-    private _cropBeforeJson;
-    /** @internal */ private _prevSelectionSetting;
-    /** @internal */ private _boundHandlers;
-    /** @internal */ private _disposed;
-    /**
-     * When `true`, {@link saveState} is a no-op.  Used by {@link reset} to
-     * suppress the intermediate history entries from `scaleImage` and
-     * `rotateImage` so the entire reset is a single undoable step.
-     * @internal
-     */
-    private _suppressSaveState;
-    /** Optional callback invoked once each time an image finishes loading. */
-    onImageLoaded: (() => void) | null;
-    /**
-     * @param fabricModuleOrOptions
-     *   Pass the Fabric.js **module** (`import * as fabric from 'fabric'`) when
-     *   using ESM, or pass the **options** object directly when using a CDN global
-     *   (`window.fabric`).
-     * @param options
-     *   Editor options. Only used when `fabricModuleOrOptions` is the fabric module.
+     * Creates a new image editor instance.
+     *
+     * The constructor accepts two argument shapes so the same source ships
+     * to both ESM and UMD consumers:
+     *
+     * - **ESM form** — `new ImageEditor(fabric, options?)`. The first
+     *   argument is the imported Fabric.js v7 module
+     *   (`import * as fabric from 'fabric'`).
+     * - **UMD / CDN form** — `new ImageEditor(options?)`. The Fabric module
+     *   is read from `globalThis.fabric` and the first argument is treated
+     *   as `ImageEditorOptions`.
+     *
+     * Detection is delegated to `fabric/fabric-adapter.ts`. When neither
+     * form yields a usable Fabric module, the adapter logs a single
+     * descriptive `console.error` and the constructor returns a degraded
+     * instance whose `init` and `loadImage` calls become no-ops
+     * resolving to `undefined`.
+     *
+     * Options are normalized through `core/default-options.ts#resolveOptions`,
+     * which deep-merges nested `label`/`crop` configs with the documented
+     * defaults, drops unknown keys, and freezes the nested references so
+     * post-construction mutation cannot affect the live editor
+     *. The resolved options object is held on the
+     * instance as an internal facade field; nothing on the public surface
+     * exposes it directly.
+     *
+     * @param fabricModuleOrOptions Fabric.js module (ESM) or options (UMD).
+     * @param options               Editor options when the first argument
+     *                              is the Fabric module. Ignored otherwise.
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
     /**
@@ -148,86 +95,101 @@ export declare class ImageEditor {
      *
      * @example
      * ```ts
-     * editor.init({ canvas: 'myCanvas', downloadBtn: 'dlBtn' });
+     * editor.init({ canvas: 'myCanvas', downloadBtn: 'dlBtn'});
      * ```
      */
     init(idMap?: ElementIdMap): void;
-    /** @internal */
-    private _initCanvas;
-    /** @internal */
-    private _bindEvents;
-    /** @internal */
-    private _bindIfExists;
-    /** @internal */
-    private _loadImageFile;
     /**
      * Loads a Base64-encoded image data URL onto the canvas.
-     * Clears any existing image, masks and resets transform state.
      *
-     * @param base64 Data URL string starting with `data:image/…`.
-     * @returns Promise that resolves once the image is on the canvas.
+     * The transactional pipeline lives in `image/image-loader.ts`; this
+     * facade method delegates to it so all rollback, downsample, layout,
+     * and `onImageLoaded` ordering rules are owned in one place.
+     *
+     * Pipeline contract preserved end-to-end (5.3,
+     * 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 7.2, 7.3, 8.4, 18.1):
+     *
+     * - Non-`data:image/` strings resolve without mutation.
+     * - On a valid data URL, the loader captures a rollback bundle BEFORE
+     *   the first mutation. Decode, downsample, Fabric, timeout, or layout
+     *   failures replay the bundle and reject with the original error.
+     * - On commit, the loader sets `originalImage`, `currentScale = 1`,
+     *   `currentRotation = 0`, `baseImageScale`, `maskCounter = 0`,
+     *   `_lastSnapshot`, and `isImageLoadedToCanvas = true`. It also
+     *   honours `LoadImageOptions.preserveScroll` and invokes
+     *   `onImageLoaded` exactly once after every scalar is committed.
+     *
+     * Operation guard: `loadImage` is one of the
+     * guarded operations. While `isAnimating === true` the facade rejects
+     * the call as a documented no-op so a queued scale/rotate animation
+     * cannot be torn down by a concurrent reload.
+     *
+     * @param base64  Data URL string starting with `data:image/…`.
+     * @param options Optional {@link LoadImageOptions}; currently only
+     *                `preserveScroll` is consulted.
+     * @returns Promise that resolves once the image is on the canvas, or
+     *          rejects with the original error after a transactional
+     *          rollback. Non-data:image inputs and Fabric-unavailable /
+     *          disposed states resolve without observable mutation.
      */
-    loadImage(base64: string): Promise<void>;
+    loadImage(base64: string, options?: LoadImageOptions): Promise<void>;
     /**
      * Returns `true` if a valid image is currently loaded on the canvas.
      */
     isImageLoaded(): boolean;
-    /** @internal */
-    private _createImageElement;
-    /** @internal */
-    private _resampleImageToDataURL;
-    /**
-     * Resizes the Fabric.js Canvas using `setDimensions()`.
-     *
-     * CRITICAL: In Fabric.js v7 the canvas is split into two `<canvas>` elements:
-     * - **lowerCanvasEl** — renders objects
-     * - **upperCanvasEl** — captures pointer events (invisible overlay)
-     *
-     * `setDimensions({ width, height })` updates **both** layers atomically and
-     * keeps their CSS in sync.  Manually mutating `canvasEl.style.width/height`
-     * only touches the lower layer → the upper layer's hit-test regions become
-     * misaligned → objects appear unselectable and click positions drift.
-     *
-     * @internal
-     */
-    private _setCanvasSizeInt;
-    /** @internal */
-    private _getObjectTopLeftPoint;
-    /** @internal */
-    private _setObjectOriginKeepingPosition;
-    /** @internal */
-    private _alignObjectBoundingBoxToCanvasTopLeft;
-    /** @internal */
-    private _updateCanvasSizeToImageBounds;
     /**
      * Animates the image to the given scale factor.
      * The factor is clamped to `[options.minScale, options.maxScale]`.
-     * Queued — concurrent calls are serialized.
+     *
+     * Routed through the {@link animQueue} so concurrent calls are
+     * serialized. The actual animation lives
+     * in {@link TransformController.scaleImage}, which brackets the
+     * Fabric tween in {@link OperationGuard.runAnimation} so
+     * `isAnimating` is `false` before this Promise settles
+     * and calls {@link saveState} on success.
      *
      * @returns Promise that resolves when the animation finishes.
      */
     scaleImage(factor: number): Promise<void>;
-    /** @internal */
-    private _scaleImageImpl;
     /**
      * Animates the image to the given rotation angle.
-     * Queued — concurrent calls are serialized.
+     *
+     * Routed through the {@link animQueue}.
+     * `NaN` is a documented no-op; the controller
+     * short-circuits without modifying canvas state.
      *
      * @param degrees Target rotation angle in degrees.
      * @returns Promise that resolves when the animation finishes.
      */
     rotateImage(degrees: number): Promise<void>;
-    /** @internal */
-    private _rotateImageImpl;
     /**
-     * Resets the image to scale 1 and rotation 0 (animated).
-     * @returns Promise that resolves when complete.
+     * Resets the image to scale `1` and rotation `0` (animated) and
+     * records exactly one history entry covering the entire reset.
+     *
+     * Routed through the {@link animQueue} so the chained
+     * `scaleImage(1)` and `rotateImage(0)` sub-animations are serialized
+     * with any other queued transform. The
+     * controller toggles `_suppressSaveState` around the chain so the
+     * inner per-operation `saveState` calls collapse into a single
+     * post-reset save.
+     *
+     * @returns Promise that resolves when both sub-animations have
+     *          settled and the single history entry has been recorded.
      */
-    reset(): Promise<void>;
+    resetImageTransform(): Promise<void>;
     /**
      * Restores a previously serialized canvas state.
      *
-     * @param jsonString JSON string returned by `canvas.toJSON()` (or parsed object).
+     * Delegates the snapshot-format-aware steps (parse, canvas resize,
+     * `loadFromJSON`, position-based mask metadata restore) to
+     * {@link loadFromStateImpl} in `core/state-serializer.ts` so the
+     * facade and the merge/crop pipelines share one production path.
+     *
+     * Errors are routed through the documented `onError` callback. The
+     * promise rejects with the original error so the history manager
+     * leaves `currentIndex` untouched on a failed undo/redo restore.
+     *
+     * @param jsonString JSON string returned by `saveState` (or parsed object).
      */
     loadFromState(jsonString: string | CanvasJSON): Promise<void>;
     /**
@@ -242,16 +204,29 @@ export declare class ImageEditor {
      * in-progress animation and rapid clicks cannot interleave canvas restores.
      * The {@link HistoryManager._processing} lock provides a second line of
      * defence inside the history layer itself.
+     *
+     * After {@link dispose} the call resolves without touching the canvas.
+     * The early return covers the case where dispose has already happened;
+     * the inner check covers the case where dispose happens while waiting
+     * in the animation queue.
      */
     undo(): Promise<void>;
     /**
      * Redoes the next recorded action.
      *
-     * Same serialization guarantees as {@link undo}.
+     * Same serialization and dispose guarantees as {@link undo}.
      */
     redo(): Promise<void>;
     /**
      * Creates and adds a mask shape to the canvas.
+     *
+     * Delegates to {@link createMask} in `mask/mask-factory.ts`, which
+     * owns the resolved-config build, polygon bounding-box realignment,
+     * falsy-style preservation, monotonic `maskCounter` bookkeeping,
+     * and the post-create ordering contract: add to canvas → update
+     * list DOM → `setActiveObject` (when `selectable !== false`) →
+     * `saveState` → `config.onCreate(mask, canvas)`
+     * (19.1–19.5, 21.1, 21.2, 22.1, 22.2).
      *
      * @param config  Shape type, dimensions, position, style, and callbacks.
      * @returns The created mask object, or `null` if the canvas is unavailable.
@@ -259,140 +234,198 @@ export declare class ImageEditor {
      * @example
      * ```ts
      * // Simple rect mask
-     * editor.addMask();
+     * editor.createMask;
      *
      * // Circle with custom size
-     * editor.addMask({ shape: 'circle', radius: 60, color: 'rgba(255,0,0,0.4)' });
+     * editor.createMask({ shape: 'circle', radius: 60, color: 'rgba(255,0,0,0.4)'});
      *
      * // Positioned at 20% from the left
-     * editor.addMask({ left: '20%', top: 40 });
+     * editor.createMask({ left: '20%', top: 40});
      * ```
      */
-    addMask(config?: MaskConfig): MaskObject | null;
+    createMask(config?: MaskConfig): MaskObject | null;
     /**
      * Removes the currently selected mask (and its label).
+     *
+     * Delegates to {@link removeSelectedMask} in `mask/mask-factory.ts`,
+     * which removes the active mask, clears the canvas selection,
+     * re-renders the mask list DOM, and pushes a single history entry.
      */
     removeSelectedMask(): void;
     /**
      * Removes all masks and their labels.
-     */
-    removeAllMasks(): void;
-    /** @internal */
-    private _removeLabelForMask;
-    /** @internal */
-    private _createLabelForMask;
-    /** @internal */
-    private _hideAllMaskLabels;
-    /**
-     * Restores `maskId`, `maskName`, `originalAlpha`, and `maskLabel` on canvas
-     * objects after `loadFromJSON` using **position-based matching** (type + left
-     * + top) rather than index-based matching.
      *
-     * Why this is necessary:
-     * - Fabric v7 does NOT guarantee that `getObjects()` returns items in the
-     *   same order as `json.objects`, so `freshObjs[i] !== jsonObjects[i]` can
-     *   silently give wrong results.
-     * - Even when order matches, some Fabric 7.x builds skip unknown properties
-     *   during `_setOptions()` for certain shape types.
+     * Delegates to {@link removeAllMasks} in `mask/mask-factory.ts`,
+     * which removes every mask and label in canvas order, clears the
+     * `_lastMask` reference, re-renders the mask list
+     * DOM, and pushes a single history entry by default. Callers can
+     * pass `{ saveHistory: false}` to skip the history push — used by
+     * the merge and crop pipelines, which already record their own
+     * enclosing history entry.
      *
-     * We unconditionally override the properties (no "only if missing" guard)
-     * so the result is deterministic regardless of Fabric version behaviour.
-     * @internal
+     * Operation guard: while `isAnimating === true`
+     * the call is a documented no-op so an in-flight scale/rotate
+     * animation cannot have its mask layer torn out from under it. The
+     * guard mirrors the loadImage pattern (silent no-op, no throw, no
+     * DOM mutation) so the canvas, history stack, and mask list are
+     * left untouched.
      */
-    private _restoreMaskPropsFromJSON;
-    /**
-     * Re-attaches the `mouseover`/`mouseout` hover handlers to a mask object.
-     *
-     * Fabric never serialises event listeners, so after any `loadFromJSON` call
-     * (undo, redo, crop restore …) the masks lose their hover styling.
-     * This method replaces them using the mask's current `originalAlpha`,
-     * `stroke`, and `strokeWidth` as the baseline "normal" style.
-     * @internal
-     */
-    private _reattachMaskHandlers;
-    /** @internal */
-    private _syncMaskLabel;
-    /** @internal */
-    private _showLabelForMask;
-    /** @internal */
-    private _onSelectionChanged;
-    /** @internal */
-    private _updateMaskList;
-    /** @internal */
-    private _updateMaskListSelection;
+    removeAllMasks(options?: RemoveAllMasksOptions): void;
     /**
      * Bakes all current masks into the image:
      * exports the masked image, removes the masks, and re-imports the result
      * as the new base image.
      *
+     * Operation guard: while `isAnimating === true`
+     * the call resolves without mutation so a queued scale/rotate
+     * animation cannot have the original image swapped out mid-flight.
+     *
+     * Delegates the merge pipeline to {@link mergeMasks} in
+     * `export/export-service.ts`, which captures the pre-merge snapshot,
+     * renders the merged bitmap via the export bake-in bracket, removes
+     * masks without history, reloads the merged image transactionally,
+     * preserves container scroll, and pushes exactly one history entry.
+     * On any failure it restores the pre-merge snapshot and rejects with
+     * `MergeMasksError` (29.1–29.5).
+     *
      * @returns Promise that resolves when the merge is complete.
      */
-    merge(): Promise<void>;
+    mergeMasks(): Promise<void>;
     /**
-     * Triggers a browser download of the current canvas as a JPEG.
+     * Triggers a browser download of the current canvas.
+     *
+     * Operation guard: while `isAnimating === true`
+     * the call is a no-op (no DOM action, no download triggered).
+     *
+     * Delegates to {@link downloadImage} in `export/export-service.ts`,
+     * which builds the data URL through the same pipeline used by
+     * {@link exportImageBase64} and triggers the anchor-driven download.
      *
      * @param fileName Filename for the downloaded file.
      *   @default `options.defaultDownloadFileName`
      */
     downloadImage(fileName?: string): void;
     /**
-     * Exports the canvas as a Base64-encoded JPEG data URL.
+     * Exports the canvas as a Base64-encoded data URL.
      *
-     * When `exportImageArea` is `true`, the canvas is rendered with masks
-     * baked in as solid black overlays and cropped to the image bounding box.
-     * When `false`, the raw image pixels are returned without any masks.
+     * Delegates to {@link exportImageBase64} in `export/export-service.ts`,
+     * which discards any active selection, runs the bake-in/restore
+     * bracket for `exportImageArea === true` exports, and emits a single
+     * `canvas.toDataURL` call with the floored image-bounding-box region
+     * (26.1–26.4, 27.1–27.3, 28.1–28.3).
+     *
+     * Operation guard: while `isAnimating === true`
+     * the call resolves to an empty string (the design's
+     * "Animation in progress guard" entry calls out the empty-string
+     * no-op shape for base64 export) so an in-flight scale/rotate
+     * animation does not see a mid-frame export of the canvas.
      *
      * @param options Export options.
-     * @returns Promise resolving to a JPEG data URL.
-     * @throws If no image is loaded.
+     * @returns Promise resolving to a data URL on success, or `''` when
+     *          no image is loaded.
      */
-    getImageBase64(options?: ExportOptions): Promise<string>;
+    exportImageBase64(options?: Base64ExportOptions): Promise<string>;
     /**
      * Exports the canvas as a browser `File` object.
      *
+     * Delegates to {@link exportImageFile} in `export/export-service.ts`,
+     * which reuses the base64 pipeline, repaints through an offscreen
+     * canvas only when the resulting MIME type does not match the
+     * requested `fileType`, and resolves with a `File` whose `type`
+     * matches the requested format (25.4,
+     * 26.1–26.4).
+     *
+     * Operation guard: while `isAnimating === true`
+     * the call rejects via `OperationGuard.assertNotAnimating` because
+     * `Promise<File>` has no natural no-op shape. The thrown error
+     * embeds the operation label so callers can distinguish the guard
+     * rejection from an underlying export failure.
+     *
      * @param options Export and file options.
      * @returns Promise resolving to a `File`.
-     * @throws If no image is loaded.
+     * @throws  `ExportNotReadyError` when no image is loaded.
      *
      * @example
      * ```ts
-     * const file = await editor.exportImageFile({ fileType: 'png', mergeMask: false });
-     * const formData = new FormData();
+     * const file = await editor.exportImageFile({ fileType: 'png', mergeMask: false});
+     * const formData = new FormData;
      * formData.append('image', file);
      * ```
      */
-    exportImageFile(options?: ExportFileOptions): Promise<File>;
+    exportImageFile(options?: ImageFileExportOptions): Promise<File>;
     /**
      * Enters crop mode: adds a resizable selection rect to the canvas.
-     * All other controls are disabled until {@link applyCrop} or {@link cancelCrop} is called.
+     * All other controls are disabled until {@link applyCrop} or
+     * {@link cancelCrop} is called.
+     *
+     * Operation guard: while `isAnimating === true`
+     * the call is a silent no-op; opening a crop session in the middle
+     * of a queued scale/rotate animation would otherwise allow the
+     * animation to mutate `originalImage` while a crop rect is bound to
+     * the prior coordinate system.
+     *
+     * Delegates to {@link enterCropMode} in `crop/crop-controller.ts`,
+     * which captures the pre-crop canvas snapshot, freezes every other
+     * canvas object's `evented`/`selectable`, captures per-mask style
+     * backups when `crop.hideMasksDuringCrop` is `true`, and adds the
+     * interactive crop rectangle.
      */
     enterCropMode(): void;
     /**
-     * Cancels crop mode and removes the crop rectangle without applying it.
+     * Cancels crop mode and removes the crop rectangle without applying
+     * it.
+     *
+     * Delegates to {@link cancelCrop} in `crop/crop-controller.ts`,
+     * which restores the per-object `evented`/`selectable`, restores
+     * per-mask style backups, removes the crop rectangle, detaches
+     * every crop-bound Fabric handler, and drops the session WITHOUT
+     * pushing a history entry.
      */
     cancelCrop(): void;
     /**
-     * Applies the current crop rectangle: crops the image and reloads it.
-     * Pushes the operation onto the undo/redo history.
+     * Applies the current crop rectangle: crops the image and reloads
+     * it. Pushes the operation onto the undo/redo history.
+     *
+     * Operation guard: while `isAnimating === true`
+     * the call resolves without mutation. The crop session is left
+     * intact so the user can retry once the queued animation settles.
+     *
+     * Delegates to {@link applyCrop} in `crop/crop-controller.ts`,
+     * which reads the crop region, optionally captures intersecting
+     * masks for `crop.preserveMasksAfterCrop`, exports the cropped
+     * region, reloads it through the transactional loader, and pushes
+     * exactly one history entry. On any failure it restores the
+     * pre-crop snapshot and rejects with `CropApplyError`.
      *
      * @returns Promise that resolves when the cropped image is loaded.
      */
     applyCrop(): Promise<void>;
-    /** @internal */
-    private _updateInputs;
-    /** @internal */
-    private _updateUI;
-    /** @internal */
-    private _setDisabled;
-    /** @internal */
-    private _updatePlaceholderStatus;
-    /** @internal */
-    private _setPlaceholderVisible;
     /**
      * Cleans up all DOM event listeners and disposes the Fabric.js Canvas.
      * Call this when the editor is no longer needed to prevent memory leaks.
+     *
+     * The implementation follows the design's "Idempotent dispose with
+     * bindings registry" sequence:
+     *
+     * 1. Short-circuit on a second call so `dispose` is idempotent
+     *. This also guards against re-running
+     *    the teardown path after the canvas reference has already been
+     *    nulled.
+     * 2. Set `_disposed = true` so in-flight animation `onChange`/
+     *    `onComplete` callbacks bail before touching the canvas
+     * and so disposed-aware DOM handlers
+     *    exit early.
+     * 3. Drain the {@link AnimationQueue} so callers awaiting an enqueued
+     *    slot do not hang after teardown.
+     *    The currently-executing entry, if any, is not interrupted but
+     *    settles promptly because its disposed-aware callbacks see the
+     *    flag and exit.
+     * 4. Detach every DOM listener via the bindings registry's
+     *    `removeAll`, wrapped in try/catch
+     *    inside the registry so already-detached listeners do not throw.
+     * 5. Drop the crop rectangle if a crop session was open and dispose
+     *    the underlying Fabric canvas, matching teardown order.
      */
     dispose(): void;
 }
-export {};
 //# sourceMappingURL=image-editor.d.ts.map
