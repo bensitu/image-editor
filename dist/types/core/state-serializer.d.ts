@@ -1,10 +1,9 @@
 /**
  * @file state-serializer.ts
- * @description Pretty_Printer for the v2 editor's history-and-restore
- *              snapshot wire format. Owns `saveState` (this file) and
- *              `loadFromState` (added in task 12.2) so the serialization
- *              format and the position-based metadata restorer live in a
- *              single module.
+ * @description Serializer for the editor's history-and-restore snapshot
+ *              wire format. Owns `saveState` and `loadFromState` so the
+ *              serialization format and the position-based metadata restorer
+ *              live in a single module.
  *
  * ## Owned contracts
  *
@@ -34,7 +33,7 @@
  * (which are session-only `maskLabel === true` objects) never appear in
  * the serialized payload even if they happen to be on the canvas.
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`,
  * `crop/crop-controller.ts`, and `export/export-service.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
@@ -63,6 +62,10 @@ export interface CanvasJSONObject {
     maskName?: string;
     /** Pre-crop alpha cached so `cancelCrop` can restore it. */
     originalAlpha?: number;
+    /** Stroke captured before transient hover or selection styling. */
+    originalStroke?: unknown;
+    /** Stroke width captured before transient hover or selection styling. */
+    originalStrokeWidth?: number;
     /** Marks the transient crop rectangle; filtered before history push. */
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
@@ -109,7 +112,7 @@ export interface CanvasJSON {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskName", "isCropRect", "maskLabel", "originalAlpha"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.
@@ -174,10 +177,8 @@ export interface LoadFromStateInput {
      */
     jsonString: string | CanvasJSON;
     /**
-     * Sets canvas pixel dimensions atomically. Delegates to the layout
-     * manager so the v1 "set width and height together" behaviour is
-     * preserved (the pixel size SHALL be restored before
-     * `loadFromJSON`).
+     * Sets canvas pixel dimensions atomically. The pixel size is restored
+     * before `loadFromJSON`.
      */
     setCanvasSize: (width: number, height: number) => void;
 }

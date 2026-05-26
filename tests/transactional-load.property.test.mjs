@@ -1,6 +1,5 @@
-// Property 2: Transactional loadImage
+// Transactional loadImage
 //
-// Property statement (design.md §"Property 2"):
 //   For any editor state `S` and any invocation of `loadImage(imageBase64,
 //   options)`, the post-call observable state SHALL be either the fully
 //   committed new-image state or the pre-call state `S`. Invalid
@@ -19,8 +18,8 @@
 // property test isolates the loader by injecting:
 //
 //   - a `fabric` stub whose `FabricImage.fromURL` is a deterministic
-//     in-memory factory or a controlled rejection (Property 2 mocking
-//     guidance, design.md §"Test Strategy"),
+//     in-memory factory or a controlled rejection (mocking
+//     randomized input guidance),
 //   - a `MockCanvas` that records all the loader's mutations and supports
 //     `toJSON` / `loadFromJSON` round-trips so the rollback path is
 //     observable,
@@ -29,15 +28,14 @@
 //     so iterations finish quickly and deterministically and never rely
 //     on jsdom's incomplete image decoder for base64 PNGs.
 //
-// The properties exercised here are the four sub-properties named in the
-// task spec for 13.6, plus the early-return invariant for non-data:image
-// strings:
+// The properties exercised here cover the success, failure, and early-return
+// states:
 //
-//   1. Non-data:image strings: zero mutation                  (Req 6.5)
-//   2. Success: editor scalar state committed                 (Req 6.4)
-//   3. Success: onImageLoaded fires exactly once              (Req 5.1)
-//   4. Failure: editor state matches pre-call state (rollback)(Req 6.5)
-//   5. Failure: onImageLoaded does NOT fire                   (Req 5.3)
+//   1. Non-data:image strings: zero mutation
+//   2. Success: editor scalar state committed
+//   3. Success: onImageLoaded fires exactly once
+//   4. Failure: editor state matches pre-call state (rollback)
+//   5. Failure: onImageLoaded does NOT fire
 //
 // Runtime note: Node 24+ strips TypeScript syntax natively, so this test
 // imports the module under test directly from source via the shared
@@ -317,17 +315,17 @@ function makeStateHolder(initial) {
 function makeContext({ failFromUrl = false, onImageLoaded } = {}) {
     const document = installDom();
     const canvas = new MockCanvas(800, 600);
-    const containerEl = document.createElement('div');
-    const placeholderEl = document.createElement('div');
-    document.body.appendChild(containerEl);
-    document.body.appendChild(placeholderEl);
+    const containerElement = document.createElement('div');
+    const placeholderElement = document.createElement('div');
+    document.body.appendChild(containerElement);
+    document.body.appendChild(placeholderElement);
 
     const initial = {
         originalImage: null,
         isImageLoadedToCanvas: false,
         lastSnapshot: null,
-        maskCounter: 7, // non-zero so the success path's reset is observable
-        currentScale: 1.5, // non-default so the success path's reset is observable
+        maskCounter: 7, // non-zero so the success path update is observable
+        currentScale: 1.5, // non-default so the success path update is observable
         currentRotation: 45,
         baseImageScale: 0.8,
     };
@@ -346,25 +344,25 @@ function makeContext({ failFromUrl = false, onImageLoaded } = {}) {
         fabric: makeFabric({ failFromUrl }),
         canvas,
         options,
-        containerEl,
-        placeholderEl,
+        containerElement,
+        placeholderElement,
         viewportCache: new ViewportCache(),
         ...holder,
     };
 
-    return { ctx, holder, initial, canvas, placeholderEl, containerEl };
+    return { ctx, holder, initial, canvas, placeholderElement, containerElement };
 }
 
 // ─── Arbitraries ────────────────────────────────────────────────────────────
 
 // Tiny 1×1 PNG data URL — used by every success/failure scenario so the
-// loader's input-validation branch (Req 6.1) never short-circuits these
+// loader's input-validation branch never short-circuits these
 // iterations. The actual decode is intercepted by `installImageStub`,
 // so the bytes are immaterial as long as the prefix is `data:image/`.
 const VALID_PNG_DATA_URL =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAIAAAUAAeImBZsAAAAASUVORK5CYII=';
 
-/** Strings that MUST NOT trigger any mutation (Requirement 6.1). */
+/** Strings that MUST NOT trigger any mutation. */
 const nonDataImageStringArb = fc.oneof(
     fc.constantFrom(
         '',
@@ -374,7 +372,7 @@ const nonDataImageStringArb = fc.oneof(
         'data:text/plain;base64,SGVsbG8=',
         'data:application/json;base64,e30=',
         'data:image', // missing trailing slash
-        'DATA:IMAGE/PNG;base64,xxx', // case-sensitive prefix per Req 6.1
+        'DATA:IMAGE/PNG;base64,xxx', // case-sensitive prefix per the documented contract
         'file:///tmp/foo.png',
     ),
     fc.string({ minLength: 0, maxLength: 32 }).filter(
@@ -386,21 +384,21 @@ const preserveScrollArb = fc.option(fc.boolean(), { nil: undefined });
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('Property 2.1: non-data:image strings cause zero mutation (Req 6.5)', async () => {
+test('non-data:image strings cause zero mutation', async () => {
     await fc.assert(
         fc.asyncProperty(
             nonDataImageStringArb,
             preserveScrollArb,
             async (input, preserveScroll) => {
                 installImageStub('success');
-                const { ctx, holder, initial, canvas, placeholderEl, containerEl } =
+                const { ctx, holder, initial, canvas, placeholderElement, containerElement } =
                     makeContext();
                 // Pre-populate placeholder/container so the test can detect
                 // any inadvertent DOM read-then-write.
-                placeholderEl.hidden = false;
-                containerEl.scrollTop = 12;
-                containerEl.scrollLeft = 7;
-                containerEl.style.overflow = 'auto';
+                placeholderElement.hidden = false;
+                containerElement.scrollTop = 12;
+                containerElement.scrollLeft = 7;
+                containerElement.style.overflow = 'auto';
 
                 let onImageLoadedCalls = 0;
                 ctx.options.onImageLoaded = () => {
@@ -420,17 +418,17 @@ test('Property 2.1: non-data:image strings cause zero mutation (Req 6.5)', async
                 assert.equal(
                     canvas.calls.length,
                     callsBefore,
-                    'Req 6.5: non-data:image input must not invoke any canvas method',
+                    'the documented contract: non-data:image input must not invoke any canvas method',
                 );
                 assert.deepEqual(
                     holder.placeholderShows,
                     [],
-                    'Req 6.5: non-data:image input must not toggle placeholder visibility',
+                    'the documented contract: non-data:image input must not toggle placeholder visibility',
                 );
                 assert.equal(
                     onImageLoadedCalls,
                     0,
-                    'Req 6.5: non-data:image input must not fire onImageLoaded',
+                    'the documented contract: non-data:image input must not fire onImageLoaded',
                 );
                 assert.deepEqual(
                     {
@@ -443,7 +441,7 @@ test('Property 2.1: non-data:image strings cause zero mutation (Req 6.5)', async
                         baseImageScale: holder.state.baseImageScale,
                     },
                     initial,
-                    'Req 6.5: non-data:image input must leave editor scalar state unchanged',
+                    'the documented contract: non-data:image input must leave editor scalar state unchanged',
                 );
             },
         ),
@@ -451,7 +449,7 @@ test('Property 2.1: non-data:image strings cause zero mutation (Req 6.5)', async
     );
 });
 
-test('Property 2.2: success commits the new-image state (Req 6.4)', async () => {
+test('success commits the new-image state', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async preserveScroll => {
             installImageStub('success');
@@ -463,43 +461,43 @@ test('Property 2.2: success commits the new-image state (Req 6.4)', async () => 
                 preserveScroll === undefined ? undefined : { preserveScroll },
             );
 
-            // Req 6.4 — every scalar listed in the requirement is
+            // the documented contract — every scalar listed in the Contract is
             // committed to the new-image value.
             assert.equal(
                 holder.state.isImageLoadedToCanvas,
                 true,
-                'Req 6.4: success must set isImageLoadedToCanvas = true',
+                'the documented contract: success must set isImageLoadedToCanvas = true',
             );
             assert.equal(
                 holder.state.maskCounter,
                 0,
-                'Req 6.4: success must reset maskCounter to 0',
+                'the documented contract: success must set maskCounter to 0',
             );
             assert.equal(
                 holder.state.currentScale,
                 1,
-                'Req 6.4: success must reset currentScale to 1',
+                'the documented contract: success must set currentScale to 1',
             );
             assert.equal(
                 holder.state.currentRotation,
                 0,
-                'Req 6.4: success must reset currentRotation to 0',
+                'the documented contract: success must set currentRotation to 0',
             );
             assert.ok(
                 holder.state.lastSnapshot !== null &&
                     typeof holder.state.lastSnapshot === 'string',
-                'Req 6.4: success must emit a fresh _lastSnapshot string',
+                'the documented contract: success must emit a fresh _lastSnapshot string',
             );
             assert.ok(
                 holder.state.originalImage !== null,
-                'Req 6.4: success must commit originalImage',
+                'the documented contract: success must commit originalImage',
             );
         }),
         { numRuns: 30 },
     );
 });
 
-test('Property 2.3: success fires onImageLoaded exactly once (Req 5.1)', async () => {
+test('success fires onImageLoaded exactly once', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async preserveScroll => {
             installImageStub('success');
@@ -519,14 +517,14 @@ test('Property 2.3: success fires onImageLoaded exactly once (Req 5.1)', async (
             assert.equal(
                 onImageLoadedCalls,
                 1,
-                'Req 5.1: onImageLoaded must fire exactly once on success',
+                'the documented contract: onImageLoaded must fire exactly once on success',
             );
         }),
         { numRuns: 30 },
     );
 });
 
-test('Property 2.4: failure restores editor scalar state (Req 6.5)', async () => {
+test('failure restores editor scalar state', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async preserveScroll => {
             installImageStub('success');
@@ -540,17 +538,17 @@ test('Property 2.4: failure restores editor scalar state (Req 6.5)', async () =>
                         preserveScroll === undefined ? undefined : { preserveScroll },
                     ),
                 err => {
-                    // Requirement 6.3 — the original error is what the
+                    // the documented contract — the original error is what the
                     // promise rejects with.
                     return (
                         err instanceof Error &&
                         err.message === 'FabricImage.fromURL failed'
                     );
                 },
-                'Req 6.3: failure path must reject with the original error',
+                'the documented contract: failure path must reject with the original error',
             );
 
-            // Req 6.5 — every captured scalar is back to its pre-call
+            // the documented contract — every captured scalar is back to its pre-call
             // value after rollback. We compare the exact tuple to make a
             // partial restore observable as a failed assertion.
             assert.deepEqual(
@@ -564,14 +562,14 @@ test('Property 2.4: failure restores editor scalar state (Req 6.5)', async () =>
                     baseImageScale: holder.state.baseImageScale,
                 },
                 initial,
-                'Req 6.5: rollback must restore every editor scalar to its pre-call value',
+                'the documented contract: rollback must restore every editor scalar to its pre-call value',
             );
         }),
         { numRuns: 30 },
     );
 });
 
-test('Property 2.5: failure does NOT fire onImageLoaded (Req 5.3)', async () => {
+test('failure does NOT fire onImageLoaded', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async preserveScroll => {
             installImageStub('success');
@@ -594,7 +592,7 @@ test('Property 2.5: failure does NOT fire onImageLoaded (Req 5.3)', async () => 
             assert.equal(
                 onImageLoadedCalls,
                 0,
-                'Req 5.3: onImageLoaded must not fire on rollback',
+                'the documented contract: onImageLoaded must not fire on rollback',
             );
         }),
         { numRuns: 30 },

@@ -21,14 +21,10 @@
  *
  * ## Why a dedicated module
  *
- * v1 inlined the same `Math.round` / `Math.max` clamp four times — once
- * each for `getImageBase64`, `applyCrop`, `_applyExpandCanvasSizing`, and
- * the crop rectangle initializer — which made it easy for one call site
- * to drift from the others (for example, applying `Math.floor` instead
- * of `Math.round`, or forgetting the `width >= 1` floor). v2 routes
- * every region through this module so the floor/clamp policy is
- * defined exactly once and the export and crop pipelines cannot
- * disagree about what an "integer region" means.
+ * Region math is shared by export, crop, expand-to-image sizing, and crop
+ * rectangle initialization. Centralizing it prevents one call site from
+ * drifting from the others (for example, applying `Math.floor` instead of
+ * `Math.round`, or forgetting the `width >= 1` floor).
  *
  * ## Design notes
  *
@@ -108,15 +104,12 @@ export declare function floorRegion(rect: {
  * `setCoords` is called first because Fabric.js v7's
  * `getBoundingRect` returns the cached absolute rect — the per-frame
  * cache the canvas already maintains. Without the refresh a freshly
- * mutated mask returns stale coordinates, which is the exact source
- * of the v1 "rotated mask drifts after crop" bug captured in
+ * mutated mask returns stale coordinates, which can make rotated masks
+ * drift after crop.
  *
  * The returned rect uses floating-point coordinates; callers that need
  * integer pixel regions should pipe the result through
  * {@link floorRegion}.
- *
- * 32.2 (mask `angle` / `scaleX` / `scaleY` preserved — this helper
- * never mutates them).
  *
  * @param obj The Fabric.js object to measure.
  * @returns   The absolute bounding rect in canvas pixels.

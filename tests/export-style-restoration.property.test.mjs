@@ -1,6 +1,5 @@
-// Property 24: Export-only style restoration
+// Export-only style restoration
 //
-// Property statement (design.md §"Property 24"):
 //   For any export operation that temporarily mutates mask styles,
 //   every mutated style SHALL be restored in a `finally` path after
 //   both successful and failed exports.
@@ -8,9 +7,9 @@
 // Owner modules: `src/export/export-service.ts`, `src/mask/mask-style.ts`.
 //
 // Sub-properties exercised here, mirroring the three acceptance criteria
-// of Requirement 28:
+// of the documented contract:
 //
-//   24.1 Capture-before-mutation (Requirement 28.1):
+//   24.1 Capture-before-mutation:
 //        For any pre-export mask style, the export bake-in SHALL
 //        capture the live values of `opacity`, `fill`, `stroke`,
 //        `strokeWidth`, `selectable`, and `lockRotation` BEFORE the
@@ -20,14 +19,14 @@
 //        happened AFTER the mutator, restoration would produce the
 //        bake-in style, not the originals).
 //
-//   24.2 Restore inside finally on a thrown export (Requirement 28.2):
+//   24.2 Restore inside finally on a thrown export:
 //        For any pre-export mask style, when the inner render step
 //        rejects, the live mask styles SHALL still be restored to the
 //        exact pre-export values (the restore lives inside a
 //        `finally`, not after the `try`).
 //
 //   24.3 Restored fields are exact, no defaulting/clamping
-//        (Requirement 28.3):
+//:
 //        For any pre-export mask style, every restored field SHALL be
 //        `===` strict-equal to the pre-export value — the restore
 //        does not coerce, normalize, or default.
@@ -37,7 +36,7 @@
 // The export service interacts with the canvas through exactly three
 // methods relevant to this property:
 //
-//   discardActiveObject()  — Req 23.2 call site, no-op in the mock
+//   discardActiveObject()  — the documented contract call site, no-op in the mock
 //   getObjects()           — read by the bake-in/restore bracket
 //   toDataURL(options)     — the rendering step we sometimes force to throw
 //
@@ -123,7 +122,7 @@ function snapshotMaskStyles(masks) {
  * Build a mock canvas that owns `masks` and lets the test optionally
  * inspect the mask styles AT THE MOMENT `toDataURL` is invoked (so we
  * can confirm the bake-in mutation actually ran) or force `toDataURL`
- * to throw (to exercise the `finally` restore path of Req 28.2).
+ * to throw (to exercise the `finally` restore path of the documented contract).
  *
  * `getObjects()` returns a fresh array on every call so the bake-in
  * loop's `.filter(isMaskObject)` does not mutate the stored list.
@@ -167,7 +166,7 @@ function makeContext(canvas, originalImage) {
  * Tiny stand-in for `originalImage` whose `getBoundingRect()` returns
  * a fixed integer rect so {@link computeExportRegion} produces a
  * deterministic region every iteration. The exact rect does not
- * affect Property 24 — only the bake-in/restore bracket does — but
+ * affect — only the bake-in/restore bracket does — but
  * supplying a real image keeps the export path on its happy branch.
  */
 function makeFakeImage() {
@@ -243,9 +242,9 @@ const maskListArb = fc
         styles.map((style, idx) => makeMockMask({ maskId: idx + 1, ...style })),
     );
 
-// ─── Property 24.1 — successful export restores live styles ─────────────────
+// ─── — successful export restores live styles ─────────────────
 
-test('Property 24.1: after a successful exportImageBase64({exportImageArea:true}), every mask style equals the pre-export value (Reqs 28.1, 28.3)', async () => {
+test('after a successful exportImageBase64({exportImageArea:true}), every mask style equals the pre-export value', async () => {
     await fc.assert(
         fc.asyncProperty(maskListArb, async masks => {
             const pre = snapshotMaskStyles(masks);
@@ -272,7 +271,7 @@ test('Property 24.1: after a successful exportImageBase64({exportImageArea:true}
             );
 
             // Bake-in actually mutated each mask while toDataURL ran,
-            // proving the capture preceded the mutation (Req 28.1).
+            // proving the capture preceded the mutation.
             for (const style of renderTimeStyles[0]) {
                 assert.equal(
                     style.opacity,
@@ -301,7 +300,7 @@ test('Property 24.1: after a successful exportImageBase64({exportImageArea:true}
                 );
             }
 
-            // Req 28.3 — every restored field is strict-equal to the
+            // the documented contract — every restored field is strict-equal to the
             // pre-export value, no defaulting or clamping.
             const post = snapshotMaskStyles(masks);
             assert.deepStrictEqual(
@@ -316,9 +315,9 @@ test('Property 24.1: after a successful exportImageBase64({exportImageArea:true}
     );
 });
 
-// ─── Property 24.2 — thrown export still restores live styles ──────────────
+// ─── — thrown export still restores live styles ──────────────
 
-test('Property 24.2: when canvas.toDataURL throws, exportImageBase64 still restores every mask style to the pre-export value (Reqs 28.2, 28.3)', async () => {
+test('when canvas.toDataURL throws, exportImageBase64 still restores every mask style to the pre-export value', async () => {
     await fc.assert(
         fc.asyncProperty(maskListArb, async masks => {
             const pre = snapshotMaskStyles(masks);
@@ -394,10 +393,10 @@ test('Property 24.2: when canvas.toDataURL throws, exportImageBase64 still resto
                 }
             }
 
-            // Req 28.2 — the restore lives inside a finally so the
+            // the documented contract — the restore lives inside a finally so the
             // live styles match the pre-export values whether the
             // export resolved or threw.
-            // Req 28.3 — the restored values are strict-equal to the
+            // the documented contract — the restored values are strict-equal to the
             // captured values, no defaulting or clamping.
             const post = snapshotMaskStyles(masks);
             assert.deepStrictEqual(

@@ -19,20 +19,11 @@
  *     2D context so the loader can replay its rollback
  *     bundle transactionally.
  *
- * Requirement references:
- *   - 8.1  Aspect-preserving downsampling against `(maxW, maxH)` bounds.
- *   - 8.2  PNG/WebP source preserves source MIME only when
- *          `preserveSourceFormat` is `true` and `downsampleMimeType` is unset.
- *   - 8.3  JPEG, `preserveSourceFormat: false`, or explicit override resolves
- *          to the configured MIME using `downsampleQuality`.
- *   - 8.4  Throw {@link DownsampleError} when the offscreen canvas cannot get
- *          a 2D context (so `image-loader.ts` rolls back transactionally).
- *
  * This module is internal — it is NOT re-exported from `src/index.ts`.
  */
 
-import type { ImageMimeType} from '../core/public-types.js';
-import { DownsampleError} from '../core/errors.js';
+import type { ImageMimeType } from '../core/public-types.js';
+import { DownsampleError } from '../core/errors.js';
 
 /**
  * Result returned by {@link resampleImage}.
@@ -75,11 +66,11 @@ export function computeDownsampleDimensions(
     srcHeight: number,
     maxWidth: number,
     maxHeight: number,
-): { width: number; height: number; needsResize: boolean} {
+): { width: number; height: number; needsResize: boolean } {
     const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
     if (!needsResize) {
-        return { width: srcWidth, height: srcHeight, needsResize: false};
-}
+        return { width: srcWidth, height: srcHeight, needsResize: false };
+    }
     const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
     // Clamp to at least 1 px on each axis so the offscreen canvas is
     // never zero-sized. At extreme bounds (e.g. a 3×1 source against a
@@ -91,7 +82,7 @@ export function computeDownsampleDimensions(
         width: Math.max(1, Math.round(srcWidth * ratio)),
         height: Math.max(1, Math.round(srcHeight * ratio)),
         needsResize: true,
-};
+    };
 }
 
 /**
@@ -134,7 +125,7 @@ export function selectDownsampleMimeType(
     // and no override was supplied.
     if (preserveSourceFormat && (sourceMime === 'image/png' || sourceMime === 'image/webp')) {
         return sourceMime;
-}
+    }
 
     // JPEG source, preserveSourceFormat=false, or unknown source MIME falls
     // back to the lossy default.
@@ -197,18 +188,18 @@ export function resampleImage(
     downsampleMimeType: ImageMimeType | null | undefined,
     quality: number,
 ): ResampleResult {
-    const { width, height} = computeDownsampleDimensions(
+    const { width, height } = computeDownsampleDimensions(
         imgEl.naturalWidth,
         imgEl.naturalHeight,
         maxWidth,
         maxHeight,
-);
+    );
 
     const mimeType = selectDownsampleMimeType(
         sourceMime,
         preserveSourceFormat,
         downsampleMimeType,
-);
+    );
 
     // Offscreen raster. We use a plain detached <canvas> rather than
     // `OffscreenCanvas` for broader browser support; the failure semantics
@@ -221,14 +212,14 @@ export function resampleImage(
     if (!ctx) {
         throw new DownsampleError(
             'Failed to obtain a 2D context for downsampling.',
-);
-}
+        );
+    }
 
     ctx.drawImage(
         imgEl,
         0, 0, imgEl.naturalWidth, imgEl.naturalHeight,
         0, 0, width, height,
-);
+    );
 
     // PNG is lossless; passing `quality` to `toDataURL('image/png', q)` is a
     // no-op in spec but some engines warn. Branch explicitly to keep call
@@ -237,5 +228,5 @@ export function resampleImage(
         ? oc.toDataURL(mimeType)
         : oc.toDataURL(mimeType, quality);
 
-    return { dataUrl, width, height, mimeType};
+    return { dataUrl, width, height, mimeType };
 }

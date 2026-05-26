@@ -108,6 +108,7 @@ const DEFAULT_OPTIONS = {
     preserveSourceFormat: true,
     downsampleMimeType: null,
     imageLoadTimeoutMs: 30000,
+    maxHistorySize: 50,
     exportMultiplier: 1,
     exportImageAreaByDefault: true,
     defaultMaskWidth: 50,
@@ -165,6 +166,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'preserveSourceFormat',
     'downsampleMimeType',
     'imageLoadTimeoutMs',
+    'maxHistorySize',
     'exportMultiplier',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
@@ -186,8 +188,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
+function normalizeMaxHistorySize(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return DEFAULT_OPTIONS.maxHistorySize;
+    return Math.max(1, Math.floor(numeric));
+}
 function resolveOptions(input) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -202,12 +210,12 @@ function resolveOptions(input) {
             continue;
         resolved[key] = value;
     }
-    resolved.onImageLoaded =
-        (_a = normalizeCallback(raw.onImageLoaded)) !== null && _a !== void 0 ? _a : null;
+    resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
     resolved.onError =
-        (_b = normalizeCallback(raw.onError)) !== null && _b !== void 0 ? _b : null;
+        normalizeCallback(raw.onError);
     resolved.onWarning =
-        (_c = normalizeCallback(raw.onWarning)) !== null && _c !== void 0 ? _c : null;
+        normalizeCallback(raw.onWarning);
+    resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
     const userLabel = (raw.label && typeof raw.label === 'object') ? raw.label : {};
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,
@@ -228,12 +236,12 @@ function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = (raw.crop && typeof raw.crop === 'object') ? raw.crop : {};
     const crop = {
-        minWidth: (_d = userCrop.minWidth) !== null && _d !== void 0 ? _d : DEFAULT_CROP.minWidth,
-        minHeight: (_e = userCrop.minHeight) !== null && _e !== void 0 ? _e : DEFAULT_CROP.minHeight,
-        padding: (_f = userCrop.padding) !== null && _f !== void 0 ? _f : DEFAULT_CROP.padding,
-        hideMasksDuringCrop: (_g = userCrop.hideMasksDuringCrop) !== null && _g !== void 0 ? _g : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_h = userCrop.preserveMasksAfterCrop) !== null && _h !== void 0 ? _h : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_j = userCrop.allowRotationOfCropRect) !== null && _j !== void 0 ? _j : DEFAULT_CROP.allowRotationOfCropRect,
+        minWidth: (_a = userCrop.minWidth) !== null && _a !== void 0 ? _a : DEFAULT_CROP.minWidth,
+        minHeight: (_b = userCrop.minHeight) !== null && _b !== void 0 ? _b : DEFAULT_CROP.minHeight,
+        padding: (_c = userCrop.padding) !== null && _c !== void 0 ? _c : DEFAULT_CROP.padding,
+        hideMasksDuringCrop: (_d = userCrop.hideMasksDuringCrop) !== null && _d !== void 0 ? _d : DEFAULT_CROP.hideMasksDuringCrop,
+        preserveMasksAfterCrop: (_e = userCrop.preserveMasksAfterCrop) !== null && _e !== void 0 ? _e : DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect: (_f = userCrop.allowRotationOfCropRect) !== null && _f !== void 0 ? _f : DEFAULT_CROP.allowRotationOfCropRect,
     };
     Object.freeze(crop);
     return {
@@ -300,6 +308,8 @@ const SNAPSHOT_CUSTOM_KEYS = [
     'isCropRect',
     'maskLabel',
     'originalAlpha',
+    'originalStroke',
+    'originalStrokeWidth',
 ];
 function saveState(input) {
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
@@ -346,7 +356,7 @@ async function loadFromState(input) {
         : null;
     const maxMaskId = objects
         .filter(isMaskObject)
-        .reduce((max, m) => Math.max(max, m.maskId), 0);
+        .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
     const originalImage = ((_b = objects.find(o => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
     return {
         editorState,
@@ -358,28 +368,39 @@ async function loadFromState(input) {
 }
 function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d, _e;
+    const consumedCanvasIndexes = new Set();
     for (const jObj of jsonObjs) {
         if (typeof jObj.maskId !== 'number')
             continue;
         const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
         const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
         const jTop = Number((_c = jObj.top) !== null && _c !== void 0 ? _c : 0);
-        const match = canvasObjs.find(o => {
+        const matchIndex = canvasObjs.findIndex((o, index) => {
             var _a, _b;
+            if (consumedCanvasIndexes.has(index))
+                return false;
             if (jType && o.type !== jType)
                 return false;
             return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
                 Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5);
         });
-        if (!match)
+        if (matchIndex < 0)
             continue;
-        const m = match;
-        m.maskId = jObj.maskId;
-        m.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
-        m.originalAlpha =
+        consumedCanvasIndexes.add(matchIndex);
+        const match = canvasObjs[matchIndex];
+        const maskObject = match;
+        maskObject.maskId = jObj.maskId;
+        maskObject.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
+        maskObject.originalAlpha =
             typeof jObj.originalAlpha === 'number'
                 ? jObj.originalAlpha
-                : ((_e = m.opacity) !== null && _e !== void 0 ? _e : 0.5);
+                : ((_e = maskObject.opacity) !== null && _e !== void 0 ? _e : 0.5);
+        if ('originalStroke' in jObj) {
+            maskObject.originalStroke = jObj.originalStroke;
+        }
+        if (typeof jObj.originalStrokeWidth === 'number') {
+            maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
     }
     jsonObjs.forEach((jObj, idx) => {
         if (jObj.maskLabel !== true)
@@ -656,6 +677,8 @@ class ExportNotReadyError extends Error {
     }
 }
 
+const SELECTED_STROKE = '#ff0000';
+const SELECTED_STROKE_WIDTH = 1;
 const HOVER_STROKE = '#ff5500';
 const HOVER_STROKE_WIDTH = 2;
 const HOVER_OPACITY_BUMP = 0.2;
@@ -682,6 +705,19 @@ function getMaskHoverStyle(mask) {
         strokeWidth: HOVER_STROKE_WIDTH,
         opacity: Math.min(baseAlpha + HOVER_OPACITY_BUMP, 1),
     };
+}
+function applyMaskSelectedStyle(mask) {
+    mask.set({ stroke: SELECTED_STROKE, strokeWidth: SELECTED_STROKE_WIDTH });
+}
+function applyMaskUnselectedStyle(mask) {
+    var _a;
+    const strokeWidth = Number(mask.originalStrokeWidth);
+    mask.set({
+        stroke: (_a = mask.originalStroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK,
+        strokeWidth: Number.isFinite(strokeWidth)
+            ? strokeWidth
+            : DEFAULT_STROKE_WIDTH_FALLBACK,
+    });
 }
 function attachMaskHoverHandlers(mask) {
     const tagged = mask;
@@ -753,7 +789,7 @@ function restoreMaskStyleBackup(backup) {
             selectable: backup.selectable,
             lockRotation: backup.lockRotation,
         });
-        if (typeof backup.obj.setCoords() === 'function') {
+        if (typeof backup.obj.setCoords === 'function') {
             backup.obj.setCoords();
         }
     }
@@ -1201,7 +1237,7 @@ function applyExportBakeInStyle(mask) {
             stroke: null,
             selectable: false,
         });
-        if (typeof mask.setCoords() === 'function')
+        if (typeof mask.setCoords === 'function')
             mask.setCoords();
     }
     catch {
@@ -1239,7 +1275,7 @@ function reencodeDataUrlAs(sourceDataUrl, target) {
     }
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'Anonymous';
+        img.crossOrigin = 'anonymous';
         img.onload = () => {
             try {
                 const off = document.createElement('canvas');
@@ -1340,8 +1376,8 @@ async function mergeMasks(ctx) {
     ctx.canvas.discardActiveObject();
     ctx.canvas.renderAll();
     const beforeSnapshot = ctx.saveState();
-    const preScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
-    const preScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+    const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
+    const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
     try {
         const merged = await exportImageBase64(ctx, {
             exportImageArea: true,
@@ -1353,13 +1389,13 @@ async function mergeMasks(ctx) {
         ctx.removeAllMasksNoHistory();
         await ctx.loadImage(merged, { preserveScroll: true });
         const afterSnapshot = ctx.saveState();
-        if (ctx.containerEl) {
+        if (ctx.containerElement) {
             try {
                 if (preScrollTop !== null) {
-                    ctx.containerEl.scrollTop = preScrollTop;
+                    ctx.containerElement.scrollTop = preScrollTop;
                 }
                 if (preScrollLeft !== null) {
-                    ctx.containerEl.scrollLeft = preScrollLeft;
+                    ctx.containerElement.scrollLeft = preScrollLeft;
                 }
             }
             catch (scrollErr) {
@@ -1495,11 +1531,11 @@ function computeExpandLayout(imageWidth, imageHeight, _optionsCanvasWidth, _opti
         baseImageScale: 1,
     };
 }
-function applyCanvasDimensions(canvas, width, height, containerEl) {
+function applyCanvasDimensions(canvas, width, height, containerElement) {
     const iw = Math.max(1, Math.round(Number(width) || 1));
     const ih = Math.max(1, Math.round(Number(height) || 1));
     canvas.setDimensions({ width: iw, height: ih });
-    forceReflow(containerEl);
+    forceReflow(containerElement);
 }
 
 function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHeight) {
@@ -1547,10 +1583,10 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
     if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
         return;
     }
-    const placeholderHidden = ctx.placeholderEl ? !!ctx.placeholderEl.hidden : null;
-    const containerScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
-    const containerScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
-    const containerOverflow = ctx.containerEl ? ctx.containerEl.style.overflow : null;
+    const placeholderHidden = ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
+    const containerScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
+    const containerScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
+    const containerOverflow = ctx.containerElement ? ctx.containerElement.style.overflow : null;
     const bundle = {
         placeholderHidden,
         containerScrollTop,
@@ -1567,7 +1603,15 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
     };
     try {
         ctx.setPlaceholderVisible(false);
-        const imgEl = await withTimeout(decodeImageElement(imageBase64), ctx.options.imageLoadTimeoutMs, 'image decode');
+        const decode = startImageDecode(imageBase64);
+        let imgEl;
+        try {
+            imgEl = await withTimeout(decode.promise, ctx.options.imageLoadTimeoutMs, 'image decode');
+        }
+        catch (error) {
+            decode.cleanup(true);
+            throw error;
+        }
         const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
         const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
         ctx.canvas.discardActiveObject();
@@ -1580,7 +1624,7 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
             evented: false,
         });
         const layout = computeLayout(ctx, fimg);
-        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerEl);
+        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerElement);
         fimg.set({ left: layout.imageLeft, top: layout.imageTop });
         fimg.scale(layout.imageScale);
         ctx.canvas.add(fimg);
@@ -1598,13 +1642,13 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
         }));
-        if (loadOptions.preserveScroll === true && ctx.containerEl) {
+        if (loadOptions.preserveScroll === true && ctx.containerElement) {
             try {
                 if (bundle.containerScrollTop !== null) {
-                    ctx.containerEl.scrollTop = bundle.containerScrollTop;
+                    ctx.containerElement.scrollTop = bundle.containerScrollTop;
                 }
                 if (bundle.containerScrollLeft !== null) {
-                    ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
+                    ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             }
             catch (err) {
@@ -1630,19 +1674,27 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
         throw err;
     }
 }
-function decodeImageElement(dataUrl) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
+function startImageDecode(dataUrl) {
+    const img = new Image();
+    const cleanup = (clearSource = false) => {
+        img.onload = null;
+        img.onerror = null;
+        if (clearSource) {
+            img.src = '';
+        }
+    };
+    const promise = new Promise((resolve, reject) => {
         img.onload = () => {
-            img.onload = img.onerror = null;
+            cleanup(false);
             resolve(img);
         };
         img.onerror = (e) => {
-            img.onload = img.onerror = null;
+            cleanup(true);
             reject(new ImageDecodeError('Failed to decode image data URL.', e));
         };
         img.src = dataUrl;
     });
+    return { promise, cleanup };
 }
 function maybeDownsample(imgEl, originalDataUrl, options) {
     if (!options.downsampleOnLoad)
@@ -1657,7 +1709,7 @@ function computeLayout(ctx, fimg) {
     var _a, _b;
     const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
     const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
-    const viewport = ctx.viewportCache.measure(ctx.containerEl, {
+    const viewport = ctx.viewportCache.measure(ctx.containerElement, {
         width: ctx.options.canvasWidth,
         height: ctx.options.canvasHeight,
     });
@@ -1676,9 +1728,9 @@ function serializeCanvas(canvas) {
     return JSON.stringify(json);
 }
 async function replayRollback(ctx, bundle) {
-    if (ctx.containerEl && bundle.containerOverflow !== null) {
+    if (ctx.containerElement && bundle.containerOverflow !== null) {
         try {
-            ctx.containerEl.style.overflow = bundle.containerOverflow;
+            ctx.containerElement.style.overflow = bundle.containerOverflow;
         }
         catch (err) {
             console.warn('[ImageEditor] rollback: overflow restore failed', err);
@@ -1698,13 +1750,13 @@ async function replayRollback(ctx, bundle) {
     ctx.setCurrentScale(bundle.currentScale);
     ctx.setCurrentRotation(bundle.currentRotation);
     ctx.setBaseImageScale(bundle.baseImageScale);
-    if (ctx.containerEl) {
+    if (ctx.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
-                ctx.containerEl.scrollTop = bundle.containerScrollTop;
+                ctx.containerElement.scrollTop = bundle.containerScrollTop;
             }
             if (bundle.containerScrollLeft !== null) {
-                ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
+                ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         }
         catch (err) {
@@ -1912,11 +1964,11 @@ function coercePoint(pt) {
 
 function createMask(ctx, config = {}) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
-    const { canvas, options, fabric: fb } = ctx;
+    const { canvas, options, fabric: fabricModule } = ctx;
     if (!canvas)
         return null;
     const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
-    const cfg = {
+    const resolvedConfig = {
         shape: shapeType,
         width: options.defaultMaskWidth,
         height: options.defaultMaskHeight,
@@ -1932,38 +1984,38 @@ function createMask(ctx, config = {}) {
     const firstOffset = 10;
     let left;
     let top;
-    const prev = ctx.getLastMask();
-    if (config.left === undefined && prev) {
-        const prevRight = ((_b = prev.left) !== null && _b !== void 0 ? _b : 0) +
-            (typeof prev.getScaledWidth === 'function'
-                ? prev.getScaledWidth()
-                : ((_c = prev.width) !== null && _c !== void 0 ? _c : 0) * ((_d = prev.scaleX) !== null && _d !== void 0 ? _d : 1));
-        left = Math.round(prevRight + ((_e = cfg.gap) !== null && _e !== void 0 ? _e : 5));
-        top = (_f = prev.top) !== null && _f !== void 0 ? _f : firstOffset;
+    const previousMask = ctx.getLastMask();
+    if (config.left === undefined && previousMask) {
+        const previousRight = ((_b = previousMask.left) !== null && _b !== void 0 ? _b : 0) +
+            (typeof previousMask.getScaledWidth === 'function'
+                ? previousMask.getScaledWidth()
+                : ((_c = previousMask.width) !== null && _c !== void 0 ? _c : 0) * ((_d = previousMask.scaleX) !== null && _d !== void 0 ? _d : 1));
+        left = Math.round(previousRight + ((_e = resolvedConfig.gap) !== null && _e !== void 0 ? _e : 5));
+        top = (_f = previousMask.top) !== null && _f !== void 0 ? _f : firstOffset;
     }
     else {
         left = resolveNumeric(config.left, 'x', firstOffset, canvas, options);
         top = resolveNumeric(config.top, 'y', firstOffset, canvas, options);
     }
-    cfg.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
-    cfg.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
+    resolvedConfig.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
+    resolvedConfig.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
     if (options.expandCanvasToImage) {
-        const reqW = Math.ceil(left + cfg.width + 10);
-        const reqH = Math.ceil(top + cfg.height + 10);
-        const newW = Math.max(canvas.getWidth(), reqW);
-        const newH = Math.max(canvas.getHeight(), reqH);
-        if (newW !== canvas.getWidth() || newH !== canvas.getHeight()) {
+        const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
+        const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
+        const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
+        const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
             if (ctx.expandCanvasIfNeeded) {
-                ctx.expandCanvasIfNeeded(newW, newH);
+                ctx.expandCanvasIfNeeded(nextWidth, nextHeight);
             }
             else {
-                canvas.setDimensions({ width: newW, height: newH });
+                canvas.setDimensions({ width: nextWidth, height: nextHeight });
             }
         }
     }
     let mask;
-    if (typeof cfg.fabricGenerator === 'function') {
-        mask = cfg.fabricGenerator(cfg, canvas, options);
+    if (typeof resolvedConfig.fabricGenerator === 'function') {
+        mask = resolvedConfig.fabricGenerator(resolvedConfig, canvas, options);
     }
     else {
         const originProps = {
@@ -1978,46 +2030,46 @@ function createMask(ctx, config = {}) {
             : undefined;
         switch (shapeType) {
             case 'circle':
-                mask = new fb.Circle({
+                mask = new fabricModule.Circle({
                     left,
                     top,
                     ...originProps,
-                    radius: resolveNumeric(config.radius, 'x', Math.min(cfg.width, cfg.height) / 2, canvas, options),
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: (_g = cfg.angle) !== null && _g !== void 0 ? _g : 0,
-                    ...cfg.styles,
+                    radius: resolveNumeric(config.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options),
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: (_g = resolvedConfig.angle) !== null && _g !== void 0 ? _g : 0,
+                    ...resolvedConfig.styles,
                 });
                 break;
             case 'ellipse':
-                mask = new fb.Ellipse({
+                mask = new fabricModule.Ellipse({
                     left,
                     top,
                     ...originProps,
-                    rx: rx !== null && rx !== void 0 ? rx : cfg.width / 2,
-                    ry: ry !== null && ry !== void 0 ? ry : cfg.height / 2,
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: (_h = cfg.angle) !== null && _h !== void 0 ? _h : 0,
-                    ...cfg.styles,
+                    rx: rx !== null && rx !== void 0 ? rx : resolvedConfig.width / 2,
+                    ry: ry !== null && ry !== void 0 ? ry : resolvedConfig.height / 2,
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: (_h = resolvedConfig.angle) !== null && _h !== void 0 ? _h : 0,
+                    ...resolvedConfig.styles,
                 });
                 break;
             case 'polygon': {
-                const pts = ((_j = config.points) !== null && _j !== void 0 ? _j : []).map(coercePoint);
-                const polygon = new fb.Polygon(pts, {
+                const points = ((_j = config.points) !== null && _j !== void 0 ? _j : []).map(coercePoint);
+                const polygon = new fabricModule.Polygon(points, {
                     ...originProps,
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: (_k = cfg.angle) !== null && _k !== void 0 ? _k : 0,
-                    ...cfg.styles,
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: (_k = resolvedConfig.angle) !== null && _k !== void 0 ? _k : 0,
+                    ...resolvedConfig.styles,
                 });
                 polygon.setCoords();
-                const br = polygon.getBoundingRect();
-                const dx = left - br.left;
-                const dy = top - br.top;
+                const boundingRect = polygon.getBoundingRect();
+                const deltaX = left - boundingRect.left;
+                const deltaY = top - boundingRect.top;
                 polygon.set({
-                    left: ((_l = polygon.left) !== null && _l !== void 0 ? _l : 0) + dx,
-                    top: ((_m = polygon.top) !== null && _m !== void 0 ? _m : 0) + dy,
+                    left: ((_l = polygon.left) !== null && _l !== void 0 ? _l : 0) + deltaX,
+                    top: ((_m = polygon.top) !== null && _m !== void 0 ? _m : 0) + deltaY,
                 });
                 polygon.setCoords();
                 mask = polygon;
@@ -2025,83 +2077,66 @@ function createMask(ctx, config = {}) {
             }
             case 'rect':
             default:
-                mask = new fb.Rect({
+                mask = new fabricModule.Rect({
                     left,
                     top,
                     ...originProps,
-                    width: cfg.width,
-                    height: cfg.height,
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: (_o = cfg.angle) !== null && _o !== void 0 ? _o : 0,
+                    width: resolvedConfig.width,
+                    height: resolvedConfig.height,
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: (_o = resolvedConfig.angle) !== null && _o !== void 0 ? _o : 0,
                     ...(rx !== undefined ? { rx } : {}),
                     ...(ry !== undefined ? { ry } : {}),
-                    ...cfg.styles,
+                    ...resolvedConfig.styles,
                 });
         }
     }
-    const m = mask;
-    m.selectable = 'selectable' in config ? !!config.selectable : true;
-    m.hasControls = 'hasControls' in config ? !!config.hasControls : true;
-    m.transparentCorners =
+    const maskObject = mask;
+    maskObject.selectable = 'selectable' in config ? !!config.selectable : true;
+    maskObject.hasControls = 'hasControls' in config ? !!config.hasControls : true;
+    maskObject.transparentCorners =
         'transparentCorners' in config ? !!config.transparentCorners : false;
-    m.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
-    m.lockRotation = !options.maskRotatable;
-    m.borderColor = (_p = config.borderColor) !== null && _p !== void 0 ? _p : 'red';
-    m.cornerColor = (_q = config.cornerColor) !== null && _q !== void 0 ? _q : 'black';
-    m.cornerSize = (_r = config.cornerSize) !== null && _r !== void 0 ? _r : 8;
-    const styles = ((_s = cfg.styles) !== null && _s !== void 0 ? _s : {});
+    maskObject.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
+    maskObject.lockRotation = !options.maskRotatable;
+    maskObject.borderColor = (_p = config.borderColor) !== null && _p !== void 0 ? _p : 'red';
+    maskObject.cornerColor = (_q = config.cornerColor) !== null && _q !== void 0 ? _q : 'black';
+    maskObject.cornerSize = (_r = config.cornerSize) !== null && _r !== void 0 ? _r : 8;
+    const styles = ((_s = resolvedConfig.styles) !== null && _s !== void 0 ? _s : {});
     if ('stroke' in styles) {
-        m.stroke = styles.stroke;
+        maskObject.stroke = styles.stroke;
     }
     else {
-        m.stroke = '#ccc';
+        maskObject.stroke = '#ccc';
     }
     if ('strokeWidth' in styles) {
-        m.strokeWidth = styles.strokeWidth;
+        maskObject.strokeWidth = styles.strokeWidth;
     }
     else {
-        m.strokeWidth = 1;
+        maskObject.strokeWidth = 1;
     }
     if ('strokeDashArray' in styles) {
-        m.strokeDashArray = styles.strokeDashArray;
+        maskObject.strokeDashArray = styles.strokeDashArray;
     }
-    m.originalAlpha = cfg.alpha;
-    const normalStyle = {
-        stroke: m.stroke,
-        strokeWidth: m.strokeWidth,
-        opacity: m.originalAlpha,
-    };
-    const hoverStyle = {
-        stroke: '#ff5500',
-        strokeWidth: 2,
-        opacity: Math.min(m.originalAlpha + 0.2, 1),
-    };
-    m.on('mouseover', () => {
-        var _a;
-        m.set(hoverStyle);
-        (_a = m.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
-    });
-    m.on('mouseout', () => {
-        var _a;
-        m.set(normalStyle);
-        (_a = m.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
-    });
+    maskObject.originalAlpha = resolvedConfig.alpha;
+    maskObject.originalStroke = maskObject.stroke;
+    maskObject.originalStrokeWidth = maskObject.strokeWidth;
+    attachMaskHoverHandlers(maskObject);
     const nextId = ctx.getMaskCounter() + 1;
     ctx.setMaskCounter(nextId);
-    m.maskId = nextId;
-    m.maskName = `${options.maskName}${nextId}`;
-    ctx.setLastMask(m);
-    canvas.add(m);
-    canvas.bringObjectToFront(m);
+    maskObject.maskId = nextId;
+    maskObject.maskName = `${options.maskName}${nextId}`;
+    ctx.setLastMask(maskObject);
+    canvas.add(maskObject);
+    canvas.bringObjectToFront(maskObject);
     ctx.updateMaskList();
-    if (cfg.selectable !== false) {
-        canvas.setActiveObject(m);
+    if (resolvedConfig.selectable !== false) {
+        canvas.setActiveObject(maskObject);
     }
     canvas.renderAll();
     ctx.saveCanvasState();
-    (_t = cfg.onCreate) === null || _t === void 0 ? void 0 : _t.call(cfg, m, canvas);
-    return m;
+    (_t = resolvedConfig.onCreate) === null || _t === void 0 ? void 0 : _t.call(resolvedConfig, maskObject, canvas);
+    return maskObject;
 }
 function removeSelectedMask(ctx) {
     const active = ctx.canvas.getActiveObject();
@@ -2118,9 +2153,9 @@ function removeAllMasks(ctx, options = {}) {
     const masks = ctx.canvas.getObjects().filter(isMaskObject);
     if (masks.length === 0)
         return;
-    for (const m of masks) {
-        ctx.removeLabelForMask(m);
-        ctx.canvas.remove(m);
+    for (const maskObject of masks) {
+        ctx.removeLabelForMask(maskObject);
+        ctx.canvas.remove(maskObject);
     }
     ctx.canvas.discardActiveObject();
     ctx.setLastMask(null);
@@ -2360,9 +2395,10 @@ const SUPPORTED_IMAGE_EXTENSIONS = {
     gif: 'image/gif',
     bmp: 'image/bmp',
 };
+const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
 function inferImageMimeType(file) {
     var _a, _b;
-    if (file.type && file.type.startsWith('image/'))
+    if (file.type && SUPPORTED_IMAGE_MIME_TYPES.has(file.type))
         return file.type;
     if (file.type)
         return null;
@@ -2388,6 +2424,9 @@ function readFileAsDataURL(file) {
             var _a;
             reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
         };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
         reader.readAsDataURL(file);
     });
 }
@@ -2401,6 +2440,27 @@ function resetFileInput(input) {
     }
 }
 
+const CROP_MODE_CONTROL_KEYS = [
+    'scaleRate',
+    'rotationLeftInput',
+    'rotationRightInput',
+    'rotateLeftBtn',
+    'rotateRightBtn',
+    'addMaskBtn',
+    'removeMaskBtn',
+    'removeAllMasksBtn',
+    'mergeBtn',
+    'downloadBtn',
+    'zoomInBtn',
+    'zoomOutBtn',
+    'resetBtn',
+    'undoBtn',
+    'redoBtn',
+    'imageInput',
+    'cropBtn',
+    'applyCropBtn',
+    'cancelCropBtn',
+];
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -2506,12 +2566,6 @@ class ImageEditor {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "maxHistorySize", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         Object.defineProperty(this, "_guard", {
             enumerable: true,
             configurable: true,
@@ -2568,10 +2622,9 @@ class ImageEditor {
         if (layoutConflict) {
             reportWarning(this.options, null, layoutConflict.message);
         }
-        this.maxHistorySize = 50;
         this._guard = new OperationGuard();
         this.animQueue = new AnimationQueue();
-        this.historyManager = new HistoryManager(this.maxHistorySize);
+        this.historyManager = new HistoryManager(this.options.maxHistorySize);
     }
     init(idMap = {}) {
         if (!this._fabricLoaded)
@@ -2732,6 +2785,7 @@ class ImageEditor {
             : null;
         const mime = inferImageMimeType(file);
         if (!mime) {
+            reportWarning(this.options, null, `Unsupported image file type: ${file.type || file.name || 'unknown'}.`);
             resetFileInput(inputEl);
             return;
         }
@@ -2758,8 +2812,8 @@ class ImageEditor {
             fabric: this._fabric,
             canvas: this.canvas,
             options: this.options,
-            containerEl: this.containerElement,
-            placeholderEl: this.placeholderElement,
+            containerElement: this.containerElement,
+            placeholderElement: this.placeholderElement,
             viewportCache: this._viewportCache,
             getOriginalImage: () => this.originalImage,
             setOriginalImage: v => { this.originalImage = v; },
@@ -2805,8 +2859,11 @@ class ImageEditor {
     _alignObjectBoundingBoxToCanvasTopLeft(obj) {
         var _a, _b;
         obj.setCoords();
-        const br = obj.getBoundingRect();
-        obj.set({ left: ((_a = obj.left) !== null && _a !== void 0 ? _a : 0) - br.left, top: ((_b = obj.top) !== null && _b !== void 0 ? _b : 0) - br.top });
+        const boundingRect = obj.getBoundingRect();
+        obj.set({
+            left: ((_a = obj.left) !== null && _a !== void 0 ? _a : 0) - boundingRect.left,
+            top: ((_b = obj.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
+        });
         obj.setCoords();
         this.canvas.renderAll();
     }
@@ -2814,14 +2871,17 @@ class ImageEditor {
         if (!this.originalImage)
             return;
         this.originalImage.setCoords();
-        const br = this.originalImage.getBoundingRect();
+        const boundingRect = this.originalImage.getBoundingRect();
         const containerW = this.containerElement ? Math.ceil(this.containerElement.clientWidth || 0) : 0;
         const containerH = this.containerElement ? Math.ceil(this.containerElement.clientHeight || 0) : 0;
-        if (containerW > 0 && containerH > 0 && br.width <= containerW && br.height <= containerH) {
+        if (containerW > 0 &&
+            containerH > 0 &&
+            boundingRect.width <= containerW &&
+            boundingRect.height <= containerH) {
             this._setCanvasSizeInt(containerW, containerH);
             return;
         }
-        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(br.width)), Math.max(containerH || 0, Math.floor(br.height)));
+        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(boundingRect.width)), Math.max(containerH || 0, Math.floor(boundingRect.height)));
     }
     _buildTransformContext() {
         return {
@@ -2844,7 +2904,7 @@ class ImageEditor {
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas.getObjects()
                     .filter(isMaskObject)
-                    .forEach(m => this._syncMaskLabel(m));
+                    .forEach(maskObject => this._syncMaskLabel(maskObject));
             },
         };
     }
@@ -2940,7 +3000,10 @@ class ImageEditor {
             this._lastSnapshot = result.jsonString;
             result.objects
                 .filter(isMaskObject)
-                .forEach(m => reattachMaskHoverHandlers(m));
+                .forEach(maskObject => {
+                applyMaskUnselectedStyle(maskObject);
+                reattachMaskHoverHandlers(maskObject);
+            });
             this.canvas.renderAll();
             this._updateInputs();
             this._updateMaskList();
@@ -3017,7 +3080,7 @@ class ImageEditor {
             canvas: this.canvas,
             options: this.options,
             getLastMask: () => this._lastMask,
-            setLastMask: (m) => { this._lastMask = m; },
+            setLastMask: (maskObject) => { this._lastMask = maskObject; },
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => { this.maskCounter = n; },
             updateMaskList: () => { this._updateMaskList(); },
@@ -3031,7 +3094,7 @@ class ImageEditor {
             removeLabelForMask: (mask) => { this._removeLabelForMask(mask); },
             updateMaskList: () => { this._updateMaskList(); },
             saveCanvasState: () => { this.saveState(); },
-            setLastMask: (m) => { this._lastMask = m; },
+            setLastMask: (maskObject) => { this._lastMask = maskObject; },
         };
     }
     _maskLabelContext() {
@@ -3075,21 +3138,21 @@ class ImageEditor {
             return;
         const selectedMask = (_a = selected.find(isMaskObject)) !== null && _a !== void 0 ? _a : null;
         const masks = this.canvas.getObjects().filter(isMaskObject);
-        masks.forEach(m => {
-            if (m !== selectedMask) {
-                if (m.__label) {
-                    this._removeLabelForMask(m);
+        masks.forEach(maskObject => {
+            if (maskObject !== selectedMask) {
+                if (maskObject.__label) {
+                    this._removeLabelForMask(maskObject);
                 }
-                m.set({ stroke: '#ccc', strokeWidth: 1 });
+                applyMaskUnselectedStyle(maskObject);
             }
             else {
-                m.set({ stroke: '#ff0000', strokeWidth: 1 });
+                applyMaskSelectedStyle(maskObject);
             }
         });
         if (selectedMask)
             this._showLabelForMask(selectedMask);
         this._updateMaskListSelection(selectedMask);
-        this.canvas.renderAll();
+        this.canvas.requestRenderAll();
         this._updateUI();
     }
     _maskListContext() {
@@ -3150,7 +3213,7 @@ class ImageEditor {
         return {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
-            containerEl: this.containerElement,
+            containerElement: this.containerElement,
             loadImage: (base64, opts) => this.loadImage(base64, opts),
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
@@ -3191,7 +3254,7 @@ class ImageEditor {
         cancelCrop(ctx);
         this._cropSession = null;
         this._updateUI();
-        this.canvas.renderAll();
+        this.canvas.requestRenderAll();
     }
     async applyCrop() {
         if (!this.canvas || !this._cropSession)
@@ -3244,14 +3307,15 @@ class ImageEditor {
         const inCrop = this._cropSession !== null;
         const isAnimating = this._guard.isAnimating();
         if (inCrop) {
-            Object.keys(this.elements).forEach(k => {
-                const id = this.elements[k];
+            CROP_MODE_CONTROL_KEYS.forEach(key => {
+                const id = this.elements[key];
                 if (!id)
                     return;
                 const el = document.getElementById(id);
-                if (!el)
+                if (!el || !('disabled' in el))
                     return;
-                el.disabled = !(k === 'applyCropBtn' || k === 'cancelCropBtn');
+                el.disabled =
+                    !(key === 'applyCropBtn' || key === 'cancelCropBtn');
             });
             return;
         }
@@ -3276,8 +3340,9 @@ class ImageEditor {
         if (!id)
             return;
         const el = document.getElementById(id);
-        if (el)
+        if (el && 'disabled' in el) {
             el.disabled = disabled;
+        }
     }
     _updatePlaceholderStatus() {
         if (!this.options.showPlaceholder)

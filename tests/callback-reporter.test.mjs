@@ -6,16 +6,16 @@
  *
  * Behaviors under test:
  *
- *   1. **Public `(error, message)` argument order (Req 3.8, 5.4, 5.5)** —
+ *   1. **Public `(error, message)` argument order** —
  *      both helpers forward the original error as the first callback
  *      argument and the human-readable message as the second.
  *   2. **No-callback no-op** — when `onWarning` / `onError` is missing or
  *      not a function, the helpers do nothing and do not throw.
- *   3. **Callback exception isolation (Req 5.4, 5.5)** — if the callback
+ *   3. **Callback exception isolation** — if the callback
  *      itself throws, the helper catches the exception and logs to
  *      `console.warn` (warning path) or `console.error` (error path),
  *      then returns normally.
- *   4. **Original error preservation (Req 5.5)** — `reportError` does not
+ *   4. **Original error preservation** — `reportError` does not
  *      rethrow on callback exception, so a caller that throws the
  *      original editor error after the helper returns observes that
  *      original error on the resulting promise — never the callback's.
@@ -138,7 +138,7 @@ test('reportWarning: catches callback exceptions and logs to console.warn', () =
     };
 
     const { warnCalls, errorCalls } = withConsoleSpies(() => {
-        // Must not propagate the callback's exception — Req 5.4.
+        // Must not propagate the callback's exception — the documented contract.
         assert.doesNotThrow(
             () => reportWarning(options, new Error('orig'), 'msg'),
             'reportWarning must swallow callback exceptions',
@@ -211,7 +211,7 @@ test('reportError: catches callback exceptions and logs to console.error', () =>
     };
 
     const { warnCalls, errorCalls } = withConsoleSpies(() => {
-        // Must not propagate the callback's exception — Req 5.5.
+        // Must not propagate the callback's exception — the documented contract.
         assert.doesNotThrow(
             () => reportError(options, new Error('orig'), 'msg'),
             'reportError must swallow callback exceptions',
@@ -228,7 +228,7 @@ test('reportError: catches callback exceptions and logs to console.error', () =>
         'reportError must not log to console.warn');
 });
 
-// ─── Original-error preservation (Req 5.5) ────────────────────────────────
+// ─── Original-error preservation ────────────────────────────────
 
 test('reportError: original editor error is not masked when callback throws', async () => {
     // Models the call shape in the image loader: we report the error,

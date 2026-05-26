@@ -25,9 +25,9 @@
 
 interface QueueEntry {
     /** The work to run; its returned promise settles this entry. */
-    fn:  () => Promise<void>;
+    fn: () => Promise<void>;
     /** Resolves the public promise returned by {@link AnimationQueue.add}. */
-    resolve:  () => void;
+    resolve: () => void;
     /** Rejects the public promise returned by {@link AnimationQueue.add}. */
     reject: (err: unknown) => void;
 }
@@ -122,9 +122,9 @@ export class AnimationQueue {
      * while {@link _process} is awaiting an entry's function; pending
      * entries that have not yet started do not count as running.
      */
-    isRunning(): boolean  {
+    isRunning(): boolean {
         return this.running;
-}
+    }
 
     /**
      * Resolves after the active entry and every currently pending entry
@@ -150,11 +150,11 @@ export class AnimationQueue {
     }
 
     /** @internal */
-    private async _process(): Promise<void>  {
+    private async _process(): Promise<void> {
         if (this.queue.length === 0) {
             this.running = false;
             return;
-}
+        }
 
         this.running = true;
         const entry = this.queue.shift()!;

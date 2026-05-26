@@ -1,6 +1,5 @@
-// Property 16: History pointer monotonicity and lock
+// History pointer monotonicity and lock
 //
-// Property statement (design.md §"Property 16"):
 //   For any sequence of command executions, pushes, undo calls, redo
 //   calls, overlapping calls, and max-size overflow,
 //   `HistoryManager.currentIndex` SHALL advance only after successful
@@ -12,7 +11,7 @@
 // This file exercises `src/history/history-manager.ts` directly so the
 // contract is verified in isolation from the rest of the editor:
 //
-//   16.1 Synchronous push/execute monotonicity (Req 17.2, 17.5).
+//   16.1 Synchronous push/execute monotonicity.
 //        For any sequence of execute() / push() calls with a random
 //        maxSize:
 //          - history.length === min(callCount, maxSize)
@@ -22,24 +21,24 @@
 //          - The most recent `min(callCount, maxSize)` commands are kept
 //            in enqueue order; older commands have been evicted.
 //
-//   16.2 Async undo/redo pointer tracking (Req 17.2, 17.3).
+//   16.2 Async undo/redo pointer tracking.
 //        Given a populated stack, a sequence of awaited undo() / redo()
 //        calls moves currentIndex by exactly -1 / +1 when the call is
 //        able to do work, and is a no-op otherwise. canUndo/canRedo
 //        always agree with the model.
 //
-//   16.3 Lock prevents overlapping work (Req 17.1).
+//   16.3 Lock prevents overlapping work.
 //        While a slow undo() is mid-await, a second undo() (or redo())
 //        invoked synchronously must resolve as a no-op without
 //        touching currentIndex. Once both settle, the net movement is
 //        the work the first call performed — exactly one step.
 //
-//   16.4 Failed undo/redo does not advance the pointer (Req 17.2, 17.3).
+//   16.4 Failed undo/redo does not advance the pointer.
 //        If `command.undo()` rejects, the public undo() promise rejects
 //        and currentIndex is unchanged; the lock is released so the
 //        next call can retry the same step.
 //
-//   16.5 Overflow eviction (Req 17.5).
+//   16.5 Overflow eviction.
 //        After pushing more than maxSize commands, history.length
 //        equals maxSize, currentIndex equals maxSize - 1, and the
 //        oldest (callCount - maxSize) commands have been evicted.
@@ -140,7 +139,7 @@ const smallDelayArb = fc.integer({ min: 0, max: 5 });
 
 // ─── Properties ────────────────────────────────────────────────────────────
 
-test('Property 16.1: synchronous execute/push monotonicity and overflow window', async () => {
+test('synchronous execute/push monotonicity and overflow window', async () => {
     await fc.assert(
         fc.asyncProperty(maxSizeArb, syncStepsArb, async (maxSize, steps) => {
             const hm = new HistoryManager(maxSize);
@@ -185,7 +184,7 @@ test('Property 16.1: synchronous execute/push monotonicity and overflow window',
                 );
 
                 // canUndo / canRedo correctness on every step
-                // (Req 17.1 implicit, design Property 16.5).
+                //.
                 assert.equal(
                     hm.canUndo(),
                     hm.currentIndex >= 0,
@@ -236,7 +235,7 @@ test('Property 16.1: synchronous execute/push monotonicity and overflow window',
     );
 });
 
-test('Property 16.2: async undo/redo move currentIndex by exactly ±1 per successful awaited call', async () => {
+test('async undo/redo move currentIndex by exactly ±1 per successful awaited call', async () => {
     await fc.assert(
         fc.asyncProperty(
             maxSizeArb,
@@ -320,8 +319,7 @@ test('Property 16.2: async undo/redo move currentIndex by exactly ±1 per succes
                     );
                 }
 
-                // Length never changes via undo/redo (Req 17.2, 17.3
-                // talk about pointer movement only).
+                // Length never changes via undo/redo.
                 assert.equal(
                     hm.history.length,
                     expectedLength,
@@ -333,7 +331,7 @@ test('Property 16.2: async undo/redo move currentIndex by exactly ±1 per succes
     );
 });
 
-test('Property 16.3: _processing lock makes overlapping undo/redo calls no-ops', async () => {
+test('_processing lock makes overlapping undo/redo calls no-ops', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.integer({ min: 2, max: 8 }),
@@ -450,7 +448,7 @@ test('Property 16.3: _processing lock makes overlapping undo/redo calls no-ops',
     );
 });
 
-test('Property 16.4: failed undo()/redo() leaves currentIndex unchanged and releases the lock', async () => {
+test('failed undo()/redo() leaves currentIndex unchanged and releases the lock', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.integer({ min: 1, max: 8 }),
@@ -501,7 +499,7 @@ test('Property 16.4: failed undo()/redo() leaves currentIndex unchanged and rele
                     `${failingOp}() must reject when the command body throws`,
                 );
 
-                // Pointer is unchanged — Req 17.2 / 17.3 say
+                // Pointer is unchanged — the documented contract say
                 // currentIndex only advances on successful awaited
                 // operations.
                 assert.equal(
@@ -547,7 +545,7 @@ test('Property 16.4: failed undo()/redo() leaves currentIndex unchanged and rele
     );
 });
 
-test('Property 16.5: overflow eviction keeps the last maxSize entries with currentIndex = maxSize - 1', async () => {
+test('overflow eviction keeps the last maxSize entries with currentIndex = maxSize - 1', async () => {
     await fc.assert(
         fc.asyncProperty(
             maxSizeArb,

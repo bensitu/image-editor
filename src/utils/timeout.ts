@@ -47,7 +47,7 @@
  *   coerced to a finite non-negative number.
  */
 
-import { ImageLoadTimeoutError} from '../core/errors.js';
+import { ImageLoadTimeoutError } from '../core/errors.js';
 
 /**
  * Race a promise against a timer. If the timer fires first, reject with
@@ -55,9 +55,8 @@ import { ImageLoadTimeoutError} from '../core/errors.js';
  * elapsed milliseconds. If the wrapped promise settles
  * first, the timer is cleared and the original outcome is forwarded.
  *
- * Used by `image/image-loader.ts` to bound the decode step (Requirement
- * 7.1) and the `FabricImage.fromURL` step of
- * `loadImage`.
+ * Used by `image/image-loader.ts` to bound both the decode step and the
+ * `FabricImage.fromURL` step of `loadImage`.
  *
  * @example
  * ```ts
@@ -93,19 +92,19 @@ export function withTimeout<T>(
 ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const start = Date.now();
-        const timeoutId = setTimeout( () => {
+        const timeoutId = setTimeout(() => {
             reject(new ImageLoadTimeoutError(label, Date.now() - start));
-}, ms);
+        }, ms);
 
         promise.then(
             (value) => {
                 clearTimeout(timeoutId);
                 resolve(value);
-},
+            },
             (err: unknown) => {
                 clearTimeout(timeoutId);
                 reject(err);
-},
-);
-});
+            },
+        );
+    });
 }

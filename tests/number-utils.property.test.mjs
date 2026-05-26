@@ -1,6 +1,5 @@
-// Property 18: Axis-aware percentage resolution
+// Axis-aware percentage resolution
 //
-// Property statement (design.md §"Property 18"):
 //   For any numeric, percentage-string, or function-valued
 //   `MaskNumericProp`, resolution SHALL use canvas width for x-axis
 //   properties and canvas height for y-axis properties. Function-valued
@@ -11,7 +10,7 @@
 //
 // This test only exercises the `utils/number.ts` half of the contract
 // (the mask-factory wiring is covered by Properties 17 and 19). It also
-// covers the `coercePoint` helper (Requirement 21.2) because both
+// covers the `coercePoint` helper because both
 // helpers ship in the same module and are consumed together by the
 // mask-factory pipeline.
 //
@@ -90,9 +89,9 @@ const fallbackNumberArb = fc.integer({ min: -1000, max: 1000 });
 
 const axisArb = fc.constantFrom('x', 'y');
 
-// ─── Property 18.1: Number passthrough ─────────────────────────────────────
+// ─── Number passthrough ─────────────────────────────────────
 
-test('Property 18.1: number passthrough is identity (Req 20.1, 20.2)', () => {
+test('number passthrough is identity', () => {
     fc.assert(
         fc.property(
             finiteNumberArb,
@@ -116,9 +115,9 @@ test('Property 18.1: number passthrough is identity (Req 20.1, 20.2)', () => {
     );
 });
 
-// ─── Property 18.2: Percentage axis-correctness ────────────────────────────
+// ─── Percentage axis-correctness ────────────────────────────
 
-test('Property 18.2a: x-axis percentage resolves against canvas width (Req 20.1)', () => {
+test('x-axis percentage resolves against canvas width', () => {
     fc.assert(
         fc.property(
             percentArb,
@@ -142,7 +141,7 @@ test('Property 18.2a: x-axis percentage resolves against canvas width (Req 20.1)
     );
 });
 
-test('Property 18.2b: y-axis percentage resolves against canvas height (Req 20.2)', () => {
+test('y-axis percentage resolves against canvas height', () => {
     fc.assert(
         fc.property(
             percentArb,
@@ -166,9 +165,9 @@ test('Property 18.2b: y-axis percentage resolves against canvas height (Req 20.2
     );
 });
 
-// ─── Property 18.3: Function values forwarded with (canvas, options) ──────
+// ─── Function values forwarded with (canvas, options) ──────
 
-test('Property 18.3: function values invoked with (canvas, options) (Req 20.3)', () => {
+test('function values invoked with (canvas, options)', () => {
     fc.assert(
         fc.property(
             finiteNumberArb,
@@ -191,7 +190,7 @@ test('Property 18.3: function values invoked with (canvas, options) (Req 20.3)',
                 assert.equal(out, returnValue);
 
                 // Function called exactly once with the editor's canvas and
-                // options (Requirement 20.3 — `(canvas, ResolvedOptions)`).
+                // options`).
                 assert.equal(calls.length, 1, 'factory must be invoked exactly once');
                 assert.equal(calls[0].c, canvas, 'factory must receive the canvas argument');
                 assert.equal(calls[0].o, opts, 'factory must receive the resolved options');
@@ -202,9 +201,9 @@ test('Property 18.3: function values invoked with (canvas, options) (Req 20.3)',
     );
 });
 
-// ─── Property 18.4: Fallback for unknown values ───────────────────────────
+// ─── Fallback for unknown values ───────────────────────────
 
-test('Property 18.4: unknown value forms return fallback', () => {
+test('unknown value forms return fallback', () => {
     fc.assert(
         fc.property(
             fallbackInputArb,
@@ -228,7 +227,7 @@ test('Property 18.4: unknown value forms return fallback', () => {
     );
 });
 
-test('Property 18.4 boundary: NaN and malformed percent strings fall back', () => {
+test('boundary: NaN and malformed percent strings fall back', () => {
     const canvas = mockCanvas(800, 600);
     const opts = mockOptions('boundary');
     // NaN is not `typeof === 'number'` … actually it is. The contract says
@@ -245,9 +244,9 @@ test('Property 18.4 boundary: NaN and malformed percent strings fall back', () =
     assert.equal(resolveNumeric('123', 'x', 42, canvas, opts), 42);
 });
 
-// ─── Property 5 (companion): coercePoint round-trip (Req 21.2) ────────────
+// ─── (companion): coercePoint round-trip ────────────
 
-test('Property 21.2: coercePoint accepts {x,y} and [x,y] uniformly', () => {
+test('coercePoint accepts {x,y} and [x,y] uniformly', () => {
     fc.assert(
         fc.property(finiteNumberArb, finiteNumberArb, (x, y) => {
             const fromObject = coercePoint({ x, y });
@@ -265,7 +264,7 @@ test('Property 21.2: coercePoint accepts {x,y} and [x,y] uniformly', () => {
     );
 });
 
-test('Property 21.2 boundary: coercePoint coerces string-encoded numerics', () => {
+test('boundary: coercePoint coerces string-encoded numerics', () => {
     fc.assert(
         fc.property(
             fc.integer({ min: -1000, max: 1000 }),

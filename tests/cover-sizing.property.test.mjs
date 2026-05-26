@@ -1,6 +1,5 @@
-// Property 6: Cover sizing math
+// Cover sizing math
 //
-// Property statement (design.md §"Property 6"):
 //   For any image dimensions and visible container viewport dimensions,
 //   the cover layout path SHALL size the canvas to the viewport and
 //   SHALL scale the image high enough to cover the viewport on both
@@ -13,21 +12,21 @@
 //
 // Sub-properties exercised here:
 //
-//   6.1 Canvas matches viewport (Req 9.4): `out.canvasWidth ===
+//   6.1 Canvas matches viewport: `out.canvasWidth ===
 //       container.width || optionsCanvasWidth` — the cover path tracks
 //       the visible viewport when an axis is non-zero, falling back to
 //       the configured canvas dimension when the axis reads zero.
 //       Same invariant on the height axis.
-//   6.2 Image scales up if needed (Req 9.4): when the image is strictly
+//   6.2 Image scales up if needed: when the image is strictly
 //       smaller than the canvas on both axes, `out.imageScale > 1`.
-//   6.3 Cover fills both axes (Req 9.4): for every input,
+//   6.3 Cover fills both axes: for every input,
 //       `out.imageScale * imageWidth >= out.canvasWidth` and
 //       `out.imageScale * imageHeight >= out.canvasHeight`, with a
 //       small absolute tolerance for IEEE-754 division rounding.
-//   6.4 Aspect-preserving (Req 9.4): the result exposes a single
+//   6.4 Aspect-preserving: the result exposes a single
 //       uniform `imageScale` (no `scaleX` / `scaleY` split) and
 //       `baseImageScale` mirrors `imageScale` for cover layout.
-//   6.5 No upper cap (Req 9.4): the scale formula
+//   6.5 No upper cap: the scale formula
 //       `max(cw / imgW, ch / imgH)` is **not** clamped at `1`. When the
 //       image is much smaller than the canvas, the scale grows in
 //       proportion to the canvas-to-image ratio rather than saturating
@@ -111,9 +110,9 @@ const imageStrictlySmallerArb = fc
 // failing on rounding noise.
 const FILL_TOLERANCE = 1e-9;
 
-// ─── Property 6.1: canvas matches viewport (with options fallback) ─────────
+// ─── canvas matches viewport (with options fallback) ─────────
 
-test('Property 6.1: canvas tracks the visible viewport, falling back to options on a zero axis (Req 9.4)', () => {
+test('canvas tracks the visible viewport, falling back to options on a zero axis', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
             const out = computeCoverLayout(
@@ -149,9 +148,9 @@ test('Property 6.1: canvas tracks the visible viewport, falling back to options 
     );
 });
 
-// ─── Property 6.2: image scales up when smaller than canvas ────────────────
+// ─── image scales up when smaller than canvas ────────────────
 
-test('Property 6.2: image strictly smaller than the canvas on both axes yields imageScale > 1 (Req 9.4)', () => {
+test('image strictly smaller than the canvas on both axes yields imageScale > 1', () => {
     fc.assert(
         fc.property(imageStrictlySmallerArb, (input) => {
             const out = computeCoverLayout(
@@ -175,9 +174,9 @@ test('Property 6.2: image strictly smaller than the canvas on both axes yields i
     );
 });
 
-// ─── Property 6.3: cover fills both axes ───────────────────────────────────
+// ─── cover fills both axes ───────────────────────────────────
 
-test('Property 6.3: imageScale * imgW >= canvasWidth and imageScale * imgH >= canvasHeight (Req 9.4)', () => {
+test('imageScale * imgW >= canvasWidth and imageScale * imgH >= canvasHeight', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
             const out = computeCoverLayout(
@@ -211,9 +210,9 @@ test('Property 6.3: imageScale * imgW >= canvasWidth and imageScale * imgH >= ca
     );
 });
 
-// ─── Property 6.4: aspect-preserving (uniform scale) ───────────────────────
+// ─── aspect-preserving (uniform scale) ───────────────────────
 
-test('Property 6.4: imageScale is a single uniform scalar, no scaleX/scaleY split (Req 9.4)', () => {
+test('imageScale is a single uniform scalar, no scaleX/scaleY split', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
             const out = computeCoverLayout(
@@ -251,9 +250,9 @@ test('Property 6.4: imageScale is a single uniform scalar, no scaleX/scaleY spli
     );
 });
 
-// ─── Property 6.5: no upper cap on imageScale ──────────────────────────────
+// ─── no upper cap on imageScale ──────────────────────────────
 
-test('Property 6.5: imageScale is not capped at 1 — it grows with the canvas-to-image ratio (Req 9.4)', () => {
+test('imageScale is not capped at 1 — it grows with the canvas-to-image ratio', () => {
     fc.assert(
         fc.property(imageStrictlySmallerArb, (input) => {
             const out = computeCoverLayout(

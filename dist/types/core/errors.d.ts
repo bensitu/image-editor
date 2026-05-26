@@ -7,16 +7,7 @@
  * callers can discriminate via `instanceof` or `err.name` checks. The
  * hierarchy is intentionally flat — there is no shared `ImageEditorError`
  * base class — to keep `name`/message contracts independent per pipeline
- * and to mirror the design's Error Handling section.
- *
- * Requirement references:
- *   - 4.3  Fabric module unavailable at construction time.
- *   - 6.3  Transactional image-load failure (decode / Fabric / downsample).
- *   - 7.3  Decode or `FabricImage.fromURL` timeout (message includes ms).
- *   - 8.4  Offscreen-canvas 2D context unavailable for downsampling.
- *   - 25.4 Export attempted when no image is loaded.
- *   - 29.3 `mergeMasks` atomic failure (pre-merge snapshot restored).
- *   - 30.3 `applyCrop` atomic failure (pre-crop snapshot restored).
+ * and to keep name/message contracts independent per pipeline.
  *
  * These classes are internal to the package and are NOT re-exported from
  * `src/index.ts`. Consumers see them via promise rejections from public

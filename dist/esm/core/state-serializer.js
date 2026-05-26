@@ -5,6 +5,8 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'isCropRect',
     'maskLabel',
     'originalAlpha',
+    'originalStroke',
+    'originalStrokeWidth',
 ];
 export function saveState(input) {
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
@@ -51,7 +53,7 @@ export async function loadFromState(input) {
         : null;
     const maxMaskId = objects
         .filter(isMaskObject)
-        .reduce((max, m) => Math.max(max, m.maskId), 0);
+        .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
     const originalImage = ((_b = objects.find(o => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
     return {
         editorState,
@@ -63,28 +65,39 @@ export async function loadFromState(input) {
 }
 function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d, _e;
+    const consumedCanvasIndexes = new Set();
     for (const jObj of jsonObjs) {
         if (typeof jObj.maskId !== 'number')
             continue;
         const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
         const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
         const jTop = Number((_c = jObj.top) !== null && _c !== void 0 ? _c : 0);
-        const match = canvasObjs.find(o => {
+        const matchIndex = canvasObjs.findIndex((o, index) => {
             var _a, _b;
+            if (consumedCanvasIndexes.has(index))
+                return false;
             if (jType && o.type !== jType)
                 return false;
             return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
                 Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5);
         });
-        if (!match)
+        if (matchIndex < 0)
             continue;
-        const m = match;
-        m.maskId = jObj.maskId;
-        m.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
-        m.originalAlpha =
+        consumedCanvasIndexes.add(matchIndex);
+        const match = canvasObjs[matchIndex];
+        const maskObject = match;
+        maskObject.maskId = jObj.maskId;
+        maskObject.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
+        maskObject.originalAlpha =
             typeof jObj.originalAlpha === 'number'
                 ? jObj.originalAlpha
-                : ((_e = m.opacity) !== null && _e !== void 0 ? _e : 0.5);
+                : ((_e = maskObject.opacity) !== null && _e !== void 0 ? _e : 0.5);
+        if ('originalStroke' in jObj) {
+            maskObject.originalStroke = jObj.originalStroke;
+        }
+        if (typeof jObj.originalStrokeWidth === 'number') {
+            maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
     }
     jsonObjs.forEach((jObj, idx) => {
         if (jObj.maskLabel !== true)

@@ -14,10 +14,31 @@ import { TransformController, } from './image/transform-controller.js';
 import { createMask as createMaskImpl, removeAllMasks as removeAllMasksImpl, removeSelectedMask as removeSelectedMaskImpl, } from './mask/mask-factory.js';
 import { createLabelForMask, hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
 import { renderMaskList, updateMaskListSelection, } from './mask/mask-list.js';
-import { reattachMaskHoverHandlers } from './mask/mask-style.js';
+import { applyMaskSelectedStyle, applyMaskUnselectedStyle, reattachMaskHoverHandlers, } from './mask/mask-style.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
 import { inferImageMimeType, readFileAsDataURL, resetFileInput, } from './utils/file.js';
+const CROP_MODE_CONTROL_KEYS = [
+    'scaleRate',
+    'rotationLeftInput',
+    'rotationRightInput',
+    'rotateLeftBtn',
+    'rotateRightBtn',
+    'addMaskBtn',
+    'removeMaskBtn',
+    'removeAllMasksBtn',
+    'mergeBtn',
+    'downloadBtn',
+    'zoomInBtn',
+    'zoomOutBtn',
+    'resetBtn',
+    'undoBtn',
+    'redoBtn',
+    'imageInput',
+    'cropBtn',
+    'applyCropBtn',
+    'cancelCropBtn',
+];
 export class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -123,12 +144,6 @@ export class ImageEditor {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "maxHistorySize", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         Object.defineProperty(this, "_guard", {
             enumerable: true,
             configurable: true,
@@ -185,10 +200,9 @@ export class ImageEditor {
         if (layoutConflict) {
             reportWarning(this.options, null, layoutConflict.message);
         }
-        this.maxHistorySize = 50;
         this._guard = new OperationGuard();
         this.animQueue = new AnimationQueue();
-        this.historyManager = new HistoryManager(this.maxHistorySize);
+        this.historyManager = new HistoryManager(this.options.maxHistorySize);
     }
     init(idMap = {}) {
         if (!this._fabricLoaded)
@@ -349,6 +363,7 @@ export class ImageEditor {
             : null;
         const mime = inferImageMimeType(file);
         if (!mime) {
+            reportWarning(this.options, null, `Unsupported image file type: ${file.type || file.name || 'unknown'}.`);
             resetFileInput(inputEl);
             return;
         }
@@ -375,8 +390,8 @@ export class ImageEditor {
             fabric: this._fabric,
             canvas: this.canvas,
             options: this.options,
-            containerEl: this.containerElement,
-            placeholderEl: this.placeholderElement,
+            containerElement: this.containerElement,
+            placeholderElement: this.placeholderElement,
             viewportCache: this._viewportCache,
             getOriginalImage: () => this.originalImage,
             setOriginalImage: v => { this.originalImage = v; },
@@ -422,8 +437,11 @@ export class ImageEditor {
     _alignObjectBoundingBoxToCanvasTopLeft(obj) {
         var _a, _b;
         obj.setCoords();
-        const br = obj.getBoundingRect();
-        obj.set({ left: ((_a = obj.left) !== null && _a !== void 0 ? _a : 0) - br.left, top: ((_b = obj.top) !== null && _b !== void 0 ? _b : 0) - br.top });
+        const boundingRect = obj.getBoundingRect();
+        obj.set({
+            left: ((_a = obj.left) !== null && _a !== void 0 ? _a : 0) - boundingRect.left,
+            top: ((_b = obj.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
+        });
         obj.setCoords();
         this.canvas.renderAll();
     }
@@ -431,14 +449,17 @@ export class ImageEditor {
         if (!this.originalImage)
             return;
         this.originalImage.setCoords();
-        const br = this.originalImage.getBoundingRect();
+        const boundingRect = this.originalImage.getBoundingRect();
         const containerW = this.containerElement ? Math.ceil(this.containerElement.clientWidth || 0) : 0;
         const containerH = this.containerElement ? Math.ceil(this.containerElement.clientHeight || 0) : 0;
-        if (containerW > 0 && containerH > 0 && br.width <= containerW && br.height <= containerH) {
+        if (containerW > 0 &&
+            containerH > 0 &&
+            boundingRect.width <= containerW &&
+            boundingRect.height <= containerH) {
             this._setCanvasSizeInt(containerW, containerH);
             return;
         }
-        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(br.width)), Math.max(containerH || 0, Math.floor(br.height)));
+        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(boundingRect.width)), Math.max(containerH || 0, Math.floor(boundingRect.height)));
     }
     _buildTransformContext() {
         return {
@@ -461,7 +482,7 @@ export class ImageEditor {
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas.getObjects()
                     .filter(isMaskObject)
-                    .forEach(m => this._syncMaskLabel(m));
+                    .forEach(maskObject => this._syncMaskLabel(maskObject));
             },
         };
     }
@@ -557,7 +578,10 @@ export class ImageEditor {
             this._lastSnapshot = result.jsonString;
             result.objects
                 .filter(isMaskObject)
-                .forEach(m => reattachMaskHoverHandlers(m));
+                .forEach(maskObject => {
+                applyMaskUnselectedStyle(maskObject);
+                reattachMaskHoverHandlers(maskObject);
+            });
             this.canvas.renderAll();
             this._updateInputs();
             this._updateMaskList();
@@ -634,7 +658,7 @@ export class ImageEditor {
             canvas: this.canvas,
             options: this.options,
             getLastMask: () => this._lastMask,
-            setLastMask: (m) => { this._lastMask = m; },
+            setLastMask: (maskObject) => { this._lastMask = maskObject; },
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => { this.maskCounter = n; },
             updateMaskList: () => { this._updateMaskList(); },
@@ -648,7 +672,7 @@ export class ImageEditor {
             removeLabelForMask: (mask) => { this._removeLabelForMask(mask); },
             updateMaskList: () => { this._updateMaskList(); },
             saveCanvasState: () => { this.saveState(); },
-            setLastMask: (m) => { this._lastMask = m; },
+            setLastMask: (maskObject) => { this._lastMask = maskObject; },
         };
     }
     _maskLabelContext() {
@@ -692,21 +716,21 @@ export class ImageEditor {
             return;
         const selectedMask = (_a = selected.find(isMaskObject)) !== null && _a !== void 0 ? _a : null;
         const masks = this.canvas.getObjects().filter(isMaskObject);
-        masks.forEach(m => {
-            if (m !== selectedMask) {
-                if (m.__label) {
-                    this._removeLabelForMask(m);
+        masks.forEach(maskObject => {
+            if (maskObject !== selectedMask) {
+                if (maskObject.__label) {
+                    this._removeLabelForMask(maskObject);
                 }
-                m.set({ stroke: '#ccc', strokeWidth: 1 });
+                applyMaskUnselectedStyle(maskObject);
             }
             else {
-                m.set({ stroke: '#ff0000', strokeWidth: 1 });
+                applyMaskSelectedStyle(maskObject);
             }
         });
         if (selectedMask)
             this._showLabelForMask(selectedMask);
         this._updateMaskListSelection(selectedMask);
-        this.canvas.renderAll();
+        this.canvas.requestRenderAll();
         this._updateUI();
     }
     _maskListContext() {
@@ -767,7 +791,7 @@ export class ImageEditor {
         return {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
-            containerEl: this.containerElement,
+            containerElement: this.containerElement,
             loadImage: (base64, opts) => this.loadImage(base64, opts),
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
@@ -808,7 +832,7 @@ export class ImageEditor {
         cancelCropImpl(ctx);
         this._cropSession = null;
         this._updateUI();
-        this.canvas.renderAll();
+        this.canvas.requestRenderAll();
     }
     async applyCrop() {
         if (!this.canvas || !this._cropSession)
@@ -861,14 +885,15 @@ export class ImageEditor {
         const inCrop = this._cropSession !== null;
         const isAnimating = this._guard.isAnimating();
         if (inCrop) {
-            Object.keys(this.elements).forEach(k => {
-                const id = this.elements[k];
+            CROP_MODE_CONTROL_KEYS.forEach(key => {
+                const id = this.elements[key];
                 if (!id)
                     return;
                 const el = document.getElementById(id);
-                if (!el)
+                if (!el || !('disabled' in el))
                     return;
-                el.disabled = !(k === 'applyCropBtn' || k === 'cancelCropBtn');
+                el.disabled =
+                    !(key === 'applyCropBtn' || key === 'cancelCropBtn');
             });
             return;
         }
@@ -893,8 +918,9 @@ export class ImageEditor {
         if (!id)
             return;
         const el = document.getElementById(id);
-        if (el)
+        if (el && 'disabled' in el) {
             el.disabled = disabled;
+        }
     }
     _updatePlaceholderStatus() {
         if (!this.options.showPlaceholder)

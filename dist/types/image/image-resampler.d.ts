@@ -19,15 +19,6 @@
  *     2D context so the loader can replay its rollback
  *     bundle transactionally.
  *
- * Requirement references:
- *   - 8.1  Aspect-preserving downsampling against `(maxW, maxH)` bounds.
- *   - 8.2  PNG/WebP source preserves source MIME only when
- *          `preserveSourceFormat` is `true` and `downsampleMimeType` is unset.
- *   - 8.3  JPEG, `preserveSourceFormat: false`, or explicit override resolves
- *          to the configured MIME using `downsampleQuality`.
- *   - 8.4  Throw {@link DownsampleError} when the offscreen canvas cannot get
- *          a 2D context (so `image-loader.ts` rolls back transactionally).
- *
  * This module is internal — it is NOT re-exported from `src/index.ts`.
  */
 import type { ImageMimeType } from '../core/public-types.js';

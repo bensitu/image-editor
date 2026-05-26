@@ -20,12 +20,10 @@
  *
  * ## Why a dedicated module
  *
- * Per the design's "Mapping requirements to modules" table, callback
- * isolation is owned by `core/callback-reporter.ts` rather than by the
- * operation guard or the orchestrator. Co-locating warning/error reporting
- * here gives every pipeline (image loader, transform controller, export
- * service, crop controller, history manager) a single, side-effect-light
- * helper to call when something goes wrong.
+ * Callback isolation is owned here rather than by the operation guard or
+ * the orchestrator. Co-locating warning/error reporting gives every
+ * pipeline a single, side-effect-light helper to call when something goes
+ * wrong.
  *
  * ## Non-goals
  *

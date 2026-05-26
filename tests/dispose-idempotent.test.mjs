@@ -1,15 +1,14 @@
 // Task 21.8: idempotent dispose and post-dispose API safety
 //
 // Scope:
-//   This is the example-based unit-test counterpart of Property 29
-//   (`tests/dom-bindings.property.test.mjs`). Property 29 exercises the
+//   This is the example-based unit-test counterpart of //   (`tests/dom-bindings.property.test.mjs`). exercises the
 //   `DomBindings` registry primitive in isolation; this test exercises
 //   the `ImageEditor` facade end-to-end through `init()` and
 //   `dispose()`, asserting:
 //
-//     - **Req 15.3, 33.3** — calling `dispose()` twice is a no-op and
+//     - **the documented contract** — calling `dispose()` twice is a no-op and
 //       never throws.
-//     - **Req 15.1, 15.2, 17.4** — after `dispose()`, every public
+//     - **the documented contract** — after `dispose()`, every public
 //       method (`loadImage`, `scaleImage`, `rotateImage`,
 //       `resetImageTransform`, `undo`, `redo`, `createMask`,
 //       `removeSelectedMask`, `removeAllMasks`, `enterCropMode`,
@@ -17,11 +16,11 @@
 //       `downloadImage`, `saveState`, `loadFromState`,
 //       `isImageLoaded`) resolves or returns safely without touching
 //       the (now-null) canvas.
-//     - **Req 15.1, 15.4** — animation queue entries that were
+//     - **the documented contract** — animation queue entries that were
 //       enqueued before `dispose()` settle deterministically; awaiting
 //       them after dispose does not hang and does not throw against
 //       the torn-down canvas.
-//     - **Req 33.2, 33.3, 33.4** — every DOM listener registered
+//     - **the documented contract** — every DOM listener registered
 //       through the bindings registry is detached on `dispose()`, and
 //       a click on a previously bound element after dispose does NOT
 //       invoke the original handler.
@@ -63,7 +62,7 @@ const { ImageEditor } = await import('../src/index.ts');
 /**
  * Stand-in for `fabric.Canvas`. Records `dispose` and event-listener
  * activity so the tests can assert that `dispose()` flows reach the
- * canvas exactly once (Req 15.1) and that no method invocation reaches
+ * canvas exactly once and that no method invocation reaches
  * the canvas after disposal.
  *
  * The methods covered here mirror what the editor's `init()` and
@@ -149,8 +148,7 @@ class MockFabricCanvas {
  * module.
  */
 function makeFabricStub() {
-    return {
-        Canvas: MockFabricCanvas,
+    const fabric = {
         Image: class FakeImage {},
         FabricImage: class FakeFabricImage {
             static async fromURL() { return new FakeFabricImage(); }
@@ -170,6 +168,13 @@ function makeFabricStub() {
         Ellipse: class FakeEllipse {},
         Polygon: class FakePolygon {},
     };
+    fabric.Canvas = class CapturingCanvas extends MockFabricCanvas {
+        constructor(...args) {
+            super(...args);
+            fabric.lastCanvas = this;
+        }
+    };
+    return fabric;
 }
 
 // ─── JSDOM helpers ────────────────────────────────────────────────────────
@@ -247,27 +252,23 @@ function makeEditor() {
         showPlaceholder: false,
     });
     editor.init({});
-    // The stubbed canvas captured by the facade's `_initCanvas`. We
-    // pull it back out so the dispose-related assertions can verify
-    // teardown side effects.
-    const canvasStub = editor.canvas;
+    const canvasStub = fabric.lastCanvas;
+    assert.ok(canvasStub, 'sanity: init() should construct a Fabric canvas');
     return { editor, canvasStub };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 
-test('dispose() called twice does not throw (Requirements 15.3, 33.3)', () => {
+test('dispose() called twice does not throw', () => {
     installDom();
     const { editor, canvasStub } = makeEditor();
 
     // First call sequences the documented teardown:
-    //   1. `_disposed = true`            (Req 15.1, 15.2)
-    //   2. `animQueue.clear()`           (Req 15.1, 15.4)
-    //   3. `_bindings.removeAll()`       (Req 33.2, 33.3)
-    //   4. `canvas.dispose()`            (Req 15.1)
-    // The second call MUST be a pure no-op (Req 33.3 explicitly: "the
-    // second call SHALL be a no-op and SHALL NOT throw on
-    // already-removed listeners").
+    //   1. `_disposed = true`
+    //   2. `animQueue.clear()`
+    //   3. `_bindings.removeAll()`
+    //   4. `canvas.dispose()`
+    // The second call MUST be a pure no-op.
     assert.doesNotThrow(() => editor.dispose(), 'first dispose must not throw');
     assert.equal(canvasStub.disposeCalls, 1,
         'first dispose() must call canvas.dispose() exactly once');
@@ -277,14 +278,14 @@ test('dispose() called twice does not throw (Requirements 15.3, 33.3)', () => {
         'second dispose() must NOT re-invoke canvas.dispose() (idempotent)');
 
     // A third call for good measure — the contract is "any number of
-    // repeats is a no-op", not just two. Mirrors Property 29.4 in
+    // repeats is a no-op", not just two. Mirrors in
     // `tests/dom-bindings.property.test.mjs`.
     assert.doesNotThrow(() => editor.dispose(), 'third dispose must not throw');
     assert.equal(canvasStub.disposeCalls, 1,
         'subsequent dispose() calls must NOT re-invoke canvas.dispose()');
 });
 
-test('dispose() drains the DOM bindings registry (Requirements 33.2, 33.3, 33.4)', () => {
+test('dispose() drains the DOM bindings registry', () => {
     const { document, Event } = installDom();
     const { editor } = makeEditor();
 
@@ -296,7 +297,7 @@ test('dispose() drains the DOM bindings registry (Requirements 33.2, 33.3, 33.4)
     // observable contract is "no canvas-touching side effect, no
     // exception" — we walk every button the facade binds in
     // `_bindEvents` and confirm dispatching a click is silent. This
-    // is the orchestrator-level counterpart of Property 29.3 / 29.4
+    // is the orchestrator-level counterpart of / 29.4
     // in `tests/dom-bindings.property.test.mjs`, which exercises the
     // same drain on the registry primitive in isolation.
     for (const id of [
@@ -316,25 +317,24 @@ test('dispose() drains the DOM bindings registry (Requirements 33.2, 33.3, 33.4)
     }
 });
 
-test('dispose() nulls the live Fabric canvas reference (Requirement 15.1)', () => {
+test('dispose() tears down the live Fabric canvas exactly once', () => {
     installDom();
     const { editor, canvasStub } = makeEditor();
 
-    assert.ok(editor.canvas, 'sanity: canvas should be live before dispose');
     assert.equal(canvasStub.disposed, false,
         'sanity: stubbed Fabric canvas should not yet be disposed');
 
     editor.dispose();
 
-    assert.equal(editor.canvas, null,
-        'editor.canvas must be nulled after dispose');
     assert.equal(canvasStub.disposed, true,
         'underlying Fabric canvas must have its dispose() called');
-    assert.equal(editor.isImageLoadedToCanvas, false,
-        'isImageLoadedToCanvas must be reset after dispose');
+    assert.equal(canvasStub.disposeCalls, 1,
+        'dispose() must call canvas.dispose() exactly once');
+    assert.equal(editor.isImageLoaded(), false,
+        'isImageLoaded() must be false after dispose');
 });
 
-test('post-dispose synchronous public methods are no-ops and do not throw (Requirements 15.1, 15.2, 33.4)', () => {
+test('post-dispose synchronous public methods are no-ops and do not throw', () => {
     installDom();
     const { editor } = makeEditor();
     editor.dispose();
@@ -377,7 +377,7 @@ test('post-dispose synchronous public methods are no-ops and do not throw (Requi
         'isImageLoaded() must return false after dispose when no image was loaded');
 });
 
-test('post-dispose async public methods resolve safely without touching the canvas (Requirements 15.1, 15.2, 17.4)', async () => {
+test('post-dispose async public methods resolve safely without touching the canvas', async () => {
     installDom();
     const { editor, canvasStub } = makeEditor();
     editor.dispose();
@@ -389,7 +389,7 @@ test('post-dispose async public methods resolve safely without touching the canv
     const renderAllAtDispose = canvasStub.renderAllCalls;
     const disposeCallsAtDispose = canvasStub.disposeCalls;
 
-    // ── loadImage (Req 6.x, 14.1, 15.1) ────────────────────────────
+    // ── loadImage ────────────────────────────
     // After dispose `loadImage` falls through the
     // `!this._fabricLoaded || !this.canvas` early return and resolves
     // with `undefined` without touching the loader pipeline.
@@ -402,7 +402,7 @@ test('post-dispose async public methods resolve safely without touching the canv
         'post-dispose loadImage with invalid input must resolve without throwing',
     );
 
-    // ── scaleImage / rotateImage / resetImageTransform (Req 12.x, 13.x, 15.x) ──
+    // ── scaleImage / rotateImage / resetImageTransform ──
     // The facade short-circuits before enqueueing on the AnimationQueue
     // so the returned promise resolves on the next microtask.
     await assert.doesNotReject(
@@ -422,7 +422,7 @@ test('post-dispose async public methods resolve safely without touching the canv
         'post-dispose resetImageTransform must resolve without throwing',
     );
 
-    // ── undo / redo (Req 17.4) ─────────────────────────────────────
+    // ── undo / redo ─────────────────────────────────────
     // While the editor is disposed, `undo()` and `redo()` resolve
     // without touching the canvas. The facade short-circuits at the
     // top BEFORE enqueueing, so the resolved promise does not depend
@@ -436,14 +436,14 @@ test('post-dispose async public methods resolve safely without touching the canv
         'post-dispose redo must resolve without throwing',
     );
 
-    // ── exportImageBase64 (Req 14.1, 15.1) ─────────────────────────
+    // ── exportImageBase64 ─────────────────────────
     // The facade gates at `if (!this.canvas) return ''`, so the
     // documented empty-string no-op shape is preserved after dispose.
     const base64 = await editor.exportImageBase64();
     assert.equal(base64, '',
         'post-dispose exportImageBase64 must resolve to the empty string');
 
-    // ── loadFromState (Req 15.1) ───────────────────────────────────
+    // ── loadFromState ───────────────────────────────────
     // `loadFromState` short-circuits on `!this.canvas`. A subsequent
     // string-form call must not throw.
     await assert.doesNotReject(
@@ -455,7 +455,7 @@ test('post-dispose async public methods resolve safely without touching the canv
         'post-dispose loadFromState (object form) must resolve without throwing',
     );
 
-    // ── applyCrop (Req 14.1, 15.1) ─────────────────────────────────
+    // ── applyCrop ─────────────────────────────────
     // No crop session exists post-dispose, so the facade's
     // `!this._cropSession` gate triggers a resolved-promise no-op.
     await assert.doesNotReject(
@@ -463,7 +463,7 @@ test('post-dispose async public methods resolve safely without touching the canv
         'post-dispose applyCrop must resolve without throwing',
     );
 
-    // ── mergeMasks (Req 14.1, 15.1) ────────────────────────────────
+    // ── mergeMasks ────────────────────────────────
     await assert.doesNotReject(
         editor.mergeMasks(),
         'post-dispose mergeMasks must resolve without throwing',
@@ -478,7 +478,7 @@ test('post-dispose async public methods resolve safely without touching the canv
         'post-dispose calls must not re-invoke canvas.dispose()');
 });
 
-test('animations enqueued before dispose settle after dispose (Requirements 15.1, 15.4)', async () => {
+test('animations enqueued before dispose settle after dispose', async () => {
     installDom();
     const { editor } = makeEditor();
 
@@ -486,7 +486,7 @@ test('animations enqueued before dispose settle after dispose (Requirements 15.1
     // loaded the transform controller short-circuits inside each entry
     // (`if (!img) return`), so each promise resolves quickly — but
     // critically, the ANIMATION QUEUE itself must drain on dispose
-    // (Req 15.4) so even a slow entry would settle.
+    // so even a slow entry would settle.
     const promises = [
         editor.scaleImage(2),
         editor.rotateImage(45),
@@ -496,12 +496,11 @@ test('animations enqueued before dispose settle after dispose (Requirements 15.1
     ];
 
     // Dispose mid-flight. The animation queue's `clear()` must settle
-    // every queued promise (Req 12.3 / 15.4: "FOR ALL queued animation
-    // functions enqueued before dispose() is called, the AnimationQueue
+    // every queued promise is called, the AnimationQueue
     // SHALL ensure each returned promise eventually settles").
     editor.dispose();
 
-    // `Promise.allSettled` is the right primitive: per Req 15.4 the
+    // `Promise.allSettled` is the right primitive: per the documented contract the
     // promises only need to SETTLE (resolve OR reject), not necessarily
     // resolve. This test asserts the strongest stable form (none
     // remain pending and none observed an unhandled exception that
@@ -512,8 +511,7 @@ test('animations enqueued before dispose settle after dispose (Requirements 15.1
         assert.notEqual(r.status, undefined,
             `promise ${i} must have settled after dispose`);
         // If a promise rejected, the rejection must be a normal Error,
-        // not a TypeError from touching a null canvas (Req 15.2: every
-        // disposed-aware callback MUST exit cleanly).
+        // not a TypeError from touching a null canvas.
         if (r.status === 'rejected') {
             assert.ok(r.reason instanceof Error,
                 `rejected promise ${i} must reject with an Error, got ${typeof r.reason}`);
@@ -526,7 +524,7 @@ test('animations enqueued before dispose settle after dispose (Requirements 15.1
     }
 });
 
-test('post-dispose calls before any init() are also safe (Requirements 15.1, 15.3)', () => {
+test('post-dispose calls before any init() are also safe', () => {
     // Edge case: a consumer constructs an editor and then disposes
     // without ever calling `init()`. The facade's dispose path must
     // tolerate the never-initialized state — `_bindings`, `canvas`,

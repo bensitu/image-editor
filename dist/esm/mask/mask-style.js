@@ -123,7 +123,7 @@ export function restoreMaskStyleBackup(backup) {
             selectable: backup.selectable,
             lockRotation: backup.lockRotation,
         });
-        if (typeof backup.obj.setCoords() === 'function') {
+        if (typeof backup.obj.setCoords === 'function') {
             backup.obj.setCoords();
         }
     }

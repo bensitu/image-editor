@@ -4,7 +4,7 @@
  * @description
  *   Pure layout helpers and a small viewport cache used by the
  *   `image-loader` pipeline. The layout manager owns three concerns
- *   that the v1 monolith handled inline inside `loadImage`:
+ *   used by the image-load pipeline:
  *
  *   1. Selecting exactly one layout strategy per load using the
  *      precedence `fit > cover > expand`.
@@ -201,7 +201,7 @@ export declare function computeExpandLayout(imageWidth: number, imageHeight: num
  * (`lowerCanvasEl` for rendering, `upperCanvasEl` for pointer events).
  * `Canvas.setDimensions` is the only API that updates both layers
  * atomically and keeps their CSS in sync. Manually mutating
- * `canvasEl.style.width/height` only resizes the lower layer and
+ * Direct canvas element style writes only resize the lower layer and
  * misaligns the upper layer's hit-test regions, so the editor always
  * routes through this helper instead of touching the canvas element
  * styles.
@@ -218,9 +218,9 @@ export declare function computeExpandLayout(imageWidth: number, imageHeight: num
  * @param canvas      The Fabric canvas to resize. Required.
  * @param width       Target pixel width. Clamped to `>= 1` and rounded.
  * @param height      Target pixel height. Clamped to `>= 1` and rounded.
- * @param containerEl The wrapper element to reflow. May be `null` when
- *                    no container has been resolved; in that case the
- *                    reflow is skipped without error.
+ * @param containerElement The wrapper element to reflow. May be `null`
+ *                         when no container has been resolved; in that
+ *                         case the reflow is skipped without error.
  */
-export declare function applyCanvasDimensions(canvas: FabricNS.Canvas, width: number, height: number, containerEl: HTMLElement | null): void;
+export declare function applyCanvasDimensions(canvas: FabricNS.Canvas, width: number, height: number, containerElement: HTMLElement | null): void;
 //# sourceMappingURL=layout-manager.d.ts.map

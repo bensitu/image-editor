@@ -51,14 +51,14 @@
  */
 export class Command {
     /** Performs (or re-performs) the action. */
-    readonly execute:  () => Promise<void>;
+    readonly execute: () => Promise<void>;
     /** Reverts the action. */
-    readonly undo:  () => Promise<void>;
+    readonly undo: () => Promise<void>;
 
-    constructor(execute:  () => Promise<void>, undo:  () => Promise<void>) {
+    constructor(execute: () => Promise<void>, undo: () => Promise<void>) {
         this.execute = execute;
         this.undo = undo;
-}
+    }
 }
 
 /**
@@ -66,8 +66,8 @@ export class Command {
  * unlimited undo and redo within the configured history size.
  */
 export class HistoryManager {
-    /** @internal */ history: Command[] = [];
-    /** @internal */ currentIndex = -1;
+    /** @internal */ private history: Command[] = [];
+    /** @internal */ private currentIndex = -1;
     /** @internal */ private _processing = false;
 
     /** Maximum number of commands retained. */
@@ -76,7 +76,7 @@ export class HistoryManager {
     /** @param maxSize Maximum number of commands retained. @default 50 */
     constructor(maxSize: number = 50) {
         this.maxSize = maxSize;
-}
+    }
 
     /**
      * Records a command on the history stack **and** fires its `execute`
@@ -103,17 +103,17 @@ export class HistoryManager {
      */
     push(command: Command): void {
         this._pushAndTrim(command);
-}
+    }
 
     /** Returns `true` if there is at least one action to undo. */
-    canUndo(): boolean  {
+    canUndo(): boolean {
         return this.currentIndex >= 0;
-}
+    }
 
     /** Returns `true` if there is at least one action to redo. */
-    canRedo(): boolean  {
+    canRedo(): boolean {
         return this.currentIndex < this.history.length - 1;
-}
+    }
 
     /**
      * Undoes the most recent command.
@@ -125,7 +125,7 @@ export class HistoryManager {
      * rejects, the pointer stays where it was so a subsequent click
      * retries the same step.
      */
-    async undo(): Promise<void>  {
+    async undo(): Promise<void> {
         if (this._processing || !this.canUndo()) return;
         this._processing = true;
         try {
@@ -134,10 +134,10 @@ export class HistoryManager {
             await cmd.undo();
             // Advance pointer only after the awaited undo resolves.
             this.currentIndex--;
-} finally {
+        } finally {
             this._processing = false;
-}
-}
+        }
+    }
 
     /**
      * Re-executes the next command.
@@ -146,7 +146,7 @@ export class HistoryManager {
      * `undo` / `redo` is currently in flight. The `currentIndex` only
      * advances after the awaited `command.execute` settles successfully.
      */
-    async redo(): Promise<void>  {
+    async redo(): Promise<void> {
         if (this._processing || !this.canRedo()) return;
         this._processing = true;
         try {
@@ -155,10 +155,10 @@ export class HistoryManager {
             await cmd.execute();
             // Advance pointer only after the awaited execute resolves.
             this.currentIndex++;
-} finally {
+        } finally {
             this._processing = false;
-}
-}
+        }
+    }
 
     /**
      * Shared push/trim path for {@link execute} and {@link push}.
@@ -174,7 +174,7 @@ export class HistoryManager {
         // Discard redo history on a new branch.
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
-}
+        }
 
         this.history.push(command);
 

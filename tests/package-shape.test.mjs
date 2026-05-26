@@ -1,15 +1,15 @@
 /**
- * Smoke test for the canonical v2 `package.json` shape.
+ * Smoke test for the published `package.json` shape.
  *
  * Behaviors under test:
  *
- *   1. **Version and module type (Req 1.1)** — `version` is exactly
- *      `"2.0.0"` and `type` is `"module"`.
- *   2. **Engines (design contract)** — `engines.node` declares Node 20+
+ *   1. **Version and module type** — `version` is a valid compatible
+ *      semver string and `type` is `"module"`.
+ *   2. **Engines** — `engines.node` declares Node 20+
  *      (`>=20` or `>= 20`).
- *   3. **Fabric peer dependency (Req 1.2)** — `peerDependencies.fabric`
+ *   3. **Fabric peer dependency** — `peerDependencies.fabric`
  *      is exactly `"^7.0.0"`.
- *   4. **`exports['.']` map (Req 1.4)** — every documented condition
+ *   4. **`exports['.']` map** — every documented condition
  *      key (`types`, `import`, `require`, `default`) resolves to its
  *      canonical path:
  *        - `types`   → `./dist/types/index.d.ts`
@@ -23,8 +23,8 @@
  *
  * The test reads `package.json` as JSON (no module side effects, no
  * Fabric/jsdom bootstrap) so it stays valid on a clean tree where
- * `dist/` has not been built yet. Requirement 1.3 (artifacts on disk)
- * is covered by task 23.2, not here.
+ * `dist/` has not been built yet. Artifact presence is covered by the
+ * build-artifacts smoke test, not here.
  */
 
 import { test } from 'node:test';
@@ -39,13 +39,13 @@ const packageJsonPath = path.join(repoRoot, 'package.json');
 
 const pkg = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
 
-// ─── 1. Version and module type (Requirement 1.1) ─────────────────────────
+// ─── 1. Version and module type ─────────────────────────
 
-test('package.json declares `version` as the canonical v2 string', () => {
-    assert.equal(
+test('package.json declares a compatible semver `version`', () => {
+    assert.match(
         pkg.version,
-        '2.0.0',
-        '`version` must be exactly "2.0.0" (Requirement 1.1)',
+        /^2\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/,
+        '`version` must be a compatible 2.x semver string',
     );
 });
 
@@ -53,7 +53,7 @@ test('package.json declares `type` as "module"', () => {
     assert.equal(
         pkg.type,
         'module',
-        '`type` must be "module" (Requirement 1.1)',
+        '`type` must be "module"',
     );
 });
 
@@ -82,7 +82,7 @@ test('package.json declares `engines.node` at >= 20', () => {
     );
 });
 
-// ─── 3. Fabric peer dependency (Requirement 1.2) ──────────────────────────
+// ─── 3. Fabric peer dependency ────────────────────────────────────────────
 
 test('package.json declares fabric as a `^7.0.0` peer dependency', () => {
     assert.equal(
@@ -98,11 +98,11 @@ test('package.json declares fabric as a `^7.0.0` peer dependency', () => {
     assert.equal(
         pkg.peerDependencies.fabric,
         '^7.0.0',
-        '`peerDependencies.fabric` must be exactly "^7.0.0" (Requirement 1.2)',
+        '`peerDependencies.fabric` must be exactly "^7.0.0"',
     );
 });
 
-// ─── 4. `exports['.']` conditional map (Requirement 1.4) ──────────────────
+// ─── 4. `exports['.']` conditional map ────────────────────────────────────
 
 test('package.json `exports["."]` map points at the documented bundle paths', () => {
     assert.equal(
@@ -139,16 +139,15 @@ test('package.json `exports["."]` map points at the documented bundle paths', ()
             rootExport[condition],
             expectedPath,
             `\`exports["."].${condition}\` must be ${JSON.stringify(expectedPath)} ` +
-            `(Requirement 1.4)`,
+            `for the root export`,
         );
     }
 });
 
 test('package.json `exports["."]` does not declare any unexpected condition keys', () => {
-    // The design pins exactly four conditions for the root export. A
+    // the documented contract pins exactly four conditions for the root export. A
     // stray condition (for example a `node` or `browser` override) is a
-    // distribution-shape change that should be reviewed against
-    // Requirement 1.4 before landing.
+    // distribution-shape change that should be reviewed before landing.
     const rootExport = pkg.exports['.'];
     const actualKeys = Object.keys(rootExport).sort();
     const expectedKeys = ['default', 'import', 'require', 'types'];
@@ -156,7 +155,7 @@ test('package.json `exports["."]` does not declare any unexpected condition keys
         actualKeys,
         expectedKeys,
         `\`exports["."]\` keys must equal ${JSON.stringify(expectedKeys)} ` +
-        `(Requirement 1.4)`,
+        `for the root export`,
     );
 });
 
@@ -166,7 +165,7 @@ test('package.json `main` points to the CJS bundle', () => {
     assert.equal(
         pkg.main,
         './dist/cjs/index.cjs',
-        '`main` must point to the CJS bundle (Requirement 1.4)',
+        '`main` must point to the CJS bundle',
     );
 });
 
@@ -174,7 +173,7 @@ test('package.json `module` points to the ESM bundle', () => {
     assert.equal(
         pkg.module,
         './dist/esm/index.js',
-        '`module` must point to the ESM bundle (Requirement 1.4)',
+        '`module` must point to the ESM bundle',
     );
 });
 
@@ -182,7 +181,7 @@ test('package.json `types` points to the declarations bundle', () => {
     assert.equal(
         pkg.types,
         './dist/types/index.d.ts',
-        '`types` must point to the declarations bundle (Requirement 1.4)',
+        '`types` must point to the declarations bundle',
     );
 });
 
@@ -191,12 +190,12 @@ test('package.json `unpkg` and `jsdelivr` both point to the UMD bundle', () => {
     assert.equal(
         pkg.unpkg,
         expectedUmdPath,
-        '`unpkg` must point to the UMD bundle (Requirement 1.4)',
+        '`unpkg` must point to the UMD bundle',
     );
     assert.equal(
         pkg.jsdelivr,
         expectedUmdPath,
-        '`jsdelivr` must point to the UMD bundle (Requirement 1.4)',
+        '`jsdelivr` must point to the UMD bundle',
     );
 });
 

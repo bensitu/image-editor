@@ -20,12 +20,10 @@
  *
  * ## Why a dedicated module
  *
- * Per the design's "Mapping requirements to modules" table, callback
- * isolation is owned by `core/callback-reporter.ts` rather than by the
- * operation guard or the orchestrator. Co-locating warning/error reporting
- * here gives every pipeline (image loader, transform controller, export
- * service, crop controller, history manager) a single, side-effect-light
- * helper to call when something goes wrong.
+ * Callback isolation is owned here rather than by the operation guard or
+ * the orchestrator. Co-locating warning/error reporting gives every
+ * pipeline a single, side-effect-light helper to call when something goes
+ * wrong.
  *
  * ## Non-goals
  *
@@ -43,7 +41,7 @@
  * documented public types are root-exported).
  */
 
-import type { ResolvedOptions} from './public-types.js';
+import type { ResolvedOptions } from './public-types.js';
 
 /**
  * Minimum slice of {@link ResolvedOptions} required to dispatch a warning.
@@ -108,13 +106,13 @@ export function reportWarning(
 
     try {
         cb(error, message);
-} catch (callbackError) {
+    } catch (callbackError) {
         // catch and log without changing editor state.
         // We do NOT rethrow the callback's error: doing so would convert a
         // recoverable warning into a hard failure inside whatever pipeline
         // happened to be running.
         console.warn('[ImageEditor] onWarning callback threw', callbackError);
-}
+    }
 }
 
 /**
@@ -163,12 +161,12 @@ export function reportError(
 
     try {
         cb(error, message);
-} catch (callbackError) {
+    } catch (callbackError) {
         // catch and log without masking the original
         // editor error. The original `error` is intentionally NOT included
         // in this log line so the diagnostic clearly points at the
         // callback misbehavior; the original error will still surface
         // through whatever throw/reject the caller performs next.
         console.error('[ImageEditor] onError callback threw', callbackError);
-}
+    }
 }

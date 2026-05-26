@@ -1,6 +1,5 @@
-// Property 10: AnimationQueue FIFO and dispose-safe settlement
+// AnimationQueue FIFO and dispose-safe settlement
 //
-// Property statement (design.md §"Property 10"):
 //   For any sequence of enqueued asynchronous animation tasks, the
 //   `AnimationQueue` SHALL start tasks in enqueue order, SHALL run at
 //   most one task at a time, and SHALL settle each returned promise. If
@@ -8,30 +7,29 @@
 //   settle without any callback touching the disposed canvas.
 //
 // This file exercises the contract owned by `src/animation/animation-queue.ts`
-// in isolation. The full `ImageEditor` facade is wired in later tasks;
-// this test only covers what the queue itself promises:
+// in isolation and covers what the queue itself promises:
 //
-//   1. FIFO ordering (Req 12.1) — for any sequence of `add(fn1)`,
+//   1. FIFO ordering — for any sequence of `add(fn1)`,
 //      `add(fn2)`, ..., `add(fnN)` with random small delays, `fn1`
 //      starts before `fn2`, and `fn2` starts after `fn1` settles.
-//   2. At most one running (Req 12.1) — at any tick, at most one task
+//   2. At most one running — at any tick, at most one task
 //      is concurrently inside its async body.
-//   3. All add() promises settle (Req 12.3, 15.1, 15.3) — for any
+//   3. All add() promises settle — for any
 //      sequence of add() calls followed by `clear()` (with or without
 //      reason), every returned promise eventually settles. No hanging
 //      promises.
-//   4. clear(reason) rejects pending (Req 15.1, 15.3) — after
+//   4. clear(reason) rejects pending — after
 //      `add(fn1)`, `add(fn2)`, `add(fn3)` then `clear('disposed')`,
 //      fn1 resolves (it was already running), and the public promises
 //      for fn2 and fn3 reject with `'disposed'`.
 //   5. clear() with no reason resolves pending — pending entries
 //      resolve normally; this is the documented dispose default
 //      because the orchestrator's dispose guards prevent further
-//      canvas access (Req 15.2, 15.4).
+//      canvas access.
 //   6. waitForIdle() resolves after the queue empties — after
 //      enqueuing N tasks, waitForIdle() resolves only after all N have
 //      settled (the dispose path uses this as its "quiescent" hook,
-//      Req 14.3, 15.4).
+//      the documented contract).
 //   7. isRunning() reports correctly — true while a task awaits,
 //      false when the queue is idle.
 //
@@ -50,12 +48,12 @@ import { AnimationQueue } from '../src/animation/animation-queue.ts';
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
 // Short, deterministic delays so the suite stays fast at ≥100 iterations.
-// The design's stated range is 0–20 ms; we cap at 10 ms here so 100 runs
+// The documented stated range is 0–20 ms; we cap at 10 ms here so 100 runs
 // of up to 8 tasks each finish within a few seconds on CI.
 const delayArb = fc.integer({ min: 0, max: 10 });
 
 // Each task either resolves or rejects after its delay. Both paths must
-// settle the public promise (Req 12.3).
+// settle the public promise.
 const settleModeArb = fc.constantFrom('resolve', 'reject');
 
 // One enqueued task is described by its delay and its settle mode.
@@ -141,7 +139,7 @@ function settleBudgetMs(specs) {
 
 // ─── Property assertions ───────────────────────────────────────────────────
 
-test('Property 10.1+10.2+10.3: FIFO order, at most one running, all promises settle', async () => {
+test('FIFO order, at most one running, all promises settle', async () => {
     await fc.assert(
         fc.asyncProperty(taskBatchArb, clearStrategyArb, async (specs, clearStrategy) => {
             const queue = new AnimationQueue();
@@ -178,7 +176,7 @@ test('Property 10.1+10.2+10.3: FIFO order, at most one running, all promises set
                 queue.clear(clearStrategy.reason);
             }
 
-            // Property 3 — every public promise must settle within a
+            // — every public promise must settle within a
             // bounded budget. A hanging promise here is a real bug.
             await withTimeout(
                 Promise.all(promises),
@@ -186,7 +184,7 @@ test('Property 10.1+10.2+10.3: FIFO order, at most one running, all promises set
                 'all add() promises to settle',
             );
 
-            // Property 2 — at most one task ran concurrently at any
+            // — at most one task ran concurrently at any
             // point. The tracker's `maxConcurrent` is 0 if no task ever
             // executed (clear='immediate' with reason that drained
             // everything before a task could start) or 1 otherwise.
@@ -195,7 +193,7 @@ test('Property 10.1+10.2+10.3: FIFO order, at most one running, all promises set
                 `AnimationQueue must run at most one task at a time; saw maxConcurrent=${tracker.maxConcurrent}`,
             );
 
-            // Property 1 — among the tasks that actually executed, the
+            // — among the tasks that actually executed, the
             // start order is the enqueue order, and each task starts
             // strictly after the previous one ends. (Tasks drained by
             // clear() never produce events, so the executed prefix may
@@ -240,7 +238,7 @@ test('Property 10.1+10.2+10.3: FIFO order, at most one running, all promises set
     );
 });
 
-test('Property 10.4: clear(reason) rejects pending while head task still settles', async () => {
+test('clear(reason) rejects pending while head task still settles', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.array(delayArb, { minLength: 2, maxLength: 6 }),
@@ -315,7 +313,7 @@ test('Property 10.4: clear(reason) rejects pending while head task still settles
     );
 });
 
-test('Property 10.5: clear() with no reason resolves pending entries', async () => {
+test('clear() with no reason resolves pending entries', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.array(delayArb, { minLength: 2, maxLength: 6 }),
@@ -375,7 +373,7 @@ test('Property 10.5: clear() with no reason resolves pending entries', async () 
     );
 });
 
-test('Property 10.6: waitForIdle() resolves only after every queued task has settled', async () => {
+test('waitForIdle() resolves only after every queued task has settled', async () => {
     await fc.assert(
         fc.asyncProperty(taskBatchArb, async (specs) => {
             const queue = new AnimationQueue();
@@ -435,7 +433,7 @@ test('Property 10.6: waitForIdle() resolves only after every queued task has set
     );
 });
 
-test('Property 10.7: isRunning() is true during an awaited task and false when idle', async () => {
+test('isRunning() is true during an awaited task and false when idle', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.integer({ min: 1, max: 5 }),

@@ -1,6 +1,5 @@
-// Property 23: Direct region export with floored dimensions
+// Direct region export with floored dimensions
 //
-// Property statement (design.md §"Property 23"):
 //   For any original image bounding rectangle with finite coordinates,
 //   region export SHALL pass `left`, `top`, `width`, and `height`
 //   directly to Fabric without creating an intermediate canvas, and
@@ -12,7 +11,7 @@
 // Sub-properties exercised here:
 //
 //   23.1 Floored region forwarded to canvas.toDataURL
-//        (Requirements 27.1, 27.3):
+//:
 //        For any sub-pixel bounding rect returned by
 //        `originalImage.getBoundingRect()`, the values forwarded to
 //        Fabric's `toDataURL({ left, top, width, height })` SHALL
@@ -20,7 +19,7 @@
 //        field, and each value SHALL be a non-negative integer.
 //
 //   23.2 No intermediate `<canvas>` element allocated
-//        (Requirement 27.2):
+//:
 //        For any sub-pixel bounding rect, the region export path
 //        SHALL NOT call `document.createElement('canvas')` while
 //        producing the data URL — the bytes come straight from the
@@ -32,7 +31,7 @@
 // The export service interacts with the live canvas through exactly
 // three methods this property cares about:
 //
-//   discardActiveObject()  — required by Req 23.2 (Property 20)
+//   discardActiveObject()  — required by the documented contract ()
 //   getObjects()           — read by the bake-in/restore bracket
 //   toDataURL(options)     — the call site this property asserts
 //
@@ -130,7 +129,7 @@ function makeContext(canvas, image) {
  *   - `width`/`height` may be sub-pixel (rounded then `Math.max(1, …)`).
  *
  * Finite-only doubles keep the property focused on the documented
- * "finite coordinates" precondition from the design (`*For any*
+ * "finite coordinates" precondition from the documented contract (`*For any*
  * original image bounding rectangle with finite coordinates`); the
  * defensive `NaN`/`Infinity` fallback inside `floorRegion` is
  * exercised by direct-helper unit coverage and is not the subject of
@@ -163,9 +162,9 @@ const subPixelRectArb = fc.record({
     }),
 });
 
-// ─── Property 23.1 — floored region forwarded to canvas.toDataURL ──────────
+// ─── — floored region forwarded to canvas.toDataURL ──────────
 
-test('Property 23.1: exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.toDataURL (Reqs 27.1, 27.3)', async () => {
+test('exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.toDataURL', async () => {
     await fc.assert(
         fc.asyncProperty(subPixelRectArb, async (rect) => {
             const canvas = makeMockCanvas();
@@ -175,7 +174,7 @@ test('Property 23.1: exportImageBase64 forwards floor(getObjectBBox(originalImag
             await exportImageBase64(ctx, { exportImageArea: true });
 
             // Exactly one render call — the data URL came straight
-            // from `canvas.toDataURL` (Requirement 27.2 reinforcement).
+            // from `canvas.toDataURL`.
             assert.equal(
                 canvas.toDataURLArgs.length,
                 1,
@@ -185,7 +184,7 @@ test('Property 23.1: exportImageBase64 forwards floor(getObjectBBox(originalImag
             const args = canvas.toDataURLArgs[0];
             const expected = floorRegion(getObjectBBox(image));
 
-            // Requirement 27.1 — region keys are derived from the
+            // the documented contract — region keys are derived from the
             // image bounding rect and forwarded to Fabric.
             assert.equal(
                 args.left,
@@ -208,7 +207,7 @@ test('Property 23.1: exportImageBase64 forwards floor(getObjectBBox(originalImag
                 `height ${args.height} !== floored ${expected.height} for rect ${JSON.stringify(rect)}`,
             );
 
-            // Requirement 27.3 — every region key is a non-negative
+            // the documented contract — every region key is a non-negative
             // integer once it reaches Fabric, regardless of how
             // sub-pixel the source rect was.
             assert.ok(
@@ -242,15 +241,15 @@ test('Property 23.1: exportImageBase64 forwards floor(getObjectBBox(originalImag
     );
 });
 
-// ─── Property 23.2 — no intermediate <canvas> element allocated ────────────
+// ─── — no intermediate <canvas> element allocated ────────────
 
-test('Property 23.2: exportImageBase64 region path does not allocate an intermediate <canvas> element (Req 27.2)', async () => {
+test('exportImageBase64 region path does not allocate an intermediate <canvas> element', async () => {
     await fc.assert(
         fc.asyncProperty(subPixelRectArb, async (rect) => {
             // Install a `document.createElement` spy that records the
             // tag of every element the export path tried to allocate.
             // The region-export call site goes straight to Fabric's
-            // `canvas.toDataURL` (Requirement 27.2), so the spy must
+            // `canvas.toDataURL`, so the spy must
             // never see a `'canvas'` tag for this property.
             //
             // The Node `node:test` runner does not expose a global
@@ -275,7 +274,7 @@ test('Property 23.2: exportImageBase64 region path does not allocate an intermed
 
                 await exportImageBase64(ctx, { exportImageArea: true });
 
-                // Requirement 27.2 — no intermediate `<canvas>` is
+                // the documented contract — no intermediate `<canvas>` is
                 // allocated while computing the region export.
                 assert.ok(
                     !createdTags.includes('canvas'),

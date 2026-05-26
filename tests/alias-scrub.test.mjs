@@ -4,41 +4,36 @@
  *
  * Behaviors under test:
  *
- *   1. **dist/types/index.d.ts is alias-free (Req 2.6)** — the
+ *   1. **dist/types/index.d.ts is alias-free** — the
  *      canonical declarations bundle must not declare or reference any
  *      Deprecated_Alias identifier. Internal `.d.ts` files for non-
- *      exported modules are scoped out: Req 2.6 targets the public
+ *      exported modules are scoped out: the documented contract targets the public
  *      declarations bundle that downstream TypeScript consumers
  *      resolve through `package.json`'s `exports["."].types`.
- *   2. **README.md is alias-free (Req 35.1)** — no Deprecated_Alias
+ *   2. **README.md is alias-free** — no Deprecated_Alias
  *      identifier appears inside any backtick-delimited code span. The
  *      README is markdown prose; English words like "merge" or "reset"
  *      that appear outside backticks are not identifier mentions and
  *      are intentionally NOT scanned.
- *   3. **docs/ is alias-free (Req 35.2)** — neither HTML, CSS, nor
+ *   3. **docs/ is alias-free** — neither HTML, CSS, nor
  *      embedded JavaScript under `docs/` references any
  *      Deprecated_Alias identifier. Comments and string literals are
  *      stripped from JavaScript before the scan so contextual mentions
  *      do not trip the check; element ids like `resetBtn` and i18n
  *      keys like `resetTransform` are not alias identifiers (no word
  *      boundary follows the alias prefix).
- *   4. **tests/ is alias-free (Req 2.7)** — no test file outside the
+ *   4. **tests/ is alias-free** — no test file outside the
  *      defined allowlist references any Deprecated_Alias as a code
- *      identifier. The allowlist covers (a) the verification tests
- *      that hold alias names as string-literal data (so a regression
- *      that re-exports an alias surfaces by name) and (b) the
- *      property tests that exercise the internal Context interfaces
- *      whose field names share alias spelling (`containerEl`,
- *      `placeholderEl` — these mirror `image-loader.ts` and
- *      `export-service.ts` and are not on the public `ImageEditor`
- *      surface).
- *   5. **CHANGELOG.md alias mentions are confined to `## [2.0.0]`
- *      (Req 35.3)** — the v2 release section is required to list every
+ *      identifier. The allowlist covers this scrub test, which holds
+ *      alias names as string-literal data so a regression surfaces by
+ *      name.
+ *   5. **CHANGELOG.md alias mentions are confined to `## [2.0.0]`** —
+ *      the release section is required to list every
  *      removed Deprecated_Alias and its canonical replacement, so
  *      alias mentions are allowed there. No other section may
  *      reference an alias as a code identifier (i.e., inside backticks).
  *      English prose outside backticks is not scanned.
- *   6. **package.json is alias-free (Req 35.5)** — the published
+ *   6. **package.json is alias-free** — the published
  *      package manifest must not surface any Deprecated_Alias
  *      identifier in scripts, keywords, exports, or documentation
  *      strings.
@@ -48,7 +43,7 @@
  *   `dist/types/index.d.ts` is produced by `npm run build`. Tests run
  *   on a clean tree where `dist/` does not yet exist, so absence of
  *   the declarations file is the clean-tree skip signal — the assertion
- *   for that file returns early without failing. Requirement 2.6 is
+ *   for that file returns early without failing. the documented contract is
  *   verified end-to-end by CI, which builds before testing. This
  *   mirrors the ENOENT skip path in `tests/build-artifacts.test.mjs`
  *   and `tests/dist-multi-format-exports.test.mjs`.
@@ -69,9 +64,7 @@ const repoRoot = path.resolve(__dirname, '..');
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 /**
- * The Deprecated_Alias set from Requirement 2.5 and the design's rename
- * table. The scrub flags every appearance of these identifiers within
- * the publishable surface.
+ * The Deprecated_Alias set the scrub flags across the publishable surface.
  */
 const DEPRECATED_ALIASES = Object.freeze([
     'reset',
@@ -86,33 +79,19 @@ const DEPRECATED_ALIASES = Object.freeze([
 /**
  * Test files that may legitimately reference Deprecated_Alias names.
  *
- * The allowlist covers two categories:
- *
- *   1. **The alias-scrub itself** — holds the alias names as data so it
- *      can search for them in other files.
- *   2. **Internal Context fixture tests** — `transactional-load` and
- *      `merge-masks` build mock `LoadImageContext` / `MergeMasksContext`
- *      objects whose field names mirror the internal Context interfaces
- *      in `image-loader.ts` / `export-service.ts` (`containerEl`,
- *      `placeholderEl`). Those names are internal module wiring rather
- *      than public surface; the fixtures must use them verbatim to
- *      exercise the runtime code paths.
+ * The allowlist covers the scrub itself, which holds the alias names as
+ * data so it can search for them in other files.
  *
  * Every other file under `tests/` MUST be alias-free.
  */
 const TEST_FILE_ALLOWLIST = new Set([
-    // (1) The scrub itself
     'alias-scrub.test.mjs',
-    // (2) Internal Context fixture tests
-    'transactional-load.property.test.mjs',
-    'merge-masks.property.test.mjs',
 ]);
 
 /**
  * Markdown section heading that is allowed to reference Deprecated_Alias
- * names in backtick-wrapped code spans, per Requirement 35.3 (the v2
- * release notes MUST list every removed alias and its canonical
- * replacement).
+ * names in backtick-wrapped code spans. Release notes MUST list every
+ * removed alias and its canonical replacement.
  */
 const CHANGELOG_ALLOWED_SECTION = '[2.0.0]';
 
@@ -248,7 +227,7 @@ async function listFiles(dir, predicate) {
     return out;
 }
 
-// ─── 1. dist/types/index.d.ts (Requirement 2.6) ────────────────────────────
+// ─── 1. dist/types/index.d.ts ────────────────────────────
 
 test('`dist/types/index.d.ts` declares no Deprecated_Alias when present', async () => {
     const filePath = path.join(repoRoot, 'dist', 'types', 'index.d.ts');
@@ -265,11 +244,11 @@ test('`dist/types/index.d.ts` declares no Deprecated_Alias when present', async 
         found.map(f => f.alias),
         [],
         `dist/types/index.d.ts must not declare or reference any Deprecated_Alias ` +
-        `(Requirement 2.6). Offending hits: ${JSON.stringify(found)}`,
+        `. Offending hits: ${JSON.stringify(found)}`,
     );
 });
 
-// ─── 2. README.md (Requirement 35.1) ───────────────────────────────────────
+// ─── 2. README.md ───────────────────────────────────────
 
 test('`README.md` contains no Deprecated_Alias inside any code span', async () => {
     const source = await fs.readFile(path.join(repoRoot, 'README.md'), 'utf8');
@@ -279,11 +258,11 @@ test('`README.md` contains no Deprecated_Alias inside any code span', async () =
         found.map(f => f.alias),
         [],
         `README.md must not reference any Deprecated_Alias as a code identifier ` +
-        `(Requirement 35.1). Offending hits: ${JSON.stringify(found)}`,
+        `. Offending hits: ${JSON.stringify(found)}`,
     );
 });
 
-// ─── 3. docs/ (Requirement 35.2) ───────────────────────────────────────────
+// ─── 3. docs/ ───────────────────────────────────────────
 
 test('`docs/*.html` contains no Deprecated_Alias identifier', async () => {
     const htmlFiles = await listFiles(
@@ -298,7 +277,7 @@ test('`docs/*.html` contains no Deprecated_Alias identifier', async () => {
             found.map(f => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier (Requirement 35.2). ` +
+            `Deprecated_Alias identifier. ` +
             `Offending hits: ${JSON.stringify(found)}`,
         );
     }
@@ -317,7 +296,7 @@ test('`docs/css/*.css` contains no Deprecated_Alias identifier', async () => {
             found.map(f => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier (Requirement 35.2). ` +
+            `Deprecated_Alias identifier. ` +
             `Offending hits: ${JSON.stringify(found)}`,
         );
     }
@@ -336,13 +315,13 @@ test('`docs/js/*.js` contains no Deprecated_Alias identifier', async () => {
             found.map(f => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier (Requirement 35.2). ` +
+            `Deprecated_Alias identifier. ` +
             `Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
 
-// ─── 4. tests/ (Requirement 2.7) ───────────────────────────────────────────
+// ─── 4. tests/ ───────────────────────────────────────────
 
 test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias identifier', async () => {
     const testFiles = await listFiles(
@@ -360,12 +339,12 @@ test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias i
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
             `Deprecated_Alias identifier outside the documented allowlist ` +
-            `(Requirement 2.7). Offending hits: ${JSON.stringify(found)}`,
+            `. Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
 
-// ─── 5. CHANGELOG.md (Requirement 35.3) ────────────────────────────────────
+// ─── 5. CHANGELOG.md ────────────────────────────────────
 
 test('`CHANGELOG.md` confines Deprecated_Alias mentions to the `## [2.0.0]` section', async () => {
     const source = await fs.readFile(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
@@ -383,14 +362,14 @@ test('`CHANGELOG.md` confines Deprecated_Alias mentions to the `## [2.0.0]` sect
         offenders,
         [],
         `CHANGELOG.md may only reference Deprecated_Alias identifiers in the ` +
-        `\`## ${CHANGELOG_ALLOWED_SECTION}\` section (Requirement 35.3). ` +
+        `\`## ${CHANGELOG_ALLOWED_SECTION}\` section. ` +
         `Offending sections: ${JSON.stringify(offenders)}`,
     );
 });
 
 test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias', async () => {
-    // Requirement 35.3 specifically calls out that the v2 release notes
-    // must list every removed alias with its canonical replacement.
+    // Release notes intentionally list every removed alias with its canonical
+    // replacement.
     // This test pairs with the scope-restriction test above: confirming
     // the allowed section actually exercises the allowance.
     const source = await fs.readFile(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
@@ -405,7 +384,7 @@ test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias',
     assert.ok(
         allowedBody !== null,
         `CHANGELOG.md must contain a \`## ${CHANGELOG_ALLOWED_SECTION}\` ` +
-        `section listing the removed Deprecated_Aliases (Requirement 35.3)`,
+        `section listing the removed Deprecated_Aliases`,
     );
     const codeText = extractMarkdownCodeSpans(allowedBody);
     const missing = DEPRECATED_ALIASES.filter(alias => {
@@ -416,12 +395,12 @@ test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias',
         missing,
         [],
         `CHANGELOG.md \`## ${CHANGELOG_ALLOWED_SECTION}\` section must list ` +
-        `every removed Deprecated_Alias in a code span (Requirement 35.3). ` +
+        `every removed Deprecated_Alias in a code span. ` +
         `Missing: ${JSON.stringify(missing)}`,
     );
 });
 
-// ─── 6. package.json (Requirement 35.5) ────────────────────────────────────
+// ─── 6. package.json ────────────────────────────────────
 
 test('`package.json` contains no Deprecated_Alias identifier', async () => {
     // package.json is JSON, so there are no comments or string literals
@@ -435,6 +414,6 @@ test('`package.json` contains no Deprecated_Alias identifier', async () => {
         found.map(f => f.alias),
         [],
         `package.json must not reference any Deprecated_Alias identifier ` +
-        `(Requirement 35.5). Offending hits: ${JSON.stringify(found)}`,
+        `. Offending hits: ${JSON.stringify(found)}`,
     );
 });

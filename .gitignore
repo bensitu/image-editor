@@ -40,9 +40,6 @@ bower_components
 .kiro
 .cursor
 
-# agent-base
-AGENTS.md
-
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 

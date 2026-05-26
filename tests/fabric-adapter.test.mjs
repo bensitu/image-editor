@@ -15,9 +15,8 @@
  *      `{ fabric: null, _fabricLoaded: false }`.
  *
  * The "init()/loadImage() are no-ops resolving to undefined" portion of
- * Requirement 4.3 is wired into `ImageEditor` itself and is covered by
- * the integration tests under task 21.1, where the public facade exists.
- * This file scopes itself to the adapter's pure detection contract.
+ * the documented contract is wired into `ImageEditor` itself. This file
+ * scopes itself to the adapter's pure detection contract.
  *
  * Runtime note: Node 24+ strips TypeScript syntax natively, so the test
  * imports the module under test directly from source — no separate build
@@ -60,7 +59,7 @@ function withConsoleError(body) {
     }
 }
 
-// ─── Branch 1: explicit module form (Requirement 4.1) ─────────────────────
+// ─── Branch 1: explicit module form ─────────────────────
 
 test('detectFabric: explicit module form treats first arg as Fabric and second as options', () => {
     const fakeFabric = makeFakeFabric();
@@ -90,7 +89,7 @@ test('detectFabric: explicit module form normalizes missing options to {}', () =
     assert.equal(calls.length, 0);
 });
 
-// ─── Branch 2: global form (Requirement 4.2) ──────────────────────────────
+// ─── Branch 2: global form ──────────────────────────────
 
 test('detectFabric: global form uses globalScope.fabric and treats first arg as options', () => {
     const fakeFabric = makeFakeFabric();
@@ -136,7 +135,7 @@ test('detectFabric: global form accepts undefined first arg and yields empty opt
     assert.equal(calls.length, 0);
 });
 
-// ─── Branch 3: miss (Requirement 4.3) ─────────────────────────────────────
+// ─── Branch 3: miss ─────────────────────────────────────
 
 test('detectFabric: miss returns null fabric, false _fabricLoaded, and logs once', () => {
     const userOptions = {};

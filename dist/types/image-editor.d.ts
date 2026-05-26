@@ -1,34 +1,10 @@
 /**
  * @file image-editor.ts
  * @module image-editor
- * @version 2.0.0
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor built on Fabric.js v7.
  *              Provides masking, animated scale/rotate, crop, undo/redo, and export.
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * Fabric.js v5 → v7 migration notes (kept here for historical reference)
- * ─────────────────────────────────────────────────────────────────────────────
- *  1. Image.fromURL           — now Promise-based; no callback parameter.
- *  2. Canvas.loadFromJSON     — now Promise-based; no callback parameter.
- *  3. FabricObject.animate    — returns Animation[] (NOT a Promise).
- *                                 Wrap with new Promise + onComplete callback.
- *                                 Multi-prop animation fires onComplete per prop;
- *                                 count completions to detect full finish.
- *  4. canvas.bringToFront(o)    → canvas.bringObjectToFront(o)
- *     canvas.sendToBack(o)      → canvas.sendObjectToBack(o)
- *  5. canvas.calcOffset       — removed; managed internally.
- *  6. canvas.setBackgroundColor(c, cb) → `canvas.backgroundColor = c`
- *  7. getBoundingRect(abs,calc) — signature removed; always returns absolute rect.
- *  8. canvas.renderAll        — replaced with requestRenderAll in animation loop.
- *  9. canvas.setWidth/setHeight → canvas.setDimensions({ width, height})
- *     CRITICAL: setDimensions keeps the upper (event) canvas in sync with the
- *     lower (render) canvas. Manual style mutation breaks pointer-event mapping.
- * 10. All new FabricObject origins now default to 'center'/'center'.
- *     Masks must declare originX:'left', originY:'top' explicitly to keep the
- *     left/top coordinate system matching the top-left corner of the shape.
- * ─────────────────────────────────────────────────────────────────────────────
  */
 import { type CanvasJSON } from './core/state-serializer.js';
 import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LoadImageOptions, MaskConfig, MaskObject, RemoveAllMasksOptions } from './core/public-types.js';
@@ -76,7 +52,7 @@ export declare class ImageEditor {
      * which deep-merges nested `label`/`crop` configs with the documented
      * defaults, drops unknown keys, and freezes the nested references so
      * post-construction mutation cannot affect the live editor
-     *. The resolved options object is held on the
+     * The resolved options object is held on the
      * instance as an internal facade field; nothing on the public surface
      * exposes it directly.
      *
@@ -286,7 +262,7 @@ export declare class ImageEditor {
      * masks without history, reloads the merged image transactionally,
      * preserves container scroll, and pushes exactly one history entry.
      * On any failure it restores the pre-merge snapshot and rejects with
-     * `MergeMasksError` (29.1–29.5).
+     * `MergeMasksError`.
      *
      * @returns Promise that resolves when the merge is complete.
      */
@@ -312,12 +288,10 @@ export declare class ImageEditor {
      * which discards any active selection, runs the bake-in/restore
      * bracket for `exportImageArea === true` exports, and emits a single
      * `canvas.toDataURL` call with the floored image-bounding-box region
-     * (26.1–26.4, 27.1–27.3, 28.1–28.3).
+     * after temporarily baking masks into the export when requested.
      *
      * Operation guard: while `isAnimating === true`
-     * the call resolves to an empty string (the design's
-     * "Animation in progress guard" entry calls out the empty-string
-     * no-op shape for base64 export) so an in-flight scale/rotate
+     * the call resolves to an empty string so an in-flight scale/rotate
      * animation does not see a mid-frame export of the canvas.
      *
      * @param options Export options.
@@ -404,8 +378,7 @@ export declare class ImageEditor {
      * Cleans up all DOM event listeners and disposes the Fabric.js Canvas.
      * Call this when the editor is no longer needed to prevent memory leaks.
      *
-     * The implementation follows the design's "Idempotent dispose with
-     * bindings registry" sequence:
+     * Teardown sequence:
      *
      * 1. Short-circuit on a second call so `dispose` is idempotent
      *. This also guards against re-running

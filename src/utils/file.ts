@@ -1,8 +1,7 @@
 /**
- * File-input helpers used by the v2 image-editor file-input flow.
+ * File-input helpers used by the editor's file-input flow.
  *
- * These helpers cover three concerns described,
- * 6.3, 6.5, 6.6, and 35.2:
+ * These helpers cover three concerns:
  *
  * - Determining whether a `File` selected through the upload control is a
  *   supported image, including the extension fallback when `file.type` is
@@ -35,15 +34,18 @@ export const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string> = {
     bmp: 'image/bmp',
 };
 
+export const SUPPORTED_IMAGE_MIME_TYPES = new Set(
+    Object.values(SUPPORTED_IMAGE_EXTENSIONS),
+);
+
 /**
  * Determine whether a `File` is a supported image and return its resolved
  * MIME type, or `null` when it should be rejected.
  *
  * Resolution order:
  *
- * 1. If `file.type` is non-empty and starts with `image/`, return
- *    `file.type` verbatim. The browser already classified the file as an
- *    image, so the loader trusts that classification.
+ * 1. If `file.type` is one of the supported image MIME types, return it
+ *    verbatim.
  * 2. If `file.type` is empty, infer the MIME type from the file
  *    extension via {@link SUPPORTED_IMAGE_EXTENSIONS}. This covers the
  *    case where a browser or OS reports `''` for files with a known
@@ -56,7 +58,7 @@ export const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string> = {
  *          supported image.
  */
 export function inferImageMimeType(file: File): string | null {
-    if (file.type && file.type.startsWith('image/')) return file.type;
+    if (file.type && SUPPORTED_IMAGE_MIME_TYPES.has(file.type)) return file.type;
     if (file.type) return null;
     const match = /\.([a-z0-9]+)$/i.exec(file.name);
     const ext = match?.[1]?.toLowerCase();
@@ -80,19 +82,22 @@ export function inferImageMimeType(file: File): string | null {
 export function readFileAsDataURL(file: File): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload =  () => {
+        reader.onload = () => {
             const result = reader.result;
             if (typeof result === 'string') {
                 resolve(result);
-} else {
+            } else {
                 reject(new Error('FileReader returned a non-string result'));
-}
-};
-        reader.onerror =  () => {
+            }
+        };
+        reader.onerror = () => {
             reject(reader.error ?? new Error('FileReader error'));
-};
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
         reader.readAsDataURL(file);
-});
+    });
 }
 
 /**
@@ -112,7 +117,7 @@ export function resetFileInput(input: HTMLInputElement | null): void {
     if (!input) return;
     try {
         input.value = '';
-} catch {
+    } catch {
         /* Some browsers reject programmatic resets; ignore. */
-}
+    }
 }

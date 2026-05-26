@@ -22,7 +22,7 @@
 // The export service interacts with the canvas through exactly two
 // methods relevant to this task:
 //
-//   discardActiveObject()  — the Req 23.2 call site
+//   discardActiveObject()  — the the documented contract call site
 //   toDataURL(options)      — the rendering step
 //
 // Both are easy to instrument with a small mock; spinning up a real
@@ -47,7 +47,7 @@ const { ExportNotReadyError } = await import('../src/core/errors.ts');
 /**
  * Minimal stand-in for `fabric.Canvas`. Records the order of method
  * calls so the test can assert that `discardActiveObject` precedes
- * `toDataURL` per Requirement 23.2.
+ * `toDataURL` per the documented contract.
  */
 function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
     const callOrder = [];
@@ -118,9 +118,9 @@ async function suppressErrors(fn) {
     return errors;
 }
 
-// ─── Requirement 25.4 — no-image gates ──────────────────────────────────────
+// ─── the documented contract — no-image gates ──────────────────────────────────────
 
-test('exportImageBase64: resolves to "" and warns when no image is loaded (Req 25.4)', async () => {
+test('exportImageBase64: resolves to "" and warns when no image is loaded', async () => {
     const ctx = makeContext({ isImageLoaded: () => false });
     let result;
     const warnings = await captureWarnings(async () => {
@@ -138,7 +138,7 @@ test('exportImageBase64: resolves to "" and warns when no image is loaded (Req 2
     );
 });
 
-test('exportImageFile: rejects with ExportNotReadyError and warns when no image is loaded (Req 25.4)', async () => {
+test('exportImageFile: rejects with ExportNotReadyError and warns when no image is loaded', async () => {
     const ctx = makeContext({ isImageLoaded: () => false });
     let rejected;
     const warnings = await captureWarnings(async () => {
@@ -156,7 +156,7 @@ test('exportImageFile: rejects with ExportNotReadyError and warns when no image 
     assert.equal(ctx.canvas.callOrder.length, 0);
 });
 
-test('downloadImage: returns void and warns when no image is loaded (Req 25.4)', async () => {
+test('downloadImage: returns void and warns when no image is loaded', async () => {
     const ctx = makeContext({ isImageLoaded: () => false });
     const warnings = await captureWarnings(async () => {
         const ret = downloadImage(ctx);
@@ -167,9 +167,9 @@ test('downloadImage: returns void and warns when no image is loaded (Req 25.4)',
     assert.equal(ctx.canvas.callOrder.length, 0, 'must touch no canvas method');
 });
 
-// ─── Requirement 23.2 — discard ActiveSelection before render ───────────────
+// ─── the documented contract — discard ActiveSelection before render ───────────────
 
-test('exportImageBase64: discards ActiveSelection before toDataURL (Req 23.2)', async () => {
+test('exportImageBase64: discards ActiveSelection before toDataURL', async () => {
     const ctx = makeContext();
     await exportImageBase64(ctx);
     const firstDiscard = ctx.canvas.callOrder.indexOf('discardActiveObject');
@@ -182,12 +182,12 @@ test('exportImageBase64: discards ActiveSelection before toDataURL (Req 23.2)', 
     );
 });
 
-test('downloadImage: discards ActiveSelection before toDataURL (Req 23.2)', async () => {
+test('downloadImage: discards ActiveSelection before toDataURL', async () => {
     const ctx = makeContext();
     let firstDiscard;
     let firstRender;
     // The DOM wiring (document.createElement('a'), appendChild, …) is
-    // outside the scope of Req 23.2 and not available under node:test.
+    // outside the scope of the documented contract and not available under node:test.
     // Suppress the resulting `console.error` from the internal catch
     // handler so the assertion noise stays focused on the call order.
     await suppressErrors(async () => {
@@ -204,27 +204,27 @@ test('downloadImage: discards ActiveSelection before toDataURL (Req 23.2)', asyn
     assert.ok(firstDiscard < firstRender, 'discard must precede toDataURL');
 });
 
-// ─── Requirement 25.1 — exportImageBase64 surface ───────────────────────────
+// ─── the documented contract — exportImageBase64 surface ───────────────────────────
 
-test('exportImageBase64: returns the data URL produced by canvas.toDataURL (Req 25.1)', async () => {
+test('exportImageBase64: returns the data URL produced by canvas.toDataURL', async () => {
     const canvas = makeMockCanvas('data:image/png;base64,ZZZZ');
     const ctx = makeContext({ canvas });
     const result = await exportImageBase64(ctx, { fileType: 'png' });
     assert.equal(result, 'data:image/png;base64,ZZZZ');
     assert.equal(canvas.toDataURLArgs.length, 1);
     assert.equal(canvas.toDataURLArgs[0].format, 'png');
-    // PNG drops `quality` (Requirement 26.3).
+    // PNG drops `quality`.
     assert.equal('quality' in canvas.toDataURLArgs[0], false);
 });
 
-test('exportImageBase64: accepts `format` as an alias for `fileType` (Req 26.1, 25.1)', async () => {
+test('exportImageBase64: accepts `format` as an alias for `fileType`', async () => {
     const canvas = makeMockCanvas();
     const ctx = makeContext({ canvas });
     await exportImageBase64(ctx, { format: 'jpg' });
     assert.equal(canvas.toDataURLArgs[0].format, 'jpeg');
 });
 
-test('exportImageBase64: clamps quality and falls back to downsampleQuality (Req 26.2, 26.4)', async () => {
+test('exportImageBase64: clamps quality and falls back to downsampleQuality', async () => {
     const canvas = makeMockCanvas();
     const ctx = makeContext({
         canvas,
@@ -260,9 +260,9 @@ test('exportImageBase64: resolves multiplier from options and editor defaults', 
     );
 });
 
-// ─── Requirement 25.2 — exportImageFile surface ─────────────────────────────
+// ─── the documented contract — exportImageFile surface ─────────────────────────────
 
-test('exportImageFile: produces a File whose name matches options.fileName (Req 25.2)', async () => {
+test('exportImageFile: produces a File whose name matches options.fileName', async () => {
     // Use a JPEG data URL whose MIME prefix matches the requested type so
     // the service skips the offscreen-canvas reencode path (which would
     // require jsdom to satisfy `document.createElement` + `Image`).
@@ -277,7 +277,7 @@ test('exportImageFile: produces a File whose name matches options.fileName (Req 
     assert.ok(file.size > 0, 'File must contain decoded bytes');
 });
 
-test('exportImageFile: falls back to defaultDownloadFileName when fileName is omitted (Req 25.2)', async () => {
+test('exportImageFile: falls back to defaultDownloadFileName when fileName is omitted', async () => {
     const canvas = makeMockCanvas(
         'data:image/jpeg;base64,' + Buffer.from('hi').toString('base64'),
     );
@@ -289,7 +289,7 @@ test('exportImageFile: falls back to defaultDownloadFileName when fileName is om
     assert.equal(file.name, 'fallback.jpg');
 });
 
-test('exportImageFile: discards ActiveSelection before toDataURL (Req 23.2)', async () => {
+test('exportImageFile: discards ActiveSelection before toDataURL', async () => {
     const canvas = makeMockCanvas(
         'data:image/jpeg;base64,' + Buffer.from('a').toString('base64'),
     );

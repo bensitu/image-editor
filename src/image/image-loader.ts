@@ -50,19 +50,19 @@
  *   catches it and routes through the rollback path.
  * - On success, `maskCounter` is reset to `0`.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * The loader is an exported **function** that takes its dependencies in a
  * {@link LoadImageContext} parameter rather than a class. The `ImageEditor`
  * facade owns all editor state (the canvas reference, the placeholder
  * element, the editor scalar fields), so the loader must read and write
  * that state through a small set of getter/setter callbacks. The class
- * shape of v1 was a side effect of the monolith; v2 keeps the loader
+ * shape of legacy was a side effect of the monolith; current keeps the loader
  * stateless so the rollback bundle is the single source of truth for what
  * the operation has captured.
  *
  * The rollback bundle is built before the loader hides the placeholder or
- * touches the canvas. It captures *every* field listed in the design's
+ * touches the canvas. It captures *every* field listed in the documented
  * RollbackBundle definition plus the editor scalar fields
  * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
  * `currentRotation`, `baseImageScale`) the success path mutates. Restoring
@@ -77,7 +77,7 @@
  * `loadOptions.preserveScroll === true`; on rollback the bundle is replayed
  * unconditionally, which the rollback contract already requires for
  * transactional rewind. When `preserveScroll` is omitted or `false`, the
- * success path leaves the container scroll untouched, so v1's documented
+ * success path leaves the container scroll untouched, so legacy's documented
  * scroll/viewport behavior for the selected layout mode prevails.
  *
  * `onImageLoaded` is invoked from inside
@@ -89,7 +89,7 @@
  * path skips the callback entirely (failed loads do
  * not fire the callback).
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is the canonical owner of the transactional
  * load helpers. It is NOT re-exported from `src/index.ts`.
  */
@@ -101,10 +101,10 @@ import type {
     LoadImageOptions,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { reportError} from '../core/callback-reporter.js';
-import { ImageDecodeError} from '../core/errors.js';
-import { saveState, SNAPSHOT_CUSTOM_KEYS} from '../core/state-serializer.js';
-import { withTimeout} from '../utils/timeout.js';
+import { reportError } from '../core/callback-reporter.js';
+import { ImageDecodeError } from '../core/errors.js';
+import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
+import { withTimeout } from '../utils/timeout.js';
 import {
     computeCoverLayout,
     computeExpandLayout,
@@ -127,7 +127,7 @@ import {
  * the first mutation so a failure mid-pipeline can rewind the editor to
  * its pre-call state.
  *
- * Mirrors the design's `RollbackBundle` definition with the addition of
+ * Mirrors the documented `RollbackBundle` definition with the addition of
  * the editor scalar fields the success path also rewrites
  * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
  * `currentRotation`, `baseImageScale`). Those scalars must be restored
@@ -135,7 +135,7 @@ import {
  *
  */
 export interface RollbackBundle {
-    /** `placeholderEl.hidden` immediately before the loader hid it. */
+    /** `placeholderElement.hidden` immediately before the loader hid it. */
     placeholderHidden: boolean | null;
     /** Container `scrollTop` immediately before the loader started. */
     containerScrollTop: number | null;
@@ -190,9 +190,9 @@ export interface LoadImageContext {
     /** Resolved editor options (timeouts, downsample knobs, layout flags). */
     options: ResolvedOptions;
     /** Scrollable container wrapping the canvas, or `null`. */
-    containerEl: HTMLElement | null;
+    containerElement: HTMLElement | null;
     /** Empty-state placeholder element, or `null`. */
-    placeholderEl: HTMLElement | null;
+    placeholderElement: HTMLElement | null;
     /** Hidden-container viewport cache shared with the layout manager. */
     viewportCache: ViewportCache;
 
@@ -280,7 +280,7 @@ export interface LoadImageContext {
  * restores scroll regardless of `preserveScroll` because the rollback
  * requires the bundle to be replayed in full on failure. When
  * `preserveScroll` is omitted or `false`, the success path leaves scroll
- * untouched and v1's documented scroll/viewport behavior for the selected
+ * untouched and legacy's documented scroll/viewport behavior for the selected
  * layout mode applies.
  *
  * `onImageLoaded` is invoked exactly once at
@@ -308,20 +308,20 @@ export async function loadImage(
     //    anything when the input is not a data:image URL.
     if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
         return;
-}
+    }
 
     // 2. capture the rollback bundle BEFORE the first
     //    mutation. Reads `style.overflow` (NOT computed style) so the
     //    rollback restores the developer's inline value verbatim
     //    (never invent a new inline style).
     const placeholderHidden =
-        ctx.placeholderEl ? !!ctx.placeholderEl.hidden : null;
+        ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
     const containerScrollTop =
-        ctx.containerEl ? ctx.containerEl.scrollTop : null;
+        ctx.containerElement ? ctx.containerElement.scrollTop : null;
     const containerScrollLeft =
-        ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+        ctx.containerElement ? ctx.containerElement.scrollLeft : null;
     const containerOverflow =
-        ctx.containerEl ? ctx.containerEl.style.overflow : null;
+        ctx.containerElement ? ctx.containerElement.style.overflow : null;
 
     const bundle: RollbackBundle = {
         placeholderHidden,
@@ -336,7 +336,7 @@ export async function loadImage(
         currentScale: ctx.getCurrentScale(),
         currentRotation: ctx.getCurrentRotation(),
         baseImageScale: ctx.getBaseImageScale(),
-};
+    };
 
     try {
         // 3. First mutation — hide the placeholder via the visibility
@@ -345,11 +345,18 @@ export async function loadImage(
         ctx.setPlaceholderVisible(false);
 
         // 4. decode under the configured timeout.
-        const imgEl = await withTimeout(
-            decodeImageElement(imageBase64),
-            ctx.options.imageLoadTimeoutMs,
-            'image decode',
-);
+        const decode = startImageDecode(imageBase64);
+        let imgEl: HTMLImageElement;
+        try {
+            imgEl = await withTimeout(
+                decode.promise,
+                ctx.options.imageLoadTimeoutMs,
+                'image decode',
+            );
+        } catch (error) {
+            decode.cleanup(true);
+            throw error;
+        }
 
         // 5. optionally downsample. The resampler
         //    throws DownsampleError when the offscreen canvas cannot get
@@ -361,10 +368,10 @@ export async function loadImage(
         //    timeout. Cross-origin is requested so canvases stay
         //    untainted for export.
         const fimg = await withTimeout(
-            ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous'}),
+            ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' }),
             ctx.options.imageLoadTimeoutMs,
             'FabricImage.fromURL',
-);
+        );
 
         // 7. Apply the new image to the canvas. Discard any prior
         //    selection so the active-selection wrapper does not leak
@@ -380,16 +387,16 @@ export async function loadImage(
             originY: 'top',
             selectable: false,
             evented: false,
-});
+        });
 
         const layout = computeLayout(ctx, fimg);
         applyCanvasDimensions(
             ctx.canvas,
             layout.canvasWidth,
             layout.canvasHeight,
-            ctx.containerEl,
-);
-        fimg.set({ left: layout.imageLeft, top: layout.imageTop});
+            ctx.containerElement,
+        );
+        fimg.set({ left: layout.imageLeft, top: layout.imageTop });
         fimg.scale(layout.imageScale);
 
         ctx.canvas.add(fimg);
@@ -415,8 +422,8 @@ export async function loadImage(
                 currentScale: 1,
                 currentRotation: 0,
                 baseImageScale: layout.baseImageScale,
-}),
-);
+            }),
+        );
 
         // when the caller opted into `preserveScroll`,
         // restore the container scroll position captured before any
@@ -425,23 +432,23 @@ export async function loadImage(
         // image is committed, so the write lands against the final
         // post-load scroll metrics. When `preserveScroll` is omitted or
         // `false`, the scroll position is intentionally left untouched
-        // so v1's documented scroll/viewport behavior for the selected
+        // so legacy's documented scroll/viewport behavior for the selected
         // layout mode applies.
-        if (loadOptions.preserveScroll === true && ctx.containerEl) {
+        if (loadOptions.preserveScroll === true && ctx.containerElement) {
             try {
                 if (bundle.containerScrollTop !== null) {
-                    ctx.containerEl.scrollTop = bundle.containerScrollTop;
-}
+                    ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                }
                 if (bundle.containerScrollLeft !== null) {
-                    ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
-}
-} catch (err) {
+                    ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                }
+            } catch (err) {
                 console.warn(
                     '[ImageEditor] preserveScroll restore failed',
                     err,
-);
-}
-}
+                );
+            }
+        }
 
         // invoke `onImageLoaded` exactly once
         // after every editor scalar (`originalImage`, `currentScale`,
@@ -465,7 +472,7 @@ export async function loadImage(
                 );
             }
         }
-} catch (err) {
+    } catch (err) {
         // replay the bundle and reject with the
         // original error. Failures inside the rollback itself are
         // logged but do NOT mask the original error.
@@ -484,7 +491,7 @@ export async function loadImage(
         reportError(ctx.options, err, errorMessage);
 
         throw err;
-}
+    }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -494,19 +501,34 @@ export async function loadImage(
  * {@link ImageDecodeError} that wraps the original `ErrorEvent` so the
  * facade's `onError` handler can introspect the cause.
  */
-function decodeImageElement(dataUrl: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload =  () => {
-            img.onload = img.onerror = null;
+interface ImageDecodeHandle {
+    promise: Promise<HTMLImageElement>;
+    cleanup(clearSource?: boolean): void;
+}
+
+function startImageDecode(dataUrl: string): ImageDecodeHandle {
+    const img = new Image();
+    const cleanup = (clearSource = false): void => {
+        img.onload = null;
+        img.onerror = null;
+        if (clearSource) {
+            img.src = '';
+        }
+    };
+
+    const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+        img.onload = () => {
+            cleanup(false);
             resolve(img);
-};
+        };
         img.onerror = (e) => {
-            img.onload = img.onerror = null;
+            cleanup(true);
             reject(new ImageDecodeError('Failed to decode image data URL.', e));
-};
+        };
         img.src = dataUrl;
-});
+    });
+
+    return { promise, cleanup };
 }
 
 /**
@@ -529,7 +551,7 @@ function maybeDownsample(
         imgEl.naturalHeight,
         options.downsampleMaxWidth,
         options.downsampleMaxHeight,
-);
+    );
     if (!dims.needsResize) return originalDataUrl;
 
     const sourceMime = detectSourceMimeType(originalDataUrl);
@@ -541,7 +563,7 @@ function maybeDownsample(
         options.preserveSourceFormat,
         options.downsampleMimeType,
         options.downsampleQuality,
-).dataUrl;
+    ).dataUrl;
 }
 
 /**
@@ -555,10 +577,10 @@ function computeLayout(
 ): LayoutResult {
     const imgW = fimg.width ?? 0;
     const imgH = fimg.height ?? 0;
-    const viewport = ctx.viewportCache.measure(ctx.containerEl, {
+    const viewport = ctx.viewportCache.measure(ctx.containerElement, {
         width: ctx.options.canvasWidth,
         height: ctx.options.canvasHeight,
-});
+    });
 
     const strategy = selectLayoutStrategy(ctx.options);
     if (strategy === 'fit') {
@@ -568,8 +590,8 @@ function computeLayout(
             ctx.options.canvasWidth,
             ctx.options.canvasHeight,
             viewport,
-);
-}
+        );
+    }
     if (strategy === 'cover') {
         return computeCoverLayout(
             imgW,
@@ -577,15 +599,15 @@ function computeLayout(
             ctx.options.canvasWidth,
             ctx.options.canvasHeight,
             viewport,
-);
-}
+        );
+    }
     return computeExpandLayout(
         imgW,
         imgH,
         ctx.options.canvasWidth,
         ctx.options.canvasHeight,
         viewport,
-);
+    );
 }
 
 /**
@@ -600,8 +622,8 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
     const json = (
         canvas as unknown as {
             toJSON(propertiesToInclude: readonly string[]): unknown;
-}
-).toJSON(SNAPSHOT_CUSTOM_KEYS);
+        }
+    ).toJSON(SNAPSHOT_CUSTOM_KEYS);
     return JSON.stringify(json);
 }
 
@@ -618,13 +640,13 @@ async function replayRollback(
 ): Promise<void> {
     // 1. Restore container `overflow` inline value first so subsequent
     //    DOM reads (scroll metrics, layout) see the developer's CSS.
-    if (ctx.containerEl && bundle.containerOverflow !== null) {
+    if (ctx.containerElement && bundle.containerOverflow !== null) {
         try {
-            ctx.containerEl.style.overflow = bundle.containerOverflow;
-} catch (err) {
+            ctx.containerElement.style.overflow = bundle.containerOverflow;
+        } catch (err) {
             console.warn('[ImageEditor] rollback: overflow restore failed', err);
-}
-}
+        }
+    }
 
     // 2. Restore canvas JSON via Fabric's loadFromJSON. If this fails
     //    (malformed snapshot, dispose race) we log and continue — the
@@ -634,12 +656,12 @@ async function replayRollback(
         await (
             ctx.canvas as unknown as {
                 loadFromJSON(json: unknown): Promise<FabricNS.Canvas>;
-}
-).loadFromJSON(JSON.parse(bundle.canvasJson));
+            }
+        ).loadFromJSON(JSON.parse(bundle.canvasJson));
         ctx.canvas.renderAll();
-} catch (err) {
+    } catch (err) {
         console.warn('[ImageEditor] rollback: loadFromJSON failed', err);
-}
+    }
 
     // 3. Restore editor scalar state. Done after the canvas restore so
     //    handlers reading these fields during render see the rolled-back
@@ -656,26 +678,26 @@ async function replayRollback(
     //    resized the canvas, which itself can mutate scroll metrics on
     //    the container; restoring scroll last guarantees the captured
     //    values stick (will rely on the same ordering).
-    if (ctx.containerEl) {
+    if (ctx.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
-                ctx.containerEl.scrollTop = bundle.containerScrollTop;
-}
+                ctx.containerElement.scrollTop = bundle.containerScrollTop;
+            }
             if (bundle.containerScrollLeft !== null) {
-                ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
-}
-} catch (err) {
+                ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+            }
+        } catch (err) {
             console.warn('[ImageEditor] rollback: scroll restore failed', err);
-}
-}
+        }
+    }
 
     // 5. Restore placeholder visibility. The visibility helper is total
     //    and never throws on null inputs.
     if (bundle.placeholderHidden !== null) {
         // `setPlaceholderVisible(show)` takes the *placeholder* visibility
         // perspective: `show === true` means the placeholder is visible.
-        // The bundle stored `placeholderEl.hidden`, so the desired `show`
+        // The bundle stored `placeholderElement.hidden`, so the desired `show`
         // is the inverse.
         ctx.setPlaceholderVisible(!bundle.placeholderHidden);
-}
+    }
 }

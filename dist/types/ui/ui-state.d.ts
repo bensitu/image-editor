@@ -20,14 +20,9 @@
  *
  * ## Why this lives in its own module
  *
- * The v1 orchestrator's `_updateUI` walked the entire `idMap` and toggled
- * each control inline, which mixed toolbar policy (which buttons are
- * enabled when) with low-level DOM state (`disabled`, `aria-disabled`,
- * class toggles). Splitting the low-level DOM state out keeps
- * `image-editor.ts` focused on policy: "if there is no image, disable
- * zoom" stays in the facade, while "set `disabled` on the resolved element
- * by key" lives here and is unit-testable in isolation
- * (`tests/units/ui-state.test.mjs` per the design's Unit Tests table).
+ * Splitting low-level DOM state out keeps `image-editor.ts` focused on
+ * toolbar policy while helpers here own native DOM writes such as setting
+ * `disabled` by logical key.
  *
  * Like `dom-bindings.ts` and `visibility-state.ts`, this module is imported
  * by `image-editor.ts` only and is intentionally NOT re-exported from
@@ -65,7 +60,7 @@ export type ElementIdResolver = (key: ElementKey) => string | null | undefined;
  *   fatal error.
  * - Otherwise the resolved element's `disabled` property is set to the
  *   requested boolean. Using the IDL property (not `setAttribute`)
- *   matches v1 behaviour and keeps the keyboard/click behaviour the
+ *   keeps the keyboard/click behaviour the
  *   browser provides "for free" on real `<button>` elements.
  *
  * The element is typed as `HTMLButtonElement` because every key in the

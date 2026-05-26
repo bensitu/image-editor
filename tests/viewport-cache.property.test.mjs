@@ -1,6 +1,5 @@
-// Property 8: Hidden-container viewport cache
+// Hidden-container viewport cache
 //
-// Property statement (design.md §"Property 8"):
 //   For any hidden container or zero-sized viewport, layout SHALL use
 //   the configured canvas dimensions or the last known non-zero
 //   viewport dimensions as a fallback. The result SHALL never produce
@@ -15,16 +14,16 @@
 //
 // Sub-properties exercised here:
 //
-//   8.1 Visible measure caches (Req 10.3): when both `clientWidth` and
+//   8.1 Visible measure caches: when both `clientWidth` and
 //       `clientHeight` are > 0, `measure(container, fallback)` returns
 //       `{ width: floor(clientWidth), height: floor(clientHeight) }`,
 //       and `peek()` afterwards returns the same value. The fallback
 //       is ignored on the visible path.
-//   8.2 Hidden returns cache (Req 10.1): once a non-zero measurement
+//   8.2 Hidden returns cache: once a non-zero measurement
 //       has been observed, any subsequent `measure` call where either
 //       axis is zero returns the previously cached size — not the
 //       fallback. `peek()` keeps reporting the cache.
-//   8.3 Fallback when no cache (Req 10.2): with a fresh cache and a
+//   8.3 Fallback when no cache: with a fresh cache and a
 //       container reporting any zero axis, `measure` returns the
 //       supplied fallback verbatim. `peek()` is `null`.
 //   8.4 Null container returns fallback: `measure(null, fallback)`
@@ -93,9 +92,9 @@ const hiddenContainerArb = fc.oneof(
     }),
 );
 
-// ─── Property 8.1: visible measure caches ──────────────────────────────────
+// ─── visible measure caches ──────────────────────────────────
 
-test('Property 8.1: visible measure returns floor(clientW/H) and updates the cache (Req 10.3)', () => {
+test('visible measure returns floor(clientW/H) and updates the cache', () => {
     fc.assert(
         fc.property(visibleContainerArb, fallbackArb, (container, fallback) => {
             const cache = new ViewportCache();
@@ -120,9 +119,9 @@ test('Property 8.1: visible measure returns floor(clientW/H) and updates the cac
     );
 });
 
-// ─── Property 8.2: hidden returns cached value when one exists ─────────────
+// ─── hidden returns cached value when one exists ─────────────
 
-test('Property 8.2: hidden measure returns the cached lastVisible size, not the fallback (Req 10.1)', () => {
+test('hidden measure returns the cached lastVisible size, not the fallback', () => {
     fc.assert(
         fc.property(
             visibleContainerArb,
@@ -156,9 +155,9 @@ test('Property 8.2: hidden measure returns the cached lastVisible size, not the 
     );
 });
 
-// ─── Property 8.3: fallback when no cache yet ──────────────────────────────
+// ─── fallback when no cache yet ──────────────────────────────
 
-test('Property 8.3: hidden measure with empty cache returns the fallback (Req 10.2)', () => {
+test('hidden measure with empty cache returns the fallback', () => {
     fc.assert(
         fc.property(hiddenContainerArb, fallbackArb, (container, fallback) => {
             const cache = new ViewportCache();
@@ -186,9 +185,9 @@ test('Property 8.3: hidden measure with empty cache returns the fallback (Req 10
     );
 });
 
-// ─── Property 8.4: null container returns fallback unchanged ───────────────
+// ─── null container returns fallback unchanged ───────────────
 
-test('Property 8.4: null container yields the fallback verbatim and never mutates the cache', () => {
+test('null container yields the fallback verbatim and never mutates the cache', () => {
     fc.assert(
         fc.property(
             visibleContainerArb,
@@ -225,9 +224,9 @@ test('Property 8.4: null container yields the fallback verbatim and never mutate
     );
 });
 
-// ─── Property 8.5: clear() resets the cache ────────────────────────────────
+// ─── clear() resets the cache ────────────────────────────────
 
-test('Property 8.5: clear() resets the cache; next hidden measure returns fallback', () => {
+test('clear() resets the cache; next hidden measure returns fallback', () => {
     fc.assert(
         fc.property(
             visibleContainerArb,

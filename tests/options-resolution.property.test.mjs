@@ -1,6 +1,5 @@
-// Property 1: Options resolution completeness and deep-merge
+// Options resolution completeness and deep-merge
 //
-// Property statement (design.md §"Property 1"):
 //   For any partial `ImageEditorOptions` object `U` and the documented
 //   defaults object `D`, `resolveOptions(U)` SHALL expose every required
 //   option key. Top-level keys, nested `label.textOptions`, and nested
@@ -36,7 +35,8 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'expandCanvasToImage', 'fitImageToCanvas', 'coverImageToCanvas',
     'downsampleOnLoad', 'downsampleMaxWidth', 'downsampleMaxHeight',
     'downsampleQuality', 'preserveSourceFormat', 'downsampleMimeType',
-    'imageLoadTimeoutMs', 'exportMultiplier', 'exportImageAreaByDefault',
+    'imageLoadTimeoutMs', 'maxHistorySize',
+    'exportMultiplier', 'exportImageAreaByDefault',
     'defaultMaskWidth', 'defaultMaskHeight', 'maskRotatable',
     'maskLabelOnSelect', 'maskLabelOffset', 'maskName',
     'groupSelection', 'showPlaceholder', 'initialImageBase64',
@@ -87,6 +87,7 @@ function topLevelScalarOverridesArb() {
             { nil: null },
         ),
         imageLoadTimeoutMs: fc.integer({ min: 1, max: 600000 }),
+        maxHistorySize: fc.integer({ min: 1, max: 500 }),
         exportMultiplier: fc.double({ min: 0.1, max: 10, noNaN: true, noDefaultInfinity: true }),
         exportImageAreaByDefault: fc.boolean(),
         defaultMaskWidth: fc.integer({ min: 0, max: 1000 }),
@@ -103,8 +104,8 @@ function topLevelScalarOverridesArb() {
 }
 
 // Mix of well-formed function callbacks and "garbage" non-function values.
-// Requirement 3.7 says non-function values must collapse to `null`, while
-// Requirement 3.8 says functions must be preserved with their public
+// the documented contract says non-function values must collapse to `null`, while
+// the documented contract says functions must be preserved with their public
 // `(error, message)` argument order — preservation by identity covers it.
 function callbackArb(label) {
     return fc.oneof(
@@ -149,7 +150,7 @@ function textOptionsOverridesArb() {
 function labelArb() {
     return fc.record({
         // `getText` must be a function to be honored; otherwise the default
-        // implementation applies (Req 3.7-style normalization scoped to label).
+        // implementation applies.
         getText: fc.oneof(
             fc.constant(undefined),
             fc.constant(null),
@@ -179,7 +180,7 @@ function cropArb() {
 }
 
 // Random unknown top-level keys, name-spaced so they cannot collide with the
-// documented top-level keys. They MUST be silently dropped (Req 3.9).
+// documented top-level keys. They MUST be silently dropped.
 function unknownKeysArb() {
     return fc.dictionary(
         fc.string({ minLength: 1, maxLength: 8 }).map((s) => `${UNKNOWN_KEY_PREFIX}${s}`),
@@ -211,7 +212,7 @@ function partialOptionsArb() {
 
 // ─── Property assertion ────────────────────────────────────────────────────
 
-test('Property 1: options resolution completeness and deep-merge', () => {
+test('options resolution completeness and deep-merge', () => {
     fc.assert(
         fc.property(partialOptionsArb(), (input) => {
             const resolved = resolveOptions(input);
@@ -283,7 +284,7 @@ test('Property 1: options resolution completeness and deep-merge', () => {
                 assert.equal(resolved.label.getText, DEFAULT_LABEL.getText);
             }
 
-            // 3.3 + 3.4 — crop.* deep-merged with crop defaults.
+            // crop.* deep-merged with crop defaults.
             const userCrop = input.crop ?? {};
             for (const key of CROP_KEYS) {
                 if (key in userCrop) {
@@ -361,8 +362,8 @@ test('Property 1: options resolution completeness and deep-merge', () => {
     );
 });
 
-// Boundary cases — Reqs 3.1, 3.4, 3.5, 3.6, 3.7, 3.9, 3.10 with no input at all.
-test('Property 1 boundary: null/undefined/empty inputs return full default surface', () => {
+// Boundary cases — the documented contract with no input at all.
+test('boundary: null/undefined/empty inputs return full default surface', () => {
     for (const input of [undefined, null, {}]) {
         const resolved = resolveOptions(input);
 
@@ -379,5 +380,13 @@ test('Property 1 boundary: null/undefined/empty inputs return full default surfa
         assert.equal(resolved.onImageLoaded, null);
         assert.equal(resolved.onError, null);
         assert.equal(resolved.onWarning, null);
+        assert.equal(resolved.maxHistorySize, 50);
     }
+});
+
+test('maxHistorySize is normalized to a positive integer', () => {
+    assert.equal(resolveOptions({ maxHistorySize: 7.9 }).maxHistorySize, 7);
+    assert.equal(resolveOptions({ maxHistorySize: 0 }).maxHistorySize, 1);
+    assert.equal(resolveOptions({ maxHistorySize: -10 }).maxHistorySize, 1);
+    assert.equal(resolveOptions({ maxHistorySize: Number.NaN }).maxHistorySize, 50);
 });

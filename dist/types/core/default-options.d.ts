@@ -3,21 +3,11 @@
  * @description Resolves user-supplied {@link ImageEditorOptions} into the
  * frozen {@link ResolvedOptions} object used at runtime.
  *
- * Behavior is defined by the documented option-resolution rules:
- *
- *   3.1  Every required top-level option falls back to the documented default.
- *   3.2  `label.textOptions` is deep-merged with the default text options.
- *   3.3  `crop.*` is deep-merged with the documented defaults.
- *   3.4  `crop.preserveMasksAfterCrop` defaults to `false` in v2.0.0.
- *   3.5  `preserveSourceFormat` defaults to `true`.
- *   3.6  `imageLoadTimeoutMs` defaults to `30000`.
- *   3.7  `onImageLoaded`, `onError`, `onWarning` are normalized — function
- *        values are kept, anything else (including `undefined`) becomes `null`.
- *   3.8  Callback signatures are preserved: `onImageLoaded: void`,
- *        `onError(error, message)`, `onWarning(error, message)`.
- *   3.9  Unknown top-level keys are ignored without throwing.
- *   3.10 The returned `label` and `crop` references are frozen so that
- *        post-construction mutation cannot leak into the live editor.
+ * Behavior is defined by the documented option-resolution rules: every
+ * required option falls back to a default, nested `label.textOptions` and
+ * `crop` values merge with their defaults, callback values normalize to a
+ * function or `null`, unknown top-level keys are ignored, and returned nested
+ * config objects are frozen.
  */
 import type { CropConfig, ImageEditorOptions, LabelConfig, ResolvedOptions } from './public-types.js';
 /**
@@ -25,13 +15,11 @@ import type { CropConfig, ImageEditorOptions, LabelConfig, ResolvedOptions } fro
  * {@link LabelConfig} and {@link CropConfig} configs, which are owned by
  * {@link DEFAULT_LABEL} and {@link DEFAULT_CROP} respectively.
  *
- * Values mirror the v1 constructor (see `baseline.md`) with two documented
- * v2 changes captured:
- *  - `preserveSourceFormat` is `true` (was effectively `false` in v1's
- *    JPEG-only resampler).
- *  - `crop.preserveMasksAfterCrop` is `false` (carried by {@link DEFAULT_CROP}).
+ * Values are the runtime defaults used when callers omit an option.
+ * Nested label and crop defaults are carried by {@link DEFAULT_LABEL} and
+ * {@link DEFAULT_CROP}.
  */
-export declare const DEFAULT_OPTIONS: Required<Omit<ImageEditorOptions, 'label' | 'crop'>>;
+export declare const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'>;
 /**
  * Default {@link LabelConfig}. Consumers can override `getText`, supply a
  * `create` factory, or provide partial `textOptions` — unspecified keys fall
@@ -39,8 +27,7 @@ export declare const DEFAULT_OPTIONS: Required<Omit<ImageEditorOptions, 'label' 
  */
 export declare const DEFAULT_LABEL: LabelConfig;
 /**
- * Default {@link CropConfig}. `preserveMasksAfterCrop` is `false` in v2.0.0
- * (the only documented default change carried over from v1).
+ * Default {@link CropConfig}.
  */
 export declare const DEFAULT_CROP: Required<CropConfig>;
 /**

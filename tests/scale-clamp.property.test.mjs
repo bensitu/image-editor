@@ -1,6 +1,5 @@
-// Property 11: Scale clamp
+// Scale clamp
 //
-// Property statement (design.md §"Property 11"):
 //   For any scale factor, `scaleImage(factor)` SHALL clamp the resulting
 //   `currentScale` to `[options.minScale, options.maxScale]` and SHALL
 //   keep the original image's `scaleX`/`scaleY` synchronized with that
@@ -108,7 +107,7 @@ function makeFabricImageMock() {
             // cache but our mock has no cache to invalidate.
         },
         setPositionByOrigin() {
-            // No-op — placement math is not part of Property 11.
+            // No-op — placement math is not part of .
         },
         getCenterPoint() {
             return { x: 50, y: 50 };
@@ -222,7 +221,7 @@ const scaleBoundsArb = fc
  * Any finite scale factor — including values well below `minScale` and
  * well above `maxScale` so the clamp branches are exercised. The wide
  * `[-1e3, 1e3]` window keeps the values realistic for a scale factor
- * while still covering the negative-and-zero edge cases the requirement
+ * while still covering the negative-and-zero edge cases the Contract
  * does not exclude.
  */
 const factorArb = fc.double({
@@ -235,7 +234,7 @@ const factorArb = fc.double({
 // ─── Properties ─────────────────────────────────────────────────────────────
 
 test(
-    'Property 11: scaleImage clamps currentScale to [minScale, maxScale] (Req 13.1)',
+    'scaleImage clamps currentScale to [minScale, maxScale]',
     async () => {
         await fc.assert(
             fc.asyncProperty(
@@ -255,7 +254,7 @@ test(
                     assert.equal(
                         ctx.getCurrentScale(),
                         expected,
-                        'Req 13.1: currentScale must equal clamp(factor, minScale, maxScale)',
+                        'the documented contract: currentScale must equal clamp(factor, minScale, maxScale)',
                     );
 
                     // Sanity: the post-animation snap mirrors the clamp
@@ -264,12 +263,12 @@ test(
                     assert.equal(
                         image.scaleX,
                         expected,
-                        'Req 13.1: image.scaleX must reflect the clamped scale (baseImageScale=1)',
+                        'the documented contract: image.scaleX must reflect the clamped scale (baseImageScale=1)',
                     );
                     assert.equal(
                         image.scaleY,
                         expected,
-                        'Req 13.1: image.scaleY must reflect the clamped scale (baseImageScale=1)',
+                        'the documented contract: image.scaleY must reflect the clamped scale (baseImageScale=1)',
                     );
                 },
             ),
@@ -279,7 +278,7 @@ test(
 );
 
 test(
-    'Property 11 (edge case): factor below minScale clamps up (Req 13.1)',
+    'factor below minScale clamps up',
     async () => {
         await fc.assert(
             fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
@@ -292,7 +291,7 @@ test(
                 assert.equal(
                     ctx.getCurrentScale(),
                     minScale,
-                    'Req 13.1: factor < minScale must clamp up to minScale',
+                    'the documented contract: factor < minScale must clamp up to minScale',
                 );
             }),
             { numRuns: 30 },
@@ -301,7 +300,7 @@ test(
 );
 
 test(
-    'Property 11 (edge case): factor above maxScale clamps down (Req 13.1)',
+    'factor above maxScale clamps down',
     async () => {
         await fc.assert(
             fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
@@ -314,7 +313,7 @@ test(
                 assert.equal(
                     ctx.getCurrentScale(),
                     maxScale,
-                    'Req 13.1: factor > maxScale must clamp down to maxScale',
+                    'the documented contract: factor > maxScale must clamp down to maxScale',
                 );
             }),
             { numRuns: 30 },
@@ -323,7 +322,7 @@ test(
 );
 
 test(
-    'Property 11 (edge case): factor within bounds passes through (Req 13.1)',
+    'factor within bounds passes through',
     async () => {
         await fc.assert(
             fc.asyncProperty(
@@ -347,7 +346,7 @@ test(
                     assert.equal(
                         ctx.getCurrentScale(),
                         factor,
-                        'Req 13.1: factor in [minScale, maxScale] must pass through unchanged',
+                        'the documented contract: factor in [minScale, maxScale] must pass through unchanged',
                     );
                 },
             ),
@@ -357,7 +356,7 @@ test(
 );
 
 test(
-    'Property 11 (boundary): factor === minScale and factor === maxScale clamp to themselves (Req 13.1)',
+    'factor === minScale and factor === maxScale clamp to themselves',
     async () => {
         await fc.assert(
             fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
@@ -368,7 +367,7 @@ test(
                     assert.equal(
                         ctx.getCurrentScale(),
                         minScale,
-                        'Req 13.1: factor === minScale must clamp to minScale',
+                        'the documented contract: factor === minScale must clamp to minScale',
                     );
                 }
                 {
@@ -378,7 +377,7 @@ test(
                     assert.equal(
                         ctx.getCurrentScale(),
                         maxScale,
-                        'Req 13.1: factor === maxScale must clamp to maxScale',
+                        'the documented contract: factor === maxScale must clamp to maxScale',
                     );
                 }
             }),

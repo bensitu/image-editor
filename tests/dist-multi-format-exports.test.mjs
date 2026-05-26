@@ -52,10 +52,9 @@ const UMD_PATH = path.join(distRoot, 'umd', 'image-editor.umd.js');
 // ─── Constants ────────────────────────────────────────────────────────────
 
 /**
- * Internal helpers from the design's "Module Responsibilities" table.
- * None of these may leak through any format's root export. The list
- * mirrors `tests/public-surface.test.mjs` so the static (`src/`) and
- * built (`dist/`) checks stay aligned.
+ * Internal helpers that must not leak through any format's root export.
+ * The list mirrors `tests/public-surface.test.mjs` so the static (`src/`)
+ * and built (`dist/`) checks stay aligned.
  */
 const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
     // Named primitives
@@ -66,7 +65,7 @@ const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
     'TransformController',
     'DomBindings',
     'ViewportCache',
-    // Module categories owned in the design
+    // Internal module categories
     'CropController',
     'ExportService',
     'MaskFactory',
@@ -173,7 +172,7 @@ async function allArtifactsBuilt() {
 
 const distIsBuilt = await allArtifactsBuilt();
 
-// ─── 1. ESM bundle exposes canonical exports (Req 1.4, 2.1, 2.2) ──────────
+// ─── 1. ESM bundle exposes canonical exports ──────────
 
 test('ESM bundle exposes ImageEditor (default + named) and isMaskObject', async () => {
     if (!distIsBuilt) return; // skip cleanly on an unbuilt tree
@@ -185,18 +184,18 @@ test('ESM bundle exposes ImageEditor (default + named) and isMaskObject', async 
     assert.equal(
         typeof esmModule.ImageEditor,
         'function',
-        'ESM bundle must expose `ImageEditor` as a named export (Requirement 2.1)',
+        'ESM bundle must expose `ImageEditor` as a named export',
     );
     assert.equal(
         typeof esmModule.default,
         'function',
-        'ESM bundle must expose `ImageEditor` as the default export (Requirement 2.1)',
+        'ESM bundle must expose `ImageEditor` as the default export',
     );
     assert.equal(
         esmModule.default,
         esmModule.ImageEditor,
         'ESM `default` and named `ImageEditor` must reference the same class ' +
-        '(Requirement 2.1)',
+        '',
     );
     assert.equal(
         esmModule.ImageEditor.name,
@@ -206,7 +205,7 @@ test('ESM bundle exposes ImageEditor (default + named) and isMaskObject', async 
     assert.equal(
         typeof esmModule.isMaskObject,
         'function',
-        'ESM bundle must expose `isMaskObject` (Requirement 2.2)',
+        'ESM bundle must expose `isMaskObject`',
     );
 });
 
@@ -237,11 +236,11 @@ test('ESM bundle root exports are exactly the canonical runtime set', async () =
         exportedKeys,
         expectedKeys,
         `ESM bundle root exports must equal ${JSON.stringify(expectedKeys)} ` +
-        `(Requirements 2.1, 2.2, 2.5)`,
+        ``,
     );
 });
 
-// ─── 2. CJS bundle exposes canonical exports (Req 1.4, 2.1, 2.2) ──────────
+// ─── 2. CJS bundle exposes canonical exports ──────────
 
 test('CJS bundle exposes ImageEditor (default + named) and isMaskObject', () => {
     if (!distIsBuilt) return;
@@ -255,19 +254,19 @@ test('CJS bundle exposes ImageEditor (default + named) and isMaskObject', () => 
     assert.equal(
         typeof cjsModule.ImageEditor,
         'function',
-        'CJS bundle must expose `ImageEditor` as a named export (Requirement 2.1)',
+        'CJS bundle must expose `ImageEditor` as a named export',
     );
     assert.equal(
         typeof cjsModule.default,
         'function',
         'CJS bundle must expose `ImageEditor` as the `default` property ' +
-        '(Requirement 2.1, ESM-interop shape)',
+        '',
     );
     assert.equal(
         cjsModule.default,
         cjsModule.ImageEditor,
         'CJS `default` and `ImageEditor` must reference the same class ' +
-        '(Requirement 2.1)',
+        '',
     );
     assert.equal(
         cjsModule.ImageEditor.name,
@@ -277,7 +276,7 @@ test('CJS bundle exposes ImageEditor (default + named) and isMaskObject', () => 
     assert.equal(
         typeof cjsModule.isMaskObject,
         'function',
-        'CJS bundle must expose `isMaskObject` (Requirement 2.2)',
+        'CJS bundle must expose `isMaskObject`',
     );
 });
 
@@ -315,12 +314,12 @@ test('CJS bundle enumerable exports cover the canonical runtime set', () => {
             exportedKeys.includes(expected),
             true,
             `CJS bundle must export \`${expected}\` ` +
-            `(Requirements 2.1, 2.2). Got keys: ${JSON.stringify(exportedKeys)}`,
+            `. Got keys: ${JSON.stringify(exportedKeys)}`,
         );
     }
 });
 
-// ─── 3. UMD bundle exposes canonical exports (Req 1.5, 2.1, 2.2) ──────────
+// ─── 3. UMD bundle exposes canonical exports ──────────
 
 test('UMD bundle installs `ImageEditor` global with canonical surface', async () => {
     if (!distIsBuilt) return;
@@ -331,7 +330,7 @@ test('UMD bundle installs `ImageEditor` global with canonical surface', async ()
         typeof umdGlobal,
         'object',
         'UMD bundle must install an `ImageEditor` global as an object ' +
-        '(Requirement 1.5). Rollup\'s UMD wrapper assigns `globalThis.ImageEditor = {}` ' +
+        '. Rollup\'s UMD wrapper assigns `globalThis.ImageEditor = {}` ' +
         'and the IIFE populates its exports onto that object.',
     );
     assert.notEqual(
@@ -343,32 +342,32 @@ test('UMD bundle installs `ImageEditor` global with canonical surface', async ()
     assert.equal(
         typeof umdGlobal.ImageEditor,
         'function',
-        'UMD bundle must expose `ImageEditor` on its global namespace (Requirement 2.1)',
+        'UMD bundle must expose `ImageEditor` on its global namespace',
     );
     assert.equal(
         typeof umdGlobal.default,
         'function',
         'UMD bundle must expose `default` on its global namespace ' +
-        '(Requirement 2.1, ESM-interop shape)',
+        '',
     );
     assert.equal(
         umdGlobal.default,
         umdGlobal.ImageEditor,
         'UMD `default` and `ImageEditor` must reference the same class ' +
-        '(Requirement 2.1)',
+        '',
     );
     // The UMD bundle is minified by Rollup's `terser` plugin
     // (`rollup.config.mjs`), so the inner class declaration is
     // renamed to a short identifier (e.g. `se`). The exported
     // *property* name remains `ImageEditor` (verified above) — that
-    // is the API contract from Requirement 1.5. We therefore skip a
+    // is the API contract from the documented contract. We therefore skip a
     // `Function.name` assertion on the UMD class to avoid coupling
     // the test to terser's name-mangling output.
     assert.equal(
         typeof umdGlobal.isMaskObject,
         'function',
         'UMD bundle must expose `isMaskObject` on its global namespace ' +
-        '(Requirement 2.2)',
+        '',
     );
 });
 
@@ -402,12 +401,12 @@ test('UMD bundle global namespace covers the canonical runtime set', async () =>
             exportedKeys.includes(expected),
             true,
             `UMD bundle must expose \`${expected}\` on its global namespace ` +
-            `(Requirements 2.1, 2.2). Got keys: ${JSON.stringify(exportedKeys)}`,
+            `. Got keys: ${JSON.stringify(exportedKeys)}`,
         );
     }
 });
 
-// ─── 4. Cross-format consistency (Req 2.1, 2.2) ───────────────────────────
+// ─── 4. Cross-format consistency ───────────────────────────
 
 test('ESM, CJS, and UMD bundles agree on the public surface shape', async () => {
     if (!distIsBuilt) return;

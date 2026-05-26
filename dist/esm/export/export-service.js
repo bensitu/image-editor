@@ -32,7 +32,7 @@ function applyExportBakeInStyle(mask) {
             stroke: null,
             selectable: false,
         });
-        if (typeof mask.setCoords() === 'function')
+        if (typeof mask.setCoords === 'function')
             mask.setCoords();
     }
     catch {
@@ -70,7 +70,7 @@ function reencodeDataUrlAs(sourceDataUrl, target) {
     }
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'Anonymous';
+        img.crossOrigin = 'anonymous';
         img.onload = () => {
             try {
                 const off = document.createElement('canvas');
@@ -171,8 +171,8 @@ export async function mergeMasks(ctx) {
     ctx.canvas.discardActiveObject();
     ctx.canvas.renderAll();
     const beforeSnapshot = ctx.saveState();
-    const preScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
-    const preScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+    const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
+    const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
     try {
         const merged = await exportImageBase64(ctx, {
             exportImageArea: true,
@@ -184,13 +184,13 @@ export async function mergeMasks(ctx) {
         ctx.removeAllMasksNoHistory();
         await ctx.loadImage(merged, { preserveScroll: true });
         const afterSnapshot = ctx.saveState();
-        if (ctx.containerEl) {
+        if (ctx.containerElement) {
             try {
                 if (preScrollTop !== null) {
-                    ctx.containerEl.scrollTop = preScrollTop;
+                    ctx.containerElement.scrollTop = preScrollTop;
                 }
                 if (preScrollLeft !== null) {
-                    ctx.containerEl.scrollLeft = preScrollLeft;
+                    ctx.containerElement.scrollLeft = preScrollLeft;
                 }
             }
             catch (scrollErr) {

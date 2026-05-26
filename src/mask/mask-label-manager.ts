@@ -1,10 +1,10 @@
 /**
  * @file mask/mask-label-manager.ts
  * @description Per-mask label overlay creation, positioning, show/hide, and
- *              removal. Owns the v1 `_createLabelForMask`, `_syncMaskLabel`,
+ *              removal. Owns the legacy `_createLabelForMask`, `_syncMaskLabel`,
  *              `_showLabelForMask`, `_hideAllMaskLabels`, and
  *              `_removeLabelForMask` logic that was inlined on the editor
- *              in v1 and is now extracted into pure(ish) helpers that take a
+ *              in legacy and is now extracted into pure(ish) helpers that take a
  *              {@link MaskLabelManagerContext}.
  *
  * ## Owned contracts
@@ -12,8 +12,8 @@
  * - Label text is computed via
  *   `options.label.getText(mask, mask.maskId - 1)`. The index argument is
  *   the stable creation index (`maskId - 1`), NOT the live canvas list
- *   position. v1 passed `this.maskCounter` here, which drifted whenever
- *   masks were added or removed; the v2 contract pins the index to the
+ *   position. legacy passed `this.maskCounter` here, which drifted whenever
+ *   masks were added or removed; the current contract pins the index to the
  *   mask's own identity so labels stay consistent across
  *   `createMask` / `removeSelectedMask` / `removeAllMasks` / `undo`/`redo`.
  *
@@ -36,7 +36,7 @@
  * - Mask list DOM rendering — see `mask/mask-list.ts`.
  * - Hover/selection appearance — see `mask/mask-style.ts`.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * - The orchestrator (`src/image-editor.ts`) owns the canvas reference,
  *   resolved options, and Fabric module. The helpers in this module
@@ -59,14 +59,14 @@ import type {
     MaskObject,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { isMaskObject} from '../core/public-types.js';
+import { isMaskObject } from '../core/public-types.js';
 
 /**
  * State the label helpers read from the `ImageEditor` orchestrator.
  *
  * The module does NOT own any of these slots — it only reads them so
  * ownership of the canvas, Fabric module, and resolved options stays on the
- * orchestrator (where v1 left them).
+ * orchestrator (where legacy left them).
  */
 export interface MaskLabelManagerContext {
     /** Injected Fabric.js v7 module used to construct the label text. */
@@ -83,7 +83,7 @@ export interface MaskLabelManagerContext {
  *
  * Local helper alias to keep the casts at the use sites readable.
  */
-type LabelText = FabricNS.FabricText & { maskLabel?: boolean};
+type LabelText = FabricNS.FabricText & { maskLabel?: boolean };
 
 /**
  * Remove the label overlay associated with `mask` (if any).
@@ -110,15 +110,15 @@ export function removeLabelForMask(
     try {
         if (ctx.canvas.getObjects().includes(mask.__label)) {
             ctx.canvas.remove(mask.__label);
-}
-} catch {
+        }
+    } catch {
         /* ignore — label may already be detached */
-}
+    }
     try {
         delete mask.__label;
-} catch {
+    } catch {
         /* ignore — label property may be non-configurable on some engines */
-}
+    }
 }
 
 /**
@@ -149,7 +149,7 @@ export function createLabelForMask(
     ctx: MaskLabelManagerContext,
     mask: MaskObject,
 ): void {
-    const { canvas, options, fabric: fb} = ctx;
+    const { canvas, options, fabric: fb } = ctx;
     if (!canvas || !options.maskLabelOnSelect) return;
 
     // Always start from a clean slate — drop any existing label so a stale
@@ -161,13 +161,13 @@ export function createLabelForMask(
     // ── 1) Optional user-supplied factory ─────────────────────────────────
     if (typeof options.label.create === 'function') {
         textObj = options.label.create(mask, fb);
-}
+    }
 
     // ── 2) Default builder ────────────────────────────────────────────────
     //    Used when there is no `label.create` or it returned `null`.
     if (!textObj) {
         // index is the stable creation index, not the
-        // live list position. v1 passed `this.maskCounter` here.
+        // live list position. legacy passed `this.maskCounter` here.
         const indexForGetText = mask.maskId - 1;
         const txt = typeof options.label.getText === 'function'
             ? options.label.getText(mask, indexForGetText)
@@ -183,13 +183,13 @@ export function createLabelForMask(
         const textOptions: Partial<FabricNS.TextProps> = {
             left: 0,
             top: 0,
-...(options.label.textOptions ?? {}),
+            ...(options.label.textOptions ?? {}),
             originX: 'left',
             originY: 'top',
-};
+        };
 
         textObj = new fb.Text(txt, textOptions);
-}
+    }
 
     // Mark as session-only so the Pretty_Printer filter excludes it from
     // history snapshots.
@@ -212,7 +212,7 @@ export function createLabelForMask(
  * handlers (`object:moving`, `object:scaling`, `object:rotating`,
  * `object:modified`) without checking those guards at every call site.
  *
- * Geometry (matches v1):
+ * Geometry (matches legacy):
  *
  * - The label's top-left is placed `options.maskLabelOffset` pixels from
  *   the mask's top-left corner, along the vector from the top-left to the
@@ -229,7 +229,7 @@ export function syncMaskLabel(
     ctx: MaskLabelManagerContext,
     mask: MaskObject,
 ): void {
-    const { canvas, options} = ctx;
+    const { canvas, options } = ctx;
     if (!canvas || !options.maskLabelOnSelect || !mask.__label) return;
 
     const coords = mask.getCoords?.();
@@ -250,7 +250,7 @@ export function syncMaskLabel(
         originX: 'left',
         originY: 'top',
         visible: true,
-});
+    });
     mask.__label.setCoords();
     canvas.renderAll();
 }
@@ -273,11 +273,11 @@ export function showLabelForMask(
     if (!ctx.options.maskLabelOnSelect) return;
     if (!mask.__label) {
         createLabelForMask(ctx, mask);
-}
+    }
     if (mask.__label) {
         mask.__label.visible = true;
         syncMaskLabel(ctx, mask);
-}
+    }
 }
 
 /**
@@ -300,26 +300,26 @@ export function showLabelForMask(
  * @param ctx Orchestration context — see {@link MaskLabelManagerContext}.
  */
 export function hideAllMaskLabels(ctx: MaskLabelManagerContext): void {
-    const { canvas} = ctx;
+    const { canvas } = ctx;
     if (!canvas) return;
 
     const objs = canvas.getObjects();
 
     objs
-.filter((o) => (o as FabricNS.FabricObject & { maskLabel?: boolean}).maskLabel)
-.forEach((l) => {
+        .filter((o) => (o as FabricNS.FabricObject & { maskLabel?: boolean }).maskLabel)
+        .forEach((l) => {
             try {
                 canvas.remove(l);
-} catch {
+            } catch {
                 /* ignore — label may already be detached */
-}
-});
+            }
+        });
 
     objs.filter(isMaskObject).forEach((o) => {
         try {
             delete o.__label;
-} catch {
+        } catch {
             /* ignore — label property may be non-configurable on some engines */
-}
-});
+        }
+    });
 }

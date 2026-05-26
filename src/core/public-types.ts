@@ -1,6 +1,6 @@
 /**
  * @file public-types.ts
- * @description Public interfaces and types for `@bensitu/image-editor` v2.
+ * @description Public interfaces and types for `@bensitu/image-editor`.
  *
  * All types declared here are re-exported from the package root
  * (`src/index.ts`) so consumers can import them directly:
@@ -8,9 +8,6 @@
  * ```ts
  * import type { ImageEditorOptions, MaskConfig} from '@bensitu/image-editor';
  * ```
- *
- * Requirement references in JSDoc comments point to the canonical
- * contract documented for the public surface.
  */
 
 import type * as FabricNS from 'fabric';
@@ -84,16 +81,15 @@ export interface MaskObject extends FabricNS.FabricObject {
     isCropRect?: boolean;
     /**
      * Marker flag set on label-overlay text objects so the state serializer
-     * can exclude them from history snapshots (design's
-     * Pretty_Printer filter).
+ * can exclude them from history snapshots.
      */
     maskLabel?: boolean;
 }
 
 /**
  * Type guard — returns `true` when `obj` carries the runtime mask metadata
- * (`maskId: number`). The implementation matches v1 behavior so consumers can
- * filter `canvas.getObjects` deterministically.
+ * (`maskId: number`) so consumers can filter `canvas.getObjects`
+ * deterministically.
  */
 export function isMaskObject(obj: FabricNS.FabricObject): obj is MaskObject {
     return 'maskId' in obj && typeof (obj as MaskObject).maskId === 'number';
@@ -137,8 +133,7 @@ export interface LabelConfig {
 /**
  * Crop-mode configuration. Defaults are applied by `core/default-options.ts`.
  *
- * Note: `preserveMasksAfterCrop` defaults to `false` in v2.0.0
- * (the only documented default change from v1).
+ * Defaults are applied by `core/default-options.ts`.
  */
 export interface CropConfig {
     /** Minimum crop rect width in pixels. @default 100 */
@@ -151,7 +146,7 @@ export interface CropConfig {
     hideMasksDuringCrop?: boolean;
     /**
      * Whether to keep masks (relative to the new image) after applying crop.
-     * @default false  (changed from v1 in v2.0.0)
+     * @default false
      */
     preserveMasksAfterCrop?: boolean;
     /** Whether the crop rect itself can be rotated. @default false */
@@ -178,7 +173,7 @@ export type MaskNumericProp =
  * Polygon vertex accepted by `MaskConfig.points`. Coerced to `{ x, y}`
  * internally regardless of input form.
  */
-export type PolygonPoint = { x: number; y: number} | [number, number];
+export type PolygonPoint = { x: number; y: number } | [number, number];
 
 /**
  * Configuration object passed to {@link ImageEditor.createMask}.
@@ -268,7 +263,7 @@ export interface MaskConfig {
         cfg: ResolvedMaskConfig,
         canvas: FabricNS.Canvas,
         options: ResolvedOptions,
-) => FabricNS.FabricObject;
+    ) => FabricNS.FabricObject;
 }
 
 /**
@@ -500,6 +495,13 @@ export interface ImageEditorOptions {
      * during `loadImage`. @default 30000
      */
     imageLoadTimeoutMs?: number;
+    /**
+     * Maximum number of undo/redo snapshots retained in memory.
+     * Each entry stores a full serialized canvas snapshot, so lower this
+     * for large images or memory-constrained hosts.
+     * Values are normalized to a positive integer. @default 50
+     */
+    maxHistorySize?: number;
 
     // Export
     /** Output resolution multiplier for exports. @default 1 */
@@ -542,7 +544,7 @@ export interface ImageEditorOptions {
 
     // Callbacks.1–5.5
     /** Called after an image is successfully loaded onto the canvas. */
-    onImageLoaded?:  () => void;
+    onImageLoaded?: () => void;
     /**
      * Called when the editor reports an error.
      *
@@ -572,9 +574,15 @@ export interface ImageEditorOptions {
  * Produced by `core/default-options.ts` after merging defaults with the
  * user-supplied partial options.
  */
-export interface ResolvedOptions extends Required<ImageEditorOptions> {
+export interface ResolvedOptions extends Required<Omit<
+    ImageEditorOptions,
+    'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning'
+>> {
     label: LabelConfig;
     crop: Required<CropConfig>;
+    onImageLoaded: (() => void) | null;
+    onError: ((error: unknown, message: string) => void) | null;
+    onWarning: ((error: unknown, message: string) => void) | null;
 }
 
 // ─── Internal event handler bookkeeping (not re-exported from the barrel) ────

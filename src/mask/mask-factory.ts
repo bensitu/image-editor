@@ -1,9 +1,7 @@
 /**
  * @file mask/mask-factory.ts
  * @description Function-based mask creation entry point used by the
- *              `ImageEditor` orchestrator. Owns the v1 `addMask` logic that
- *              was inlined on the editor in v1 and is now extracted into a
- *              pure(ish) helper that takes a {@link CreateMaskContext}.
+ *              `ImageEditor` orchestrator.
  *
  * ## Owned contracts
  *
@@ -15,9 +13,7 @@
  * - Together with `core/state-serializer.ts`, mask IDs
  *   stay unique across mixed `createMask` / `mergeMasks` / `undo` / `redo`
  *   sequences because the counter is monotonic.
- * - `createMask` is the only public mask-creation
- *   entry point. The legacy `addMask` alias is intentionally absent
- *   (Deprecated_Alias rule).
+ * - `createMask` is the public mask-creation entry point.
  * - For `'rect' | 'circle' | 'ellipse' | 'polygon'`
  *   the corresponding Fabric shape is built with explicit
  *   `originX: 'left'`, `originY: 'top'`, plus the resolved color, opacity,
@@ -88,17 +84,17 @@ import type {
     ResolvedMaskConfig,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { isMaskObject} from '../core/public-types.js';
-import { coercePoint, resolveNumeric} from '../utils/number.js';
+import { isMaskObject } from '../core/public-types.js';
+import { attachMaskHoverHandlers } from './mask-style.js';
+import { coercePoint, resolveNumeric } from '../utils/number.js';
 
 /**
  * State and orchestration callbacks the mask factory needs from the
  * `ImageEditor` orchestrator.
  *
  * The factory does NOT own any of these slots — it only reads and updates
- * them through the supplied accessors so that ownership of `maskCounter`,
- * `_lastMask`, history snapshots, and the mask list DOM stays on the editor
- * (where v1 left them).
+ * them through the supplied accessors so ownership of `maskCounter`,
+ * `_lastMask`, history snapshots, and the mask list DOM stays on the editor.
  */
 export interface CreateMaskContext {
     /** Injected Fabric.js v7 module used to construct the shape. */
@@ -121,9 +117,8 @@ export interface CreateMaskContext {
      * Optional canvas resize hook used when `options.expandCanvasToImage` is
      * `true` and the placed mask would extend past the current canvas size.
      * If omitted, the factory calls `canvas.setDimensions` directly. The
-     * orchestrator typically passes `_setCanvasSizeInt` here to preserve the
-     * v1 synchronous reflow trick that keeps `overflow: auto` scrollbars in
-     * sync with the new canvas size.
+     * orchestrator typically passes `_setCanvasSizeInt` here so the scroll
+     * container reflows synchronously with the new canvas size.
      */
     expandCanvasIfNeeded?: (width: number, height: number) => void;
 }
@@ -161,13 +156,13 @@ export function createMask(
     ctx: CreateMaskContext,
     config: MaskConfig = {},
 ): MaskObject | null {
-    const { canvas, options, fabric: fb} = ctx;
+    const { canvas, options, fabric: fabricModule } = ctx;
     if (!canvas) return null;
 
     const shapeType = config.shape ?? 'rect';
 
     // ── Resolve config (defaults merged with the user overrides) ──────────
-    const cfg: ResolvedMaskConfig = {
+    const resolvedConfig: ResolvedMaskConfig = {
         shape: shapeType,
         width: options.defaultMaskWidth,
         height: options.defaultMaskHeight,
@@ -178,8 +173,8 @@ export function createMask(
         top: undefined,
         angle: 0,
         selectable: true,
-...config,
-} as ResolvedMaskConfig;
+        ...config,
+    } as ResolvedMaskConfig;
 
     const firstOffset = 10;
 
@@ -187,55 +182,54 @@ export function createMask(
     //    when the caller did not specify `left`) ───────────────────────────
     let left: number;
     let top: number;
-    const prev = ctx.getLastMask();
-    if (config.left === undefined && prev) {
-        const prevRight =
-            (prev.left ?? 0) +
-            (typeof prev.getScaledWidth === 'function'
-                ? prev.getScaledWidth()
-                : (prev.width ?? 0) * (prev.scaleX ?? 1));
-        left = Math.round(prevRight + (cfg.gap ?? 5));
-        top = prev.top ?? firstOffset;
-} else {
+    const previousMask = ctx.getLastMask();
+    if (config.left === undefined && previousMask) {
+        const previousRight =
+            (previousMask.left ?? 0) +
+            (typeof previousMask.getScaledWidth === 'function'
+                ? previousMask.getScaledWidth()
+                : (previousMask.width ?? 0) * (previousMask.scaleX ?? 1));
+        left = Math.round(previousRight + (resolvedConfig.gap ?? 5));
+        top = previousMask.top ?? firstOffset;
+    } else {
         left = resolveNumeric(config.left, 'x', firstOffset, canvas, options);
         top = resolveNumeric(config.top, 'y', firstOffset, canvas, options);
-}
+    }
 
     // ── Resolve dimensions (axis-aware percentages) ──
-    cfg.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
-    cfg.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
+    resolvedConfig.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
+    resolvedConfig.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
 
     // ── Expand canvas only when placement would overflow ─────────────────
     //    Never use viewport dimensions as a floor here — that would shrink a
     //    wider-than-viewport canvas (removing its scrollbar).
     if (options.expandCanvasToImage) {
-        const reqW = Math.ceil(left + cfg.width + 10);
-        const reqH = Math.ceil(top + cfg.height + 10);
-        const newW = Math.max(canvas.getWidth(), reqW);
-        const newH = Math.max(canvas.getHeight(), reqH);
-        if (newW !== canvas.getWidth() || newH !== canvas.getHeight()) {
+        const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
+        const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
+        const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
+        const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
+        if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
             if (ctx.expandCanvasIfNeeded) {
-                ctx.expandCanvasIfNeeded(newW, newH);
-} else {
-                canvas.setDimensions({ width: newW, height: newH});
-}
-}
-}
+                ctx.expandCanvasIfNeeded(nextWidth, nextHeight);
+            } else {
+                canvas.setDimensions({ width: nextWidth, height: nextHeight });
+            }
+        }
+    }
 
     // ── Build the Fabric shape ──────────────────
     let mask: FabricNS.FabricObject;
 
-    if (typeof cfg.fabricGenerator === 'function') {
-        mask = cfg.fabricGenerator(cfg, canvas, options);
-} else {
+    if (typeof resolvedConfig.fabricGenerator === 'function') {
+        mask = resolvedConfig.fabricGenerator(resolvedConfig, canvas, options);
+    } else {
         // v7: All new objects default to originX/Y 'center'/'center'.
         // Masks must declare 'left'/'top' so coordinates refer to the
-        // top-left corner, matching the v1 behavior and the placement
-        // logic above.
+        // top-left corner used by the placement logic above.
         const originProps = {
             originX: 'left' as FabricNS.TOriginX,
             originY: 'top' as FabricNS.TOriginY,
-};
+        };
         const rx =
             config.rx !== undefined
                 ? resolveNumeric(config.rx, 'x', 0, canvas, options)
@@ -247,39 +241,39 @@ export function createMask(
 
         switch (shapeType) {
             case 'circle':
-                mask = new fb.Circle({
+                mask = new fabricModule.Circle({
                     left,
                     top,
-...originProps,
+                    ...originProps,
                     radius: resolveNumeric(
                         config.radius,
                         'x',
-                        Math.min(cfg.width, cfg.height) / 2,
+                        Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
                         canvas,
                         options,
-),
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: cfg.angle ?? 0,
-...cfg.styles,
-});
+                    ),
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: resolvedConfig.angle ?? 0,
+                    ...resolvedConfig.styles,
+                });
                 break;
             case 'ellipse':
-                mask = new fb.Ellipse({
+                mask = new fabricModule.Ellipse({
                     left,
                     top,
-...originProps,
-                    rx: rx ?? cfg.width / 2,
-                    ry: ry ?? cfg.height / 2,
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: cfg.angle ?? 0,
-...cfg.styles,
-});
+                    ...originProps,
+                    rx: rx ?? resolvedConfig.width / 2,
+                    ry: ry ?? resolvedConfig.height / 2,
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: resolvedConfig.angle ?? 0,
+                    ...resolvedConfig.styles,
+                });
                 break;
             case 'polygon': {
                 // Coerce both `{x,y}` object and `[x,y]` tuple inputs.
-                const pts = (config.points ?? []).map(coercePoint);
+                const points = (config.points ?? []).map(coercePoint);
 
                 // Bounding-box realignment.
                 //
@@ -287,7 +281,7 @@ export function createMask(
                 // polygon's `pathOffset` on the supplied `(left, top)`,
                 // so passing `(left, top)` directly puts the bounding
                 // box somewhere offset from the requested coordinate
-                // (the offset depends on the geometry of `pts`). To
+                // (the offset depends on the geometry of `points`). To
                 // honor the documented "bounding box top-left maps to
                 // (left, top)" contract we:
                 //   1. construct the polygon without `left`/`top`,
@@ -297,133 +291,116 @@ export function createMask(
                 //      rect top-left.
                 // After the shift the rendered bounding-box top-left
                 // matches the resolved `(left, top)`.
-                const polygon = new fb.Polygon(pts, {
-...originProps,
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: cfg.angle ?? 0,
-...cfg.styles,
-});
+                const polygon = new fabricModule.Polygon(points, {
+                    ...originProps,
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: resolvedConfig.angle ?? 0,
+                    ...resolvedConfig.styles,
+                });
                 polygon.setCoords();
-                const br = polygon.getBoundingRect();
-                const dx = left - br.left;
-                const dy = top - br.top;
+                const boundingRect = polygon.getBoundingRect();
+                const deltaX = left - boundingRect.left;
+                const deltaY = top - boundingRect.top;
                 polygon.set({
-                    left: (polygon.left ?? 0) + dx,
-                    top: (polygon.top ?? 0) + dy,
-});
+                    left: (polygon.left ?? 0) + deltaX,
+                    top: (polygon.top ?? 0) + deltaY,
+                });
                 polygon.setCoords();
                 mask = polygon;
                 break;
-}
+            }
             case 'rect':
             default:
-                mask = new fb.Rect({
+                mask = new fabricModule.Rect({
                     left,
                     top,
-...originProps,
-                    width: cfg.width,
-                    height: cfg.height,
-                    fill: cfg.color,
-                    opacity: cfg.alpha,
-                    angle: cfg.angle ?? 0,
-...(rx !== undefined ? { rx} : {}),
-...(ry !== undefined ? { ry} : {}),
-...cfg.styles,
-});
-}
-}
+                    ...originProps,
+                    width: resolvedConfig.width,
+                    height: resolvedConfig.height,
+                    fill: resolvedConfig.color,
+                    opacity: resolvedConfig.alpha,
+                    angle: resolvedConfig.angle ?? 0,
+                    ...(rx !== undefined ? { rx } : {}),
+                    ...(ry !== undefined ? { ry } : {}),
+                    ...resolvedConfig.styles,
+                });
+        }
+    }
 
     // ── Common mask properties ─────────────────────────
     //    The four flags below use the `'foo' in config ? … : default`
     //    pattern so that an explicit `false` is preserved as `false` and
-    //    `undefined` falls back to the v1 default.
-    const m = mask as MaskObject;
-    m.selectable = 'selectable' in config ? !!config.selectable : true;
-    m.hasControls = 'hasControls' in config ? !!config.hasControls : true;
-    m.transparentCorners =
+    //    `undefined` falls back to the documented default.
+    const maskObject = mask as MaskObject;
+    maskObject.selectable = 'selectable' in config ? !!config.selectable : true;
+    maskObject.hasControls = 'hasControls' in config ? !!config.hasControls : true;
+    maskObject.transparentCorners =
         'transparentCorners' in config ? !!config.transparentCorners : false;
-    m.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
-    m.lockRotation = !options.maskRotatable;
-    m.borderColor = config.borderColor ?? 'red';
-    m.cornerColor = config.cornerColor ?? 'black';
-    m.cornerSize = config.cornerSize ?? 8;
+    maskObject.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
+    maskObject.lockRotation = !options.maskRotatable;
+    maskObject.borderColor = config.borderColor ?? 'red';
+    maskObject.cornerColor = config.cornerColor ?? 'black';
+    maskObject.cornerSize = config.cornerSize ?? 8;
 
     // ── Stroke defaults — preserve falsy values from `styles` ─────────────
     //    `??` would replace `null` with the default. Use an `in` check so
     //    `styles.stroke = null` (or `''`, `0`) is preserved verbatim.
-    const styles = (cfg.styles ?? {}) as Partial<FabricNS.FabricObjectProps>;
+    const styles = (resolvedConfig.styles ?? {}) as Partial<FabricNS.FabricObjectProps>;
     if ('stroke' in styles) {
-        m.stroke = styles.stroke as FabricNS.TFiller | string | null;
-} else {
-        m.stroke = '#ccc';
-}
+        maskObject.stroke = styles.stroke as FabricNS.TFiller | string | null;
+    } else {
+        maskObject.stroke = '#ccc';
+    }
     if ('strokeWidth' in styles) {
-        m.strokeWidth = styles.strokeWidth as number;
-} else {
-        m.strokeWidth = 1;
-}
+        maskObject.strokeWidth = styles.strokeWidth as number;
+    } else {
+        maskObject.strokeWidth = 1;
+    }
     if ('strokeDashArray' in styles) {
-        m.strokeDashArray = styles.strokeDashArray as number[];
-}
+        maskObject.strokeDashArray = styles.strokeDashArray as number[];
+    }
 
-    // ── Hover highlight (mirrors v1) ──────────────────────────────────────
-    m.originalAlpha = cfg.alpha;
-    const normalStyle = {
-        stroke: m.stroke,
-        strokeWidth: m.strokeWidth,
-        opacity: m.originalAlpha,
-};
-    const hoverStyle = {
-        stroke: '#ff5500',
-        strokeWidth: 2,
-        opacity: Math.min(m.originalAlpha + 0.2, 1),
-};
-    m.on('mouseover',  () => {
-        m.set(hoverStyle);
-        m.canvas?.requestRenderAll();
-});
-    m.on('mouseout',  () => {
-        m.set(normalStyle);
-        m.canvas?.requestRenderAll();
-});
+    maskObject.originalAlpha = resolvedConfig.alpha;
+    maskObject.originalStroke = maskObject.stroke;
+    maskObject.originalStrokeWidth = maskObject.strokeWidth;
+    attachMaskHoverHandlers(maskObject);
 
     // ── Counter and identity ──────────────────────────
     const nextId = ctx.getMaskCounter() + 1;
     ctx.setMaskCounter(nextId);
-    m.maskId = nextId;
-    m.maskName = `${options.maskName}${nextId}`;
+    maskObject.maskId = nextId;
+    maskObject.maskName = `${options.maskName}${nextId}`;
 
-    ctx.setLastMask(m);
+    ctx.setLastMask(maskObject);
 
     // ── Post-create order ───────────────────────
     //    add → updateMaskList → setActiveObject → saveCanvasState → onCreate.
-    canvas.add(m);
-    canvas.bringObjectToFront(m);
+    canvas.add(maskObject);
+    canvas.bringObjectToFront(maskObject);
 
     ctx.updateMaskList();
 
-    if (cfg.selectable !== false) {
+    if (resolvedConfig.selectable !== false) {
         // setActiveObject fires 'selection:created' and the orchestrator's
         // selection handler reacts (e.g. by creating the mask label).
-        canvas.setActiveObject(m);
-}
+        canvas.setActiveObject(maskObject);
+    }
 
     canvas.renderAll();
     ctx.saveCanvasState();
 
-    cfg.onCreate?.(m, canvas);
+    resolvedConfig.onCreate?.(maskObject, canvas);
 
-    return m;
+    return maskObject;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mask removal (Task 15.3)
+// Mask removal
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// `removeSelectedMask` and `removeAllMasks` are the v2 home for the v1 logic
-// that used to live inline on `ImageEditor`. They are pure helpers that take
-// a {@link RemoveMaskContext} so the orchestrator retains ownership of the
+// `removeSelectedMask` and `removeAllMasks` are pure helpers that take a
+// {@link RemoveMaskContext} so the orchestrator retains ownership of the
 // canvas, label DOM, mask list DOM, history, and `_lastMask` slot.
 //
 // Owned contracts:
@@ -483,8 +460,6 @@ export interface RemoveMaskContext {
  * 4. Re-render the mask list DOM and the canvas.
  * 5. Push a single history entry via {@link RemoveMaskContext.saveCanvasState}.
  *
- * Requirements: 14.1 (guarded by the orchestrator), 18.4 (uniqueness), 19.6.
- *
  * @param ctx Orchestration context — see {@link RemoveMaskContext}.
  */
 export function removeSelectedMask(ctx: RemoveMaskContext): void {
@@ -519,9 +494,6 @@ export function removeSelectedMask(ctx: RemoveMaskContext): void {
  * 6. Conditionally push a history entry depending on
  *    `options.saveHistory`.
  *
- * Requirements: 14.1 (guarded by the orchestrator), 18.4 (uniqueness),
- * 19.6, 19.7.
- *
  * @param ctx     Orchestration context — see {@link RemoveMaskContext}.
  * @param options Bulk-removal options. Defaults to `{ saveHistory: true}`.
  */
@@ -532,10 +504,10 @@ export function removeAllMasks(
     const masks = ctx.canvas.getObjects().filter(isMaskObject);
     if (masks.length === 0) return;
 
-    for (const m of masks) {
-        ctx.removeLabelForMask(m);
-        ctx.canvas.remove(m);
-}
+    for (const maskObject of masks) {
+        ctx.removeLabelForMask(maskObject);
+        ctx.canvas.remove(maskObject);
+    }
     ctx.canvas.discardActiveObject();
     ctx.setLastMask(null);
     ctx.updateMaskList();
@@ -545,5 +517,5 @@ export function removeAllMasks(
     // opts out (merge/crop pipelines).
     if (options.saveHistory !== false) {
         ctx.saveCanvasState();
-}
+    }
 }

@@ -1,6 +1,5 @@
-// Property 9: CSS preservation across all layout operations
+// CSS preservation across all layout operations
 //
-// Property statement (design.md §"Property 9"):
 //   For any sequence of layout-affecting operations, the editor SHALL
 //   preserve the host element inline CSS values for width, height,
 //   display, and overflow. Any temporary visibility or overflow changes
@@ -13,25 +12,24 @@
 // element's inline style or the container's inline style; instead it
 // updates pixel dimensions atomically through Fabric's two-layer
 // canvas API and forces a synchronous reflow on the container by
-// reading `offsetWidth` (Requirement 11.3, exercised here as a sanity
-// check on the reflow path).
+// reading `offsetWidth`.
 //
 // Sub-properties exercised here:
 //
-//   9.1 No canvas.style mutation (Req 11.1): for any (width, height)
+//   9.1 No canvas.style mutation: for any (width, height)
 //       input, `applyCanvasDimensions` must NOT change any of
 //       `canvas.style.width`, `canvas.style.height`, or
 //       `canvas.style.display`.
-//   9.2 No container.style mutation (Req 11.1, 11.2): for any input,
+//   9.2 No container.style mutation: for any input,
 //       it must NOT change `container.style.{width,height,display}`
-//       and — critically for Requirement 11.2 — must NOT touch
+//       and — critically for the documented contract — must NOT touch
 //       `container.style.overflow` while compensating for pre-existing
 //       auto scrollbars.
 //   9.3 setDimensions called with integers: the mock canvas's
 //       `setDimensions` records exactly one call per invocation, with
 //       integer `width`/`height` ≥ 1 derived from the input via
 //       `max(1, round(Number(input) || 1))`.
-//   9.4 forceReflow called (Req 11.3, sanity): the container's
+//   9.4 forceReflow called: the container's
 //       `offsetWidth` getter is read at least once after
 //       `setDimensions`, confirming the synchronous reflow primitive
 //       in `utils/dom.ts` is invoked.
@@ -62,7 +60,7 @@ const { applyCanvasDimensions } = await import(
  * Build a minimal Fabric canvas stand-in that records every
  * `setDimensions` invocation. The factory must NOT expose any
  * `style`-related fields: `applyCanvasDimensions` is forbidden from
- * touching `canvas.style` (Req 11.1), so missing the property would
+ * touching `canvas.style`, so missing the property would
  * surface as a `TypeError` at the moment of the violation.
  */
 function makeCanvasMock() {
@@ -79,10 +77,10 @@ function makeCanvasMock() {
 
 /**
  * Build a duck-typed container mock that:
- * - exposes an inline `style` with the four properties Requirement 11
+ * - exposes an inline `style` with the four properties the documented contract
  *   names (`width`, `height`, `display`, `overflow`),
  * - counts reads of `offsetWidth` so the test can assert that
- *   `forceReflow` actually performed its one-shot read (Req 11.3).
+ *   `forceReflow` actually performed its one-shot read.
  *
  * The `offsetWidth` value itself is fixed; only the read count matters.
  */
@@ -144,9 +142,9 @@ const styleArb = fc.record({
     overflow: cssValueArb,
 });
 
-// ─── Property 9.1 + 9.2: no style mutation on canvas or container ──────────
+// ─── No style mutation on canvas or container ──────────
 
-test('Property 9.1+9.2: applyCanvasDimensions never mutates canvas.style or container.style (Req 11.1, 11.2)', () => {
+test('applyCanvasDimensions never mutates canvas.style or container.style', () => {
     fc.assert(
         fc.property(
             widthHeightArb,
@@ -156,12 +154,12 @@ test('Property 9.1+9.2: applyCanvasDimensions never mutates canvas.style or cont
                 const canvas = makeCanvasMock();
                 const { container } = makeContainerMock(initialStyle);
 
-                // Snapshot every CSS property the requirement names.
+                // Snapshot every CSS property the Contract names.
                 const before = { ...container.style };
 
                 applyCanvasDimensions(canvas, width, height, container);
 
-                // Every property the requirement names must be byte-for-byte
+                // Every property the Contract names must be byte-for-byte
                 // equal to its pre-call value. Using strict equality on each
                 // key (rather than deepEqual on the whole object) gives a
                 // precise failure message that names which property changed.
@@ -191,9 +189,9 @@ test('Property 9.1+9.2: applyCanvasDimensions never mutates canvas.style or cont
     );
 });
 
-// ─── Property 9.3: setDimensions called with integer pixel dimensions ──────
+// ─── setDimensions called with integer pixel dimensions ──────
 
-test('Property 9.3: applyCanvasDimensions calls canvas.setDimensions with integer width/height ≥ 1', () => {
+test('applyCanvasDimensions calls canvas.setDimensions with integer width/height ≥ 1', () => {
     fc.assert(
         fc.property(
             widthHeightArb,
@@ -238,9 +236,9 @@ test('Property 9.3: applyCanvasDimensions calls canvas.setDimensions with intege
     );
 });
 
-// ─── Property 9.4: forceReflow reads container.offsetWidth (Req 11.3) ──────
+// ─── forceReflow reads container.offsetWidth ──────
 
-test('Property 9.4: applyCanvasDimensions forces a synchronous reflow by reading container.offsetWidth (Req 11.3)', () => {
+test('applyCanvasDimensions forces a synchronous reflow by reading container.offsetWidth', () => {
     fc.assert(
         fc.property(
             widthHeightArb,
@@ -269,9 +267,9 @@ test('Property 9.4: applyCanvasDimensions forces a synchronous reflow by reading
     );
 });
 
-// ─── Property 9.5: null container is a safe no-op for the reflow path ─────
+// ─── null container is a safe no-op for the reflow path ─────
 
-test('Property 9.5: applyCanvasDimensions with a null container still resizes and does not throw', () => {
+test('applyCanvasDimensions with a null container still resizes and does not throw', () => {
     fc.assert(
         fc.property(
             widthHeightArb,

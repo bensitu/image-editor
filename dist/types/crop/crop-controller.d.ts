@@ -3,7 +3,7 @@
  * @description Crop session lifecycle owner. Implements the
  *              `enterCropMode → applyCrop` and
  *              `enterCropMode → cancelCrop` transitions atop the
- *              v1 crop pipeline, plus the dedicated crop rectangle
+ *              legacy crop pipeline, plus the dedicated crop rectangle
  *              shape, its drag/scale clamps, and the per-object
  *              `evented`/`selectable` freeze that keeps only the crop
  *              rectangle interactive while a session is open.
@@ -56,7 +56,7 @@
  *   fields (`opacity`, `fill`, `strokeWidth`, `stroke`, `selectable`,
  *   `lockRotation`) are the final word.
  * - `applyCrop` honours
- *   `options.crop.preserveMasksAfterCrop` defaulting to `false` in v2:
+ *   `options.crop.preserveMasksAfterCrop` defaulting to `false` in current:
  *   the inner `ctx.loadImage(croppedBase64)` replaces every canvas
  *   object with the cropped base image, so masks disappear naturally
  *   when the option is `false`.
@@ -67,9 +67,9 @@
  *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
  *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
  *   the visible mask shape does not change size or orientation
- *. The cropRegion-relative shift matches v1's
+ *. The cropRegion-relative shift matches legacy's
  *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
- *   -cropRegion.sourceY)` and is the documented v1 behavior to
+ *   -cropRegion.sourceY)` and is the documented legacy behavior to
  *   preserve. Because shifting `left` / `top` by a constant translates
  *   the entire object (including its rotated visual) by the same
  *   constant in canvas pixels, the post-crop position relative to the
@@ -86,11 +86,11 @@
  * `angle`, `scaleX`, and `scaleY` before the export and re-add the
  * masks shifted by `-cropRegion.left, -cropRegion.top` after
  * `ctx.loadImage(croppedBase64)` commits. The intersection filter
- * (drop masks that do not overlap the crop region) matches v1
+ * (drop masks that do not overlap the crop region) matches legacy
  * observable behavior — masks fully outside the cropped region are
  * removed, masks that intersect are preserved.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * - The controller is a set of stateless functions taking a
  *   {@link CropControllerContext}. The `ImageEditor` facade keeps
@@ -101,7 +101,7 @@
  * - The crop rectangle's drag/scale handlers clamp `scaleX` / `scaleY`
  *   so the rect cannot grow past the available image bounding box and
  *   cannot shrink below the configured `crop.minWidth` / `crop.minHeight`.
- *   This matches v1's `handleCropRectModified`.
+ *   This matches legacy's `handleCropRectModified`.
  * - In Fabric v7 the rotation handle (`mtr`) is hidden via
  *   `setControlVisible('mtr', false)` because `hasRotatingPoint` is
  *   silently ignored. `lockRotation: true` is also set as runtime
@@ -110,11 +110,11 @@
  * - The pre-crop snapshot is captured once, in `enterCropMode`, and
  *   reused by `applyCrop`'s history command and rollback path. This
  *   avoids a re-serialization right before the crop, and — more
- *   importantly — avoids the v1 fragility of filtering `isCropRect`
+ *   importantly — avoids the legacy fragility of filtering `isCropRect`
  *   objects out of a post-rect snapshot when Fabric's custom-key
  *   serializer occasionally drops the marker.
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported only by `image-editor.ts` and
  * is intentionally NOT re-exported from `src/index.ts`.
  *
@@ -151,7 +151,7 @@ export interface CropControllerContext {
      * only when an `originalImage` has been committed and has positive
      * dimensions. `enterCropMode` and `applyCrop` no-op when this is
      * `false` so a caller cannot open a crop session against an empty
-     * canvas (matches v1's `isImageLoaded` gate).
+     * canvas (matches legacy's `isImageLoaded` gate).
      */
     isImageLoaded(): boolean;
     /**
@@ -204,7 +204,7 @@ export interface CropControllerContext {
      * Re-render the mask list DOM after preserved masks are re-added to
      * the post-crop canvas. Optional — the orchestrator may omit this
      * when no DOM list is wired (e.g., headless unit tests). Mirrors
-     * v1's `_updateMaskList` call after preserved masks land.
+     * legacy's `_updateMaskList` call after preserved masks land.
      */
     updateMaskList?(): void;
 }
@@ -302,7 +302,7 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  *    not bake them in (and so the inner `ctx.loadImage`'s
  *    `canvas.clear` does not dispose the captured reference). Masks
  *    fully outside the crop region are removed without a record so
- *    they do not reappear after the load (matches v1's `intersectsCrop`
+ *    they do not reappear after the load (matches legacy's `intersectsCrop`
  *    filter).
  * 4. **Tear down session in place** — restore per-object evented /
  *    selectable values (so the export sees masks in their pre-crop
@@ -313,7 +313,7 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  *    the cropped image is exported.
  * 6. **Export the crop region** via `canvas.toDataURL` with the
  *    integer region as `left` / `top` / `width` / `height` (matches
- *    v1's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
+ *    legacy's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
  *    at the configured downsample quality.
  * 7. **Reload the cropped image** through `ctx.loadImage`. The
  *    transactional loader either commits the new image or rolls back —
@@ -341,7 +341,7 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  * - rejects with {@link CropApplyError} wrapping the original cause.
  *
  * Mask handling note: when `options.crop.preserveMasksAfterCrop` is
- * `false` (the v2 default), the inner
+ * `false` (the current default), the inner
  * `ctx.loadImage(croppedBase64)` call replaces every canvas object
  * with the cropped base image, so any masks are removed naturally
  * with no extra work in this function. When `preserveMasksAfterCrop`

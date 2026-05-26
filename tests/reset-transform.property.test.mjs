@@ -1,6 +1,5 @@
-// Property 12: Reset transform produces exactly one history entry
+// Reset transform produces exactly one history entry
 //
-// Property statement (design.md §"Property 12"):
 //   For any non-disposed editor with an image loaded,
 //   `resetImageTransform()` SHALL restore scale and rotation to the
 //   default state and SHALL create exactly one history entry even though
@@ -91,10 +90,10 @@ function makeFabricImageMock(initial) {
             }
         },
         setCoords() {
-            // No-op — placement math is not part of Property 12.
+            // No-op — placement math is not part of .
         },
         setPositionByOrigin() {
-            // No-op — Property 12 only cares about history entry count
+            // No-op — only cares about history entry count
             // and final scale/rotation values.
         },
         getCenterPoint() {
@@ -164,7 +163,7 @@ function makeContextWithSuppression({ initialScale, initialRotation }) {
 
     // Use defaults so 1 is always within [minScale, maxScale] (defaults
     // are `0.1` and `5.0`). The property covers any starting state, not
-    // any min/max bound — bounds clamping is Property 11.
+    // any min/max bound — bounds clamping is .
     const options = resolveOptions({
         animationDuration: 1,
     });
@@ -235,7 +234,7 @@ const startingRotationArb = fc.double({
 // ─── Properties ─────────────────────────────────────────────────────────────
 
 test(
-    'Property 12: resetImageTransform produces exactly one history entry (Req 13.4)',
+    'resetImageTransform produces exactly one history entry',
     async () => {
         await fc.assert(
             fc.asyncProperty(
@@ -250,26 +249,26 @@ test(
 
                     await controller.resetImageTransform();
 
-                    // Req 13.4 — exactly one non-suppressed
+                    // the documented contract — exactly one non-suppressed
                     // `saveCanvasState` covers the entire reset.
                     assert.equal(
                         harness.getSaveCalls(),
                         1,
-                        'Req 13.4: resetImageTransform must record exactly one history entry',
+                        'the documented contract: resetImageTransform must record exactly one history entry',
                     );
 
-                    // Req 13.4 — final state is the default (scale 1,
+                    // the documented contract — final state is the default (scale 1,
                     // rotation 0). The chained `scaleImage(1)` and
                     // `rotateImage(0)` write these values.
                     assert.equal(
                         harness.ctx.getCurrentScale(),
                         1,
-                        'Req 13.4: post-reset currentScale must be 1',
+                        'the documented contract: post-reset currentScale must be 1',
                     );
                     assert.equal(
                         harness.ctx.getCurrentRotation(),
                         0,
-                        'Req 13.4: post-reset currentRotation must be 0',
+                        'the documented contract: post-reset currentRotation must be 0',
                     );
 
                     // Suppression flag MUST be released after the reset
@@ -278,7 +277,7 @@ test(
                     assert.equal(
                         harness.getSuppressed(),
                         false,
-                        'Req 13.4: suppression flag must be cleared after reset',
+                        'the documented contract: suppression flag must be cleared after reset',
                     );
                 },
             ),
@@ -288,7 +287,7 @@ test(
 );
 
 test(
-    'Property 12: inner scaleImage/rotateImage calls run under suppression; final save does not (Req 13.4)',
+    'inner scaleImage/rotateImage calls run under suppression; final save does not',
     async () => {
         await fc.assert(
             fc.asyncProperty(
@@ -313,12 +312,12 @@ test(
                     assert.equal(
                         trace.length,
                         3,
-                        'Req 13.4: scaleImage, rotateImage, and the final reset each invoke saveCanvasState (3 calls total)',
+                        'the documented contract: scaleImage, rotateImage, and the final reset each invoke saveCanvasState (3 calls total)',
                     );
                     assert.deepEqual(
                         trace,
                         [true, true, false],
-                        'Req 13.4: chained inner saves must run under suppression; only the final reset save is recorded',
+                        'the documented contract: chained inner saves must run under suppression; only the final reset save is recorded',
                     );
                 },
             ),
@@ -328,7 +327,7 @@ test(
 );
 
 test(
-    'Property 12: resetImageTransform is a no-op when no image is loaded (Req 13.4)',
+    'resetImageTransform is a no-op when no image is loaded',
     async () => {
         const harness = makeContextWithSuppression({
             initialScale: 2,
@@ -344,17 +343,17 @@ test(
         assert.equal(
             harness.getSaveCalls(),
             0,
-            'Req 13.4: no history entry when no image is loaded',
+            'the documented contract: no history entry when no image is loaded',
         );
         assert.equal(
             harness.ctx.getCurrentScale(),
             2,
-            'Req 13.4: state is unchanged when no image is loaded',
+            'the documented contract: state is unchanged when no image is loaded',
         );
         assert.equal(
             harness.ctx.getCurrentRotation(),
             45,
-            'Req 13.4: state is unchanged when no image is loaded',
+            'the documented contract: state is unchanged when no image is loaded',
         );
     },
 );

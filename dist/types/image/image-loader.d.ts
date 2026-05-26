@@ -50,19 +50,19 @@
  *   catches it and routes through the rollback path.
  * - On success, `maskCounter` is reset to `0`.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * The loader is an exported **function** that takes its dependencies in a
  * {@link LoadImageContext} parameter rather than a class. The `ImageEditor`
  * facade owns all editor state (the canvas reference, the placeholder
  * element, the editor scalar fields), so the loader must read and write
  * that state through a small set of getter/setter callbacks. The class
- * shape of v1 was a side effect of the monolith; v2 keeps the loader
+ * shape of legacy was a side effect of the monolith; current keeps the loader
  * stateless so the rollback bundle is the single source of truth for what
  * the operation has captured.
  *
  * The rollback bundle is built before the loader hides the placeholder or
- * touches the canvas. It captures *every* field listed in the design's
+ * touches the canvas. It captures *every* field listed in the documented
  * RollbackBundle definition plus the editor scalar fields
  * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
  * `currentRotation`, `baseImageScale`) the success path mutates. Restoring
@@ -77,7 +77,7 @@
  * `loadOptions.preserveScroll === true`; on rollback the bundle is replayed
  * unconditionally, which the rollback contract already requires for
  * transactional rewind. When `preserveScroll` is omitted or `false`, the
- * success path leaves the container scroll untouched, so v1's documented
+ * success path leaves the container scroll untouched, so legacy's documented
  * scroll/viewport behavior for the selected layout mode prevails.
  *
  * `onImageLoaded` is invoked from inside
@@ -89,7 +89,7 @@
  * path skips the callback entirely (failed loads do
  * not fire the callback).
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is the canonical owner of the transactional
  * load helpers. It is NOT re-exported from `src/index.ts`.
  */
@@ -101,7 +101,7 @@ import { type ViewportCache } from './layout-manager.js';
  * the first mutation so a failure mid-pipeline can rewind the editor to
  * its pre-call state.
  *
- * Mirrors the design's `RollbackBundle` definition with the addition of
+ * Mirrors the documented `RollbackBundle` definition with the addition of
  * the editor scalar fields the success path also rewrites
  * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
  * `currentRotation`, `baseImageScale`). Those scalars must be restored
@@ -109,7 +109,7 @@ import { type ViewportCache } from './layout-manager.js';
  *
  */
 export interface RollbackBundle {
-    /** `placeholderEl.hidden` immediately before the loader hid it. */
+    /** `placeholderElement.hidden` immediately before the loader hid it. */
     placeholderHidden: boolean | null;
     /** Container `scrollTop` immediately before the loader started. */
     containerScrollTop: number | null;
@@ -161,9 +161,9 @@ export interface LoadImageContext {
     /** Resolved editor options (timeouts, downsample knobs, layout flags). */
     options: ResolvedOptions;
     /** Scrollable container wrapping the canvas, or `null`. */
-    containerEl: HTMLElement | null;
+    containerElement: HTMLElement | null;
     /** Empty-state placeholder element, or `null`. */
-    placeholderEl: HTMLElement | null;
+    placeholderElement: HTMLElement | null;
     /** Hidden-container viewport cache shared with the layout manager. */
     viewportCache: ViewportCache;
     /** Reads the previously-committed `originalImage`. */
@@ -240,7 +240,7 @@ export interface LoadImageContext {
  * restores scroll regardless of `preserveScroll` because the rollback
  * requires the bundle to be replayed in full on failure. When
  * `preserveScroll` is omitted or `false`, the success path leaves scroll
- * untouched and v1's documented scroll/viewport behavior for the selected
+ * untouched and legacy's documented scroll/viewport behavior for the selected
  * layout mode applies.
  *
  * `onImageLoaded` is invoked exactly once at

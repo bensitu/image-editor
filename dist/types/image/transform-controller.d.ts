@@ -1,7 +1,7 @@
 /**
  * @file image/transform-controller.ts
  * @description Animated scale, rotate, and reset operations on the
- *              `originalImage` with history integration. Owns the v2
+ *              `originalImage` with history integration. Owns the current
  *              transform pipeline that the `ImageEditor` facade routes
  *              through the {@link../animation/animation-queue.AnimationQueue}.
  *
@@ -63,7 +63,7 @@
  *
  * ## Why a class with a context bundle?
  *
- * v1's monolithic `ImageEditor` owned all transform state. v2 keeps that
+ * legacy's monolithic `ImageEditor` owned all transform state. current keeps that
  * state on the facade so `currentScale`, `currentRotation`,
  * `baseImageScale`, and `_suppressSaveState` remain on a single owner
  * (these are part of the snapshot wire format). The
@@ -72,7 +72,7 @@
  * fields. Mirrors the same pattern used by
  * {@link../image/image-loader.LoadImageContext}.
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
  */
@@ -147,7 +147,7 @@ export interface TransformContext {
      */
     setSuppressSaveState(suppress: boolean): void;
     /**
-     * Optional post-snap hook the orchestrator wires for v1 parity. Runs
+     * Optional post-snap hook the orchestrator wires for legacy parity. Runs
      * AFTER the controller commits the final value with `set` /
      * `setCoords` and BEFORE `saveCanvasState`. Used to:
      *
@@ -159,7 +159,7 @@ export interface TransformContext {
      * The hook is invoked only on the success path (no dispose) and only
      * when defined — controllers running outside the facade (in tests)
      * may omit it. Errors thrown from the hook propagate to the caller's
-     * `try/catch`, which mirrors v1 behaviour where the post-snap UI
+     * `try/catch`, which mirrors legacy behaviour where the post-snap UI
      * helpers ran inline inside the transform method.
      */
     afterTransformSnap?(): void;
@@ -190,11 +190,11 @@ export declare class TransformController {
      * Steps:
      *
      * 1. Bail (resolved) when no image is loaded, an animation is already
-     *    in progress, or the editor has been disposed (Requirements
+     *    in progress, or the editor has been disposed (Contracts
      *    14.1, 15.2).
      * 2. Clamp `factor` to `[minScale, maxScale]` and update
      *    `currentScale` so toolbar inputs reflect the requested value
-     *    BEFORE the animation begins (matches v1 timing).
+     *    BEFORE the animation begins (matches legacy timing).
      * 3. Re-anchor the image origin to its current visual top-left so
      *    `scaleX` / `scaleY` tweens scale around the upper-left corner
      *    rather than the Fabric default centre.

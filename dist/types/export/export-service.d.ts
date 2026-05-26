@@ -1,10 +1,10 @@
 /**
  * @file export/export-service.ts
- * @description Base64, file, and download entry points for the v2 export
+ * @description Base64, file, and download entry points for the current export
  *              pipeline. The orchestrator (`image-editor.ts`) delegates
  *              `exportImageBase64`, `exportImageFile`, and `downloadImage`
  *              to the helpers in this module so the export logic lives in
- *              a single owner module per the design's module-decomposition
+ *              a single owner module per the documented module-decomposition
  *              table.
  *
  * ## Owned contracts (this task — 18.4 builds on 18.3)
@@ -75,7 +75,7 @@
  *
  * ## Why a service-shaped module
  *
- * Per the design's "Mapping requirements to modules" table the export
+ * Per the documented "Mapping Contracts to modules" table the export
  * pipeline owns its own module so the orchestrator stays thin. The
  * service is a stateless function-collection (matching
  * `image/image-loader.ts` and `core/state-serializer.ts`) and reads every
@@ -184,7 +184,7 @@ export declare function exportImageFile(ctx: ExportServiceContext, options?: Ima
 /**
  * Trigger a browser download of the live canvas.
  *
- * Mirrors v1's "anchor with `download` attribute" approach: an `<a>`
+ * Mirrors legacy's "anchor with `download` attribute" approach: an `<a>`
  * element is created, pointed at the data URL, appended to the document
  * so Firefox dispatches the click, clicked, and removed. The function
  * returns synchronously; the data URL is rendered
@@ -238,7 +238,7 @@ export interface MergeMasksContext extends ExportServiceContext {
      * scroll position regardless of the layout
      * strategy applied by the inner `loadImage`.
      */
-    readonly containerEl: HTMLElement | null;
+    readonly containerElement: HTMLElement | null;
     /**
      * Transactional image loader. The merge passes
      * `{ preserveScroll: true}` so the inner load tries to keep scroll
@@ -277,7 +277,7 @@ export interface MergeMasksContext extends ExportServiceContext {
  *
  * 1. **No-op gates** — return without mutating anything when no image
  *    is loaded or when the canvas carries no mask objects (matches
- *    v1's `if (!this.originalImage) return; … if (!masks.length) return;`).
+ *    legacy's `if (!this.originalImage) return; … if (!masks.length) return;`).
  * 2. **Discard ActiveSelection** — drop any active
  *    selection wrapper before computing the merged bitmap.
  * 3. **Capture pre-merge snapshot** — call

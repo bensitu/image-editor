@@ -1,6 +1,5 @@
-// Property 17: Mask creation per-shape origin and falsy styles
+// Mask creation per-shape origin and falsy styles
 //
-// Property statement (design.md §"Property 17"):
 //   For any supported mask shape (`rect`, `circle`, `ellipse`, `polygon`)
 //   or custom `fabricGenerator`, the created mask SHALL use
 //   `originX: 'left'` and `originY: 'top'` when placement uses top-left
@@ -15,18 +14,18 @@
 // This test isolates `createMask` from a real Fabric module so we can
 // observe the exact properties that land on the constructed mask object.
 //
-// Following the v1 baseline behavior preserved in the v2 mask factory:
+// Behavior preserved by the mask factory:
 //
 //   - For `'rect' | 'circle' | 'ellipse'`, the factory passes
 //     `originX: 'left'` and `originY: 'top'` into the Fabric shape
-//     constructor (Req 19.2).
+//     constructor.
 //   - The `'foo' in config` membership check on `hasControls`,
 //     `selectable`, `transparentCorners`, and `strokeUniform` preserves
-//     an explicit `false` instead of falling back to the default (Req
+//     an explicit `false` instead of falling back to the default (Contract
 //     22.2).
 //   - The `'stroke' in styles` / `'strokeWidth' in styles` membership
 //     check pulls falsy values (`0`, `null`, `''`) out of the user's
-//     `styles` block verbatim (Req 22.1).
+//     `styles` block verbatim.
 //
 // Mocked Fabric shapes are plain objects whose constructors assign the
 // supplied props (so `originX`, `originY`, and `styles` flow through to
@@ -46,6 +45,9 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
 const { createMask } = await import('../src/mask/mask-factory.ts');
+const { applyMaskSelectedStyle, applyMaskUnselectedStyle } = await import(
+    '../src/mask/mask-style.ts'
+);
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
@@ -163,16 +165,16 @@ function makeContext(overrides = {}) {
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
 /**
- * Shapes covered by Property 17's per-shape origin clause. Polygon
+ * Shapes covered by 's per-shape origin clause. Polygon
  * placement is covered by its own dedicated property (19); the
  * factory's polygon path reads `originX: 'left'` / `originY: 'top'`
  * from the same `originProps` literal so the rect/circle/ellipse
- * sample is sufficient to validate the Req 19.2 contract here.
+ * sample is sufficient to validate the the documented contract contract here.
  */
 const shapeArb = fc.constantFrom('rect', 'circle', 'ellipse');
 
 /**
- * `strokeWidth` values that the factory MUST preserve verbatim (Req
+ * `strokeWidth` values that the factory MUST preserve verbatim (Contract
  * 22.1). `0` is the canonical falsy sample; finite positive numbers
  * round-trip too so the same property covers both branches.
  */
@@ -180,7 +182,7 @@ const strokeWidthArb = fc.constantFrom(0, 1, 5, null);
 
 /**
  * `stroke` values that exercise the falsy-style preservation contract.
- * `null` and `''` MUST NOT be replaced by the `'#ccc'` fallback (Req
+ * `null` and `''` MUST NOT be replaced by the `'#ccc'` fallback (Contract
  * 22.1).
  */
 const strokeArb = fc.constantFrom('red', null, '', '#fff');
@@ -188,7 +190,7 @@ const strokeArb = fc.constantFrom('red', null, '', '#fff');
 // ─── Properties ─────────────────────────────────────────────────────────────
 
 test(
-    'Property 17: per-shape origin is left/top for rect, circle, ellipse (Req 19.2)',
+    'per-shape origin is left/top for rect, circle, ellipse',
     () => {
         fc.assert(
             fc.property(shapeArb, (shape) => {
@@ -199,12 +201,12 @@ test(
                 assert.equal(
                     mask.originX,
                     'left',
-                    `Req 19.2: ${shape} mask must use originX='left'`,
+                    `the documented contract: ${shape} mask must use originX='left'`,
                 );
                 assert.equal(
                     mask.originY,
                     'top',
-                    `Req 19.2: ${shape} mask must use originY='top'`,
+                    `the documented contract: ${shape} mask must use originY='top'`,
                 );
             }),
             { numRuns: 30 },
@@ -213,7 +215,7 @@ test(
 );
 
 test(
-    'Property 17: falsy styles in config.styles are preserved verbatim (Req 22.1)',
+    'falsy styles in config.styles are preserved verbatim',
     () => {
         fc.assert(
             fc.property(
@@ -225,7 +227,7 @@ test(
                     // Only include keys that were generated as defined so
                     // that the absence of a key tests the default branch
                     // and the presence (even with falsy values) tests the
-                    // verbatim-pass-through branch (Req 22.1).
+                    // verbatim-pass-through branch.
                     const styles = {};
                     if (strokeWidth !== undefined) {
                         styles.strokeWidth = strokeWidth;
@@ -241,13 +243,13 @@ test(
                     // by identity rather than coercion.
                     assert.ok(
                         Object.is(mask.strokeWidth, strokeWidth),
-                        `Req 22.1: strokeWidth must round-trip verbatim (got ${
+                        `the documented contract: strokeWidth must round-trip verbatim (got ${
                             mask.strokeWidth
                         }, expected ${strokeWidth})`,
                     );
                     assert.ok(
                         Object.is(mask.stroke, stroke),
-                        `Req 22.1: stroke must round-trip verbatim (got ${
+                        `the documented contract: stroke must round-trip verbatim (got ${
                             mask.stroke
                         }, expected ${stroke})`,
                     );
@@ -259,7 +261,7 @@ test(
 );
 
 test(
-    'Property 17: explicit false on hasControls/selectable is preserved (Req 22.2)',
+    'explicit false on hasControls/selectable is preserved',
     () => {
         fc.assert(
             fc.property(
@@ -278,12 +280,12 @@ test(
                     assert.equal(
                         mask.hasControls,
                         hasControls,
-                        `Req 22.2: hasControls=${hasControls} must be preserved`,
+                        `the documented contract: hasControls=${hasControls} must be preserved`,
                     );
                     assert.equal(
                         mask.selectable,
                         selectable,
-                        `Req 22.2: selectable=${selectable} must be preserved`,
+                        `the documented contract: selectable=${selectable} must be preserved`,
                     );
                 },
             ),
@@ -293,7 +295,7 @@ test(
 );
 
 test(
-    'Property 17: transparentCorners and strokeUniform falsy values preserved with documented defaults (Req 22.2)',
+    'transparentCorners and strokeUniform falsy values preserved with documented defaults',
     () => {
         fc.assert(
             fc.property(
@@ -331,12 +333,12 @@ test(
                     assert.equal(
                         mask.transparentCorners,
                         expectedTC,
-                        `Req 22.2: transparentCorners=${transparentCorners} → ${expectedTC}`,
+                        `the documented contract: transparentCorners=${transparentCorners} → ${expectedTC}`,
                     );
                     assert.equal(
                         mask.strokeUniform,
                         expectedSU,
-                        `Req 22.2: strokeUniform=${strokeUniform} → ${expectedSU}`,
+                        `the documented contract: strokeUniform=${strokeUniform} → ${expectedSU}`,
                     );
                 },
             ),
@@ -344,3 +346,26 @@ test(
         );
     },
 );
+
+test('createMask preserves custom stroke through select and unselect styling', () => {
+    const ctx = makeContext();
+    const mask = createMask(ctx, {
+        shape: 'rect',
+        styles: {
+            stroke: '#123456',
+            strokeWidth: 4,
+        },
+    });
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.originalStroke, '#123456');
+    assert.equal(mask.originalStrokeWidth, 4);
+
+    applyMaskSelectedStyle(mask);
+    assert.equal(mask.stroke, '#ff0000');
+    assert.equal(mask.strokeWidth, 1);
+
+    applyMaskUnselectedStyle(mask);
+    assert.equal(mask.stroke, '#123456');
+    assert.equal(mask.strokeWidth, 4);
+});

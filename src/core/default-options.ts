@@ -3,21 +3,11 @@
  * @description Resolves user-supplied {@link ImageEditorOptions} into the
  * frozen {@link ResolvedOptions} object used at runtime.
  *
- * Behavior is defined by the documented option-resolution rules:
- *
- *   3.1  Every required top-level option falls back to the documented default.
- *   3.2  `label.textOptions` is deep-merged with the default text options.
- *   3.3  `crop.*` is deep-merged with the documented defaults.
- *   3.4  `crop.preserveMasksAfterCrop` defaults to `false` in v2.0.0.
- *   3.5  `preserveSourceFormat` defaults to `true`.
- *   3.6  `imageLoadTimeoutMs` defaults to `30000`.
- *   3.7  `onImageLoaded`, `onError`, `onWarning` are normalized — function
- *        values are kept, anything else (including `undefined`) becomes `null`.
- *   3.8  Callback signatures are preserved: `onImageLoaded: void`,
- *        `onError(error, message)`, `onWarning(error, message)`.
- *   3.9  Unknown top-level keys are ignored without throwing.
- *   3.10 The returned `label` and `crop` references are frozen so that
- *        post-construction mutation cannot leak into the live editor.
+ * Behavior is defined by the documented option-resolution rules: every
+ * required option falls back to a default, nested `label.textOptions` and
+ * `crop` values merge with their defaults, callback values normalize to a
+ * function or `null`, unknown top-level keys are ignored, and returned nested
+ * config objects are frozen.
  */
 
 import type {
@@ -34,13 +24,11 @@ import type {
  * {@link LabelConfig} and {@link CropConfig} configs, which are owned by
  * {@link DEFAULT_LABEL} and {@link DEFAULT_CROP} respectively.
  *
- * Values mirror the v1 constructor (see `baseline.md`) with two documented
- * v2 changes captured:
- *  - `preserveSourceFormat` is `true` (was effectively `false` in v1's
- *    JPEG-only resampler).
- *  - `crop.preserveMasksAfterCrop` is `false` (carried by {@link DEFAULT_CROP}).
+ * Values are the runtime defaults used when callers omit an option.
+ * Nested label and crop defaults are carried by {@link DEFAULT_LABEL} and
+ * {@link DEFAULT_CROP}.
  */
-export const DEFAULT_OPTIONS: Required<Omit<ImageEditorOptions, 'label' | 'crop'>> = {
+export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
     // Canvas size
     canvasWidth: 800,
     canvasHeight: 600,
@@ -68,6 +56,7 @@ export const DEFAULT_OPTIONS: Required<Omit<ImageEditorOptions, 'label' | 'crop'
 
     // Image-load timeout
     imageLoadTimeoutMs: 30000,
+    maxHistorySize: 50,
 
     // Export
     exportMultiplier: 1,
@@ -91,9 +80,9 @@ export const DEFAULT_OPTIONS: Required<Omit<ImageEditorOptions, 'label' | 'crop'
 
     // Callbacks.  Defaults are `null`; non-function
     // user values are coerced to `null` in `resolveOptions`.
-    onImageLoaded: null as unknown as () => void,
-    onError: null as unknown as (error: unknown, message: string) => void,
-    onWarning: null as unknown as (error: unknown, message: string) => void,
+    onImageLoaded: null,
+    onError: null,
+    onWarning: null,
 };
 
 /**
@@ -120,12 +109,11 @@ const DEFAULT_LABEL_TEXT_OPTIONS = {
  */
 export const DEFAULT_LABEL: LabelConfig = {
     getText: (mask) => mask.maskName,
-    textOptions: {...DEFAULT_LABEL_TEXT_OPTIONS},
+    textOptions: { ...DEFAULT_LABEL_TEXT_OPTIONS },
 };
 
 /**
- * Default {@link CropConfig}. `preserveMasksAfterCrop` is `false` in v2.0.0
- * (the only documented default change carried over from v1).
+ * Default {@link CropConfig}.
  */
 export const DEFAULT_CROP: Required<CropConfig> = {
     minWidth: 100,
@@ -161,6 +149,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'preserveSourceFormat',
     'downsampleMimeType',
     'imageLoadTimeoutMs',
+    'maxHistorySize',
     'exportMultiplier',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
@@ -190,6 +179,12 @@ function normalizeCallback<F extends (...args: never[]) => unknown>(value: unkno
     return typeof value === 'function' ? (value as F) : null;
 }
 
+function normalizeMaxHistorySize(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return DEFAULT_OPTIONS.maxHistorySize;
+    return Math.max(1, Math.floor(numeric));
+}
+
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.
@@ -216,7 +211,7 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     // ── Top-level scalar / non-callback keys ────────────────────────────────
     // Start from the defaults, then overlay user-supplied values for keys we
     // recognize. Unknown keys are not copied.
-    const resolved = {...DEFAULT_OPTIONS} as Required<Omit<ImageEditorOptions, 'label' | 'crop'>>;
+    const resolved = { ...DEFAULT_OPTIONS } as Omit<ResolvedOptions, 'label' | 'crop'>;
 
     for (const key of Object.keys(raw) as Array<keyof ImageEditorOptions>) {
         if (!KNOWN_TOP_LEVEL_KEYS.has(key)) continue;
@@ -231,17 +226,15 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         // `KNOWN_TOP_LEVEL_KEYS` and the per-key `value` come from the same
         // `ImageEditorOptions` shape; the cast satisfies the indexed write.
         (resolved as Record<string, unknown>)[key as string] = value;
-}
+    }
 
     // ── Callbacks ───────────────────────────────────
-    resolved.onImageLoaded =
-        normalizeCallback<() => void>(raw.onImageLoaded) ?? (null as unknown as () => void);
+    resolved.onImageLoaded = normalizeCallback<() => void>(raw.onImageLoaded);
     resolved.onError =
-        normalizeCallback<(error: unknown, message: string) => void>(raw.onError)
-        ?? (null as unknown as (error: unknown, message: string) => void);
+        normalizeCallback<(error: unknown, message: string) => void>(raw.onError);
     resolved.onWarning =
-        normalizeCallback<(error: unknown, message: string) => void>(raw.onWarning)
-        ?? (null as unknown as (error: unknown, message: string) => void);
+        normalizeCallback<(error: unknown, message: string) => void>(raw.onWarning);
+    resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
 
     // ── Label ─────────────────────────────────────────────
     // Deep-merge `textOptions` so user keys override defaults while leaving
@@ -250,21 +243,21 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     const userLabel: LabelConfig = (raw.label && typeof raw.label === 'object') ? raw.label : {};
 
     const mergedTextOptions = {
-...DEFAULT_LABEL_TEXT_OPTIONS,
-...(userLabel.textOptions && typeof userLabel.textOptions === 'object'
+        ...DEFAULT_LABEL_TEXT_OPTIONS,
+        ...(userLabel.textOptions && typeof userLabel.textOptions === 'object'
             ? userLabel.textOptions
             : {}),
-};
+    };
 
     const label: LabelConfig = {
         getText: typeof userLabel.getText === 'function'
             ? userLabel.getText
             : DEFAULT_LABEL.getText,
         textOptions: mergedTextOptions,
-};
+    };
     if (typeof userLabel.create === 'function') {
         label.create = userLabel.create;
-}
+    }
     // Freeze the label reference and its textOptions sub-object so that
     // post-construction mutation of `input.label` or `input.label.textOptions`
     // cannot affect the live editor.
@@ -280,12 +273,12 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         hideMasksDuringCrop: userCrop.hideMasksDuringCrop ?? DEFAULT_CROP.hideMasksDuringCrop,
         preserveMasksAfterCrop: userCrop.preserveMasksAfterCrop ?? DEFAULT_CROP.preserveMasksAfterCrop,
         allowRotationOfCropRect: userCrop.allowRotationOfCropRect ?? DEFAULT_CROP.allowRotationOfCropRect,
-};
+    };
     Object.freeze(crop);
 
     return {
-...resolved,
+        ...resolved,
         label,
         crop,
-} as ResolvedOptions;
+    } as ResolvedOptions;
 }

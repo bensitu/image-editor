@@ -25,25 +25,19 @@
  *
  * ## Why this lives in its own module
  *
- * The v1 orchestrator toggled Bootstrap's `d-none` / `d-flex` classes, which
- * coupled the editor to a specific host stylesheet and made the placeholder
- * misbehave on pages without Bootstrap. The v2 design centralizes the
- * standard-DOM-state transition here so the orchestrator's private
- * method becomes a one-line delegate and the behavior is unit-testable
- * in isolation
- * (`tests/units/placeholder-visibility.test.mjs`).
- *
- * Owner module references (per the design's "Mapping requirements to
- * modules" table): this module is imported by `image-editor.ts` only and is
- * intentionally NOT re-exported from `src/index.ts`.
+ * The helper uses standard DOM state instead of Bootstrap utility classes so
+ * the editor works with or without a host stylesheet. Keeping the transition
+ * here makes the orchestrator's private method a one-line delegate and keeps
+ * the behavior unit-testable in isolation. This module is imported by
+ * `image-editor.ts` only and is intentionally not re-exported from
+ * `src/index.ts`.
  */
 /**
  * Toggle placeholder/canvas-container visibility using only standard DOM
  * state. The function is total: it never throws on null inputs and never
  * touches utility classes.
  *
- * Visibility semantics, mirroring the v1 orchestrator's private
- * `_setPlaceholderVisible(show)` contract:
+ * Visibility semantics:
  *
  * - `show === true` means **show the placeholder** (and therefore hide the
  *   canvas container). The placeholder is the "no image yet" affordance, so

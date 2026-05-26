@@ -1,6 +1,5 @@
-// Property 14: History serialization round-trip
+// History serialization round-trip
 //
-// Property statement (design.md §"Property 14"):
 //   For any editor state that can be produced by public methods,
 //   `saveState()` followed by `loadFromState(snapshot)` SHALL restore
 //   the canvas size, object set, object metadata, `_editorState`,
@@ -30,21 +29,21 @@
 // ─── Sub-properties exercised here ───────────────────────────────────────────
 //
 //   14.1 saveState→loadFromState→saveState yields byte-stable snapshots
-//        (Req 16.1, 16.5, 36.2, 36.3) — equality is the parsed JSON deep
+// — equality is the parsed JSON deep
 //        equality, which is the exact equivalence relation defined in
-//        Requirement 16.5.
-//   14.2 Object metadata round-trips (Req 16.3, 16.5, 22.3) — every
+//        the documented contract.
+//   14.2 Object metadata round-trips — every
 //        mask object retains its (type, left, top, maskId, maskName,
 //        originalAlpha) and any preserved falsy style values.
-//   14.3 Editor metadata round-trips (Req 16.2, 16.4, 36.2) — the
+//   14.3 Editor metadata round-trips — the
 //        `_editorState` object embedded in the snapshot returns
 //        `currentScale`, `currentRotation`, `baseImageScale` exactly.
-//   14.4 `maxMaskId` derivation (Req 18.2) — `loadFromState` returns
+//   14.4 `maxMaskId` derivation — `loadFromState` returns
 //        the maximum restored `maskId`, or `0` when no masks survive.
-//   14.5 Session-only filter (Req 16.1, 22.3) — objects flagged
+//   14.5 Session-only filter — objects flagged
 //        `isCropRect === true` or `maskLabel === true` never appear in
 //        a snapshot and therefore never reach the loaded canvas.
-//   14.6 originalImage discovery (Req 16.3) — the first non-mask
+//   14.6 originalImage discovery — the first non-mask
 //        `'image'` object on the loaded canvas is returned as
 //        `originalImage`, with `null` when no such object exists.
 //
@@ -178,7 +177,7 @@ const maskBlueprintArb = fc.record({
         .filter(s => s.length > 0),
     originalAlpha: fc.integer({ min: 0, max: 100 }).map(n => n / 100),
     opacity: fc.integer({ min: 0, max: 100 }).map(n => n / 100),
-    // Falsy style fields — Requirement 22.3 says these must round-trip
+    // Falsy style fields — the documented contract says these must round-trip
     // verbatim through the snapshot. Fabric serializes any custom key
     // declared in `propertiesToInclude` as-is; here we cover both a
     // common non-listed key (`strokeWidth: 0`) which the mock toJSON
@@ -210,7 +209,7 @@ const transientObjArb = fc.oneof(
 
 // Optional non-mask `'image'` object simulating the loaded photo. Used
 // to exercise `loadFromState`'s `originalImage` discovery path
-// (sub-property 14.6).
+// (sub-).
 const originalImageArb = fc.option(
     fc.record({
         type: fc.constant('image'),
@@ -283,7 +282,7 @@ function buildSourceCanvas(scenario) {
 }
 
 /**
- * Equivalence relation defined by Requirement 16.5 / 36.3:
+ * Equivalence relation defined by the documented contract:
  *   - canvas size (width, height)
  *   - object set keyed by (type, left, top, maskId, maskName, originalAlpha)
  *   - editor metadata (currentScale, currentRotation, baseImageScale)
@@ -303,23 +302,23 @@ function assertSnapshotsEquivalent(s1, s2, scenario) {
     assert.equal(
         j1.width,
         j2.width,
-        'Req 16.3 / 16.5: canvas width must round-trip',
+        'the documented contract: canvas width must round-trip',
     );
     assert.equal(
         j1.height,
         j2.height,
-        'Req 16.3 / 16.5: canvas height must round-trip',
+        'the documented contract: canvas height must round-trip',
     );
 
     assert.deepEqual(
         j1._editorState,
         j2._editorState,
-        'Req 16.2 / 16.4 / 36.2: _editorState must round-trip',
+        'the documented contract: _editorState must round-trip',
     );
     assert.deepEqual(
         j1._editorState,
         scenario.editorState,
-        'Req 16.2: _editorState content must equal the source editor metadata',
+        'the documented contract: _editorState content must equal the source editor metadata',
     );
 
     // Byte-stable comparison of the serialized object set. JSON deep
@@ -328,13 +327,13 @@ function assertSnapshotsEquivalent(s1, s2, scenario) {
     assert.deepEqual(
         j1.objects,
         j2.objects,
-        'Req 16.1 / 16.5 / 22.3 / 36.3: serialized object set must round-trip exactly',
+        'the documented contract: serialized object set must round-trip exactly',
     );
 }
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('Property 14: saveState→loadFromState→saveState produces an identical snapshot', async () => {
+test('saveState→loadFromState→saveState produces an identical snapshot', async () => {
     await fc.assert(
         fc.asyncProperty(scenarioArb, async scenario => {
             // ── Build the source canvas ──────────────────────────────
@@ -348,12 +347,12 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
                 baseImageScale: scenario.editorState.baseImageScale,
             });
 
-            // The Pretty_Printer SHALL embed _editorState (Req 16.2) and
-            // SHALL NOT include any session-only object (Req 16.1).
+            // The Pretty_Printer SHALL embed _editorState and
+            // SHALL NOT include any session-only object.
             const j1 = JSON.parse(s1);
             assert.ok(
                 j1._editorState && typeof j1._editorState === 'object',
-                'Req 16.2: snapshot must carry _editorState',
+                'the documented contract: snapshot must carry _editorState',
             );
             assert.ok(
                 Array.isArray(j1.objects),
@@ -363,7 +362,7 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
                 j1.objects.every(
                     o => o.isCropRect !== true && o.maskLabel !== true,
                 ),
-                'Req 16.1: session-only crop rect / mask labels must be filtered before history',
+                'the documented contract: session-only crop rect / mask labels must be filtered before history',
             );
 
             // ── Restore into a fresh canvas ──────────────────────────
@@ -374,26 +373,26 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
                 setCanvasSize: makeSetCanvasSize(dst),
             });
 
-            // Req 16.3: canvas size restored before loadFromJSON.
+            // the documented contract: canvas size restored before loadFromJSON.
             assert.equal(
                 dst.width,
                 scenario.dims.width,
-                'Req 16.3: setCanvasSize(width) must run during loadFromState',
+                'the documented contract: setCanvasSize(width) must run during loadFromState',
             );
             assert.equal(
                 dst.height,
                 scenario.dims.height,
-                'Req 16.3: setCanvasSize(height) must run during loadFromState',
+                'the documented contract: setCanvasSize(height) must run during loadFromState',
             );
 
-            // Req 16.4: editor metadata is forwarded to the facade.
+            // the documented contract: editor metadata is forwarded to the facade.
             assert.deepEqual(
                 result.editorState,
                 scenario.editorState,
-                'Req 16.4: editorState returned by loadFromState must match the source',
+                'the documented contract: editorState returned by loadFromState must match the source',
             );
 
-            // Req 18.2: maxMaskId equals the maximum mask id present in
+            // the documented contract: maxMaskId equals the maximum mask id present in
             // the source (or 0 when no masks survived).
             const expectedMaxMaskId = scenario.masks.reduce(
                 (max, m) => Math.max(max, m.maskId),
@@ -402,31 +401,31 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
             assert.equal(
                 result.maxMaskId,
                 expectedMaxMaskId,
-                'Req 18.2: maxMaskId must equal the max restored maskId',
+                'the documented contract: maxMaskId must equal the max restored maskId',
             );
 
-            // Sub-property 14.6: originalImage discovery — the first
+            // Sub-originalImage discovery — the first
             // non-mask `'image'` object becomes `result.originalImage`.
             if (scenario.originalImage) {
                 assert.ok(
                     result.originalImage !== null,
-                    'Req 16.3: originalImage must be reported when the snapshot has a non-mask image',
+                    'the documented contract: originalImage must be reported when the snapshot has a non-mask image',
                 );
                 assert.equal(
                     result.originalImage.type,
                     'image',
-                    'Req 16.3: originalImage must be the `image` object',
+                    'the documented contract: originalImage must be the `image` object',
                 );
             } else {
                 assert.equal(
                     result.originalImage,
                     null,
-                    'Req 16.3: originalImage must be null when no non-mask image exists',
+                    'the documented contract: originalImage must be null when no non-mask image exists',
                 );
             }
 
             // Per-object assertion that mask metadata was re-applied
-            // verbatim by `restoreMaskPropsFromJSON` (Req 16.3). This
+            // verbatim by `restoreMaskPropsFromJSON`. This
             // is the gate that protects the byte-level round-trip from
             // a stale Fabric `_setOptions` regression.
             for (const sourceMask of scenario.masks) {
@@ -439,17 +438,17 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
                 );
                 assert.ok(
                     restored,
-                    `Req 16.3: mask id=${sourceMask.maskId} must survive round-trip`,
+                    `the documented contract: mask id=${sourceMask.maskId} must survive round-trip`,
                 );
                 assert.equal(
                     restored.maskName,
                     sourceMask.maskName,
-                    'Req 16.3: maskName must round-trip',
+                    'the documented contract: maskName must round-trip',
                 );
                 assert.equal(
                     restored.originalAlpha,
                     sourceMask.originalAlpha,
-                    'Req 16.3 / 22.3: originalAlpha must round-trip exactly (including falsy values)',
+                    'the documented contract: originalAlpha must round-trip exactly (including falsy values)',
                 );
             }
 
@@ -460,7 +459,7 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
                 result.objects.every(
                     o => o.isCropRect !== true && o.maskLabel !== true,
                 ),
-                'Req 16.1: session-only objects must not appear after a round-trip',
+                'the documented contract: session-only objects must not appear after a round-trip',
             );
 
             // ── Second save: produces s2 ─────────────────────────────
@@ -471,7 +470,7 @@ test('Property 14: saveState→loadFromState→saveState produces an identical s
                 baseImageScale: result.editorState.baseImageScale,
             });
 
-            // Req 16.5 / 36.3: the round-trip property — s1 and s2 are
+            // the documented contract: the round-trip property — s1 and s2 are
             // equivalent under the canonical snapshot equivalence.
             assertSnapshotsEquivalent(s1, s2, scenario);
         }),
@@ -491,10 +490,79 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
         'isCropRect',
         'maskLabel',
         'originalAlpha',
+        'originalStroke',
+        'originalStrokeWidth',
     ]) {
         assert.ok(
             SNAPSHOT_CUSTOM_KEYS.includes(k),
-            `SNAPSHOT_CUSTOM_KEYS must include '${k}' (Req 16.1)`,
+            `SNAPSHOT_CUSTOM_KEYS must include '${k}'`,
         );
     }
+});
+
+test('loadFromState restores duplicate-position masks one-to-one', async () => {
+    const snapshot = {
+        version: '6.0.0',
+        width: 320,
+        height: 240,
+        objects: [
+            {
+                type: 'rect',
+                left: 20,
+                top: 30,
+                maskId: 101,
+                maskName: 'mask101',
+                originalAlpha: 0.4,
+                originalStroke: '#123456',
+                originalStrokeWidth: 4,
+            },
+            {
+                type: 'rect',
+                left: 20,
+                top: 30,
+                maskId: 102,
+                maskName: 'mask102',
+                originalAlpha: 0.8,
+                originalStroke: '#abcdef',
+                originalStrokeWidth: 6,
+            },
+        ],
+        _editorState: {
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: 1,
+        },
+    };
+
+    const canvas = new MockCanvas();
+    canvas.loadFromJSON = async function loadFromJSON(json) {
+        this.objects = json.objects.map((o) => ({
+            type: o.type,
+            left: o.left,
+            top: o.top,
+            opacity: o.opacity ?? 1,
+            maskId: 102,
+            maskName: 'stale',
+            originalAlpha: 0.1,
+        }));
+        return this;
+    };
+
+    const result = await loadFromState({
+        canvas,
+        jsonString: snapshot,
+        setCanvasSize: makeSetCanvasSize(canvas),
+    });
+
+    const restoredIds = result.objects.map((o) => o.maskId).sort((a, b) => a - b);
+    assert.deepEqual(restoredIds, [101, 102]);
+    assert.equal(new Set(restoredIds).size, 2);
+    assert.equal(result.maxMaskId, 102);
+    assert.deepEqual(
+        result.objects.map((o) => [o.maskName, o.originalStroke, o.originalStrokeWidth]),
+        [
+            ['mask101', '#123456', 4],
+            ['mask102', '#abcdef', 6],
+        ],
+    );
 });

@@ -1,6 +1,5 @@
-// Property 15: Mask ID uniqueness across mixed operations
+// Mask ID uniqueness across mixed operations
 //
-// Property statement (design.md §"Property 15"):
 //   For any sequence of `createMask`, `mergeMasks`, `saveState`,
 //   `loadFromState`, `undo`, `redo`, and
 //   `removeAllMasks({ saveHistory: false })` operations, every live
@@ -9,10 +8,10 @@
 //
 // Owner modules under test:
 //
-//   - `src/mask/mask-factory.ts` (Reqs 18.3, 18.4) — `createMask`
+//   - `src/mask/mask-factory.ts` — `createMask`
 //     increments `maskCounter` and stamps it onto the new mask;
 //     `removeAllMasks` clears the live mask population.
-//   - `src/core/state-serializer.ts` (Reqs 18.2, 18.4) — `saveState`
+//   - `src/core/state-serializer.ts` — `saveState`
 //     produces a JSON snapshot from which `loadFromState` returns
 //     `maxMaskId`, the value the orchestrator assigns to
 //     `maskCounter` so subsequent `createMask` calls cannot collide
@@ -22,7 +21,7 @@
 //
 // This test drives the two modules above through randomly generated
 // sequences of public-facing operations and checks the three IDs
-// invariants from Requirement 18:
+// invariants from the documented contract:
 //
 //   18.2 After `loadFromState`, `maskCounter` SHALL equal the maximum
 //        `maskId` observed on the restored canvas (or `0` if none).
@@ -41,8 +40,8 @@
 // "mergeMasks" is simulated via
 // `removeAllMasks({ saveHistory: false })`. The production
 // `mergeMasks` pipeline first removes every mask, then reloads the
-// merged image (which resets `maskCounter` to `0` per Req 18.1); the
-// mask-removal half is the part Property 15 cares about — clearing
+// merged image (which resets `maskCounter` to `0` per the documented contract); the
+// mask-removal half is the part cares about — clearing
 // the live population without altering the counter — so the simulated
 // op exercises exactly the contract under test.
 //
@@ -55,7 +54,7 @@
 // `discardActiveObject`, `setActiveObject`, `bringObjectToFront`,
 // `getWidth`, `getHeight`, `setDimensions`, `renderAll`,
 // `requestRenderAll`). A fake Fabric module plus a stand-in canvas is
-// sufficient to drive every code path that Req 18.2/18.3/18.4 covers,
+// sufficient to drive every code path that the documented contract covers,
 // while keeping each iteration in-process and fast so the run can
 // stay at the project's standard `numRuns: 100`. The mocks mirror the
 // shapes used by `tests/state-serializer.property.test.mjs` and
@@ -316,7 +315,7 @@ function makeModel() {
  * Take a snapshot of the live canvas + counter. The snapshot string is
  * the JSON used by `loadFromState`; `counter` is captured separately
  * because `saveState` deliberately does NOT serialize `maskCounter` —
- * it is recomputed from the restored mask population per Req 18.2.
+ * it is recomputed from the restored mask population per the documented contract.
  *
  * Capturing both fields here lets the model emulate the orchestrator's
  * undo/redo wiring without leaking the counter into the snapshot.
@@ -331,7 +330,7 @@ function takeSnapshot(model) {
 }
 
 /**
- * Restore a snapshot via `loadFromState` and apply Req 18.2: set
+ * Restore a snapshot via `loadFromState` and apply the documented contract: set
  * `maskCounter` to the maximum `maskId` observed on the restored
  * canvas (or `0` if none). Returns the loadFromState result so callers
  * can read back `maxMaskId` for further assertions.
@@ -345,15 +344,15 @@ async function restoreSnapshot(model, jsonString) {
             model.canvas.height = h;
         },
     });
-    // Req 18.2 — the orchestrator assigns `maskCounter = maxMaskId`.
+    // the documented contract — the orchestrator assigns `maskCounter = maxMaskId`.
     model.setCounter(result.maxMaskId);
     return result;
 }
 
 /**
  * Read the live `maskId` values from the canvas, in object order.
- * Used for both the uniqueness assertion (Req 18.4) and the counter
- * monotonicity assertion (Req 18.2/18.3).
+ * Used for both the uniqueness assertion and the counter
+ * monotonicity assertion.
  */
 function liveMaskIds(canvas) {
     return canvas
@@ -366,8 +365,8 @@ function liveMaskIds(canvas) {
  * Universal post-step invariants — run after every operation in the
  * randomised sequence.
  *
- * 1. Req 18.4 — `maskId` values on the canvas are unique.
- * 2. Req 18.4 (+ 18.2/18.3) — `maskCounter` is strictly greater than
+ * 1. the documented contract — `maskId` values on the canvas are unique.
+ * 2. the documented contract — `maskCounter` is strictly greater than
  *    every live `maskId` (or equal when no masks exist), so the next
  *    `createMask` cannot collide with anything currently on the
  *    canvas. The factory uses `counter + 1` as the new ID; combined
@@ -379,21 +378,21 @@ function assertInvariants(model, label) {
     assert.equal(
         new Set(ids).size,
         ids.length,
-        `${label}: Req 18.4 — maskIds on the canvas must be unique (got [${ids.join(', ')}])`,
+        `${label}: the documented contract — maskIds on the canvas must be unique (got [${ids.join(', ')}])`,
     );
 
     if (ids.length > 0) {
         const max = Math.max(...ids);
         assert.ok(
             model.getCounter() >= max,
-            `${label}: Req 18.2/18.3 — maskCounter (${model.getCounter()}) must be ≥ max(maskId) (${max}) so the next createMask cannot duplicate`,
+            `${label}: the documented contract — maskCounter (${model.getCounter()}) must be ≥ max(maskId) (${max}) so the next createMask cannot duplicate`,
         );
     }
 }
 
 // ─── Operation arbitraries ─────────────────────────────────────────────────
 
-// Polygon placement is covered by Property 19; restrict the random
+// Polygon placement is covered by ; restrict the random
 // shape set to rect / circle / ellipse so this property focuses on
 // counter and ID semantics.
 const shapeArb = fc.constantFrom('rect', 'circle', 'ellipse');
@@ -410,7 +409,7 @@ const operationArb = fc.oneof(
 
 // ─── Property ──────────────────────────────────────────────────────────────
 
-test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simulated removeAll) / undo / redo / additional createMask sequences', async () => {
+test('mask ID uniqueness across mixed createMask / mergeMasks (simulated removeAll) / undo / redo / additional createMask sequences', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.array(operationArb, { minLength: 1, maxLength: 25 }),
@@ -439,18 +438,18 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                                 `${label}: createMask must succeed`,
                             );
 
-                            // Req 18.3 — counter incremented by exactly 1.
+                            // the documented contract — counter incremented by exactly 1.
                             assert.equal(
                                 model.getCounter(),
                                 before + 1,
-                                `${label}: Req 18.3 — maskCounter must increment by exactly 1 (was ${before}, now ${model.getCounter()})`,
+                                `${label}: the documented contract — maskCounter must increment by exactly 1 (was ${before}, now ${model.getCounter()})`,
                             );
 
-                            // Req 18.3 — new mask carries the new counter as `maskId`.
+                            // the documented contract — new mask carries the new counter as `maskId`.
                             assert.equal(
                                 mask.maskId,
                                 model.getCounter(),
-                                `${label}: Req 18.3 — new mask.maskId (${mask.maskId}) must equal updated maskCounter (${model.getCounter()})`,
+                                `${label}: the documented contract — new mask.maskId (${mask.maskId}) must equal updated maskCounter (${model.getCounter()})`,
                             );
 
                             undoStack.push(takeSnapshot(model));
@@ -461,7 +460,7 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                         case 'removeAll': {
                             // `mergeMasks` removes every mask before
                             // reloading the merged image. The
-                            // mask-removal half is the contract Req
+                            // mask-removal half is the contract Contract
                             // 18.4 cares about here, so the simulated
                             // op runs only that half.
                             removeAllMasks(model.removeCtx(), {
@@ -493,7 +492,7 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                                     target,
                                 );
 
-                                // Req 18.2 — counter equals max(maskId)
+                                // the documented contract — counter equals max(maskId)
                                 // restored from the snapshot, or 0.
                                 const ids = liveMaskIds(model.canvas);
                                 const expectedMax =
@@ -501,12 +500,12 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                                 assert.equal(
                                     result.maxMaskId,
                                     expectedMax,
-                                    `${label}: Req 18.2 — loadFromState.maxMaskId must equal max(restored maskId) (got ${result.maxMaskId}, expected ${expectedMax})`,
+                                    `${label}: the documented contract — loadFromState.maxMaskId must equal max(restored maskId) (got ${result.maxMaskId}, expected ${expectedMax})`,
                                 );
                                 assert.equal(
                                     model.getCounter(),
                                     expectedMax,
-                                    `${label}: Req 18.2 — maskCounter must be set to max(restored maskId) after undo (got ${model.getCounter()}, expected ${expectedMax})`,
+                                    `${label}: the documented contract — maskCounter must be set to max(restored maskId) after undo (got ${model.getCounter()}, expected ${expectedMax})`,
                                 );
                             }
                             break;
@@ -526,12 +525,12 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                                 assert.equal(
                                     result.maxMaskId,
                                     expectedMax,
-                                    `${label}: Req 18.2 — loadFromState.maxMaskId must equal max(restored maskId) after redo (got ${result.maxMaskId}, expected ${expectedMax})`,
+                                    `${label}: the documented contract — loadFromState.maxMaskId must equal max(restored maskId) after redo (got ${result.maxMaskId}, expected ${expectedMax})`,
                                 );
                                 assert.equal(
                                     model.getCounter(),
                                     expectedMax,
-                                    `${label}: Req 18.2 — maskCounter must be set to max(restored maskId) after redo (got ${model.getCounter()}, expected ${expectedMax})`,
+                                    `${label}: the documented contract — maskCounter must be set to max(restored maskId) after redo (got ${model.getCounter()}, expected ${expectedMax})`,
                                 );
                             }
                             break;
@@ -545,7 +544,7 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                 // strictly greater than every live `maskId` and
                 // therefore preserve uniqueness on the canvas. This is
                 // the "next created mask SHALL use an ID greater than
-                // every restored live mask ID" half of Property 15.
+                // every restored live mask ID" half of .
                 const liveBefore = liveMaskIds(model.canvas);
                 const counterBefore = model.getCounter();
                 const probe = createMask(model.createCtx(), {
@@ -555,19 +554,19 @@ test('Property 15: mask ID uniqueness across mixed createMask / mergeMasks (simu
                 assert.equal(
                     probe.maskId,
                     counterBefore + 1,
-                    'final probe: Req 18.3 — new maskId must be counter+1',
+                    'final probe: the documented contract — new maskId must be counter+1',
                 );
                 for (const id of liveBefore) {
                     assert.ok(
                         probe.maskId > id,
-                        `final probe: Req 18.4 — next createMask ID (${probe.maskId}) must exceed every restored live maskId (saw ${id})`,
+                        `final probe: the documented contract — next createMask ID (${probe.maskId}) must exceed every restored live maskId (saw ${id})`,
                     );
                 }
                 const liveAfter = liveMaskIds(model.canvas);
                 assert.equal(
                     new Set(liveAfter).size,
                     liveAfter.length,
-                    'final probe: Req 18.4 — maskIds must remain unique after the probe create',
+                    'final probe: the documented contract — maskIds must remain unique after the probe create',
                 );
 
                 return true;

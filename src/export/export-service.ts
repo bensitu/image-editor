@@ -1,10 +1,10 @@
 /**
  * @file export/export-service.ts
- * @description Base64, file, and download entry points for the v2 export
+ * @description Base64, file, and download entry points for the current export
  *              pipeline. The orchestrator (`image-editor.ts`) delegates
  *              `exportImageBase64`, `exportImageFile`, and `downloadImage`
  *              to the helpers in this module so the export logic lives in
- *              a single owner module per the design's module-decomposition
+ *              a single owner module per the documented module-decomposition
  *              table.
  *
  * ## Owned contracts (this task — 18.4 builds on 18.3)
@@ -75,7 +75,7 @@
  *
  * ## Why a service-shaped module
  *
- * Per the design's "Mapping requirements to modules" table the export
+ * Per the documented "Mapping Contracts to modules" table the export
  * pipeline owns its own module so the orchestrator stays thin. The
  * service is a stateless function-collection (matching
  * `image/image-loader.ts` and `core/state-serializer.ts`) and reads every
@@ -101,11 +101,11 @@ import type {
     NormalizedImageFormat,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { ExportNotReadyError, MergeMasksError} from '../core/errors.js';
-import { Command, type HistoryManager} from '../history/history-manager.js';
-import { withMaskStyleBackup} from '../mask/mask-style.js';
-import { floorRegion, getObjectBBox, type IntegerRegion} from '../utils/canvas-region.js';
-import { resolveExportFormat, type ResolvedExportFormat} from './export-format.js';
+import { ExportNotReadyError, MergeMasksError } from '../core/errors.js';
+import { Command, type HistoryManager } from '../history/history-manager.js';
+import { withMaskStyleBackup } from '../mask/mask-style.js';
+import { floorRegion, getObjectBBox, type IntegerRegion } from '../utils/canvas-region.js';
+import { resolveExportFormat, type ResolvedExportFormat } from './export-format.js';
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -151,7 +151,7 @@ export interface ExportServiceContext {
 
 /**
  * Numeric resolution of `multiplier` against the editor defaults. Mirrors
- * v1's `options.multiplier || this.options.exportMultiplier || 1` so a
+ * legacy's `options.multiplier || this.options.exportMultiplier || 1` so a
  * caller-supplied `0` or non-finite value falls through to the resolved
  * default and finally to `1`.
  *
@@ -214,7 +214,7 @@ function computeExportRegion(
  * export-only bake-in style, runs `fn`, and restores the captured live
  * styles inside a `finally` block — even if `fn` rejected.
  *
- * Bake-in is only applied when `exportImageArea === true`, matching v1's
+ * Bake-in is only applied when `exportImageArea === true`, matching legacy's
  * mergeMask path where the rendered raster needs solid black masks so
  * the masked-out regions are flattened into the JPEG/PNG output. When
  * `exportImageArea === false` the canvas is rendered with mask styles
@@ -225,7 +225,7 @@ function computeExportRegion(
  *   `opacity: 1, fill: '#000', strokeWidth: 0, stroke: null,
  *    selectable: false`
  *
- * matching v1's `_mergeMasks`/`exportImageBase64` (`#000000` collapsed to
+ * matching legacy's `_mergeMasks`/`exportImageBase64` (`#000000` collapsed to
  * `#000`; both serialize identically through Fabric to a solid black
  * fill). The restoration step is owned by `withMaskStyleBackup` in
  * `mask/mask-style.ts`, which captures `opacity`/`fill`/`stroke`/
@@ -260,7 +260,7 @@ async function bakeMasksForExport<T>(
 
 /**
  * Mutator passed to {@link withMaskStyleBackup} that forces a single
- * mask to the export bake-in style. Matches v1's mergeMask path
+ * mask to the export bake-in style. Matches legacy's mergeMask path
  * literal-for-literal (`#000` ≡ `#000000` once Fabric normalizes the
  * fill). Wrapped in `try/catch` so a stale Fabric reference does not
  * break the iteration over a multi-mask canvas — the surrounding
@@ -274,11 +274,11 @@ function applyExportBakeInStyle(mask: MaskObject): void {
             strokeWidth: 0,
             stroke: null,
             selectable: false,
-});
-        if (typeof mask.setCoords() === 'function') mask.setCoords();
-} catch {
+        });
+        if (typeof mask.setCoords === 'function') mask.setCoords();
+    } catch {
         /* ignore — mask may have been removed mid-iteration */
-}
+    }
 }
 
 /**
@@ -287,7 +287,7 @@ function applyExportBakeInStyle(mask: MaskObject): void {
  * `canvas.toDataURL` directly — there is no intermediate `<canvas>`.
  *
  * The `region` argument is `null` for full-canvas exports and an
- * {@link IntegerRegion} when `exportImageArea === true` (Requirements
+ * {@link IntegerRegion} when `exportImageArea === true` (Contracts
  * 27.1, 27.3).
  */
 function renderCanvasToDataURL(
@@ -300,7 +300,7 @@ function renderCanvasToDataURL(
     const fabricOptions: Record<string, unknown> = {
         format,
         multiplier,
-};
+    };
     // PNG ignores `quality`; `resolveExportFormat`
     // returns `undefined` for PNG so the key is omitted entirely.
     if (quality !== undefined) fabricOptions.quality = quality;
@@ -309,7 +309,7 @@ function renderCanvasToDataURL(
         fabricOptions.top = region.top;
         fabricOptions.width = region.width;
         fabricOptions.height = region.height;
-}
+    }
     // Cast: Fabric's `TDataUrlOptions` is structurally identical to the
     // shape we built but is not re-exported as a public type from the
     // package surface, so we erase the dictionary type at the boundary.
@@ -318,7 +318,7 @@ function renderCanvasToDataURL(
 
 /**
  * Convert a `data:image/...;base64...` URL into the byte array that
- * `new File([...]...)` consumes. Mirrors v1's reverse-loop decode so
+ * `new File([...]...)` consumes. Mirrors legacy's reverse-loop decode so
  * large data URLs do not allocate intermediate `Array.from` storage.
  *
  * Splits on the first comma rather than `.split(',')[1]` — some browsers
@@ -340,13 +340,13 @@ function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
     const bytes = new Uint8Array(buffer);
     for (let i = binary.length - 1; i >= 0; i -= 1) {
         bytes[i] = binary.charCodeAt(i);
-}
+    }
     return bytes;
 }
 
 /**
  * Repaint a base64 data URL through an offscreen `<canvas>` so the
- * resulting URL carries the requested MIME type. Mirrors v1's behavior
+ * resulting URL carries the requested MIME type. Mirrors legacy's behavior
  * for `exportImageFile` — the underlying `canvas.toDataURL` may quietly
  * fall back to PNG when the requested format is unsupported by the
  * browser, and the file output should still match the requested MIME.
@@ -361,11 +361,11 @@ function reencodeDataUrlAs(
 ): Promise<string> {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
         return Promise.resolve(sourceDataUrl);
-}
+    }
     return new Promise<string>((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'Anonymous';
-        img.onload =  () => {
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
             try {
                 const off = document.createElement('canvas');
                 off.width = img.naturalWidth || img.width;
@@ -374,15 +374,15 @@ function reencodeDataUrlAs(
                 if (!ctx2d) throw new Error('Unable to acquire 2D context for export conversion');
                 ctx2d.drawImage(img, 0, 0);
                 resolve(off.toDataURL(target.mimeType, target.quality));
-} catch (error) {
+            } catch (error) {
                 reject(error);
-}
-};
-        img.onerror =  () => {
+            }
+        };
+        img.onerror = () => {
             reject(new Error('Failed to decode export data URL during MIME conversion'));
-};
+        };
         img.src = sourceDataUrl;
-});
+    });
 }
 
 /** Single source of truth for the "no image" warning text. */
@@ -390,7 +390,7 @@ function warnNoImageLoaded(operation: string): void {
     // eslint-disable-next-line no-console -- the warning is part of the documented contract.
     console.warn(
         `[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`,
-);
+    );
 }
 
 // ─── exportImageBase64 ───────────────────────────────────────────────────────
@@ -437,7 +437,7 @@ export async function exportImageBase64(
     if (!ctx.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
         return '';
-}
+    }
 
     const opts = options ?? {};
     const exportImageArea = typeof opts.exportImageArea === 'boolean'
@@ -460,8 +460,8 @@ export async function exportImageBase64(
             resolved.quality,
             multiplier,
             region,
-),
-);
+        ),
+    );
 }
 
 // ─── exportImageFile ─────────────────────────────────────────────────────────
@@ -490,7 +490,7 @@ export async function exportImageFile(
     if (!ctx.isImageLoaded()) {
         warnNoImageLoaded('exportImageFile');
         throw new ExportNotReadyError('exportImageFile');
-}
+    }
 
     const opts = options ?? {};
     const mergeMask = opts.mergeMask !== false;
@@ -499,26 +499,26 @@ export async function exportImageFile(
 
     // Reuse `exportImageBase64` so format/quality/multiplier resolution,
     // ActiveSelection discard, and the bake-in/restore bracket are all
-    // defined once. `mergeMask` maps to v1's `exportImageArea` flag.
+    // defined once. `mergeMask` maps to legacy's `exportImageArea` flag.
     const base64 = await exportImageBase64(ctx, {
         exportImageArea: mergeMask,
         multiplier: opts.multiplier,
         quality: opts.quality,
         fileType: opts.fileType,
-});
+    });
     if (!base64) {
         // exportImageBase64 already warned about the missing image; the
-        // file path still owes its own typed rejection per Requirement
+        // file path still owes its own typed rejection per Contract
         // 25.4.  In practice this branch is unreachable because the
         // `isImageLoaded` gate above already returned, but the guard
         // keeps the function total even if a caller bypasses the gate
         // by mutating the context between awaits.
         throw new ExportNotReadyError('exportImageFile');
-}
+    }
 
     const finalDataUrl = await reencodeDataUrlAs(base64, resolved);
     const bytes = dataUrlToBytes(finalDataUrl);
-    return new File([bytes], fileName, { type: resolved.mimeType});
+    return new File([bytes], fileName, { type: resolved.mimeType });
 }
 
 // ─── downloadImage ───────────────────────────────────────────────────────────
@@ -526,7 +526,7 @@ export async function exportImageFile(
 /**
  * Trigger a browser download of the live canvas.
  *
- * Mirrors v1's "anchor with `download` attribute" approach: an `<a>`
+ * Mirrors legacy's "anchor with `download` attribute" approach: an `<a>`
  * element is created, pointed at the data URL, appended to the document
  * so Firefox dispatches the click, clicked, and removed. The function
  * returns synchronously; the data URL is rendered
@@ -551,19 +551,19 @@ export function downloadImage(
     if (!ctx.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
-}
+    }
 
     const resolvedFileName = fileName ?? ctx.options.defaultDownloadFileName;
 
-    // The download path mirrors v1: an anchor with `download` and an
+    // The download path mirrors legacy: an anchor with `download` and an
     // `href` set to the data URL emitted by `exportImageBase64`. The
     // anchor is appended to `document.body` because some browsers
     // (notably Firefox) ignore programmatic clicks on detached nodes.
     void exportImageBase64(ctx, {
         exportImageArea: ctx.options.exportImageAreaByDefault,
         multiplier: ctx.options.exportMultiplier,
-})
-.then((dataUrl) => {
+    })
+        .then((dataUrl) => {
             if (!dataUrl) return; // already warned by `exportImageBase64`
             const link = document.createElement('a');
             link.download = resolvedFileName;
@@ -571,14 +571,14 @@ export function downloadImage(
             document.body.appendChild(link);
             try {
                 link.click();
-} finally {
+            } finally {
                 document.body.removeChild(link);
-}
-})
-.catch((error: unknown) => {
+            }
+        })
+        .catch((error: unknown) => {
             // eslint-disable-next-line no-console -- diagnostic only; downloadImage returns void.
             console.error('[ImageEditor] downloadImage failed', error);
-});
+        });
 }
 
 // ─── mergeMasks ──────────────────────────────────────────────────────────────
@@ -618,7 +618,7 @@ export interface MergeMasksContext extends ExportServiceContext {
      * scroll position regardless of the layout
      * strategy applied by the inner `loadImage`.
      */
-    readonly containerEl: HTMLElement | null;
+    readonly containerElement: HTMLElement | null;
 
     /**
      * Transactional image loader. The merge passes
@@ -629,7 +629,7 @@ export interface MergeMasksContext extends ExportServiceContext {
     loadImage(
         imageBase64: string,
         options?: LoadImageOptions,
-): Promise<void>;
+    ): Promise<void>;
 
     /**
      * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
@@ -665,7 +665,7 @@ export interface MergeMasksContext extends ExportServiceContext {
  *
  * 1. **No-op gates** — return without mutating anything when no image
  *    is loaded or when the canvas carries no mask objects (matches
- *    v1's `if (!this.originalImage) return; … if (!masks.length) return;`).
+ *    legacy's `if (!this.originalImage) return; … if (!masks.length) return;`).
  * 2. **Discard ActiveSelection** — drop any active
  *    selection wrapper before computing the merged bitmap.
  * 3. **Capture pre-merge snapshot** — call
@@ -718,7 +718,7 @@ export interface MergeMasksContext extends ExportServiceContext {
  *
  */
 export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
-    // 1. No-op gates — match v1's `if (!this.originalImage) return; …
+    // 1. No-op gates — match legacy's `if (!this.originalImage) return; …
     //    if (!masks.length) return;`. These run before the snapshot is
     //    captured so a no-op merge does not produce an empty history
     //    entry.
@@ -727,8 +727,8 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
     const masks = ctx.canvas.getObjects().filter(
         (o): o is MaskObject =>
             'maskId' in o &&
-            typeof (o as { maskId?: unknown}).maskId === 'number',
-);
+            typeof (o as { maskId?: unknown }).maskId === 'number',
+    );
     if (masks.length === 0) return;
 
     // 2. drop any active selection BEFORE computing
@@ -748,8 +748,8 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
     // 4. Capture pre-merge container scroll. Read
     //    BEFORE any mutation so the values reflect the user's pre-merge
     //    viewport, not the post-merge canvas size.
-    const preScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
-    const preScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
+    const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
+    const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
 
     try {
         // 5. Render the merged bitmap. `exportImageBase64` runs the
@@ -757,7 +757,7 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         const merged = await exportImageBase64(ctx, {
             exportImageArea: true,
             multiplier: ctx.options.exportMultiplier,
-});
+        });
         if (!merged) {
             // `exportImageBase64` only resolves to '' when no image is
             // loaded. The `isImageLoaded` gate at the top should
@@ -766,8 +766,8 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
             // disagrees with the bake-in step about image presence.
             throw new MergeMasksError(
                 'mergeMasks: exportImageBase64 returned an empty data URL.',
-);
-}
+            );
+        }
 
         // 6. Remove every mask WITHOUT pushing a history entry. The
         //    merge owns the single enclosing entry.
@@ -779,7 +779,7 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         //    nudges the loader to preserve scroll for the layouts that
         //    honor it; the explicit step 9 below handles the layouts
         //    that don't.
-        await ctx.loadImage(merged, { preserveScroll: true});
+        await ctx.loadImage(merged, { preserveScroll: true });
 
         // 8. Capture the post-merge snapshot for the merge command's
         //    `execute` (used on redo).
@@ -792,22 +792,22 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         //    here guarantees the user's view does not jump regardless
         //    of which layout strategy was selected for the merged
         //    image.
-        if (ctx.containerEl) {
+        if (ctx.containerElement) {
             try {
                 if (preScrollTop !== null) {
-                    ctx.containerEl.scrollTop = preScrollTop;
-}
+                    ctx.containerElement.scrollTop = preScrollTop;
+                }
                 if (preScrollLeft !== null) {
-                    ctx.containerEl.scrollLeft = preScrollLeft;
-}
-} catch (scrollErr) {
+                    ctx.containerElement.scrollLeft = preScrollLeft;
+                }
+            } catch (scrollErr) {
                 // eslint-disable-next-line no-console -- diagnostic only.
                 console.warn(
                     '[ImageEditor] mergeMasks: scroll restore failed',
                     scrollErr,
-);
-}
-}
+                );
+            }
+        }
 
         // 10. push exactly one history entry. Use
         //     `push` (not `execute`) because the merged state is
@@ -817,24 +817,24 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
             ctx.historyManager.push(
                 new Command(
-                     () => ctx.loadFromState(afterSnapshot),
-                     () => ctx.loadFromState(beforeSnapshot),
-),
-);
-}
-} catch (err) {
+                    () => ctx.loadFromState(afterSnapshot),
+                    () => ctx.loadFromState(beforeSnapshot),
+                ),
+            );
+        }
+    } catch (err) {
         // restore the pre-merge snapshot and
         // reject with `MergeMasksError`. A failure inside the rollback
         // itself is logged but does NOT mask the original error.
         try {
             await ctx.loadFromState(beforeSnapshot);
-} catch (rollbackErr) {
+        } catch (rollbackErr) {
             // eslint-disable-next-line no-console -- diagnostic only.
             console.warn(
                 '[ImageEditor] mergeMasks: rollback failed',
                 rollbackErr,
-);
-}
+            );
+        }
         // If the inner step already raised a `MergeMasksError`, keep
         // it; otherwise wrap so the public surface always reports a
         // consistent error type.
@@ -843,5 +843,5 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
             ? `mergeMasks failed: ${err.message}`
             : 'mergeMasks failed';
         throw new MergeMasksError(message, err);
-}
+    }
 }

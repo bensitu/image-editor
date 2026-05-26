@@ -86,10 +86,10 @@ export function computeExpandLayout(imageWidth, imageHeight, _optionsCanvasWidth
         baseImageScale: 1,
     };
 }
-export function applyCanvasDimensions(canvas, width, height, containerEl) {
+export function applyCanvasDimensions(canvas, width, height, containerElement) {
     const iw = Math.max(1, Math.round(Number(width) || 1));
     const ih = Math.max(1, Math.round(Number(height) || 1));
     canvas.setDimensions({ width: iw, height: ih });
-    forceReflow(containerEl);
+    forceReflow(containerElement);
 }
 //# sourceMappingURL=layout-manager.js.map

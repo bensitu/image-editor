@@ -1,8 +1,8 @@
 /**
  * @file mask/mask-list.ts
- * @description Mask list DOM rendering — owns the v1 `_updateMaskList` and
+ * @description Mask list DOM rendering — owns the legacy `_updateMaskList` and
  *              `_handleMaskListClick` logic that was inlined on the editor in
- *              v1 and is now extracted into pure(ish) helpers that take a
+ *              legacy and is now extracted into pure(ish) helpers that take a
  *              {@link MaskListContext}.
  *
  * ## Owned contracts
@@ -36,7 +36,7 @@
  *   here.
  * - Hover/selection appearance on the canvas — see `mask/mask-style.ts`.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * - The orchestrator (`src/image-editor.ts`) owns the canvas reference, the
  *   resolved `elements` table, and the selection callback. The helpers in
@@ -45,7 +45,7 @@
  *   tested in isolation against a stub Fabric environment plus a JSDOM
  *   container.
  * - The DOM contract — `<li class="list-group-item mask-item">` with a
- *   `dataset.maskId` — matches v1 verbatim so existing CSS, theme overrides,
+ *   `dataset.maskId` — matches legacy verbatim so existing CSS, theme overrides,
  *   and integrator selectors continue to work unchanged.
  * - Each render replaces the container's `innerHTML`. That is intentional:
  *   it guarantees the DOM mirrors `canvas.getObjects` exactly, and the
@@ -56,15 +56,15 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { MaskObject} from '../core/public-types.js';
-import { isMaskObject} from '../core/public-types.js';
+import type { MaskObject } from '../core/public-types.js';
+import { isMaskObject } from '../core/public-types.js';
 
 /**
  * State the mask-list helpers read from the `ImageEditor` orchestrator.
  *
  * The module does NOT own any of these slots — it only reads them so
  * ownership of the canvas, the resolved DOM element ID map, and the
- * selection-changed pipeline stays on the orchestrator (where v1 left
+ * selection-changed pipeline stays on the orchestrator (where legacy left
  * them).
  */
 export interface MaskListContext {
@@ -84,7 +84,7 @@ export interface MaskListContext {
      * Invoked by the click handler after `setActiveObject(mask)` has run,
      * so the orchestrator can drive its selection-changed pipeline (label
      * overlay, hover/selection styling, list highlight) the same way it
-     * does for canvas-originated selections. Mirrors v1's
+     * does for canvas-originated selections. Mirrors legacy's
      * `_handleSelectionChanged([mask])` call from `_handleMaskListClick`.
      */
     onMaskSelected(mask: MaskObject): void;
@@ -108,7 +108,7 @@ export interface MaskListContext {
  *    listener bookkeeping to track separately.
  * 3. For each {@link MaskObject} returned by `canvas.getObjects` (in
  *    canvas object order), build a fresh `<li>`:
- *      - class `list-group-item mask-item` (matches v1 verbatim so
+ *      - class `list-group-item mask-item` (matches legacy verbatim so
  *        existing CSS keeps working);
  *      - `textContent` set to `mask.maskName` (the label-text contract
  *        owned by `mask/mask-label-manager.ts`; this list shows the same
@@ -146,7 +146,7 @@ export function renderMaskList(ctx: MaskListContext): void {
         // stable identifier for click routing and tests.
         li.dataset.maskId = String(mask.maskId);
 
-        li.onclick =  () => {
+        li.onclick = () => {
             // select by maskId lookup, NOT by list
             // position. Re-read `canvas.getObjects` at click time so the
             // lookup tolerates objects that were re-ordered or removed
@@ -154,25 +154,25 @@ export function renderMaskList(ctx: MaskListContext): void {
             const id = Number(li.dataset.maskId);
             if (!Number.isFinite(id)) return;
             const target = canvas
-.getObjects()
-.find((o) => isMaskObject(o) && o.maskId === id) as
+                .getObjects()
+                .find((o) => isMaskObject(o) && o.maskId === id) as
                 | MaskObject
                 | undefined;
             if (!target) return;
             canvas.setActiveObject(target);
             ctx.onMaskSelected(target);
-};
+        };
 
         listEl.appendChild(li);
-});
+    });
 }
 
 /**
  * Toggle the `active` CSS class on every `<li class="mask-item">` so the
  * one whose `data-mask-id` matches `selectedMask.maskId` is highlighted.
  *
- * Matches v1's `_updateMaskListSelection` behavior except that selection is
- * keyed off `data-mask-id` instead of the list-item text content. v1 used
+ * Matches legacy's `_updateMaskListSelection` behavior except that selection is
+ * keyed off `data-mask-id` instead of the list-item text content. legacy used
  * the visible name (`textContent === selectedMask.maskName`), which broke
  * when an integrator overrode `options.label.getText` to render anything
  * other than `maskName`. Keying off `data-mask-id` keeps the highlight in
@@ -200,5 +200,5 @@ export function updateMaskListSelection(
         const isSelected =
             selectedId !== null && item.dataset.maskId === selectedId;
         item.classList.toggle('active', isSelected);
-});
+    });
 }

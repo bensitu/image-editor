@@ -154,7 +154,6 @@ export async function loadFixtureImage(editor, options = {}) {
     const loaded = await editor.loadImage(makeImageDataUrl(options));
     assert.equal(loaded, undefined);
     assert.equal(editor.isImageLoaded(), true);
-    assert.equal(editor.isImageLoadedToCanvas, true);
 }
 
 export async function getImageDimensionsFromDataUrl(dataUrl) {

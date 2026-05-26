@@ -3,7 +3,7 @@
  * @description Crop session lifecycle owner. Implements the
  *              `enterCropMode → applyCrop` and
  *              `enterCropMode → cancelCrop` transitions atop the
- *              v1 crop pipeline, plus the dedicated crop rectangle
+ *              legacy crop pipeline, plus the dedicated crop rectangle
  *              shape, its drag/scale clamps, and the per-object
  *              `evented`/`selectable` freeze that keeps only the crop
  *              rectangle interactive while a session is open.
@@ -56,7 +56,7 @@
  *   fields (`opacity`, `fill`, `strokeWidth`, `stroke`, `selectable`,
  *   `lockRotation`) are the final word.
  * - `applyCrop` honours
- *   `options.crop.preserveMasksAfterCrop` defaulting to `false` in v2:
+ *   `options.crop.preserveMasksAfterCrop` defaulting to `false` in current:
  *   the inner `ctx.loadImage(croppedBase64)` replaces every canvas
  *   object with the cropped base image, so masks disappear naturally
  *   when the option is `false`.
@@ -67,9 +67,9 @@
  *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
  *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
  *   the visible mask shape does not change size or orientation
- *. The cropRegion-relative shift matches v1's
+ *. The cropRegion-relative shift matches legacy's
  *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
- *   -cropRegion.sourceY)` and is the documented v1 behavior to
+ *   -cropRegion.sourceY)` and is the documented legacy behavior to
  *   preserve. Because shifting `left` / `top` by a constant translates
  *   the entire object (including its rotated visual) by the same
  *   constant in canvas pixels, the post-crop position relative to the
@@ -86,11 +86,11 @@
  * `angle`, `scaleX`, and `scaleY` before the export and re-add the
  * masks shifted by `-cropRegion.left, -cropRegion.top` after
  * `ctx.loadImage(croppedBase64)` commits. The intersection filter
- * (drop masks that do not overlap the crop region) matches v1
+ * (drop masks that do not overlap the crop region) matches legacy
  * observable behavior — masks fully outside the cropped region are
  * removed, masks that intersect are preserved.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * - The controller is a set of stateless functions taking a
  *   {@link CropControllerContext}. The `ImageEditor` facade keeps
@@ -101,7 +101,7 @@
  * - The crop rectangle's drag/scale handlers clamp `scaleX` / `scaleY`
  *   so the rect cannot grow past the available image bounding box and
  *   cannot shrink below the configured `crop.minWidth` / `crop.minHeight`.
- *   This matches v1's `handleCropRectModified`.
+ *   This matches legacy's `handleCropRectModified`.
  * - In Fabric v7 the rotation handle (`mtr`) is hidden via
  *   `setControlVisible('mtr', false)` because `hasRotatingPoint` is
  *   silently ignored. `lockRotation: true` is also set as runtime
@@ -110,11 +110,11 @@
  * - The pre-crop snapshot is captured once, in `enterCropMode`, and
  *   reused by `applyCrop`'s history command and rollback path. This
  *   avoids a re-serialization right before the crop, and — more
- *   importantly — avoids the v1 fragility of filtering `isCropRect`
+ *   importantly — avoids the legacy fragility of filtering `isCropRect`
  *   objects out of a post-rect snapshot when Fabric's custom-key
  *   serializer occasionally drops the marker.
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported only by `image-editor.ts` and
  * is intentionally NOT re-exported from `src/index.ts`.
  *
@@ -122,7 +122,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import { CropApplyError} from '../core/errors.js';
+import { CropApplyError } from '../core/errors.js';
 import type {
     CropHandler,
     CropPrevEvented,
@@ -132,8 +132,8 @@ import type {
     MaskObject,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { isMaskObject} from '../core/public-types.js';
-import { Command, type HistoryManager} from '../history/history-manager.js';
+import { isMaskObject } from '../core/public-types.js';
+import { Command, type HistoryManager } from '../history/history-manager.js';
 import {
     applyCropHideMaskStyle,
     attachMaskHoverHandlers,
@@ -224,7 +224,7 @@ export interface CropControllerContext {
      * only when an `originalImage` has been committed and has positive
      * dimensions. `enterCropMode` and `applyCrop` no-op when this is
      * `false` so a caller cannot open a crop session against an empty
-     * canvas (matches v1's `isImageLoaded` gate).
+     * canvas (matches legacy's `isImageLoaded` gate).
      */
     isImageLoaded(): boolean;
 
@@ -263,7 +263,7 @@ export interface CropControllerContext {
     loadImage(
         imageBase64: string,
         options?: LoadImageOptions,
-): Promise<void>;
+    ): Promise<void>;
 
     /**
      * Reads the orchestrator's mask counter. Used by the
@@ -288,14 +288,14 @@ export interface CropControllerContext {
      * Re-render the mask list DOM after preserved masks are re-added to
      * the post-crop canvas. Optional — the orchestrator may omit this
      * when no DOM list is wired (e.g., headless unit tests). Mirrors
-     * v1's `_updateMaskList` call after preserved masks land.
+     * legacy's `_updateMaskList` call after preserved masks land.
      */
     updateMaskList?(): void;
 }
 
-// ─── Crop rectangle visual constants (match v1 verbatim) ─────────────────────
+// ─── Crop rectangle visual constants (match legacy verbatim) ─────────────────────
 
-/** Crop rectangle fill (translucent). Matches v1's `_cropRect` style. */
+/** Crop rectangle fill (translucent). Matches legacy's `_cropRect` style. */
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
 /** Crop rectangle stroke colour. */
 const CROP_RECT_STROKE = '#00aaff';
@@ -305,16 +305,16 @@ const CROP_RECT_DASH: [number, number] = [6, 4];
 const CROP_RECT_CORNER_SIZE = 8;
 /** Default padding inset when `options.crop.padding` is missing. */
 const CROP_DEFAULT_PADDING = 10;
-/** Cropped image export format — matches v1 (`jpeg`). */
+/** Cropped image export format — matches legacy (`jpeg`). */
 const CROPPED_EXPORT_FORMAT = 'jpeg';
 /** Floor for the cropped JPEG export quality if `downsampleQuality` is
- *  missing or non-finite. Matches v1's `0.92`. */
+ *  missing or non-finite. Matches legacy's `0.92`. */
 const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**
- * Clamp the cropped JPEG export quality to `[0, 1]`. Matches v1's
+ * Clamp the cropped JPEG export quality to `[0, 1]`. Matches legacy's
  * `_normalizeQuality`. A non-finite input falls back to the constant
  * fallback so `canvas.toDataURL` never receives `NaN`.
  *
@@ -345,12 +345,12 @@ function removeCropRect(
                 (targetHandlers.target as FabricNS.FabricObject).off(
                     rec.evt as keyof FabricNS.ObjectEvents,
                     rec.fn,
-);
-} catch {
+                );
+            } catch {
                 /* ignore — handler may already be detached */
-}
-}
-}
+            }
+        }
+    }
     session.handlers = [];
 
     // Remove the rect — best-effort because Fabric may have already
@@ -358,11 +358,11 @@ function removeCropRect(
     if (session.cropRect) {
         try {
             ctx.canvas.remove(session.cropRect);
-} catch {
+        } catch {
             /* ignore */
-}
+        }
         session.cropRect = null;
-}
+    }
 }
 
 /**
@@ -375,11 +375,11 @@ function removeCropRect(
 function restoreCropObjectState(session: CropSession): void {
     for (const rec of session.prevEvented) {
         try {
-            rec.obj.set({ evented: rec.evented, selectable: rec.selectable});
-} catch {
+            rec.obj.set({ evented: rec.evented, selectable: rec.selectable });
+        } catch {
             /* ignore — object may have been removed mid-session */
-}
-}
+        }
+    }
     session.prevEvented = [];
 }
 
@@ -407,7 +407,7 @@ function restoreCropObjectState(session: CropSession): void {
 function restoreCropMaskBackups(session: CropSession): void {
     for (const backup of session.maskBackups) {
         restoreMaskStyleBackup(backup);
-}
+    }
     session.maskBackups = [];
 }
 
@@ -447,9 +447,9 @@ function teardownSession(
     restoreCropMaskBackups(session);
     try {
         ctx.canvas.selection = !!session.prevSelection;
-} catch {
+    } catch {
         /* ignore — canvas may have been disposed mid-session */
-}
+    }
 }
 
 // ─── Mask preservation across crop ──────────
@@ -472,7 +472,7 @@ function teardownSession(
  *   placement step shifts these by `-cropRegion.left, -cropRegion.top`
  *   so the mask's position relative to the new image bounding box
  *   matches its prior position relative to the pre-crop image bounding
- *   box. Matches v1's
+ *   box. Matches legacy's
  *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
  *   -cropRegion.sourceY)`.
  * - `angle`, `scaleX`, `scaleY` — preserved verbatim across the crop so
@@ -491,7 +491,7 @@ interface PreservedMaskRecord {
 
 /**
  * Decide whether `mask`'s axis-aligned bounding rect intersects the
- * integer crop region. Matches v1's `intersectsCrop` predicate so masks
+ * integer crop region. Matches legacy's `intersectsCrop` predicate so masks
  * fully outside the crop are dropped and masks that overlap survive.
  *
  * The intersection is computed in canvas coordinates because both the
@@ -501,7 +501,7 @@ interface PreservedMaskRecord {
  */
 function maskIntersectsRegion(
     mask: MaskObject,
-    region: { left: number; top: number; width: number; height: number},
+    region: { left: number; top: number; width: number; height: number },
 ): boolean {
     const bbox = getObjectBBox(mask);
     return (
@@ -509,7 +509,7 @@ function maskIntersectsRegion(
         bbox.left + bbox.width > region.left &&
         bbox.top < region.top + region.height &&
         bbox.top + bbox.height > region.top
-);
+    );
 }
 
 /**
@@ -521,13 +521,13 @@ function maskIntersectsRegion(
  *
  * Only the masks that survive the intersection filter are returned —
  * masks fully outside the crop region are removed without a record so
- * {@link reapplyPreservedMasks} does not re-add them (matches v1's
- * `intersectsCrop` filter and observable behavior in the v1 test
+ * {@link reapplyPreservedMasks} does not re-add them (matches legacy's
+ * `intersectsCrop` filter and observable behavior in the legacy test
  * `'workflow preserveMasksAfterCrop keeps intersecting masks and
  * removes outside masks'`).
  *
  * The captured `left` and `top` are read directly off the live mask
- * (matches v1's `_translateObjectByCanvasOffset` operating on
+ * (matches legacy's `_translateObjectByCanvasOffset` operating on
  * `mask.left` / `mask.top`) so the post-load reapply step can shift
  * them by `-cropRegion.left, -cropRegion.top` and land the mask at the
  * same canvas position relative to the new image bounding box. Because
@@ -543,7 +543,7 @@ function maskIntersectsRegion(
  */
 function capturePreservedMasks(
     canvas: FabricNS.Canvas,
-    cropRegion: { left: number; top: number; width: number; height: number},
+    cropRegion: { left: number; top: number; width: number; height: number },
 ): PreservedMaskRecord[] {
     const records: PreservedMaskRecord[] = [];
 
@@ -559,21 +559,21 @@ function capturePreservedMasks(
                     // capture pre-crop
                     // canvas-pixel coordinates verbatim. The post-crop
                     // reapply step shifts these by `-cropRegion.left,
-                    // -cropRegion.top` (matches v1).
+                    // -cropRegion.top` (matches legacy).
                     left: Number(mask.left) || 0,
                     top: Number(mask.top) || 0,
                     // preserve verbatim.
                     angle: Number(mask.angle) || 0,
                     scaleX: Number(mask.scaleX) || 1,
                     scaleY: Number(mask.scaleY) || 1,
-});
-}
+                });
+            }
 
             canvas.remove(mask);
-} catch {
+        } catch {
             /* ignore — best-effort: mask may already be detached */
-}
-}
+        }
+    }
 
     return records;
 }
@@ -582,21 +582,21 @@ function capturePreservedMasks(
  * Re-add every captured mask to the post-crop canvas with its `left`
  * and `top` shifted by `-cropRegion.left, -cropRegion.top` so its
  * position relative to the new image bounding box matches its prior
- * position relative to the pre-crop image bounding box (Requirements
+ * position relative to the pre-crop image bounding box (Contracts
  * 31.4, 32.1).
  *
  * Per-mask `angle`, `scaleX`, and `scaleY` are restored from the captured
  * record so the visible mask shape does not change size or orientation
  *. Hover handlers are reattached because Fabric event
  * listeners are not preserved across `canvas.remove` / `canvas.add`
- * pairs — matches v1's `_rebindMaskEvents` call after the same
+ * pairs — matches legacy's `_rebindMaskEvents` call after the same
  * remove/re-add round-trip.
  *
  * The orchestrator's mask counter is bumped to
  * `max(getMaskCounter, max(maskId over preserved))` so subsequent
  * `createMask` calls produce unique IDs (the loader resets the counter
  * to `0`). The mask list DOM is re-rendered when the orchestrator
- * supplied an `updateMaskList` callback (matches v1's `_updateMaskList`
+ * supplied an `updateMaskList` callback (matches legacy's `_updateMaskList`
  * call after preserved masks land).
  *
  * Each `add` / `set` is wrapped in `try/catch` so a single mask that
@@ -606,24 +606,24 @@ function capturePreservedMasks(
  */
 function reapplyPreservedMasks(
     ctx: CropControllerContext,
-    cropRegion: { left: number; top: number; width: number; height: number},
+    cropRegion: { left: number; top: number; width: number; height: number },
     records: PreservedMaskRecord[],
 ): void {
     if (records.length === 0) return;
 
-    const { canvas} = ctx;
+    const { canvas } = ctx;
 
     let maxRestoredId = 0;
     for (const record of records) {
         try {
-            // apply the v1 cropRegion-relative
+            // apply the legacy cropRegion-relative
             // shift: a constant translation in canvas pixels moves the
             // rotated mask visual by the same constant, so the post-crop
             // position relative to the new image bbox matches the
             // pre-crop position relative to the old image bbox.
             //
             // restore `angle`, `scaleX`, `scaleY`
-            // verbatim and force `visible: true` (matches v1's
+            // verbatim and force `visible: true` (matches legacy's
             // `mask.set({ visible: true})` after the offset).
             record.mask.set({
                 left: record.left - cropRegion.left,
@@ -632,23 +632,23 @@ function reapplyPreservedMasks(
                 scaleX: record.scaleX,
                 scaleY: record.scaleY,
                 visible: true,
-});
+            });
             record.mask.setCoords();
 
             canvas.add(record.mask);
             canvas.bringObjectToFront(record.mask);
 
             // Re-bind hover handlers so the post-crop mask responds the
-            // same way as a freshly-created one (matches v1's
+            // same way as a freshly-created one (matches legacy's
             // `_rebindMaskEvents` after the remove/re-add round-trip).
             attachMaskHoverHandlers(record.mask);
 
             const id = Number(record.mask.maskId);
             if (Number.isFinite(id) && id > maxRestoredId) maxRestoredId = id;
-} catch {
+        } catch {
             /* ignore — best-effort: Fabric may have torn down the object */
-}
-}
+        }
+    }
 
     // restore the mask counter so subsequent
     // `createMask` calls do not collide with preserved mask IDs.
@@ -656,14 +656,14 @@ function reapplyPreservedMasks(
         const liveCounter = Number(ctx.getMaskCounter());
         const safeCounter = Number.isFinite(liveCounter) ? liveCounter : 0;
         ctx.setMaskCounter(Math.max(safeCounter, maxRestoredId));
-}
+    }
 
-    // Mirror v1's `_updateMaskList` call after preserved masks land.
+    // Mirror legacy's `_updateMaskList` call after preserved masks land.
     try {
         ctx.updateMaskList?.();
     } catch {
         /* ignore — DOM list update is best-effort */
-}
+    }
 }
 
 // ─── enterCropMode ──────────────────────────────────────────────────────────
@@ -712,7 +712,7 @@ function reapplyPreservedMasks(
  *
  */
 export function enterCropMode(ctx: CropControllerContext): void {
-    const { canvas, options} = ctx;
+    const { canvas, options } = ctx;
     if (ctx.getCropSession()) return;
     const originalImage = ctx.getOriginalImage();
     if (!originalImage) return;
@@ -729,7 +729,7 @@ export function enterCropMode(ctx: CropControllerContext): void {
     canvas.selection = false;
 
     // Derive the initial crop rectangle bounds from the image bounding
-    // box and the configured padding inset. Mirrors v1's enterCropMode.
+    // box and the configured padding inset. Mirrors legacy's enterCropMode.
     originalImage.setCoords();
     const imageBounds = originalImage.getBoundingRect();
     const padding = Number.isFinite(Number(options.crop.padding))
@@ -765,15 +765,15 @@ export function enterCropMode(ctx: CropControllerContext): void {
         cornerSize: CROP_RECT_CORNER_SIZE,
         objectCaching: false,
         lockScalingFlip: true,
-});
+    });
     if (!allowRotation) {
         cropRect.setControlVisible('mtr', false);
-}
+    }
 
     canvas.add(cropRect);
     // Tag the rect so the state serializer's session-only filter
     // excludes it from snapshots taken while the session is open.
-    (cropRect as FabricNS.Rect & { isCropRect?: boolean}).isCropRect = true;
+    (cropRect as FabricNS.Rect & { isCropRect?: boolean }).isCropRect = true;
     canvas.bringObjectToFront(cropRect);
     canvas.setActiveObject(cropRect);
 
@@ -790,8 +790,8 @@ export function enterCropMode(ctx: CropControllerContext): void {
             if (obj === cropRect) return;
             if (!isMaskObject(obj)) return;
             maskBackups.push(captureMaskStyleBackup(obj));
-});
-}
+        });
+    }
 
     // freeze every existing object and capture its
     // prior `evented` / `selectable` state. The crop rectangle itself
@@ -803,13 +803,13 @@ export function enterCropMode(ctx: CropControllerContext): void {
             obj,
             evented: obj.evented ?? true,
             selectable: obj.selectable ?? true,
-});
+        });
         try {
-            obj.set({ evented: false, selectable: false});
-} catch {
+            obj.set({ evented: false, selectable: false });
+        } catch {
             /* ignore — best-effort freeze */
-}
-});
+        }
+    });
 
     // Apply the crop-mode hide style on every backed-up
     // mask. Runs AFTER the freeze loop so both the mask backup (above)
@@ -819,11 +819,11 @@ export function enterCropMode(ctx: CropControllerContext): void {
     if (hideMasks) {
         for (const backup of maskBackups) {
             applyCropHideMaskStyle(backup.obj);
-}
-}
+        }
+    }
 
     // Bind drag/scale clamps so the rect cannot exit the image bounds
-    // nor shrink below the configured minimum dimensions. Matches v1's
+    // nor shrink below the configured minimum dimensions. Matches legacy's
     // `handleCropRectModified`.
     const handleCropRectModified = (): void => {
         try {
@@ -834,22 +834,22 @@ export function enterCropMode(ctx: CropControllerContext): void {
                 Math.max(
                     minCropWidth / cropWidth,
                     Number(cropRect.scaleX) || 1,
-),
-);
+                ),
+            );
             const nextScaleY = Math.min(
                 maxCropHeight / cropHeight,
                 Math.max(
                     minCropHeight / cropHeight,
                     Number(cropRect.scaleY) || 1,
-),
-);
-            cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY});
+                ),
+            );
+            cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
             cropRect.setCoords();
             canvas.requestRenderAll();
-} catch {
+        } catch {
             /* ignore — defensive against torn-down canvases */
-}
-};
+        }
+    };
     cropRect.on('modified', handleCropRectModified);
     cropRect.on('moving', handleCropRectModified);
     cropRect.on('scaling', handleCropRectModified);
@@ -863,16 +863,16 @@ export function enterCropMode(ctx: CropControllerContext): void {
         maskBackups,
         cropRect,
         handlers: [
-             {
+            {
                 target: cropRect,
                 handlers: [
-                     { evt: 'modified', fn: handleCropRectModified},
-                    { evt: 'moving', fn: handleCropRectModified},
-                    { evt: 'scaling', fn: handleCropRectModified},
-],
-},
-],
-};
+                    { evt: 'modified', fn: handleCropRectModified },
+                    { evt: 'moving', fn: handleCropRectModified },
+                    { evt: 'scaling', fn: handleCropRectModified },
+                ],
+            },
+        ],
+    };
     ctx.setCropSession(session);
     canvas.renderAll();
 }
@@ -910,9 +910,9 @@ export function cancelCrop(ctx: CropControllerContext): void {
 
     try {
         ctx.canvas.renderAll();
-} catch {
+    } catch {
         /* ignore — canvas may have been disposed mid-cancel */
-}
+    }
 }
 
 // ─── applyCrop ──────────────────────────────────────────────────────────────
@@ -947,7 +947,7 @@ export function cancelCrop(ctx: CropControllerContext): void {
  *    not bake them in (and so the inner `ctx.loadImage`'s
  *    `canvas.clear` does not dispose the captured reference). Masks
  *    fully outside the crop region are removed without a record so
- *    they do not reappear after the load (matches v1's `intersectsCrop`
+ *    they do not reappear after the load (matches legacy's `intersectsCrop`
  *    filter).
  * 4. **Tear down session in place** — restore per-object evented /
  *    selectable values (so the export sees masks in their pre-crop
@@ -958,7 +958,7 @@ export function cancelCrop(ctx: CropControllerContext): void {
  *    the cropped image is exported.
  * 6. **Export the crop region** via `canvas.toDataURL` with the
  *    integer region as `left` / `top` / `width` / `height` (matches
- *    v1's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
+ *    legacy's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
  *    at the configured downsample quality.
  * 7. **Reload the cropped image** through `ctx.loadImage`. The
  *    transactional loader either commits the new image or rolls back —
@@ -986,7 +986,7 @@ export function cancelCrop(ctx: CropControllerContext): void {
  * - rejects with {@link CropApplyError} wrapping the original cause.
  *
  * Mask handling note: when `options.crop.preserveMasksAfterCrop` is
- * `false` (the v2 default), the inner
+ * `false` (the current default), the inner
  * `ctx.loadImage(croppedBase64)` call replaces every canvas object
  * with the cropped base image, so any masks are removed naturally
  * with no extra work in this function. When `preserveMasksAfterCrop`
@@ -1005,7 +1005,7 @@ export function cancelCrop(ctx: CropControllerContext): void {
 export async function applyCrop(ctx: CropControllerContext): Promise<void> {
     const session = ctx.getCropSession();
     if (!session || !session.cropRect) return;
-    const { canvas} = ctx;
+    const { canvas } = ctx;
 
     // discard ActiveSelection BEFORE mutating crop state.
     canvas.discardActiveObject();
@@ -1024,7 +1024,7 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
             floorRegion(rectBounds),
             canvas.getWidth(),
             canvas.getHeight(),
-);
+        );
 
         // 3a. when
         //     `preserveMasksAfterCrop` is `true`, capture each mask's
@@ -1036,10 +1036,10 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         //     call (the masks are detached from the canvas but the
         //     records still hold the live objects). The post-load
         //     reapply step shifts each mask by `-cropRegion.left,
-        //     -cropRegion.top` (matches v1's
+        //     -cropRegion.top` (matches legacy's
         //     `_translateObjectByCanvasOffset`).
         //
-        //     The intersection filter (matches v1's `intersectsCrop`)
+        //     The intersection filter (matches legacy's `intersectsCrop`)
         //     drops masks fully outside the crop region — they are
         //     removed from the canvas without a record so they do not
         //     reappear after the load.
@@ -1058,7 +1058,7 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         // 5. Restore `canvas.selection` to its pre-crop value.
         canvas.selection = !!session.prevSelection;
 
-        // 6. Export the crop region. Mirrors v1's
+        // 6. Export the crop region. Mirrors legacy's
         //    `_exportCanvasRegionToDataURL` — `canvas.toDataURL` with the
         //    integer region as `left` / `top` / `width` / `height`.
         const quality = clampQuality(ctx.options.downsampleQuality);
@@ -1070,10 +1070,10 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
             top: cropRegion.top,
             width: cropRegion.width,
             height: cropRegion.height,
-};
+        };
         const croppedBase64 = canvas.toDataURL(
             exportOptions as Parameters<typeof canvas.toDataURL>[0],
-);
+        );
 
         // 7. Reload through the transactional loader. A decode / Fabric /
         //    timeout failure rejects here and the rollback path catches.
@@ -1089,7 +1089,7 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         if (preservedRecords.length > 0) {
             reapplyPreservedMasks(ctx, cropRegion, preservedRecords);
             canvas.renderAll();
-}
+        }
 
         // 8. Capture the post-crop snapshot for the redo command.
         const afterJson = ctx.saveState();
@@ -1107,12 +1107,12 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         if (beforeJson && afterJson && beforeJson !== afterJson) {
             ctx.historyManager.push(
                 new Command(
-                     () => ctx.loadFromState(afterJson),
-                     () => ctx.loadFromState(beforeJson),
-),
-);
-}
-} catch (err) {
+                    () => ctx.loadFromState(afterJson),
+                    () => ctx.loadFromState(beforeJson),
+                ),
+            );
+        }
+    } catch (err) {
         // restore the pre-crop snapshot, drop the
         // session, and reject with `CropApplyError`. A failure inside
         // the rollback itself is logged but does NOT mask the original
@@ -1122,18 +1122,18 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
 
         try {
             await ctx.loadFromState(beforeJson);
-} catch (rollbackErr) {
+        } catch (rollbackErr) {
             // eslint-disable-next-line no-console -- diagnostic only.
             console.warn(
                 '[ImageEditor] applyCrop: rollback failed',
                 rollbackErr,
-);
-}
+            );
+        }
 
         if (err instanceof CropApplyError) throw err;
         const message = err instanceof Error
             ? `applyCrop failed: ${err.message}`
             : 'applyCrop failed';
         throw new CropApplyError(message, err);
-}
+    }
 }

@@ -1,10 +1,9 @@
 /**
  * @file state-serializer.ts
- * @description Pretty_Printer for the v2 editor's history-and-restore
- *              snapshot wire format. Owns `saveState` (this file) and
- *              `loadFromState` (added in task 12.2) so the serialization
- *              format and the position-based metadata restorer live in a
- *              single module.
+ * @description Serializer for the editor's history-and-restore snapshot
+ *              wire format. Owns `saveState` and `loadFromState` so the
+ *              serialization format and the position-based metadata restorer
+ *              live in a single module.
  *
  * ## Owned contracts
  *
@@ -34,7 +33,7 @@
  * (which are session-only `maskLabel === true` objects) never appear in
  * the serialized payload even if they happen to be on the canvas.
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`,
  * `crop/crop-controller.ts`, and `export/export-service.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
@@ -42,7 +41,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import { isMaskObject} from './public-types.js';
+import { isMaskObject } from './public-types.js';
 
 // ─── Snapshot wire format ────────────────────────────────────────────────────
 
@@ -69,6 +68,10 @@ export interface CanvasJSONObject {
     maskName?: string;
     /** Pre-crop alpha cached so `cancelCrop` can restore it. */
     originalAlpha?: number;
+    /** Stroke captured before transient hover or selection styling. */
+    originalStroke?: unknown;
+    /** Stroke width captured before transient hover or selection styling. */
+    originalStrokeWidth?: number;
     /** Marks the transient crop rectangle; filtered before history push. */
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
@@ -124,6 +127,8 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'isCropRect',
     'maskLabel',
     'originalAlpha',
+    'originalStroke',
+    'originalStrokeWidth',
 ] as const;
 
 // ─── saveState ──────────────────────────────────────────────────────────────
@@ -175,7 +180,7 @@ export interface SaveStateInput {
  *
  */
 export function saveState(input: SaveStateInput): string {
-    const { canvas, currentScale, currentRotation, baseImageScale} = input;
+    const { canvas, currentScale, currentRotation, baseImageScale } = input;
 
     // 1. discard ActiveSelection before serializing.
     canvas.discardActiveObject();
@@ -186,23 +191,23 @@ export function saveState(input: SaveStateInput): string {
     const jsonObj = (
         canvas as unknown as {
             toJSON(propertiesToInclude: readonly string[]): CanvasJSON;
-}
-).toJSON(SNAPSHOT_CUSTOM_KEYS) as CanvasJSON;
+        }
+    ).toJSON(SNAPSHOT_CUSTOM_KEYS) as CanvasJSON;
 
     // 3. drop session-only objects (crop
     //    rectangle, mask labels) before the snapshot enters history.
     if (Array.isArray(jsonObj.objects)) {
         jsonObj.objects = jsonObj.objects.filter(
             o => o.isCropRect !== true && o.maskLabel !== true,
-);
-}
+        );
+    }
 
     // 4. embed editor-level transform metadata.
     jsonObj._editorState = {
         currentScale,
         currentRotation,
         baseImageScale,
-};
+    };
 
     // 5. emit the JSON string used by loadFromState.
     return JSON.stringify(jsonObj);
@@ -228,10 +233,8 @@ export interface LoadFromStateInput {
      */
     jsonString: string | CanvasJSON;
     /**
-     * Sets canvas pixel dimensions atomically. Delegates to the layout
-     * manager so the v1 "set width and height together" behaviour is
-     * preserved (the pixel size SHALL be restored before
-     * `loadFromJSON`).
+     * Sets canvas pixel dimensions atomically. The pixel size is restored
+     * before `loadFromJSON`.
      */
     setCanvasSize: (width: number, height: number) => void;
 }
@@ -323,7 +326,7 @@ export interface LoadFromStateResult {
 export async function loadFromState(
     input: LoadFromStateInput,
 ): Promise<LoadFromStateResult> {
-    const { canvas, jsonString: snapshotInput, setCanvasSize} = input;
+    const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
 
     // 1. Normalize the snapshot to a canonical JSON string and parse.
     const jsonString =
@@ -340,16 +343,16 @@ export async function loadFromState(
         json.width > 0 &&
         typeof json.height === 'number' &&
         json.height > 0
-) {
+    ) {
         setCanvasSize(json.width, json.height);
-}
+    }
 
     // 3. Fabric v7 `loadFromJSON` returns a Promise.
     await (
         canvas as unknown as {
             loadFromJSON(json: CanvasJSON): Promise<FabricNS.Canvas>;
-}
-).loadFromJSON(json);
+        }
+    ).loadFromJSON(json);
 
     // 4. re-apply mask metadata by position-based
     //    matching, unconditionally overriding any value Fabric may or may
@@ -363,26 +366,26 @@ export async function loadFromState(
     const editorState: EditorStateMeta | null =
         json._editorState && typeof json._editorState === 'object'
             ? {
-                  currentScale:
-                      typeof json._editorState.currentScale === 'number'
-                          ? json._editorState.currentScale
-                          : 1,
-                  currentRotation:
-                      typeof json._editorState.currentRotation === 'number'
-                          ? json._editorState.currentRotation
-                          : 0,
-                  baseImageScale:
-                      typeof json._editorState.baseImageScale === 'number'
-                          ? json._editorState.baseImageScale
-                          : 1,
-}
+                currentScale:
+                    typeof json._editorState.currentScale === 'number'
+                        ? json._editorState.currentScale
+                        : 1,
+                currentRotation:
+                    typeof json._editorState.currentRotation === 'number'
+                        ? json._editorState.currentRotation
+                        : 0,
+                baseImageScale:
+                    typeof json._editorState.baseImageScale === 'number'
+                        ? json._editorState.baseImageScale
+                        : 1,
+            }
             : null;
 
     // 5b. `maskCounter` is the maximum restored
     //     `maskId`, or `0` if no masks survived the filter.
     const maxMaskId = objects
-.filter(isMaskObject)
-.reduce((max, m) => Math.max(max, m.maskId), 0);
+        .filter(isMaskObject)
+        .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
 
     // 5c. The first non-mask `'image'` object is the editor's
     //     `originalImage`. Returning `null` when missing keeps the facade
@@ -397,7 +400,7 @@ export async function loadFromState(
         originalImage,
         objects,
         jsonString,
-};
+    };
 }
 
 /**
@@ -409,8 +412,8 @@ export async function loadFromState(
  * **Why position-based instead of index-based?** Fabric v7 does not
  * guarantee that `canvas.getObjects` returns objects in the same order
  * as `json.objects`; some builds reorder during `loadFromJSON`. Matching
- * by `(type, left, top)` with a sub-pixel tolerance handles every
- * reordering scheme observed in the v1 baseline.
+ * by `(type, left, top)` with a sub-pixel tolerance handles object
+ * reordering during restore.
  *
  * **Why unconditional override?** Some Fabric 7.x point releases drop
  * unknown shape properties during `_setOptions`. Re-applying the values
@@ -432,6 +435,8 @@ function restoreMaskPropsFromJSON(
     jsonObjs: CanvasJSONObject[],
 ): void {
     // ── Pass 1: masks — match by type + left + top ───────────────────────
+    const consumedCanvasIndexes = new Set<number>();
+
     for (const jObj of jsonObjs) {
         if (typeof jObj.maskId !== 'number') continue;
 
@@ -439,30 +444,41 @@ function restoreMaskPropsFromJSON(
         const jLeft = Number(jObj.left ?? 0);
         const jTop = Number(jObj.top ?? 0);
 
-        const match = canvasObjs.find(o => {
+        const matchIndex = canvasObjs.findIndex((o, index) => {
+            if (consumedCanvasIndexes.has(index)) return false;
             if (jType && o.type !== jType) return false;
             return (
                 Math.abs((o.left ?? 0) - jLeft) < 0.5 &&
                 Math.abs((o.top ?? 0) - jTop) < 0.5
-);
-});
-        if (!match) continue;
+            );
+        });
+        if (matchIndex < 0) continue;
+        consumedCanvasIndexes.add(matchIndex);
+        const match = canvasObjs[matchIndex];
 
         // Unconditional override — never trust Fabric's `_setOptions` to
         // have applied custom keys consistently across 7.x builds.
-        const m = match as FabricNS.FabricObject & {
+        const maskObject = match as FabricNS.FabricObject & {
             maskId?: number;
             maskName?: string;
             originalAlpha?: number;
+            originalStroke?: unknown;
+            originalStrokeWidth?: number;
             opacity?: number;
-};
-        m.maskId = jObj.maskId;
-        m.maskName = String(jObj.maskName ?? '');
-        m.originalAlpha =
+        };
+        maskObject.maskId = jObj.maskId;
+        maskObject.maskName = String(jObj.maskName ?? '');
+        maskObject.originalAlpha =
             typeof jObj.originalAlpha === 'number'
                 ? jObj.originalAlpha
-                : (m.opacity ?? 0.5);
-}
+                : (maskObject.opacity ?? 0.5);
+        if ('originalStroke' in jObj) {
+            maskObject.originalStroke = jObj.originalStroke;
+        }
+        if (typeof jObj.originalStrokeWidth === 'number') {
+            maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
+    }
 
     // ── Pass 2: label texts — flag for `_hideAllMaskLabels` ──────────────
     // Labels are session-only and removed immediately after restore, so
@@ -472,7 +488,7 @@ function restoreMaskPropsFromJSON(
         if (jObj.maskLabel !== true) return;
         const canvasObj = canvasObjs[idx];
         if (canvasObj) {
-            (canvasObj as FabricNS.FabricObject & { maskLabel?: boolean}).maskLabel = true;
-}
-});
+            (canvasObj as FabricNS.FabricObject & { maskLabel?: boolean }).maskLabel = true;
+        }
+    });
 }

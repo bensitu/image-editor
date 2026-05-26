@@ -3,16 +3,16 @@
  *
  * Behaviors under test:
  *
- *   1. **Artifact presence (Req 1.3)** — after `npm run build`, every
+ *   1. **Artifact presence** — after `npm run build`, every
  *      canonical bundle exists at its documented path:
  *        - `dist/esm/index.js`              (ESM bundle)
  *        - `dist/cjs/index.cjs`             (CJS bundle)
  *        - `dist/umd/image-editor.umd.js`   (UMD bundle)
  *        - `dist/types/index.d.ts`          (TypeScript declarations)
- *   2. **Artifacts are non-empty (Req 1.6)** — a build that "succeeds"
+ *   2. **Artifacts are non-empty** — a build that "succeeds"
  *      but emits an empty file is still a broken build, so each
  *      artifact's byte size must be greater than zero.
- *   3. **Bundle shape sanity (Req 1.3, 1.6)** — each bundle carries
+ *   3. **Bundle shape sanity** — each bundle carries
  *      the syntactic markers of its declared format:
  *        - ESM bundle uses `import` or `export` syntax
  *        - CJS bundle declares `'use strict'` and assigns to `exports`
@@ -25,7 +25,7 @@
  *   test` does NOT depend on `npm run build`), so it is valid for
  *   `dist/` to be absent when this test runs. When the entire `dist/`
  *   directory is missing, every assertion in this file returns early
- *   without failing — Requirement 1.3 is verified end-to-end by CI
+ *   without failing — the documented contract is verified end-to-end by CI
  *   pipelines that build before testing. This mirrors the ENOENT skip
  *   path in `tests/public-surface.test.mjs` for `dist/types/index.d.ts`.
  *
@@ -49,14 +49,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const distRoot = path.join(repoRoot, 'dist');
 
-// ─── Canonical artifact paths from Requirement 1.3 ────────────────────────
+// ─── Canonical artifact paths from the documented contract ────────────────────────
 
 /**
  * The four canonical build artifacts. Keys are short labels used in
  * test names and assertion messages; values are paths relative to the
  * repository root.
  *
- * The CJS extension is `.cjs` (not `.js`) per Requirement 1.4 so that
+ * The CJS extension is `.cjs` (not `.js`) per the documented contract so that
  * Node's `"type": "module"` resolution treats the file as CommonJS.
  *
  * The UMD filename is `image-editor.umd.js` per `rollup.config.mjs`.
@@ -88,7 +88,7 @@ async function distDirectoryExists() {
 /**
  * Read an artifact's contents and return both the raw text and its
  * byte size. Throws on missing files so the caller can surface a
- * Requirement 1.3 violation.
+ * the documented contract violation.
  */
 async function readArtifact(relativePath) {
     const absolutePath = path.join(repoRoot, relativePath);
@@ -102,14 +102,14 @@ async function readArtifact(relativePath) {
 // ESM module loaded by `node --test`.
 const distIsBuilt = await distDirectoryExists();
 
-// ─── 1. Artifact presence and non-emptiness (Req 1.3, 1.6) ────────────────
+// ─── 1. Artifact presence and non-emptiness ────────────────
 
 test('dist/esm/index.js exists and is non-empty when dist/ is present', async () => {
     if (!distIsBuilt) return; // skip cleanly on an unbuilt tree
     const { size } = await readArtifact(ARTIFACTS.esm);
     assert.ok(
         size > 0,
-        `${ARTIFACTS.esm} must be a non-empty file (Requirement 1.3)`,
+        `${ARTIFACTS.esm} must be a non-empty file`,
     );
 });
 
@@ -118,7 +118,7 @@ test('dist/cjs/index.cjs exists and is non-empty when dist/ is present', async (
     const { size } = await readArtifact(ARTIFACTS.cjs);
     assert.ok(
         size > 0,
-        `${ARTIFACTS.cjs} must be a non-empty file (Requirement 1.3)`,
+        `${ARTIFACTS.cjs} must be a non-empty file`,
     );
 });
 
@@ -127,7 +127,7 @@ test('dist/umd/image-editor.umd.js exists and is non-empty when dist/ is present
     const { size } = await readArtifact(ARTIFACTS.umd);
     assert.ok(
         size > 0,
-        `${ARTIFACTS.umd} must be a non-empty file (Requirement 1.3)`,
+        `${ARTIFACTS.umd} must be a non-empty file`,
     );
 });
 
@@ -136,11 +136,11 @@ test('dist/types/index.d.ts exists and is non-empty when dist/ is present', asyn
     const { size } = await readArtifact(ARTIFACTS.types);
     assert.ok(
         size > 0,
-        `${ARTIFACTS.types} must be a non-empty file (Requirement 1.3)`,
+        `${ARTIFACTS.types} must be a non-empty file`,
     );
 });
 
-// ─── 2. Bundle shape sanity (Req 1.3, 1.6) ────────────────────────────────
+// ─── 2. Bundle shape sanity ────────────────────────────────
 
 test('ESM bundle uses ESM syntax (import or export)', async () => {
     if (!distIsBuilt) return;
@@ -153,7 +153,7 @@ test('ESM bundle uses ESM syntax (import or export)', async () => {
         text,
         /(^|\n)\s*(export|import)\b/,
         `${ARTIFACTS.esm} must contain ESM syntax (top-level \`export\` or ` +
-        `\`import\`) per Requirement 1.3`,
+        `\`import\`) per the documented contract`,
     );
 });
 
@@ -169,13 +169,13 @@ test('CJS bundle uses CJS syntax (`use strict` and exports assignment)', async (
         text,
         /^\s*['"]use strict['"]\s*;/,
         `${ARTIFACTS.cjs} must declare \`'use strict';\` at the top ` +
-        `(Requirement 1.3)`,
+        ``,
     );
     assert.match(
         text,
         /\b(?:exports\.[A-Za-z_$][\w$]*\s*=|module\.exports\s*=|Object\.defineProperty\(\s*exports\b)/,
         `${ARTIFACTS.cjs} must assign onto \`exports\` or \`module.exports\` ` +
-        `(Requirement 1.3)`,
+        ``,
     );
 });
 
@@ -193,8 +193,7 @@ test('UMD bundle exposes the documented `ImageEditor` global identifier', async 
         text,
         /\bImageEditor\b/,
         `${ARTIFACTS.umd} must reference the \`ImageEditor\` global name ` +
-        `assigned by Rollup's UMD wrapper (Requirement 1.5, surfaced via ` +
-        `Requirement 1.3 path layout)`,
+        `assigned by Rollup's UMD wrapper`,
     );
 });
 
@@ -205,12 +204,12 @@ test('types bundle declares the `ImageEditor` symbol', async () => {
     // `ImageEditor`. A successful `tsc -p tsconfig.types.json` run
     // therefore produces a file that mentions the identifier; an
     // empty-or-stub `.d.ts` would silently break TypeScript consumers
-    // even though Requirement 1.3's "file exists at the path" check
+    // even though the documented contract's "file exists at the path" check
     // passes. Asserting the identifier catches that failure mode.
     assert.match(
         text,
         /\bImageEditor\b/,
         `${ARTIFACTS.types} must declare the \`ImageEditor\` symbol ` +
-        `(Requirements 1.3, 2.1)`,
+        ``,
     );
 });

@@ -1,6 +1,5 @@
-// Property 19: Polygon bounding-box placement
+// Polygon bounding-box placement
 //
-// Property statement (design.md §"Property 19"):
 //   For any polygon point set and requested `left` / `top`, polygon
 //   creation SHALL normalize points so the polygon's visual bounding
 //   box is placed at the requested top-left coordinate. Both `{ x, y }`
@@ -13,7 +12,7 @@
 //
 // This test isolates `createMask` with `shape: 'polygon'` from a real
 // Fabric module so we can observe the bounding-box realignment path
-// the v2 factory performs to honor Requirement 21.1.
+// the current factory performs to honor the documented contract.
 //
 // In Fabric.js v7, the `Polygon` constructor positions the object so
 // the polygon's `pathOffset` is centered on the supplied `(left, top)`,
@@ -52,7 +51,7 @@ const { resolveOptions } = await import('../src/core/default-options.ts');
  * polygon branch.
  *
  * The Polygon constructor mimics Fabric v7's `pathOffset` behavior at
- * the level of detail Property 19 needs: a polygon constructed without
+ * the level of detail needs: a polygon constructed without
  * `left` / `top` defaults to `(0, 0)`, and its `getBoundingRect()` is
  * shifted by `(-minX, -minY)` relative to `(this.left, this.top)`. The
  * factory's delta-shift then lands the rendered bounding box at the
@@ -207,7 +206,7 @@ const placementArb = fc.record({
 // ─── Properties ─────────────────────────────────────────────────────────────
 
 test(
-    "Property 19: polygon bounding-rect top-left equals requested (left, top) (Req 21.1)",
+    "polygon bounding-rect top-left equals requested (left, top)",
     () => {
         fc.assert(
             fc.property(
@@ -228,12 +227,12 @@ test(
                     assert.equal(
                         br.left,
                         left,
-                        `Req 21.1: bounding rect left must equal requested left (got ${br.left}, expected ${left})`,
+                        `the documented contract: bounding rect left must equal requested left (got ${br.left}, expected ${left})`,
                     );
                     assert.equal(
                         br.top,
                         top,
-                        `Req 21.1: bounding rect top must equal requested top (got ${br.top}, expected ${top})`,
+                        `the documented contract: bounding rect top must equal requested top (got ${br.top}, expected ${top})`,
                     );
                 },
             ),
@@ -243,7 +242,7 @@ test(
 );
 
 test(
-    "Property 19: {x,y} object and [x,y] tuple point forms produce identical polygons (Req 21.2)",
+    "{x,y} object and [x,y] tuple point forms produce identical polygons",
     () => {
         fc.assert(
             fc.property(
@@ -251,7 +250,7 @@ test(
                 placementArb,
                 (points, { left, top }) => {
                     // Same coordinates expressed in the two accepted
-                    // input forms (Requirement 21.2).
+                    // input forms.
                     const objectForm = points.map((p) => ({ x: p.x, y: p.y }));
                     const tupleForm = points.map((p) => [p.x, p.y]);
 
@@ -279,7 +278,7 @@ test(
                     assert.deepEqual(
                         maskA.points,
                         maskB.points,
-                        'Req 21.2: coerced polygon points must match',
+                        'the documented contract: coerced polygon points must match',
                     );
 
                     // The factory's bounding-box realignment must
@@ -290,7 +289,7 @@ test(
                     assert.deepEqual(
                         brA,
                         brB,
-                        'Req 21.2: bounding rect must match across input forms',
+                        'the documented contract: bounding rect must match across input forms',
                     );
 
                     // The post-shift left/top of the polygon object
@@ -299,12 +298,12 @@ test(
                     assert.equal(
                         maskA.left,
                         maskB.left,
-                        'Req 21.2: polygon.left must match across input forms',
+                        'the documented contract: polygon.left must match across input forms',
                     );
                     assert.equal(
                         maskA.top,
                         maskB.top,
-                        'Req 21.2: polygon.top must match across input forms',
+                        'the documented contract: polygon.top must match across input forms',
                     );
                 },
             ),

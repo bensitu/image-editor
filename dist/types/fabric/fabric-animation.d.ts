@@ -1,7 +1,7 @@
 /**
  * @file fabric-animation.ts
  * @description Promise-shaped wrapper around Fabric.js v7's
- *              {@link FabricNS.FabricObject.animate} for the v2 transform
+ *              {@link FabricNS.FabricObject.animate} for the current transform
  *              pipeline. v7's `animate(props, opts)` returns an
  *              `Animation[]`-like map of contexts (one per animated
  *              property) and signals completion through the `onComplete`
@@ -50,7 +50,7 @@ import type { OperationGuard } from '../core/operation-guard.js';
 /**
  * Options accepted by {@link animateProps}.
  *
- * Mirrors the subset of Fabric's `AnimationOptions` that the v2 transform
+ * Mirrors the subset of Fabric's `AnimationOptions` that the current transform
  * pipeline uses. Additional fields (easing, duration jitter, etc.) are
  * intentionally omitted so the wrapper has a single observable shape per
  */
@@ -114,7 +114,7 @@ export declare function animateProps<T extends FabricNS.FabricObject>(obj: T, pr
  * `image/transform-controller.ts.rotateImage` temporarily sets the image
  * origin to `'center'/'center'` so Fabric tweens the angle around the
  * visual centroid (Fabric v7 defaults `originX`/`originY` to `'center'`,
- * but the v1-compat path uses `'left'/'top'` for placement math). The
+ * but the compatibility path uses `'left'/'top'` for placement math). The
  * controller restores the original origin after the animation resolves.
  * If dispose runs between begin and the post-animation restore, the
  * controller's restore branch is skipped — leaving the image in the

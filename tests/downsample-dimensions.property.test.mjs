@@ -1,6 +1,5 @@
-// Property 3: Downsample dimensions
+// Downsample dimensions
 //
-// Property statement (design.md §"Property 3"):
 //   For any source width and height greater than zero and any max-width /
 //   max-height bounds greater than zero, downsampling SHALL preserve aspect
 //   ratio and SHALL produce dimensions that are less than or equal to both
@@ -56,9 +55,9 @@ const { computeDownsampleDimensions } = await import(
 
 const dimArb = fc.integer({ min: 1, max: 10000 });
 
-// ─── Property 3.1: Pass-through when within bounds ────────────────────────
+// ─── Pass-through when within bounds ────────────────────────
 
-test('Property 3.1: pass-through when source fits both bounds (Req 8.1)', () => {
+test('pass-through when source fits both bounds', () => {
     fc.assert(
         fc.property(dimArb, dimArb, dimArb, dimArb, (srcW, srcH, maxW, maxH) => {
             // Restrict to the within-bounds case.
@@ -79,9 +78,9 @@ test('Property 3.1: pass-through when source fits both bounds (Req 8.1)', () => 
     );
 });
 
-// ─── Property 3.2: Within bounds (with +/-1 rounding tolerance) ───────────
+// ─── Within bounds (with +/-1 rounding tolerance) ───────────
 
-test('Property 3.2: output never exceeds bounds (Req 8.1)', () => {
+test('output never exceeds bounds', () => {
     fc.assert(
         fc.property(dimArb, dimArb, dimArb, dimArb, (srcW, srcH, maxW, maxH) => {
             const out = computeDownsampleDimensions(srcW, srcH, maxW, maxH);
@@ -106,15 +105,15 @@ test('Property 3.2: output never exceeds bounds (Req 8.1)', () => {
     );
 });
 
-// ─── Property 3.3: Aspect ratio preserved when scaling occurred ───────────
+// ─── Aspect ratio preserved when scaling occurred ───────────
 
-test('Property 3.3: aspect ratio preserved when scaling occurred (Req 8.1)', () => {
+test('aspect ratio preserved when scaling occurred', () => {
     fc.assert(
         fc.property(dimArb, dimArb, dimArb, dimArb, (srcW, srcH, maxW, maxH) => {
             const out = computeDownsampleDimensions(srcW, srcH, maxW, maxH);
 
             if (!out.needsResize) {
-                // Pass-through case is covered by Property 3.1.
+                // Pass-through case is covered by .
                 return true;
             }
 
@@ -125,7 +124,7 @@ test('Property 3.3: aspect ratio preserved when scaling occurred (Req 8.1)', () 
             // from comparing ratios when one axis is small (where a
             // 0.5-px rounding step can shift the ratio by O(1)).
             //
-            // The 1-px floor from Requirement 8.1 (Math.max in
+            // The 1-px floor from the documented contract (Math.max in
             // image-resampler.ts) can push the output above the ideal
             // scaled value when the ideal value rounds to 0; allow that
             // case explicitly.
@@ -158,9 +157,9 @@ test('Property 3.3: aspect ratio preserved when scaling occurred (Req 8.1)', () 
     );
 });
 
-// ─── Property 3.4: Always positive ────────────────────────────────────────
+// ─── Always positive ────────────────────────────────────────
 
-test('Property 3.4: output dimensions are always >= 1 (Req 8.1)', () => {
+test('output dimensions are always >= 1', () => {
     fc.assert(
         fc.property(dimArb, dimArb, dimArb, dimArb, (srcW, srcH, maxW, maxH) => {
             const out = computeDownsampleDimensions(srcW, srcH, maxW, maxH);

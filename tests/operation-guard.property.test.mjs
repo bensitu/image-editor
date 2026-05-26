@@ -1,6 +1,5 @@
-// Property 13: Operation guards during animation
+// Operation guards during animation
 //
-// Property statement (design.md §"Property 13"):
 //   For any guarded operation invoked while `isAnimating === true`, the
 //   editor SHALL leave the canvas, history stack, crop session, masks,
 //   and export state unchanged unless the operation is `undo()` or
@@ -9,18 +8,15 @@
 //
 // This test focuses on the `OperationGuard` primitive that owns the
 // `isAnimating` / `isDisposed` flags and the `assertNotAnimating()` gate.
-// The full `ImageEditor` facade is built in later tasks; this test only
-// covers the contract owned by `src/core/operation-guard.ts`:
+// It covers the contract owned by `src/core/operation-guard.ts`:
 //
 //   1. After `runAnimation(fn)` settles (resolve OR reject), `isAnimating()`
-//      is `false`. (Req 14.3)
+//      is `false`.
 //   2. Calling `assertNotAnimating(label)` *inside* a `runAnimation(...)`
 //      block throws an `Error` whose message embeds the operation label.
-//      (Req 14.1)
+//
 //   3. Calling `assertNotAnimating(label)` *outside* any animation block
-//      does not throw, regardless of label content. (Req 14.2 — `undo` /
-//      `redo` are queue-routed, but any caller that does invoke the gate
-//      while quiescent must succeed.)
+//      does not throw, regardless of label content.
 //   4. After `markDisposed()`, `isDisposed()` returns `true` and
 //      `isAnimating()` returns `false` even when invoked mid-animation —
 //      the dispose-safe settlement contract from the guard's docblock.
@@ -43,7 +39,7 @@ import { OperationGuard } from '../src/core/operation-guard.ts';
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
 // Operation labels mirror the public-method names enumerated in
-// Requirement 14.1, plus a few generic strings to exercise message
+// the documented contract, plus a few generic strings to exercise message
 // formatting with arbitrary content.
 const operationLabelArb = fc.oneof(
     fc.constantFrom(
@@ -93,7 +89,7 @@ function makeAnimation(guard, mode, ms, observe) {
 
 // ─── Property assertions ───────────────────────────────────────────────────
 
-test('Property 13.1: runAnimation clears isAnimating on both resolve and reject', async () => {
+test('runAnimation clears isAnimating on both resolve and reject', async () => {
     await fc.assert(
         fc.asyncProperty(settleModeArb, delayArb, async (mode, ms) => {
             const guard = new OperationGuard();
@@ -124,7 +120,7 @@ test('Property 13.1: runAnimation clears isAnimating on both resolve and reject'
             assert.equal(observed.isDisposed, false,
                 'guard must report isDisposed=false inside a fresh runAnimation block');
 
-            // Post-condition: Req 14.3 — flag is cleared before the
+            // Post-condition: the documented contract — flag is cleared before the
             // promise settled, so it must read `false` here regardless of
             // resolve/reject path.
             assert.equal(guard.isAnimating(), false,
@@ -136,7 +132,7 @@ test('Property 13.1: runAnimation clears isAnimating on both resolve and reject'
     );
 });
 
-test('Property 13.2: assertNotAnimating throws inside runAnimation, succeeds outside', async () => {
+test('assertNotAnimating throws inside runAnimation, succeeds outside', async () => {
     await fc.assert(
         fc.asyncProperty(labelBatchArb, delayArb, async (labels, ms) => {
             const guard = new OperationGuard();
@@ -188,7 +184,7 @@ test('Property 13.2: assertNotAnimating throws inside runAnimation, succeeds out
     );
 });
 
-test('Property 13.3: markDisposed forces a quiescent state mid-animation', async () => {
+test('markDisposed forces a quiescent state mid-animation', async () => {
     await fc.assert(
         fc.asyncProperty(delayArb, fc.boolean(), async (ms, callTwice) => {
             const guard = new OperationGuard();
@@ -228,7 +224,7 @@ test('Property 13.3: markDisposed forces a quiescent state mid-animation', async
             const result = await animationPromise;
             assert.equal(result, 'done');
 
-            // Req 15.3 / dispose-safe settlement: post-dispose flags read
+            // the documented contract / dispose-safe settlement: post-dispose flags read
             // as quiescent even though dispose was called mid-animation.
             assert.deepEqual(observedDuringDispose, {
                 isDisposed: true,
@@ -243,7 +239,7 @@ test('Property 13.3: markDisposed forces a quiescent state mid-animation', async
     );
 });
 
-test('Property 13.4: sequential runAnimation calls each bracket cleanly', async () => {
+test('sequential runAnimation calls each bracket cleanly', async () => {
     const stepArb = fc.record({
         mode: settleModeArb,
         ms: delayArb,
@@ -274,7 +270,7 @@ test('Property 13.4: sequential runAnimation calls each bracket cleanly', async 
                 assert.equal(sawAnimating, true,
                     `step ${i}: guard must report isAnimating=true inside its bracket`);
                 assert.equal(guard.isAnimating(), false,
-                    `step ${i}: guard must be quiescent after settle (Req 14.3)`);
+                    `step ${i}: guard must be quiescent after settle`);
                 assert.equal(guard.isDisposed(), false,
                     `step ${i}: dispose flag must remain false`);
             }

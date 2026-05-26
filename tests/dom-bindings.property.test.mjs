@@ -1,6 +1,5 @@
-// Property 29: Idempotent dispose with bindings drain
+// Idempotent dispose with bindings drain
 //
-// Property statement (design.md §"Property 29"):
 //   For any sequence of `init`, DOM binding, public operation, and
 //   repeated `dispose()` calls, the bindings registry SHALL remove
 //   each listener at most once, clear itself after disposal, make
@@ -10,22 +9,22 @@
 // Owner module: `src/ui/dom-bindings.ts` — the registry primitive
 // owned by `image-editor.ts`'s init/dispose path. The unit under
 // test here is the `DomBindings` class itself; the editor-level
-// dispose ordering is exercised separately by Property 5.
+// dispose ordering is exercised separately by .
 //
 // Sub-properties exercised here:
 //
-//   29.1 Listeners attach (Req 33.1): for any sequence of
+//   29.1 Listeners attach: for any sequence of
 //        `bindIfExists` calls with valid keys, each successful call
 //        increments `registry.size()` by exactly 1.
-//   29.2 Bound handlers gated by disposed (Req 33.4): when
+//   29.2 Bound handlers gated by disposed: when
 //        `isDisposed()` returns `true`, dispatching the bound event
 //        does NOT invoke the user-supplied handler.
-//   29.3 removeAll detaches all (Req 33.2, 33.3): after `removeAll()`
+//   29.3 removeAll detaches all: after `removeAll()`
 //        the registry size is 0 and no previously-bound handler
 //        fires on a fresh dispatch of its event type.
-//   29.4 removeAll idempotent (Req 33.3): a second `removeAll()`
+//   29.4 removeAll idempotent: a second `removeAll()`
 //        does not throw and leaves the registry empty.
-//   29.5 Missing element silent (Req 33.1, contract): `bindIfExists`
+//   29.5 Missing element silent: `bindIfExists`
 //        with a key that does not resolve to an existing element
 //        returns `false` and does NOT grow the registry.
 //
@@ -80,7 +79,7 @@ function installDom(elementIds) {
 // scenario can refer to keys that may or may not exist in the DOM.
 // The pool intentionally includes a mix of canonical keys from
 // `ElementIdMap` plus an "unknown" key the resolver maps to `null`,
-// so Property 29.5 exercises both "key omitted from idMap" and
+// so exercises both "key omitted from idMap" and
 // "key in idMap but element missing from DOM" paths.
 const KEY_POOL = [
     'zoomInBtn',
@@ -134,9 +133,9 @@ function makeBindings({ disposed = { value: false } } = {}) {
     };
 }
 
-// ─── Property 29.1: registry grows by 1 per successful bind (Req 33.1) ─────
+// ─── registry grows by 1 per successful bind ─────
 
-test('Property 29.1: bindIfExists records every successful attachment in the registry (Req 33.1)', () => {
+test('bindIfExists records every successful attachment in the registry', () => {
     fc.assert(
         fc.property(
             presentKeysArb,
@@ -191,9 +190,9 @@ test('Property 29.1: bindIfExists records every successful attachment in the reg
     );
 });
 
-// ─── Property 29.2: disposed handlers exit before invoking the user fn ─────
+// ─── disposed handlers exit before invoking the user fn ─────
 
-test('Property 29.2: bound handlers exit when isDisposed() is true (Req 33.4)', () => {
+test('bound handlers exit when isDisposed() is true', () => {
     fc.assert(
         fc.property(
             presentKeysArb.filter((arr) => arr.length > 0),
@@ -252,9 +251,9 @@ test('Property 29.2: bound handlers exit when isDisposed() is true (Req 33.4)', 
     );
 });
 
-// ─── Property 29.3: removeAll detaches all and zeros the registry ──────────
+// ─── removeAll detaches all and zeros the registry ──────────
 
-test('Property 29.3: removeAll() detaches every recorded listener and clears the registry (Req 33.2, 33.3)', () => {
+test('removeAll() detaches every recorded listener and clears the registry', () => {
     fc.assert(
         fc.property(
             presentKeysArb.filter((arr) => arr.length > 0),
@@ -330,9 +329,9 @@ test('Property 29.3: removeAll() detaches every recorded listener and clears the
     );
 });
 
-// ─── Property 29.4: removeAll is idempotent (second call is a no-op) ───────
+// ─── removeAll is idempotent (second call is a no-op) ───────
 
-test('Property 29.4: removeAll() is idempotent (Req 33.3)', () => {
+test('removeAll() is idempotent', () => {
     fc.assert(
         fc.property(
             presentKeysArb,
@@ -372,9 +371,9 @@ test('Property 29.4: removeAll() is idempotent (Req 33.3)', () => {
     );
 });
 
-// ─── Property 29.5: missing element is silent and registry-neutral ─────────
+// ─── missing element is silent and registry-neutral ─────────
 
-test('Property 29.5: bindIfExists returns false and leaves the registry unchanged when the element is missing (Req 33.1)', () => {
+test('bindIfExists returns false and leaves the registry unchanged when the element is missing', () => {
     fc.assert(
         fc.property(
             presentKeysArb,

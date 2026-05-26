@@ -1,6 +1,5 @@
-// Property 22: Export format and quality normalization
+// Export format and quality normalization
 //
-// Property statement (design.md §"Property 22"):
 //   For any supported file type alias and quality input, export format
 //   normalization SHALL map `jpg` to `jpeg`, derive the correct MIME
 //   type, clamp quality to `[0, 1]`, ignore quality for PNG, and use
@@ -13,45 +12,45 @@
 //
 // Sub-properties exercised here:
 //
-//   22.1 jpg/jpeg case-insensitive collapse + MIME aliases (Req 26.1):
+//   22.1 jpg/jpeg case-insensitive collapse + MIME aliases:
 //        `normalizeImageFormat` collapses any case variant of `'jpg'`,
 //        `'jpeg'`, `'image/jpeg'` (and similarly png / webp) to the
 //        canonical `NormalizedImageFormat` token, and `mimeTypeFor`
 //        derives the matching `image/...` MIME from that token.
 //
-//   22.2 Unknown / nullish input defaults to jpeg (Req 26.4):
+//   22.2 Unknown / nullish input defaults to jpeg:
 //        `normalizeImageFormat` returns `'jpeg'` for `undefined`,
 //        `null`, empty string, and any unrecognized alias.
 //
-//   22.3 fileType wins over format precedence (Req 26.1):
+//   22.3 fileType wins over format precedence:
 //        Inside `resolveExportFormat`, when `fileType` is truthy it
 //        determines the resolved format regardless of `format`. When
 //        `fileType` is falsy (undefined / empty), `format` is consulted.
-//        When both are omitted, the result is `'jpeg'` (Req 26.4).
+//        When both are omitted, the result is `'jpeg'`.
 //
-//   22.4 Finite-input quality clamp (Req 26.2):
+//   22.4 Finite-input quality clamp:
 //        `clampQuality(q, fallback)` for any finite numeric `q`
 //        returns a value in `[0, 1]` equal to `Math.max(0, Math.min(1, q))`.
 //
-//   22.5 Non-finite-input quality falls back (Req 26.4):
+//   22.5 Non-finite-input quality falls back:
 //        `clampQuality(q, fallback)` returns `fallback` verbatim
 //        whenever `Number(q)` is not finite (e.g. `NaN`, `±Infinity`,
 //        non-numeric strings, plain objects). Inputs whose numeric
 //        coercion is finite (e.g. `null`, `[]`, `''` → 0) are NOT
 //        covered by this property — they take the clamp path instead
-//        and are exercised by Property 22.4.
+//        and are exercised by .
 //
-//   22.6 PNG output drops quality (Req 26.3):
+//   22.6 PNG output drops quality:
 //        `resolveExportFormat` returns `quality === undefined` whenever
 //        the resolved format is `'png'`, regardless of incoming quality.
 //
-//   22.7 Non-PNG quality threading (Reqs 26.2, 26.4):
+//   22.7 Non-PNG quality threading:
 //        For lossy formats (jpeg / webp), omitted or non-finite
 //        `opts.quality` resolves to `downsampleQuality`, and finite
 //        `opts.quality` resolves to its `[0, 1]` clamp.
 //
 //   22.8 Both fileType and format omitted → jpeg + downsampleQuality
-//        (Req 26.4): `resolveExportFormat({}, dq)` and
+//: `resolveExportFormat({}, dq)` and
 //        `resolveExportFormat(undefined, dq)` both produce
 //        `{ format: 'jpeg', mimeType: 'image/jpeg', quality: dq }`.
 //
@@ -108,7 +107,7 @@ const KNOWN_ALIASES = new Set(
 /**
  * Pick a (canonical, alias) pair where `alias` is one of the documented
  * aliases for `canonical`, randomly cased to exercise the
- * case-insensitive lookup (Requirement 26.1).
+ * case-insensitive lookup.
  */
 function casedAliasArb(canonicals) {
     return fc
@@ -155,7 +154,7 @@ const unknownStringArb = fc
     )
     .filter((s) => !KNOWN_ALIASES.has(String(s).toLowerCase()));
 
-// Nullish values that should also fall back to `'jpeg'` (Req 26.4).
+// Nullish values that should also fall back to `'jpeg'`.
 const nullishInputArb = fc.constantFrom(undefined, null);
 
 // Finite numeric quality input — covers in-range, below-range, and
@@ -169,7 +168,7 @@ const finiteQualityArb = fc.double({
 
 // Default-quality fallback. The editor pre-validates
 // `downsampleQuality` to be in `[0, 1]` at construction time
-// (Requirement 3.6), so the arbitrary is bounded accordingly.
+//, so the arbitrary is bounded accordingly.
 const fallbackQualityArb = fc.double({
     min: 0,
     max: 1,
@@ -179,8 +178,8 @@ const fallbackQualityArb = fc.double({
 
 // Inputs that `Number(x)` reports as non-finite (NaN or ±Infinity).
 // These are exactly the values for which `clampQuality` must fall back
-// (Requirement 26.4). Values like `null`, `[]`, `''` coerce to a finite
-// `0` and therefore take the clamp path — they belong to Property 22.4.
+//. Values like `null`, `[]`, `''` coerce to a finite
+// `0` and therefore take the clamp path — they belong to .
 const nonFiniteQualityArb = fc.oneof(
     fc.constant(NaN),
     fc.constant(Infinity),
@@ -192,9 +191,9 @@ const nonFiniteQualityArb = fc.oneof(
     fc.constant({ valueOf: () => NaN }),
 );
 
-// ─── Property 22.1: case-insensitive alias collapse + MIME ─────────────────
+// ─── case-insensitive alias collapse + MIME ─────────────────
 
-test('Property 22.1: normalizeImageFormat collapses aliases case-insensitively (Req 26.1)', () => {
+test('normalizeImageFormat collapses aliases case-insensitively', () => {
     fc.assert(
         fc.property(anyAliasArb, ({ canonical, alias }) => {
             const result = normalizeImageFormat(alias);
@@ -214,9 +213,9 @@ test('Property 22.1: normalizeImageFormat collapses aliases case-insensitively (
     );
 });
 
-// ─── Property 22.2: unknown / nullish input → jpeg ────────────────────────
+// ─── unknown / nullish input → jpeg ────────────────────────
 
-test('Property 22.2: nullish, empty, and unknown input default to jpeg (Req 26.4)', () => {
+test('nullish, empty, and unknown input default to jpeg', () => {
     fc.assert(
         fc.property(
             fc.oneof(nullishInputArb, unknownStringArb),
@@ -235,9 +234,9 @@ test('Property 22.2: nullish, empty, and unknown input default to jpeg (Req 26.4
     );
 });
 
-// ─── Property 22.3: fileType wins over format ─────────────────────────────
+// ─── fileType wins over format ─────────────────────────────
 
-test('Property 22.3: resolveExportFormat — fileType wins over format; both omitted → jpeg (Reqs 26.1, 26.4)', () => {
+test('resolveExportFormat — fileType wins over format; both omitted → jpeg', () => {
     fc.assert(
         fc.property(
             fc.option(anyAliasArb, { nil: undefined }),
@@ -250,7 +249,7 @@ test('Property 22.3: resolveExportFormat — fileType wins over format; both omi
                 };
                 const resolved = resolveExportFormat(opts, downsampleQuality);
 
-                // Implementation mirrors v1's `fileType || format`
+                // Implementation mirrors legacy's `fileType || format`
                 // (logical-or), so a falsy `fileType` falls through to
                 // `format`. When both are absent, default to 'jpeg'.
                 let expected;
@@ -276,9 +275,9 @@ test('Property 22.3: resolveExportFormat — fileType wins over format; both omi
     );
 });
 
-// ─── Property 22.4: finite-input quality clamp ────────────────────────────
+// ─── finite-input quality clamp ────────────────────────────
 
-test('Property 22.4: clampQuality clamps finite input to [0, 1] (Req 26.2)', () => {
+test('clampQuality clamps finite input to [0, 1]', () => {
     fc.assert(
         fc.property(finiteQualityArb, fallbackQualityArb, (q, fallback) => {
             const out = clampQuality(q, fallback);
@@ -297,9 +296,9 @@ test('Property 22.4: clampQuality clamps finite input to [0, 1] (Req 26.2)', () 
     );
 });
 
-// ─── Property 22.5: non-finite quality falls back ─────────────────────────
+// ─── non-finite quality falls back ─────────────────────────
 
-test('Property 22.5: clampQuality returns fallback for non-finite input (Req 26.4)', () => {
+test('clampQuality returns fallback for non-finite input', () => {
     fc.assert(
         fc.property(nonFiniteQualityArb, fallbackQualityArb, (q, fallback) => {
             const out = clampQuality(q, fallback);
@@ -314,9 +313,9 @@ test('Property 22.5: clampQuality returns fallback for non-finite input (Req 26.
     );
 });
 
-// ─── Property 22.6: PNG drops quality ─────────────────────────────────────
+// ─── PNG drops quality ─────────────────────────────────────
 
-test('Property 22.6: resolveExportFormat returns undefined quality for PNG (Req 26.3)', () => {
+test('resolveExportFormat returns undefined quality for PNG', () => {
     fc.assert(
         fc.property(
             pngAliasArb,
@@ -346,9 +345,9 @@ test('Property 22.6: resolveExportFormat returns undefined quality for PNG (Req 
     );
 });
 
-// ─── Property 22.7: non-PNG quality threading ─────────────────────────────
+// ─── non-PNG quality threading ─────────────────────────────
 
-test('Property 22.7: resolveExportFormat threads finite quality clamped to [0, 1] for lossy formats (Req 26.2)', () => {
+test('resolveExportFormat threads finite quality clamped to [0, 1] for lossy formats', () => {
     fc.assert(
         fc.property(
             lossyAliasArb,
@@ -373,7 +372,7 @@ test('Property 22.7: resolveExportFormat threads finite quality clamped to [0, 1
     );
 });
 
-test('Property 22.7b: resolveExportFormat falls back to downsampleQuality for omitted/non-finite quality on lossy formats (Req 26.4)', () => {
+test('resolveExportFormat falls back to downsampleQuality for omitted/non-finite quality on lossy formats', () => {
     // For `resolveExportFormat`, `null` / `undefined` count as "omitted"
     // and route through the `?? downsampleQuality` step before the clamp
     // (so they also resolve to `downsampleQuality`). Combine both
@@ -406,9 +405,9 @@ test('Property 22.7b: resolveExportFormat falls back to downsampleQuality for om
     );
 });
 
-// ─── Property 22.8: both fileType and format omitted → jpeg + fallback ────
+// ─── both fileType and format omitted → jpeg + fallback ────
 
-test('Property 22.8: omitted fileType/format defaults to jpeg with downsampleQuality (Req 26.4)', () => {
+test('omitted fileType/format defaults to jpeg with downsampleQuality', () => {
     fc.assert(
         fc.property(
             fallbackQualityArb,
@@ -417,7 +416,7 @@ test('Property 22.8: omitted fileType/format defaults to jpeg with downsampleQua
                 fc.constant(null),
                 fc.constant({}),
                 // Object with both fields explicitly undefined — same
-                // observable shape as `{}` per Req 26.4.
+                // observable shape as `{}` per the documented contract.
                 fc.constant({ fileType: undefined, format: undefined }),
             ),
             (downsampleQuality, opts) => {

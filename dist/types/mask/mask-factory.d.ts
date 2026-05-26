@@ -1,9 +1,7 @@
 /**
  * @file mask/mask-factory.ts
  * @description Function-based mask creation entry point used by the
- *              `ImageEditor` orchestrator. Owns the v1 `addMask` logic that
- *              was inlined on the editor in v1 and is now extracted into a
- *              pure(ish) helper that takes a {@link CreateMaskContext}.
+ *              `ImageEditor` orchestrator.
  *
  * ## Owned contracts
  *
@@ -15,9 +13,7 @@
  * - Together with `core/state-serializer.ts`, mask IDs
  *   stay unique across mixed `createMask` / `mergeMasks` / `undo` / `redo`
  *   sequences because the counter is monotonic.
- * - `createMask` is the only public mask-creation
- *   entry point. The legacy `addMask` alias is intentionally absent
- *   (Deprecated_Alias rule).
+ * - `createMask` is the public mask-creation entry point.
  * - For `'rect' | 'circle' | 'ellipse' | 'polygon'`
  *   the corresponding Fabric shape is built with explicit
  *   `originX: 'left'`, `originY: 'top'`, plus the resolved color, opacity,
@@ -85,9 +81,8 @@ import type { FabricModule, MaskConfig, MaskObject, RemoveAllMasksOptions, Resol
  * `ImageEditor` orchestrator.
  *
  * The factory does NOT own any of these slots — it only reads and updates
- * them through the supplied accessors so that ownership of `maskCounter`,
- * `_lastMask`, history snapshots, and the mask list DOM stays on the editor
- * (where v1 left them).
+ * them through the supplied accessors so ownership of `maskCounter`,
+ * `_lastMask`, history snapshots, and the mask list DOM stays on the editor.
  */
 export interface CreateMaskContext {
     /** Injected Fabric.js v7 module used to construct the shape. */
@@ -110,9 +105,8 @@ export interface CreateMaskContext {
      * Optional canvas resize hook used when `options.expandCanvasToImage` is
      * `true` and the placed mask would extend past the current canvas size.
      * If omitted, the factory calls `canvas.setDimensions` directly. The
-     * orchestrator typically passes `_setCanvasSizeInt` here to preserve the
-     * v1 synchronous reflow trick that keeps `overflow: auto` scrollbars in
-     * sync with the new canvas size.
+     * orchestrator typically passes `_setCanvasSizeInt` here so the scroll
+     * container reflows synchronously with the new canvas size.
      */
     expandCanvasIfNeeded?: (width: number, height: number) => void;
 }
@@ -183,8 +177,6 @@ export interface RemoveMaskContext {
  * 4. Re-render the mask list DOM and the canvas.
  * 5. Push a single history entry via {@link RemoveMaskContext.saveCanvasState}.
  *
- * Requirements: 14.1 (guarded by the orchestrator), 18.4 (uniqueness), 19.6.
- *
  * @param ctx Orchestration context — see {@link RemoveMaskContext}.
  */
 export declare function removeSelectedMask(ctx: RemoveMaskContext): void;
@@ -208,9 +200,6 @@ export declare function removeSelectedMask(ctx: RemoveMaskContext): void;
  * 5. Re-render the mask list DOM and the canvas.
  * 6. Conditionally push a history entry depending on
  *    `options.saveHistory`.
- *
- * Requirements: 14.1 (guarded by the orchestrator), 18.4 (uniqueness),
- * 19.6, 19.7.
  *
  * @param ctx     Orchestration context — see {@link RemoveMaskContext}.
  * @param options Bulk-removal options. Defaults to `{ saveHistory: true}`.

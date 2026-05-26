@@ -8,10 +8,10 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
     if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
         return;
     }
-    const placeholderHidden = ctx.placeholderEl ? !!ctx.placeholderEl.hidden : null;
-    const containerScrollTop = ctx.containerEl ? ctx.containerEl.scrollTop : null;
-    const containerScrollLeft = ctx.containerEl ? ctx.containerEl.scrollLeft : null;
-    const containerOverflow = ctx.containerEl ? ctx.containerEl.style.overflow : null;
+    const placeholderHidden = ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
+    const containerScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
+    const containerScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
+    const containerOverflow = ctx.containerElement ? ctx.containerElement.style.overflow : null;
     const bundle = {
         placeholderHidden,
         containerScrollTop,
@@ -28,7 +28,15 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
     };
     try {
         ctx.setPlaceholderVisible(false);
-        const imgEl = await withTimeout(decodeImageElement(imageBase64), ctx.options.imageLoadTimeoutMs, 'image decode');
+        const decode = startImageDecode(imageBase64);
+        let imgEl;
+        try {
+            imgEl = await withTimeout(decode.promise, ctx.options.imageLoadTimeoutMs, 'image decode');
+        }
+        catch (error) {
+            decode.cleanup(true);
+            throw error;
+        }
         const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
         const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
         ctx.canvas.discardActiveObject();
@@ -41,7 +49,7 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
             evented: false,
         });
         const layout = computeLayout(ctx, fimg);
-        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerEl);
+        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerElement);
         fimg.set({ left: layout.imageLeft, top: layout.imageTop });
         fimg.scale(layout.imageScale);
         ctx.canvas.add(fimg);
@@ -59,13 +67,13 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
         }));
-        if (loadOptions.preserveScroll === true && ctx.containerEl) {
+        if (loadOptions.preserveScroll === true && ctx.containerElement) {
             try {
                 if (bundle.containerScrollTop !== null) {
-                    ctx.containerEl.scrollTop = bundle.containerScrollTop;
+                    ctx.containerElement.scrollTop = bundle.containerScrollTop;
                 }
                 if (bundle.containerScrollLeft !== null) {
-                    ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
+                    ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             }
             catch (err) {
@@ -91,19 +99,27 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
         throw err;
     }
 }
-function decodeImageElement(dataUrl) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
+function startImageDecode(dataUrl) {
+    const img = new Image();
+    const cleanup = (clearSource = false) => {
+        img.onload = null;
+        img.onerror = null;
+        if (clearSource) {
+            img.src = '';
+        }
+    };
+    const promise = new Promise((resolve, reject) => {
         img.onload = () => {
-            img.onload = img.onerror = null;
+            cleanup(false);
             resolve(img);
         };
         img.onerror = (e) => {
-            img.onload = img.onerror = null;
+            cleanup(true);
             reject(new ImageDecodeError('Failed to decode image data URL.', e));
         };
         img.src = dataUrl;
     });
+    return { promise, cleanup };
 }
 function maybeDownsample(imgEl, originalDataUrl, options) {
     if (!options.downsampleOnLoad)
@@ -118,7 +134,7 @@ function computeLayout(ctx, fimg) {
     var _a, _b;
     const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
     const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
-    const viewport = ctx.viewportCache.measure(ctx.containerEl, {
+    const viewport = ctx.viewportCache.measure(ctx.containerElement, {
         width: ctx.options.canvasWidth,
         height: ctx.options.canvasHeight,
     });
@@ -137,9 +153,9 @@ function serializeCanvas(canvas) {
     return JSON.stringify(json);
 }
 async function replayRollback(ctx, bundle) {
-    if (ctx.containerEl && bundle.containerOverflow !== null) {
+    if (ctx.containerElement && bundle.containerOverflow !== null) {
         try {
-            ctx.containerEl.style.overflow = bundle.containerOverflow;
+            ctx.containerElement.style.overflow = bundle.containerOverflow;
         }
         catch (err) {
             console.warn('[ImageEditor] rollback: overflow restore failed', err);
@@ -159,13 +175,13 @@ async function replayRollback(ctx, bundle) {
     ctx.setCurrentScale(bundle.currentScale);
     ctx.setCurrentRotation(bundle.currentRotation);
     ctx.setBaseImageScale(bundle.baseImageScale);
-    if (ctx.containerEl) {
+    if (ctx.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
-                ctx.containerEl.scrollTop = bundle.containerScrollTop;
+                ctx.containerElement.scrollTop = bundle.containerScrollTop;
             }
             if (bundle.containerScrollLeft !== null) {
-                ctx.containerEl.scrollLeft = bundle.containerScrollLeft;
+                ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         }
         catch (err) {

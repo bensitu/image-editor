@@ -21,19 +21,15 @@
  *
  * ## Why this lives in its own module
  *
- * The orchestrator's `dispose` path (see the design's "Idempotent dispose
- * with bindings registry" section) needs to detach DOM listeners without
+ * The orchestrator's `dispose` path needs to detach DOM listeners without
  * caring about which logical key originally owned each one. Co-locating the
  * registry here keeps the orchestrator free of bookkeeping and lets unit
- * tests exercise the bindings registry without instantiating a full editor
- * (`tests/units/dom-bindings.test.mjs` per the design's Unit Tests table).
- *
- * Owner module references (per the design's "Mapping requirements to
- * modules" table): this module is imported by `image-editor.ts` only and is
- * intentionally NOT re-exported from `src/index.ts`.
+ * tests exercise the bindings registry without instantiating a full editor.
+ * This module is imported by `image-editor.ts` only and is intentionally not
+ * re-exported from `src/index.ts`.
  */
 
-import type { ElementIdMap} from '../core/public-types.js';
+import type { ElementIdMap } from '../core/public-types.js';
 
 /**
  * Logical element-name keys understood by the editor's `idMap`. Mirrors the
@@ -123,12 +119,12 @@ export class DomBindings {
         const wrapped: EventListener = (event) => {
             if (this.isDisposed()) return;
             handler(event);
-};
+        };
 
         el.addEventListener(eventType, wrapped);
-        this.registry.push({ elementKey: key, eventType, handler: wrapped});
+        this.registry.push({ elementKey: key, eventType, handler: wrapped });
         return true;
-}
+    }
 
     /**
      * Detach every recorded listener and clear the registry. Each
@@ -137,7 +133,7 @@ export class DomBindings {
      * out the DOM node) does not abort the cleanup loop. Calling `removeAll`
      * a second time is a no-op.
      */
-    removeAll(): void  {
+    removeAll(): void {
         for (const entry of this.registry) {
             const id = this.resolveElementId(entry.elementKey);
             if (!id) continue;
@@ -145,19 +141,19 @@ export class DomBindings {
             if (!el) continue;
             try {
                 el.removeEventListener(entry.eventType, entry.handler);
-} catch {
+            } catch {
                 // Element may already be detached or in a broken state; the
                 // contract is best-effort cleanup, so swallow and continue.
-}
-}
+            }
+        }
         this.registry = [];
-}
+    }
 
     /**
      * Number of currently-registered listeners. Exposed for diagnostics and
      * for the unit tests under `tests/units/dom-bindings.test.mjs`.
      */
-    size(): number  {
+    size(): number {
         return this.registry.length;
-}
+    }
 }

@@ -21,16 +21,12 @@
  *
  * ## Why this lives in its own module
  *
- * The orchestrator's `dispose` path (see the design's "Idempotent dispose
- * with bindings registry" section) needs to detach DOM listeners without
+ * The orchestrator's `dispose` path needs to detach DOM listeners without
  * caring about which logical key originally owned each one. Co-locating the
  * registry here keeps the orchestrator free of bookkeeping and lets unit
- * tests exercise the bindings registry without instantiating a full editor
- * (`tests/units/dom-bindings.test.mjs` per the design's Unit Tests table).
- *
- * Owner module references (per the design's "Mapping requirements to
- * modules" table): this module is imported by `image-editor.ts` only and is
- * intentionally NOT re-exported from `src/index.ts`.
+ * tests exercise the bindings registry without instantiating a full editor.
+ * This module is imported by `image-editor.ts` only and is intentionally not
+ * re-exported from `src/index.ts`.
  */
 import type { ElementIdMap } from '../core/public-types.js';
 /**

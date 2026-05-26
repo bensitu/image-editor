@@ -1,6 +1,5 @@
-// Property 26: Atomic crop transitions
+// Atomic crop transitions
 //
-// Property statement (design.md §"Property 26"):
 //   For any crop session, `enterCropMode`, `applyCrop`, `cancelCrop`,
 //   and rollback SHALL preserve the documented state-machine
 //   invariants: one active CropSession at most, pre-crop snapshot
@@ -16,37 +15,36 @@
 // {@link CropControllerContext}. We exercise each transition with a
 // deterministic stub canvas, a real {@link HistoryManager}, and a
 // scripted `loadImage` that either commits or rejects to drive the
-// rollback path (Requirement 30.3). Four scenarios are covered, one
-// per top-level transition documented in the design:
+// rollback path. Four scenarios are covered, one
+// per top-level transition documented in the documented contract:
 //
 //   26.1 Successful enterCropMode → applyCrop:
 //        · `enterCropMode` opens a single session, captures the
-//          pre-crop snapshot WITHOUT the crop rectangle (Req 30.1),
+//          pre-crop snapshot WITHOUT the crop rectangle,
 //          and re-entry is idempotent.
 //        · `applyCrop` pushes exactly one history entry whose `undo`
-//          restores the pre-crop snapshot (Req 30.2).
+//          restores the pre-crop snapshot.
 //        · After `applyCrop` resolves, the session pointer is null and
-//          every crop-rect handler has been detached (Req 30.5).
+//          every crop-rect handler has been detached.
 //
 //   26.2 Successful enterCropMode → cancelCrop:
-//        · `cancelCrop` produces NO history entry (Req 30.4).
+//        · `cancelCrop` produces NO history entry.
 //        · The crop rect is removed and every crop-rect handler is
-//          detached (Req 30.4, 30.5).
+//          detached.
 //        · The session pointer is null after cancel.
 //
 //   26.3 Failed applyCrop (loadImage throws):
-//        · `applyCrop` rejects with `CropApplyError` (Req 30.3).
-//        · NO history entry is pushed (Req 30.3, 30.4).
+//        · `applyCrop` rejects with `CropApplyError`.
+//        · NO history entry is pushed.
 //        · `loadFromState` is invoked with the pre-crop snapshot to
-//          restore the editor (Req 30.3).
+//          restore the editor.
 //        · The session pointer is null after rollback and every
-//          crop-rect handler has been detached (Req 30.5).
+//          crop-rect handler has been detached.
 //
 //   26.4 Idempotent re-entry of enterCropMode and no-op cancel/apply
 //        without an open session:
 //        · Calling `enterCropMode` while a session is already open
-//          does NOT replace the session (Req 30.1 — at most one
-//          active CropSession).
+//          does NOT replace the session.
 //        · Calling `cancelCrop` / `applyCrop` with no open session is
 //          a no-op (no rejection, no history entry).
 //
@@ -77,7 +75,7 @@ const { resolveOptions } = await import('../src/core/default-options.ts');
  * Stand-in for a Fabric.js `Rect`. The crop controller binds three
  * handlers (`modified` / `moving` / `scaling`) on the rect and detaches
  * them when the session ends; we record `on(...)` and `off(...)` calls
- * so the test can assert handler-detach invariants (Requirement 30.5).
+ * so the test can assert handler-detach invariants.
  *
  * The shape carries `set` (used for scale clamps), `setCoords` (called
  * before reading the bounding rect on apply), and `getBoundingRect`
@@ -100,7 +98,7 @@ class MockCropRect {
     }
     setControlVisible() {
         // No-op — `setControlVisible('mtr', false)` is called by
-        // `enterCropMode` to hide the rotation handle. Property 26 does
+        // `enterCropMode` to hide the rotation handle. does
         // not assert visibility.
     }
     on(event, fn) {
@@ -135,12 +133,11 @@ class MockCropRect {
 /**
  * Stand-in for `fabric.Canvas`. Records every method invocation in
  * `callOrder` so the property test can verify the pre-crop snapshot
- * was captured BEFORE the crop rectangle was added (Req 30.1: the
- * snapshot's canvas-call index must precede the first `add(cropRect)`).
+ * was captured BEFORE the crop rectangle was added`).
  *
  * The mock implements every method the crop controller calls:
  *
- *   - `discardActiveObject`      (Req 23.3)
+ *   - `discardActiveObject`
  *   - `getObjects`               (mask enumeration, freeze loop)
  *   - `add` / `remove`           (crop rect lifecycle)
  *   - `bringObjectToFront`       (z-order on entry / preserved masks)
@@ -149,7 +146,7 @@ class MockCropRect {
  *   - `toDataURL`                (export the cropped JPEG)
  *   - `renderAll` /              (post-mutation repaint)
  *     `requestRenderAll`
- *   - `selection` setter         (Req 30.1, 30.4)
+ *   - `selection` setter
  */
 class MockCanvas {
     constructor({ width = 800, height = 600 } = {}) {
@@ -248,10 +245,10 @@ function makeOriginalImage() {
  *   - A real `HistoryManager` (so the test counts pushes via
  *     `history.length` rather than spying).
  *   - A scripted `loadImage` that either commits (success) or rejects
- *     with a tagged error (failure injection for Req 30.3).
+ *     with a tagged error (failure injection for the documented contract).
  *   - `saveStateCalls` / `loadFromStateCalls` recording every
  *     snapshot capture and restore so the test can assert ordering
- *     (Req 30.1, 30.2, 30.3).
+ *.
  *   - `sessionPointer` — the live `CropSession | null` ref the
  *     controller reads/writes. The orchestrator owns this in
  *     production; here a plain object suffices.
@@ -259,7 +256,7 @@ function makeOriginalImage() {
  * @param {object}  args
  * @param {boolean} args.failLoadImage  When true, the inner `loadImage`
  *                                       throws to exercise the
- *                                       rollback path (Req 30.3).
+ *                                       rollback path.
  */
 function makeContext({ failLoadImage = false } = {}) {
     const canvas = new MockCanvas();
@@ -281,7 +278,7 @@ function makeContext({ failLoadImage = false } = {}) {
             // Capture canvas-call index at the moment of the snapshot
             // so the test can assert "the pre-crop snapshot was
             // captured BEFORE the crop rectangle was added"
-            // (Requirement 30.1).
+            //.
             canvasCallsAtCapture: canvas.callOrder.length,
         });
         return snap;
@@ -320,9 +317,8 @@ function makeContext({ failLoadImage = false } = {}) {
             minWidth: 50,
             minHeight: 50,
             padding: 10,
-            // Property 26 is independent of mask hide/preserve modes —
-            // task 20.5 / 20.6 cover those. Disable both to keep the
-            // session shape simple here.
+            // is independent of mask hide/preserve modes. Disable both to
+            // keep the session shape simple here.
             hideMasksDuringCrop: false,
             preserveMasksAfterCrop: false,
             allowRotationOfCropRect: false,
@@ -360,14 +356,14 @@ function makeContext({ failLoadImage = false } = {}) {
 
 // Number of pre-existing canvas objects (non-mask, non-crop-rect)
 // before `enterCropMode`. Drives the `prevEvented` capture loop;
-// Property 26's session-shape invariants are independent of object
+// 's session-shape invariants are independent of object
 // count, but iterating across a small range surfaces any off-by-one
 // in the freeze loop.
 const objectCountArb = fc.integer({ min: 0, max: 5 });
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect (Req 30.1), exactly one history entry on success (Req 30.2), undo restores the pre-crop snapshot (Req 30.2), session cleared and crop-rect handlers detached after completion (Req 30.5)', async () => {
+test('enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect, exactly one history entry on success, undo restores the pre-crop snapshot, session cleared and crop-rect handlers detached after completion', async () => {
     await fc.assert(
         fc.asyncProperty(objectCountArb, async (objectCount) => {
             const {
@@ -397,27 +393,27 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
             // Open the session. `enterCropMode` is sync.
             enterCropMode(ctx);
 
-            // Requirement 30.1 — exactly one session opened.
+            // the documented contract — exactly one session opened.
             assert.notEqual(
                 sessionRef.current,
                 null,
-                'Req 30.1: enterCropMode must open a CropSession',
+                'the documented contract: enterCropMode must open a CropSession',
             );
             const session = sessionRef.current;
             assert.notEqual(
                 session.cropRect,
                 null,
-                'Req 30.1: the open session must carry a crop rectangle',
+                'the documented contract: the open session must carry a crop rectangle',
             );
 
-            // Requirement 30.1 — pre-crop snapshot was captured
+            // the documented contract — pre-crop snapshot was captured
             // BEFORE the crop rectangle was added to the canvas.
             // The snapshot's `canvasCallsAtCapture` must precede the
             // first `add` call (which adds the crop rect).
             assert.equal(
                 saveStateCalls.length,
                 1,
-                'Req 30.1: enterCropMode captures exactly one pre-crop snapshot',
+                'the documented contract: enterCropMode captures exactly one pre-crop snapshot',
             );
             const firstAddIndex = canvas.callOrder.indexOf('add');
             assert.ok(
@@ -426,10 +422,10 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
             );
             assert.ok(
                 saveStateCalls[0].canvasCallsAtCapture <= firstAddIndex,
-                `Req 30.1: pre-crop snapshot must be captured BEFORE the crop rectangle is added; saveState index=${saveStateCalls[0].canvasCallsAtCapture}, first add index=${firstAddIndex}`,
+                `the documented contract: pre-crop snapshot must be captured BEFORE the crop rectangle is added; saveState index=${saveStateCalls[0].canvasCallsAtCapture}, first add index=${firstAddIndex}`,
             );
 
-            // Requirement 30.1 (idempotent re-entry) — calling
+            // the documented contract (idempotent re-entry) — calling
             // `enterCropMode` again with a session already open MUST
             // NOT replace the session (at-most-one CropSession).
             const sessionRefBeforeRetry = sessionRef.current;
@@ -438,12 +434,12 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
             assert.equal(
                 sessionRef.current,
                 sessionRefBeforeRetry,
-                'Req 30.1: re-entry of enterCropMode must NOT open a second session',
+                'the documented contract: re-entry of enterCropMode must NOT open a second session',
             );
             assert.equal(
                 saveStateCalls.length,
                 saveStateCountBeforeRetry,
-                'Req 30.1: re-entry of enterCropMode must NOT capture a second pre-crop snapshot',
+                'the documented contract: re-entry of enterCropMode must NOT capture a second pre-crop snapshot',
             );
 
             // Capture the rect reference now so we can assert
@@ -461,13 +457,13 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
             // Apply the crop.
             await applyCrop(ctx);
 
-            // Requirement 30.2 — success path captures both pre-crop
+            // the documented contract — success path captures both pre-crop
             // and post-crop snapshots; the post-crop snapshot is the
             // history command's `execute` payload.
             assert.equal(
                 saveStateCalls.length,
                 2,
-                'Req 30.2: applyCrop success must capture the post-crop snapshot for the redo command',
+                'the documented contract: applyCrop success must capture the post-crop snapshot for the redo command',
             );
             const afterSnap = saveStateCalls[1].snap;
             assert.notEqual(
@@ -476,19 +472,19 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
                 'pre-crop and post-crop snapshots must differ for the history entry to be pushed',
             );
 
-            // Requirement 30.2 — exactly one history entry pushed.
+            // the documented contract — exactly one history entry pushed.
             assert.equal(
                 historyManager.history.length,
                 1,
-                'Req 30.2: applyCrop success must push exactly ONE history entry',
+                'the documented contract: applyCrop success must push exactly ONE history entry',
             );
             assert.equal(
                 historyManager.canUndo(),
                 true,
-                'Req 30.2: history pointer must advance on the new entry',
+                'the documented contract: history pointer must advance on the new entry',
             );
 
-            // Requirement 30.2 — the command's `undo` restores the
+            // the documented contract — the command's `undo` restores the
             // pre-crop snapshot and `execute` re-applies the
             // post-crop snapshot. Drive each callback once and
             // inspect the resulting `loadFromState` calls.
@@ -498,31 +494,31 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
             assert.equal(
                 loadFromStateCalls[restoresBefore],
                 beforeSnap,
-                "Req 30.2: command.undo() must restore the pre-crop snapshot",
+                "the documented contract: command.undo() must restore the pre-crop snapshot",
             );
             await cmd.execute();
             assert.equal(
                 loadFromStateCalls[restoresBefore + 1],
                 afterSnap,
-                "Req 30.2: command.execute() must re-apply the post-crop snapshot",
+                "the documented contract: command.execute() must re-apply the post-crop snapshot",
             );
 
             // The success path itself must NOT have invoked
             // `loadFromState` directly — the post-crop restore goes
             // through the inner `loadImage`, not through the
-            // rollback channel (Req 30.3 only triggers on failure).
+            // rollback channel.
             assert.equal(
                 restoresBefore,
                 0,
-                'Req 30.3: success path must not call loadFromState (no rollback)',
+                'the documented contract: success path must not call loadFromState (no rollback)',
             );
 
-            // Requirement 30.5 — every crop-rect handler bound by
+            // the documented contract — every crop-rect handler bound by
             // `enterCropMode` is detached after the session ends.
             assert.equal(
                 cropRect.liveHandlerCount(),
                 0,
-                'Req 30.5: every crop-rect Fabric handler must be detached after applyCrop',
+                'the documented contract: every crop-rect Fabric handler must be detached after applyCrop',
             );
 
             // The session pointer is cleared so a subsequent
@@ -530,7 +526,7 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
             assert.equal(
                 sessionRef.current,
                 null,
-                'Req 30.1: session pointer must be null after applyCrop completes',
+                'the documented contract: session pointer must be null after applyCrop completes',
             );
 
             return true;
@@ -539,7 +535,7 @@ test('Property 26.1: enterCropMode → applyCrop — pre-crop snapshot precedes 
     );
 });
 
-test('Property 26.2: enterCropMode → cancelCrop — no history entry produced (Req 30.4), session cleared, crop-rect handlers detached (Req 30.5)', async () => {
+test('enterCropMode → cancelCrop — no history entry produced, session cleared, crop-rect handlers detached', async () => {
     await fc.assert(
         fc.asyncProperty(objectCountArb, async (objectCount) => {
             const {
@@ -573,17 +569,17 @@ test('Property 26.2: enterCropMode → cancelCrop — no history entry produced 
             // Cancel the crop. `cancelCrop` is sync.
             cancelCrop(ctx);
 
-            // Requirement 30.4 — cancel must NOT push a history
+            // the documented contract — cancel must NOT push a history
             // entry. The history stack is exactly as it was before.
             assert.equal(
                 historyManager.history.length,
                 0,
-                'Req 30.4: cancelCrop must NOT push a history entry',
+                'the documented contract: cancelCrop must NOT push a history entry',
             );
             assert.equal(
                 historyManager.canUndo(),
                 false,
-                'Req 30.4: cancelCrop must leave canUndo() === false',
+                'the documented contract: cancelCrop must leave canUndo() === false',
             );
             // No `loadFromState` either — the cancel path restores
             // through the in-place teardown (per-object evented and
@@ -591,22 +587,22 @@ test('Property 26.2: enterCropMode → cancelCrop — no history entry produced 
             assert.equal(
                 loadFromStateCalls.length,
                 0,
-                'Req 30.4: cancelCrop must not call loadFromState (in-place restore)',
+                'the documented contract: cancelCrop must not call loadFromState (in-place restore)',
             );
 
-            // Requirement 30.5 — every crop-rect handler bound by
+            // the documented contract — every crop-rect handler bound by
             // `enterCropMode` is detached after cancel.
             assert.equal(
                 cropRect.liveHandlerCount(),
                 0,
-                'Req 30.5: every crop-rect Fabric handler must be detached after cancelCrop',
+                'the documented contract: every crop-rect Fabric handler must be detached after cancelCrop',
             );
 
             // Session pointer cleared.
             assert.equal(
                 sessionRef.current,
                 null,
-                'Req 30.4: session pointer must be null after cancelCrop',
+                'the documented contract: session pointer must be null after cancelCrop',
             );
 
             return true;
@@ -615,7 +611,7 @@ test('Property 26.2: enterCropMode → cancelCrop — no history entry produced 
     );
 });
 
-test('Property 26.3: failed applyCrop — rejects with CropApplyError (Req 30.3), no history entry pushed (Req 30.3, 30.4), pre-crop snapshot restored via loadFromState (Req 30.3), session cleared and crop-rect handlers detached (Req 30.5)', async () => {
+test('failed applyCrop — rejects with CropApplyError, no history entry pushed, pre-crop snapshot restored via loadFromState, session cleared and crop-rect handlers detached', async () => {
     await fc.assert(
         fc.asyncProperty(objectCountArb, async (objectCount) => {
             const {
@@ -651,47 +647,47 @@ test('Property 26.3: failed applyCrop — rejects with CropApplyError (Req 30.3)
                 (err) => err,
             );
 
-            // Requirement 30.3 — the promise rejects with
+            // the documented contract — the promise rejects with
             // `CropApplyError`. The original cause is preserved on
-            // `originalError` per the design's error-class contract.
+            // `originalError` per the documented error-class contract.
             assert.ok(
                 rejection instanceof CropApplyError,
-                `Req 30.3: failure must reject with CropApplyError; got ${rejection?.name ?? typeof rejection}`,
+                `the documented contract: failure must reject with CropApplyError; got ${rejection?.name ?? typeof rejection}`,
             );
 
-            // Requirement 30.3 — the rollback path calls
+            // the documented contract — the rollback path calls
             // `loadFromState` with the pre-crop snapshot. There may
-            // be additional restores in the design's error
+            // be additional restores in the documented error
             // documentation, but the most recent must target the
             // pre-crop snapshot.
             assert.ok(
                 loadFromStateCalls.length >= 1,
-                'Req 30.3: failure path must call loadFromState to restore the pre-crop snapshot',
+                'the documented contract: failure path must call loadFromState to restore the pre-crop snapshot',
             );
             assert.equal(
                 loadFromStateCalls[loadFromStateCalls.length - 1],
                 beforeSnap,
-                'Req 30.3: rollback restore must target the pre-crop snapshot',
+                'the documented contract: rollback restore must target the pre-crop snapshot',
             );
 
-            // Requirements 30.3 + 30.4 — NO history entry pushed.
+            // No history entry is pushed on rollback.
             assert.equal(
                 historyManager.history.length,
                 0,
-                'Req 30.3, 30.4: failure must NOT push a history entry',
+                'the documented contract: failure must NOT push a history entry',
             );
             assert.equal(
                 historyManager.canUndo(),
                 false,
-                'Req 30.3, 30.4: failure must leave canUndo() === false',
+                'the documented contract: failure must leave canUndo() === false',
             );
 
-            // Requirement 30.5 — every crop-rect handler is detached
+            // the documented contract — every crop-rect handler is detached
             // after rollback.
             assert.equal(
                 cropRect.liveHandlerCount(),
                 0,
-                'Req 30.5: every crop-rect Fabric handler must be detached after applyCrop rollback',
+                'the documented contract: every crop-rect Fabric handler must be detached after applyCrop rollback',
             );
 
             // Session pointer cleared so the editor can open a fresh
@@ -699,7 +695,7 @@ test('Property 26.3: failed applyCrop — rejects with CropApplyError (Req 30.3)
             assert.equal(
                 sessionRef.current,
                 null,
-                'Req 30.3: session pointer must be null after applyCrop rollback',
+                'the documented contract: session pointer must be null after applyCrop rollback',
             );
 
             return true;
@@ -708,7 +704,7 @@ test('Property 26.3: failed applyCrop — rejects with CropApplyError (Req 30.3)
     );
 });
 
-test('Property 26.4: cancelCrop and applyCrop are no-ops without an open session (Req 30.1, 30.4)', async () => {
+test('cancelCrop and applyCrop are no-ops without an open session', async () => {
     // No fast-check input space — the property is purely about the
     // controller's state-machine guards. We still wrap a single
     // iteration in `fc.assert` for consistency with the rest of the
@@ -734,7 +730,7 @@ test('Property 26.4: cancelCrop and applyCrop are no-ops without an open session
             assert.equal(
                 historyManager.history.length,
                 0,
-                'Req 30.4: cancelCrop with no session must not push history',
+                'the documented contract: cancelCrop with no session must not push history',
             );
 
             // No session open → applyCrop is a no-op (resolves
@@ -748,7 +744,7 @@ test('Property 26.4: cancelCrop and applyCrop are no-ops without an open session
             assert.equal(
                 historyManager.history.length,
                 0,
-                'Req 30.4: applyCrop with no session must not push history',
+                'the documented contract: applyCrop with no session must not push history',
             );
             assert.equal(
                 saveStateCalls.length,

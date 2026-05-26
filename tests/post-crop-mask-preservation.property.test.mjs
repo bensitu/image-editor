@@ -1,6 +1,5 @@
-// Property 28: Post-crop mask preservation respects pre-crop transform
+// Post-crop mask preservation respects pre-crop transform
 //
-// Property statement (design.md §"Property 28"):
 //   For any crop apply operation with `preserveMasksAfterCrop === true`,
 //   each mask's post-crop position SHALL preserve its relative
 //   relationship to the pre-crop image bounding box. When the image is
@@ -13,7 +12,7 @@
 //
 // ─── Scope of this test ─────────────────────────────────────────────────────
 //
-// Property 28 is the post-crop seam owned by `applyCrop` when
+// is the post-crop seam owned by `applyCrop` when
 // `options.crop.preserveMasksAfterCrop === true`. The contract has three
 // halves:
 //
@@ -21,7 +20,7 @@
 //        crop region survives the crop and lands at canvas-pixel
 //        coordinates `(pre.left - cropRegion.left, pre.top - cropRegion.top)`.
 //        Masks fully outside the crop region are dropped from the
-//        post-crop canvas (matches v1's `intersectsCrop` filter so a
+//        post-crop canvas (matches legacy's `intersectsCrop` filter so a
 //        mask fully outside the cropped area does not reappear in the
 //        cropped image space).
 //
@@ -44,25 +43,24 @@
 //          integer crop region survives on the post-crop canvas;
 //        · the surviving mask's `left` / `top` equal
 //          `(pre.left - cropRegion.left, pre.top - cropRegion.top)`
-//          (Requirement 31.4);
+//;
 //        · the surviving mask's `angle`, `scaleX`, `scaleY` equal the
-//          pre-crop values verbatim (Requirement 32.2);
+//          pre-crop values verbatim;
 //        · the round-trip is invariant under image rotation: the
 //          property iterates `originalImage.angle` across a wide range
 //          and asserts the same offsets land for every angle
-//          (Requirement 32.1).
+//.
 //
 //   28.B Successful applyCrop with `preserveMasksAfterCrop === true`:
 //        · every mask whose pre-crop bounding rect lies fully outside
 //          the integer crop region is removed from the post-crop canvas
-//          and is not re-added by the reapply step (Requirement 31.4 —
-//          v1's `intersectsCrop` filter).
+//          and is not re-added by the reapply step.
 //
-// The negative case `preserveMasksAfterCrop === false` (Requirement 31.3)
+// The negative case `preserveMasksAfterCrop === false`
 // is handled in production by the inner `ctx.loadImage(croppedBase64)`
 // replacing every canvas object — that path is exercised end-to-end by
-// Property 26 (`crop-transitions`) and by the example-based unit tests on
-// the loader. Property 28 is intentionally scoped to the preserve-true
+// (`crop-transitions`) and by the example-based unit tests on
+// the loader. is intentionally scoped to the preserve-true
 // branch because that is where the documented mask transform lives.
 //
 // Runtime note: Node 24+ strips TypeScript syntax natively, so this
@@ -187,8 +185,7 @@ class MockCanvas {
 }
 
 /**
- * Build a stand-in for the committed Fabric `originalImage`. Property 28
- * must exercise the rotation-invariance clause of Requirement 32.1, so
+ * Build a stand-in for the committed Fabric `originalImage`. * must exercise the rotation-invariance clause of the documented contract, so
  * the bounding rect is parameterised by the supplied `imageAngle`. The
  * controller does not consult `image.angle` directly — it reads the
  * absolute bounding rect via {@link MockCropRect.getBoundingRect}-style
@@ -236,10 +233,10 @@ function makeOriginalImage({ imageAngle, bboxLeft, bboxTop, bboxW, bboxH }) {
  *
  * The bbox is computed from the supplied `(left, top, width, height,
  * angle)` — we ignore `angle` for the bbox since axis-aligned bbox
- * suffices for the intersection filter, mirroring the way Property 28's
+ * suffices for the intersection filter, mirroring the way 's
  * stub fixture in `crop-transitions.property.test.mjs` handles bbox
  * math. The point of carrying `angle` here is to feed it through the
- * preserve / restore round trip so Requirement 32.2 can be asserted
+ * preserve / restore round trip so the documented contract can be asserted
  * verbatim on the post-crop value.
  */
 function makeMockMask({ maskId, left, top, width, height, angle, scaleX, scaleY }) {
@@ -259,7 +256,7 @@ function makeMockMask({ maskId, left, top, width, height, angle, scaleX, scaleY 
         scaleY,
         opacity: 0.5,
         // The axis-aligned bounding rect uses the scaled dimensions.
-        // We deliberately ignore `angle` here because the v1
+        // We deliberately ignore `angle` here because the legacy
         // `intersectsCrop` filter operates on axis-aligned bboxes,
         // matching `getObjectBBox` in `utils/canvas-region.ts`.
         getBoundingRect() {
@@ -283,13 +280,13 @@ function makeMockMask({ maskId, left, top, width, height, angle, scaleX, scaleY 
 
 /**
  * Build a fully-wired `CropControllerContext` plus the observability
- * hooks Property 28 needs:
+ * hooks needs:
  *
  *   - The mock canvas seeded with the supplied masks (in canvas object
- *     order) — ordering does not affect Property 28 directly but makes
+ *     order) — ordering does not affect directly but makes
  *     the failing-iteration trace more readable.
  *   - A real `HistoryManager` so the controller's atomicity invariants
- *     (Requirement 30.2) are honoured and `applyCrop` settles cleanly.
+ * are honoured and `applyCrop` settles cleanly.
  *   - A scripted `loadImage` that mirrors the production loader's
  *     `canvas.clear()` step. After `clear()`, the captured preserved
  *     masks are re-added by `reapplyPreservedMasks`.
@@ -337,7 +334,7 @@ function makeContext({
     // pre-decode `canvas.clear()` so the post-crop canvas starts empty
     // before `reapplyPreservedMasks` re-adds the captured records.
     // Without this step the preserved masks would land on top of the
-    // pre-crop residue and Property 28's intersection / transform
+    // pre-crop residue and 's intersection / transform
     // assertions would be polluted by stale pre-crop objects.
     const loadImage = async () => {
         canvas.clear();
@@ -400,7 +397,7 @@ function deriveCropRegion(rectBounds, canvasWidth, canvasHeight) {
  * Mirror of the controller's intersection filter
  * (`maskIntersectsRegion`). Returns `true` when the mask's axis-aligned
  * bbox overlaps the integer crop region. Two-sided strict inequality on
- * each axis matches v1's `intersectsCrop` semantics: a mask whose
+ * each axis matches legacy's `intersectsCrop` semantics: a mask whose
  * bbox just touches the crop edge is NOT preserved (zero overlap).
  */
 function bboxesIntersect(maskBBox, cropRegion) {
@@ -441,7 +438,7 @@ function snapshotMaskTransform(mask) {
 
 /**
  * Image rotation angle in degrees. Spans negative, zero, multi-turn,
- * and the full 360° range so Requirement 32.1's "regardless of image
+ * and the full 360° range so the documented contract's "regardless of image
  * rotation" wording is exercised. The controller's mechanical
  * translation (`mask.left -= cropRegion.left`,
  * `mask.top -= cropRegion.top`) is independent of angle, so every
@@ -472,9 +469,8 @@ const imageBBoxArb = fc.record({
 
 /**
  * One mask's pre-crop transform. The fields drive the `(left, top)`
- * snapshot (Requirement 31.4 — captured verbatim before the export)
- * and the `angle` / `scaleX` / `scaleY` round trip (Requirement 32.2 —
- * preserved verbatim).
+ * snapshot
+ * and the `angle` / `scaleX` / `scaleY` round trip.
  *
  * - `left` / `top` ∈ `[0, 800]` × `[0, 600]` — well inside the
  *   canvas bounds so the intersection filter has a meaningful
@@ -529,7 +525,7 @@ const cropBoundsArb = fc.record({
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('Property 28.A: applyCrop with preserveMasksAfterCrop=true shifts each surviving mask\'s left/top by -cropRegion.left/-cropRegion.top while preserving angle, scaleX, scaleY verbatim, regardless of image rotation (Req 31.4, 32.1, 32.2)', async () => {
+test('applyCrop with preserveMasksAfterCrop=true shifts each surviving mask\'s left/top by -cropRegion.left/-cropRegion.top while preserving angle, scaleX, scaleY verbatim, regardless of image rotation', async () => {
     await fc.assert(
         fc.asyncProperty(
             maskSetArb,
@@ -622,7 +618,7 @@ test('Property 28.A: applyCrop with preserveMasksAfterCrop=true shifts each surv
                     // so identity equality is the right comparison.
                     assert.ok(
                         surviving.includes(mask),
-                        `Req 31.4: mask[${i}] (maskId=${mask.maskId}) intersects cropRegion={left:${cropRegion.left},top:${cropRegion.top},w:${cropRegion.width},h:${cropRegion.height}} and MUST survive on the post-crop canvas`,
+                        `the documented contract: mask[${i}] (maskId=${mask.maskId}) intersects cropRegion={left:${cropRegion.left},top:${cropRegion.top},w:${cropRegion.width},h:${cropRegion.height}} and MUST survive on the post-crop canvas`,
                     );
 
                     // 31.4, 32.1 — `left` / `top` shifted by
@@ -633,12 +629,12 @@ test('Property 28.A: applyCrop with preserveMasksAfterCrop=true shifts each surv
                     assert.equal(
                         mask.left,
                         pre.left - cropRegion.left,
-                        `Req 31.4 / 32.1: mask[${i}].left must equal pre.left (${pre.left}) - cropRegion.left (${cropRegion.left}); got ${mask.left} at imageAngle=${imageAngle}`,
+                        `the documented contract: mask[${i}].left must equal pre.left (${pre.left}) - cropRegion.left (${cropRegion.left}); got ${mask.left} at imageAngle=${imageAngle}`,
                     );
                     assert.equal(
                         mask.top,
                         pre.top - cropRegion.top,
-                        `Req 31.4 / 32.1: mask[${i}].top must equal pre.top (${pre.top}) - cropRegion.top (${cropRegion.top}); got ${mask.top} at imageAngle=${imageAngle}`,
+                        `the documented contract: mask[${i}].top must equal pre.top (${pre.top}) - cropRegion.top (${cropRegion.top}); got ${mask.top} at imageAngle=${imageAngle}`,
                     );
 
                     // 32.2 — angle, scaleX, scaleY preserved verbatim
@@ -650,17 +646,17 @@ test('Property 28.A: applyCrop with preserveMasksAfterCrop=true shifts each surv
                     assert.equal(
                         mask.angle,
                         pre.angle,
-                        `Req 32.2: mask[${i}].angle must be preserved verbatim; pre=${pre.angle}, post=${mask.angle}`,
+                        `the documented contract: mask[${i}].angle must be preserved verbatim; pre=${pre.angle}, post=${mask.angle}`,
                     );
                     assert.equal(
                         mask.scaleX,
                         pre.scaleX,
-                        `Req 32.2: mask[${i}].scaleX must be preserved verbatim; pre=${pre.scaleX}, post=${mask.scaleX}`,
+                        `the documented contract: mask[${i}].scaleX must be preserved verbatim; pre=${pre.scaleX}, post=${mask.scaleX}`,
                     );
                     assert.equal(
                         mask.scaleY,
                         pre.scaleY,
-                        `Req 32.2: mask[${i}].scaleY must be preserved verbatim; pre=${pre.scaleY}, post=${mask.scaleY}`,
+                        `the documented contract: mask[${i}].scaleY must be preserved verbatim; pre=${pre.scaleY}, post=${mask.scaleY}`,
                     );
                 }
 
@@ -671,7 +667,7 @@ test('Property 28.A: applyCrop with preserveMasksAfterCrop=true shifts each surv
     );
 });
 
-test('Property 28.B: applyCrop with preserveMasksAfterCrop=true drops every mask whose pre-crop bbox lies fully outside the integer crop region (Req 31.4)', async () => {
+test('applyCrop with preserveMasksAfterCrop=true drops every mask whose pre-crop bbox lies fully outside the integer crop region', async () => {
     await fc.assert(
         fc.asyncProperty(
             maskSetArb,
@@ -728,11 +724,11 @@ test('Property 28.B: applyCrop with preserveMasksAfterCrop=true drops every mask
                     const intersects = bboxesIntersect(pre.bbox, cropRegion);
 
                     if (intersects) {
-                        // Surviving masks are covered by Property 28.A.
+                        // Surviving masks are covered by .
                         continue;
                     }
 
-                    // Req 31.4 (intersection filter) — masks fully
+                    // the documented contract (intersection filter) — masks fully
                     // outside the cropRegion must be removed from the
                     // post-crop canvas. The reapply pass only re-adds
                     // records produced by `capturePreservedMasks`, and
@@ -740,7 +736,7 @@ test('Property 28.B: applyCrop with preserveMasksAfterCrop=true drops every mask
                     // intersects the cropRegion.
                     assert.ok(
                         !surviving.includes(mask),
-                        `Req 31.4 (intersection filter): mask[${i}] (maskId=${mask.maskId}) lies fully outside cropRegion={left:${cropRegion.left},top:${cropRegion.top},w:${cropRegion.width},h:${cropRegion.height}} and MUST NOT appear on the post-crop canvas`,
+                        `the documented contract (intersection filter): mask[${i}] (maskId=${mask.maskId}) lies fully outside cropRegion={left:${cropRegion.left},top:${cropRegion.top},w:${cropRegion.width},h:${cropRegion.height}} and MUST NOT appear on the post-crop canvas`,
                     );
                 }
 

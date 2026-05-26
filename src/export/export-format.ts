@@ -20,11 +20,11 @@
  *     `fileType`-wins-over-`format` precedence and drops `quality` for PNG
  *     output.
  *
- * v1 parity:
+ * legacy parity:
  *   - The format mapping table mirrors `_normalizeImageFormat` from
- *     `src/image-editor.js@v1.4.0`, including the lowercase lookup and the
+ *     `src/image-editor.js@legacy.4.0`, including the lowercase lookup and the
  *     `'jpeg'` default for unknown input.
- *   - The quality clamp mirrors `_normalizeQuality` from the same v1 file:
+ *   - The quality clamp mirrors `_normalizeQuality` from the same legacy file:
  *     non-finite input falls back to `options.downsampleQuality`, finite
  *     input is clamped to `[0, 1]`.
  *
@@ -106,7 +106,7 @@ const MIME_TABLE: Readonly<Record<NormalizedImageFormat, ImageMimeType>> = Objec
 export function normalizeImageFormat(
     input?: string | null,
 ): NormalizedImageFormat {
-    // Match v1's `String(format || 'jpeg').toLowerCase` — falsy input
+    // Match legacy's `String(format || 'jpeg').toLowerCase` — falsy input
     // (including `null`, `undefined`, and `''`) collapses to `'jpeg'` before
     // the table lookup.
     const key = String(input || 'jpeg').toLowerCase();
@@ -154,16 +154,16 @@ export function clampQuality(quality: unknown, fallback: number): number {
  * Resolve the user-facing export options into the canvas-/Fabric-shaped
  * values consumed by `export/export-service.ts`.
  *
- * Precedence (matches v1 `exportImageBase64` / `exportImageFile`):
+ * Precedence (matches legacy `exportImageBase64` / `exportImageFile`):
  *   1. `options.fileType` wins over `options.format` when both are supplied
  *      and `options.fileType` is truthy. Falsy `fileType` falls through to
  *      `options.format`. Both omitted → `'jpeg'`.
  *   2. `options.quality` is normalized through {@link clampQuality} with
  *      `downsampleQuality` as the fallback. When `options.quality` is
- *      `undefined` or `null`, the fallback is used directly (Requirement
+ *      `undefined` or `null`, the fallback is used directly (Contract
  *      26.4).
  *   3. When the resolved format is `'png'`, `quality` is dropped from the
- *      result so call sites pass `undefined` to `toDataURL` (Requirement
+ *      result so call sites pass `undefined` to `toDataURL` (Contract
  *      26.3).
  *
  * Pure function — no DOM access, safe to call from property tests.
@@ -188,7 +188,7 @@ export function resolveExportFormat(
     downsampleQuality: number,
 ): ResolvedExportFormat {
     const opts = options ?? {};
-    // v1 used `options.fileType || options.format` (logical-or) so falsy
+    // legacy used `options.fileType || options.format` (logical-or) so falsy
     // `fileType` (e.g. empty string) falls through to `format`. Preserve
     // that to keep observable behavior identical.
     const fileType = (opts as Base64ExportOptions).fileType;
@@ -202,12 +202,12 @@ export function resolveExportFormat(
         // PNG is lossless — `quality` is meaningless and SHALL be ignored
         //. Returning `undefined` lets call sites omit the
         // argument from `toDataURL` / Fabric's region-export options.
-        return { format, mimeType, quality: undefined};
-}
+        return { format, mimeType, quality: undefined };
+    }
 
     // For lossy formats, fall back to `downsampleQuality` when the caller
     // omitted `quality` and clamp anything else into
-    // `[0, 1]`. Mirrors v1's
+    // `[0, 1]`. Mirrors legacy's
     // `_normalizeQuality(options.quality ?? options.downsampleQuality)`:
     // the `??` resolves the default first, then the clamp is applied
     // uniformly so the result is always in `[0, 1]` regardless of the
@@ -215,5 +215,5 @@ export function resolveExportFormat(
     const rawQuality = opts.quality ?? downsampleQuality;
     const quality = clampQuality(rawQuality, downsampleQuality);
 
-    return { format, mimeType, quality};
+    return { format, mimeType, quality };
 }

@@ -1,6 +1,5 @@
-// Property 27: Hide-masks-during-crop and restore on cancel
+// Hide-masks-during-crop and restore on cancel
 //
-// Property statement (design.md §"Property 27"):
 //   For any mask set and crop configuration, entering crop mode with
 //   `hideMasksDuringCrop === true` SHALL back up prior mask styles and
 //   hide masks from interaction. Canceling crop SHALL restore every
@@ -12,7 +11,7 @@
 //
 // ─── Scope of this test ─────────────────────────────────────────────────────
 //
-// Property 27 lives at the seam between the crop session lifecycle (owned
+// lives at the seam between the crop session lifecycle (owned
 // by `crop/crop-controller.ts`) and the per-mask style backup helpers
 // (owned by `mask/mask-style.ts`). The contract has two halves:
 //
@@ -40,7 +39,7 @@
 //          NOT mutate any mask's `opacity`. The freeze loop still runs
 //          (so `evented` / `selectable` flip to `false`), but those flags
 //          are restored on `cancelCrop()` via `prevEvented` so the round
-//          trip is observably a no-op for every mask field Requirement
+//          trip is observably a no-op for every mask field Contract
 //          31.2 covers.
 //
 // Three properties (27.A, 27.B, 27.C) cover the three cases above. All
@@ -76,7 +75,7 @@ const { HistoryManager } = await import('../src/history/history-manager.ts');
  * `cancelCrop`. The shape carries `set` (used for scale clamps),
  * `setCoords` (called before reading the bounding rect on apply), and
  * `getBoundingRect` (read by `applyCrop` to derive the integer crop
- * region). Property 27 does not exercise `applyCrop`.
+ * region). does not exercise `applyCrop`.
  */
 class MockCropRect {
     constructor(props) {
@@ -92,7 +91,7 @@ class MockCropRect {
     }
     setControlVisible() {
         // No-op — `setControlVisible('mtr', false)` is called by
-        // `enterCropMode` to hide the rotation handle. Property 27 does
+        // `enterCropMode` to hide the rotation handle. does
         // not assert visibility.
     }
     on(event, fn) {
@@ -121,7 +120,7 @@ class MockCropRect {
  *
  * Only methods the crop controller calls during `enterCropMode` and
  * `cancelCrop` are implemented. `applyCrop` is NOT exercised by
- * Property 27 (it has its own coverage in Property 26 / 28).
+ * (it has its own coverage in / 28).
  */
 class MockCanvas {
     constructor({ width = 800, height = 600 } = {}) {
@@ -175,7 +174,7 @@ function makeOriginalImage() {
  * numeric `maskId`) and exposes the live `set` method that
  * `applyCropHideMaskStyle` and `restoreMaskStyleBackup` mutate. The
  * `setCoords` method is required by `restoreMaskStyleBackup` (mirrors
- * v1's mergeMasks restore that calls `setCoords` after a write).
+ * legacy's mergeMasks restore that calls `setCoords` after a write).
  *
  * Style fields default to fast-check-supplied values so each iteration
  * exercises a different "pre-crop live state".
@@ -184,7 +183,7 @@ function makeMockMask(maskId, styleSeed) {
     const mask = {
         type: 'rect',
         maskId,
-        // Pre-crop live style — Property 27 backs this set up on entry
+        // Pre-crop live style — backs this set up on entry
         // and restores it on cancel.
         opacity: styleSeed.opacity,
         fill: styleSeed.fill,
@@ -204,15 +203,15 @@ function makeMockMask(maskId, styleSeed) {
 
 /**
  * Build a fully-wired `CropControllerContext` plus the observability
- * hooks Property 27 needs:
+ * hooks needs:
  *
  *   - The mock canvas seeded with the supplied masks (in canvas object
  *     order).
  *   - A real `HistoryManager` so we can assert NO history entry is
- *     produced by `cancelCrop` (Requirement 30.4).
+ *     produced by `cancelCrop`.
  *   - `saveStateCalls` recording every snapshot capture so we can
  *     verify the controller still captures a pre-crop snapshot under
- *     `hideMasksDuringCrop` (Requirement 30.1).
+ *     `hideMasksDuringCrop`.
  *   - `sessionRef` exposing the live session pointer.
  *
  * The `hideMasksDuringCrop` flag drives the property branch; all other
@@ -274,7 +273,7 @@ function makeContext({ hideMasksDuringCrop, masks }) {
 /**
  * One mask's pre-crop "live style". Each field uses an arbitrary that
  * spans realistic Fabric.js values so the backup capture loop is
- * exercised across the full domain of Requirement 31.1's six fields.
+ * exercised across the full domain of the documented contract's six fields.
  *
  * - `opacity` ∈ (0, 1] — the controller forces opacity to 0 on hide,
  *   so the pre-crop value must be observably non-zero for the test to
@@ -284,16 +283,15 @@ function makeContext({ hideMasksDuringCrop, masks }) {
  * - `fill` / `stroke` — strings, so a strict equality check on restore
  *   catches a missed field without false positives from object identity.
  *
- * - `strokeWidth` — small positive integers; Requirement 31.2 demands
+ * - `strokeWidth` — small positive integers; the documented contract demands
  *   the live value is restored verbatim regardless of magnitude.
  *
  * - `selectable` / `lockRotation` — booleans, exercising both `true` and
  *   `false` pre-crop values.
  *
  * - `evented` — boolean. Restoration goes through the freeze loop's
- *   `prevEvented` path rather than the MaskBackup, but Property 27.B
- *   asserts the round-trip ends with `evented` matching the pre-crop
- *   value too (Requirement 31.2 wording explicitly includes `evented`).
+ *   `prevEvented` path rather than the MaskBackup, but *   asserts the round-trip ends with `evented` matching the pre-crop
+ *   value too.
  */
 const maskStyleArb = fc.record({
     opacity: fc.double({ min: 0.05, max: 1, noNaN: true }),
@@ -321,7 +319,7 @@ const maskSetArb = fc.array(maskStyleArb, { minLength: 0, maxLength: 5 })
 // ─── Helper: snapshot a mask's pre-crop style for later comparison ───────────
 
 /**
- * Capture the six fields Requirement 31.2 covers (`opacity`, `fill`,
+ * Capture the six fields the documented contract covers (`opacity`, `fill`,
  * `strokeWidth`, `stroke`, `selectable`, `lockRotation`) plus `evented`
  * on a plain object so the test can compare pre-crop vs. post-cancel
  * state without sharing references with the live mask.
@@ -340,7 +338,7 @@ function snapshotMaskStyle(mask) {
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('Property 27.A: enterCropMode with hideMasksDuringCrop=true backs up prior mask styles and forces opacity=0 + evented=false (Req 31.1)', async () => {
+test('enterCropMode with hideMasksDuringCrop=true backs up prior mask styles and forces opacity=0 + evented=false', async () => {
     await fc.assert(
         fc.asyncProperty(maskSetArb, async (masks) => {
             // Snapshot the live style of each mask BEFORE any controller
@@ -362,14 +360,14 @@ test('Property 27.A: enterCropMode with hideMasksDuringCrop=true backs up prior 
                 'enterCropMode must open a session',
             );
 
-            // Requirement 31.1 — exactly one MaskBackup is captured
+            // the documented contract — exactly one MaskBackup is captured
             // per mask currently on the canvas. Non-mask objects must
             // NOT produce a MaskBackup (they are tracked via
             // `prevEvented` only).
             assert.equal(
                 session.maskBackups.length,
                 masks.length,
-                `Req 31.1: maskBackups must contain one entry per mask; expected ${masks.length}, got ${session.maskBackups.length}`,
+                `the documented contract: maskBackups must contain one entry per mask; expected ${masks.length}, got ${session.maskBackups.length}`,
             );
 
             // Each backup MUST carry the true pre-crop live values for
@@ -383,41 +381,41 @@ test('Property 27.A: enterCropMode with hideMasksDuringCrop=true backs up prior 
                 assert.equal(
                     backup.obj,
                     masks[i],
-                    `Req 31.1: maskBackups[${i}].obj must reference the live mask`,
+                    `the documented contract: maskBackups[${i}].obj must reference the live mask`,
                 );
                 assert.equal(
                     backup.opacity,
                     prior.opacity,
-                    `Req 31.1: maskBackups[${i}].opacity must capture the pre-crop opacity`,
+                    `the documented contract: maskBackups[${i}].opacity must capture the pre-crop opacity`,
                 );
                 assert.equal(
                     backup.fill,
                     prior.fill,
-                    `Req 31.1: maskBackups[${i}].fill must capture the pre-crop fill`,
+                    `the documented contract: maskBackups[${i}].fill must capture the pre-crop fill`,
                 );
                 assert.equal(
                     backup.stroke,
                     prior.stroke,
-                    `Req 31.1: maskBackups[${i}].stroke must capture the pre-crop stroke`,
+                    `the documented contract: maskBackups[${i}].stroke must capture the pre-crop stroke`,
                 );
                 assert.equal(
                     backup.strokeWidth,
                     prior.strokeWidth,
-                    `Req 31.1: maskBackups[${i}].strokeWidth must capture the pre-crop strokeWidth`,
+                    `the documented contract: maskBackups[${i}].strokeWidth must capture the pre-crop strokeWidth`,
                 );
                 assert.equal(
                     backup.selectable,
                     prior.selectable,
-                    `Req 31.1: maskBackups[${i}].selectable must capture the pre-crop selectable`,
+                    `the documented contract: maskBackups[${i}].selectable must capture the pre-crop selectable`,
                 );
                 assert.equal(
                     backup.lockRotation,
                     prior.lockRotation,
-                    `Req 31.1: maskBackups[${i}].lockRotation must capture the pre-crop lockRotation`,
+                    `the documented contract: maskBackups[${i}].lockRotation must capture the pre-crop lockRotation`,
                 );
             }
 
-            // Requirement 31.1 — after the freeze loop and the hide-style
+            // the documented contract — after the freeze loop and the hide-style
             // pass, every mask carries `opacity: 0`, `evented: false`,
             // `selectable: false`. These are the three flags
             // `applyCropHideMaskStyle` writes; the rest of the mask's
@@ -427,17 +425,17 @@ test('Property 27.A: enterCropMode with hideMasksDuringCrop=true backs up prior 
                 assert.equal(
                     mask.opacity,
                     0,
-                    'Req 31.1: hideMasksDuringCrop=true must force every mask to opacity 0',
+                    'the documented contract: hideMasksDuringCrop=true must force every mask to opacity 0',
                 );
                 assert.equal(
                     mask.evented,
                     false,
-                    'Req 31.1: hideMasksDuringCrop=true must force every mask to evented=false',
+                    'the documented contract: hideMasksDuringCrop=true must force every mask to evented=false',
                 );
                 assert.equal(
                     mask.selectable,
                     false,
-                    'Req 31.1: hideMasksDuringCrop=true must force every mask to selectable=false',
+                    'the documented contract: hideMasksDuringCrop=true must force every mask to selectable=false',
                 );
             }
 
@@ -447,7 +445,7 @@ test('Property 27.A: enterCropMode with hideMasksDuringCrop=true backs up prior 
     );
 });
 
-test('Property 27.B: cancelCrop after hideMasksDuringCrop=true restores opacity, fill, stroke, strokeWidth, selectable, lockRotation, and evented to pre-crop values (Req 31.2)', async () => {
+test('cancelCrop after hideMasksDuringCrop=true restores opacity, fill, stroke, strokeWidth, selectable, lockRotation, and evented to pre-crop values', async () => {
     await fc.assert(
         fc.asyncProperty(maskSetArb, async (masks) => {
             const preCropStyles = masks.map(snapshotMaskStyle);
@@ -466,20 +464,20 @@ test('Property 27.B: cancelCrop after hideMasksDuringCrop=true restores opacity,
 
             cancelCrop(ctx);
 
-            // Requirement 30.4 (sanity) — cancel produces no history
-            // entry. Property 27 focuses on style restoration but a
+            // the documented contract (sanity) — cancel produces no history
+            // entry. focuses on style restoration but a
             // missed history-suppression bug would corrupt this test
             // too, so the assertion guards against accidental coupling.
             assert.equal(
                 historyManager.history.length,
                 0,
-                'Req 30.4: cancelCrop must NOT push a history entry',
+                'the documented contract: cancelCrop must NOT push a history entry',
             );
 
-            // Requirement 31.2 — every mask's `opacity`, `fill`,
+            // the documented contract — every mask's `opacity`, `fill`,
             // `strokeWidth`, `stroke`, `selectable`, and `lockRotation`
             // is restored to the pre-crop value. `evented` is restored
-            // through the freeze loop's `prevEvented` path; design Property
+            // through the freeze loop's `prevEvented` path; Documented contract Property
             // 27 names `evented` explicitly in its post-condition list,
             // so the assertion covers it too.
             for (let i = 0; i < masks.length; i++) {
@@ -488,37 +486,37 @@ test('Property 27.B: cancelCrop after hideMasksDuringCrop=true restores opacity,
                 assert.equal(
                     mask.opacity,
                     prior.opacity,
-                    `Req 31.2: cancelCrop must restore mask[${i}].opacity to its pre-crop value`,
+                    `the documented contract: cancelCrop must restore mask[${i}].opacity to its pre-crop value`,
                 );
                 assert.equal(
                     mask.fill,
                     prior.fill,
-                    `Req 31.2: cancelCrop must restore mask[${i}].fill to its pre-crop value`,
+                    `the documented contract: cancelCrop must restore mask[${i}].fill to its pre-crop value`,
                 );
                 assert.equal(
                     mask.stroke,
                     prior.stroke,
-                    `Req 31.2: cancelCrop must restore mask[${i}].stroke to its pre-crop value`,
+                    `the documented contract: cancelCrop must restore mask[${i}].stroke to its pre-crop value`,
                 );
                 assert.equal(
                     mask.strokeWidth,
                     prior.strokeWidth,
-                    `Req 31.2: cancelCrop must restore mask[${i}].strokeWidth to its pre-crop value`,
+                    `the documented contract: cancelCrop must restore mask[${i}].strokeWidth to its pre-crop value`,
                 );
                 assert.equal(
                     mask.selectable,
                     prior.selectable,
-                    `Req 31.2: cancelCrop must restore mask[${i}].selectable to its pre-crop value`,
+                    `the documented contract: cancelCrop must restore mask[${i}].selectable to its pre-crop value`,
                 );
                 assert.equal(
                     mask.lockRotation,
                     prior.lockRotation,
-                    `Req 31.2: cancelCrop must restore mask[${i}].lockRotation to its pre-crop value`,
+                    `the documented contract: cancelCrop must restore mask[${i}].lockRotation to its pre-crop value`,
                 );
                 assert.equal(
                     mask.evented,
                     prior.evented,
-                    `Req 31.2 (per design Property 27 wording): cancelCrop must restore mask[${i}].evented to its pre-crop value`,
+                    `the documented contract (per Documented contract wording): cancelCrop must restore mask[${i}].evented to its pre-crop value`,
                 );
             }
 
@@ -527,7 +525,7 @@ test('Property 27.B: cancelCrop after hideMasksDuringCrop=true restores opacity,
             assert.equal(
                 sessionRef.current,
                 null,
-                'Req 30.4 (sanity): session pointer must be null after cancelCrop',
+                'the documented contract (sanity): session pointer must be null after cancelCrop',
             );
 
             return true;
@@ -536,7 +534,7 @@ test('Property 27.B: cancelCrop after hideMasksDuringCrop=true restores opacity,
     );
 });
 
-test('Property 27.C: enterCropMode with hideMasksDuringCrop=false captures NO mask backups and leaves opacity untouched; cancelCrop round-trips evented/selectable to pre-crop values (Req 31.1, 31.2)', async () => {
+test('enterCropMode with hideMasksDuringCrop=false captures NO mask backups and leaves opacity untouched; cancelCrop round-trips evented/selectable to pre-crop values', async () => {
     await fc.assert(
         fc.asyncProperty(maskSetArb, async (masks) => {
             const preCropStyles = masks.map(snapshotMaskStyle);
@@ -555,7 +553,7 @@ test('Property 27.C: enterCropMode with hideMasksDuringCrop=false captures NO ma
                 'enterCropMode must open a session even when hideMasksDuringCrop=false',
             );
 
-            // Requirement 31.1 (negative) — when `hideMasksDuringCrop`
+            // the documented contract (negative) — when `hideMasksDuringCrop`
             // is `false`, the controller MUST NOT capture any
             // MaskBackup (the hide style is never applied, so there is
             // nothing to revert on cancel). The freeze loop still runs,
@@ -563,10 +561,10 @@ test('Property 27.C: enterCropMode with hideMasksDuringCrop=false captures NO ma
             assert.equal(
                 session.maskBackups.length,
                 0,
-                'Req 31.1 (negative): hideMasksDuringCrop=false must produce ZERO MaskBackups',
+                'the documented contract (negative): hideMasksDuringCrop=false must produce ZERO MaskBackups',
             );
 
-            // Requirement 31.1 (negative) — opacity, fill, stroke,
+            // the documented contract (negative) — opacity, fill, stroke,
             // strokeWidth, and lockRotation MUST be untouched on entry
             // when the option is `false`. The freeze loop forces
             // `evented` and `selectable` to `false` on every object,
@@ -579,33 +577,33 @@ test('Property 27.C: enterCropMode with hideMasksDuringCrop=false captures NO ma
                 assert.equal(
                     mask.opacity,
                     prior.opacity,
-                    `Req 31.1 (negative): hideMasksDuringCrop=false must NOT change mask[${i}].opacity on entry`,
+                    `the documented contract (negative): hideMasksDuringCrop=false must NOT change mask[${i}].opacity on entry`,
                 );
                 assert.equal(
                     mask.fill,
                     prior.fill,
-                    `Req 31.1 (negative): hideMasksDuringCrop=false must NOT change mask[${i}].fill on entry`,
+                    `the documented contract (negative): hideMasksDuringCrop=false must NOT change mask[${i}].fill on entry`,
                 );
                 assert.equal(
                     mask.stroke,
                     prior.stroke,
-                    `Req 31.1 (negative): hideMasksDuringCrop=false must NOT change mask[${i}].stroke on entry`,
+                    `the documented contract (negative): hideMasksDuringCrop=false must NOT change mask[${i}].stroke on entry`,
                 );
                 assert.equal(
                     mask.strokeWidth,
                     prior.strokeWidth,
-                    `Req 31.1 (negative): hideMasksDuringCrop=false must NOT change mask[${i}].strokeWidth on entry`,
+                    `the documented contract (negative): hideMasksDuringCrop=false must NOT change mask[${i}].strokeWidth on entry`,
                 );
                 assert.equal(
                     mask.lockRotation,
                     prior.lockRotation,
-                    `Req 31.1 (negative): hideMasksDuringCrop=false must NOT change mask[${i}].lockRotation on entry`,
+                    `the documented contract (negative): hideMasksDuringCrop=false must NOT change mask[${i}].lockRotation on entry`,
                 );
             }
 
             cancelCrop(ctx);
 
-            // Requirement 31.2 — after cancel, every field (including
+            // the documented contract — after cancel, every field (including
             // the freeze-loop-mutated `evented` and `selectable`) is
             // back to its pre-crop value. This proves the round trip
             // is observably a no-op for the entire mask style space
@@ -616,37 +614,37 @@ test('Property 27.C: enterCropMode with hideMasksDuringCrop=false captures NO ma
                 assert.equal(
                     mask.opacity,
                     prior.opacity,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].opacity at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].opacity at its pre-crop value`,
                 );
                 assert.equal(
                     mask.fill,
                     prior.fill,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].fill at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].fill at its pre-crop value`,
                 );
                 assert.equal(
                     mask.stroke,
                     prior.stroke,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].stroke at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].stroke at its pre-crop value`,
                 );
                 assert.equal(
                     mask.strokeWidth,
                     prior.strokeWidth,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].strokeWidth at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].strokeWidth at its pre-crop value`,
                 );
                 assert.equal(
                     mask.selectable,
                     prior.selectable,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].selectable at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].selectable at its pre-crop value`,
                 );
                 assert.equal(
                     mask.lockRotation,
                     prior.lockRotation,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].lockRotation at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].lockRotation at its pre-crop value`,
                 );
                 assert.equal(
                     mask.evented,
                     prior.evented,
-                    `Req 31.2: cancelCrop round-trip must leave mask[${i}].evented at its pre-crop value`,
+                    `the documented contract: cancelCrop round-trip must leave mask[${i}].evented at its pre-crop value`,
                 );
             }
 

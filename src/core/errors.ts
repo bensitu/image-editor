@@ -7,16 +7,7 @@
  * callers can discriminate via `instanceof` or `err.name` checks. The
  * hierarchy is intentionally flat — there is no shared `ImageEditorError`
  * base class — to keep `name`/message contracts independent per pipeline
- * and to mirror the design's Error Handling section.
- *
- * Requirement references:
- *   - 4.3  Fabric module unavailable at construction time.
- *   - 6.3  Transactional image-load failure (decode / Fabric / downsample).
- *   - 7.3  Decode or `FabricImage.fromURL` timeout (message includes ms).
- *   - 8.4  Offscreen-canvas 2D context unavailable for downsampling.
- *   - 25.4 Export attempted when no image is loaded.
- *   - 29.3 `mergeMasks` atomic failure (pre-merge snapshot restored).
- *   - 30.3 `applyCrop` atomic failure (pre-crop snapshot restored).
+ * and to keep name/message contracts independent per pipeline.
  *
  * These classes are internal to the package and are NOT re-exported from
  * `src/index.ts`. Consumers see them via promise rejections from public
@@ -56,7 +47,7 @@ export class FabricUnavailableError extends Error {
     constructor(message = 'Fabric.js v7 is not available. Pass the Fabric module explicitly to the constructor or expose it as `globalThis.fabric`.') {
         super(message);
         fixPrototype(this, FabricUnavailableError);
-}
+    }
 }
 
 /**
@@ -78,7 +69,7 @@ export class ImageDecodeError extends Error {
         super(message);
         this.originalError = originalError;
         fixPrototype(this, ImageDecodeError);
-}
+    }
 }
 
 /**
@@ -105,7 +96,7 @@ export class ImageLoadTimeoutError extends Error {
         this.label = label;
         this.elapsedMs = elapsedMs;
         fixPrototype(this, ImageLoadTimeoutError);
-}
+    }
 }
 
 /**
@@ -128,7 +119,7 @@ export class DownsampleError extends Error {
         super(message);
         this.originalError = originalError;
         fixPrototype(this, DownsampleError);
-}
+    }
 }
 
 /**
@@ -149,7 +140,7 @@ export class MergeMasksError extends Error {
         super(message);
         this.originalError = originalError;
         fixPrototype(this, MergeMasksError);
-}
+    }
 }
 
 /**
@@ -172,7 +163,7 @@ export class CropApplyError extends Error {
         super(message);
         this.originalError = originalError;
         fixPrototype(this, CropApplyError);
-}
+    }
 }
 
 /**
@@ -196,5 +187,5 @@ export class ExportNotReadyError extends Error {
         super(`Cannot ${operation}: no image is loaded on the canvas.`);
         this.operation = operation;
         fixPrototype(this, ExportNotReadyError);
-}
+    }
 }

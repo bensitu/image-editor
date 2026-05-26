@@ -4,7 +4,7 @@
  * @description
  *   Pure layout helpers and a small viewport cache used by the
  *   `image-loader` pipeline. The layout manager owns three concerns
- *   that the v1 monolith handled inline inside `loadImage`:
+ *   used by the image-load pipeline:
  *
  *   1. Selecting exactly one layout strategy per load using the
  *      precedence `fit > cover > expand`.
@@ -29,8 +29,8 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { ResolvedOptions} from '../core/public-types.js';
-import { forceReflow} from '../utils/dom.js';
+import type { ResolvedOptions } from '../core/public-types.js';
+import { forceReflow } from '../utils/dom.js';
 
 // ─── Strategy selection ──────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ export function detectLayoutConflict(
         message:
             `Layout flags ${enabled.map(s => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
             `Using precedence \`fit > cover > expand\`; selected \`${selected}\`.`,
-};
+    };
 }
 
 // ─── Viewport measurement and caching ────────────────────────────────────────
@@ -168,7 +168,7 @@ export class ViewportCache {
     measure(
         container: HTMLElement | null,
         fallback: ViewportSize,
-): ViewportSize {
+    ): ViewportSize {
         if (!container) return fallback;
         // `clientWidth` / `clientHeight` already exclude any visible
         // scrollbar gutter, so no `overflow` mutation is needed
@@ -176,29 +176,29 @@ export class ViewportCache {
         const cw = Math.floor(container.clientWidth);
         const ch = Math.floor(container.clientHeight);
         if (cw > 0 && ch > 0) {
-            this.lastVisible = { width: cw, height: ch};
+            this.lastVisible = { width: cw, height: ch };
             return this.lastVisible;
-}
+        }
         return this.lastVisible ?? fallback;
-}
+    }
 
     /**
      * Return the cached viewport size without re-measuring. Useful for
      * tests and for diagnostic logging. `null` indicates no non-zero
      * measurement has been observed yet.
      */
-    peek(): ViewportSize | null  {
+    peek(): ViewportSize | null {
         return this.lastVisible;
-}
+    }
 
     /**
      * Discard the cached measurement. Intended for `dispose` paths.
      * Calling `measure` again after `clear` behaves as if the editor
      * has just been instantiated.
      */
-    clear(): void  {
+    clear(): void {
         this.lastVisible = null;
-}
+    }
 }
 
 // ─── Layout computation ──────────────────────────────────────────────────────
@@ -242,11 +242,11 @@ export function computeFitLayout(
     const cw = Math.max(
         1,
         Math.min(optionsCanvasWidth, containerSize.width) - 1,
-);
+    );
     const ch = Math.max(
         1,
         Math.min(optionsCanvasHeight, containerSize.height) - 1,
-);
+    );
     const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
     return {
         canvasWidth: cw,
@@ -255,7 +255,7 @@ export function computeFitLayout(
         imageLeft: 0,
         imageTop: 0,
         baseImageScale: fitScale,
-};
+    };
 }
 
 /**
@@ -292,7 +292,7 @@ export function computeCoverLayout(
         imageLeft: 0,
         imageTop: 0,
         baseImageScale: coverScale,
-};
+    };
 }
 
 /**
@@ -319,7 +319,7 @@ export function computeExpandLayout(
         imageLeft: 0,
         imageTop: 0,
         baseImageScale: 1,
-};
+    };
 }
 
 // ─── Canvas dimension application ────────────────────────────────────────────
@@ -332,7 +332,7 @@ export function computeExpandLayout(
  * (`lowerCanvasEl` for rendering, `upperCanvasEl` for pointer events).
  * `Canvas.setDimensions` is the only API that updates both layers
  * atomically and keeps their CSS in sync. Manually mutating
- * `canvasEl.style.width/height` only resizes the lower layer and
+ * Direct canvas element style writes only resize the lower layer and
  * misaligns the upper layer's hit-test regions, so the editor always
  * routes through this helper instead of touching the canvas element
  * styles.
@@ -349,18 +349,18 @@ export function computeExpandLayout(
  * @param canvas      The Fabric canvas to resize. Required.
  * @param width       Target pixel width. Clamped to `>= 1` and rounded.
  * @param height      Target pixel height. Clamped to `>= 1` and rounded.
- * @param containerEl The wrapper element to reflow. May be `null` when
- *                    no container has been resolved; in that case the
- *                    reflow is skipped without error.
+ * @param containerElement The wrapper element to reflow. May be `null`
+ *                         when no container has been resolved; in that
+ *                         case the reflow is skipped without error.
  */
 export function applyCanvasDimensions(
     canvas: FabricNS.Canvas,
     width: number,
     height: number,
-    containerEl: HTMLElement | null,
+    containerElement: HTMLElement | null,
 ): void {
     const iw = Math.max(1, Math.round(Number(width) || 1));
     const ih = Math.max(1, Math.round(Number(height) || 1));
-    canvas.setDimensions({ width: iw, height: ih});
-    forceReflow(containerEl);
+    canvas.setDimensions({ width: iw, height: ih });
+    forceReflow(containerElement);
 }

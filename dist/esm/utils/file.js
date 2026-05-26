@@ -6,9 +6,10 @@ export const SUPPORTED_IMAGE_EXTENSIONS = {
     gif: 'image/gif',
     bmp: 'image/bmp',
 };
+export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
 export function inferImageMimeType(file) {
     var _a, _b;
-    if (file.type && file.type.startsWith('image/'))
+    if (file.type && SUPPORTED_IMAGE_MIME_TYPES.has(file.type))
         return file.type;
     if (file.type)
         return null;
@@ -33,6 +34,9 @@ export function readFileAsDataURL(file) {
         reader.onerror = () => {
             var _a;
             reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
         };
         reader.readAsDataURL(file);
     });

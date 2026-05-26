@@ -1,6 +1,5 @@
-// Property 25: Atomic mergeMasks
+// Atomic mergeMasks
 //
-// Property statement (design.md §"Property 25"):
 //   For any merge attempt, `mergeMasks()` SHALL either commit a merged
 //   image state with exactly one history entry and preserved scroll
 //   position, or restore the pre-merge snapshot and reject without
@@ -17,27 +16,27 @@
 // manager, loader, and state callbacks are deterministic stubs that
 // record the order and identity of every step the merge takes.
 //
-// The two scenarios named in task 19.2 are exercised here:
+// The two core merge scenarios are exercised here:
 //
 //   1. Successful merge — random pre-merge mask population and
 //      container scroll position. Asserts that:
 //        · the pre-merge snapshot was captured before any mutation
-//          (Requirement 29.2)
-//        · exactly one history entry was pushed (Requirement 29.4)
+//
+//        · exactly one history entry was pushed
 //        · `scrollTop` / `scrollLeft` are preserved across the success
-//          path (Requirement 29.5)
+//          path
 //        · the history command's `undo` callback restores the pre-merge
 //          snapshot, and `execute` re-applies the merged snapshot
-//          (Requirement 29.4)
+//
 //
 //   2. Failed merge — `loadImage` is forced to throw. Asserts that:
 //        · the pre-merge snapshot was captured before any mutation
-//          (Requirement 29.2)
+//
 //        · `loadFromState` was called with the pre-merge snapshot to
-//          restore the editor (Requirement 29.3)
+//          restore the editor
 //        · the returned promise rejects with `MergeMasksError`
-//          (Requirement 29.3)
-//        · NO history entry was pushed (Requirement 29.3 + 29.4)
+//
+//        · NO history entry was pushed
 //
 // Runtime note: Node 24+ strips TypeScript syntax natively, so this test
 // imports the module under test directly from source via the shared
@@ -88,7 +87,7 @@ function makeMockMask(maskId) {
  * Stand-in for `fabric.Canvas` covering only the surface that
  * `mergeMasks` and its inner `exportImageBase64` touch:
  *   - getObjects()              — mask enumeration + filter
- *   - discardActiveObject()     — Requirement 23.2
+ *   - discardActiveObject()     — the documented contract
  *   - renderAll()               — post-discard repaint
  *   - toDataURL(options)        — the merged-bitmap render
  *
@@ -126,9 +125,9 @@ function makeMockCanvas(initialMasks, stubDataUrl) {
  * Build a fully-wired `MergeMasksContext` plus the stub state needed to
  * observe the merge's behavior across the two scenarios. Returns the
  * context, the live mock canvas, the history manager, the recorded
- * snapshot/load history, and a `containerEl` whose `scrollTop` /
+ * snapshot/load history, and a `containerElement` whose `scrollTop` /
  * `scrollLeft` are pre-populated to a caller-supplied tuple so the
- * Requirement 29.5 assertions can detect any drift.
+ * the documented contract assertions can detect any drift.
  *
  * @param {object}   args
  * @param {number}   args.maskCount      Number of masks to seed.
@@ -136,7 +135,7 @@ function makeMockCanvas(initialMasks, stubDataUrl) {
  * @param {number}   args.scrollLeft     Pre-merge container scrollLeft.
  * @param {boolean}  args.failLoadImage  When true, the inner `loadImage`
  *                                       throws to exercise the rollback
- *                                       path (Requirement 29.3).
+ *                                       path.
  */
 function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
     const masks = Array.from({ length: maskCount }, (_, i) => makeMockMask(i + 1));
@@ -144,7 +143,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
 
     // Mock container element with mutable scroll properties; only the
     // four properties that `mergeMasks` reads/writes are exposed.
-    const containerEl = {
+    const containerElement = {
         scrollTop,
         scrollLeft,
     };
@@ -172,8 +171,8 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
     };
 
     // `loadFromState` records every restore the merge performs. Used by
-    // the failure path to verify the rollback step (Requirement 29.3)
-    // and by the `undo` / `execute` callback assertions (Requirement
+    // the failure path to verify the rollback step
+    // and by the `undo` / `execute` callback assertions (Contract
     // 29.4).
     const loadFromStateCalls = [];
     const loadFromState = async (snapshot) => {
@@ -182,8 +181,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
 
     // The transactional `loadImage` is the failure injection point for
     // scenario 2. On success it records the call so the test can assert
-    // the merge passed `preserveScroll: true` (Requirement 29.5
-    // canonical hint).
+    // the merge passed `preserveScroll: true`.
     const loadImageCalls = [];
     const loadImage = async (imageBase64, options) => {
         loadImageCalls.push({ imageBase64, options });
@@ -212,7 +210,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
         isImageLoaded: () => true,
         getOriginalImage: () => null,
         historyManager,
-        containerEl,
+        containerElement,
         loadImage,
         saveState,
         loadFromState,
@@ -222,7 +220,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
     return {
         ctx,
         canvas,
-        containerEl,
+        containerElement,
         historyManager,
         saveStateCalls,
         loadFromStateCalls,
@@ -234,7 +232,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
 // ─── Arbitraries ────────────────────────────────────────────────────────────
 
 // At least one mask, otherwise the merge is a documented no-op (matches
-// v1's `if (!masks.length) return;` and the explicit gate inside
+// legacy's `if (!masks.length) return;` and the explicit gate inside
 // `mergeMasks`).
 const maskCountArb = fc.integer({ min: 1, max: 8 });
 
@@ -245,7 +243,7 @@ const scrollArb = fc.integer({ min: 0, max: 4096 });
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('Property 25.1: successful merge — pre-merge snapshot captured before any mutation (Req 29.2), exactly one history entry pushed (Req 29.4), scroll preserved (Req 29.5), undo/execute snapshots match (Req 29.4)', async () => {
+test('successful merge — pre-merge snapshot captured before any mutation, exactly one history entry pushed, scroll preserved, undo/execute snapshots match', async () => {
     await fc.assert(
         fc.asyncProperty(
             maskCountArb,
@@ -255,7 +253,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 const {
                     ctx,
                     canvas,
-                    containerEl,
+                    containerElement,
                     historyManager,
                     saveStateCalls,
                     loadFromStateCalls,
@@ -270,7 +268,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
 
                 await mergeMasks(ctx);
 
-                // Requirement 29.2 — the pre-merge snapshot is captured
+                // the documented contract — the pre-merge snapshot is captured
                 // before any canvas mutation. The merge calls
                 // `discardActiveObject` and `renderAll` immediately
                 // before `saveState`, so the only canvas calls allowed
@@ -279,7 +277,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 // bitmap render must come after.
                 assert.ok(
                     saveStateCalls.length >= 1,
-                    'Req 29.2: saveState must be called to capture the pre-merge snapshot',
+                    'the documented contract: saveState must be called to capture the pre-merge snapshot',
                 );
                 const firstCapture = saveStateCalls[0];
                 const callsBeforeFirstSnapshot = canvas.callOrder.slice(
@@ -289,14 +287,14 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 for (const call of callsBeforeFirstSnapshot) {
                     assert.ok(
                         call === 'discardActiveObject' || call === 'renderAll',
-                        `Req 29.2: only discardActiveObject/renderAll may run before the pre-merge snapshot; saw "${call}"`,
+                        `the documented contract: only discardActiveObject/renderAll may run before the pre-merge snapshot; saw "${call}"`,
                     );
                 }
                 // The merged-bitmap render and the mask drain must
                 // happen after the snapshot capture.
                 assert.ok(
                     !callsBeforeFirstSnapshot.includes('toDataURL'),
-                    'Req 29.2: toDataURL (merged render) must not run before the pre-merge snapshot',
+                    'the documented contract: toDataURL (merged render) must not run before the pre-merge snapshot',
                 );
                 assert.equal(
                     removeAllMasksCalls.length,
@@ -305,7 +303,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 );
                 assert.ok(
                     removeAllMasksCalls[0] >= firstCapture.canvasCallsAtCapture,
-                    'Req 29.2: mask drain must not precede the pre-merge snapshot',
+                    'the documented contract: mask drain must not precede the pre-merge snapshot',
                 );
 
                 // The merge captures both a pre-merge and a post-merge
@@ -314,7 +312,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 assert.equal(
                     saveStateCalls.length,
                     2,
-                    'Req 29.4: success path captures pre-merge and post-merge snapshots',
+                    'the documented contract: success path captures pre-merge and post-merge snapshots',
                 );
                 const beforeSnap = saveStateCalls[0].snap;
                 const afterSnap = saveStateCalls[1].snap;
@@ -330,32 +328,32 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 assert.equal(
                     loadImageCalls[0].options?.preserveScroll,
                     true,
-                    'Req 29.5: mergeMasks must request preserveScroll on the inner loadImage',
+                    'the documented contract: mergeMasks must request preserveScroll on the inner loadImage',
                 );
 
-                // Requirement 29.5 — container scroll preserved across
+                // the documented contract — container scroll preserved across
                 // the success path. The defensive restore at the tail
                 // of the merge guarantees this regardless of layout.
                 assert.equal(
-                    containerEl.scrollTop,
+                    containerElement.scrollTop,
                     scrollTop,
-                    'Req 29.5: container scrollTop must be preserved across mergeMasks',
+                    'the documented contract: container scrollTop must be preserved across mergeMasks',
                 );
                 assert.equal(
-                    containerEl.scrollLeft,
+                    containerElement.scrollLeft,
                     scrollLeft,
-                    'Req 29.5: container scrollLeft must be preserved across mergeMasks',
+                    'the documented contract: container scrollLeft must be preserved across mergeMasks',
                 );
 
-                // Requirement 29.4 — exactly one history entry pushed.
+                // the documented contract — exactly one history entry pushed.
                 assert.equal(
                     historyManager.history.length,
                     1,
-                    'Req 29.4: success must push exactly one history entry',
+                    'the documented contract: success must push exactly one history entry',
                 );
                 const cmd = historyManager.history[0];
 
-                // Requirement 29.4 — the command's `undo` restores the
+                // the documented contract — the command's `undo` restores the
                 // pre-merge snapshot and `execute` re-applies the
                 // merged snapshot. Drive each callback once and inspect
                 // the resulting `loadFromState` calls.
@@ -365,14 +363,14 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 assert.equal(
                     undoArg,
                     beforeSnap,
-                    "Req 29.4: command.undo() must restore the pre-merge snapshot",
+                    "the documented contract: command.undo() must restore the pre-merge snapshot",
                 );
                 await cmd.execute();
                 const execArg = loadFromStateCalls[restoresBefore + 1];
                 assert.equal(
                     execArg,
                     afterSnap,
-                    "Req 29.4: command.execute() must re-apply the merged snapshot",
+                    "the documented contract: command.execute() must re-apply the merged snapshot",
                 );
 
                 // The success path must NOT have invoked
@@ -385,7 +383,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
                 assert.equal(
                     restoresBefore,
                     0,
-                    'Req 29.3: success path must not call loadFromState (no rollback)',
+                    'the documented contract: success path must not call loadFromState (no rollback)',
                 );
             },
         ),
@@ -393,7 +391,7 @@ test('Property 25.1: successful merge — pre-merge snapshot captured before any
     );
 });
 
-test('Property 25.2: failed merge — pre-merge snapshot captured (Req 29.2) and restored (Req 29.3), promise rejects with MergeMasksError (Req 29.3), no history entry pushed (Req 29.3, 29.4)', async () => {
+test('failed merge — pre-merge snapshot captured and restored, promise rejects with MergeMasksError, no history entry pushed', async () => {
     await fc.assert(
         fc.asyncProperty(maskCountArb, async (maskCount) => {
             const {
@@ -415,19 +413,19 @@ test('Property 25.2: failed merge — pre-merge snapshot captured (Req 29.2) and
                 (err) => err,
             );
 
-            // Requirement 29.3 — the promise rejects with
+            // the documented contract — the promise rejects with
             // `MergeMasksError`. The original cause is preserved on
-            // `originalError` per the design's error-class contract.
+            // `originalError` per the documented error-class contract.
             assert.ok(
                 rejection instanceof MergeMasksError,
-                'Req 29.3: failure must reject with MergeMasksError',
+                'the documented contract: failure must reject with MergeMasksError',
             );
 
-            // Requirement 29.2 — even on failure, the pre-merge
+            // the documented contract — even on failure, the pre-merge
             // snapshot must have been captured before any mutation.
             assert.ok(
                 saveStateCalls.length >= 1,
-                'Req 29.2: pre-merge snapshot must be captured even on the failure path',
+                'the documented contract: pre-merge snapshot must be captured even on the failure path',
             );
             const firstCapture = saveStateCalls[0];
             const callsBeforeFirstSnapshot = canvas.callOrder.slice(
@@ -437,44 +435,43 @@ test('Property 25.2: failed merge — pre-merge snapshot captured (Req 29.2) and
             for (const call of callsBeforeFirstSnapshot) {
                 assert.ok(
                     call === 'discardActiveObject' || call === 'renderAll',
-                    `Req 29.2: only discardActiveObject/renderAll may run before the pre-merge snapshot; saw "${call}"`,
+                    `the documented contract: only discardActiveObject/renderAll may run before the pre-merge snapshot; saw "${call}"`,
                 );
             }
 
-            // Requirement 29.3 — the rollback path calls
+            // the documented contract — the rollback path calls
             // `loadFromState` with the pre-merge snapshot.
             const beforeSnap = firstCapture.snap;
             assert.ok(
                 loadFromStateCalls.length >= 1,
-                'Req 29.3: failure path must call loadFromState to restore the pre-merge snapshot',
+                'the documented contract: failure path must call loadFromState to restore the pre-merge snapshot',
             );
             assert.equal(
                 loadFromStateCalls[loadFromStateCalls.length - 1],
                 beforeSnap,
-                'Req 29.3: the rollback restore must target the pre-merge snapshot',
+                'the documented contract: the rollback restore must target the pre-merge snapshot',
             );
 
             // The failure injection happens inside the inner
             // `loadImage`, so the merge must have reached step 7
-            // (matching the design's documented step ordering).
+            // (matching the documented documented step ordering).
             assert.equal(
                 loadImageCalls.length,
                 1,
                 'failure injection point: inner loadImage was attempted exactly once',
             );
 
-            // Requirements 29.3 + 29.4 — no history entry must be
-            // pushed when the merge rolls back. The history manager is
+            // No history entry is pushed when the merge rolls back. The history manager is
             // empty.
             assert.equal(
                 historyManager.history.length,
                 0,
-                'Req 29.4: failure must NOT push a history entry',
+                'the documented contract: failure must NOT push a history entry',
             );
             assert.equal(
                 historyManager.canUndo(),
                 false,
-                'Req 29.4: failure must leave canUndo() === false',
+                'the documented contract: failure must leave canUndo() === false',
             );
         }),
         { numRuns: 100 },

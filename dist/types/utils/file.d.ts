@@ -1,8 +1,7 @@
 /**
- * File-input helpers used by the v2 image-editor file-input flow.
+ * File-input helpers used by the editor's file-input flow.
  *
- * These helpers cover three concerns described,
- * 6.3, 6.5, 6.6, and 35.2:
+ * These helpers cover three concerns:
  *
  * - Determining whether a `File` selected through the upload control is a
  *   supported image, including the extension fallback when `file.type` is
@@ -26,15 +25,15 @@
  * Keys are lowercase extensions without the leading `.`.
  */
 export declare const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string>;
+export declare const SUPPORTED_IMAGE_MIME_TYPES: Set<string>;
 /**
  * Determine whether a `File` is a supported image and return its resolved
  * MIME type, or `null` when it should be rejected.
  *
  * Resolution order:
  *
- * 1. If `file.type` is non-empty and starts with `image/`, return
- *    `file.type` verbatim. The browser already classified the file as an
- *    image, so the loader trusts that classification.
+ * 1. If `file.type` is one of the supported image MIME types, return it
+ *    verbatim.
  * 2. If `file.type` is empty, infer the MIME type from the file
  *    extension via {@link SUPPORTED_IMAGE_EXTENSIONS}. This covers the
  *    case where a browser or OS reports `''` for files with a known

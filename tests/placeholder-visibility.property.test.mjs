@@ -1,6 +1,5 @@
-// Property 30: Placeholder visibility uses hidden + aria-hidden only
+// Placeholder visibility uses hidden + aria-hidden only
 //
-// Property statement (design.md §"Property 30"):
 //   For any placeholder/container visibility transition, the
 //   visibility service SHALL update only standard DOM state
 //   (`hidden` and `aria-hidden`) and SHALL NOT add or remove
@@ -12,28 +11,28 @@
 // is `setPlaceholderVisible(placeholder, container, show)` — the
 // pure function the orchestrator's private
 // `_setPlaceholderVisible` delegates to. Centralizing the
-// hidden/aria-hidden transition here removes the v1 coupling to
-// Bootstrap's `d-none` / `d-flex` utility classes (Requirement 34).
+// hidden/aria-hidden transition here removes the legacy coupling to
+// Bootstrap's `d-none` / `d-flex` utility classes.
 //
 // Sub-properties exercised here:
 //
-//   30.1 Show transition (Req 34.1): for any starting class set,
+//   30.1 Show transition: for any starting class set,
 //        calling `setPlaceholderVisible(p, c, true)` results in
 //        `p.hidden === false`, `p.getAttribute('aria-hidden') === 'false'`,
 //        `c.hidden === true`, and `c.getAttribute('aria-hidden') === 'true'`.
-//   30.2 Hide transition (Req 34.2): for any starting class set,
+//   30.2 Hide transition: for any starting class set,
 //        calling `setPlaceholderVisible(p, c, false)` results in
 //        `p.hidden === true`, `p.getAttribute('aria-hidden') === 'true'`,
 //        `c.hidden === false`, and `c.getAttribute('aria-hidden') === 'false'`.
-//   30.3 Class lists are not mutated (Req 34.3): for any starting
+//   30.3 Class lists are not mutated: for any starting
 //        class set on either element — including class sets that
 //        contain `d-none` and/or `d-flex` — the function does NOT
 //        add or remove any class. The exact set of class tokens is
 //        preserved across both `show=true` and `show=false`
 //        transitions.
-//   30.4 Null container is safe (Req 34.4): when `containerElement`
+//   30.4 Null container is safe: when `containerElement`
 //        is `null`, the placeholder is still updated according to
-//        Req 34.1 / 34.2 and the call does not throw.
+//        the documented contract and the call does not throw.
 //
 // Runtime note: Node 24+ strips TypeScript syntax natively, so the
 // test imports the module under test directly from source. The
@@ -103,11 +102,9 @@ function classTokens(el) {
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
 // Pool of class tokens that the generated starting class sets draw
-// from. The pool intentionally includes the Bootstrap utility
-// classes that v1 toggled (`d-none`, `d-flex`) so Property 30.3
-// directly exercises Req 34.3's "do not add or remove `d-none`"
-// requirement, plus a few unrelated tokens to confirm the helper
-// is class-agnostic rather than `d-none`-specific.
+// from. The pool intentionally includes Bootstrap utility classes that the
+// helper must leave untouched, plus a few unrelated tokens to confirm the
+// helper is class-agnostic rather than `d-none`-specific.
 const CLASS_TOKEN_POOL = [
     'd-none',
     'd-flex',
@@ -126,9 +123,9 @@ const classSetArb = fc.subarray(CLASS_TOKEN_POOL, {
     maxLength: CLASS_TOKEN_POOL.length,
 });
 
-// ─── Property 30.1: show=true updates standard DOM state (Req 34.1) ────────
+// ─── show=true updates standard DOM state ────────
 
-test('Property 30.1: setPlaceholderVisible(p, c, true) sets hidden/aria-hidden per Req 34.1', () => {
+test('setPlaceholderVisible(p, c, true) sets hidden/aria-hidden per the documented contract', () => {
     fc.assert(
         fc.property(classSetArb, classSetArb, (placeholderClasses, containerClasses) => {
             const document = installDom();
@@ -163,9 +160,9 @@ test('Property 30.1: setPlaceholderVisible(p, c, true) sets hidden/aria-hidden p
     );
 });
 
-// ─── Property 30.2: show=false updates standard DOM state (Req 34.2) ───────
+// ─── show=false updates standard DOM state ───────
 
-test('Property 30.2: setPlaceholderVisible(p, c, false) sets hidden/aria-hidden per Req 34.2', () => {
+test('setPlaceholderVisible(p, c, false) sets hidden/aria-hidden per the documented contract', () => {
     fc.assert(
         fc.property(classSetArb, classSetArb, (placeholderClasses, containerClasses) => {
             const document = installDom();
@@ -200,9 +197,9 @@ test('Property 30.2: setPlaceholderVisible(p, c, false) sets hidden/aria-hidden 
     );
 });
 
-// ─── Property 30.3: classList is never mutated (Req 34.3) ──────────────────
+// ─── classList is never mutated ──────────────────
 
-test('Property 30.3: setPlaceholderVisible never adds or removes class tokens (Req 34.3)', () => {
+test('setPlaceholderVisible never adds or removes class tokens', () => {
     fc.assert(
         fc.property(classSetArb, classSetArb, (placeholderClasses, containerClasses) => {
             const document = installDom();
@@ -214,8 +211,8 @@ test('Property 30.3: setPlaceholderVisible never adds or removes class tokens (R
 
             // Drive the helper through both transitions in sequence.
             // `d-none` may be present in the starting set; the helper
-            // must leave it alone in both directions, since v1
-            // toggled `d-none` / `d-flex` and v2 must not.
+            // must leave it alone in both directions, since legacy
+            // toggled `d-none` / `d-flex` and current must not.
             setPlaceholderVisible(placeholder, container, true);
 
             assert.deepEqual(
@@ -247,9 +244,9 @@ test('Property 30.3: setPlaceholderVisible never adds or removes class tokens (R
     );
 });
 
-// ─── Property 30.4: null container is safe (Req 34.4) ──────────────────────
+// ─── null container is safe ──────────────────────
 
-test('Property 30.4: setPlaceholderVisible updates the placeholder when container is null (Req 34.4)', () => {
+test('setPlaceholderVisible updates the placeholder when container is null', () => {
     fc.assert(
         fc.property(classSetArb, fc.boolean(), (placeholderClasses, show) => {
             const document = installDom();

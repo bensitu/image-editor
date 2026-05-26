@@ -22,25 +22,22 @@
  *
  * ## Why a dedicated module
  *
- * The v1 editor inlined a single `resolveNumeric` closure inside
- * `createMask` that resolved every percentage against `canvas.getWidth`,
- * which silently mis-placed `top`/`height`/`ry` whenever the canvas was
- * not square. v2 corrects that by routing every numeric property through
- * an axis-aware helper, and `coercePoint` lives next to it because both
- * helpers are pure functions consumed by the same mask-factory pipeline.
+ * `resolveNumeric` is axis-aware so horizontal values resolve against
+ * canvas width and vertical values resolve against canvas height.
+ * `coercePoint` lives next to it because both helpers are pure functions
+ * consumed by the same mask-factory pipeline.
  *
  * ## Design notes
  *
  * - `resolveNumeric` is total: any input that is not a number, a finite
  *   percentage string, or a function falls through to `fallback` rather
- *   than throwing. This matches the v1 closure's behavior so the
- *   migration stays behavior-preserving.
- * - Percentages are floored (`Math.floor`) to match the v1 closure and
- *   keep rendered placement deterministic across canvas resizes.
+ *   than throwing.
+ * - Percentages are floored (`Math.floor`) to keep rendered placement
+ *   deterministic across canvas resizes.
  * - The helper does NOT clamp the result against canvas bounds; callers
  *   are responsible for any subsequent clamping (the mask factory may
- *   expand the canvas to accommodate larger placements, per Requirement
- *   9.5 / `expandCanvasToImage`).
+ *   expand the canvas to accommodate larger placements when
+ *   `expandCanvasToImage` is enabled).
  *
  * ## Non-goals
  *
@@ -106,7 +103,7 @@ export type Axis = 'x' | 'y';
  * @param fallback Value returned when `val` cannot be resolved.
  * @param canvas   Live Fabric.js canvas; only `getWidth`/`getHeight`
  *                 are read here, but the entire canvas is forwarded to
- *                 factory functions for parity with the v1 contract.
+ *                 factory functions.
  * @param options  Fully-resolved editor options forwarded to factory
  *                 functions.
  *
@@ -121,18 +118,18 @@ export function resolveNumeric(
 ): number {
     if (typeof val === 'number') {
         return val;
-}
+    }
     if (typeof val === 'function') {
         return val(canvas, options);
-}
+    }
     if (typeof val === 'string' && val.endsWith('%')) {
         const pct = parseFloat(val);
         if (!Number.isFinite(pct)) {
             return fallback;
-}
+        }
         const dim = axis === 'x' ? canvas.getWidth() : canvas.getHeight();
         return Math.floor(dim * (pct / 100));
-}
+    }
     return fallback;
 }
 
@@ -157,9 +154,9 @@ export function resolveNumeric(
  * @param pt A polygon vertex in object or tuple form.
  * @returns  An `{ x, y}` numeric point.
  */
-export function coercePoint(pt: PolygonPoint): { x: number; y: number} {
+export function coercePoint(pt: PolygonPoint): { x: number; y: number } {
     if (Array.isArray(pt)) {
-        return { x: Number(pt[0]), y: Number(pt[1])};
-}
-    return { x: Number(pt.x), y: Number(pt.y)};
+        return { x: Number(pt[0]), y: Number(pt[1]) };
+    }
+    return { x: Number(pt.x), y: Number(pt.y) };
 }

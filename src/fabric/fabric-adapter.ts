@@ -31,7 +31,7 @@
  * (Fabric v7 surface only.)
  */
 
-import type { FabricModule, ImageEditorOptions} from '../core/public-types.js';
+import type { FabricModule, ImageEditorOptions } from '../core/public-types.js';
 
 // ─── Public result shape ──────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ export interface FabricDetectionResult {
  */
 function looksLikeFabricModule(value: unknown): value is FabricModule {
     if (value === null || typeof value !== 'object') return false;
-    const candidate = (value as { Canvas?: unknown}).Canvas;
+    const candidate = (value as { Canvas?: unknown }).Canvas;
     return typeof candidate === 'function';
 }
 
@@ -81,7 +81,7 @@ function readGlobalFabric(globalScope: typeof globalThis): unknown {
     // `globalThis.fabric` is the documented UMD attachment point. We keep
     // this read defensive because consumers may be running in environments
     // where `globalThis` lacks the property entirely.
-    return (globalScope as unknown as { fabric?: unknown}).fabric;
+    return (globalScope as unknown as { fabric?: unknown }).fabric;
 }
 
 // ─── Public detection function ────────────────────────────────────────────────
@@ -117,8 +117,8 @@ export function detectFabric(
             fabric: fabricOrOptions,
             _fabricLoaded: true,
             options: maybeOptions ?? {},
-};
-}
+        };
+    }
 
     // ── Branch 2: UMD / global form ────────────────
     // The first argument is treated as options (or empty when null/undefined),
@@ -132,8 +132,8 @@ export function detectFabric(
             fabric: globalFabric,
             _fabricLoaded: true,
             options,
-};
-}
+        };
+    }
 
     // ── Branch 3: miss — log once and return a no-op marker ────────────────
     // The constructor calls `detectFabric` exactly once per ImageEditor
@@ -142,13 +142,13 @@ export function detectFabric(
     // instance — `init`, `loadImage` — early-return without re-logging.
     console.error(
         '[ImageEditor] fabric.js v7 is not available. ' +
-            'Pass it as the first constructor argument (ESM) or ' +
-            'load it as a global <script> before instantiation.',
-);
+        'Pass it as the first constructor argument (ESM) or ' +
+        'load it as a global <script> before instantiation.',
+    );
 
     return {
         fabric: null,
         _fabricLoaded: false,
         options,
-};
+    };
 }

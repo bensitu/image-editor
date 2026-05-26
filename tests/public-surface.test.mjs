@@ -41,10 +41,10 @@ const barrel = await import('../src/index.ts');
 const { ImageEditor: NamedImageEditor, isMaskObject } = barrel;
 const DefaultImageEditor = barrel.default;
 
-// ─── Constants from Requirement 2 ─────────────────────────────────────────
+// ─── Constants from the documented contract ─────────────────────────────────────────
 
 /**
- * Canonical public methods listed in Requirement 2.3. Every entry must
+ * Canonical public methods listed in the documented contract. Every entry must
  * resolve to a function on `ImageEditor.prototype`.
  */
 const CANONICAL_METHODS = Object.freeze([
@@ -73,10 +73,10 @@ const CANONICAL_METHODS = Object.freeze([
 
 /**
  * Internal helpers that must NOT leak through the package root. The list
- * mirrors the design's "Module Responsibilities" table — every helper is
- * an implementation detail (`AnimationQueue`, `Command`,
- * `HistoryManager`) plus the broader controller/service/manager/utility
- * categories that gate the rest of the module tree.
+ * includes every helper that should remain an implementation detail:
+ * `AnimationQueue`, `Command`, `HistoryManager`, plus the broader
+ * controller/service/manager/utility categories that gate the rest of the
+ * module tree.
  */
 const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
     // Named primitives
@@ -87,7 +87,7 @@ const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
     'TransformController',
     'DomBindings',
     'ViewportCache',
-    // Module categories owned in the design
+    // Module categories owned in the documented contract
     'CropController',
     'ExportService',
     'MaskFactory',
@@ -101,7 +101,7 @@ const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
     'FabricAdapter',
 ]);
 
-// ─── 1. Default + named exports (Requirement 2.1) ─────────────────────────
+// ─── 1. Default + named exports ─────────────────────────
 
 test('barrel exposes ImageEditor as default and named export, both pointing to the same class', () => {
     assert.equal(typeof NamedImageEditor, 'function',
@@ -114,30 +114,29 @@ test('barrel exposes ImageEditor as default and named export, both pointing to t
         'class name must be `ImageEditor`');
 });
 
-// ─── 2. isMaskObject is exported (Requirement 2.2) ────────────────────────
+// ─── 2. isMaskObject is exported ────────────────────────
 
 test('barrel exposes isMaskObject as a runtime function', () => {
     assert.equal(typeof isMaskObject, 'function',
         '`isMaskObject` must be a runtime export from the barrel');
 });
 
-// ─── 3. Canonical methods on ImageEditor.prototype (Requirement 2.3) ──────
+// ─── 3. Canonical methods on ImageEditor.prototype ──────
 
-test('every canonical method from Requirement 2.3 is a function on ImageEditor.prototype', () => {
+test('every canonical method from the documented contract is a function on ImageEditor.prototype', () => {
     for (const method of CANONICAL_METHODS) {
         const value = NamedImageEditor.prototype[method];
         assert.equal(
             typeof value,
             'function',
-            `ImageEditor.prototype.${method} must be a function (Requirement 2.3)`,
+            `ImageEditor.prototype.${method} must be a function`,
         );
     }
 });
 
-test('canonical method set includes the Requirement 2.3 introspection trio', () => {
-    // Spot-check the three names called out in the task description so a
-    // future refactor that drops one of them fails this test by name
-    // rather than by index.
+test('canonical method set includes the documented introspection trio', () => {
+    // Spot-check these names so a future refactor that drops one of them
+    // fails this test by name rather than by index.
     for (const introspector of ['isImageLoaded', 'saveState', 'loadFromState']) {
         assert.equal(
             typeof NamedImageEditor.prototype[introspector],

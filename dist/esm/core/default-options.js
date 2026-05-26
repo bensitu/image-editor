@@ -17,6 +17,7 @@ export const DEFAULT_OPTIONS = {
     preserveSourceFormat: true,
     downsampleMimeType: null,
     imageLoadTimeoutMs: 30000,
+    maxHistorySize: 50,
     exportMultiplier: 1,
     exportImageAreaByDefault: true,
     defaultMaskWidth: 50,
@@ -76,6 +77,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'preserveSourceFormat',
     'downsampleMimeType',
     'imageLoadTimeoutMs',
+    'maxHistorySize',
     'exportMultiplier',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
@@ -97,8 +99,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
+function normalizeMaxHistorySize(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return DEFAULT_OPTIONS.maxHistorySize;
+    return Math.max(1, Math.floor(numeric));
+}
 export function resolveOptions(input) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -113,12 +121,12 @@ export function resolveOptions(input) {
             continue;
         resolved[key] = value;
     }
-    resolved.onImageLoaded =
-        (_a = normalizeCallback(raw.onImageLoaded)) !== null && _a !== void 0 ? _a : null;
+    resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
     resolved.onError =
-        (_b = normalizeCallback(raw.onError)) !== null && _b !== void 0 ? _b : null;
+        normalizeCallback(raw.onError);
     resolved.onWarning =
-        (_c = normalizeCallback(raw.onWarning)) !== null && _c !== void 0 ? _c : null;
+        normalizeCallback(raw.onWarning);
+    resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
     const userLabel = (raw.label && typeof raw.label === 'object') ? raw.label : {};
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,
@@ -139,12 +147,12 @@ export function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = (raw.crop && typeof raw.crop === 'object') ? raw.crop : {};
     const crop = {
-        minWidth: (_d = userCrop.minWidth) !== null && _d !== void 0 ? _d : DEFAULT_CROP.minWidth,
-        minHeight: (_e = userCrop.minHeight) !== null && _e !== void 0 ? _e : DEFAULT_CROP.minHeight,
-        padding: (_f = userCrop.padding) !== null && _f !== void 0 ? _f : DEFAULT_CROP.padding,
-        hideMasksDuringCrop: (_g = userCrop.hideMasksDuringCrop) !== null && _g !== void 0 ? _g : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_h = userCrop.preserveMasksAfterCrop) !== null && _h !== void 0 ? _h : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_j = userCrop.allowRotationOfCropRect) !== null && _j !== void 0 ? _j : DEFAULT_CROP.allowRotationOfCropRect,
+        minWidth: (_a = userCrop.minWidth) !== null && _a !== void 0 ? _a : DEFAULT_CROP.minWidth,
+        minHeight: (_b = userCrop.minHeight) !== null && _b !== void 0 ? _b : DEFAULT_CROP.minHeight,
+        padding: (_c = userCrop.padding) !== null && _c !== void 0 ? _c : DEFAULT_CROP.padding,
+        hideMasksDuringCrop: (_d = userCrop.hideMasksDuringCrop) !== null && _d !== void 0 ? _d : DEFAULT_CROP.hideMasksDuringCrop,
+        preserveMasksAfterCrop: (_e = userCrop.preserveMasksAfterCrop) !== null && _e !== void 0 ? _e : DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect: (_f = userCrop.allowRotationOfCropRect) !== null && _f !== void 0 ? _f : DEFAULT_CROP.allowRotationOfCropRect,
     };
     Object.freeze(crop);
     return {

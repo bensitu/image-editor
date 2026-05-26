@@ -1,7 +1,7 @@
 /**
  * @file image/transform-controller.ts
  * @description Animated scale, rotate, and reset operations on the
- *              `originalImage` with history integration. Owns the v2
+ *              `originalImage` with history integration. Owns the current
  *              transform pipeline that the `ImageEditor` facade routes
  *              through the {@link../animation/animation-queue.AnimationQueue}.
  *
@@ -63,7 +63,7 @@
  *
  * ## Why a class with a context bundle?
  *
- * v1's monolithic `ImageEditor` owned all transform state. v2 keeps that
+ * legacy's monolithic `ImageEditor` owned all transform state. current keeps that
  * state on the facade so `currentScale`, `currentRotation`,
  * `baseImageScale`, and `_suppressSaveState` remain on a single owner
  * (these are part of the snapshot wire format). The
@@ -72,16 +72,16 @@
  * fields. Mirrors the same pattern used by
  * {@link../image/image-loader.LoadImageContext}.
  *
- * Owner module references (per the design's "Mapping requirements to
+ * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
  */
 
 import type * as FabricNS from 'fabric';
 
-import type { ResolvedOptions} from '../core/public-types.js';
-import type { OperationGuard} from '../core/operation-guard.js';
-import { animateProps, restoreOrigin} from '../fabric/fabric-animation.js';
+import type { ResolvedOptions } from '../core/public-types.js';
+import type { OperationGuard } from '../core/operation-guard.js';
+import { animateProps, restoreOrigin } from '../fabric/fabric-animation.js';
 
 // ─── Transform context ───────────────────────────────────────────────────────
 
@@ -160,7 +160,7 @@ export interface TransformContext {
     setSuppressSaveState(suppress: boolean): void;
 
     /**
-     * Optional post-snap hook the orchestrator wires for v1 parity. Runs
+     * Optional post-snap hook the orchestrator wires for legacy parity. Runs
      * AFTER the controller commits the final value with `set` /
      * `setCoords` and BEFORE `saveCanvasState`. Used to:
      *
@@ -172,7 +172,7 @@ export interface TransformContext {
      * The hook is invoked only on the success path (no dispose) and only
      * when defined — controllers running outside the facade (in tests)
      * may omit it. Errors thrown from the hook propagate to the caller's
-     * `try/catch`, which mirrors v1 behaviour where the post-snap UI
+     * `try/catch`, which mirrors legacy behaviour where the post-snap UI
      * helpers ran inline inside the transform method.
      */
     afterTransformSnap?(): void;
@@ -202,7 +202,7 @@ export class TransformController {
      */
     constructor(ctx: TransformContext) {
         this.ctx = ctx;
-}
+    }
 
     /**
      * Animate the image scale to `factor`, clamped to
@@ -211,11 +211,11 @@ export class TransformController {
      * Steps:
      *
      * 1. Bail (resolved) when no image is loaded, an animation is already
-     *    in progress, or the editor has been disposed (Requirements
+     *    in progress, or the editor has been disposed (Contracts
      *    14.1, 15.2).
      * 2. Clamp `factor` to `[minScale, maxScale]` and update
      *    `currentScale` so toolbar inputs reflect the requested value
-     *    BEFORE the animation begins (matches v1 timing).
+     *    BEFORE the animation begins (matches legacy timing).
      * 3. Re-anchor the image origin to its current visual top-left so
      *    `scaleX` / `scaleY` tweens scale around the upper-left corner
      *    rather than the Fabric default centre.
@@ -249,57 +249,57 @@ export class TransformController {
         const clamped = Math.max(
             this.ctx.options.minScale,
             Math.min(this.ctx.options.maxScale, factor),
-);
+        );
         this.ctx.setCurrentScale(clamped);
 
         const targetAbs = this.ctx.getBaseImageScale() * clamped;
 
-        // v1 parity — re-anchor to the current top-left so the scale
+        // legacy parity — re-anchor to the current top-left so the scale
         // animation tweens around the upper-left corner rather than the
         // Fabric default centre. The orchestrator's afterTransformSnap
         // re-aligns the bounding box once the animation finishes.
         try {
             const topLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top'});
+            img.set({ originX: 'left', originY: 'top' });
             img.setPositionByOrigin(topLeft, 'left', 'top');
             img.setCoords();
-} catch (err) {
+        } catch (err) {
             console.warn(
                 '[ImageEditor] scaleImage: origin pre-anchor failed',
                 err,
-);
-}
+            );
+        }
 
         try {
             // runAnimation brackets the begin/end so
             // `isAnimating` is `false` before this method's promise settles.
-            await this.ctx.guard.runAnimation( () => 
+            await this.ctx.guard.runAnimation(() =>
                 animateProps(
                     img,
-                    { scaleX: targetAbs, scaleY: targetAbs},
+                    { scaleX: targetAbs, scaleY: targetAbs },
                     {
                         duration: this.ctx.options.animationDuration,
-                        onChange:  () => this.ctx.canvas.requestRenderAll(),
-},
+                        onChange: () => this.ctx.canvas.requestRenderAll(),
+                    },
                     this.ctx.guard,
-),
-);
-} catch (err) {
+                ),
+            );
+        } catch (err) {
             console.warn('[ImageEditor] scaleImage animation error', err);
             return;
-}
+        }
 
         // the canvas may have been disposed mid-animation.
         if (this.ctx.guard.isDisposed()) return;
 
-        img.set({ scaleX: targetAbs, scaleY: targetAbs});
+        img.set({ scaleX: targetAbs, scaleY: targetAbs });
         img.setCoords();
 
         if (this.ctx.afterTransformSnap) this.ctx.afterTransformSnap();
 
         // record a snapshot so the new scale is undoable.
         this.ctx.saveCanvasState();
-}
+    }
 
     /**
      * Animate the image rotation to `degrees`. Returns a resolved promise
@@ -355,33 +355,33 @@ export class TransformController {
         // turn does not slide the image off the canvas.
         try {
             const centre = img.getCenterPoint();
-            img.set({ originX: 'center', originY: 'center'});
+            img.set({ originX: 'center', originY: 'center' });
             img.setPositionByOrigin(centre, 'center', 'center');
             img.setCoords();
-} catch (err) {
+        } catch (err) {
             console.warn(
                 '[ImageEditor] rotateImage: origin pre-anchor failed',
                 err,
-);
-}
+            );
+        }
 
         let animationFailed = false;
         try {
-            await this.ctx.guard.runAnimation( () => 
+            await this.ctx.guard.runAnimation(() =>
                 animateProps(
                     img,
-                    { angle: degrees},
+                    { angle: degrees },
                     {
                         duration: this.ctx.options.animationDuration,
-                        onChange:  () => this.ctx.canvas.requestRenderAll(),
-},
+                        onChange: () => this.ctx.canvas.requestRenderAll(),
+                    },
                     this.ctx.guard,
-),
-);
-} catch (err) {
+                ),
+            );
+        } catch (err) {
             animationFailed = true;
             console.warn('[ImageEditor] rotateImage animation error', err);
-} finally {
+        } finally {
             // when dispose interrupts the rotation
             // animation, the post-animation origin restore below is
             // skipped. `restoreOrigin` replays the restore as a silent
@@ -390,8 +390,8 @@ export class TransformController {
             // documented `'left'/'top'` origin.
             if (this.ctx.guard.isDisposed()) {
                 restoreOrigin(img, 'left', 'top');
-}
-}
+            }
+        }
 
         if (animationFailed) return;
         if (this.ctx.guard.isDisposed()) return;
@@ -406,19 +406,19 @@ export class TransformController {
         // documented origin.
         try {
             const newTopLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top'});
+            img.set({ originX: 'left', originY: 'top' });
             img.setPositionByOrigin(newTopLeft, 'left', 'top');
             img.setCoords();
-} catch (err) {
+        } catch (err) {
             console.warn(
                 '[ImageEditor] rotateImage: origin post-restore failed',
                 err,
-);
-}
+            );
+        }
 
         // record a snapshot so the new rotation is undoable.
         this.ctx.saveCanvasState();
-}
+    }
 
     /**
      * Animate the image to `scale = 1` and `rotation = 0` and record
@@ -446,7 +446,7 @@ export class TransformController {
      *          Resolves immediately as a no-op when no image is loaded.
      *
      */
-    async resetImageTransform(): Promise<void>  {
+    async resetImageTransform(): Promise<void> {
         if (!this.ctx.getOriginalImage()) return;
 
         let chainSucceeded = false;
@@ -455,23 +455,23 @@ export class TransformController {
             await this.scaleImage(1);
             await this.rotateImage(0);
             chainSucceeded = true;
-} finally {
+        } finally {
             this.ctx.setSuppressSaveState(false);
-}
+        }
 
         if (!chainSucceeded) return;
         if (this.ctx.guard.isDisposed()) return;
 
         // single history entry for the whole reset.
         this.ctx.saveCanvasState();
-}
+    }
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 /**
  * Compute the visual top-left corner of a Fabric object as a `Point`.
- * Mirrors the v1 `_getObjectTopLeftPoint` helper: `getCoords` returns
+ * Mirrors the legacy `_getObjectTopLeftPoint` helper: `getCoords` returns
  * the four corner points of the object's bounding box in canvas
  * coordinates with `[0]` being the top-left. The fallback to
  * `getBoundingRect` covers the rare Fabric build where `getCoords`
@@ -489,5 +489,5 @@ function computeTopLeftPoint(obj: FabricNS.FabricObject): FabricNS.Point {
     // `setPositionByOrigin` accepts as a `Point` (its signature widens
     // to `XY` in v7).
     const br = obj.getBoundingRect();
-    return { x: br.left, y: br.top} as unknown as FabricNS.Point;
+    return { x: br.left, y: br.top } as unknown as FabricNS.Point;
 }

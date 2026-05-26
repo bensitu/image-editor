@@ -12,4 +12,4 @@
  * `Command` primitive.
  */
 
-export { Command} from './history-manager.js';
+export { Command } from './history-manager.js';

@@ -1,10 +1,10 @@
 /**
  * @file mask/mask-label-manager.ts
  * @description Per-mask label overlay creation, positioning, show/hide, and
- *              removal. Owns the v1 `_createLabelForMask`, `_syncMaskLabel`,
+ *              removal. Owns the legacy `_createLabelForMask`, `_syncMaskLabel`,
  *              `_showLabelForMask`, `_hideAllMaskLabels`, and
  *              `_removeLabelForMask` logic that was inlined on the editor
- *              in v1 and is now extracted into pure(ish) helpers that take a
+ *              in legacy and is now extracted into pure(ish) helpers that take a
  *              {@link MaskLabelManagerContext}.
  *
  * ## Owned contracts
@@ -12,8 +12,8 @@
  * - Label text is computed via
  *   `options.label.getText(mask, mask.maskId - 1)`. The index argument is
  *   the stable creation index (`maskId - 1`), NOT the live canvas list
- *   position. v1 passed `this.maskCounter` here, which drifted whenever
- *   masks were added or removed; the v2 contract pins the index to the
+ *   position. legacy passed `this.maskCounter` here, which drifted whenever
+ *   masks were added or removed; the current contract pins the index to the
  *   mask's own identity so labels stay consistent across
  *   `createMask` / `removeSelectedMask` / `removeAllMasks` / `undo`/`redo`.
  *
@@ -36,7 +36,7 @@
  * - Mask list DOM rendering — see `mask/mask-list.ts`.
  * - Hover/selection appearance — see `mask/mask-style.ts`.
  *
- * ## Design notes
+ * ## Implementation notes
  *
  * - The orchestrator (`src/image-editor.ts`) owns the canvas reference,
  *   resolved options, and Fabric module. The helpers in this module
@@ -59,7 +59,7 @@ import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-t
  *
  * The module does NOT own any of these slots — it only reads them so
  * ownership of the canvas, Fabric module, and resolved options stays on the
- * orchestrator (where v1 left them).
+ * orchestrator (where legacy left them).
  */
 export interface MaskLabelManagerContext {
     /** Injected Fabric.js v7 module used to construct the label text. */
@@ -121,7 +121,7 @@ export declare function createLabelForMask(ctx: MaskLabelManagerContext, mask: M
  * handlers (`object:moving`, `object:scaling`, `object:rotating`,
  * `object:modified`) without checking those guards at every call site.
  *
- * Geometry (matches v1):
+ * Geometry (matches legacy):
  *
  * - The label's top-left is placed `options.maskLabelOffset` pixels from
  *   the mask's top-left corner, along the vector from the top-left to the

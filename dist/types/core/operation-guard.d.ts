@@ -24,21 +24,18 @@
  *
  * ## Why the guard owns the dispose flag too
  *
- * The design ("Idempotent dispose with bindings registry" and the Error
- * Handling table) has in-flight animation callbacks check `_disposed`
- * before touching the canvas. Co-locating the disposed flag here keeps
- * both checks behind a single small object so the Fabric animation
- * wrapper (`fabric/fabric-animation.ts`) and the dispose path
- * (`image-editor.ts`) can share state without a circular dependency on
- * the orchestrator.
+ * In-flight animation callbacks check `_disposed` before touching the
+ * canvas. Co-locating the disposed flag here keeps both checks behind a
+ * single small object so the Fabric animation wrapper
+ * (`fabric/fabric-animation.ts`) and the dispose path (`image-editor.ts`)
+ * can share state without a circular dependency on the orchestrator.
  *
  * The guard does NOT log on rejection — the contract is "no state mutation
  * and a documented no-op shape per method"; logging is left to the caller
  * so each public method can choose between resolved-promise, empty-string,
- * or rejection-with-typed-error per the design's per-method documentation.
+ * or rejection-with-typed-error per the documented per-method documentation.
  *
- * Owner module references (per the design's "Mapping requirements to
- * modules" table): the guard is imported by `image-editor.ts` and by
+ * The guard is imported by `image-editor.ts` and
  * `fabric/fabric-animation.ts`. It is intentionally NOT re-exported from
  * `src/index.ts`.
  */
@@ -81,8 +78,8 @@ export declare class OperationGuard {
      * will throw until {@link endAnimation} runs.
      *
      * Prefer {@link runAnimation} over manually calling begin/end so the
-     * "isAnimating false before resolve/reject" invariant from Requirement
-     * 14.3 is enforced by `try/finally` rather than caller discipline.
+     * "isAnimating false before resolve/reject" invariant is enforced by
+     * `try/finally` rather than caller discipline.
      */
     beginAnimation(): void;
     /**
@@ -131,11 +128,9 @@ export declare class OperationGuard {
      * in-flight animation entry.
      *
      * The thrown error is intentionally a plain `Error` rather than one of
-     * the typed classes from `core/errors.ts` — the design's per-method
-     * contract may translate the failure into a resolved no-op (e.g.
-     * `exportImageBase64` returns `''`) before it reaches the consumer, so
-     * callers branch on this signal locally and choose the no-op shape
-     * documented for that method.
+     * the typed classes from `core/errors.ts`; some public methods translate
+     * the failure into a documented no-op shape before it reaches the
+     * consumer.
      *
      * @param operationLabel
      *   Short, user-facing operation name (e.g. `'mergeMasks'`).

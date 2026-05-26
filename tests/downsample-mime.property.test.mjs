@@ -1,6 +1,5 @@
-// Property 4: Downsample MIME selection
+// Downsample MIME selection
 //
-// Property statement (design.md §"Property 4"):
 //   For any source MIME, `preserveSourceFormat` flag, and explicit or
 //   omitted `downsampleMimeType`, the resampler SHALL preserve
 //   alpha-capable source MIME types (`image/png`, `image/webp`) only when
@@ -14,12 +13,12 @@
 //
 // Sub-properties exercised here:
 //
-//   4.1 Explicit override always wins (Req 8.3): when
+//   4.1 Explicit override always wins: when
 //       `downsampleMimeType` is truthy, output === downsampleMimeType.
-//   4.2 PNG/WebP preservation (Req 8.2): when `downsampleMimeType` is
+//   4.2 PNG/WebP preservation: when `downsampleMimeType` is
 //       unset (null/undefined) AND `preserveSourceFormat` is true AND
 //       `sourceMime` ∈ {'image/png', 'image/webp'}, output === sourceMime.
-//   4.3 Default to JPEG (Req 8.3): when `downsampleMimeType` is unset
+//   4.3 Default to JPEG: when `downsampleMimeType` is unset
 //       AND (`preserveSourceFormat` is false OR `sourceMime` is not
 //       alpha-capable), output === 'image/jpeg'.
 //
@@ -76,9 +75,9 @@ const downsampleMimeArb = fc.constantFrom(
 
 const ALPHA_CAPABLE = new Set(['image/png', 'image/webp']);
 
-// ─── Property 4.1: Explicit override always wins ───────────────────────────
+// ─── Explicit override always wins ───────────────────────────
 
-test('Property 4.1: explicit downsampleMimeType always wins (Req 8.3)', () => {
+test('explicit downsampleMimeType always wins', () => {
     fc.assert(
         fc.property(
             sourceMimeArb,
@@ -106,9 +105,9 @@ test('Property 4.1: explicit downsampleMimeType always wins (Req 8.3)', () => {
     );
 });
 
-// ─── Property 4.2: PNG/WebP preservation ───────────────────────────────────
+// ─── PNG/WebP preservation ───────────────────────────────────
 
-test('Property 4.2: PNG/WebP preserved when no override and preserveSourceFormat=true (Req 8.2)', () => {
+test('PNG/WebP preserved when no override and preserveSourceFormat=true', () => {
     fc.assert(
         fc.property(
             sourceMimeArb,
@@ -138,9 +137,9 @@ test('Property 4.2: PNG/WebP preserved when no override and preserveSourceFormat
     );
 });
 
-// ─── Property 4.3: Default to JPEG ────────────────────────────────────────
+// ─── Default to JPEG ────────────────────────────────────────
 
-test('Property 4.3: defaults to image/jpeg when no override and source not preserved (Req 8.3)', () => {
+test('defaults to image/jpeg when no override and source not preserved', () => {
     fc.assert(
         fc.property(
             sourceMimeArb,

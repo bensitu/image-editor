@@ -1,6 +1,5 @@
-// Property 5: Layout precedence determinism
+// Layout precedence determinism
 //
-// Property statement (design.md §"Property 5"):
 //   For any combination of `fitImageToCanvas`, `coverImageToCanvas`, and
 //   `expandCanvasToImage`, exactly one layout mode SHALL be selected
 //   using the precedence `fit > cover > expand > fallback`. The selected
@@ -13,14 +12,14 @@
 //
 // Sub-properties exercised here:
 //
-//   5.1 `fit` wins (Req 9.1): when `fitImageToCanvas` is true, output
+//   5.1 `fit` wins: when `fitImageToCanvas` is true, output
 //       === 'fit' regardless of the other two flags.
-//   5.2 `cover` wins next (Req 9.2): when `fitImageToCanvas` is false
+//   5.2 `cover` wins next: when `fitImageToCanvas` is false
 //       and `coverImageToCanvas` is true, output === 'cover' regardless
 //       of `expandCanvasToImage`.
-//   5.3 `expand` selected (Req 9.3): when `fit` and `cover` are false
+//   5.3 `expand` selected: when `fit` and `cover` are false
 //       and `expandCanvasToImage` is true, output === 'expand'.
-//   5.4 All-false fallback (Req 9.3): when every flag is false, output
+//   5.4 All-false fallback: when every flag is false, output
 //       === 'expand'. This matches the documented default-options
 //       resolution and gives a deterministic answer if a consumer
 //       disables every layout flag.
@@ -62,9 +61,9 @@ const flagsArb = fc.record({
     expandCanvasToImage: fc.boolean(),
 });
 
-// ─── Property 5.1: fit wins ────────────────────────────────────────────────
+// ─── fit wins ────────────────────────────────────────────────
 
-test("Property 5.1: fitImageToCanvas=true => 'fit' regardless of other flags (Req 9.1)", () => {
+test("fitImageToCanvas=true => 'fit' regardless of other flags", () => {
     fc.assert(
         fc.property(flagsArb, (flags) => {
             fc.pre(flags.fitImageToCanvas === true);
@@ -81,9 +80,9 @@ test("Property 5.1: fitImageToCanvas=true => 'fit' regardless of other flags (Re
     );
 });
 
-// ─── Property 5.2: cover wins next ─────────────────────────────────────────
+// ─── cover wins next ─────────────────────────────────────────
 
-test("Property 5.2: fit=false, cover=true => 'cover' regardless of expand (Req 9.2)", () => {
+test("fit=false, cover=true => 'cover' regardless of expand", () => {
     fc.assert(
         fc.property(flagsArb, (flags) => {
             fc.pre(flags.fitImageToCanvas === false);
@@ -101,9 +100,9 @@ test("Property 5.2: fit=false, cover=true => 'cover' regardless of expand (Req 9
     );
 });
 
-// ─── Property 5.3: expand selected ─────────────────────────────────────────
+// ─── expand selected ─────────────────────────────────────────
 
-test("Property 5.3: fit=false, cover=false, expand=true => 'expand' (Req 9.3)", () => {
+test("fit=false, cover=false, expand=true => 'expand'", () => {
     fc.assert(
         fc.property(flagsArb, (flags) => {
             fc.pre(flags.fitImageToCanvas === false);
@@ -122,9 +121,9 @@ test("Property 5.3: fit=false, cover=false, expand=true => 'expand' (Req 9.3)", 
     );
 });
 
-// ─── Property 5.4: all-false fallback ──────────────────────────────────────
+// ─── all-false fallback ──────────────────────────────────────
 
-test("Property 5.4: all flags false => 'expand' fallback (Req 9.3)", () => {
+test("all flags false => 'expand' fallback", () => {
     const out = selectLayoutStrategy({
         fitImageToCanvas: false,
         coverImageToCanvas: false,
@@ -133,9 +132,9 @@ test("Property 5.4: all flags false => 'expand' fallback (Req 9.3)", () => {
     assert.equal(out, 'expand', "all-false must fall back to 'expand'");
 });
 
-// ─── Property 5.5: determinism (key order + repeat invocation) ─────────────
+// ─── determinism (key order + repeat invocation) ─────────────
 
-test('Property 5.5: selection is deterministic across key order and repeat calls', () => {
+test('selection is deterministic across key order and repeat calls', () => {
     fc.assert(
         fc.property(flagsArb, (flags) => {
             // Build a permuted copy with reversed property declaration order.
