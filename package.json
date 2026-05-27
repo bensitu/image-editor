@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "description": "Lightweight canvas-based image editor",
     "main": "./dist/image-editor.js",
     "module": "./dist/image-editor.esm.mjs",
@@ -45,6 +45,7 @@
         "esbuild": "^0.28.0",
         "esbuild-plugin-babel": "^0.2.3",
         "eslint": "^10.4.0",
+        "fabric": "^5.5.2",
         "globals": "^17.6.0"
     },
     "browserslist": [

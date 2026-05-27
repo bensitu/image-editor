@@ -1,14 +1,14 @@
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.4.1
+ * @version 1.4.2
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
  */
 
 let fabric = null;
-const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
+const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
 
 /**
  * Returns the ambient global scope used to discover a globally loaded Fabric.js namespace.
@@ -768,14 +768,16 @@ function ensureFabric() {
                 if (this._disposed || !this.canvas) throw new Error('Editor was disposed while loading image');
 
                 let loadSource = imageBase64;
-                if (this.options.downsampleOnLoad) {
+                const downsampleMaxWidth = Number(this.options.downsampleMaxWidth);
+                const downsampleMaxHeight = Number(this.options.downsampleMaxHeight);
+                if (this.options.downsampleOnLoad && downsampleMaxWidth > 0 && downsampleMaxHeight > 0) {
                     const shouldResize =
-                        imageElement.naturalWidth > this.options.downsampleMaxWidth ||
-                        imageElement.naturalHeight > this.options.downsampleMaxHeight;
+                        imageElement.naturalWidth > downsampleMaxWidth ||
+                        imageElement.naturalHeight > downsampleMaxHeight;
                     if (shouldResize) {
                         const ratio = Math.min(
-                            this.options.downsampleMaxWidth / imageElement.naturalWidth,
-                            this.options.downsampleMaxHeight / imageElement.naturalHeight
+                            downsampleMaxWidth / imageElement.naturalWidth,
+                            downsampleMaxHeight / imageElement.naturalHeight
                         );
                         const targetWidth = Math.round(imageElement.naturalWidth * ratio);
                         const targetHeight = Math.round(imageElement.naturalHeight * ratio);
@@ -787,6 +789,8 @@ function ensureFabric() {
                             imageBase64
                         );
                     }
+                } else if (this.options.downsampleOnLoad) {
+                    this._reportWarning('loadImage: downsample limits must be positive numbers; using the original image');
                 }
 
                 const fabricImage = await this._createFabricImageFromURL(loadSource);
@@ -884,6 +888,22 @@ function ensureFabric() {
         }
 
         /**
+         * Checks whether the editor is in a temporary non-mutating state.
+         *
+         * @returns {boolean} True while loading, animating, cropping, or running a compound operation.
+         * @public
+         */
+        isBusy() {
+            return !!(
+                this.isAnimating ||
+                this._cropMode ||
+                this._isLoading ||
+                this._activeOperationToken ||
+                (this.animationQueue && this.animationQueue.isBusy())
+            );
+        }
+
+        /**
          * Creates an HTMLImageElement from a given data URL.
          * 
          * @param {string} dataUrl - A data URL representing the image (e.g., "data:image/png;base64,...").
@@ -957,7 +977,6 @@ function ensureFabric() {
         _captureLoadImageTransaction() {
             return {
                 canvasState: this._serializeCanvasState(),
-                originalImage: this.originalImage,
                 baseImageScale: this.baseImageScale,
                 currentScale: this.currentScale,
                 currentRotation: this.currentRotation,
@@ -1048,12 +1067,20 @@ function ensureFabric() {
          * @private
          */
         _resampleImageToDataURL(imageElement, targetWidth, targetHeight, quality = 0.92, sourceDataUrl = null) {
+            const sourceWidth = Math.max(1, Number(imageElement && (imageElement.naturalWidth || imageElement.width)) || 0);
+            const sourceHeight = Math.max(1, Number(imageElement && (imageElement.naturalHeight || imageElement.height)) || 0);
+            const safeTargetWidth = Math.round(Number(targetWidth));
+            const safeTargetHeight = Math.round(Number(targetHeight));
+            if (!Number.isFinite(safeTargetWidth) || !Number.isFinite(safeTargetHeight) || safeTargetWidth <= 0 || safeTargetHeight <= 0) {
+                throw new Error('Invalid image resample target dimensions');
+            }
+
             const offscreenCanvas = document.createElement('canvas');
-            offscreenCanvas.width = targetWidth;
-            offscreenCanvas.height = targetHeight;
+            offscreenCanvas.width = safeTargetWidth;
+            offscreenCanvas.height = safeTargetHeight;
             const context = offscreenCanvas.getContext('2d');
             if (!context) throw new Error('2D canvas context is unavailable');
-            context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, targetWidth, targetHeight);
+            context.drawImage(imageElement, 0, 0, sourceWidth, sourceHeight, 0, 0, safeTargetWidth, safeTargetHeight);
             return offscreenCanvas.toDataURL(this._getDownsampleMimeType(sourceDataUrl), quality);
         }
 
@@ -1617,9 +1644,48 @@ function ensureFabric() {
 
         _getJpegBackgroundColor() {
             const backgroundColor = String(this.options.backgroundColor || '').trim();
-            if (!backgroundColor || backgroundColor === 'transparent') return '#ffffff';
-            if (/^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/i.test(backgroundColor)) return '#ffffff';
+            if (!backgroundColor || this._isTransparentCssColor(backgroundColor)) return '#ffffff';
             return backgroundColor;
+        }
+
+        _isTransparentCssColor(color) {
+            const normalizedColor = String(color || '').trim().toLowerCase();
+            if (!normalizedColor || normalizedColor === 'transparent') return true;
+
+            const hexAlphaMatch = normalizedColor.match(/^#(?:[0-9a-f]{3}([0-9a-f])|[0-9a-f]{6}([0-9a-f]{2}))$/i);
+            if (hexAlphaMatch) {
+                const alpha = hexAlphaMatch[1] || hexAlphaMatch[2];
+                return alpha === '0' || alpha === '00';
+            }
+
+            const slashAlphaMatch = normalizedColor.match(/^(?:rgba?|hsla?)\([^)]*\/\s*([^)]+)\)$/i);
+            if (slashAlphaMatch) return this._isZeroCssAlpha(slashAlphaMatch[1]);
+
+            const commaAlphaMatch = normalizedColor.match(/^(?:rgba|hsla)\((.*)\)$/i);
+            if (commaAlphaMatch) {
+                const parts = commaAlphaMatch[1].split(',');
+                if (parts.length >= 4) return this._isZeroCssAlpha(parts[parts.length - 1]);
+            }
+
+            return false;
+        }
+
+        _isZeroCssAlpha(alphaValue) {
+            const normalizedAlpha = String(alphaValue || '').trim();
+            if (!normalizedAlpha) return false;
+            if (normalizedAlpha.endsWith('%')) return Number.parseFloat(normalizedAlpha) === 0;
+            return Number(normalizedAlpha) === 0;
+        }
+
+        _decodeBase64Payload(base64Payload) {
+            const payload = String(base64Payload || '');
+            if (typeof atob === 'function') {
+                return Uint8Array.from(atob(payload), char => char.charCodeAt(0));
+            }
+            if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+                return new Uint8Array(Buffer.from(payload, 'base64'));
+            }
+            throw new Error('Base64 decoding is unavailable');
         }
 
         /** 
@@ -2111,6 +2177,13 @@ function ensureFabric() {
                         ? JSON.parse(serializedState)
                         : serializedState;
                     const editorMetadata = state && state.imageEditorMetadata ? state.imageEditorMetadata : null;
+                    if (
+                        editorMetadata &&
+                        Object.prototype.hasOwnProperty.call(editorMetadata, 'version') &&
+                        Number(editorMetadata.version) !== 1
+                    ) {
+                        this._reportWarning(`loadFromState: unsupported editor metadata version ${editorMetadata.version}`);
+                    }
 
                     this.canvas.loadFromJSON(state, async () => {
                         try {
@@ -2204,12 +2277,13 @@ function ensureFabric() {
 
         _waitForImageElementReady(imageElement) {
             if (!imageElement) return Promise.resolve();
-            if (imageElement.complete || imageElement.naturalWidth > 0 || imageElement.width > 0) return Promise.resolve();
+            const hasLoadedDimensions = (Number(imageElement.naturalWidth) > 0 || Number(imageElement.width) > 0) &&
+                (Number(imageElement.naturalHeight) > 0 || Number(imageElement.height) > 0);
+            if (hasLoadedDimensions) return Promise.resolve();
+            if (imageElement.complete) return Promise.reject(new Error('Image could not be loaded while restoring state'));
             return new Promise((resolve, reject) => {
                 let isSettled = false;
-                const timerId = setTimeout(() => {
-                    settle(() => reject(new Error('Image load timed out while restoring state')));
-                }, this._getSafeTimeoutMs(this.options.imageLoadTimeoutMs));
+                let timerId;
                 const settle = (callback) => {
                     if (isSettled) return;
                     isSettled = true;
@@ -2223,8 +2297,21 @@ function ensureFabric() {
                     }
                     callback();
                 };
-                const handleLoad = () => settle(resolve);
-                const handleError = (error) => settle(() => reject(error));
+                const handleLoad = () => {
+                    const didLoad = (Number(imageElement.naturalWidth) > 0 || Number(imageElement.width) > 0) &&
+                        (Number(imageElement.naturalHeight) > 0 || Number(imageElement.height) > 0);
+                    settle(() => {
+                        if (didLoad) {
+                            resolve();
+                        } else {
+                            reject(new Error('Image could not be loaded while restoring state'));
+                        }
+                    });
+                };
+                const handleError = (error) => settle(() => reject(error instanceof Error ? error : new Error('Image could not be loaded while restoring state')));
+                timerId = setTimeout(() => {
+                    settle(() => reject(new Error('Image load timed out while restoring state')));
+                }, this._getSafeTimeoutMs(this.options.imageLoadTimeoutMs));
                 if (typeof imageElement.addEventListener === 'function') {
                     imageElement.addEventListener('load', handleLoad, { once: true });
                     imageElement.addEventListener('error', handleError, { once: true });
@@ -2517,6 +2604,11 @@ function ensureFabric() {
                 }
             }
 
+            if (!mask || typeof mask.set !== 'function' || typeof mask.setCoords !== 'function') {
+                this._reportWarning('fabricGenerator returned an invalid Fabric object');
+                return null;
+            }
+
             const styles = maskConfig.styles || {};
             const hasStyle = property => Object.prototype.hasOwnProperty.call(styles, property);
             const maskSettings = {
@@ -2651,6 +2743,99 @@ function ensureFabric() {
             }
         }
 
+        _captureMaskLabelBackups(masks) {
+            if (!this.canvas) return [];
+            const canvasObjects = new Set(this.canvas.getObjects());
+            return (masks || []).map(mask => {
+                const label = mask && mask.__label ? mask.__label : null;
+                return {
+                    mask,
+                    label,
+                    hadLabel: !!label,
+                    labelInCanvas: !!label && canvasObjects.has(label),
+                    visible: label ? label.visible : undefined
+                };
+            });
+        }
+
+        _restoreMaskLabelBackups(labelBackups) {
+            if (!this.canvas || !Array.isArray(labelBackups)) return;
+            const canvasObjects = new Set(this.canvas.getObjects());
+            labelBackups.forEach(backup => {
+                if (!backup || !backup.mask) return;
+                try {
+                    if (!backup.hadLabel) {
+                        if (backup.mask.__label) this._removeLabelForMask(backup.mask);
+                        return;
+                    }
+                    backup.mask.__label = backup.label;
+                    if (!backup.label) return;
+                    if (backup.labelInCanvas && !canvasObjects.has(backup.label)) {
+                        this.canvas.add(backup.label);
+                        canvasObjects.add(backup.label);
+                    }
+                    if (backup.visible !== undefined) backup.label.set({ visible: backup.visible });
+                    if (backup.labelInCanvas) this.canvas.bringToFront(backup.label);
+                    this._syncMaskLabel(backup.mask);
+                } catch (error) { void error; }
+            });
+        }
+
+        _captureActiveObjectBackup() {
+            if (!this.canvas) return null;
+            const activeObject = this.canvas.getActiveObject();
+            if (!activeObject) return null;
+            const selectedObjects = typeof activeObject.getObjects === 'function'
+                ? activeObject.getObjects()
+                : [activeObject];
+            return { activeObject, selectedObjects };
+        }
+
+        _restoreActiveObjectBackup(activeObjectBackup) {
+            if (!this.canvas || !activeObjectBackup || !activeObjectBackup.activeObject) return;
+            const canvasObjects = this.canvas.getObjects();
+            const selectedObjects = Array.isArray(activeObjectBackup.selectedObjects)
+                ? activeObjectBackup.selectedObjects
+                : [];
+            const canRestore = selectedObjects.length
+                ? selectedObjects.every(object => canvasObjects.includes(object))
+                : canvasObjects.includes(activeObjectBackup.activeObject);
+            if (!canRestore) return;
+            try {
+                this.canvas.setActiveObject(activeObjectBackup.activeObject);
+            } catch (error) { void error; }
+        }
+
+        _captureMaskExportBackups(masks) {
+            return (masks || []).map(mask => ({
+                object: mask,
+                visible: mask.visible,
+                opacity: mask.opacity,
+                fill: mask.fill,
+                strokeWidth: mask.strokeWidth,
+                stroke: mask.stroke,
+                selectable: mask.selectable,
+                lockRotation: mask.lockRotation
+            }));
+        }
+
+        _restoreMaskExportBackups(maskBackups) {
+            (maskBackups || []).forEach(backup => {
+                try {
+                    backup.object.set({
+                        visible: backup.visible,
+                        opacity: backup.opacity,
+                        fill: backup.fill,
+                        strokeWidth: backup.strokeWidth,
+                        stroke: backup.stroke,
+                        selectable: backup.selectable,
+                        lockRotation: backup.lockRotation
+                    });
+                    backup.object.setCoords();
+                } catch (error) { void error; }
+            });
+        }
+
         /**
          * Returns a stable zero-based creation index for label callbacks.
          *
@@ -2728,10 +2913,14 @@ function ensureFabric() {
         _hideAllMaskLabels() {
             if (!this.canvas) return;
             const canvasObjects = this.canvas.getObjects();
+            const canvasObjectSet = new Set(canvasObjects);
             const labels = canvasObjects.filter(object => object.maskLabel);
             labels.forEach(label => {
                 try {
-                    if (canvasObjects.includes(label)) this.canvas.remove(label);
+                    if (canvasObjectSet.has(label)) {
+                        this.canvas.remove(label);
+                        canvasObjectSet.delete(label);
+                    }
                 } catch (error) { void error; }
             });
             canvasObjects.forEach(object => {
@@ -2908,6 +3097,9 @@ function ensureFabric() {
                     fileType: 'png'
                 }));
                 this.removeAllMasks(this._withInternalOperationOptions(operationToken, { saveHistory: false }));
+                if (this.canvas.getObjects().some(object => object.maskId)) {
+                    throw new Error('Masks could not be removed during merge');
+                }
                 await this.loadImage(merged, this._withInternalOperationOptions(operationToken, {
                     preserveScroll: true,
                     resetMaskCounter: false
@@ -2987,7 +3179,11 @@ function ensureFabric() {
 
             if (!exportImageArea) {
                 const masks = this.canvas.getObjects().filter(object => object.maskId || object.maskLabel);
+                const editableMasks = this.canvas.getObjects().filter(object => object.maskId);
                 const maskVisibilityBackups = masks.map(mask => ({ object: mask, visible: mask.visible }));
+                const maskStyleBackups = this._captureMaskExportBackups(editableMasks);
+                const labelBackups = this._captureMaskLabelBackups(editableMasks);
+                const activeObjectBackup = this._captureActiveObjectBackup();
 
                 try {
                     masks.forEach(mask => { mask.set({ visible: false }); });
@@ -3008,21 +3204,18 @@ function ensureFabric() {
                     maskVisibilityBackups.forEach(backup => {
                         try { backup.object.set({ visible: backup.visible }); } catch (error) { void error; }
                     });
+                    this._restoreMaskExportBackups(maskStyleBackups);
+                    this._restoreMaskLabelBackups(labelBackups);
+                    this._restoreActiveObjectBackup(activeObjectBackup);
                     this.canvas.renderAll();
                 }
             }
 
             // Render masks as export shapes without mutating their editable styles.
             const masks = this.canvas.getObjects().filter(object => object.maskId);
-            const maskStyleBackups = masks.map(mask => ({
-                object: mask,
-                opacity: mask.opacity,
-                fill: mask.fill,
-                strokeWidth: mask.strokeWidth,
-                stroke: mask.stroke,
-                selectable: mask.selectable,
-                lockRotation: mask.lockRotation
-            }));
+            const maskStyleBackups = this._captureMaskExportBackups(masks);
+            const labelBackups = this._captureMaskLabelBackups(masks);
+            const activeObjectBackup = this._captureActiveObjectBackup();
 
             let finalBase64;
             try {
@@ -3052,20 +3245,9 @@ function ensureFabric() {
                     sealPartialEdges: this._getPartialExportEdges(imageBounds)
                 });
             } finally {
-                maskStyleBackups.forEach(backup => {
-                    try {
-                        backup.object.set({
-                            opacity: backup.opacity,
-                            fill: backup.fill,
-                            strokeWidth: backup.strokeWidth,
-                            stroke: backup.stroke,
-                            selectable: backup.selectable,
-                            lockRotation: backup.lockRotation
-                        });
-                        backup.object.setCoords();
-                    } catch (error) { void error; }
-                });
-
+                this._restoreMaskExportBackups(maskStyleBackups);
+                this._restoreMaskLabelBackups(labelBackups);
+                this._restoreActiveObjectBackup(activeObjectBackup);
                 this.canvas.renderAll();
             }
 
@@ -3158,13 +3340,8 @@ function ensureFabric() {
             }
 
             // Convert the final data URL to a File with the requested MIME type.
-            const binaryString = atob(imageDataUrl.split(',')[1]);
+            const bytes = this._decodeBase64Payload(imageDataUrl.split(',')[1]);
             const mime = `image/${safeFileType}`;
-            let byteIndex = binaryString.length;
-            const bytes = new Uint8Array(byteIndex);
-            while (byteIndex--) {
-                bytes[byteIndex] = binaryString.charCodeAt(byteIndex);
-            }
             return new File([bytes], fileName, { type: mime });
         }
 
@@ -3325,6 +3502,30 @@ function ensureFabric() {
                     const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
                     cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
                     cropRect.setCoords();
+                    const cropBounds = cropRect.getBoundingRect(true, true);
+                    const imageLeft = Number(imageBounds.left) || 0;
+                    const imageTop = Number(imageBounds.top) || 0;
+                    const imageRight = imageLeft + (Number(imageBounds.width) || 0);
+                    const imageBottom = imageTop + (Number(imageBounds.height) || 0);
+                    let deltaX = 0;
+                    let deltaY = 0;
+                    if (cropBounds.left < imageLeft) {
+                        deltaX = imageLeft - cropBounds.left;
+                    } else if (cropBounds.left + cropBounds.width > imageRight) {
+                        deltaX = imageRight - (cropBounds.left + cropBounds.width);
+                    }
+                    if (cropBounds.top < imageTop) {
+                        deltaY = imageTop - cropBounds.top;
+                    } else if (cropBounds.top + cropBounds.height > imageBottom) {
+                        deltaY = imageBottom - (cropBounds.top + cropBounds.height);
+                    }
+                    if (deltaX || deltaY) {
+                        cropRect.set({
+                            left: (Number(cropRect.left) || 0) + deltaX,
+                            top: (Number(cropRect.top) || 0) + deltaY
+                        });
+                        cropRect.setCoords();
+                    }
                     this.canvas.requestRenderAll();
                 } catch (error) { void error; }
             };
@@ -3404,23 +3605,19 @@ function ensureFabric() {
                 const masks = this.canvas.getObjects().filter(object => object.maskId);
                 if (masks && masks.length) {
                     masks.forEach(mask => {
-                        try {
-                            mask.setCoords();
-                            const maskBounds = mask.getBoundingRect(true, true);
-                            const intersectsCrop =
-                                maskBounds.left < cropRegion.sourceX + cropRegion.sourceWidth &&
-                                maskBounds.left + maskBounds.width > cropRegion.sourceX &&
-                                maskBounds.top < cropRegion.sourceY + cropRegion.sourceHeight &&
-                                maskBounds.top + maskBounds.height > cropRegion.sourceY;
-                            this._removeLabelForMask(mask);
-                            this.canvas.remove(mask);
-                            if (shouldPreserveMasks && intersectsCrop) {
-                                this._translateObjectByCanvasOffset(mask, -cropRegion.sourceX, -cropRegion.sourceY);
-                                mask.set({ visible: true });
-                                preservedMasks.push(mask);
-                            }
-                        } catch (error) {
-                            this._reportWarning('applyCrop: failed to remove mask', error);
+                        mask.setCoords();
+                        const maskBounds = mask.getBoundingRect(true, true);
+                        const intersectsCrop =
+                            maskBounds.left < cropRegion.sourceX + cropRegion.sourceWidth &&
+                            maskBounds.left + maskBounds.width > cropRegion.sourceX &&
+                            maskBounds.top < cropRegion.sourceY + cropRegion.sourceHeight &&
+                            maskBounds.top + maskBounds.height > cropRegion.sourceY;
+                        this._removeLabelForMask(mask);
+                        this.canvas.remove(mask);
+                        if (shouldPreserveMasks && intersectsCrop) {
+                            this._translateObjectByCanvasOffset(mask, -cropRegion.sourceX, -cropRegion.sourceY);
+                            mask.set({ visible: true });
+                            preservedMasks.push(mask);
                         }
                     });
                     this._clearMaskPlacementMemory();
@@ -3428,7 +3625,8 @@ function ensureFabric() {
                     this.canvas.renderAll();
                 }
             } catch (error) {
-                this._reportWarning('applyCrop: error while removing masks', error);
+                await this._restoreStateAfterCropFailure(beforeJson, 'applyCrop: failed to prepare masks', error);
+                return;
             }
 
             this._removeCropRect();
@@ -3520,7 +3718,7 @@ function ensureFabric() {
             const canUndo = this.historyManager?.canUndo();
             const canRedo = this.historyManager?.canRedo();
             const isInCropMode = !!this._cropMode;
-            const isBusy = this.isAnimating || this._isLoading || !!this._activeOperationToken || !!(this.animationQueue && this.animationQueue.isBusy());
+            const isBusy = this.isBusy();
 
             if (isInCropMode) {
                 // Disable all controls except the crop action buttons while crop mode is active.
@@ -3551,6 +3749,10 @@ function ensureFabric() {
             this._setDisabled('cropBtn', !hasImage || isBusy);
             this._setDisabled('applyCropBtn', true);
             this._setDisabled('cancelCropBtn', true);
+            this._setDisabled('scaleRate', !hasImage || isBusy);
+            this._setDisabled('rotationLeftInput', !hasImage || isBusy);
+            this._setDisabled('rotationRightInput', !hasImage || isBusy);
+            this._setDisabled('maskList', !hasImage || isBusy);
             this._setDisabled('imageInput', isBusy);
             this._setDisabled('uploadArea', isBusy);
         }
@@ -3940,9 +4142,9 @@ function ensureFabric() {
         execute(command) {
             const result = command.execute();
             if (result && typeof result.then === 'function') {
-                return Promise.resolve(result).then(() => {
+                return this.enqueue(() => Promise.resolve(result).then(() => {
                     this.push(command);
-                });
+                }));
             }
             this.push(command);
             return result;

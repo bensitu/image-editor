@@ -186,6 +186,7 @@ declare module '@bensitu/image-editor' {
     init(idMap?: ElementIdMap): void;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     isImageLoaded(): boolean;
+    isBusy(): boolean;
 
     /** Public callers should pass only `factor`; internal history control options are intentionally not exposed. */
     scaleImage(factor: number): Promise<void>;

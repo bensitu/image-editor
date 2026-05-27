@@ -360,12 +360,18 @@ function setOptions() {
 }
 
 function canLoadImage() {
-    return !!editor && !editor.isAnimating && !editor._isLoading && !editor._cropMode;
+    return !!editor && !isEditorBusy();
+}
+
+function isEditorBusy() {
+    if (!editor) return false;
+    if (typeof editor.isBusy === 'function') return editor.isBusy();
+    return !!editor.isAnimating;
 }
 
 function updateDemoControls() {
     const hasLoadedImage = !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
-    const isBusy = !!editor && (editor.isAnimating || editor._isLoading || editor._cropMode);
+    const isBusy = isEditorBusy();
     const addMaskButtonElement = getOptionalElement('addMaskBtn');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadButtonElement = getOptionalElement('loadBtn');
@@ -381,8 +387,12 @@ function updateDemoControls() {
 }
 
 function scheduleDemoControlUpdate() {
+    const animationDuration = Number(editor?.options?.animationDuration);
+    const followUpDelay = (Number.isFinite(animationDuration) && animationDuration >= 0)
+        ? animationDuration + 50
+        : 350;
     window.setTimeout(updateDemoControls, 0);
-    window.setTimeout(updateDemoControls, 350);
+    window.setTimeout(updateDemoControls, followUpDelay);
 }
 
 function getSelectedMaskConfig() {
@@ -391,7 +401,7 @@ function getSelectedMaskConfig() {
 }
 
 function handleAddMaskButtonClick() {
-    if (!editor || editor.isAnimating || editor._cropMode) return;
+    if (!editor || isEditorBusy()) return;
     editor.createMask(getSelectedMaskConfig());
     updateDemoControls();
 }
@@ -422,8 +432,12 @@ function handleLoadButtonClick() {
 
     clearDemoError();
     setOptions();
-    const imageBase64 = getOptionalElement('base64Input')?.value || '';
+    const base64InputElement = getOptionalElement('base64Input');
+    const imageBase64 = base64InputElement?.value || '';
     editor.loadImage(imageBase64)
+        .then(function() {
+            if (base64InputElement) base64InputElement.value = '';
+        })
         .catch(function(error) {
             showDemoError(error);
             console.error(error);

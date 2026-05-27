@@ -218,10 +218,28 @@ test('image readiness waits use event listeners without replacing existing handl
     assert.equal(imageElement.onload, existingLoadHandler);
     assert.equal(typeof listeners.get('load'), 'function');
 
+    imageElement.naturalWidth = 10;
+    imageElement.naturalHeight = 10;
     listeners.get('load')();
     await readyPromise;
     assert.equal(listeners.has('load'), false);
     assert.equal(listeners.has('error'), false);
+});
+
+test('image readiness rejects completed broken images with no dimensions', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+
+    await assert.rejects(
+        () => editor._waitForImageElementReady({
+            complete: true,
+            naturalWidth: 0,
+            naturalHeight: 0,
+            width: 0,
+            height: 0
+        }),
+        /Image could not be loaded/
+    );
 });
 
 test('loadImage ignores invalid input and resolves only after a valid image is on canvas', async (t) => {
@@ -1267,6 +1285,26 @@ test('invalid custom label factories emit a warning and fall back to default lab
     assert.equal(warnings.some(entry => /label\.create/.test(entry.message)), true);
 });
 
+test('invalid custom mask generators return null and leave state unchanged', async (t) => {
+    const warnings = [];
+    const { editor } = await createEditor({
+        onWarning: (error, message) => warnings.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const historyLength = editor.historyManager.history.length;
+
+    const mask = editor.createMask({
+        fabricGenerator: () => ({ type: 'not-a-fabric-object' })
+    });
+
+    assert.equal(mask, null);
+    assert.equal(editor.maskCounter, 0);
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
+    assert.equal(editor.historyManager.history.length, historyLength);
+    assert.equal(warnings.some(entry => /fabricGenerator/.test(entry.message)), true);
+});
+
 test('exportImageBase64 exports image data and restores mask state when export fails', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -1308,6 +1346,33 @@ test('exportImageBase64 exports image data and restores mask state when export f
     assert.equal(mask.stroke, originalState.stroke);
     assert.equal(mask.selectable, originalState.selectable);
     assert.equal(mask.lockRotation, originalState.lockRotation);
+});
+
+test('exportImageBase64 preserves selected mask labels and active selection', async (t) => {
+    const { editor } = await createEditor({
+        maskLabelOnSelect: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const mask = editor.createMask({
+        styles: {
+            stroke: '#123456',
+            strokeWidth: 3
+        }
+    });
+    const label = mask.__label;
+
+    for (const exportImageArea of [false, true]) {
+        editor.canvas.setActiveObject(mask);
+        editor._handleSelectionChanged([mask]);
+        await editor.exportImageBase64({ exportImageArea, multiplier: 1 });
+
+        assert.equal(mask.__label, label);
+        assert.equal(editor.canvas.getObjects().includes(label), true);
+        assert.equal(editor.canvas.getActiveObject(), mask);
+        assert.equal(mask.stroke, '#ff0000');
+        assert.equal(label.visible, true);
+    }
 });
 
 test('exportImageBase64 can export directly to PNG', async (t) => {
@@ -1563,6 +1628,49 @@ test('exportImageFile creates a typed image File with and without merged masks',
     assert.equal(plainFile.size > 0, true);
 });
 
+test('exportImageFile can decode output without a global atob', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const originalAtob = globalThis.atob;
+    globalThis.atob = undefined;
+    t.after(() => {
+        globalThis.atob = originalAtob;
+    });
+
+    const file = await editor.exportImageFile({
+        mergeMask: false,
+        fileType: 'png',
+        fileName: 'without-atob.png'
+    });
+
+    assert.equal(file.name, 'without-atob.png');
+    assert.equal(file.type, 'image/png');
+    assert.equal(file.size > 0, true);
+});
+
+test('JPEG background color treats transparent CSS forms as white fallback', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+
+    const transparentColors = [
+        'transparent',
+        'rgba(0, 0, 0, 0)',
+        'rgb(0 0 0 / 0)',
+        'hsl(0 0% 0% / 0%)',
+        '#0000',
+        '#ffffff00'
+    ];
+
+    for (const color of transparentColors) {
+        editor.options.backgroundColor = color;
+        assert.equal(editor._getJpegBackgroundColor(), '#ffffff', `${color} should use white`);
+    }
+
+    editor.options.backgroundColor = 'rgba(1, 2, 3, 0.5)';
+    assert.equal(editor._getJpegBackgroundColor(), 'rgba(1, 2, 3, 0.5)');
+});
+
 test('exportImageFile forwards quality to exportImageBase64 for both export modes', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -1800,6 +1908,32 @@ test('crop mode enforces configured minimum resize dimensions within image bound
     assert.ok(editor._cropRect.getScaledHeight() >= 70);
 });
 
+test('crop mode clamps moved rectangles inside image bounds', async (t) => {
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 40,
+            minHeight: 40
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+
+    editor.enterCropMode();
+    editor._cropRect.set({ left: -50, top: -40, scaleX: 1, scaleY: 1 });
+    editor._cropRect.fire('moving');
+
+    assert.ok(editor._cropRect.left >= 0);
+    assert.ok(editor._cropRect.top >= 0);
+
+    editor._cropRect.set({ left: 500, top: 500, scaleX: 1, scaleY: 1 });
+    editor._cropRect.fire('moving');
+    editor._cropRect.setCoords();
+    const bounds = editor._cropRect.getBoundingRect(true, true);
+
+    assert.ok(bounds.left + bounds.width <= 200);
+    assert.ok(bounds.top + bounds.height <= 160);
+});
+
 test('crop mode hides masks temporarily and restores their visibility on cancel', async (t) => {
     const { editor } = await createEditor({
         crop: {
@@ -1993,6 +2127,41 @@ test('applyCrop rolls back image and masks when crop export fails', async (t) =>
     assert.equal(editor._cropMode, false);
     assert.equal(editor._cropRect, null);
     assert.equal(errors[0].message, 'applyCrop: failed to create cropped image');
+});
+
+test('applyCrop rolls back when mask preparation fails', async (t) => {
+    const errors = [];
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 40,
+            minHeight: 40
+        },
+        onError: (error, message) => errors.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+    const mask = editor.createMask({ left: 30, top: 35, width: 30, height: 30 });
+    const originalRemove = editor.canvas.remove.bind(editor.canvas);
+    let didThrow = false;
+    editor.canvas.remove = (...objects) => {
+        if (!didThrow && objects.some(object => object && object.maskId)) {
+            didThrow = true;
+            throw new Error('forced mask removal failure');
+        }
+        return originalRemove(...objects);
+    };
+    t.after(() => {
+        if (editor.canvas) editor.canvas.remove = originalRemove;
+    });
+
+    editor.enterCropMode();
+    await editor.applyCrop();
+
+    const masks = editor.canvas.getObjects().filter(object => object.maskId);
+    assert.equal(masks.length, 1);
+    assert.equal(masks[0].maskId, mask.maskId);
+    assert.equal(editor._cropMode, false);
+    assert.equal(errors[0].message, 'applyCrop: failed to prepare masks');
 });
 
 test('first mask addition can be undone after image load', async (t) => {
@@ -2247,6 +2416,28 @@ test('upload area click is disabled while crop mode is active', async (t) => {
     editor.cancelCrop();
     document.getElementById(ids.uploadArea).click();
     assert.equal(inputClicks, 1);
+});
+
+test('mask list remains clickable after canceling crop mode', async (t) => {
+    const { editor, ids } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const firstMask = editor.createMask({ left: 20, top: 20, width: 20, height: 20 });
+    editor.createMask({ left: 60, top: 40, width: 20, height: 20 });
+    const maskListElement = document.getElementById(ids.maskList);
+
+    editor.enterCropMode();
+    assert.equal(maskListElement.style.pointerEvents, 'none');
+    assert.equal(maskListElement.getAttribute('aria-disabled'), 'true');
+
+    editor.cancelCrop();
+
+    assert.equal(maskListElement.style.pointerEvents, '');
+    assert.equal(maskListElement.hasAttribute('aria-disabled'), false);
+    maskListElement.querySelector(`[data-mask-id="${firstMask.maskId}"]`).click();
+
+    assert.equal(editor.canvas.getActiveObject().maskId, firstMask.maskId);
+    assert.equal(maskListElement.querySelector(`[data-mask-id="${firstMask.maskId}"]`).classList.contains('active'), true);
 });
 
 test('dispose releases canvas references, image loaded state, and restored container overflow', async () => {
