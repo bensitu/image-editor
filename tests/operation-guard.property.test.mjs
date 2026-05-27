@@ -1,34 +1,37 @@
-// Operation guards during animation
-//
-//   For any guarded operation invoked while `isAnimating === true`, the
-//   editor SHALL leave the canvas, history stack, crop session, masks,
-//   and export state unchanged unless the operation is `undo()` or
-//   `redo()`, which are serialized through the animation queue instead
-//   of rejected by the guard.
-//
-// This test focuses on the `OperationGuard` primitive that owns the
-// `isAnimating` / `isDisposed` flags and the `assertNotAnimating()` gate.
-// It covers the contract owned by `src/core/operation-guard.ts`:
-//
-//   1. After `runAnimation(fn)` settles (resolve OR reject), `isAnimating()`
-//      is `false`.
-//   2. Calling `assertNotAnimating(label)` *inside* a `runAnimation(...)`
-//      block throws an `Error` whose message embeds the operation label.
-//
-//   3. Calling `assertNotAnimating(label)` *outside* any animation block
-//      does not throw, regardless of label content.
-//   4. After `markDisposed()`, `isDisposed()` returns `true` and
-//      `isAnimating()` returns `false` even when invoked mid-animation —
-//      the dispose-safe settlement contract from the guard's docblock.
-//   5. Multiple sequential `runAnimation` calls each correctly bracket
-//      their flag transitions; the guard returns to a quiescent state
-//      between calls.
-//
-// Owner module: `src/core/operation-guard.ts`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required to run the property test in isolation.
+/**
+ * @file operation-guard.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/core/operation-guard.ts state transitions around animation
+ *   bracketing, assertion behavior, disposal, and sequential runs. The guard is
+ *   tested directly because it owns the shared isAnimating and isDisposed flags used
+ *   by the facade and controllers.
+ *
+ * Scope:
+ *   - runAnimation clears isAnimating on both resolve and reject.
+ *   - assertNotAnimating throws only while an animation is active.
+ *   - markDisposed forces a quiescent state, and sequential animations bracket
+ *     cleanly.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *
+ * Run:
+ *   node --test tests/operation-guard.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on operation guard animation lifecycle only.
+ */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

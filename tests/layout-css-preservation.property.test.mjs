@@ -1,46 +1,37 @@
-// CSS preservation across all layout operations
-//
-//   For any sequence of layout-affecting operations, the editor SHALL
-//   preserve the host element inline CSS values for width, height,
-//   display, and overflow. Any temporary visibility or overflow changes
-//   made by editor-owned transactional operations SHALL be restored
-//   before the operation settles or during dispose.
-//
-// Owner module: `src/image/layout-manager.ts` — `applyCanvasDimensions`
-// is the only place in the editor that calls `Canvas.setDimensions`.
-// It is contractually forbidden from mutating either the canvas
-// element's inline style or the container's inline style; instead it
-// updates pixel dimensions atomically through Fabric's two-layer
-// canvas API and forces a synchronous reflow on the container by
-// reading `offsetWidth`.
-//
-// Sub-properties exercised here:
-//
-//   9.1 No canvas.style mutation: for any (width, height)
-//       input, `applyCanvasDimensions` must NOT change any of
-//       `canvas.style.width`, `canvas.style.height`, or
-//       `canvas.style.display`.
-//   9.2 No container.style mutation: for any input,
-//       it must NOT change `container.style.{width,height,display}`
-//       and — critically for the documented contract — must NOT touch
-//       `container.style.overflow` while compensating for pre-existing
-//       auto scrollbars.
-//   9.3 setDimensions called with integers: the mock canvas's
-//       `setDimensions` records exactly one call per invocation, with
-//       integer `width`/`height` ≥ 1 derived from the input via
-//       `max(1, round(Number(input) || 1))`.
-//   9.4 forceReflow called: the container's
-//       `offsetWidth` getter is read at least once after
-//       `setDimensions`, confirming the synchronous reflow primitive
-//       in `utils/dom.ts` is invoked.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the module under test directly from source. The shared
-// `ts-resolve-hook` rewrites `.js` import specifiers in
-// `layout-manager.ts` (and its `utils/dom.js` dependency) to their
-// `.ts` siblings, mirroring the project's `moduleResolution: "bundler"`
-// setup. `applyCanvasDimensions` does not need a real Fabric canvas or
-// a real `HTMLElement`; duck-typed mocks suffice.
+/**
+ * @file layout-css-preservation.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/layout-manager.ts canvas-dimension application without
+ *   mutating inline style state on the canvas or container. The property uses
+ *   lightweight element stubs to observe dimension writes and reflow reads.
+ *
+ * Scope:
+ *   - applyCanvasDimensions writes integer canvas dimensions through setDimensions.
+ *   - Existing canvas and container style objects are preserved.
+ *   - The helper forces a synchronous reflow by reading container.offsetWidth when a
+ *     container is present.
+ *
+ * Out of scope:
+ *   - browser layout engine differences
+ *   - visual rendering quality
+ *   - unrelated editor workflows
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/layout-css-preservation.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on cSS preservation across layout operations only.
+ */
 
 import { register } from 'node:module';
 

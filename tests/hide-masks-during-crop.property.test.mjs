@@ -1,55 +1,40 @@
-// Hide-masks-during-crop and restore on cancel
-//
-//   For any mask set and crop configuration, entering crop mode with
-//   `hideMasksDuringCrop === true` SHALL back up prior mask styles and
-//   hide masks from interaction. Canceling crop SHALL restore every
-//   backed-up mask field, including opacity, fill, stroke, strokeWidth,
-//   selectable, evented, and lockRotation.
-//
-// Owner modules under test: `src/crop/crop-controller.ts`,
-// `src/mask/mask-style.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// lives at the seam between the crop session lifecycle (owned
-// by `crop/crop-controller.ts`) and the per-mask style backup helpers
-// (owned by `mask/mask-style.ts`). The contract has two halves:
-//
-//   31.1 On `enterCropMode()` with `options.crop.hideMasksDuringCrop === true`:
-//        · every mask's prior live `opacity`, `fill`, `stroke`,
-//          `strokeWidth`, `selectable`, and `lockRotation` is captured
-//          into the session's `maskBackups` BEFORE any mutation runs.
-//        · every mask is then forced to `opacity: 0`, `evented: false`,
-//          `selectable: false` so only the crop rectangle responds to
-//          pointer events.
-//        · non-mask objects are NOT backed up — the freeze loop captures
-//          `prevEvented` / `selectable` for them but does not produce
-//          per-object MaskBackups.
-//
-//   31.2 On `cancelCrop()` after a hide-on-entry pass:
-//        · every backed-up mask field (`opacity`, `fill`, `strokeWidth`,
-//          `stroke`, `selectable`, `lockRotation`) is restored to the
-//          captured pre-crop value.
-//        · `evented` is restored via the freeze loop's `prevEvented`
-//          path (independent of the mask backup), so a cancel after a
-//          hide-on-entry pass leaves the mask fully interactive again.
-//
-// Negative case (`hideMasksDuringCrop === false`):
-//        · `enterCropMode()` does NOT capture any mask backups and does
-//          NOT mutate any mask's `opacity`. The freeze loop still runs
-//          (so `evented` / `selectable` flip to `false`), but those flags
-//          are restored on `cancelCrop()` via `prevEvented` so the round
-//          trip is observably a no-op for every mask field Contract
-//          31.2 covers.
-//
-// Three properties (27.A, 27.B, 27.C) cover the three cases above. All
-// three iterate over a fast-check arbitrary that produces a small set of
-// pre-existing masks with diverse style values, ensuring the backup /
-// restore loop handles arbitrary live state.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this
-// test imports the modules under test directly from source via the
-// shared `ts-resolve-hook`. No build step is required.
+/**
+ * @file hide-masks-during-crop.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies the interaction between src/crop/crop-controller.ts and
+ *   src/mask/mask-style.ts when crop.hideMasksDuringCrop is enabled or disabled. The
+ *   suite checks that mask style backups and object event flags round-trip correctly
+ *   through enter and cancel.
+ *
+ * Scope:
+ *   - Enabled mode backs up mask styles before forcing masks invisible and
+ *     non-interactive.
+ *   - cancelCrop restores opacity, fill, stroke, strokeWidth, selectable,
+ *     lockRotation, and evented state.
+ *   - Disabled mode skips mask style backups while still restoring freeze-loop event
+ *     flags.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - browser-specific pointer interaction details
+ *   - unrelated mask and export features
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/hide-masks-during-crop.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on hide masks during crop and restore on cancel only.
+ */
 
 import { register } from 'node:module';
 

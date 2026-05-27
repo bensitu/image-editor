@@ -1,46 +1,37 @@
-// Atomic mergeMasks
-//
-//   For any merge attempt, `mergeMasks()` SHALL either commit a merged
-//   image state with exactly one history entry and preserved scroll
-//   position, or restore the pre-merge snapshot and reject without
-//   leaving partially flattened masks or image state.
-//
-// Owner module under test: `src/export/export-service.ts → mergeMasks`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// `mergeMasks` integrates the export bake-in bracket, the transactional
-// `loadImage`, the state serializer (`saveState` / `loadFromState`), and
-// the history manager. This property test isolates the merge pipeline by
-// injecting a `MergeMasksContext` test double whose canvas, history
-// manager, loader, and state callbacks are deterministic stubs that
-// record the order and identity of every step the merge takes.
-//
-// The two core merge scenarios are exercised here:
-//
-//   1. Successful merge — random pre-merge mask population and
-//      container scroll position. Asserts that:
-//        · the pre-merge snapshot was captured before any mutation
-//
-//        · exactly one history entry was pushed
-//        · `scrollTop` / `scrollLeft` are preserved across the success
-//          path
-//        · the history command's `undo` callback restores the pre-merge
-//          snapshot, and `execute` re-applies the merged snapshot
-//
-//
-//   2. Failed merge — `loadImage` is forced to throw. Asserts that:
-//        · the pre-merge snapshot was captured before any mutation
-//
-//        · `loadFromState` was called with the pre-merge snapshot to
-//          restore the editor
-//        · the returned promise rejects with `MergeMasksError`
-//
-//        · NO history entry was pushed
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this test
-// imports the module under test directly from source via the shared
-// `ts-resolve-hook`. No build step is required.
+/**
+ * @file merge-masks.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/mask/merge-controller.ts behavior for successful merge and rollback
+ *   on failure. The suite uses a mock canvas, scripted export/load paths, and a real
+ *   HistoryManager to observe snapshots, scroll preservation, and history entries.
+ *
+ * Scope:
+ *   - Successful merge captures the pre-merge snapshot before mutation and pushes
+ *     exactly one history entry.
+ *   - Scroll positions are preserved when the container exists.
+ *   - Failed merge restores the pre-merge snapshot and does not push history.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - unrelated crop or export behavior
+ *   - browser-specific pointer interaction details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/merge-masks.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on atomic mergeMasks pipeline only.
+ */
 
 import { register } from 'node:module';
 

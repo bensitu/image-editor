@@ -1,36 +1,38 @@
-// Reset transform produces exactly one history entry
-//
-//   For any non-disposed editor with an image loaded,
-//   `resetImageTransform()` SHALL restore scale and rotation to the
-//   default state and SHALL create exactly one history entry even though
-//   it may internally perform multiple animated transform steps.
-//
-// Owner module under test: `src/image/transform-controller.ts`. The
-// orchestrator wires `saveCanvasState()` to a no-op while
-// `setSuppressSaveState(true)` is active so `resetImageTransform()`
-// emits exactly one history entry covering the full reset (the chained
-// `scaleImage(1)` and `rotateImage(0)` calls each suppress their own
-// per-operation save). This test models that wiring on the mock
-// context and asserts the post-conditions.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// Like `scale-clamp.property.test.mjs` we isolate the controller from a
-// real Fabric canvas:
-//   - A `MockCanvas` with only `requestRenderAll`.
-//   - A fake Fabric image whose `animate(props, opts)` resolves the
-//     wrapper Promise synchronously by firing `onComplete` once per
-//     animated property (Fabric v7's documented multi-property contract,
-//     mirrored by `fabric/fabric-animation.ts → animateProps`).
-//   - A `TransformContext` whose `saveCanvasState` honours the
-//     suppression flag toggled by `setSuppressSaveState`. This is the
-//     orchestrator-side wiring under test — without it, the chained
-//     `scaleImage(1)` and `rotateImage(0)` would each push their own
-//     history entry and the property would fail.
-//
-// `numRuns: 30` matches the scale-clamp test: each iteration spins up a
-// fresh context and walks the full async pipeline, so the higher
-// default of 100 adds microtask churn without buying extra coverage.
+/**
+ * @file reset-transform.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/transform-controller.ts resetImageTransform behavior with
+ *   orchestrator-style save suppression. The suite isolates transform logic with a
+ *   mock canvas and fake Fabric image while observing history-save calls.
+ *
+ * Scope:
+ *   - resetImageTransform returns scale and rotation to default values when an image
+ *     is loaded.
+ *   - Internal scale and rotate steps run under suppression.
+ *   - The completed reset emits exactly one history entry and no-ops when no image is
+ *     loaded.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/reset-transform.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on reset transform creates one history entry only.
+ */
 
 import { register } from 'node:module';
 

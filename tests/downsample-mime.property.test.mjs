@@ -1,39 +1,36 @@
-// Downsample MIME selection
-//
-//   For any source MIME, `preserveSourceFormat` flag, and explicit or
-//   omitted `downsampleMimeType`, the resampler SHALL preserve
-//   alpha-capable source MIME types (`image/png`, `image/webp`) only when
-//   `preserveSourceFormat` is true and no explicit override is supplied,
-//   SHALL use the explicit override when supplied, and SHALL fall back
-//   to the lossy default (`image/jpeg`) otherwise.
-//
-// Owner module: `src/image/image-resampler.ts` — pure function
-// `selectDownsampleMimeType(sourceMime, preserveSourceFormat,
-// downsampleMimeType)` exposed for property testing without a DOM.
-//
-// Sub-properties exercised here:
-//
-//   4.1 Explicit override always wins: when
-//       `downsampleMimeType` is truthy, output === downsampleMimeType.
-//   4.2 PNG/WebP preservation: when `downsampleMimeType` is
-//       unset (null/undefined) AND `preserveSourceFormat` is true AND
-//       `sourceMime` ∈ {'image/png', 'image/webp'}, output === sourceMime.
-//   4.3 Default to JPEG: when `downsampleMimeType` is unset
-//       AND (`preserveSourceFormat` is false OR `sourceMime` is not
-//       alpha-capable), output === 'image/jpeg'.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required. `selectDownsampleMimeType` is a pure function with
-// no DOM dependency, so the property test runs without jsdom.
-//
-// `image-resampler.ts` carries a runtime `.js`-suffixed import to a sibling
-// `.ts` module (the project compiles for browsers under
-// `moduleResolution: "bundler"`). Node's native type stripping does not
-// rewrite those specifiers, so we register the shared resolve hook that
-// maps relative `.js` requests to `.ts` when the sibling source file
-// exists. The resampler is pulled in via dynamic `import()` so the
-// resolver is in place before its specifier is resolved.
+/**
+ * @file downsample-mime.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/downsample.ts MIME selection when preserving, overriding, or
+ *   defaulting the output image type. The suite isolates the format-selection rules
+ *   from the resampling canvas path.
+ *
+ * Scope:
+ *   - Explicit downsampleMimeType wins over inferred source type.
+ *   - PNG and WebP can be preserved when preserveSourceFormat is enabled.
+ *   - Unsupported or missing source types fall back to image/jpeg.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/downsample-mime.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on downsample MIME selection only.
+ */
 
 import { register } from 'node:module';
 

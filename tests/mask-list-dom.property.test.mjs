@@ -1,59 +1,38 @@
-// Mask list DOM correctness
-//
-//   For any mask population on the canvas, the mask list helpers SHALL
-//   render exactly one `<li>` per canvas mask in canvas object order
-//, tag every `<li>` with a `data-mask-id` equal to the
-//   mask's `maskId`, select by `maskId` lookup on click —
-//   regardless of where the item currently sits in the list —
-//   and compute label text via
-//   `options.label.getText(mask, mask.maskId - 1)` so the index argument
-//   is the stable creation index rather than the live list position
-//.
-//
-// Owner modules under test:
-//
-//   - `src/mask/mask-list.ts` — pure(ish)
-//     helpers `renderMaskList` / `updateMaskListSelection` that the
-//     orchestrator delegates to from its `_updateMaskList` and
-//     `_handleMaskListClick` paths.
-//   - `src/mask/mask-label-manager.ts` — `createLabelForMask`,
-//     which is the only call site that invokes
-//     `options.label.getText`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// Both modules are unit-testable in isolation: they take a `*Context`
-// argument that abstracts the canvas, Fabric module, resolved options,
-// and selection-changed callback, so a fake Fabric environment plus a
-// per-iteration JSDOM document is enough to exercise the full DOM
-// contract. We do NOT need to instantiate `ImageEditor` here — the
-// orchestrator-level wiring is exercised by the mask-factory and
-// barrel-export tests.
-//
-// `numRuns: 100` matches the rest of the property suite. Each
-// iteration installs a fresh JSDOM document, builds an arbitrary mask
-// population, and asserts the four sub-properties below.
-//
-// Sub-properties exercised here:
-//
-//   21.1 Exactly one `<li>` per canvas mask, in canvas object order
-//.
-//   21.2 Each `<li>` has `data-mask-id` equal to its mask's `maskId`
-//.
-//   21.3 Clicking a list item selects by `maskId` lookup, regardless
-//        of where the item currently sits in the list — i.e. after
-//        the canvas re-orders its objects, clicks still resolve to
-//        the same mask the `data-mask-id` identifies.
-//   21.4 Label text is computed via
-//        `options.label.getText(mask, mask.maskId - 1)` — the index
-//        argument is the stable creation index, not the live list
-//        position.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the modules under test directly from source. The
-// shared `ts-resolve-hook` rewrites `.js` import specifiers in the
-// loaded TypeScript files to their `.ts` siblings, mirroring the
-// project's `moduleResolution: "bundler"` setting.
+/**
+ * @file mask-list-dom.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/mask/mask-list.ts rendering and click-selection behavior using
+ *   jsdom. The suite scopes itself to the DOM list contract and uses a minimal canvas
+ *   object list rather than the full editor facade.
+ *
+ * Scope:
+ *   - renderMaskList emits one li per mask in canvas order with data-mask-id.
+ *   - Clicking a list item selects the matching mask by ID lookup regardless of list
+ *     order.
+ *   - Active CSS class state follows the selected mask ID.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - unrelated crop or export behavior
+ *   - browser-specific pointer interaction details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - jsdom or DOM stubs are used where needed
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/mask-list-dom.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on mask list DOM correctness only.
+ */
 
 import { register } from 'node:module';
 

@@ -1,48 +1,38 @@
-// Cover sizing math
-//
-//   For any image dimensions and visible container viewport dimensions,
-//   the cover layout path SHALL size the canvas to the viewport and
-//   SHALL scale the image high enough to cover the viewport on both
-//   axes, including cases where that requires scale greater than `1`.
-//
-// Owner module: `src/image/layout-manager.ts` — pure function
-// `computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth,
-// optionsCanvasHeight, containerSize)`. The function is pure (no DOM),
-// so the property test runs without jsdom.
-//
-// Sub-properties exercised here:
-//
-//   6.1 Canvas matches viewport: `out.canvasWidth ===
-//       container.width || optionsCanvasWidth` — the cover path tracks
-//       the visible viewport when an axis is non-zero, falling back to
-//       the configured canvas dimension when the axis reads zero.
-//       Same invariant on the height axis.
-//   6.2 Image scales up if needed: when the image is strictly
-//       smaller than the canvas on both axes, `out.imageScale > 1`.
-//   6.3 Cover fills both axes: for every input,
-//       `out.imageScale * imageWidth >= out.canvasWidth` and
-//       `out.imageScale * imageHeight >= out.canvasHeight`, with a
-//       small absolute tolerance for IEEE-754 division rounding.
-//   6.4 Aspect-preserving: the result exposes a single
-//       uniform `imageScale` (no `scaleX` / `scaleY` split) and
-//       `baseImageScale` mirrors `imageScale` for cover layout.
-//   6.5 No upper cap: the scale formula
-//       `max(cw / imgW, ch / imgH)` is **not** clamped at `1`. When the
-//       image is much smaller than the canvas, the scale grows in
-//       proportion to the canvas-to-image ratio rather than saturating
-//       at `1`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required.
-//
-// `layout-manager.ts` carries runtime `.js`-suffixed imports to sibling
-// `.ts` modules (the project compiles for browsers under
-// `moduleResolution: "bundler"`). Node's native type stripping does not
-// rewrite those specifiers, so we register the shared resolve hook that
-// maps relative `.js` requests to `.ts` when the sibling source file
-// exists. The layout manager is pulled in via dynamic `import()` so the
-// resolver is in place before its specifier is resolved.
+/**
+ * @file cover-sizing.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/layout-manager.ts computeCoverLayout for arbitrary image and
+ *   viewport dimensions. The function is pure, so the property runs without jsdom and
+ *   focuses only on canvas sizing and image scale selection.
+ *
+ * Scope:
+ *   - Canvas dimensions track visible viewport axes and fall back to configured
+ *     options for zero axes.
+ *   - Image scale is high enough to cover both axes and remains uniform.
+ *   - The scale formula is not capped at 1, so small images can scale up.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - jsdom or DOM stubs are used where needed
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/cover-sizing.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on cover layout sizing math only.
+ */
 
 import { register } from 'node:module';
 

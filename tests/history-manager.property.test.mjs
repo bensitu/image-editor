@@ -1,53 +1,37 @@
-// History pointer monotonicity and lock
-//
-//   For any sequence of command executions, pushes, undo calls, redo
-//   calls, overlapping calls, and max-size overflow,
-//   `HistoryManager.currentIndex` SHALL advance only after successful
-//   awaited work, SHALL stay within stack bounds, SHALL reject or no-op
-//   overlapping work under `_processing`, and SHALL evict the oldest
-//   command without corrupting the current pointer when `maxSize` is
-//   exceeded.
-//
-// This file exercises `src/history/history-manager.ts` directly so the
-// contract is verified in isolation from the rest of the editor:
-//
-//   16.1 Synchronous push/execute monotonicity.
-//        For any sequence of execute() / push() calls with a random
-//        maxSize:
-//          - history.length === min(callCount, maxSize)
-//          - currentIndex === history.length - 1
-//          - canUndo() reflects (currentIndex >= 0)
-//          - canRedo() is false (no redo branch exists)
-//          - The most recent `min(callCount, maxSize)` commands are kept
-//            in enqueue order; older commands have been evicted.
-//
-//   16.2 Async undo/redo pointer tracking.
-//        Given a populated stack, a sequence of awaited undo() / redo()
-//        calls moves currentIndex by exactly -1 / +1 when the call is
-//        able to do work, and is a no-op otherwise. canUndo/canRedo
-//        always agree with the model.
-//
-//   16.3 Lock prevents overlapping work.
-//        While a slow undo() is mid-await, a second undo() (or redo())
-//        invoked synchronously must resolve as a no-op without
-//        touching currentIndex. Once both settle, the net movement is
-//        the work the first call performed — exactly one step.
-//
-//   16.4 Failed undo/redo does not advance the pointer.
-//        If `command.undo()` rejects, the public undo() promise rejects
-//        and currentIndex is unchanged; the lock is released so the
-//        next call can retry the same step.
-//
-//   16.5 Overflow eviction.
-//        After pushing more than maxSize commands, history.length
-//        equals maxSize, currentIndex equals maxSize - 1, and the
-//        oldest (callCount - maxSize) commands have been evicted.
-//
-// Owner module: `src/history/history-manager.ts`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate
-// build step is required to run the property test in isolation.
+/**
+ * @file history-manager.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/history/history-manager.ts command stack behavior for execute, push,
+ *   undo, redo, overflow trimming, and asynchronous processing locks. The suite uses
+ *   generated command sequences to stress pointer transitions.
+ *
+ * Scope:
+ *   - execute and push keep currentIndex monotonic and trim redo branches.
+ *   - undo and redo move the pointer by one successful awaited command.
+ *   - Overlapping processing calls are ignored, and failures release the lock without
+ *     moving the pointer.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *
+ * Run:
+ *   node --test tests/history-manager.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on history pointer monotonicity and processing lock
+ *     only.
+ */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

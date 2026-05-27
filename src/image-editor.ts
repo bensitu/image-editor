@@ -99,6 +99,8 @@ type ElementKey = keyof Required<ElementIdMap>;
 
 type ResolvedElementIdMap = Record<ElementKey, string | null>;
 
+// Crop mode freezes both toolbar buttons and form controls that can
+// start competing editor actions while a crop session owns the canvas.
 const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
     'scaleRate',
     'rotationLeftInput',
@@ -117,6 +119,11 @@ const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
     'redoBtn',
     'imageInput',
     'cropBtn',
+    'applyCropBtn',
+    'cancelCropBtn',
+];
+
+const CROP_MODE_ENABLED_KEYS: readonly ElementKey[] = [
     'applyCropBtn',
     'cancelCropBtn',
 ];
@@ -1038,11 +1045,18 @@ export class ImageEditor {
             const before = this._lastSnapshot ?? after;
             let executedOnce = false;
 
-            // The current canvas already contains `after`; the first
-            // execute records the command without replaying it, while redo
-            // uses the same closure to restore `after`.
+            // HistoryManager.execute() always invokes command.execute()
+            // before storing the command. saveState() is called after the
+            // canvas already reached `after`, so that first invocation only
+            // arms the latch. Later redo() calls use the same closure after
+            // an undo and must restore the captured `after` snapshot.
             const cmd = new Command(
-                async () => { if (executedOnce) { await this.loadFromState(after); } executedOnce = true; },
+                async () => {
+                    if (executedOnce) {
+                        await this.loadFromState(after);
+                    }
+                    executedOnce = true;
+                },
                 async () => { await this.loadFromState(before); },
             );
 
@@ -1631,11 +1645,14 @@ export class ImageEditor {
                 const el = document.getElementById(id);
                 if (!el || !('disabled' in el)) return;
                 (el as HTMLButtonElement | HTMLInputElement).disabled =
-                    !(key === 'applyCropBtn' || key === 'cancelCropBtn');
+                    !CROP_MODE_ENABLED_KEYS.includes(key);
             });
             return;
         }
 
+        this._setDisabled('scaleRate', !hasImg || isAnimating);
+        this._setDisabled('rotationLeftInput', !hasImg || isAnimating);
+        this._setDisabled('rotationRightInput', !hasImg || isAnimating);
         this._setDisabled('zoomInBtn', !hasImg || isAnimating || this.currentScale >= this.options.maxScale);
         this._setDisabled('zoomOutBtn', !hasImg || isAnimating || this.currentScale <= this.options.minScale);
         this._setDisabled('rotateLeftBtn', !hasImg || isAnimating);
@@ -1649,6 +1666,7 @@ export class ImageEditor {
         this._setDisabled('undoBtn', !hasImg || isAnimating || !canUndo);
         this._setDisabled('redoBtn', !hasImg || isAnimating || !canRedo);
         this._setDisabled('cropBtn', !hasImg || isAnimating);
+        this._setDisabled('imageInput', isAnimating);
         this._setDisabled('applyCropBtn', true);
         this._setDisabled('cancelCropBtn', true);
     }

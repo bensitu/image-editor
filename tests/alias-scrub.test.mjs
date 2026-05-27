@@ -1,55 +1,37 @@
 /**
- * Smoke test for the canonical alias-absence scrub across the
- * publishable repository surface.
+ * @file alias-scrub.test.mjs
  *
- * Behaviors under test:
+ * Type:
+ *   Smoke test
  *
- *   1. **dist/types/index.d.ts is alias-free** — the
- *      canonical declarations bundle must not declare or reference any
- *      Deprecated_Alias identifier. Internal `.d.ts` files for non-
- *      exported modules are scoped out: the documented contract targets the public
- *      declarations bundle that downstream TypeScript consumers
- *      resolve through `package.json`'s `exports["."].types`.
- *   2. **README.md is alias-free** — no Deprecated_Alias
- *      identifier appears inside any backtick-delimited code span. The
- *      README is markdown prose; English words like "merge" or "reset"
- *      that appear outside backticks are not identifier mentions and
- *      are intentionally NOT scanned.
- *   3. **docs/ is alias-free** — neither HTML, CSS, nor
- *      embedded JavaScript under `docs/` references any
- *      Deprecated_Alias identifier. Comments and string literals are
- *      stripped from JavaScript before the scan so contextual mentions
- *      do not trip the check; element ids like `resetBtn` and i18n
- *      keys like `resetTransform` are not alias identifiers (no word
- *      boundary follows the alias prefix).
- *   4. **tests/ is alias-free** — no test file outside the
- *      defined allowlist references any Deprecated_Alias as a code
- *      identifier. The allowlist covers this scrub test, which holds
- *      alias names as string-literal data so a regression surfaces by
- *      name.
- *   5. **CHANGELOG.md alias mentions are confined to `## [2.0.0]`** —
- *      the release section is required to list every
- *      removed Deprecated_Alias and its canonical replacement, so
- *      alias mentions are allowed there. No other section may
- *      reference an alias as a code identifier (i.e., inside backticks).
- *      English prose outside backticks is not scanned.
- *   6. **package.json is alias-free** — the published
- *      package manifest must not surface any Deprecated_Alias
- *      identifier in scripts, keywords, exports, or documentation
- *      strings.
+ * Purpose:
+ *   Scans README, docs, tests, package metadata, changelog sections, and the public
+ *   declarations bundle for removed alias identifiers. The suite is intentionally
+ *   string-based so it can validate generated and documentation artifacts without
+ *   loading the editor runtime.
  *
- * Skip behavior on a clean tree:
+ * Scope:
+ *   - The public declarations bundle must not expose removed alias names.
+ *   - README and docs are scanned as published user-facing surfaces.
+ *   - Changelog mentions are allowed only in the release section that documents the
+ *     removals.
  *
- *   `dist/types/index.d.ts` is produced by `npm run build`. Tests run
- *   on a clean tree where `dist/` does not yet exist, so absence of
- *   the declarations file is the clean-tree skip signal — the assertion
- *   for that file returns early without failing. the documented contract is
- *   verified end-to-end by CI, which builds before testing. This
- *   mirrors the ENOENT skip path in `tests/build-artifacts.test.mjs`
- *   and `tests/dist-multi-format-exports.test.mjs`.
+ * Out of scope:
+ *   - feature behavior inside ImageEditor methods
+ *   - browser rendering behavior
+ *   - private implementation refactors
  *
- * The test reads files from disk only (no module side effects, no
- * Fabric/jsdom bootstrap) so it stays self-contained and fast.
+ * Environment:
+ *   - Node.js ESM
+ *   - filesystem or built-artifact inspection
+ *
+ * Run:
+ *   node --test tests/alias-scrub.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on canonical alias absence across the publishable
+ *     surface only.
  */
 
 import { test } from 'node:test';

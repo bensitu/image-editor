@@ -1,26 +1,39 @@
-// Layout conflict warning: when an integrator enables both
-// `fitImageToCanvas` and `coverImageToCanvas` simultaneously, the editor
-// emits a single `onWarning` callback with a clear message describing
-// which strategy was actually selected.
-//
-// Owner module: `src/image/layout-manager.ts` — pure function
-// `detectLayoutConflict(options)`. The facade calls it during option
-// resolution and routes the result through `core/callback-reporter.ts`
-// so the warning honors the documented `(error, message)` argument
-// order on `onWarning`.
-//
-// Behaviors under test:
-//
-//   1. Conflict pair (fit + cover) — `detectLayoutConflict` returns a
-//      structured result whose `selected` matches the precedence
-//      `fit > cover > expand`.
-//   2. Non-conflict combinations — `expand + fit`, `expand + cover`,
-//      and any single-flag combination return `null`. `expandCanvasToImage`
-//      defaults to `true` in `resolveOptions`, so combining it with one
-//      of the other strategies is normal usage and is NOT flagged.
-//   3. Warning routing — when the constructed editor sees the conflict,
-//      it invokes `onWarning(null, message)` exactly once where
-//      `message` mentions both `fit` and `cover`.
+/**
+ * @file layout-conflict-warning.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/layout-manager.ts conflict detection and the ImageEditor
+ *   facade warning route when fitImageToCanvas and coverImageToCanvas are both
+ *   enabled. The test keeps layout strategy logic and callback reporting in one
+ *   focused suite.
+ *
+ * Scope:
+ *   - detectLayoutConflict returns structured conflict data only for the fit plus
+ *     cover pair.
+ *   - Strategy precedence stays aligned with selectLayoutStrategy.
+ *   - ImageEditor forwards a single onWarning callback with the public argument
+ *     order.
+ *
+ * Out of scope:
+ *   - browser layout engine differences
+ *   - visual rendering quality
+ *   - unrelated editor workflows
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/layout-conflict-warning.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on layout conflict warning only.
+ */
 
 import { register } from 'node:module';
 

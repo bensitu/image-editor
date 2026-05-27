@@ -387,6 +387,8 @@ export function createMask(
         canvas.setActiveObject(maskObject);
     }
 
+    // Keep the newly active mask painted before history capture and
+    // onCreate callbacks that may inspect the canvas immediately.
     canvas.renderAll();
     ctx.saveCanvasState();
 
@@ -469,6 +471,8 @@ export function removeSelectedMask(ctx: RemoveMaskContext): void {
     ctx.canvas.remove(active);
     ctx.canvas.discardActiveObject();
     ctx.updateMaskList();
+    // Removal helpers are synchronous APIs; callers should observe the
+    // canvas without waiting for a deferred paint.
     ctx.canvas.renderAll();
     ctx.saveCanvasState();
 }
@@ -511,6 +515,8 @@ export function removeAllMasks(
     ctx.canvas.discardActiveObject();
     ctx.setLastMask(null);
     ctx.updateMaskList();
+    // Match single-mask removal: the batch is fully visible before the
+    // optional history entry is recorded.
     ctx.canvas.renderAll();
 
     // Default `saveHistory` is `true`; only skip when the caller explicitly

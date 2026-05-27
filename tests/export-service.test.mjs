@@ -1,34 +1,41 @@
-// Task 18.2 — base/file/download in
-// `src/export/export-service.ts`.
-//
-// Scope of this test:
-//
-//   23.2  Every export entry point SHALL discard any active Fabric
-//         `ActiveSelection` before computing the export region.
-//   25.1  `exportImageBase64` resolves to a `Promise<string>`.
-//   25.2  `exportImageFile` resolves to a `Promise<File>` whose name uses
-//         `options.fileName` or the editor's `defaultDownloadFileName`.
-//   25.3  `downloadImage` triggers a browser download with the resolved
-//         filename and returns `void`.
-//   25.4  When `isImageLoaded()` is `false`:
-//           - `exportImageBase64` resolves to `''`
-//           - `exportImageFile`   rejects with `ExportNotReadyError`
-//           - `downloadImage`     is a no-op
-//         and each path emits a single `console.warn` naming the missing
-//         image.
-//
-// ─── Why a canvas mock instead of a live Fabric.Canvas ──────────────────────
-//
-// The export service interacts with the canvas through exactly two
-// methods relevant to this task:
-//
-//   discardActiveObject()  — the the documented contract call site
-//   toDataURL(options)      — the rendering step
-//
-// Both are easy to instrument with a small mock; spinning up a real
-// Fabric canvas would add jsdom plumbing without exercising any new
-// branch inside the service. The same approach is used by
-// `tests/active-selection-discard.property.test.mjs`.
+/**
+ * @file export-service.test.mjs
+ *
+ * Type:
+ *   Unit test
+ *
+ * Purpose:
+ *   Verifies src/export/export-service.ts public export helpers with lightweight
+ *   canvas and DOM stubs. The suite covers readiness checks, option forwarding,
+ *   ActiveSelection discard, data URL return values, File construction, and download
+ *   link creation.
+ *
+ * Scope:
+ *   - No-image calls warn and either return an empty string or throw
+ *     ExportNotReadyError as appropriate.
+ *   - exportImageBase64 and downloadImage discard the active selection before
+ *     exporting.
+ *   - exportImageFile uses requested names and falls back to defaultDownloadFileName
+ *     when omitted.
+ *
+ * Out of scope:
+ *   - visual pixel-quality comparison
+ *   - browser download UI details
+ *   - unrelated image loading behavior
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - jsdom or DOM stubs are used where needed
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/export-service.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on export service base64, file, and download behavior
+ *     only.
+ */
 
 import { register } from 'node:module';
 

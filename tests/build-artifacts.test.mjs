@@ -1,42 +1,36 @@
 /**
- * Smoke test for the canonical build artifact tree on disk.
+ * @file build-artifacts.test.mjs
  *
- * Behaviors under test:
+ * Type:
+ *   Smoke test
  *
- *   1. **Artifact presence** — after `npm run build`, every
- *      canonical bundle exists at its documented path:
- *        - `dist/esm/index.js`              (ESM bundle)
- *        - `dist/cjs/index.cjs`             (CJS bundle)
- *        - `dist/umd/image-editor.umd.js`   (UMD bundle)
- *        - `dist/types/index.d.ts`          (TypeScript declarations)
- *   2. **Artifacts are non-empty** — a build that "succeeds"
- *      but emits an empty file is still a broken build, so each
- *      artifact's byte size must be greater than zero.
- *   3. **Bundle shape sanity** — each bundle carries
- *      the syntactic markers of its declared format:
- *        - ESM bundle uses `import` or `export` syntax
- *        - CJS bundle declares `'use strict'` and assigns to `exports`
- *        - UMD bundle exposes the documented `ImageEditor` global
- *          identifier (per `rollup.config.mjs` `output.name`)
+ * Purpose:
+ *   Verifies the on-disk dist/ outputs produced by npm run build. The test checks
+ *   artifact presence, non-empty output, and basic syntax markers for each published
+ *   bundle format without executing those bundles.
  *
- * Skip behavior on a clean tree:
+ * Scope:
+ *   - ESM, CJS, UMD, and declaration artifacts are checked at their documented paths.
+ *   - A completely missing dist/ directory is treated as a clean-tree skip because
+ *     npm test does not build first.
+ *   - A partial dist/ tree fails, which catches broken or incomplete build pipelines.
  *
- *   The build step is independent of the test step in this repo (`npm
- *   test` does NOT depend on `npm run build`), so it is valid for
- *   `dist/` to be absent when this test runs. When the entire `dist/`
- *   directory is missing, every assertion in this file returns early
- *   without failing — the documented contract is verified end-to-end by CI
- *   pipelines that build before testing. This mirrors the ENOENT skip
- *   path in `tests/public-surface.test.mjs` for `dist/types/index.d.ts`.
+ * Out of scope:
+ *   - feature behavior inside ImageEditor methods
+ *   - browser rendering behavior
+ *   - private implementation refactors
  *
- *   When `dist/` IS present but a specific artifact is missing or
- *   empty, the assertion fails — that is the failure mode of a broken
- *   build pipeline (for example a successful `tsc` followed by a
- *   broken Rollup pass), and it is exactly what this smoke test exists
- *   to catch.
+ * Environment:
+ *   - Node.js ESM
+ *   - filesystem or built-artifact inspection
+ *   - jsdom or DOM stubs are used where needed
  *
- * The test reads files from disk (no module side effects, no
- * Fabric/jsdom bootstrap) so it stays self-contained.
+ * Run:
+ *   node --test tests/build-artifacts.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on canonical build artifact tree only.
  */
 
 import { test } from 'node:test';

@@ -252,6 +252,8 @@ export function syncMaskLabel(
         visible: true,
     });
     mask.__label.setCoords();
+    // Label movement tracks selection and object transforms synchronously
+    // so DOM list selection and canvas text stay in the same frame.
     canvas.renderAll();
 }
 

@@ -1,71 +1,40 @@
-// Post-crop mask preservation respects pre-crop transform
-//
-//   For any crop apply operation with `preserveMasksAfterCrop === true`,
-//   each mask's post-crop position SHALL preserve its relative
-//   relationship to the pre-crop image bounding box. When the image is
-//   rotated, the transform SHALL preserve mask `angle`, `scaleX`, and
-//   `scaleY` while recomputing `left` and `top` in the cropped
-//   coordinate frame.
-//
-// Owner modules under test: `src/crop/crop-controller.ts`,
-// `src/utils/canvas-region.ts`, `src/utils/number.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// is the post-crop seam owned by `applyCrop` when
-// `options.crop.preserveMasksAfterCrop === true`. The contract has three
-// halves:
-//
-//   31.4 Each mask whose pre-crop bounding rect intersects the integer
-//        crop region survives the crop and lands at canvas-pixel
-//        coordinates `(pre.left - cropRegion.left, pre.top - cropRegion.top)`.
-//        Masks fully outside the crop region are dropped from the
-//        post-crop canvas (matches legacy's `intersectsCrop` filter so a
-//        mask fully outside the cropped area does not reappear in the
-//        cropped image space).
-//
-//   32.1 The same mechanical translation works regardless of image
-//        rotation. The rotation angle is encoded in the rotated image's
-//        bounding rect, which moves with the same canvas-pixel
-//        translation as the masks when the mask's `left` and `top` are
-//        shifted by a constant. The property iterates `originalImage.angle`
-//        across a range of values and asserts every preserved mask still
-//        lands at the documented offset.
-//
-//   32.2 Each mask's `angle`, `scaleX`, and `scaleY` are preserved
-//        verbatim across the crop so the visible mask shape does not
-//        change size or orientation.
-//
-// Two sub-properties cover the contract:
-//
-//   28.A Successful applyCrop with `preserveMasksAfterCrop === true`:
-//        · every mask whose pre-crop bounding rect intersects the
-//          integer crop region survives on the post-crop canvas;
-//        · the surviving mask's `left` / `top` equal
-//          `(pre.left - cropRegion.left, pre.top - cropRegion.top)`
-//;
-//        · the surviving mask's `angle`, `scaleX`, `scaleY` equal the
-//          pre-crop values verbatim;
-//        · the round-trip is invariant under image rotation: the
-//          property iterates `originalImage.angle` across a wide range
-//          and asserts the same offsets land for every angle
-//.
-//
-//   28.B Successful applyCrop with `preserveMasksAfterCrop === true`:
-//        · every mask whose pre-crop bounding rect lies fully outside
-//          the integer crop region is removed from the post-crop canvas
-//          and is not re-added by the reapply step.
-//
-// The negative case `preserveMasksAfterCrop === false`
-// is handled in production by the inner `ctx.loadImage(croppedBase64)`
-// replacing every canvas object — that path is exercised end-to-end by
-// (`crop-transitions`) and by the example-based unit tests on
-// the loader. is intentionally scoped to the preserve-true
-// branch because that is where the documented mask transform lives.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this
-// test imports the modules under test directly from source via the
-// shared `ts-resolve-hook`. No build step is required.
+/**
+ * @file post-crop-mask-preservation.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/crop/crop-controller.ts mask preservation when
+ *   crop.preserveMasksAfterCrop is enabled. The suite checks mask survival, drop
+ *   behavior, coordinate translation, and transform-field preservation across cropped
+ *   coordinate frames.
+ *
+ * Scope:
+ *   - Masks intersecting the integer crop region survive and shift by the crop
+ *     offset.
+ *   - Masks fully outside the crop region are not re-added after crop.
+ *   - angle, scaleX, and scaleY are preserved for surviving masks, including
+ *     rotated-image scenarios.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - browser-specific pointer interaction details
+ *   - unrelated mask and export features
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/post-crop-mask-preservation.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on post-crop mask preservation under image transforms
+ *     only.
+ */
 
 import { register } from 'node:module';
 

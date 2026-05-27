@@ -39,6 +39,10 @@ const CROP_MODE_CONTROL_KEYS = [
     'applyCropBtn',
     'cancelCropBtn',
 ];
+const CROP_MODE_ENABLED_KEYS = [
+    'applyCropBtn',
+    'cancelCropBtn',
+];
 export class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -607,9 +611,12 @@ export class ImageEditor {
             });
             const before = (_a = this._lastSnapshot) !== null && _a !== void 0 ? _a : after;
             let executedOnce = false;
-            const cmd = new Command(async () => { if (executedOnce) {
-                await this.loadFromState(after);
-            } executedOnce = true; }, async () => { await this.loadFromState(before); });
+            const cmd = new Command(async () => {
+                if (executedOnce) {
+                    await this.loadFromState(after);
+                }
+                executedOnce = true;
+            }, async () => { await this.loadFromState(before); });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
             if (activeObj && isMaskObject(activeObj))
@@ -893,10 +900,13 @@ export class ImageEditor {
                 if (!el || !('disabled' in el))
                     return;
                 el.disabled =
-                    !(key === 'applyCropBtn' || key === 'cancelCropBtn');
+                    !CROP_MODE_ENABLED_KEYS.includes(key);
             });
             return;
         }
+        this._setDisabled('scaleRate', !hasImg || isAnimating);
+        this._setDisabled('rotationLeftInput', !hasImg || isAnimating);
+        this._setDisabled('rotationRightInput', !hasImg || isAnimating);
         this._setDisabled('zoomInBtn', !hasImg || isAnimating || this.currentScale >= this.options.maxScale);
         this._setDisabled('zoomOutBtn', !hasImg || isAnimating || this.currentScale <= this.options.minScale);
         this._setDisabled('rotateLeftBtn', !hasImg || isAnimating);
@@ -910,6 +920,7 @@ export class ImageEditor {
         this._setDisabled('undoBtn', !hasImg || isAnimating || !canUndo);
         this._setDisabled('redoBtn', !hasImg || isAnimating || !canRedo);
         this._setDisabled('cropBtn', !hasImg || isAnimating);
+        this._setDisabled('imageInput', isAnimating);
         this._setDisabled('applyCropBtn', true);
         this._setDisabled('cancelCropBtn', true);
     }

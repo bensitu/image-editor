@@ -1,25 +1,36 @@
-// Axis-aware percentage resolution
-//
-//   For any numeric, percentage-string, or function-valued
-//   `MaskNumericProp`, resolution SHALL use canvas width for x-axis
-//   properties and canvas height for y-axis properties. Function-valued
-//   inputs SHALL receive `(canvas, ResolvedOptions)` and SHALL fall back
-//   only when the returned value is not finite.
-//
-// Owner modules: `src/utils/number.ts`, `mask/mask-factory.ts`.
-//
-// This test only exercises the `utils/number.ts` half of the contract
-// (the mask-factory wiring is covered by Properties 17 and 19). It also
-// covers the `coercePoint` helper because both
-// helpers ship in the same module and are consumed together by the
-// mask-factory pipeline.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required to run the property test in isolation. A minimal
-// stub canvas with `getWidth()` / `getHeight()` accessors is used in
-// place of a real Fabric.Canvas because `resolveNumeric` only reads
-// those two methods.
+/**
+ * @file number-utils.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/utils/number.ts helpers for percentage resolution, function-valued
+ *   inputs, invalid fallback handling, and point coercion. The suite is pure and uses
+ *   generated canvas dimensions and point shapes.
+ *
+ * Scope:
+ *   - Percentage strings resolve against the requested x or y canvas axis.
+ *   - Function values receive canvas and options and can return numeric values.
+ *   - Point objects and tuples normalize to the same coordinate structure.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/number-utils.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on axis-aware number and point normalization only.
+ */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

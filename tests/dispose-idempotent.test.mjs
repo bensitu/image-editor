@@ -1,51 +1,38 @@
-// Task 21.8: idempotent dispose and post-dispose API safety
-//
-// Scope:
-//   This is the example-based unit-test counterpart of //   (`tests/dom-bindings.property.test.mjs`). exercises the
-//   `DomBindings` registry primitive in isolation; this test exercises
-//   the `ImageEditor` facade end-to-end through `init()` and
-//   `dispose()`, asserting:
-//
-//     - **the documented contract** — calling `dispose()` twice is a no-op and
-//       never throws.
-//     - **the documented contract** — after `dispose()`, every public
-//       method (`loadImage`, `scaleImage`, `rotateImage`,
-//       `resetImageTransform`, `undo`, `redo`, `createMask`,
-//       `removeSelectedMask`, `removeAllMasks`, `enterCropMode`,
-//       `cancelCrop`, `applyCrop`, `mergeMasks`, `exportImageBase64`,
-//       `downloadImage`, `saveState`, `loadFromState`,
-//       `isImageLoaded`) resolves or returns safely without touching
-//       the (now-null) canvas.
-//     - **the documented contract** — animation queue entries that were
-//       enqueued before `dispose()` settle deterministically; awaiting
-//       them after dispose does not hang and does not throw against
-//       the torn-down canvas.
-//     - **the documented contract** — every DOM listener registered
-//       through the bindings registry is detached on `dispose()`, and
-//       a click on a previously bound element after dispose does NOT
-//       invoke the original handler.
-//
-// ─── Why a stubbed Fabric canvas instead of a live one ─────────────────────
-//
-// `dispose()` only needs the Fabric module to expose a constructible
-// `Canvas`. The behaviors under test are the facade's bookkeeping
-// (`_disposed` flag, `animQueue.clear()`, `_bindings.removeAll()`,
-// `canvas.dispose()`, post-dispose method gates). A live Fabric canvas
-// would force jsdom + asset wiring without exercising any new branch
-// inside `dispose()` or the post-dispose method gates. The stub mirrors
-// the surface the editor actually touches during init/dispose:
-//
-//     new fabric.Canvas(el, opts)   — constructor records the opts
-//     canvas.on(event, handler)     — event subscription
-//     canvas.dispose()              — teardown hook
-//     canvas.discardActiveObject()  — used by saveState (not exercised here)
-//     canvas.getActiveObject()      — used by saveState (not exercised here)
-//     canvas.getObjects()           — used by _hideAllMaskLabels
-//     canvas.renderAll()            — used by various render paths
-//
-// The same pattern (small `MockCanvas` exposing only the surface used)
-// is followed by sibling tests like `mask-id-uniqueness.property.test.mjs`,
-// `state-serializer.property.test.mjs`, and `export-service.test.mjs`.
+/**
+ * @file dispose-idempotent.test.mjs
+ *
+ * Type:
+ *   Facade integration test
+ *
+ * Purpose:
+ *   Exercises the ImageEditor facade through init() and dispose() with a stubbed
+ *   Fabric canvas. The suite verifies that dispose is idempotent, drains DOM
+ *   bindings, settles queued animations, and leaves every public method safe to call
+ *   after teardown.
+ *
+ * Scope:
+ *   - Repeated dispose() calls do not throw and do not re-dispose the canvas.
+ *   - Bound DOM handlers are removed or short-circuited after disposal.
+ *   - Post-dispose public methods return safely without touching the torn-down
+ *     canvas.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - jsdom or DOM stubs are used where needed
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/dispose-idempotent.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on idempotent dispose and post-dispose API safety only.
+ */
 
 import { register } from 'node:module';
 

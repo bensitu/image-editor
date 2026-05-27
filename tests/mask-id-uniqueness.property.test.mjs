@@ -1,68 +1,38 @@
-// Mask ID uniqueness across mixed operations
-//
-//   For any sequence of `createMask`, `mergeMasks`, `saveState`,
-//   `loadFromState`, `undo`, `redo`, and
-//   `removeAllMasks({ saveHistory: false })` operations, every live
-//   mask SHALL have a unique positive `maskId`, and the next created
-//   mask SHALL use an ID greater than every restored live mask ID.
-//
-// Owner modules under test:
-//
-//   - `src/mask/mask-factory.ts` — `createMask`
-//     increments `maskCounter` and stamps it onto the new mask;
-//     `removeAllMasks` clears the live mask population.
-//   - `src/core/state-serializer.ts` — `saveState`
-//     produces a JSON snapshot from which `loadFromState` returns
-//     `maxMaskId`, the value the orchestrator assigns to
-//     `maskCounter` so subsequent `createMask` calls cannot collide
-//     with restored IDs.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// This test drives the two modules above through randomly generated
-// sequences of public-facing operations and checks the three IDs
-// invariants from the documented contract:
-//
-//   18.2 After `loadFromState`, `maskCounter` SHALL equal the maximum
-//        `maskId` observed on the restored canvas (or `0` if none).
-//        We verify this directly: every undo/redo step calls
-//        `loadFromState` and the resulting counter is asserted to
-//        equal `max(maskId)` over the live objects.
-//   18.3 `createMask` SHALL increment `maskCounter` and assign the
-//        result to `mask.maskId`. We verify both halves of the
-//        assignment after every create.
-//   18.4 The set of `maskId` values present on the canvas at any time
-//        SHALL contain no duplicates. We verify this after every
-//        operation and also confirm the counter is always strictly
-//        greater than every live `maskId` so the next create cannot
-//        reintroduce a duplicate.
-//
-// "mergeMasks" is simulated via
-// `removeAllMasks({ saveHistory: false })`. The production
-// `mergeMasks` pipeline first removes every mask, then reloads the
-// merged image (which resets `maskCounter` to `0` per the documented contract); the
-// mask-removal half is the part cares about — clearing
-// the live population without altering the counter — so the simulated
-// op exercises exactly the contract under test.
-//
-// ─── Why a mock fabric environment ──────────────────────────────────────────
-//
-// The two modules under test consume Fabric only through narrow
-// surfaces: shape constructors (`Rect`, `Circle`, `Ellipse`,
-// `Polygon`), and a small set of canvas methods (`add`, `remove`,
-// `getObjects`, `toJSON`, `loadFromJSON`, `getActiveObject`,
-// `discardActiveObject`, `setActiveObject`, `bringObjectToFront`,
-// `getWidth`, `getHeight`, `setDimensions`, `renderAll`,
-// `requestRenderAll`). A fake Fabric module plus a stand-in canvas is
-// sufficient to drive every code path that the documented contract covers,
-// while keeping each iteration in-process and fast so the run can
-// stay at the project's standard `numRuns: 100`. The mocks mirror the
-// shapes used by `tests/state-serializer.property.test.mjs` and
-// `tests/mask-factory.property.test.mjs`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the modules under test directly from source via the
-// shared `ts-resolve-hook`. No build step is required.
+/**
+ * @file mask-id-uniqueness.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies that mask ID allocation remains monotonic across createMask,
+ *   removeAll-style merges, undo, redo, and further mask creation. The suite models
+ *   the ImageEditor-owned counter and state round trips without a full UI.
+ *
+ * Scope:
+ *   - Generated operation sequences cover interleavings of creation, removal, and
+ *     restore.
+ *   - Restored masks keep their serialized IDs.
+ *   - New masks always receive an ID greater than every live or previously restored
+ *     mask ID.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - unrelated crop or export behavior
+ *   - browser-specific pointer interaction details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/mask-id-uniqueness.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on mask ID uniqueness across mixed operations only.
+ */
 
 import { register } from 'node:module';
 

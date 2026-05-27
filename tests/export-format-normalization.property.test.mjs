@@ -1,66 +1,36 @@
-// Export format and quality normalization
-//
-//   For any supported file type alias and quality input, export format
-//   normalization SHALL map `jpg` to `jpeg`, derive the correct MIME
-//   type, clamp quality to `[0, 1]`, ignore quality for PNG, and use
-//   the documented defaults when fields are omitted.
-//
-// Owner module: `src/export/export-format.ts` — pure helpers
-// `normalizeImageFormat`, `mimeTypeFor`, `clampQuality`, and
-// `resolveExportFormat`. They have no DOM dependency, so the property
-// test runs without jsdom.
-//
-// Sub-properties exercised here:
-//
-//   22.1 jpg/jpeg case-insensitive collapse + MIME aliases:
-//        `normalizeImageFormat` collapses any case variant of `'jpg'`,
-//        `'jpeg'`, `'image/jpeg'` (and similarly png / webp) to the
-//        canonical `NormalizedImageFormat` token, and `mimeTypeFor`
-//        derives the matching `image/...` MIME from that token.
-//
-//   22.2 Unknown / nullish input defaults to jpeg:
-//        `normalizeImageFormat` returns `'jpeg'` for `undefined`,
-//        `null`, empty string, and any unrecognized alias.
-//
-//   22.3 fileType wins over format precedence:
-//        Inside `resolveExportFormat`, when `fileType` is truthy it
-//        determines the resolved format regardless of `format`. When
-//        `fileType` is falsy (undefined / empty), `format` is consulted.
-//        When both are omitted, the result is `'jpeg'`.
-//
-//   22.4 Finite-input quality clamp:
-//        `clampQuality(q, fallback)` for any finite numeric `q`
-//        returns a value in `[0, 1]` equal to `Math.max(0, Math.min(1, q))`.
-//
-//   22.5 Non-finite-input quality falls back:
-//        `clampQuality(q, fallback)` returns `fallback` verbatim
-//        whenever `Number(q)` is not finite (e.g. `NaN`, `±Infinity`,
-//        non-numeric strings, plain objects). Inputs whose numeric
-//        coercion is finite (e.g. `null`, `[]`, `''` → 0) are NOT
-//        covered by this property — they take the clamp path instead
-//        and are exercised by .
-//
-//   22.6 PNG output drops quality:
-//        `resolveExportFormat` returns `quality === undefined` whenever
-//        the resolved format is `'png'`, regardless of incoming quality.
-//
-//   22.7 Non-PNG quality threading:
-//        For lossy formats (jpeg / webp), omitted or non-finite
-//        `opts.quality` resolves to `downsampleQuality`, and finite
-//        `opts.quality` resolves to its `[0, 1]` clamp.
-//
-//   22.8 Both fileType and format omitted → jpeg + downsampleQuality
-//: `resolveExportFormat({}, dq)` and
-//        `resolveExportFormat(undefined, dq)` both produce
-//        `{ format: 'jpeg', mimeType: 'image/jpeg', quality: dq }`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, but
-// `export-format.ts` carries `.js`-suffixed runtime imports to a
-// sibling `.ts` module (the project compiles for browsers under
-// `moduleResolution: "bundler"`). The shared resolve hook maps those
-// relative `.js` requests to `.ts` when the sibling source file
-// exists, so the test imports `export-format.ts` directly via dynamic
-// `import()` after the hook is registered.
+/**
+ * @file export-format-normalization.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/export/export-format.ts normalization for fileType, format aliases,
+ *   MIME type selection, and quality clamping. The suite is pure and does not touch
+ *   canvas export code.
+ *
+ * Scope:
+ *   - JPEG aliases, MIME aliases, and case variants collapse to canonical formats.
+ *   - fileType takes precedence over format, and omitted values default to jpeg.
+ *   - Lossy quality is clamped to [0, 1], while PNG omits quality.
+ *
+ * Out of scope:
+ *   - visual pixel-quality comparison
+ *   - browser download UI details
+ *   - unrelated image loading behavior
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/export-format-normalization.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on export format and quality normalization only.
+ */
 
 import { register } from 'node:module';
 

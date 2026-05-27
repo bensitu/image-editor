@@ -1,43 +1,37 @@
-// AnimationQueue FIFO and dispose-safe settlement
-//
-//   For any sequence of enqueued asynchronous animation tasks, the
-//   `AnimationQueue` SHALL start tasks in enqueue order, SHALL run at
-//   most one task at a time, and SHALL settle each returned promise. If
-//   the editor is disposed while work is pending, queued promises SHALL
-//   settle without any callback touching the disposed canvas.
-//
-// This file exercises the contract owned by `src/animation/animation-queue.ts`
-// in isolation and covers what the queue itself promises:
-//
-//   1. FIFO ordering — for any sequence of `add(fn1)`,
-//      `add(fn2)`, ..., `add(fnN)` with random small delays, `fn1`
-//      starts before `fn2`, and `fn2` starts after `fn1` settles.
-//   2. At most one running — at any tick, at most one task
-//      is concurrently inside its async body.
-//   3. All add() promises settle — for any
-//      sequence of add() calls followed by `clear()` (with or without
-//      reason), every returned promise eventually settles. No hanging
-//      promises.
-//   4. clear(reason) rejects pending — after
-//      `add(fn1)`, `add(fn2)`, `add(fn3)` then `clear('disposed')`,
-//      fn1 resolves (it was already running), and the public promises
-//      for fn2 and fn3 reject with `'disposed'`.
-//   5. clear() with no reason resolves pending — pending entries
-//      resolve normally; this is the documented dispose default
-//      because the orchestrator's dispose guards prevent further
-//      canvas access.
-//   6. waitForIdle() resolves after the queue empties — after
-//      enqueuing N tasks, waitForIdle() resolves only after all N have
-//      settled (the dispose path uses this as its "quiescent" hook,
-//      the documented contract).
-//   7. isRunning() reports correctly — true while a task awaits,
-//      false when the queue is idle.
-//
-// Owner module: `src/animation/animation-queue.ts`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate
-// build step is required to run the property test in isolation.
+/**
+ * @file animation-queue.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/animation/animation-queue.ts in isolation. The queue must run
+ *   asynchronous tasks in insertion order, avoid concurrent execution, and settle all
+ *   promises when pending work is cleared during dispose.
+ *
+ * Scope:
+ *   - Randomized task sequences assert FIFO start order and one-at-a-time execution.
+ *   - clear(reason) rejects pending tasks while allowing the active task to settle.
+ *   - clear() without a reason resolves pending tasks, matching the facade dispose
+ *     path.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *
+ * Run:
+ *   node --test tests/animation-queue.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on animationQueue FIFO ordering and dispose-safe
+ *     settlement only.
+ */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

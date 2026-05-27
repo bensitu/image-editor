@@ -1,26 +1,34 @@
 /**
- * Unit tests for the Fabric.js v7 adapter detection branches.
+ * @file fabric-adapter.test.mjs
  *
- * Owner module: `src/fabric/fabric-adapter.ts` — `detectFabric`.
+ * Type:
+ *   Unit test
  *
- * Branches under test:
+ * Purpose:
+ *   Verifies src/fabric/fabric-adapter.ts detection of explicit module form, global
+ *   module form, missing modules, and option normalization. The tests use structural
+ *   Fabric stubs and do not construct a real canvas.
  *
- *   1. **Explicit module form (4.1)** — first arg has a `Canvas` function
- *      property → treat first arg as the Fabric module and second arg as
- *      the options partial.
- *   2. **Global form (4.2)** — first arg lacks `Canvas` → use first arg as
- *      options and read the Fabric module from `globalScope.fabric`.
- *   3. **Miss (4.3)** — neither path produces a usable module → emit a
- *      single descriptive `console.error` and return
- *      `{ fabric: null, _fabricLoaded: false }`.
+ * Scope:
+ *   - Explicit module form treats the first argument as Fabric and second as options.
+ *   - Global form reads globalThis.fabric and treats the first argument as options.
+ *   - Missing or invalid Fabric modules return a degraded adapter state and log once.
  *
- * The "init()/loadImage() are no-ops resolving to undefined" portion of
- * the documented contract is wired into `ImageEditor` itself. This file
- * scopes itself to the adapter's pure detection contract.
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
  *
- * Runtime note: Node 24+ strips TypeScript syntax natively, so the test
- * imports the module under test directly from source — no separate build
- * step is required to run this unit suite in isolation.
+ * Environment:
+ *   - Node.js ESM
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/fabric-adapter.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on fabric module adapter detection only.
  */
 
 import { test } from 'node:test';

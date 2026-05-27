@@ -1,40 +1,37 @@
-// Mask creation per-shape origin and falsy styles
-//
-//   For any supported mask shape (`rect`, `circle`, `ellipse`, `polygon`)
-//   or custom `fabricGenerator`, the created mask SHALL use
-//   `originX: 'left'` and `originY: 'top'` when placement uses top-left
-//   coordinates. Falsy style values such as `0`, empty string, or
-//   `false` SHALL be preserved through creation instead of being
-//   replaced by defaults.
-//
-// Owner module under test: `src/mask/mask-factory.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// This test isolates `createMask` from a real Fabric module so we can
-// observe the exact properties that land on the constructed mask object.
-//
-// Behavior preserved by the mask factory:
-//
-//   - For `'rect' | 'circle' | 'ellipse'`, the factory passes
-//     `originX: 'left'` and `originY: 'top'` into the Fabric shape
-//     constructor.
-//   - The `'foo' in config` membership check on `hasControls`,
-//     `selectable`, `transparentCorners`, and `strokeUniform` preserves
-//     an explicit `false` instead of falling back to the default (Contract
-//     22.2).
-//   - The `'stroke' in styles` / `'strokeWidth' in styles` membership
-//     check pulls falsy values (`0`, `null`, `''`) out of the user's
-//     `styles` block verbatim.
-//
-// Mocked Fabric shapes are plain objects whose constructors assign the
-// supplied props (so `originX`, `originY`, and `styles` flow through to
-// the result object); the canvas mock implements only the methods the
-// factory calls.
-//
-// `numRuns: 30` matches the surrounding mask-factory property tests
-// (see scale-clamp / reset-transform). Each iteration constructs a
-// fresh context and exercises the full `createMask` pipeline.
+/**
+ * @file mask-factory.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/mask/mask-factory.ts createMask behavior for shape origins, style
+ *   propagation, selectable controls, stroke defaults, and selection styling. The
+ *   suite uses structural Fabric shape mocks instead of a live canvas.
+ *
+ * Scope:
+ *   - Rect, circle, and ellipse masks use left/top origin placement.
+ *   - Explicit falsy styles and control flags are preserved.
+ *   - Custom stroke values survive select and unselect styling transitions.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - unrelated crop or export behavior
+ *   - browser-specific pointer interaction details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/mask-factory.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on mask factory shape defaults and falsy option
+ *     preservation only.
+ */
 
 import { register } from 'node:module';
 

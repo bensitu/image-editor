@@ -1,40 +1,37 @@
-// Idempotent dispose with bindings drain
-//
-//   For any sequence of `init`, DOM binding, public operation, and
-//   repeated `dispose()` calls, the bindings registry SHALL remove
-//   each listener at most once, clear itself after disposal, make
-//   subsequent dispose calls no-ops, and make disposed DOM handlers
-//   exit before touching the canvas.
-//
-// Owner module: `src/ui/dom-bindings.ts` — the registry primitive
-// owned by `image-editor.ts`'s init/dispose path. The unit under
-// test here is the `DomBindings` class itself; the editor-level
-// dispose ordering is exercised separately by .
-//
-// Sub-properties exercised here:
-//
-//   29.1 Listeners attach: for any sequence of
-//        `bindIfExists` calls with valid keys, each successful call
-//        increments `registry.size()` by exactly 1.
-//   29.2 Bound handlers gated by disposed: when
-//        `isDisposed()` returns `true`, dispatching the bound event
-//        does NOT invoke the user-supplied handler.
-//   29.3 removeAll detaches all: after `removeAll()`
-//        the registry size is 0 and no previously-bound handler
-//        fires on a fresh dispatch of its event type.
-//   29.4 removeAll idempotent: a second `removeAll()`
-//        does not throw and leaves the registry empty.
-//   29.5 Missing element silent: `bindIfExists`
-//        with a key that does not resolve to an existing element
-//        returns `false` and does NOT grow the registry.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the module under test directly from source. The
-// shared `ts-resolve-hook` rewrites `.js` import specifiers in
-// `dom-bindings.ts` to their `.ts` siblings, mirroring the project's
-// `moduleResolution: "bundler"` setting. `DomBindings` reaches into
-// `document.getElementById`, so the test installs a per-run JSDOM
-// document on `globalThis` before exercising the class.
+/**
+ * @file dom-bindings.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/ui/dom-bindings.ts independently from the ImageEditor facade. The
+ *   registry must track successful listener bindings, remove every listener on
+ *   teardown, and guard callbacks once the editor is disposed.
+ *
+ * Scope:
+ *   - Randomized binding sequences assert that every successful attachment is
+ *     recorded.
+ *   - removeAll() detaches listeners and remains idempotent.
+ *   - Missing elements leave the registry unchanged and disposed handlers exit early.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - jsdom or DOM stubs are used where needed
+ *
+ * Run:
+ *   node --test tests/dom-bindings.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on dOM binding registry disposal only.
+ */
 
 import { register } from 'node:module';
 

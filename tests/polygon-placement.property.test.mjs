@@ -1,37 +1,36 @@
-// Polygon bounding-box placement
-//
-//   For any polygon point set and requested `left` / `top`, polygon
-//   creation SHALL normalize points so the polygon's visual bounding
-//   box is placed at the requested top-left coordinate. Both `{ x, y }`
-//   and `[x, y]` points SHALL coerce to the same geometry.
-//
-// Owner module under test: `src/mask/mask-factory.ts` (polygon branch).
-// Helper module exercised via `coercePoint`: `src/utils/number.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// This test isolates `createMask` with `shape: 'polygon'` from a real
-// Fabric module so we can observe the bounding-box realignment path
-// the current factory performs to honor the documented contract.
-//
-// In Fabric.js v7, the `Polygon` constructor positions the object so
-// the polygon's `pathOffset` is centered on the supplied `(left, top)`,
-// which means a freshly constructed polygon's `getBoundingRect()` does
-// NOT generally land at `(left, top)`. The factory therefore:
-//
-//   1. constructs the polygon without `left` / `top`,
-//   2. measures the resulting bounding rect,
-//   3. shifts the object by the delta so the rendered bounding box
-//      top-left lands at the requested `(left, top)`.
-//
-// The Polygon mock below simulates the essential property of Fabric's
-// behavior for the test: a polygon constructed without `(left, top)`
-// has `this.left = 0` / `this.top = 0` and reports its bounding rect at
-// `(this.left - minX, this.top - minY)`. After the factory's delta
-// shift, `getBoundingRect()` MUST return `{ left, top, ... }` matching
-// the requested coordinate exactly.
-//
-// `numRuns: 30` matches the rest of the mask-factory property suite.
+/**
+ * @file polygon-placement.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies the polygon branch of src/mask/mask-factory.ts and point coercion from
+ *   src/utils/number.ts. The suite models Fabric polygon bounding behavior so the
+ *   factory's top-left realignment can be asserted without a live Fabric canvas.
+ *
+ * Scope:
+ *   - Polygon points supplied as objects or tuples produce equivalent geometry.
+ *   - The visual bounding rectangle lands at the requested left and top.
+ *   - The mock exposes only the geometry behavior needed for the placement contract.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/polygon-placement.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on polygon bounding-box placement only.
+ */
 
 import { register } from 'node:module';
 

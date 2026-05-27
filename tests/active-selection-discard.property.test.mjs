@@ -1,38 +1,40 @@
-// ActiveSelection discard before guarded operations
-
-//   For any active Fabric `ActiveSelection`, snapshot, export, merge,
-//   and crop transitions SHALL discard the active selection before
-//   serialization or region calculation so the resulting JSON, export,
-//   or crop state does not contain a top-level `ActiveSelection`.
-
-// Owner modules: `core/state-serializer.ts`, `export/export-service.ts`,
-// `crop/crop-controller.ts`.
-
-// ─── Scope of this test ────────────────────────────
-
-// This property test focuses on the serializer-owned `saveState` path:
-// it must discard any active Fabric `ActiveSelection` before serializing.
-// Export and crop entry points assert the same user-visible rule in their
-// own integration tests.
-
-// ─── Why a canvas mock instead of a live Fabric.Canvas ──────────────────────
-
-// `saveState` interacts with the canvas through three methods:
-
-//   discardActiveObject()   — the call site this property is asserting
-//   toJSON(propertiesToInclude) — used to serialize the canvas
-//   (no third method is consulted for the documented contract)
-
-// A real Fabric canvas would require jsdom, async asset wiring, and a
-// per-iteration teardown without exercising any new branch inside the
-// serializer's discard call. Driving a small `MockCanvas` that counts
-// `discardActiveObject` calls is the most direct way to assert
-// the documented contract: the serializer must call `discardActiveObject` at
-// least once before any object payload is serialized.
-
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this
-// test imports the module under test directly from source via the
-// shared `ts-resolve-hook`. No build step is required.
+/**
+ * @file active-selection-discard.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies that src/core/state-serializer.ts discards any active Fabric
+ *   ActiveSelection before snapshot serialization. Export, merge, and crop paths
+ *   assert the same user-visible rule in their own integration suites, so this file
+ *   keeps the direct serializer contract small and focused.
+ *
+ * Scope:
+ *   - MockCanvas records discardActiveObject() before toJSON() payload creation.
+ *   - The property checks arbitrary active-selection object lists without requiring a
+ *     live Fabric canvas.
+ *   - Source imports use the shared TypeScript resolver hook, so no build step is
+ *     required for this isolated test.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/active-selection-discard.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on activeSelection discard before guarded operations
+ *     only.
+ */
 
 import { register } from 'node:module';
 

@@ -1,30 +1,36 @@
 /**
- * Smoke test for the published `package.json` shape.
+ * @file package-shape.test.mjs
  *
- * Behaviors under test:
+ * Type:
+ *   Smoke test
  *
- *   1. **Version and module type** — `version` is a valid compatible
- *      semver string and `type` is `"module"`.
- *   2. **Engines** — `engines.node` declares Node 20+
- *      (`>=20` or `>= 20`).
- *   3. **Fabric peer dependency** — `peerDependencies.fabric`
- *      is exactly `"^7.0.0"`.
- *   4. **`exports['.']` map** — every documented condition
- *      key (`types`, `import`, `require`, `default`) resolves to its
- *      canonical path:
- *        - `types`   → `./dist/types/index.d.ts`
- *        - `import`  → `./dist/esm/index.js`
- *        - `require` → `./dist/cjs/index.cjs`
- *        - `default` → `./dist/esm/index.js`
- *   5. **Top-level entry fields** — `main` resolves to the CJS bundle,
- *      `module` to ESM, `types` to declarations, and both `unpkg` and
- *      `jsdelivr` to the UMD bundle.
- *   6. **Tree-shaking contract** — `sideEffects` is the literal `false`.
+ * Purpose:
+ *   Reads package.json as JSON and verifies the package metadata that downstream
+ *   consumers and CDNs rely on. The test avoids loading source or dist modules so it
+ *   can run on a clean tree.
  *
- * The test reads `package.json` as JSON (no module side effects, no
- * Fabric/jsdom bootstrap) so it stays valid on a clean tree where
- * `dist/` has not been built yet. Artifact presence is covered by the
- * build-artifacts smoke test, not here.
+ * Scope:
+ *   - Version, module type, engines, peer dependency, sideEffects, and top-level
+ *     entry fields are checked.
+ *   - exports["."] exposes only the documented condition keys and bundle paths.
+ *   - Artifact existence is covered by the build-artifacts smoke test, not this
+ *     metadata test.
+ *
+ * Out of scope:
+ *   - feature behavior inside ImageEditor methods
+ *   - browser rendering behavior
+ *   - private implementation refactors
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - filesystem or built-artifact inspection
+ *
+ * Run:
+ *   node --test tests/package-shape.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on published package.json shape only.
  */
 
 import { test } from 'node:test';

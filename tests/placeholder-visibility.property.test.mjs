@@ -1,47 +1,38 @@
-// Placeholder visibility uses hidden + aria-hidden only
-//
-//   For any placeholder/container visibility transition, the
-//   visibility service SHALL update only standard DOM state
-//   (`hidden` and `aria-hidden`) and SHALL NOT add or remove
-//   Bootstrap `d-none` classes. If the container reference is
-//   missing, placeholder visibility SHALL still be updated
-//   correctly.
-//
-// Owner module: `src/ui/visibility-state.ts`. The unit under test
-// is `setPlaceholderVisible(placeholder, container, show)` — the
-// pure function the orchestrator's private
-// `_setPlaceholderVisible` delegates to. Centralizing the
-// hidden/aria-hidden transition here removes the legacy coupling to
-// Bootstrap's `d-none` / `d-flex` utility classes.
-//
-// Sub-properties exercised here:
-//
-//   30.1 Show transition: for any starting class set,
-//        calling `setPlaceholderVisible(p, c, true)` results in
-//        `p.hidden === false`, `p.getAttribute('aria-hidden') === 'false'`,
-//        `c.hidden === true`, and `c.getAttribute('aria-hidden') === 'true'`.
-//   30.2 Hide transition: for any starting class set,
-//        calling `setPlaceholderVisible(p, c, false)` results in
-//        `p.hidden === true`, `p.getAttribute('aria-hidden') === 'true'`,
-//        `c.hidden === false`, and `c.getAttribute('aria-hidden') === 'false'`.
-//   30.3 Class lists are not mutated: for any starting
-//        class set on either element — including class sets that
-//        contain `d-none` and/or `d-flex` — the function does NOT
-//        add or remove any class. The exact set of class tokens is
-//        preserved across both `show=true` and `show=false`
-//        transitions.
-//   30.4 Null container is safe: when `containerElement`
-//        is `null`, the placeholder is still updated according to
-//        the documented contract and the call does not throw.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the module under test directly from source. The
-// shared `ts-resolve-hook` rewrites `.js` import specifiers in the
-// loaded TypeScript files to their `.ts` siblings, mirroring the
-// project's `moduleResolution: "bundler"` setting. The function
-// reaches into DOM properties (`hidden`, `setAttribute`, `classList`),
-// so the test installs a per-iteration JSDOM document and creates
-// real `HTMLElement`s before exercising the helper.
+/**
+ * @file placeholder-visibility.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/ui/visibility-state.ts setPlaceholderVisible for placeholder and
+ *   canvas-container visibility transitions. The property focuses on standard DOM
+ *   hidden and aria-hidden state and intentionally excludes CSS utility class
+ *   mutation.
+ *
+ * Scope:
+ *   - Show and hide transitions set hidden and aria-hidden on both elements.
+ *   - Existing class lists are preserved exactly.
+ *   - A null container is safe and still updates the placeholder.
+ *
+ * Out of scope:
+ *   - browser layout engine differences
+ *   - visual rendering quality
+ *   - unrelated editor workflows
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - jsdom or DOM stubs are used where needed
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/placeholder-visibility.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on placeholder visibility state only.
+ */
 
 import { register } from 'node:module';
 

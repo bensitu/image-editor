@@ -1,3 +1,39 @@
+/**
+ * @file file-utils.test.mjs
+ *
+ * Type:
+ *   Unit test
+ *
+ * Purpose:
+ *   Verifies src/utils/file.ts helpers used by the image-input loading path. The
+ *   suite covers supported MIME values, extension fallback for empty MIME strings,
+ *   rejection of unsupported image types, and FileReader abort handling.
+ *
+ * Scope:
+ *   - inferImageMimeType accepts supported browser MIME types and rejects unsupported
+ *     ones.
+ *   - Empty file.type values fall back to supported file extensions.
+ *   - readFileAsDataURL rejects when FileReader aborts and restores the original
+ *     global FileReader after the test.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - source modules are imported directly where possible
+ *
+ * Run:
+ *   node --test tests/file-utils.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on file utility MIME inference and data URL reading
+ *     only.
+ */
+
 import { register } from 'node:module';
 
 register('./helpers/ts-resolve-hook.mjs', import.meta.url);

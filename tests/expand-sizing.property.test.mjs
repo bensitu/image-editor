@@ -1,44 +1,36 @@
-// Expand sizing math
-//
-//   For any image dimensions and configured canvas dimensions, the
-//   expand layout path SHALL size the canvas to the image dimensions
-//   and SHALL preserve the image's aspect ratio and top-left
-//   placement.
-//
-// Owner module: `src/image/layout-manager.ts` — pure function
-// `computeExpandLayout(imageWidth, imageHeight, optionsCanvasWidth,
-// optionsCanvasHeight, containerSize)`. The function is pure (no DOM),
-// so the property test runs without jsdom.
-//
-// Sub-properties exercised here:
-//
-//   7.1 Per-axis max(viewport, image):
-//       `out.canvasWidth === Math.max(container.width, floor(imgW))`
-//       and `out.canvasHeight === Math.max(container.height,
-//       floor(imgH))`. The expand path grows each axis independently
-//       so the canvas always fits the image and never shrinks below
-//       the visible viewport.
-//   7.2 baseImageScale === 1: the editor's anchor scale for
-//       the expand strategy is exactly `1`. This is what later guards
-//       the image's natural pixel ratio when zoom factors are
-//       computed in the transform controller.
-//   7.3 Image at (0, 0) with scale 1: top-left placement is
-//       preserved — `imageLeft === 0`, `imageTop === 0`, and
-//       `imageScale === 1` so the image renders 1:1 against the
-//       canvas origin.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the module under test directly from source — no
-// separate build step is required.
-//
-// `layout-manager.ts` carries runtime `.js`-suffixed imports to
-// sibling `.ts` modules (the project compiles for browsers under
-// `moduleResolution: "bundler"`). Node's native type stripping does
-// not rewrite those specifiers, so we register the shared resolve
-// hook that maps relative `.js` requests to `.ts` when the sibling
-// source file exists. The layout manager is pulled in via dynamic
-// `import()` so the resolver is in place before its specifier is
-// resolved.
+/**
+ * @file expand-sizing.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/layout-manager.ts computeExpandLayout for arbitrary image and
+ *   viewport sizes. The expand path should size the canvas to the larger of visible
+ *   viewport and image dimensions while leaving image scale at one.
+ *
+ * Scope:
+ *   - Canvas width and height use max(viewport axis, floored image axis).
+ *   - baseImageScale and imageScale remain fixed at 1.
+ *   - The image origin stays at the top-left of the expanded canvas.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/expand-sizing.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on expand layout sizing math only.
+ */
 
 import { register } from 'node:module';
 

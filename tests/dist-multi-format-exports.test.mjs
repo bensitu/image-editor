@@ -1,36 +1,37 @@
 /**
- * Smoke test for the canonical multi-format export shape produced by
- * `npm run build`.
+ * @file dist-multi-format-exports.test.mjs
  *
- * Behaviors under test:
+ * Type:
+ *   Smoke test
  *
- *   1. ESM bundle — dynamic-importing `dist/esm/index.js` resolves
- *      `default` to `ImageEditor`, exposes `ImageEditor` and
- *      `isMaskObject` as named exports, and points both forms at the
- *      same class.
- *   2. CJS bundle — `require('./dist/cjs/index.cjs')` exposes the same
- *      canonical root values: `ImageEditor`, `default`, and
- *      `isMaskObject`, with `module.exports.default ===
- *      module.exports.ImageEditor`.
- *   3. UMD bundle — evaluating `dist/umd/image-editor.umd.js` inside a
- *      fresh `vm` context (with `globalThis.fabric` stubbed to satisfy
- *      the peer-dependency contract from `rollup.config.mjs`) installs
- *      an `ImageEditor` global that carries the same canonical surface.
- *   4. No internal helpers root-exported — `AnimationQueue`, `Command`,
- *      `HistoryManager`, controllers, services, managers, utility
- *      modules are absent from every format's export shape.
+ * Purpose:
+ *   Loads the built ESM, CJS, and UMD bundles and verifies that each format exposes
+ *   the same canonical public runtime surface. The test validates packaged artifacts
+ *   rather than source modules.
  *
- * Identifier-level deprecated-alias scrubbing is owned by
- * `tests/alias-scrub.test.mjs`.
+ * Scope:
+ *   - ImageEditor is exposed as default and named export where the format supports
+ *     both.
+ *   - isMaskObject is present in every format.
+ *   - Internal helpers remain absent from all root export shapes; missing dist/
+ *     artifacts are treated as clean-tree skips.
  *
- * Skip behavior on a clean tree:
+ * Out of scope:
+ *   - feature behavior inside ImageEditor methods
+ *   - browser rendering behavior
+ *   - private implementation refactors
  *
- *   `npm test` does not depend on `npm run build`, so a missing
- *   `dist/` directory (or a missing per-format artifact inside it) is
- *   the clean-tree skip signal — every assertion in this file returns
- *   early without failing. The full check is verified end-to-end by
- *   CI, which builds before testing. This mirrors the ENOENT skip
- *   path in `tests/build-artifacts.test.mjs`.
+ * Environment:
+ *   - Node.js ESM
+ *   - filesystem or built-artifact inspection
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/dist-multi-format-exports.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on multi-format distribution exports only.
  */
 
 import { test } from 'node:test';

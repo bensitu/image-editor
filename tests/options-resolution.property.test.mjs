@@ -1,20 +1,37 @@
-// Options resolution completeness and deep-merge
-//
-//   For any partial `ImageEditorOptions` object `U` and the documented
-//   defaults object `D`, `resolveOptions(U)` SHALL expose every required
-//   option key. Top-level keys, nested `label.textOptions`, and nested
-//   `crop` keys SHALL use the user value when supplied and the documented
-//   default otherwise. Unknown input keys SHALL be ignored without
-//   throwing, callback options SHALL preserve public `(error, message)`
-//   ordering where applicable, and post-construction mutation of `U`,
-//   `U.label`, `U.label.textOptions`, or `U.crop` SHALL NOT affect the
-//   live `ResolvedOptions`.
-//
-// Owner module: `src/core/default-options.ts`.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required to run the property test in isolation.
+/**
+ * @file options-resolution.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/core/default-options.ts resolveOptions behavior for arbitrary
+ *   partial option objects. The suite checks default completeness, nested label and
+ *   crop merges, unknown key filtering, callback preservation, and immutability of
+ *   resolved nested options.
+ *
+ * Scope:
+ *   - Every required option key is present after resolution.
+ *   - User-supplied nested values override defaults without mutating the defaults
+ *     object.
+ *   - Later mutation of the input object does not affect the resolved options.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *
+ * Run:
+ *   node --test tests/options-resolution.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on options resolution completeness and deep merge only.
+ */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

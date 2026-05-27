@@ -1,52 +1,38 @@
-// Direct region export with floored dimensions
-//
-//   For any original image bounding rectangle with finite coordinates,
-//   region export SHALL pass `left`, `top`, `width`, and `height`
-//   directly to Fabric without creating an intermediate canvas, and
-//   SHALL floor sub-pixel `width` and `height` values to integer
-//   pixels.
-//
-// Owner modules: `src/export/export-service.ts`, `src/utils/canvas-region.ts`.
-//
-// Sub-properties exercised here:
-//
-//   23.1 Floored region forwarded to canvas.toDataURL
-//:
-//        For any sub-pixel bounding rect returned by
-//        `originalImage.getBoundingRect()`, the values forwarded to
-//        Fabric's `toDataURL({ left, top, width, height })` SHALL
-//        match `floorRegion(getObjectBBox(originalImage))` field-for-
-//        field, and each value SHALL be a non-negative integer.
-//
-//   23.2 No intermediate `<canvas>` element allocated
-//:
-//        For any sub-pixel bounding rect, the region export path
-//        SHALL NOT call `document.createElement('canvas')` while
-//        producing the data URL — the bytes come straight from the
-//        live Fabric canvas's `toDataURL`. The path SHALL invoke
-//        `toDataURL` exactly once on the live canvas.
-//
-// ─── Why a canvas mock instead of a live Fabric.Canvas ──────────────────────
-//
-// The export service interacts with the live canvas through exactly
-// three methods this property cares about:
-//
-//   discardActiveObject()  — required by the documented contract ()
-//   getObjects()           — read by the bake-in/restore bracket
-//   toDataURL(options)     — the call site this property asserts
-//
-// Spinning up a real Fabric canvas would require jsdom plus async
-// asset wiring without exercising any new branch inside the region-
-// export path. Mirroring `tests/export-service.test.mjs` and
-// `tests/active-selection-discard.property.test.mjs`, this test
-// drives a small mock canvas and a fake `originalImage` whose
-// `getBoundingRect()` returns a randomized sub-pixel rectangle.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively. The
-// shared `helpers/ts-resolve-hook.mjs` rewrites `.js`-suffixed
-// runtime imports to sibling `.ts` files so the test imports
-// `export-service.ts` and `canvas-region.ts` directly via dynamic
-// `import()` after the hook is registered.
+/**
+ * @file direct-region-export.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/export/export-service.ts and src/utils/canvas-region.ts
+ *   region-export behavior for arbitrary original-image bounding rectangles. The test
+ *   confirms that export uses Fabric's toDataURL region options directly instead of
+ *   allocating an intermediate canvas.
+ *
+ * Scope:
+ *   - Sub-pixel bounding boxes are floored to integer region options.
+ *   - The live canvas receives exactly one toDataURL call for the region export.
+ *   - A small canvas mock is enough because the property only depends on discard,
+ *     object lookup, and toDataURL forwarding.
+ *
+ * Out of scope:
+ *   - visual pixel-quality comparison
+ *   - browser download UI details
+ *   - unrelated image loading behavior
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/direct-region-export.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on direct region export with floored dimensions only.
+ */
 
 import { register } from 'node:module';
 

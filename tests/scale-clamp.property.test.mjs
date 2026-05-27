@@ -1,38 +1,38 @@
-// Scale clamp
-//
-//   For any scale factor, `scaleImage(factor)` SHALL clamp the resulting
-//   `currentScale` to `[options.minScale, options.maxScale]` and SHALL
-//   keep the original image's `scaleX`/`scaleY` synchronized with that
-//   clamped value (multiplied by `baseImageScale`).
-//
-// Owner module under test: `src/image/transform-controller.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// `TransformController.scaleImage` runs a Fabric animation through
-// `fabric/fabric-animation.ts → animateProps`. To keep this property
-// fast and deterministic we follow the same isolation strategy as
-// `transactional-load.property.test.mjs`:
-//
-//   - A `MockCanvas` that only implements `requestRenderAll` (the only
-//     surface `animateProps`'s `onChange` touches).
-//   - A fake Fabric image that exposes the structural duck type
-//     `transform-controller.ts` reads/writes (`set`, `setCoords`,
-//     `setPositionByOrigin`, `getCenterPoint`, `getCoords`,
-//     `getBoundingRect`, plus `animate`).
-//   - A `TransformContext` with simple getter/setter pairs over a plain
-//     state holder so the test can read the post-call `currentScale`.
-//
-// The fake `animate(props, opts)` resolves the wrapper Promise
-// synchronously by firing `opts.onComplete` once per property — Fabric
-// v7's contract is "one `onComplete` per animated property", and
-// `scaleImage` tweens both `scaleX` and `scaleY`. See
-// `fabric/fabric-animation.ts` for the wrapper that counts callbacks.
-//
-// Lower iteration count (30) than the default 100 because each
-// iteration constructs a new context and walks the full async pipeline
-// — even with synchronous animation completion, the microtask churn
-// adds up across hundreds of iterations.
+/**
+ * @file scale-clamp.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/transform-controller.ts scaleImage behavior for arbitrary
+ *   scale factors. A fake Fabric image and minimal TransformContext keep the async
+ *   animation path deterministic while exposing currentScale and image scale fields.
+ *
+ * Scope:
+ *   - Resulting currentScale is clamped to [minScale, maxScale].
+ *   - Image scaleX and scaleY stay synchronized with currentScale times
+ *     baseImageScale.
+ *   - Animation completion is simulated through the same callback shape the wrapper
+ *     expects.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/scale-clamp.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on scale clamping only.
+ */
 
 import { register } from 'node:module';
 

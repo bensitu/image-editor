@@ -1,33 +1,35 @@
 /**
- * Unit tests for the canonical public-API surface of `ImageEditor`.
+ * @file public-surface.test.mjs
  *
- * Owner: `src/image-editor.ts` (the public facade) and `src/index.ts`
- * (the canonical barrel).
+ * Type:
+ *   Smoke test
  *
- * Behaviors under test:
+ * Purpose:
+ *   Verifies src/image-editor.ts and src/index.ts public runtime shape by importing
+ *   source with a minimal Fabric stub. The suite focuses on API presence and barrel
+ *   cleanliness rather than behavior of individual methods.
  *
- *   1. Default + named export resolve to the same class. The package
- *      barrel exposes `ImageEditor` as both the default export and a
- *      named export, both pointing to the same class declaration.
- *   2. `isMaskObject` is the only additional runtime value re-exported.
- *   3. Canonical method set on `ImageEditor.prototype` — every public
- *      method is present as a function on the prototype, including the
- *      `isImageLoaded`, `saveState`, and `loadFromState` introspection
- *      trio.
- *   4. Internal helpers (animation queue, command, history manager,
- *      controllers, services, managers, utility modules) do not leak
- *      through the barrel.
+ * Scope:
+ *   - ImageEditor default and named exports resolve to the same class.
+ *   - isMaskObject is the only additional runtime value exposed from the barrel.
+ *   - The documented public method set exists on ImageEditor.prototype and internal
+ *     helpers stay hidden.
  *
- * Identifier-level scrubbing of the deprecated aliases is owned by
- * `tests/alias-scrub.test.mjs`. This test focuses on the runtime API
- * shape so the two suites have non-overlapping responsibilities.
+ * Out of scope:
+ *   - feature behavior inside ImageEditor methods
+ *   - browser rendering behavior
+ *   - private implementation refactors
  *
- * Runtime note: Node 24+ strips TypeScript syntax natively, so this
- * test imports the modules under test directly from source via the
- * shared `ts-resolve-hook`. The Fabric module is stubbed structurally
- * (just an object with a `Canvas` function) so `detectFabric` resolves
- * to a usable adapter without bootstrapping a full Fabric/jsdom
- * environment — the suite is about API shape, not behavior.
+ * Environment:
+ *   - Node.js ESM
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/public-surface.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on canonical ImageEditor public surface only.
  */
 
 import { register } from 'node:module';

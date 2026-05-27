@@ -1,18 +1,36 @@
 /**
- * Static smoke tests for the canonical public-API barrel (`src/index.ts`).
+ * @file barrel-exports.test.mjs
  *
- * These tests inspect the barrel as a string so they remain valid even
- * when other parts of the source tree are mid-edit. They cover the
- * shape of the barrel:
+ * Type:
+ *   Smoke test
  *
- *   - `ImageEditor` is exposed as both the default and the named export.
- *   - `isMaskObject` is the only additional runtime value re-exported.
- *   - The documented public types are re-exported.
- *   - Internal helpers (AnimationQueue, Command, HistoryManager,
- *     controllers, services, managers) are not root-exported.
+ * Purpose:
+ *   Inspects src/index.ts as source text to verify the package root exports only the
+ *   intended runtime values and public types. It avoids loading the rest of the
+ *   source tree so the test remains stable while internal modules are being edited.
  *
- * Identifier-level deprecated-alias scrubbing is owned by
- * `tests/alias-scrub.test.mjs`.
+ * Scope:
+ *   - ImageEditor is exported as both default and named export.
+ *   - isMaskObject is the only additional runtime export.
+ *   - Public type exports are present and internal helpers do not leak through the
+ *     barrel.
+ *
+ * Out of scope:
+ *   - feature behavior inside ImageEditor methods
+ *   - browser rendering behavior
+ *   - private implementation refactors
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - filesystem or built-artifact inspection
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/barrel-exports.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on canonical public API barrel only.
  */
 
 import { test } from 'node:test';

@@ -1,45 +1,39 @@
-// Transactional loadImage
-//
-//   For any editor state `S` and any invocation of `loadImage(imageBase64,
-//   options)`, the post-call observable state SHALL be either the fully
-//   committed new-image state or the pre-call state `S`. Invalid
-//   non-image data URLs SHALL return early without mutation; decode,
-//   Fabric creation, timeout, layout, and downsample failures SHALL
-//   restore the rollback bundle and reject with the original failure.
-//   When `preserveScroll` is true, the container scroll position SHALL be
-//   preserved across both successful load and rollback paths.
-//
-// Owner module under test: `src/image/image-loader.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// `loadImage` integrates Fabric.js, an `<img>` decode, the resampler, the
-// layout manager, the visibility helper, and the state serializer. This
-// property test isolates the loader by injecting:
-//
-//   - a `fabric` stub whose `FabricImage.fromURL` is a deterministic
-//     in-memory factory or a controlled rejection (mocking
-//     randomized input guidance),
-//   - a `MockCanvas` that records all the loader's mutations and supports
-//     `toJSON` / `loadFromJSON` round-trips so the rollback path is
-//     observable,
-//   - a stubbed `globalThis.Image` whose `src` setter fires `onload` on a
-//     microtask (or `onerror` when the test asks for a decode failure),
-//     so iterations finish quickly and deterministically and never rely
-//     on jsdom's incomplete image decoder for base64 PNGs.
-//
-// The properties exercised here cover the success, failure, and early-return
-// states:
-//
-//   1. Non-data:image strings: zero mutation
-//   2. Success: editor scalar state committed
-//   3. Success: onImageLoaded fires exactly once
-//   4. Failure: editor state matches pre-call state (rollback)
-//   5. Failure: onImageLoaded does NOT fire
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this test
-// imports the module under test directly from source via the shared
-// `ts-resolve-hook`. No build step is required.
+/**
+ * @file transactional-load.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/image-loader.ts transactional commit and rollback behavior
+ *   across valid loads, invalid non-image input, decode failures, Fabric creation
+ *   failures, timeout paths, layout updates, downsample failures, and scroll
+ *   preservation.
+ *
+ * Scope:
+ *   - Successful loads commit image, scalar, mask-counter, placeholder, and snapshot
+ *     state.
+ *   - Invalid non-image strings return without mutation.
+ *   - Failures restore the pre-call rollback bundle and preserve scroll when
+ *     requested.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/transactional-load.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on transactional loadImage only.
+ */
 
 import { register } from 'node:module';
 

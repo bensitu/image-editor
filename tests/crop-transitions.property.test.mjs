@@ -1,56 +1,38 @@
-// Atomic crop transitions
-//
-//   For any crop session, `enterCropMode`, `applyCrop`, `cancelCrop`,
-//   and rollback SHALL preserve the documented state-machine
-//   invariants: one active CropSession at most, pre-crop snapshot
-//   captured without the crop rectangle, exactly one history entry on
-//   successful apply, no history entry on cancel, and stale crop
-//   handlers detached after completion.
-//
-// Owner module under test: `src/crop/crop-controller.ts`.
-//
-// ─── Scope of this test ─────────────────────────────────────────────────────
-//
-// The crop controller is a set of stateless functions that operate on a
-// {@link CropControllerContext}. We exercise each transition with a
-// deterministic stub canvas, a real {@link HistoryManager}, and a
-// scripted `loadImage` that either commits or rejects to drive the
-// rollback path. Four scenarios are covered, one
-// per top-level transition documented in the documented contract:
-//
-//   26.1 Successful enterCropMode → applyCrop:
-//        · `enterCropMode` opens a single session, captures the
-//          pre-crop snapshot WITHOUT the crop rectangle,
-//          and re-entry is idempotent.
-//        · `applyCrop` pushes exactly one history entry whose `undo`
-//          restores the pre-crop snapshot.
-//        · After `applyCrop` resolves, the session pointer is null and
-//          every crop-rect handler has been detached.
-//
-//   26.2 Successful enterCropMode → cancelCrop:
-//        · `cancelCrop` produces NO history entry.
-//        · The crop rect is removed and every crop-rect handler is
-//          detached.
-//        · The session pointer is null after cancel.
-//
-//   26.3 Failed applyCrop (loadImage throws):
-//        · `applyCrop` rejects with `CropApplyError`.
-//        · NO history entry is pushed.
-//        · `loadFromState` is invoked with the pre-crop snapshot to
-//          restore the editor.
-//        · The session pointer is null after rollback and every
-//          crop-rect handler has been detached.
-//
-//   26.4 Idempotent re-entry of enterCropMode and no-op cancel/apply
-//        without an open session:
-//        · Calling `enterCropMode` while a session is already open
-//          does NOT replace the session.
-//        · Calling `cancelCrop` / `applyCrop` with no open session is
-//          a no-op (no rejection, no history entry).
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this
-// test imports the modules under test directly from source via the
-// shared `ts-resolve-hook`. No build step is required.
+/**
+ * @file crop-transitions.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/crop/crop-controller.ts state-machine transitions for enter, apply,
+ *   cancel, and rollback. A deterministic canvas stub, real HistoryManager, and
+ *   scripted loadImage path keep the crop controller isolated while preserving
+ *   observable session and history behavior.
+ *
+ * Scope:
+ *   - enterCropMode captures the pre-crop snapshot before adding the crop rectangle.
+ *   - applyCrop pushes exactly one undoable history entry on success.
+ *   - cancel and rollback clear the session and detach crop-rectangle handlers
+ *     without leaking history entries.
+ *
+ * Out of scope:
+ *   - visual rendering quality
+ *   - browser-specific pointer interaction details
+ *   - unrelated mask and export features
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/crop-transitions.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on atomic crop transitions only.
+ */
 
 import { register } from 'node:module';
 

@@ -1,55 +1,40 @@
-// History serialization round-trip
-//
-//   For any editor state that can be produced by public methods,
-//   `saveState()` followed by `loadFromState(snapshot)` SHALL restore
-//   the canvas size, object set, object metadata, `_editorState`,
-//   `currentScale`, `currentRotation`, `baseImageScale`, original
-//   image reference, mask metadata, mask labels, and mask counter
-//   derivation data.
-//
-// Owner module: `src/core/state-serializer.ts`.
-//
-// ─── Why a canvas mock instead of a live Fabric.Canvas ──────────────────────
-//
-// The state serializer interacts with the canvas through a tiny surface:
-//
-//   saveState        → canvas.discardActiveObject(), canvas.toJSON(keys)
-//   loadFromState    → setCanvasSize(w, h), canvas.loadFromJSON(json),
-//                      canvas.getObjects()
-//
-// That surface is small enough that the round-trip property is best
-// exercised against a stand-in canvas that mimics Fabric's behaviour for
-// these four methods. Driving a real Fabric.Canvas would require a
-// jsdom environment, async font/image asset wiring, and a per-iteration
-// canvas teardown — all of which add runtime cost without exercising
-// any new branch inside `state-serializer.ts`. The mock keeps each
-// iteration in-process and fast so the run can stay at the project's
-// standard `numRuns: 100`.
-//
-// ─── Sub-properties exercised here ───────────────────────────────────────────
-//
-//   14.1 saveState→loadFromState→saveState yields byte-stable snapshots
-// — equality is the parsed JSON deep
-//        equality, which is the exact equivalence relation defined in
-//        the documented contract.
-//   14.2 Object metadata round-trips — every
-//        mask object retains its (type, left, top, maskId, maskName,
-//        originalAlpha) and any preserved falsy style values.
-//   14.3 Editor metadata round-trips — the
-//        `_editorState` object embedded in the snapshot returns
-//        `currentScale`, `currentRotation`, `baseImageScale` exactly.
-//   14.4 `maxMaskId` derivation — `loadFromState` returns
-//        the maximum restored `maskId`, or `0` when no masks survive.
-//   14.5 Session-only filter — objects flagged
-//        `isCropRect === true` or `maskLabel === true` never appear in
-//        a snapshot and therefore never reach the loaded canvas.
-//   14.6 originalImage discovery — the first non-mask
-//        `'image'` object on the loaded canvas is returned as
-//        `originalImage`, with `null` when no such object exists.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so this
-// test imports the module under test directly from source via the
-// shared `ts-resolve-hook`. No build step is required.
+/**
+ * @file state-serializer.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/core/state-serializer.ts snapshot save and restore behavior for
+ *   arbitrary serializable editor states. The suite uses a focused canvas mock
+ *   because the serializer only needs discardActiveObject, toJSON, loadFromJSON,
+ *   getObjects, and canvas-size callbacks.
+ *
+ * Scope:
+ *   - saveState followed by loadFromState and saveState yields equivalent parsed
+ *     snapshots.
+ *   - Canvas size, editor scalar state, original image reference, mask metadata, and
+ *     labels round-trip.
+ *   - Duplicate-position masks restore one-to-one instead of being matched
+ *     ambiguously.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/state-serializer.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on history serialization round trip only.
+ */
 
 import { register } from 'node:module';
 

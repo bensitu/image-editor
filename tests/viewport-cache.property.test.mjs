@@ -1,43 +1,37 @@
-// Hidden-container viewport cache
-//
-//   For any hidden container or zero-sized viewport, layout SHALL use
-//   the configured canvas dimensions or the last known non-zero
-//   viewport dimensions as a fallback. The result SHALL never produce
-//   zero or negative canvas dimensions.
-//
-// Owner module: `src/image/layout-manager.ts` — `ViewportCache` class.
-// `ViewportCache.measure(container, fallback)` reads
-// `container.clientWidth` / `clientHeight` and runs them through
-// `Math.floor`, so plain objects with integer-valued `clientWidth` and
-// `clientHeight` properties are sufficient stand-ins for an
-// `HTMLElement`. No jsdom is required.
-//
-// Sub-properties exercised here:
-//
-//   8.1 Visible measure caches: when both `clientWidth` and
-//       `clientHeight` are > 0, `measure(container, fallback)` returns
-//       `{ width: floor(clientWidth), height: floor(clientHeight) }`,
-//       and `peek()` afterwards returns the same value. The fallback
-//       is ignored on the visible path.
-//   8.2 Hidden returns cache: once a non-zero measurement
-//       has been observed, any subsequent `measure` call where either
-//       axis is zero returns the previously cached size — not the
-//       fallback. `peek()` keeps reporting the cache.
-//   8.3 Fallback when no cache: with a fresh cache and a
-//       container reporting any zero axis, `measure` returns the
-//       supplied fallback verbatim. `peek()` is `null`.
-//   8.4 Null container returns fallback: `measure(null, fallback)`
-//       returns the fallback regardless of cache state and never
-//       updates the cache.
-//   8.5 clear() resets the cache: after `clear()`, `peek()` is `null`
-//       and a subsequent hidden-axis measure returns the fallback
-//       (i.e. the cache no longer remembers the prior visible size).
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the
-// test imports the module under test directly from source. The shared
-// `ts-resolve-hook` rewrites `.js` import specifiers in
-// `layout-manager.ts` to their `.ts` siblings, mirroring the project's
-// `moduleResolution: "bundler"` setup.
+/**
+ * @file viewport-cache.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/layout-manager.ts ViewportCache behavior for visible, hidden,
+ *   null, and reset measurement paths. The unit reads only clientWidth and
+ *   clientHeight, so plain objects are sufficient and no jsdom setup is needed.
+ *
+ * Scope:
+ *   - Visible non-zero measurements are floored, returned, and cached.
+ *   - Hidden or zero-axis measurements use the cached size when present and the
+ *     supplied fallback otherwise.
+ *   - clear() drops the cache so subsequent hidden measurements fall back again.
+ *
+ * Out of scope:
+ *   - browser layout engine differences
+ *   - visual rendering quality
+ *   - unrelated editor workflows
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - jsdom or DOM stubs are used where needed
+ *
+ * Run:
+ *   node --test tests/viewport-cache.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on hidden-container viewport cache only.
+ */
 
 import { register } from 'node:module';
 

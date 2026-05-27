@@ -1,30 +1,36 @@
 /**
- * Unit tests for the warning/error callback reporting helpers.
+ * @file callback-reporter.test.mjs
  *
- * Owner module: `src/core/callback-reporter.ts` —
- * `reportWarning` and `reportError`.
+ * Type:
+ *   Unit test
  *
- * Behaviors under test:
+ * Purpose:
+ *   Verifies src/core/callback-reporter.ts helper behavior for public callback
+ *   argument ordering, missing callbacks, callback exceptions, and original error
+ *   preservation. The tests load the helpers directly from source and do not require
+ *   Fabric or DOM setup.
  *
- *   1. **Public `(error, message)` argument order** —
- *      both helpers forward the original error as the first callback
- *      argument and the human-readable message as the second.
- *   2. **No-callback no-op** — when `onWarning` / `onError` is missing or
- *      not a function, the helpers do nothing and do not throw.
- *   3. **Callback exception isolation** — if the callback
- *      itself throws, the helper catches the exception and logs to
- *      `console.warn` (warning path) or `console.error` (error path),
- *      then returns normally.
- *   4. **Original error preservation** — `reportError` does not
- *      rethrow on callback exception, so a caller that throws the
- *      original editor error after the helper returns observes that
- *      original error on the resulting promise — never the callback's.
- *   5. **Argument forwarding fidelity** — `error` of any shape (Error
- *      instance, plain object, primitive, `null`, `undefined`) flows
- *      through unchanged.
+ * Scope:
+ *   - reportWarning and reportError forward (error, message) in the documented order.
+ *   - Missing or non-function callbacks are no-ops.
+ *   - Exceptions thrown by callbacks are logged and isolated from the original caller
+ *     error.
  *
- * Runtime note: Node 24+ strips TypeScript syntax natively, so the test
- * imports the module under test directly from source.
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/callback-reporter.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on warning and error callback reporters only.
  */
 
 import { test } from 'node:test';

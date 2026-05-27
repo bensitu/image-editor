@@ -1,43 +1,36 @@
-// Layout precedence determinism
-//
-//   For any combination of `fitImageToCanvas`, `coverImageToCanvas`, and
-//   `expandCanvasToImage`, exactly one layout mode SHALL be selected
-//   using the precedence `fit > cover > expand > fallback`. The selected
-//   mode SHALL not depend on object-key order, previous loads, or prior
-//   canvas state.
-//
-// Owner module: `src/image/layout-manager.ts` — pure function
-// `selectLayoutStrategy(options)` consumes only the three boolean flags
-// from `ResolvedOptions` and returns one of `'fit' | 'cover' | 'expand'`.
-//
-// Sub-properties exercised here:
-//
-//   5.1 `fit` wins: when `fitImageToCanvas` is true, output
-//       === 'fit' regardless of the other two flags.
-//   5.2 `cover` wins next: when `fitImageToCanvas` is false
-//       and `coverImageToCanvas` is true, output === 'cover' regardless
-//       of `expandCanvasToImage`.
-//   5.3 `expand` selected: when `fit` and `cover` are false
-//       and `expandCanvasToImage` is true, output === 'expand'.
-//   5.4 All-false fallback: when every flag is false, output
-//       === 'expand'. This matches the documented default-options
-//       resolution and gives a deterministic answer if a consumer
-//       disables every layout flag.
-//   5.5 Determinism: selection depends only on the three boolean flag
-//       values — not on object-key order and not on prior calls.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required. `selectLayoutStrategy` is a pure function with no
-// DOM dependency, so the property test runs without jsdom.
-//
-// `layout-manager.ts` carries runtime `.js`-suffixed imports to sibling
-// `.ts` modules (the project compiles for browsers under
-// `moduleResolution: "bundler"`). Node's native type stripping does not
-// rewrite those specifiers, so we register the shared resolve hook that
-// maps relative `.js` requests to `.ts` when the sibling source file
-// exists. The layout manager is pulled in via dynamic `import()` so the
-// resolver is in place before its specifier is resolved.
+/**
+ * @file layout-precedence.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/layout-manager.ts selectLayoutStrategy for every combination
+ *   of fit, cover, and expand flags. The test locks down deterministic precedence
+ *   independent of option key order.
+ *
+ * Scope:
+ *   - fit wins over cover and expand.
+ *   - cover wins when fit is disabled.
+ *   - expand is the fallback when fit and cover are both disabled, including when all
+ *     flags are false.
+ *
+ * Out of scope:
+ *   - browser layout engine differences
+ *   - visual rendering quality
+ *   - unrelated editor workflows
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *
+ * Run:
+ *   node --test tests/layout-precedence.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on layout strategy precedence only.
+ */
 
 import { register } from 'node:module';
 

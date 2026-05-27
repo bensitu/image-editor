@@ -1,43 +1,36 @@
-// Downsample dimensions
-//
-//   For any source width and height greater than zero and any max-width /
-//   max-height bounds greater than zero, downsampling SHALL preserve aspect
-//   ratio and SHALL produce dimensions that are less than or equal to both
-//   configured bounds whenever `downsampleOnLoad` is enabled and the source
-//   exceeds either bound.
-//
-// Owner module: `src/image/image-resampler.ts` — pure function
-// `computeDownsampleDimensions(srcW, srcH, maxW, maxH)` exposed for property
-// testing without a DOM.
-//
-// Sub-properties exercised here:
-//
-//   3.1 Pass-through when within bounds: srcW <= maxW && srcH <= maxH
-//       implies out.width === srcW && out.height === srcH &&
-//       out.needsResize === false.
-//   3.2 Within bounds: out.width <= maxW + 1 && out.height <= maxH + 1.
-//       (The +1 tolerance accommodates `Math.round`'s half-up rounding on
-//       the fitted axis when the scaled value lands on an exact .5
-//       boundary; the unfitted axis is always strictly within bounds.)
-//   3.3 Aspect ratio preserved: when scaling occurred,
-//       |out.width / out.height - srcW / srcH| < 0.01.
-//   3.4 Always positive: out.width >= 1 && out.height >= 1.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively, so the test
-// imports the module under test directly from source — no separate build
-// step is required. `computeDownsampleDimensions` is a pure function with
-// no DOM dependency, so the property test runs without jsdom.
-//
-// `image-resampler.ts` carries a runtime `.js`-suffixed import to a sibling
-// `.ts` module (the project compiles for browsers under
-// `moduleResolution: "bundler"`). Node's native type stripping does not
-// rewrite those specifiers, so we register a tiny resolve hook that maps
-// relative `.js` requests to `.ts` when the sibling source file exists.
-// The hook only fires for relative specifiers; bare imports
-// (e.g. `node:test`, `fast-check`) are forwarded to the default resolver.
-// Because static `import` statements are hoisted, the hook is registered
-// at top level and the resampler is pulled in via dynamic `import()` so
-// the resolver is in place before its specifier is resolved.
+/**
+ * @file downsample-dimensions.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies src/image/downsample.ts size calculation for arbitrary source image
+ *   dimensions and maximum bounds. The property focuses on pure math and does not
+ *   require canvas, image decoding, or DOM setup.
+ *
+ * Scope:
+ *   - Images that already fit pass through unchanged.
+ *   - Oversized images are scaled down without exceeding either bound.
+ *   - Aspect ratio is preserved and output dimensions never fall below one pixel.
+ *
+ * Out of scope:
+ *   - unrelated editor features
+ *   - visual rendering quality
+ *   - browser-specific integration details
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/downsample-dimensions.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on downsample dimension calculation only.
+ */
 
 import { register } from 'node:module';
 

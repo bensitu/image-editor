@@ -874,6 +874,8 @@ export function enterCropMode(ctx: CropControllerContext): void {
         ],
     };
     ctx.setCropSession(session);
+    // Paint synchronously so the active crop rectangle is visible before
+    // enterCropMode returns to callers that immediately inspect the canvas.
     canvas.renderAll();
 }
 
@@ -909,6 +911,8 @@ export function cancelCrop(ctx: CropControllerContext): void {
     ctx.setCropSession(null);
 
     try {
+        // The crop rectangle and frozen object flags are restored in this
+        // call stack, so flush the visible canvas before returning.
         ctx.canvas.renderAll();
     } catch {
         /* ignore — canvas may have been disposed mid-cancel */
@@ -1088,6 +1092,8 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         //     collide.
         if (preservedRecords.length > 0) {
             reapplyPreservedMasks(ctx, cropRegion, preservedRecords);
+            // Re-added masks must be visible before the post-crop snapshot
+            // is captured and before applyCrop resolves.
             canvas.renderAll();
         }
 

@@ -1,56 +1,38 @@
-// Export-only style restoration
-//
-//   For any export operation that temporarily mutates mask styles,
-//   every mutated style SHALL be restored in a `finally` path after
-//   both successful and failed exports.
-//
-// Owner modules: `src/export/export-service.ts`, `src/mask/mask-style.ts`.
-//
-// Sub-properties exercised here, mirroring the three acceptance criteria
-// of the documented contract:
-//
-//   24.1 Capture-before-mutation:
-//        For any pre-export mask style, the export bake-in SHALL
-//        capture the live values of `opacity`, `fill`, `stroke`,
-//        `strokeWidth`, `selectable`, and `lockRotation` BEFORE the
-//        mutator forces the bake-in style. We verify this indirectly
-//        by asserting that, after a successful export, every mask is
-//        restored to the exact pre-export values (if the capture had
-//        happened AFTER the mutator, restoration would produce the
-//        bake-in style, not the originals).
-//
-//   24.2 Restore inside finally on a thrown export:
-//        For any pre-export mask style, when the inner render step
-//        rejects, the live mask styles SHALL still be restored to the
-//        exact pre-export values (the restore lives inside a
-//        `finally`, not after the `try`).
-//
-//   24.3 Restored fields are exact, no defaulting/clamping
-//:
-//        For any pre-export mask style, every restored field SHALL be
-//        `===` strict-equal to the pre-export value — the restore
-//        does not coerce, normalize, or default.
-//
-// ─── Why a canvas mock instead of a live Fabric.Canvas ──────────────────────
-//
-// The export service interacts with the canvas through exactly three
-// methods relevant to this property:
-//
-//   discardActiveObject()  — the documented contract call site, no-op in the mock
-//   getObjects()           — read by the bake-in/restore bracket
-//   toDataURL(options)     — the rendering step we sometimes force to throw
-//
-// Spinning up a real Fabric canvas would require jsdom plus async
-// asset wiring without exercising any new branch inside the bake-in/
-// restore bracket. Mirroring `tests/export-service.test.mjs` and
-// `tests/direct-region-export.property.test.mjs`, this test drives a
-// small mock canvas and a list of mock masks.
-//
-// Runtime note: Node 24+ strips TypeScript syntax natively. The
-// shared `helpers/ts-resolve-hook.mjs` rewrites `.js`-suffixed
-// runtime imports to sibling `.ts` files so this test imports
-// `export-service.ts` directly via dynamic `import()` after the
-// hook is registered.
+/**
+ * @file export-style-restoration.property.test.mjs
+ *
+ * Type:
+ *   Property test
+ *
+ * Purpose:
+ *   Verifies that src/export/export-service.ts temporarily bakes mask styles for
+ *   image-area export and always restores the original live mask styles afterward.
+ *   The property injects arbitrary mask style states and controlled export success or
+ *   failure.
+ *
+ * Scope:
+ *   - Successful exportImageBase64 restores every mask field after toDataURL
+ *     completes.
+ *   - A thrown toDataURL still restores styles in the finally path.
+ *   - The canvas mock focuses on object enumeration and export failure injection.
+ *
+ * Out of scope:
+ *   - visual pixel-quality comparison
+ *   - browser download UI details
+ *   - unrelated image loading behavior
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - fast-check generated cases where applicable
+ *   - Fabric/canvas behavior is mocked where needed
+ *
+ * Run:
+ *   node --test tests/export-style-restoration.property.test.mjs
+ *
+ * Notes:
+ *   - Prefer behavior-level assertions over implementation-detail checks.
+ *   - Keep this file focused on export-only mask style restoration only.
+ */
 
 import { register } from 'node:module';
 
