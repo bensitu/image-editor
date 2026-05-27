@@ -61,24 +61,24 @@ test('browser build exposes ImageEditor as a global for script usage', () => {
 test('type declarations match the public package API', () => {
     const declaration = readFileSync('image-editor.d.ts', 'utf8');
     const removedApis = [
-        'declare module \'image-editor\'',
-        'addCircleMask',
-        'addPolygonMask',
-        'removeMask(',
-        'getMask(',
-        'getAllMasks',
-        'selectMask',
-        'exportAs',
-        'canUndo',
-        'canRedo',
-        'setTheme',
-        'setLanguage',
-        'validateOptions',
-        'createImageEditor',
-        'DEFAULT_OPTIONS',
-        'SUPPORTED_FORMATS',
-        'VERSION',
-        'setFabric('
+        { name: 'legacy unscoped module declaration', pattern: /declare\s+module\s+['"]image-editor['"]/ },
+        { name: 'addCircleMask', pattern: /\baddCircleMask\s*\(/ },
+        { name: 'addPolygonMask', pattern: /\baddPolygonMask\s*\(/ },
+        { name: 'removeMask', pattern: /\bremoveMask\s*\(/ },
+        { name: 'getMask', pattern: /\bgetMask\s*\(/ },
+        { name: 'getAllMasks', pattern: /\bgetAllMasks\b/ },
+        { name: 'selectMask', pattern: /\bselectMask\s*\(/ },
+        { name: 'exportAs', pattern: /\bexportAs\s*\(/ },
+        { name: 'canUndo', pattern: /\bcanUndo\s*\(/ },
+        { name: 'canRedo', pattern: /\bcanRedo\s*\(/ },
+        { name: 'setTheme', pattern: /\bsetTheme\s*\(/ },
+        { name: 'setLanguage', pattern: /\bsetLanguage\s*\(/ },
+        { name: 'validateOptions', pattern: /\bvalidateOptions\s*\(/ },
+        { name: 'createImageEditor', pattern: /\bcreateImageEditor\s*\(/ },
+        { name: 'DEFAULT_OPTIONS', pattern: /\bDEFAULT_OPTIONS\b/ },
+        { name: 'SUPPORTED_FORMATS', pattern: /\bSUPPORTED_FORMATS\b/ },
+        { name: 'VERSION', pattern: /\bVERSION\b/ },
+        { name: 'setFabric', pattern: /\bsetFabric\s*\(/ }
     ];
 
     assert.match(declaration, /declare module '@bensitu\/image-editor'/);
@@ -103,6 +103,8 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /imageLoadTimeoutMs\?: number/);
     assert.match(declaration, /preserveSourceFormat\?: boolean/);
     assert.match(declaration, /downsampleMimeType\?:/);
+    assert.match(declaration, /export interface FabricCanvas/);
+    assert.equal(/import\s*\{[^}]*Canvas[^}]*\}\s*from\s*['"]fabric['"]/.test(declaration), false);
     assert.match(declaration, /loadImage\(imageBase64: string, options\?: LoadImageOptions\): Promise<void>;/);
     assert.match(declaration, /export interface RemoveAllMasksOptions/);
     assert.match(declaration, /removeAllMasks\(options\?: RemoveAllMasksOptions\): void;/);
@@ -113,7 +115,7 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /loadFromState\(serializedState: string \| object\): Promise<void>;/);
 
     for (const api of removedApis) {
-        assert.equal(declaration.includes(api), false, `${api} should not be declared`);
+        assert.equal(api.pattern.test(declaration), false, `${api.name} should not be declared`);
     }
 });
 

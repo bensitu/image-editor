@@ -348,7 +348,7 @@ function setOptions() {
         editor.options.fitImageToCanvas = true;
         editor.options.coverImageToCanvas = false;
         editor.options.expandCanvasToImage = false;
-    } else if (coverCanvasRadio.checked) {
+    } else if (coverCanvasRadio?.checked) {
         editor.options.fitImageToCanvas = false;
         editor.options.coverImageToCanvas = true;
         editor.options.expandCanvasToImage = false;
@@ -360,12 +360,12 @@ function setOptions() {
 }
 
 function canLoadImage() {
-    return !!editor && !editor.isAnimating && !editor._cropMode;
+    return !!editor && !editor.isAnimating && !editor._isLoading && !editor._cropMode;
 }
 
 function updateDemoControls() {
     const hasLoadedImage = !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
-    const isBusy = !!editor && (editor.isAnimating || editor._cropMode);
+    const isBusy = !!editor && (editor.isAnimating || editor._isLoading || editor._cropMode);
     const addMaskButtonElement = getOptionalElement('addMaskBtn');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadButtonElement = getOptionalElement('loadBtn');
@@ -522,10 +522,16 @@ if (window.matchMedia) {
 }
 
 async function getBase64Action() {
+    if (!editor) {
+        showDemoError(new Error('Editor is not initialized.'));
+        return;
+    }
+
     try {
         const imageBase64 = await editor.exportImageBase64();
         console.log(imageBase64);
     } catch (error) {
+        showDemoError(error);
         console.error(error);
     }
 }

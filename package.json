@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "description": "Lightweight canvas-based image editor",
     "main": "./dist/image-editor.js",
     "module": "./dist/image-editor.esm.mjs",
@@ -33,9 +33,6 @@
     "peerDependencies": {
         "fabric": "^5.5.2"
     },
-    "overrides": {
-        "canvas": "^3.2.3"
-    },
     "publishConfig": {
         "access": "public"
     },
@@ -44,6 +41,7 @@
         "@babel/core": "^7.22.9",
         "@babel/preset-env": "^7.22.9",
         "@eslint/js": "^10.0.1",
+        "canvas": "^3.2.3",
         "esbuild": "^0.28.0",
         "esbuild-plugin-babel": "^0.2.3",
         "eslint": "^10.4.0",

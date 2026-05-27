@@ -17,6 +17,48 @@ function dataUrlToFile(dataUrl, fileName = 'fixture.png') {
     return new File([bytes], fileName, { type: mime });
 }
 
+function makeEdgeBorderImageDataUrl({
+    width = 100,
+    height = 200,
+    fill = '#ffffff',
+    right = true,
+    bottom = false,
+    edgeColor = '#000000'
+} = {}) {
+    const canvas = fabric.document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    context.fillStyle = fill;
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = edgeColor;
+    if (right) context.fillRect(width - 1, 0, 1, height);
+    if (bottom) context.fillRect(0, height - 1, width, 1);
+    return canvas.toDataURL('image/png');
+}
+
+async function getEdgeAverageLuminance(dataUrl, edge) {
+    const imageElement = new Image();
+    await new Promise((resolve, reject) => {
+        imageElement.onload = resolve;
+        imageElement.onerror = reject;
+        imageElement.src = dataUrl;
+    });
+    const canvas = fabric.document.createElement('canvas');
+    canvas.width = imageElement.width;
+    canvas.height = imageElement.height;
+    const context = canvas.getContext('2d');
+    context.drawImage(imageElement, 0, 0);
+    const imageData = edge === 'bottom'
+        ? context.getImageData(0, canvas.height - 1, canvas.width, 1).data
+        : context.getImageData(canvas.width - 1, 0, 1, canvas.height).data;
+    let luminanceSum = 0;
+    for (let index = 0; index < imageData.length; index += 4) {
+        luminanceSum += (imageData[index] + imageData[index + 1] + imageData[index + 2]) / 3;
+    }
+    return luminanceSum / (imageData.length / 4);
+}
+
 async function waitForCondition(predicate, timeoutMs = 3000) {
     const start = Date.now();
     while (!predicate()) {
@@ -25,6 +67,16 @@ async function waitForCondition(predicate, timeoutMs = 3000) {
         }
         await waitForCanvasCallbacks(25);
     }
+}
+
+function createDeferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((promiseResolve, promiseReject) => {
+        resolve = promiseResolve;
+        reject = promiseReject;
+    });
+    return { promise, resolve, reject };
 }
 
 test('constructor preserves nested label and crop options while keeping defaults', async (t) => {
@@ -125,6 +177,53 @@ test('disposing restores Bootstrap visibility and canvas inline sizing', async (
     assert.equal(canvasElement.style.maxWidth, '100%');
 });
 
+test('non-form disabled state restores original inline pointer events', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    const customElement = document.createElement('div');
+    customElement.id = 'custom-pointer-target';
+    customElement.style.pointerEvents = 'auto';
+    document.body.appendChild(customElement);
+    editor.elements.customPointerTarget = customElement.id;
+
+    editor._setDisabled('customPointerTarget', true);
+    assert.equal(customElement.style.pointerEvents, 'none');
+    assert.equal(customElement.getAttribute('aria-disabled'), 'true');
+
+    editor._setDisabled('customPointerTarget', false);
+    assert.equal(customElement.style.pointerEvents, 'auto');
+    assert.equal(customElement.hasAttribute('aria-disabled'), false);
+});
+
+test('image readiness waits use event listeners without replacing existing handlers', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    const existingLoadHandler = () => {};
+    const listeners = new Map();
+    const imageElement = {
+        complete: false,
+        naturalWidth: 0,
+        width: 0,
+        onload: existingLoadHandler,
+        onerror: null,
+        addEventListener(eventName, handler) {
+            listeners.set(eventName, handler);
+        },
+        removeEventListener(eventName, handler) {
+            if (listeners.get(eventName) === handler) listeners.delete(eventName);
+        }
+    };
+
+    const readyPromise = editor._waitForImageElementReady(imageElement);
+    assert.equal(imageElement.onload, existingLoadHandler);
+    assert.equal(typeof listeners.get('load'), 'function');
+
+    listeners.get('load')();
+    await readyPromise;
+    assert.equal(listeners.has('load'), false);
+    assert.equal(listeners.has('error'), false);
+});
+
 test('loadImage ignores invalid input and resolves only after a valid image is on canvas', async (t) => {
     let loadedCount = 0;
     const { editor } = await createEditor({
@@ -145,6 +244,80 @@ test('loadImage ignores invalid input and resolves only after a valid image is o
     assert.equal(editor.originalImage.height, 60);
     assert.equal(editor.canvas.getObjects().filter(object => object.type === 'image').length, 1);
     assert.equal(loadedCount, 1);
+});
+
+test('loadImage marks the editor busy and blocks overlapping public operations', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const mask = editor.createMask({ width: 20, height: 20 });
+    const originalCreateImageElement = editor._createImageElement.bind(editor);
+    const releaseImageDecode = createDeferred();
+    let delayedLoadStarted = false;
+
+    editor._createImageElement = async (...args) => {
+        delayedLoadStarted = true;
+        await releaseImageDecode.promise;
+        return originalCreateImageElement(...args);
+    };
+
+    const loadPromise = editor.loadImage(makeImageDataUrl({ width: 90, height: 70 }));
+    await waitForCondition(() => delayedLoadStarted && editor._isLoading === true);
+
+    await assert.rejects(
+        () => editor.loadImage(makeImageDataUrl({ width: 40, height: 30 })),
+        /image is loading/
+    );
+    await assert.rejects(
+        () => editor.scaleImage(1.2),
+        /image is loading/
+    );
+    await assert.rejects(
+        () => editor.rotateImage(45),
+        /image is loading/
+    );
+    await assert.rejects(
+        () => editor.exportImageBase64(),
+        /image is loading/
+    );
+    assert.equal(editor.createMask({ width: 10, height: 10 }), null);
+    assert.equal(editor.maskCounter, mask.maskId);
+
+    releaseImageDecode.resolve();
+    await loadPromise;
+    assert.equal(editor._isLoading, false);
+    assert.equal(editor.isImageLoaded(), true);
+});
+
+test('loadImage clears the loading flag after load and rollback failures', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const originalCreateImageElement = editor._createImageElement.bind(editor);
+    const originalRollback = editor._rollbackLoadImageTransaction.bind(editor);
+
+    editor._createImageElement = async () => {
+        throw new Error('forced decode failure');
+    };
+
+    await assert.rejects(
+        () => editor.loadImage(makeImageDataUrl({ width: 40, height: 30 })),
+        /forced decode failure/
+    );
+    assert.equal(editor._isLoading, false);
+
+    editor._rollbackLoadImageTransaction = async () => {
+        throw new Error('forced rollback failure');
+    };
+
+    await assert.rejects(
+        () => editor.loadImage(makeImageDataUrl({ width: 40, height: 30 })),
+        /forced rollback failure/
+    );
+    assert.equal(editor._isLoading, false);
+
+    editor._createImageElement = originalCreateImageElement;
+    editor._rollbackLoadImageTransaction = originalRollback;
 });
 
 test('loadImage rolls back canvas, placeholder, and overflow when Fabric image creation fails', async (t) => {
@@ -178,6 +351,33 @@ test('loadImage rolls back canvas, placeholder, and overflow when Fabric image c
     assert.equal(containerElement.hidden, false);
     assert.equal(placeholderElement.hidden, true);
     assert.equal(containerElement.style.overflow, 'scroll');
+});
+
+test('loadImage rollback does not replace the original container overflow captured for dispose', async (t) => {
+    const { editor, ids } = await createEditor({
+        coverImageToCanvas: true,
+        expandCanvasToImage: false
+    });
+    const containerElement = document.getElementById(ids.canvasContainer);
+    containerElement.style.overflow = '';
+    await loadFixtureImage(editor, { width: 80, height: 160 });
+    assert.equal(containerElement.style.overflow, 'scroll');
+
+    const originalFromURL = fabric.Image.fromURL;
+    fabric.Image.fromURL = (source, callback) => callback(null);
+    t.after(() => {
+        fabric.Image.fromURL = originalFromURL;
+        disposeEditor(editor);
+    });
+
+    await assert.rejects(
+        () => editor.loadImage(makeImageDataUrl({ width: 40, height: 30 })),
+        /Image could not be loaded/
+    );
+    assert.equal(containerElement.style.overflow, 'scroll');
+
+    editor.dispose();
+    assert.equal(containerElement.style.overflow, '');
 });
 
 test('loadImage warns when mutually exclusive layout modes are enabled together', async (t) => {
@@ -279,7 +479,20 @@ test('downsampling can explicitly convert alpha-capable sources to JPEG', async 
     assert.match(resampled, /^data:image\/jpeg;base64,/);
 });
 
-test('downsample and crop export fail clearly when a 2D canvas context is unavailable', async (t) => {
+test('quality normalization treats absent and invalid values as defaults', async (t) => {
+    const { editor } = await createEditor({ downsampleQuality: null });
+    t.after(() => disposeEditor(editor));
+
+    assert.equal(editor._normalizeQuality(null), 0.92);
+    assert.equal(editor._normalizeQuality(undefined), 0.92);
+    assert.equal(editor._normalizeQuality('invalid'), 0.92);
+    assert.equal(editor._normalizeQuality('0.8'), 0.8);
+    assert.equal(editor._normalizeQuality(-1), 0);
+    assert.equal(editor._normalizeQuality(2), 1);
+    assert.equal(editor._normalizeQuality(null, 0.75), 0.75);
+});
+
+test('downsample and JPEG export conversion fail clearly when a 2D canvas context is unavailable', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
 
@@ -305,7 +518,7 @@ test('downsample and crop export fail clearly when a 2D canvas context is unavai
         /2D canvas context is unavailable/
     );
     await assert.rejects(
-        () => editor._cropDataUrl(sourceDataUrl, 0, 0, 10, 5, 1),
+        () => editor._convertDataUrlToOpaqueJpeg(sourceDataUrl),
         /2D canvas context is unavailable/
     );
 });
@@ -504,6 +717,40 @@ test('dispose rejects an active animation instead of leaving the queue stalled',
 
     await assert.rejects(scalePromise, /disposed/i);
     assert.equal(editor.canvas, null);
+});
+
+test('animation queue cancellation keeps a newer drain loop authoritative', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    const firstStarted = createDeferred();
+    const firstRelease = createDeferred();
+    const secondStarted = createDeferred();
+    const secondRelease = createDeferred();
+
+    const firstPromise = editor.animationQueue.add(async () => {
+        firstStarted.resolve();
+        await firstRelease.promise;
+    });
+    await firstStarted.promise;
+
+    editor.animationQueue.cancelAll(new Error('cancelled first task'));
+    const firstRejection = assert.rejects(firstPromise, /cancelled first task/);
+
+    const secondPromise = editor.animationQueue.add(async () => {
+        secondStarted.resolve();
+        await secondRelease.promise;
+        return 'second complete';
+    });
+    await secondStarted.promise;
+
+    firstRelease.resolve();
+    await waitForCanvasCallbacks(20);
+    assert.equal(editor.animationQueue.isBusy(), true);
+
+    secondRelease.resolve();
+    assert.equal(await secondPromise, 'second complete');
+    await firstRejection;
+    assert.equal(editor.animationQueue.isBusy(), false);
 });
 
 test('rotateImage restores origin when animation setup fails', async (t) => {
@@ -1089,7 +1336,164 @@ test('exportImageBase64 exports the scrollable image area in cover-canvas mode',
 
     assert.equal(editor.canvas.getHeight(), 197);
     assert.equal(size.width, 118);
-    assert.equal(size.height, 196);
+    assert.equal(size.height, 197);
+});
+
+test('mergeMasks preserves the right edge when the image width lands on a partial pixel', async (t) => {
+    const { editor } = await createEditor({
+        fitImageToCanvas: true,
+        expandCanvasToImage: false,
+        exportMultiplier: 1
+    }, {
+        containerWidth: 120,
+        containerHeight: 80
+    });
+    t.after(() => disposeEditor(editor));
+    await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 100, height: 200, right: true }));
+    editor.createMask({ left: 5, top: 5, width: 10, height: 10 });
+
+    editor.originalImage.setCoords();
+    const imageBounds = editor.originalImage.getBoundingRect(true, true);
+    assert.equal(imageBounds.width, 39.5);
+
+    await editor.mergeMasks();
+    const exportedAfterMerge = await editor.exportImageBase64({
+        exportImageArea: false,
+        fileType: 'png',
+        multiplier: 1
+    });
+    const size = await getImageDimensionsFromDataUrl(exportedAfterMerge);
+    const rightEdgeLuminance = await getEdgeAverageLuminance(exportedAfterMerge, 'right');
+
+    assert.equal(size.width, 40);
+    assert.ok(rightEdgeLuminance < 180, `expected a visible dark right edge, got luminance ${rightEdgeLuminance}`);
+});
+
+test('mergeMasks preserves the bottom edge when the image height lands on a partial pixel', async (t) => {
+    const { editor } = await createEditor({
+        fitImageToCanvas: true,
+        expandCanvasToImage: false,
+        exportMultiplier: 1
+    }, {
+        containerWidth: 120,
+        containerHeight: 80
+    });
+    t.after(() => disposeEditor(editor));
+    await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: true }));
+    editor.createMask({ left: 5, top: 5, width: 10, height: 10 });
+
+    editor.originalImage.setCoords();
+    const imageBounds = editor.originalImage.getBoundingRect(true, true);
+    assert.equal(imageBounds.height, 59.5);
+
+    await editor.mergeMasks();
+    const exportedAfterMerge = await editor.exportImageBase64({
+        exportImageArea: false,
+        fileType: 'png',
+        multiplier: 1
+    });
+    const size = await getImageDimensionsFromDataUrl(exportedAfterMerge);
+    const bottomEdgeLuminance = await getEdgeAverageLuminance(exportedAfterMerge, 'bottom');
+
+    assert.equal(size.height, 60);
+    assert.ok(bottomEdgeLuminance < 180, `expected a visible dark bottom edge, got luminance ${bottomEdgeLuminance}`);
+});
+
+test('JPEG export composites partial transparent edges without introducing black pixels', async (t) => {
+    const { editor } = await createEditor({
+        fitImageToCanvas: true,
+        expandCanvasToImage: false,
+        exportMultiplier: 1
+    }, {
+        containerWidth: 120,
+        containerHeight: 80
+    });
+    t.after(() => disposeEditor(editor));
+    await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: false }));
+
+    editor.originalImage.setCoords();
+    const imageBounds = editor.originalImage.getBoundingRect(true, true);
+    assert.equal(imageBounds.height, 59.5);
+
+    const exported = await editor.exportImageBase64({
+        exportImageArea: false,
+        fileType: 'jpeg',
+        multiplier: 1,
+        quality: 0.92
+    });
+    const size = await getImageDimensionsFromDataUrl(exported);
+    const bottomEdgeLuminance = await getEdgeAverageLuminance(exported, 'bottom');
+
+    assert.equal(size.height, 60);
+    assert.ok(bottomEdgeLuminance > 230, `expected a light bottom edge, got luminance ${bottomEdgeLuminance}`);
+});
+
+test('mergeMasks seals zoomed fractional image edges without adding a bottom fill row', async (t) => {
+    const editors = [];
+    t.after(() => editors.forEach(disposeEditor));
+    const modeConfigs = [
+        ['fit', {
+            editorOptions: { fitImageToCanvas: true, expandCanvasToImage: false },
+            domOptions: { containerWidth: 114, containerHeight: 200 }
+        }],
+        ['cover', {
+            editorOptions: { coverImageToCanvas: true, expandCanvasToImage: false },
+            domOptions: { containerWidth: 114, containerHeight: 50 }
+        }]
+    ];
+
+    for (const [modeName, config] of modeConfigs) {
+        const { editor } = await createEditor({
+            exportMultiplier: 1,
+            maxScale: 2,
+            ...config.editorOptions
+        }, config.domOptions);
+        editors.push(editor);
+        await editor.loadImage(makeEdgeBorderImageDataUrl({
+            width: 200,
+            height: 96,
+            fill: '#075083',
+            right: false,
+            bottom: false
+        }));
+        await editor.scaleImage(1.3);
+        editor.createMask({ left: 5, top: 5, width: 10, height: 10 });
+
+        editor.originalImage.setCoords();
+        const imageBounds = editor.originalImage.getBoundingRect(true, true);
+        assert.notEqual(imageBounds.height, Math.round(imageBounds.height), `${modeName} should exercise a fractional height`);
+        const expectedMergedHeight = Math.ceil(imageBounds.height);
+        const originalLoadImage = editor.loadImage.bind(editor);
+        let mergedDataUrl = null;
+        editor.loadImage = async (imageBase64, options) => {
+            if (typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/png')) {
+                mergedDataUrl = imageBase64;
+            }
+            return originalLoadImage(imageBase64, options);
+        };
+
+        await editor.mergeMasks();
+        editor.loadImage = originalLoadImage;
+        assert.ok(mergedDataUrl, `${modeName} should load the merged image data URL`);
+        const mergedSize = await getImageDimensionsFromDataUrl(mergedDataUrl);
+        const mergedBottomEdgeLuminance = await getEdgeAverageLuminance(mergedDataUrl, 'bottom');
+        assert.equal(mergedSize.height, expectedMergedHeight, `${modeName} should merge through the full fractional image height`);
+        assert.ok(mergedBottomEdgeLuminance < 130, `${modeName} should merge the blue image edge instead of a white fill row, got luminance ${mergedBottomEdgeLuminance}`);
+
+        const exportedAfterMerge = await editor.exportImageBase64({
+            exportImageArea: false,
+            fileType: 'jpeg',
+            multiplier: 1,
+            quality: 0.92
+        });
+        const size = await getImageDimensionsFromDataUrl(exportedAfterMerge);
+        const bottomEdgeLuminance = await getEdgeAverageLuminance(exportedAfterMerge, 'bottom');
+
+        editor.originalImage.setCoords();
+        const reloadedBounds = editor.originalImage.getBoundingRect(true, true);
+        assert.equal(size.height, Math.ceil(reloadedBounds.height), `${modeName} should export through the full fractional reloaded image height`);
+        assert.ok(bottomEdgeLuminance < 130, `${modeName} should keep the blue image edge instead of a white fill row, got luminance ${bottomEdgeLuminance}`);
+    }
 });
 
 test('exportImageBase64 exportImageArea false preserves image transforms and omits masks', async (t) => {
@@ -1247,6 +1651,35 @@ test('mergeMasks flattens masks into a newly loaded base image', async (t) => {
     assert.equal(editor.canvas.getObjects().filter(object => object.type === 'image').length, 1);
 });
 
+test('mergeMasks restores masks and history when the flattened image load fails', async (t) => {
+    const errors = [];
+    const { editor } = await createEditor({
+        onError: (error, message) => errors.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+    const mask = editor.createMask({ width: 30, height: 30 });
+    const historyLength = editor.historyManager.history.length;
+    const originalLoadImage = editor.loadImage.bind(editor);
+
+    editor.loadImage = async () => {
+        throw new Error('forced merged load failure');
+    };
+
+    await assert.rejects(
+        () => editor.mergeMasks(),
+        /forced merged load failure/
+    );
+
+    const masks = editor.canvas.getObjects().filter(object => object.maskId);
+    assert.equal(masks.length, 1);
+    assert.equal(masks[0].maskId, mask.maskId);
+    assert.equal(editor.historyManager.history.length, historyLength);
+    assert.equal(errors.some(entry => entry.message === 'merge error'), true);
+
+    editor.loadImage = originalLoadImage;
+});
+
 test('mergeMasks undo followed by createMask does not reuse restored mask ids', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -1305,8 +1738,7 @@ test('mergeMasks undo restores mask control styling', async (t) => {
     });
 
     await editor.mergeMasks();
-    editor.undo();
-    await waitForCanvasCallbacks(100);
+    await editor.undo();
 
     const restoredMask = editor.canvas.getObjects().find(object => object.maskId);
     assert.ok(restoredMask);
@@ -1507,6 +1939,33 @@ test('applyCrop exports crop regions without trailing partial pixels', async (t)
     assert.equal(capturedOptions.includePartialPixels, false);
 });
 
+test('applyCrop falls back to default quality when downsampleQuality is null', async (t) => {
+    const { editor } = await createEditor({
+        downsampleQuality: null,
+        crop: {
+            minWidth: 40,
+            minHeight: 40
+        }
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+
+    let capturedQuality = null;
+    editor.enterCropMode();
+    editor._exportCanvasRegionToDataURL = async (region) => {
+        capturedQuality = region.quality;
+        return makeImageDataUrl({
+            width: region.sourceWidth,
+            height: region.sourceHeight,
+            format: 'image/jpeg'
+        });
+    };
+
+    await editor.applyCrop();
+
+    assert.equal(capturedQuality, 0.92);
+});
+
 test('applyCrop rolls back image and masks when crop export fails', async (t) => {
     const errors = [];
     const { editor } = await createEditor({
@@ -1544,8 +2003,7 @@ test('first mask addition can be undone after image load', async (t) => {
     editor.createMask({ width: 20, height: 20 });
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
 
-    editor.undo();
-    await waitForCanvasCallbacks(100);
+    await editor.undo();
 
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
 });
@@ -1580,12 +2038,10 @@ test('history undo and redo restore serialized canvas states', async (t) => {
     editor.createMask({ width: 20, height: 20 });
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 2);
 
-    editor.undo();
-    await waitForCanvasCallbacks(100);
+    await editor.undo();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
 
-    editor.redo();
-    await waitForCanvasCallbacks(100);
+    await editor.redo();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 2);
 });
 
@@ -1669,10 +2125,8 @@ test('mask hover handlers are rebound after undo and redo restores state', async
             strokeWidth: 3
         }
     });
-    editor.undo();
-    await waitForCanvasCallbacks(100);
-    editor.redo();
-    await waitForCanvasCallbacks(100);
+    await editor.undo();
+    await editor.redo();
 
     const mask = editor.canvas.getObjects().find(object => object.maskId);
     assert.ok(mask);

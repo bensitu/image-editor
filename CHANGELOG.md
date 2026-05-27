@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-05-27
+
+### Changed
+
+- Move Node canvas support to a dev-only `canvas` dependency and remove the package-level override so Fabric's optional peer dependency resolution is left to consumers.
+
+### Fixed
+
+- Track image loading as an editor busy state so overlapping loads, transforms, exports, masks, and demo actions cannot mutate canvas state while a load is in progress.
+- Make mask merging rollback-safe when the flattened image reload fails, without adding broken history entries.
+- Preserve right and bottom image edges when merging masks over images whose displayed bounds end on partial pixels.
+- Seal fractional export edge alpha during merge and export, including manual zoom states, so trailing rows or columns keep their own edge colors without resampling the full image.
+- Composite genuinely transparent JPEG export areas against an explicit background because JPEG cannot encode alpha.
+- Preserve the original container overflow snapshot across failed image-load rollbacks and disposal.
+- Treat `null`, `undefined`, and invalid quality values as absent values instead of exporting at quality `0`.
+- Harden animation queue cancellation, image readiness listeners, pointer-event restoration, demo optional controls, and async history tests.
+
 ## [1.4.0] - 2026-05-24
 
 ### Added

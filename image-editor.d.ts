@@ -1,7 +1,18 @@
 // image-editor.d.ts - TypeScript declarations for @bensitu/image-editor
 
 declare module '@bensitu/image-editor' {
-  import { Canvas, Image as FabricImage, Object as FabricObject } from 'fabric';
+  export interface FabricCanvas {
+    [key: string]: any;
+  }
+
+  export interface FabricObject {
+    [key: string]: any;
+  }
+
+  export interface FabricImage extends FabricObject {
+    width: number;
+    height: number;
+  }
 
   export interface LabelOptions {
     /** Receives the mask and its stable zero-based creation index (`mask.maskId - 1`). */
@@ -38,7 +49,7 @@ declare module '@bensitu/image-editor' {
     downsampleOnLoad?: boolean;
     downsampleMaxWidth?: number;
     downsampleMaxHeight?: number;
-    downsampleQuality?: number;
+    downsampleQuality?: number | null;
     preserveSourceFormat?: boolean;
     downsampleMimeType?: 'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp' | null;
     imageLoadTimeoutMs?: number;
@@ -96,17 +107,17 @@ declare module '@bensitu/image-editor' {
 
   export interface MaskConfig {
     shape?: 'rect' | 'circle' | 'ellipse' | 'polygon' | string;
-    width?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
-    height?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
-    radius?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
-    rx?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
-    ry?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    width?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
+    height?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
+    radius?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
+    rx?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
+    ry?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
     points?: Array<{ x: number; y: number }> | Array<[number, number]>;
     color?: string;
     alpha?: number;
     gap?: number;
-    left?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
-    top?: number | string | ((canvas: Canvas, options: ImageEditorOptions) => number);
+    left?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
+    top?: number | string | ((canvas: FabricCanvas, options: ImageEditorOptions) => number);
     angle?: number;
     selectable?: boolean;
     hasControls?: boolean;
@@ -116,8 +127,8 @@ declare module '@bensitu/image-editor' {
     transparentCorners?: boolean;
     strokeUniform?: boolean;
     styles?: Record<string, any>;
-    fabricGenerator?: (config: MaskConfig, canvas: Canvas, options: ImageEditorOptions) => FabricObject;
-    onCreate?: (mask: MaskObject, canvas: Canvas) => void;
+    fabricGenerator?: (config: MaskConfig, canvas: FabricCanvas, options: ImageEditorOptions) => FabricObject;
+    onCreate?: (mask: MaskObject, canvas: FabricCanvas) => void;
   }
 
   export interface MaskObject extends FabricObject {
@@ -153,7 +164,7 @@ declare module '@bensitu/image-editor' {
 
   export class ImageEditor {
     readonly options: ImageEditorOptions;
-    readonly canvas: Canvas | null;
+    readonly canvas: FabricCanvas | null;
     readonly canvasElement: HTMLCanvasElement | null;
     readonly containerElement: HTMLElement | null;
     readonly placeholderElement: HTMLElement | null;
