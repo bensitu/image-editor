@@ -119,6 +119,9 @@ const unknownStringArb = fc
         fc.constant('jpg2000'),
         fc.constant('jpeg-xr'),
         fc.constant('not-a-format'),
+        fc.constant('constructor'),
+        fc.constant('toString'),
+        fc.constant('hasOwnProperty'),
         fc.constant('   '),
         fc.string({ minLength: 1, maxLength: 12 }),
     )

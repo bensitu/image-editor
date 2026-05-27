@@ -15,7 +15,10 @@ const MIME_TABLE = Object.freeze({
 export function normalizeImageFormat(input) {
     var _a;
     const key = String(input || 'jpeg').toLowerCase();
-    return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : 'jpeg';
+    if (Object.prototype.hasOwnProperty.call(FORMAT_ALIAS_TABLE, key)) {
+        return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : 'jpeg';
+    }
+    return 'jpeg';
 }
 export function mimeTypeFor(format) {
     return MIME_TABLE[format];

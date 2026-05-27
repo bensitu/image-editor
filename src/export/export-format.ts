@@ -110,7 +110,10 @@ export function normalizeImageFormat(
     // (including `null`, `undefined`, and `''`) collapses to `'jpeg'` before
     // the table lookup.
     const key = String(input || 'jpeg').toLowerCase();
-    return FORMAT_ALIAS_TABLE[key] ?? 'jpeg';
+    if (Object.prototype.hasOwnProperty.call(FORMAT_ALIAS_TABLE, key)) {
+        return FORMAT_ALIAS_TABLE[key] ?? 'jpeg';
+    }
+    return 'jpeg';
 }
 
 /**
