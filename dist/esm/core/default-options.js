@@ -105,6 +105,14 @@ function normalizeMaxHistorySize(value) {
         return DEFAULT_OPTIONS.maxHistorySize;
     return Math.max(1, Math.floor(numeric));
 }
+function normalizeQualityOption(value) {
+    if (value == null)
+        return DEFAULT_OPTIONS.downsampleQuality;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return DEFAULT_OPTIONS.downsampleQuality;
+    return Math.max(0, Math.min(1, numeric));
+}
 export function resolveOptions(input) {
     var _a, _b, _c, _d, _e, _f;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -119,6 +127,10 @@ export function resolveOptions(input) {
         const value = raw[key];
         if (value === undefined)
             continue;
+        if (key === 'downsampleQuality') {
+            resolved.downsampleQuality = normalizeQualityOption(value);
+            continue;
+        }
         resolved[key] = value;
     }
     resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);

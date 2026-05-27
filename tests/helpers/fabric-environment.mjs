@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import fabricModule from 'fabric';
+import * as fabricModule from 'fabric';
+import { JSDOM } from 'jsdom';
+import { Image as CanvasImage } from 'canvas';
 
-export const fabric = fabricModule.fabric || fabricModule;
+export const fabric = { ...(fabricModule.fabric || fabricModule.default?.fabric || fabricModule.default || fabricModule) };
 
 let domCounter = 0;
 
@@ -15,24 +17,61 @@ function defineGlobal(name, value) {
 }
 
 export function installFabricDom() {
-    defineGlobal('window', fabric.window);
-    defineGlobal('document', fabric.document);
-    defineGlobal('navigator', fabric.window.navigator);
-    defineGlobal('Image', fabric.window.Image);
-    defineGlobal('File', fabric.window.File || globalThis.File);
-    defineGlobal('FileReader', fabric.window.FileReader || globalThis.FileReader);
-    defineGlobal('Blob', fabric.window.Blob || globalThis.Blob);
-    defineGlobal('HTMLCanvasElement', fabric.window.HTMLCanvasElement);
-    defineGlobal('HTMLImageElement', fabric.window.HTMLImageElement);
-    defineGlobal('HTMLElement', fabric.window.HTMLElement);
-    defineGlobal('Node', fabric.window.Node);
-    defineGlobal('atob', fabric.window.atob.bind(fabric.window));
-    defineGlobal('btoa', fabric.window.btoa.bind(fabric.window));
+    const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+        pretendToBeVisual: true,
+    });
+    const { window } = dom;
+    const { document } = window;
+    const createElement = document.createElement.bind(document);
+    document.createElement = function patchedCreateElement(tagName, options) {
+        const tag = String(tagName).toLowerCase();
+        if (tag === 'img' || tag === 'image') {
+            return new CanvasImage();
+        }
+        return createElement(tagName, options);
+    };
+    Object.defineProperty(window, 'Image', {
+        configurable: true,
+        writable: true,
+        value: CanvasImage,
+    });
+
+    if (typeof fabric.setEnv === 'function') {
+        fabric.setEnv({
+            document,
+            window,
+            isTouchSupported: false,
+            WebGLProbe: {
+                isSupported: () => false,
+                queryWebGL: () => undefined,
+            },
+            dispose: () => undefined,
+            copyPasteData: {},
+        });
+    }
+
+    fabric.window = window;
+    fabric.document = document;
+
+    defineGlobal('window', window);
+    defineGlobal('document', document);
+    defineGlobal('navigator', window.navigator);
+    defineGlobal('Image', CanvasImage);
+    defineGlobal('File', window.File || globalThis.File);
+    defineGlobal('FileReader', window.FileReader || globalThis.FileReader);
+    defineGlobal('Blob', window.Blob || globalThis.Blob);
+    defineGlobal('HTMLCanvasElement', window.HTMLCanvasElement);
+    defineGlobal('HTMLImageElement', window.HTMLImageElement);
+    defineGlobal('HTMLElement', window.HTMLElement);
+    defineGlobal('Node', window.Node);
+    defineGlobal('atob', window.atob.bind(window));
+    defineGlobal('btoa', window.btoa.bind(window));
+    defineGlobal('fabric', fabric);
 }
 
 export async function loadImageEditorModule() {
     installFabricDom();
-    return import('../../dist/image-editor.esm.mjs');
+    return import('../../dist/esm/index.js');
 }
 
 export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {}) {

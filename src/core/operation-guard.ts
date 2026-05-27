@@ -52,6 +52,8 @@ export interface AnimationState {
     readonly isDisposed: boolean;
 }
 
+export type OperationToken = symbol;
+
 /**
  * Tracks the editor's `isAnimating` and `_disposed` flags and exposes the
  * single-line `assertNotAnimating` gate used by every guarded public
@@ -64,6 +66,9 @@ export interface AnimationState {
 export class OperationGuard {
     /** @internal */ private _isAnimating = false;
     /** @internal */ private _isDisposed = false;
+    /** @internal */ private _isLoading = false;
+    /** @internal */ private _activeOperationName: string | null = null;
+    /** @internal */ private _activeOperationToken: OperationToken | null = null;
 
     /**
      * Returns `true` while an animation block is open (between
@@ -82,6 +87,27 @@ export class OperationGuard {
      */
     isDisposed(): boolean {
         return this._isDisposed;
+    }
+
+    /**
+     * Returns `true` while a transactional image load is in progress.
+     */
+    isLoading(): boolean {
+        return this._isLoading;
+    }
+
+    /**
+     * Returns the currently active non-load operation name, if any.
+     */
+    activeOperationName(): string | null {
+        return this._activeOperationName;
+    }
+
+    /**
+     * Returns `true` while any guard-owned busy state is active.
+     */
+    isBusy(): boolean {
+        return this._isAnimating || this._isLoading || this._activeOperationToken !== null;
     }
 
     /**
@@ -118,6 +144,51 @@ export class OperationGuard {
     markDisposed(): void {
         this._isDisposed = true;
         this._isAnimating = false;
+        this._isLoading = false;
+        this._activeOperationName = null;
+        this._activeOperationToken = null;
+    }
+
+    /**
+     * Mark a transactional image load as active.
+     */
+    beginLoading(): void {
+        this._isLoading = true;
+    }
+
+    /**
+     * Clear the transactional image load flag.
+     */
+    endLoading(): void {
+        this._isLoading = false;
+    }
+
+    /**
+     * Mark a longer-running public operation active and return the token
+     * that authorizes its internal calls.
+     */
+    beginBusyOperation(operationName: string): OperationToken {
+        const token = Symbol(operationName);
+        this._activeOperationName = operationName;
+        this._activeOperationToken = token;
+        return token;
+    }
+
+    /**
+     * Clear the active operation only when the matching token finishes.
+     */
+    endBusyOperation(token: OperationToken | null | undefined): void {
+        if (token && token === this._activeOperationToken) {
+            this._activeOperationName = null;
+            this._activeOperationToken = null;
+        }
+    }
+
+    /**
+     * Returns `true` when `token` belongs to the currently active operation.
+     */
+    isOwnOperation(token: OperationToken | null | undefined): boolean {
+        return !!token && token === this._activeOperationToken;
     }
 
     /**
@@ -170,6 +241,63 @@ export class OperationGuard {
         if (this._isAnimating) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`,
+            );
+        }
+    }
+
+    /**
+     * Throw when a public operation would overlap loading, animation, or
+     * another active transaction. Internal calls may pass their active
+     * operation token to proceed.
+     */
+    assertIdleForOperation(
+        operationLabel: string,
+        token?: OperationToken | null,
+    ): void {
+        if (this._isDisposed) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+        }
+        const ownOperation = this.isOwnOperation(token);
+        if (this._isAnimating) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`,
+            );
+        }
+        if (this._isLoading && !ownOperation) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`,
+            );
+        }
+        if (this._activeOperationToken && !ownOperation) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationLabel}" while ` +
+                    `${this._activeOperationName ?? 'another operation'} is running.`,
+            );
+        }
+    }
+
+    /**
+     * Throw when an animation cannot even be queued because a load or
+     * transaction is currently active. Existing animations are intentionally
+     * left to the animation queue.
+     */
+    assertCanQueueAnimation(
+        operationLabel: string,
+        token?: OperationToken | null,
+    ): void {
+        if (this._isDisposed) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+        }
+        const ownOperation = this.isOwnOperation(token);
+        if (this._isLoading && !ownOperation) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`,
+            );
+        }
+        if (this._activeOperationToken && !ownOperation) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationLabel}" while ` +
+                    `${this._activeOperationName ?? 'another operation'} is running.`,
             );
         }
     }

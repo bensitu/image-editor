@@ -38,6 +38,9 @@ export class AnimationQueue {
     isRunning() {
         return this.running;
     }
+    isBusy() {
+        return this.running || this.queue.length > 0;
+    }
     waitForIdle() {
         if (!this.running && this.queue.length === 0) {
             return Promise.resolve();

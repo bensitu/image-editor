@@ -185,6 +185,13 @@ function normalizeMaxHistorySize(value: unknown): number {
     return Math.max(1, Math.floor(numeric));
 }
 
+function normalizeQualityOption(value: unknown): number {
+    if (value == null) return DEFAULT_OPTIONS.downsampleQuality;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return DEFAULT_OPTIONS.downsampleQuality;
+    return Math.max(0, Math.min(1, numeric));
+}
+
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.
@@ -222,6 +229,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
 
         const value = raw[key];
         if (value === undefined) continue;
+        if (key === 'downsampleQuality') {
+            resolved.downsampleQuality = normalizeQualityOption(value);
+            continue;
+        }
         // Type-system note: `resolved[key] = value` is sound here because
         // `KNOWN_TOP_LEVEL_KEYS` and the per-key `value` come from the same
         // `ImageEditorOptions` shape; the cast satisfies the indexed write.

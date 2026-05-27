@@ -2,7 +2,7 @@ import { CropApplyError } from '../core/errors.js';
 import { isMaskObject } from '../core/public-types.js';
 import { Command } from '../history/history-manager.js';
 import { applyCropHideMaskStyle, attachMaskHoverHandlers, captureMaskStyleBackup, restoreMaskStyleBackup, } from '../mask/mask-style.js';
-import { clampRegionToCanvas, floorRegion, getObjectBBox, } from '../utils/canvas-region.js';
+import { getClampedCanvasRegion, getObjectBBox, } from '../utils/canvas-region.js';
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
 const CROP_RECT_STROKE = '#00aaff';
 const CROP_RECT_DASH = [6, 4];
@@ -276,7 +276,7 @@ export async function applyCrop(ctx) {
     try {
         cropRect.setCoords();
         const rectBounds = cropRect.getBoundingRect();
-        const cropRegion = clampRegionToCanvas(floorRegion(rectBounds), canvas.getWidth(), canvas.getHeight());
+        const cropRegion = getClampedCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight(), { includePartialPixels: false });
         const preservedRecords = preserveMasks
             ? capturePreservedMasks(canvas, cropRegion)
             : [];

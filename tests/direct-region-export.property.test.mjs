@@ -43,7 +43,7 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
 const { exportImageBase64 } = await import('../src/export/export-service.ts');
-const { floorRegion, getObjectBBox } = await import('../src/utils/canvas-region.ts');
+const { getClampedCanvasRegion, getObjectBBox } = await import('../src/utils/canvas-region.ts');
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
 
@@ -57,6 +57,12 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
     const toDataURLArgs = [];
     return {
         toDataURLArgs,
+        getWidth() {
+            return 10000;
+        },
+        getHeight() {
+            return 10000;
+        },
         getObjects() {
             return [];
         },
@@ -80,6 +86,7 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
  */
 function makeFakeImage(rect) {
     return {
+        angle: 45,
         setCoords() {
             /* no-op — the rect is already "fresh" */
         },
@@ -157,7 +164,7 @@ test('exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.t
             const image = makeFakeImage(rect);
             const ctx = makeContext(canvas, image);
 
-            await exportImageBase64(ctx, { exportImageArea: true });
+            await exportImageBase64(ctx, { exportImageArea: true, fileType: 'png' });
 
             // Exactly one render call — the data URL came straight
             // from `canvas.toDataURL`.
@@ -168,7 +175,12 @@ test('exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.t
             );
 
             const args = canvas.toDataURLArgs[0];
-            const expected = floorRegion(getObjectBBox(image));
+            const expected = getClampedCanvasRegion(
+                getObjectBBox(image),
+                canvas.getWidth(),
+                canvas.getHeight(),
+                { includePartialPixels: true },
+            );
 
             // the documented contract — region keys are derived from the
             // image bounding rect and forwarded to Fabric.
@@ -185,12 +197,12 @@ test('exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.t
             assert.equal(
                 args.width,
                 expected.width,
-                `width ${args.width} !== floored ${expected.width} for rect ${JSON.stringify(rect)}`,
+                `width ${args.width} !== clamped ${expected.width} for rect ${JSON.stringify(rect)}`,
             );
             assert.equal(
                 args.height,
                 expected.height,
-                `height ${args.height} !== floored ${expected.height} for rect ${JSON.stringify(rect)}`,
+                `height ${args.height} !== clamped ${expected.height} for rect ${JSON.stringify(rect)}`,
             );
 
             // the documented contract — every region key is a non-negative
@@ -258,7 +270,7 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
                 const image = makeFakeImage(rect);
                 const ctx = makeContext(canvas, image);
 
-                await exportImageBase64(ctx, { exportImageArea: true });
+                await exportImageBase64(ctx, { exportImageArea: true, fileType: 'png' });
 
                 // the documented contract — no intermediate `<canvas>` is
                 // allocated while computing the region export.
@@ -286,5 +298,17 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
             return true;
         }),
         { numRuns: 200 },
+    );
+});
+
+test('getClampedCanvasRegion includes export partial pixels but excludes crop trailing pixels', () => {
+    const rect = { left: 0, top: 0, width: 39.5, height: 59.5 };
+    assert.deepEqual(
+        getClampedCanvasRegion(rect, 120, 80, { includePartialPixels: true }),
+        { left: 0, top: 0, width: 40, height: 60 },
+    );
+    assert.deepEqual(
+        getClampedCanvasRegion(rect, 120, 80, { includePartialPixels: false }),
+        { left: 0, top: 0, width: 39, height: 59 },
     );
 });

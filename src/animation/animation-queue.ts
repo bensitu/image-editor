@@ -127,6 +127,13 @@ export class AnimationQueue {
     }
 
     /**
+     * Reports whether an entry is active or waiting to run.
+     */
+    isBusy(): boolean {
+        return this.running || this.queue.length > 0;
+    }
+
+    /**
      * Resolves after the active entry and every currently pending entry
      * has settled (resolved or rejected). This is the public hook the
      * orchestrator uses to await a quiescent queue, for example before

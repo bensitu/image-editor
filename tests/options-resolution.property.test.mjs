@@ -379,6 +379,11 @@ test('options resolution completeness and deep-merge', () => {
     );
 });
 
+test('downsampleQuality null falls back to the default quality', () => {
+    const resolved = resolveOptions({ downsampleQuality: null });
+    assert.equal(resolved.downsampleQuality, DEFAULT_OPTIONS.downsampleQuality);
+});
+
 // Boundary cases — the documented contract with no input at all.
 test('boundary: null/undefined/empty inputs return full default surface', () => {
     for (const input of [undefined, null, {}]) {

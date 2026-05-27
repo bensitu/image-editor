@@ -11,7 +11,7 @@ import type * as FabricNS from 'fabric';
 import { AnimationQueue } from './animation/animation-queue.js';
 import { reportError, reportWarning } from './core/callback-reporter.js';
 import { resolveOptions } from './core/default-options.js';
-import { OperationGuard } from './core/operation-guard.js';
+import { OperationGuard, type OperationToken } from './core/operation-guard.js';
 import {
     SNAPSHOT_CUSTOM_KEYS,
     loadFromState as loadFromStateImpl,
@@ -99,6 +99,12 @@ type ElementKey = keyof Required<ElementIdMap>;
 
 type ResolvedElementIdMap = Record<ElementKey, string | null>;
 
+const INTERNAL_OPERATION_TOKEN: unique symbol = Symbol('ImageEditorInternalOperation');
+
+type InternalOperationOptions = {
+    [INTERNAL_OPERATION_TOKEN]?: OperationToken;
+};
+
 // Crop mode freezes both toolbar buttons and form controls that can
 // start competing editor actions while a crop session owns the canvas.
 const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
@@ -164,6 +170,7 @@ export class ImageEditor {
     /** @internal */ private containerElement: HTMLElement | null = null;
     /** @internal */ private placeholderElement: HTMLElement | null = null;
     /** @internal */ private elements: ResolvedElementIdMap = {} as ResolvedElementIdMap;
+    /** @internal */ private readonly _elementOriginalPointerEvents = new Map<ElementKey, string>();
 
     // ── Image state ─────────────────────────────────────────────────────────
     /** @internal */ private originalImage: FabricNS.FabricImage | null = null;
@@ -633,11 +640,11 @@ export class ImageEditor {
         // loadImage are no-ops" contract.
         if (!this._fabricLoaded || !this.canvas) return;
         if (this._disposed) return;
+        if (typeof base64 !== 'string' || !base64.startsWith('data:image/')) return;
 
-        // `loadImage` is a guarded operation. Reject
-        // with the documented no-op shape while an animation is in flight
-        // so the in-flight scale/rotate is not torn down by a reload.
-        if (this._guard.isAnimating()) return;
+        if (!this._canRunIdleOperation('loadImage', options)) return;
+        this._guard.beginLoading();
+        this._updateUI();
 
         // Drop any stale label objects BEFORE the loader clears the
         // canvas. The loader does call `canvas.clear` itself, but the
@@ -689,6 +696,9 @@ export class ImageEditor {
             // returned promise rejects with the original error
             //.
             throw err;
+        } finally {
+            this._guard.endLoading();
+            if (!this._disposed && this.canvas) this._updateUI();
         }
 
         // ── Facade-only post-commit bookkeeping ─────────────────────────
@@ -704,6 +714,51 @@ export class ImageEditor {
         this._updateInputs();
         this._updateMaskList();
         this._updateUI();
+    }
+
+    /** @internal */
+    private _getInternalOperationToken(options?: object | null): OperationToken | null {
+        return (options as InternalOperationOptions | null | undefined)?.[INTERNAL_OPERATION_TOKEN] ?? null;
+    }
+
+    /** @internal */
+    private _withInternalOperationOptions<T extends object>(
+        token: OperationToken | null | undefined,
+        options: T = {} as T,
+    ): T & InternalOperationOptions {
+        return {
+            ...options,
+            ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
+        } as T & InternalOperationOptions;
+    }
+
+    /** @internal */
+    private _assertIdleForOperation(operationName: string, options?: object | null): void {
+        const token = this._getInternalOperationToken(options);
+        this._guard.assertIdleForOperation(operationName, token);
+        if (this.animQueue.isBusy()) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationName}" while an animation is queued.`,
+            );
+        }
+    }
+
+    /** @internal */
+    private _canRunIdleOperation(operationName: string, options?: object | null): boolean {
+        try {
+            this._assertIdleForOperation(operationName, options);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /** @internal */
+    private _assertCanQueueAnimation(operationName: string, options?: object | null): void {
+        this._guard.assertCanQueueAnimation(
+            operationName,
+            this._getInternalOperationToken(options),
+        );
     }
 
     /**
@@ -860,6 +915,11 @@ export class ImageEditor {
      */
     scaleImage(factor: number): Promise<void> {
         if (this._disposed || !this._transformController) return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('scaleImage');
+        } catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed) return;
@@ -889,6 +949,11 @@ export class ImageEditor {
      */
     rotateImage(degrees: number): Promise<void> {
         if (this._disposed || !this._transformController) return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('rotateImage');
+        } catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed) return;
@@ -920,6 +985,11 @@ export class ImageEditor {
      */
     resetImageTransform(): Promise<void> {
         if (this._disposed || !this._transformController) return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('resetImageTransform');
+        } catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed) return;
@@ -1134,6 +1204,7 @@ export class ImageEditor {
      */
     createMask(config: MaskConfig = {}): MaskObject | null {
         if (!this.canvas) return null;
+        if (!this._canRunIdleOperation('createMask')) return null;
         const ctx = this._buildCreateMaskContext();
         return createMaskImpl(ctx, config);
     }
@@ -1147,6 +1218,7 @@ export class ImageEditor {
      */
     removeSelectedMask(): void {
         if (!this.canvas) return;
+        if (!this._canRunIdleOperation('removeSelectedMask')) return;
         const ctx = this._buildRemoveMaskContext();
         removeSelectedMaskImpl(ctx);
         this._updateUI();
@@ -1174,7 +1246,7 @@ export class ImageEditor {
         if (!this.canvas) return;
         // guarded operation. No DOM action while an
         // animation is in flight. Mirrors loadImage's silent-no-op shape.
-        if (this._guard.isAnimating()) return;
+        if (!this._canRunIdleOperation('removeAllMasks', options)) return;
         const ctx = this._buildRemoveMaskContext();
         removeAllMasksImpl(ctx, options);
         this._updateUI();
@@ -1340,14 +1412,20 @@ export class ImageEditor {
      */
     async mergeMasks(): Promise<void> {
         if (!this.canvas) return;
-        // Guarded operation: leave the canvas, history stack, and masks
-        // unchanged while an animation is in flight.
-        if (this._guard.isAnimating()) return;
-        const ctx = this._buildMergeMasksContext();
-        await mergeMasksImpl(ctx);
-        this._updateInputs();
-        this._updateMaskList();
+        if (!this._canRunIdleOperation('mergeMasks')) return;
+        const hasMasks = this.canvas.getObjects().some(isMaskObject);
+        if (!hasMasks) return;
+        const operationToken = this._guard.beginBusyOperation('mergeMasks');
         this._updateUI();
+        try {
+            const ctx = this._buildMergeMasksContext(operationToken);
+            await mergeMasksImpl(ctx);
+            this._updateInputs();
+            this._updateMaskList();
+        } finally {
+            this._guard.endBusyOperation(operationToken);
+            this._updateUI();
+        }
     }
 
     /**
@@ -1368,7 +1446,7 @@ export class ImageEditor {
         // guarded operation. Silent DOM-no-op shape
         // so a queued scale/rotate animation does not get its export
         // pipeline run concurrently.
-        if (this._guard.isAnimating()) return;
+        if (!this._canRunIdleOperation('downloadImage')) return;
         const ctx = this._buildExportServiceContext();
         downloadImageImpl(ctx, fileName);
     }
@@ -1394,7 +1472,7 @@ export class ImageEditor {
         if (!this.canvas) return '';
         // Guarded operation: the canvas, mask styles, and active-object
         // selection are left untouched while an animation is in flight.
-        if (this._guard.isAnimating()) return '';
+        if (!this._canRunIdleOperation('exportImageBase64', options)) return '';
         const ctx = this._buildExportServiceContext();
         return exportImageBase64Impl(ctx, options);
     }
@@ -1429,7 +1507,7 @@ export class ImageEditor {
     async exportImageFile(options?: ImageFileExportOptions): Promise<File> {
         // Guarded operation: `Promise<File>` has no empty no-op shape, so
         // the operation guard rejects without mutating canvas state.
-        this._guard.assertNotAnimating('exportImageFile');
+        this._assertIdleForOperation('exportImageFile', options);
         const ctx = this._buildExportServiceContext();
         return exportImageFileImpl(ctx, options);
     }
@@ -1462,12 +1540,16 @@ export class ImageEditor {
      * the merge needs.
      * @internal
      */
-    private _buildMergeMasksContext(): MergeMasksContext {
+    private _buildMergeMasksContext(operationToken?: OperationToken): MergeMasksContext {
         return {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            loadImage: (base64, opts) =>
+                this.loadImage(
+                    base64,
+                    this._withInternalOperationOptions(operationToken, opts),
+                ),
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {
@@ -1527,7 +1609,7 @@ export class ImageEditor {
         // guarded operation. No DOM action while an
         // animation is in flight: the canvas, selection state, and
         // pre-crop snapshot remain untouched.
-        if (this._guard.isAnimating()) return;
+        if (!this._canRunIdleOperation('enterCropMode')) return;
         const ctx = this._buildCropControllerContext();
         enterCropModeImpl(ctx);
         this._updateUI();
@@ -1545,6 +1627,7 @@ export class ImageEditor {
      */
     cancelCrop(): void {
         if (!this.canvas || !this._cropSession) return;
+        if (!this._canRunIdleOperation('cancelCrop')) return;
         const ctx = this._buildCropControllerContext();
         cancelCropImpl(ctx);
         this._cropSession = null;
@@ -1576,12 +1659,18 @@ export class ImageEditor {
         // re-issue `applyCrop` after the in-flight scale/rotate
         // animation settles. Do not call `cancelCrop` here: the guard must
         // leave editor state untouched.
-        if (this._guard.isAnimating()) return;
-        const ctx = this._buildCropControllerContext();
-        await applyCropImpl(ctx);
-        this._updateInputs();
-        this._updateMaskList();
+        if (!this._canRunIdleOperation('applyCrop')) return;
+        const operationToken = this._guard.beginBusyOperation('applyCrop');
         this._updateUI();
+        try {
+            const ctx = this._buildCropControllerContext(operationToken);
+            await applyCropImpl(ctx);
+            this._updateInputs();
+            this._updateMaskList();
+        } finally {
+            this._guard.endBusyOperation(operationToken);
+            this._updateUI();
+        }
     }
 
     /**
@@ -1592,7 +1681,7 @@ export class ImageEditor {
      * accessors all bind back to `this`.
      * @internal
      */
-    private _buildCropControllerContext(): CropControllerContext {
+    private _buildCropControllerContext(operationToken?: OperationToken): CropControllerContext {
         return {
             fabric: this._fabric,
             canvas: this.canvas!,
@@ -1604,7 +1693,11 @@ export class ImageEditor {
             setCropSession: (s) => { this._cropSession = s; },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
-            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            loadImage: (base64, opts) =>
+                this.loadImage(
+                    base64,
+                    this._withInternalOperationOptions(operationToken, opts),
+                ),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => { this.maskCounter = n; },
             updateMaskList: () => { this._updateMaskList(); },
@@ -1636,7 +1729,7 @@ export class ImageEditor {
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const inCrop = this._cropSession !== null;
-        const isAnimating = this._guard.isAnimating();
+        const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
 
         if (inCrop) {
             CROP_MODE_CONTROL_KEYS.forEach(key => {
@@ -1645,28 +1738,28 @@ export class ImageEditor {
                 const el = document.getElementById(id);
                 if (!el || !('disabled' in el)) return;
                 (el as HTMLButtonElement | HTMLInputElement).disabled =
-                    !CROP_MODE_ENABLED_KEYS.includes(key);
+                    isBusy || !CROP_MODE_ENABLED_KEYS.includes(key);
             });
             return;
         }
 
-        this._setDisabled('scaleRate', !hasImg || isAnimating);
-        this._setDisabled('rotationLeftInput', !hasImg || isAnimating);
-        this._setDisabled('rotationRightInput', !hasImg || isAnimating);
-        this._setDisabled('zoomInBtn', !hasImg || isAnimating || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutBtn', !hasImg || isAnimating || this.currentScale <= this.options.minScale);
-        this._setDisabled('rotateLeftBtn', !hasImg || isAnimating);
-        this._setDisabled('rotateRightBtn', !hasImg || isAnimating);
-        this._setDisabled('addMaskBtn', !hasImg || isAnimating);
-        this._setDisabled('removeMaskBtn', !hasSelectedMask || isAnimating);
-        this._setDisabled('removeAllMasksBtn', !hasMasks || isAnimating);
-        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isAnimating);
-        this._setDisabled('downloadBtn', !hasImg || isAnimating);
-        this._setDisabled('resetBtn', !hasImg || isDefault || isAnimating);
-        this._setDisabled('undoBtn', !hasImg || isAnimating || !canUndo);
-        this._setDisabled('redoBtn', !hasImg || isAnimating || !canRedo);
-        this._setDisabled('cropBtn', !hasImg || isAnimating);
-        this._setDisabled('imageInput', isAnimating);
+        this._setDisabled('scaleRate', !hasImg || isBusy);
+        this._setDisabled('rotationLeftInput', !hasImg || isBusy);
+        this._setDisabled('rotationRightInput', !hasImg || isBusy);
+        this._setDisabled('zoomInBtn', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
+        this._setDisabled('zoomOutBtn', !hasImg || isBusy || this.currentScale <= this.options.minScale);
+        this._setDisabled('rotateLeftBtn', !hasImg || isBusy);
+        this._setDisabled('rotateRightBtn', !hasImg || isBusy);
+        this._setDisabled('addMaskBtn', !hasImg || isBusy);
+        this._setDisabled('removeMaskBtn', !hasSelectedMask || isBusy);
+        this._setDisabled('removeAllMasksBtn', !hasMasks || isBusy);
+        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isBusy);
+        this._setDisabled('downloadBtn', !hasImg || isBusy);
+        this._setDisabled('resetBtn', !hasImg || isDefault || isBusy);
+        this._setDisabled('undoBtn', !hasImg || isBusy || !canUndo);
+        this._setDisabled('redoBtn', !hasImg || isBusy || !canRedo);
+        this._setDisabled('cropBtn', !hasImg || isBusy);
+        this._setDisabled('imageInput', isBusy);
         this._setDisabled('applyCropBtn', true);
         this._setDisabled('cancelCropBtn', true);
     }
@@ -1678,6 +1771,18 @@ export class ImageEditor {
         const el = document.getElementById(id);
         if (el && 'disabled' in el) {
             (el as HTMLButtonElement | HTMLInputElement).disabled = disabled;
+            return;
+        }
+        if (!el) return;
+        if (!this._elementOriginalPointerEvents.has(key)) {
+            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        }
+        if (disabled) {
+            el.setAttribute('aria-disabled', 'true');
+            el.style.pointerEvents = 'none';
+        } else {
+            el.removeAttribute('aria-disabled');
+            el.style.pointerEvents = this._elementOriginalPointerEvents.get(key) ?? '';
         }
     }
 

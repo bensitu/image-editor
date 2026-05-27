@@ -243,7 +243,7 @@ test('after a successful exportImageBase64({exportImageArea:true}), every mask s
             });
             const ctx = makeContext(canvas, makeFakeImage());
 
-            await exportImageBase64(ctx, { exportImageArea: true });
+            await exportImageBase64(ctx, { exportImageArea: true, fileType: 'png' });
 
             // Sanity — `toDataURL` ran exactly once.
             assert.equal(

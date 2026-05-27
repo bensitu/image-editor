@@ -141,8 +141,7 @@ import {
     restoreMaskStyleBackup,
 } from '../mask/mask-style.js';
 import {
-    clampRegionToCanvas,
-    floorRegion,
+    getClampedCanvasRegion,
     getObjectBBox,
 } from '../utils/canvas-region.js';
 
@@ -940,10 +939,8 @@ export function cancelCrop(ctx: CropControllerContext): void {
  *    selection wrapper before reading the crop rect's bounding box so
  *    the export region is computed against the rect itself.
  * 3. **Read crop region** — refresh the rect's coordinate cache, read
- *    its bounding rect, floor and clamp it to integer pixels via
- *    {@link floorRegion} + {@link clampRegionToCanvas} so Fabric's
- *    region export receives a region inside the source canvas with no
- *    sub-pixel dimensions.
+ *    its bounding rect, convert it to an integer region with trailing
+ *    partial pixels excluded, and clamp it to the source canvas.
  * 3a. **Capture preserved masks** — when
  *    `options.crop.preserveMasksAfterCrop === true`, capture each mask's
  *    pre-crop `left`, `top`, `angle`, `scaleX`, and `scaleY`, then
@@ -1024,10 +1021,11 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         //    freshly-resized rect returns stale bounds.
         cropRect.setCoords();
         const rectBounds = cropRect.getBoundingRect();
-        const cropRegion = clampRegionToCanvas(
-            floorRegion(rectBounds),
+        const cropRegion = getClampedCanvasRegion(
+            rectBounds,
             canvas.getWidth(),
             canvas.getHeight(),
+            { includePartialPixels: false },
         );
 
         // 3a. when

@@ -473,7 +473,7 @@ export interface ImageEditorOptions {
     /** Max pixel height before downsampling kicks in. @default 3000 */
     downsampleMaxHeight?: number;
     /** Lossy quality used when downsampling and exporting. @default 0.92 */
-    downsampleQuality?: number;
+    downsampleQuality?: number | null;
     /**
      * When `true`, alpha-capable source MIME types (`image/png`,
      * `image/webp`) are preserved through downsampling unless
@@ -576,8 +576,9 @@ export interface ImageEditorOptions {
  */
 export interface ResolvedOptions extends Required<Omit<
     ImageEditorOptions,
-    'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning'
+    'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning' | 'downsampleQuality'
 >> {
+    downsampleQuality: number;
     label: LabelConfig;
     crop: Required<CropConfig>;
     onImageLoaded: (() => void) | null;

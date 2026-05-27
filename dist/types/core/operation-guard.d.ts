@@ -50,6 +50,7 @@ export interface AnimationState {
     /** `true` after {@link OperationGuard.markDisposed} has been called. */
     readonly isDisposed: boolean;
 }
+export type OperationToken = symbol;
 /**
  * Tracks the editor's `isAnimating` and `_disposed` flags and exposes the
  * single-line `assertNotAnimating` gate used by every guarded public
@@ -73,6 +74,18 @@ export declare class OperationGuard {
      * callbacks consult this before touching the canvas.
      */
     isDisposed(): boolean;
+    /**
+     * Returns `true` while a transactional image load is in progress.
+     */
+    isLoading(): boolean;
+    /**
+     * Returns the currently active non-load operation name, if any.
+     */
+    activeOperationName(): string | null;
+    /**
+     * Returns `true` while any guard-owned busy state is active.
+     */
+    isBusy(): boolean;
     /**
      * Begin an animation block. Subsequent calls to {@link assertNotAnimating}
      * will throw until {@link endAnimation} runs.
@@ -99,6 +112,27 @@ export declare class OperationGuard {
      * Idempotent: calling twice is a no-op.
      */
     markDisposed(): void;
+    /**
+     * Mark a transactional image load as active.
+     */
+    beginLoading(): void;
+    /**
+     * Clear the transactional image load flag.
+     */
+    endLoading(): void;
+    /**
+     * Mark a longer-running public operation active and return the token
+     * that authorizes its internal calls.
+     */
+    beginBusyOperation(operationName: string): OperationToken;
+    /**
+     * Clear the active operation only when the matching token finishes.
+     */
+    endBusyOperation(token: OperationToken | null | undefined): void;
+    /**
+     * Returns `true` when `token` belongs to the currently active operation.
+     */
+    isOwnOperation(token: OperationToken | null | undefined): boolean;
     /**
      * Run an async function inside a `beginAnimation` / `endAnimation`
      * bracket. The bracket is released in a `finally` so the
@@ -138,5 +172,17 @@ export declare class OperationGuard {
      * @throws Error when {@link isAnimating} returns `true`.
      */
     assertNotAnimating(operationLabel: string): void;
+    /**
+     * Throw when a public operation would overlap loading, animation, or
+     * another active transaction. Internal calls may pass their active
+     * operation token to proceed.
+     */
+    assertIdleForOperation(operationLabel: string, token?: OperationToken | null): void;
+    /**
+     * Throw when an animation cannot even be queued because a load or
+     * transaction is currently active. Existing animations are intentionally
+     * left to the animation queue.
+     */
+    assertCanQueueAnimation(operationLabel: string, token?: OperationToken | null): void;
 }
 //# sourceMappingURL=operation-guard.d.ts.map

@@ -102,21 +102,39 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
 function startImageDecode(dataUrl) {
     const img = new Image();
     const cleanup = (clearSource = false) => {
-        img.onload = null;
-        img.onerror = null;
+        if (typeof img.removeEventListener === 'function') {
+            img.removeEventListener('load', handleLoad);
+            img.removeEventListener('error', handleError);
+        }
+        else {
+            img.onload = null;
+            img.onerror = null;
+        }
         if (clearSource) {
             img.src = '';
         }
     };
+    const handleLoad = () => {
+        cleanup(false);
+        resolveImage(img);
+    };
+    const handleError = (e) => {
+        cleanup(true);
+        rejectImage(new ImageDecodeError('Failed to decode image data URL.', e));
+    };
+    let resolveImage;
+    let rejectImage;
     const promise = new Promise((resolve, reject) => {
-        img.onload = () => {
-            cleanup(false);
-            resolve(img);
-        };
-        img.onerror = (e) => {
-            cleanup(true);
-            reject(new ImageDecodeError('Failed to decode image data URL.', e));
-        };
+        resolveImage = resolve;
+        rejectImage = reject;
+        if (typeof img.addEventListener === 'function') {
+            img.addEventListener('load', handleLoad, { once: true });
+            img.addEventListener('error', handleError, { once: true });
+        }
+        else {
+            img.onload = handleLoad;
+            img.onerror = handleError;
+        }
         img.src = dataUrl;
     });
     return { promise, cleanup };

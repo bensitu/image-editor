@@ -42,6 +42,9 @@ class AnimationQueue {
     isRunning() {
         return this.running;
     }
+    isBusy() {
+        return this.running || this.queue.length > 0;
+    }
     waitForIdle() {
         if (!this.running && this.queue.length === 0) {
             return Promise.resolve();
@@ -194,6 +197,14 @@ function normalizeMaxHistorySize(value) {
         return DEFAULT_OPTIONS.maxHistorySize;
     return Math.max(1, Math.floor(numeric));
 }
+function normalizeQualityOption(value) {
+    if (value == null)
+        return DEFAULT_OPTIONS.downsampleQuality;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return DEFAULT_OPTIONS.downsampleQuality;
+    return Math.max(0, Math.min(1, numeric));
+}
 function resolveOptions(input) {
     var _a, _b, _c, _d, _e, _f;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -208,6 +219,10 @@ function resolveOptions(input) {
         const value = raw[key];
         if (value === undefined)
             continue;
+        if (key === 'downsampleQuality') {
+            resolved.downsampleQuality = normalizeQualityOption(value);
+            continue;
+        }
         resolved[key] = value;
     }
     resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
@@ -265,12 +280,39 @@ class OperationGuard {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "_isLoading", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "_activeOperationName", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "_activeOperationToken", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
     }
     isAnimating() {
         return this._isAnimating;
     }
     isDisposed() {
         return this._isDisposed;
+    }
+    isLoading() {
+        return this._isLoading;
+    }
+    activeOperationName() {
+        return this._activeOperationName;
+    }
+    isBusy() {
+        return this._isAnimating || this._isLoading || this._activeOperationToken !== null;
     }
     beginAnimation() {
         this._isAnimating = true;
@@ -281,6 +323,30 @@ class OperationGuard {
     markDisposed() {
         this._isDisposed = true;
         this._isAnimating = false;
+        this._isLoading = false;
+        this._activeOperationName = null;
+        this._activeOperationToken = null;
+    }
+    beginLoading() {
+        this._isLoading = true;
+    }
+    endLoading() {
+        this._isLoading = false;
+    }
+    beginBusyOperation(operationName) {
+        const token = Symbol(operationName);
+        this._activeOperationName = operationName;
+        this._activeOperationToken = token;
+        return token;
+    }
+    endBusyOperation(token) {
+        if (token && token === this._activeOperationToken) {
+            this._activeOperationName = null;
+            this._activeOperationToken = null;
+        }
+    }
+    isOwnOperation(token) {
+        return !!token && token === this._activeOperationToken;
     }
     async runAnimation(fn) {
         this.beginAnimation();
@@ -294,6 +360,37 @@ class OperationGuard {
     assertNotAnimating(operationLabel) {
         if (this._isAnimating) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+        }
+    }
+    assertIdleForOperation(operationLabel, token) {
+        var _a;
+        if (this._isDisposed) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+        }
+        const ownOperation = this.isOwnOperation(token);
+        if (this._isAnimating) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+        }
+        if (this._isLoading && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+        }
+        if (this._activeOperationToken && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
+                `${(_a = this._activeOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+        }
+    }
+    assertCanQueueAnimation(operationLabel, token) {
+        var _a;
+        if (this._isDisposed) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+        }
+        const ownOperation = this.isOwnOperation(token);
+        if (this._isLoading && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+        }
+        if (this._activeOperationToken && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
+                `${(_a = this._activeOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
         }
     }
 }
@@ -818,30 +915,58 @@ function applyCropHideMaskStyle(mask) {
     }
 }
 
-function floorRegion(rect) {
+function getClampedCanvasRegion(rect, canvasWidth, canvasHeight, options = {}) {
     const safeLeft = Number.isFinite(rect.left) ? rect.left : 0;
     const safeTop = Number.isFinite(rect.top) ? rect.top : 0;
-    const safeWidth = Number.isFinite(rect.width) ? rect.width : 1;
-    const safeHeight = Number.isFinite(rect.height) ? rect.height : 1;
-    const left = Math.max(0, Math.floor(safeLeft));
-    const top = Math.max(0, Math.floor(safeTop));
-    const width = Math.max(1, Math.round(safeWidth));
-    const height = Math.max(1, Math.round(safeHeight));
-    return { left, top, width, height };
+    const safeWidth = Math.max(0, Number.isFinite(rect.width) ? rect.width : 0);
+    const safeHeight = Math.max(0, Number.isFinite(rect.height) ? rect.height : 0);
+    const includePartialPixels = options.includePartialPixels !== false;
+    const roundEnd = includePartialPixels ? Math.ceil : Math.floor;
+    const hasCanvasWidth = Number.isFinite(canvasWidth);
+    const hasCanvasHeight = Number.isFinite(canvasHeight);
+    const safeCanvasWidth = hasCanvasWidth
+        ? Math.max(1, Math.round(Number(canvasWidth)))
+        : Number.POSITIVE_INFINITY;
+    const safeCanvasHeight = hasCanvasHeight
+        ? Math.max(1, Math.round(Number(canvasHeight)))
+        : Number.POSITIVE_INFINITY;
+    const left = Math.min(safeCanvasWidth - 1, Math.max(0, Math.floor(safeLeft)));
+    const top = Math.min(safeCanvasHeight - 1, Math.max(0, Math.floor(safeTop)));
+    const right = Math.min(safeCanvasWidth, Math.max(left + 1, roundEnd(safeLeft + safeWidth)));
+    const bottom = Math.min(safeCanvasHeight, Math.max(top + 1, roundEnd(safeTop + safeHeight)));
+    return {
+        left,
+        top,
+        width: Math.max(1, right - left),
+        height: Math.max(1, bottom - top),
+    };
+}
+function hasFractionalCanvasEdge(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue))
+        return false;
+    return Math.abs(numericValue - Math.round(numericValue)) > 0.01;
+}
+function getPartialExportEdges(bounds, angle = 0) {
+    if (!bounds)
+        return null;
+    const normalizedAngle = Math.abs((Number(angle) || 0) % 90);
+    const isAxisAligned = normalizedAngle < 0.01 || Math.abs(normalizedAngle - 90) < 0.01;
+    if (!isAxisAligned)
+        return null;
+    const left = Number(bounds.left) || 0;
+    const top = Number(bounds.top) || 0;
+    return {
+        left: hasFractionalCanvasEdge(left),
+        top: hasFractionalCanvasEdge(top),
+        right: hasFractionalCanvasEdge(left + (Number(bounds.width) || 0)),
+        bottom: hasFractionalCanvasEdge(top + (Number(bounds.height) || 0)),
+    };
 }
 function getObjectBBox(obj) {
     obj.setCoords();
     const br = obj.getBoundingRect();
     return { left: br.left, top: br.top, width: br.width, height: br.height };
-}
-function clampRegionToCanvas(region, canvasWidth, canvasHeight) {
-    const safeCw = Math.max(1, Math.floor(Number.isFinite(canvasWidth) ? canvasWidth : 1));
-    const safeCh = Math.max(1, Math.floor(Number.isFinite(canvasHeight) ? canvasHeight : 1));
-    const left = Math.max(0, Math.min(region.left, safeCw - 1));
-    const top = Math.max(0, Math.min(region.top, safeCh - 1));
-    const width = Math.max(1, Math.min(region.width, safeCw - left));
-    const height = Math.max(1, Math.min(region.height, safeCh - top));
-    return { left, top, width, height };
 }
 
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
@@ -1117,7 +1242,7 @@ async function applyCrop(ctx) {
     try {
         cropRect.setCoords();
         const rectBounds = cropRect.getBoundingRect();
-        const cropRegion = clampRegionToCanvas(floorRegion(rectBounds), canvas.getWidth(), canvas.getHeight());
+        const cropRegion = getClampedCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight(), { includePartialPixels: false });
         const preservedRecords = preserveMasks
             ? capturePreservedMasks(canvas, cropRegion)
             : [];
@@ -1217,11 +1342,22 @@ function resolveMultiplier(requested, fallback) {
 }
 function computeExportRegion(ctx, exportImageArea) {
     if (!exportImageArea)
-        return null;
+        return { region: null, partialEdges: null };
     const originalImage = ctx.getOriginalImage();
     if (!originalImage)
-        return null;
-    return floorRegion(getObjectBBox(originalImage));
+        return { region: null, partialEdges: null };
+    const bounds = getObjectBBox(originalImage);
+    const canvasLike = ctx.canvas;
+    const canvasWidth = typeof canvasLike.getWidth === 'function'
+        ? canvasLike.getWidth()
+        : canvasLike.width;
+    const canvasHeight = typeof canvasLike.getHeight === 'function'
+        ? canvasLike.getHeight()
+        : canvasLike.height;
+    return {
+        region: getClampedCanvasRegion(bounds, canvasWidth, canvasHeight, { includePartialPixels: true }),
+        partialEdges: getPartialExportEdges(bounds, Number(originalImage.angle) || 0),
+    };
 }
 async function bakeMasksForExport(ctx, exportImageArea, fn) {
     if (!exportImageArea)
@@ -1258,6 +1394,120 @@ function renderCanvasToDataURL(canvas, format, quality, multiplier, region) {
     }
     return canvas.toDataURL(fabricOptions);
 }
+function hasPartialEdges(edges) {
+    return !!edges && (edges.left || edges.top || edges.right || edges.bottom);
+}
+function getImageDimensions(imageElement) {
+    return {
+        width: Math.max(1, imageElement.naturalWidth || imageElement.width || 1),
+        height: Math.max(1, imageElement.naturalHeight || imageElement.height || 1),
+    };
+}
+function loadImageElement(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const cleanup = () => {
+            if (typeof img.removeEventListener === 'function') {
+                img.removeEventListener('load', handleLoad);
+                img.removeEventListener('error', handleError);
+            }
+            else {
+                img.onload = null;
+                img.onerror = null;
+            }
+        };
+        const handleLoad = () => {
+            cleanup();
+            resolve(img);
+        };
+        const handleError = () => {
+            cleanup();
+            reject(new Error('Failed to decode export data URL'));
+        };
+        if (typeof img.addEventListener === 'function') {
+            img.addEventListener('load', handleLoad, { once: true });
+            img.addEventListener('error', handleError, { once: true });
+        }
+        else {
+            img.onload = handleLoad;
+            img.onerror = handleError;
+        }
+        img.src = dataUrl;
+    });
+}
+async function sealPartialTransparentEdges(dataUrl, edges) {
+    if (!hasPartialEdges(edges))
+        return dataUrl;
+    const imageElement = await loadImageElement(dataUrl);
+    const { width, height } = getImageDimensions(imageElement);
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const ctx2d = off.getContext('2d');
+    if (!ctx2d)
+        throw new Error('2D canvas context is unavailable');
+    ctx2d.drawImage(imageElement, 0, 0, width, height);
+    const imageData = ctx2d.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    const sealPixel = (x, y, fallbackX, fallbackY) => {
+        var _a, _b, _c, _d, _e, _f;
+        const index = (y * width + x) * 4;
+        const fallbackIndex = (fallbackY * width + fallbackX) * 4;
+        const alpha = (_a = pixels[index + 3]) !== null && _a !== void 0 ? _a : 0;
+        const fallbackAlpha = (_b = pixels[fallbackIndex + 3]) !== null && _b !== void 0 ? _b : 0;
+        if (alpha === 0 && fallbackAlpha > 0) {
+            pixels[index] = (_c = pixels[fallbackIndex]) !== null && _c !== void 0 ? _c : 0;
+            pixels[index + 1] = (_d = pixels[fallbackIndex + 1]) !== null && _d !== void 0 ? _d : 0;
+            pixels[index + 2] = (_e = pixels[fallbackIndex + 2]) !== null && _e !== void 0 ? _e : 0;
+            pixels[index + 3] = fallbackAlpha;
+        }
+        const nextAlpha = (_f = pixels[index + 3]) !== null && _f !== void 0 ? _f : 0;
+        if (nextAlpha > 0 && nextAlpha < 255) {
+            pixels[index + 3] = 255;
+        }
+    };
+    if ((edges === null || edges === void 0 ? void 0 : edges.left) && width > 1) {
+        for (let y = 0; y < height; y += 1)
+            sealPixel(0, y, 1, y);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.right) && width > 1) {
+        for (let y = 0; y < height; y += 1)
+            sealPixel(width - 1, y, width - 2, y);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.top) && height > 1) {
+        for (let x = 0; x < width; x += 1)
+            sealPixel(x, 0, x, 1);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.bottom) && height > 1) {
+        for (let x = 0; x < width; x += 1)
+            sealPixel(x, height - 1, x, height - 2);
+    }
+    ctx2d.putImageData(imageData, 0, 0);
+    return off.toDataURL('image/png');
+}
+function getJpegBackgroundColor(backgroundColor) {
+    const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
+    if (!value || value === 'transparent')
+        return '#ffffff';
+    if (/^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/i.test(value))
+        return '#ffffff';
+    return value;
+}
+async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
+    const imageElement = await loadImageElement(dataUrl);
+    const { width, height } = getImageDimensions(imageElement);
+    const off = document.createElement('canvas');
+    off.width = width;
+    off.height = height;
+    const ctx2d = off.getContext('2d');
+    if (!ctx2d)
+        throw new Error('2D canvas context is unavailable');
+    ctx2d.fillStyle = getJpegBackgroundColor(backgroundColor);
+    ctx2d.fillRect(0, 0, width, height);
+    ctx2d.drawImage(imageElement, 0, 0, width, height);
+    return off.toDataURL('image/jpeg', quality);
+}
 function dataUrlToBytes(dataUrl) {
     const commaAt = dataUrl.indexOf(',');
     const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
@@ -1269,32 +1519,24 @@ function dataUrlToBytes(dataUrl) {
     }
     return bytes;
 }
-function reencodeDataUrlAs(sourceDataUrl, target) {
+function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
         return Promise.resolve(sourceDataUrl);
     }
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            try {
-                const off = document.createElement('canvas');
-                off.width = img.naturalWidth || img.width;
-                off.height = img.naturalHeight || img.height;
-                const ctx2d = off.getContext('2d');
-                if (!ctx2d)
-                    throw new Error('Unable to acquire 2D context for export conversion');
-                ctx2d.drawImage(img, 0, 0);
-                resolve(off.toDataURL(target.mimeType, target.quality));
-            }
-            catch (error) {
-                reject(error);
-            }
-        };
-        img.onerror = () => {
-            reject(new Error('Failed to decode export data URL during MIME conversion'));
-        };
-        img.src = sourceDataUrl;
+    return loadImageElement(sourceDataUrl).then((img) => {
+        const { width, height } = getImageDimensions(img);
+        const off = document.createElement('canvas');
+        off.width = width;
+        off.height = height;
+        const ctx2d = off.getContext('2d');
+        if (!ctx2d)
+            throw new Error('Unable to acquire 2D context for export conversion');
+        if (target.format === 'jpeg') {
+            ctx2d.fillStyle = getJpegBackgroundColor(backgroundColor);
+            ctx2d.fillRect(0, 0, width, height);
+        }
+        ctx2d.drawImage(img, 0, 0, width, height);
+        return off.toDataURL(target.mimeType, target.quality);
     });
 }
 function warnNoImageLoaded(operation) {
@@ -1312,8 +1554,17 @@ async function exportImageBase64(ctx, options) {
     ctx.canvas.discardActiveObject();
     const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
     const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
-    const region = computeExportRegion(ctx, exportImageArea);
-    return bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, resolved.format, resolved.quality, multiplier, region));
+    const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
+    const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
+    const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
+    let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region));
+    if (region) {
+        dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
+        if (resolved.format === 'jpeg') {
+            dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, ctx.options.backgroundColor, resolved.quality);
+        }
+    }
+    return dataUrl;
 }
 async function exportImageFile(ctx, options) {
     var _a;
@@ -1334,7 +1585,7 @@ async function exportImageFile(ctx, options) {
     if (!base64) {
         throw new ExportNotReadyError('exportImageFile');
     }
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved);
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, ctx.options.backgroundColor);
     const bytes = dataUrlToBytes(finalDataUrl);
     return new File([bytes], fileName, { type: resolved.mimeType });
 }
@@ -1382,6 +1633,7 @@ async function mergeMasks(ctx) {
         const merged = await exportImageBase64(ctx, {
             exportImageArea: true,
             multiplier: ctx.options.exportMultiplier,
+            fileType: 'png',
         });
         if (!merged) {
             throw new MergeMasksError('mergeMasks: exportImageBase64 returned an empty data URL.');
@@ -1677,21 +1929,39 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
 function startImageDecode(dataUrl) {
     const img = new Image();
     const cleanup = (clearSource = false) => {
-        img.onload = null;
-        img.onerror = null;
+        if (typeof img.removeEventListener === 'function') {
+            img.removeEventListener('load', handleLoad);
+            img.removeEventListener('error', handleError);
+        }
+        else {
+            img.onload = null;
+            img.onerror = null;
+        }
         if (clearSource) {
             img.src = '';
         }
     };
+    const handleLoad = () => {
+        cleanup(false);
+        resolveImage(img);
+    };
+    const handleError = (e) => {
+        cleanup(true);
+        rejectImage(new ImageDecodeError('Failed to decode image data URL.', e));
+    };
+    let resolveImage;
+    let rejectImage;
     const promise = new Promise((resolve, reject) => {
-        img.onload = () => {
-            cleanup(false);
-            resolve(img);
-        };
-        img.onerror = (e) => {
-            cleanup(true);
-            reject(new ImageDecodeError('Failed to decode image data URL.', e));
-        };
+        resolveImage = resolve;
+        rejectImage = reject;
+        if (typeof img.addEventListener === 'function') {
+            img.addEventListener('load', handleLoad, { once: true });
+            img.addEventListener('error', handleError, { once: true });
+        }
+        else {
+            img.onload = handleLoad;
+            img.onerror = handleError;
+        }
         img.src = dataUrl;
     });
     return { promise, cleanup };
@@ -2440,6 +2710,7 @@ function resetFileInput(input) {
     }
 }
 
+const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
 const CROP_MODE_CONTROL_KEYS = [
     'scaleRate',
     'rotationLeftInput',
@@ -2515,6 +2786,12 @@ class ImageEditor {
             configurable: true,
             writable: true,
             value: {}
+        });
+        Object.defineProperty(this, "_elementOriginalPointerEvents", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
         });
         Object.defineProperty(this, "originalImage", {
             enumerable: true,
@@ -2809,8 +3086,12 @@ class ImageEditor {
             return;
         if (this._disposed)
             return;
-        if (this._guard.isAnimating())
+        if (typeof base64 !== 'string' || !base64.startsWith('data:image/'))
             return;
+        if (!this._canRunIdleOperation('loadImage', options))
+            return;
+        this._guard.beginLoading();
+        this._updateUI();
         this._hideAllMaskLabels();
         const ctx = {
             fabric: this._fabric,
@@ -2843,10 +3124,44 @@ class ImageEditor {
         catch (err) {
             throw err;
         }
+        finally {
+            this._guard.endLoading();
+            if (!this._disposed && this.canvas)
+                this._updateUI();
+        }
         this._lastMask = null;
         this._updateInputs();
         this._updateMaskList();
         this._updateUI();
+    }
+    _getInternalOperationToken(options) {
+        var _a;
+        return (_a = options === null || options === void 0 ? void 0 : options[INTERNAL_OPERATION_TOKEN]) !== null && _a !== void 0 ? _a : null;
+    }
+    _withInternalOperationOptions(token, options = {}) {
+        return {
+            ...options,
+            ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
+        };
+    }
+    _assertIdleForOperation(operationName, options) {
+        const token = this._getInternalOperationToken(options);
+        this._guard.assertIdleForOperation(operationName, token);
+        if (this.animQueue.isBusy()) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
+        }
+    }
+    _canRunIdleOperation(operationName, options) {
+        try {
+            this._assertIdleForOperation(operationName, options);
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    _assertCanQueueAnimation(operationName, options) {
+        this._guard.assertCanQueueAnimation(operationName, this._getInternalOperationToken(options));
     }
     isImageLoaded() {
         var _a, _b;
@@ -2915,6 +3230,12 @@ class ImageEditor {
     scaleImage(factor) {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('scaleImage');
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed)
@@ -2934,6 +3255,12 @@ class ImageEditor {
     rotateImage(degrees) {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('rotateImage');
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed)
@@ -2953,6 +3280,12 @@ class ImageEditor {
     resetImageTransform() {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('resetImageTransform');
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed)
@@ -3062,11 +3395,15 @@ class ImageEditor {
     createMask(config = {}) {
         if (!this.canvas)
             return null;
+        if (!this._canRunIdleOperation('createMask'))
+            return null;
         const ctx = this._buildCreateMaskContext();
         return createMask(ctx, config);
     }
     removeSelectedMask() {
         if (!this.canvas)
+            return;
+        if (!this._canRunIdleOperation('removeSelectedMask'))
             return;
         const ctx = this._buildRemoveMaskContext();
         removeSelectedMask(ctx);
@@ -3075,7 +3412,7 @@ class ImageEditor {
     removeAllMasks(options = {}) {
         if (!this.canvas)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('removeAllMasks', options))
             return;
         const ctx = this._buildRemoveMaskContext();
         removeAllMasks(ctx, options);
@@ -3178,18 +3515,28 @@ class ImageEditor {
     async mergeMasks() {
         if (!this.canvas)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('mergeMasks'))
             return;
-        const ctx = this._buildMergeMasksContext();
-        await mergeMasks(ctx);
-        this._updateInputs();
-        this._updateMaskList();
+        const hasMasks = this.canvas.getObjects().some(isMaskObject);
+        if (!hasMasks)
+            return;
+        const operationToken = this._guard.beginBusyOperation('mergeMasks');
         this._updateUI();
+        try {
+            const ctx = this._buildMergeMasksContext(operationToken);
+            await mergeMasks(ctx);
+            this._updateInputs();
+            this._updateMaskList();
+        }
+        finally {
+            this._guard.endBusyOperation(operationToken);
+            this._updateUI();
+        }
     }
     downloadImage(fileName) {
         if (!this.canvas)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('downloadImage'))
             return;
         const ctx = this._buildExportServiceContext();
         downloadImage(ctx, fileName);
@@ -3197,13 +3544,13 @@ class ImageEditor {
     async exportImageBase64(options) {
         if (!this.canvas)
             return '';
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('exportImageBase64', options))
             return '';
         const ctx = this._buildExportServiceContext();
         return exportImageBase64(ctx, options);
     }
     async exportImageFile(options) {
-        this._guard.assertNotAnimating('exportImageFile');
+        this._assertIdleForOperation('exportImageFile', options);
         const ctx = this._buildExportServiceContext();
         return exportImageFile(ctx, options);
     }
@@ -3216,12 +3563,12 @@ class ImageEditor {
             getOriginalImage: () => this.originalImage,
         };
     }
-    _buildMergeMasksContext() {
+    _buildMergeMasksContext(operationToken) {
         return {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {
@@ -3248,7 +3595,7 @@ class ImageEditor {
             return;
         if (!this.isImageLoaded())
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('enterCropMode'))
             return;
         const ctx = this._buildCropControllerContext();
         enterCropMode(ctx);
@@ -3256,6 +3603,8 @@ class ImageEditor {
     }
     cancelCrop() {
         if (!this.canvas || !this._cropSession)
+            return;
+        if (!this._canRunIdleOperation('cancelCrop'))
             return;
         const ctx = this._buildCropControllerContext();
         cancelCrop(ctx);
@@ -3266,15 +3615,22 @@ class ImageEditor {
     async applyCrop() {
         if (!this.canvas || !this._cropSession)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('applyCrop'))
             return;
-        const ctx = this._buildCropControllerContext();
-        await applyCrop(ctx);
-        this._updateInputs();
-        this._updateMaskList();
+        const operationToken = this._guard.beginBusyOperation('applyCrop');
         this._updateUI();
+        try {
+            const ctx = this._buildCropControllerContext(operationToken);
+            await applyCrop(ctx);
+            this._updateInputs();
+            this._updateMaskList();
+        }
+        finally {
+            this._guard.endBusyOperation(operationToken);
+            this._updateUI();
+        }
     }
-    _buildCropControllerContext() {
+    _buildCropControllerContext(operationToken) {
         return {
             fabric: this._fabric,
             canvas: this.canvas,
@@ -3286,7 +3642,7 @@ class ImageEditor {
             setCropSession: (s) => { this._cropSession = s; },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
-            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => { this.maskCounter = n; },
             updateMaskList: () => { this._updateMaskList(); },
@@ -3312,7 +3668,7 @@ class ImageEditor {
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const inCrop = this._cropSession !== null;
-        const isAnimating = this._guard.isAnimating();
+        const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
         if (inCrop) {
             CROP_MODE_CONTROL_KEYS.forEach(key => {
                 const id = this.elements[key];
@@ -3322,37 +3678,52 @@ class ImageEditor {
                 if (!el || !('disabled' in el))
                     return;
                 el.disabled =
-                    !CROP_MODE_ENABLED_KEYS.includes(key);
+                    isBusy || !CROP_MODE_ENABLED_KEYS.includes(key);
             });
             return;
         }
-        this._setDisabled('scaleRate', !hasImg || isAnimating);
-        this._setDisabled('rotationLeftInput', !hasImg || isAnimating);
-        this._setDisabled('rotationRightInput', !hasImg || isAnimating);
-        this._setDisabled('zoomInBtn', !hasImg || isAnimating || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutBtn', !hasImg || isAnimating || this.currentScale <= this.options.minScale);
-        this._setDisabled('rotateLeftBtn', !hasImg || isAnimating);
-        this._setDisabled('rotateRightBtn', !hasImg || isAnimating);
-        this._setDisabled('addMaskBtn', !hasImg || isAnimating);
-        this._setDisabled('removeMaskBtn', !hasSelectedMask || isAnimating);
-        this._setDisabled('removeAllMasksBtn', !hasMasks || isAnimating);
-        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isAnimating);
-        this._setDisabled('downloadBtn', !hasImg || isAnimating);
-        this._setDisabled('resetBtn', !hasImg || isDefault || isAnimating);
-        this._setDisabled('undoBtn', !hasImg || isAnimating || !canUndo);
-        this._setDisabled('redoBtn', !hasImg || isAnimating || !canRedo);
-        this._setDisabled('cropBtn', !hasImg || isAnimating);
-        this._setDisabled('imageInput', isAnimating);
+        this._setDisabled('scaleRate', !hasImg || isBusy);
+        this._setDisabled('rotationLeftInput', !hasImg || isBusy);
+        this._setDisabled('rotationRightInput', !hasImg || isBusy);
+        this._setDisabled('zoomInBtn', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
+        this._setDisabled('zoomOutBtn', !hasImg || isBusy || this.currentScale <= this.options.minScale);
+        this._setDisabled('rotateLeftBtn', !hasImg || isBusy);
+        this._setDisabled('rotateRightBtn', !hasImg || isBusy);
+        this._setDisabled('addMaskBtn', !hasImg || isBusy);
+        this._setDisabled('removeMaskBtn', !hasSelectedMask || isBusy);
+        this._setDisabled('removeAllMasksBtn', !hasMasks || isBusy);
+        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isBusy);
+        this._setDisabled('downloadBtn', !hasImg || isBusy);
+        this._setDisabled('resetBtn', !hasImg || isDefault || isBusy);
+        this._setDisabled('undoBtn', !hasImg || isBusy || !canUndo);
+        this._setDisabled('redoBtn', !hasImg || isBusy || !canRedo);
+        this._setDisabled('cropBtn', !hasImg || isBusy);
+        this._setDisabled('imageInput', isBusy);
         this._setDisabled('applyCropBtn', true);
         this._setDisabled('cancelCropBtn', true);
     }
     _setDisabled(key, disabled) {
+        var _a;
         const id = this.elements[key];
         if (!id)
             return;
         const el = document.getElementById(id);
         if (el && 'disabled' in el) {
             el.disabled = disabled;
+            return;
+        }
+        if (!el)
+            return;
+        if (!this._elementOriginalPointerEvents.has(key)) {
+            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        }
+        if (disabled) {
+            el.setAttribute('aria-disabled', 'true');
+            el.style.pointerEvents = 'none';
+        }
+        else {
+            el.removeAttribute('aria-disabled');
+            el.style.pointerEvents = (_a = this._elementOriginalPointerEvents.get(key)) !== null && _a !== void 0 ? _a : '';
         }
     }
     _updatePlaceholderStatus() {

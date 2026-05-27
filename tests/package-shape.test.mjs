@@ -108,6 +108,29 @@ test('package.json declares fabric as a `^7.0.0` peer dependency', () => {
     );
 });
 
+test('package.json keeps canvas as a development-only dependency', () => {
+    assert.equal(
+        pkg.overrides?.canvas,
+        undefined,
+        '`overrides.canvas` must not force a canvas version on consumers',
+    );
+    assert.equal(
+        pkg.dependencies?.canvas,
+        undefined,
+        '`dependencies.canvas` must not be published as a runtime dependency',
+    );
+    assert.equal(
+        pkg.peerDependencies?.canvas,
+        undefined,
+        '`peerDependencies.canvas` must not be required from consumers',
+    );
+    assert.equal(
+        pkg.devDependencies?.canvas,
+        '^3.2.3',
+        '`canvas` should be available only for local Fabric/jsdom tests',
+    );
+});
+
 // ─── 4. `exports['.']` conditional map ────────────────────────────────────
 
 test('package.json `exports["."]` map points at the documented bundle paths', () => {

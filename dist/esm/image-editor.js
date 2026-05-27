@@ -18,6 +18,7 @@ import { applyMaskSelectedStyle, applyMaskUnselectedStyle, reattachMaskHoverHand
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
 import { inferImageMimeType, readFileAsDataURL, resetFileInput, } from './utils/file.js';
+const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
 const CROP_MODE_CONTROL_KEYS = [
     'scaleRate',
     'rotationLeftInput',
@@ -93,6 +94,12 @@ export class ImageEditor {
             configurable: true,
             writable: true,
             value: {}
+        });
+        Object.defineProperty(this, "_elementOriginalPointerEvents", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
         });
         Object.defineProperty(this, "originalImage", {
             enumerable: true,
@@ -387,8 +394,12 @@ export class ImageEditor {
             return;
         if (this._disposed)
             return;
-        if (this._guard.isAnimating())
+        if (typeof base64 !== 'string' || !base64.startsWith('data:image/'))
             return;
+        if (!this._canRunIdleOperation('loadImage', options))
+            return;
+        this._guard.beginLoading();
+        this._updateUI();
         this._hideAllMaskLabels();
         const ctx = {
             fabric: this._fabric,
@@ -421,10 +432,44 @@ export class ImageEditor {
         catch (err) {
             throw err;
         }
+        finally {
+            this._guard.endLoading();
+            if (!this._disposed && this.canvas)
+                this._updateUI();
+        }
         this._lastMask = null;
         this._updateInputs();
         this._updateMaskList();
         this._updateUI();
+    }
+    _getInternalOperationToken(options) {
+        var _a;
+        return (_a = options === null || options === void 0 ? void 0 : options[INTERNAL_OPERATION_TOKEN]) !== null && _a !== void 0 ? _a : null;
+    }
+    _withInternalOperationOptions(token, options = {}) {
+        return {
+            ...options,
+            ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
+        };
+    }
+    _assertIdleForOperation(operationName, options) {
+        const token = this._getInternalOperationToken(options);
+        this._guard.assertIdleForOperation(operationName, token);
+        if (this.animQueue.isBusy()) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
+        }
+    }
+    _canRunIdleOperation(operationName, options) {
+        try {
+            this._assertIdleForOperation(operationName, options);
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    _assertCanQueueAnimation(operationName, options) {
+        this._guard.assertCanQueueAnimation(operationName, this._getInternalOperationToken(options));
     }
     isImageLoaded() {
         var _a, _b;
@@ -493,6 +538,12 @@ export class ImageEditor {
     scaleImage(factor) {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('scaleImage');
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed)
@@ -512,6 +563,12 @@ export class ImageEditor {
     rotateImage(degrees) {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('rotateImage');
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed)
@@ -531,6 +588,12 @@ export class ImageEditor {
     resetImageTransform() {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        try {
+            this._assertCanQueueAnimation('resetImageTransform');
+        }
+        catch (err) {
+            return Promise.reject(err);
+        }
         const controller = this._transformController;
         return this.animQueue.add(async () => {
             if (this._disposed)
@@ -640,11 +703,15 @@ export class ImageEditor {
     createMask(config = {}) {
         if (!this.canvas)
             return null;
+        if (!this._canRunIdleOperation('createMask'))
+            return null;
         const ctx = this._buildCreateMaskContext();
         return createMaskImpl(ctx, config);
     }
     removeSelectedMask() {
         if (!this.canvas)
+            return;
+        if (!this._canRunIdleOperation('removeSelectedMask'))
             return;
         const ctx = this._buildRemoveMaskContext();
         removeSelectedMaskImpl(ctx);
@@ -653,7 +720,7 @@ export class ImageEditor {
     removeAllMasks(options = {}) {
         if (!this.canvas)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('removeAllMasks', options))
             return;
         const ctx = this._buildRemoveMaskContext();
         removeAllMasksImpl(ctx, options);
@@ -756,18 +823,28 @@ export class ImageEditor {
     async mergeMasks() {
         if (!this.canvas)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('mergeMasks'))
             return;
-        const ctx = this._buildMergeMasksContext();
-        await mergeMasksImpl(ctx);
-        this._updateInputs();
-        this._updateMaskList();
+        const hasMasks = this.canvas.getObjects().some(isMaskObject);
+        if (!hasMasks)
+            return;
+        const operationToken = this._guard.beginBusyOperation('mergeMasks');
         this._updateUI();
+        try {
+            const ctx = this._buildMergeMasksContext(operationToken);
+            await mergeMasksImpl(ctx);
+            this._updateInputs();
+            this._updateMaskList();
+        }
+        finally {
+            this._guard.endBusyOperation(operationToken);
+            this._updateUI();
+        }
     }
     downloadImage(fileName) {
         if (!this.canvas)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('downloadImage'))
             return;
         const ctx = this._buildExportServiceContext();
         downloadImageImpl(ctx, fileName);
@@ -775,13 +852,13 @@ export class ImageEditor {
     async exportImageBase64(options) {
         if (!this.canvas)
             return '';
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('exportImageBase64', options))
             return '';
         const ctx = this._buildExportServiceContext();
         return exportImageBase64Impl(ctx, options);
     }
     async exportImageFile(options) {
-        this._guard.assertNotAnimating('exportImageFile');
+        this._assertIdleForOperation('exportImageFile', options);
         const ctx = this._buildExportServiceContext();
         return exportImageFileImpl(ctx, options);
     }
@@ -794,12 +871,12 @@ export class ImageEditor {
             getOriginalImage: () => this.originalImage,
         };
     }
-    _buildMergeMasksContext() {
+    _buildMergeMasksContext(operationToken) {
         return {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {
@@ -826,7 +903,7 @@ export class ImageEditor {
             return;
         if (!this.isImageLoaded())
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('enterCropMode'))
             return;
         const ctx = this._buildCropControllerContext();
         enterCropModeImpl(ctx);
@@ -834,6 +911,8 @@ export class ImageEditor {
     }
     cancelCrop() {
         if (!this.canvas || !this._cropSession)
+            return;
+        if (!this._canRunIdleOperation('cancelCrop'))
             return;
         const ctx = this._buildCropControllerContext();
         cancelCropImpl(ctx);
@@ -844,15 +923,22 @@ export class ImageEditor {
     async applyCrop() {
         if (!this.canvas || !this._cropSession)
             return;
-        if (this._guard.isAnimating())
+        if (!this._canRunIdleOperation('applyCrop'))
             return;
-        const ctx = this._buildCropControllerContext();
-        await applyCropImpl(ctx);
-        this._updateInputs();
-        this._updateMaskList();
+        const operationToken = this._guard.beginBusyOperation('applyCrop');
         this._updateUI();
+        try {
+            const ctx = this._buildCropControllerContext(operationToken);
+            await applyCropImpl(ctx);
+            this._updateInputs();
+            this._updateMaskList();
+        }
+        finally {
+            this._guard.endBusyOperation(operationToken);
+            this._updateUI();
+        }
     }
-    _buildCropControllerContext() {
+    _buildCropControllerContext(operationToken) {
         return {
             fabric: this._fabric,
             canvas: this.canvas,
@@ -864,7 +950,7 @@ export class ImageEditor {
             setCropSession: (s) => { this._cropSession = s; },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
-            loadImage: (base64, opts) => this.loadImage(base64, opts),
+            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => { this.maskCounter = n; },
             updateMaskList: () => { this._updateMaskList(); },
@@ -890,7 +976,7 @@ export class ImageEditor {
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const inCrop = this._cropSession !== null;
-        const isAnimating = this._guard.isAnimating();
+        const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
         if (inCrop) {
             CROP_MODE_CONTROL_KEYS.forEach(key => {
                 const id = this.elements[key];
@@ -900,37 +986,52 @@ export class ImageEditor {
                 if (!el || !('disabled' in el))
                     return;
                 el.disabled =
-                    !CROP_MODE_ENABLED_KEYS.includes(key);
+                    isBusy || !CROP_MODE_ENABLED_KEYS.includes(key);
             });
             return;
         }
-        this._setDisabled('scaleRate', !hasImg || isAnimating);
-        this._setDisabled('rotationLeftInput', !hasImg || isAnimating);
-        this._setDisabled('rotationRightInput', !hasImg || isAnimating);
-        this._setDisabled('zoomInBtn', !hasImg || isAnimating || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutBtn', !hasImg || isAnimating || this.currentScale <= this.options.minScale);
-        this._setDisabled('rotateLeftBtn', !hasImg || isAnimating);
-        this._setDisabled('rotateRightBtn', !hasImg || isAnimating);
-        this._setDisabled('addMaskBtn', !hasImg || isAnimating);
-        this._setDisabled('removeMaskBtn', !hasSelectedMask || isAnimating);
-        this._setDisabled('removeAllMasksBtn', !hasMasks || isAnimating);
-        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isAnimating);
-        this._setDisabled('downloadBtn', !hasImg || isAnimating);
-        this._setDisabled('resetBtn', !hasImg || isDefault || isAnimating);
-        this._setDisabled('undoBtn', !hasImg || isAnimating || !canUndo);
-        this._setDisabled('redoBtn', !hasImg || isAnimating || !canRedo);
-        this._setDisabled('cropBtn', !hasImg || isAnimating);
-        this._setDisabled('imageInput', isAnimating);
+        this._setDisabled('scaleRate', !hasImg || isBusy);
+        this._setDisabled('rotationLeftInput', !hasImg || isBusy);
+        this._setDisabled('rotationRightInput', !hasImg || isBusy);
+        this._setDisabled('zoomInBtn', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
+        this._setDisabled('zoomOutBtn', !hasImg || isBusy || this.currentScale <= this.options.minScale);
+        this._setDisabled('rotateLeftBtn', !hasImg || isBusy);
+        this._setDisabled('rotateRightBtn', !hasImg || isBusy);
+        this._setDisabled('addMaskBtn', !hasImg || isBusy);
+        this._setDisabled('removeMaskBtn', !hasSelectedMask || isBusy);
+        this._setDisabled('removeAllMasksBtn', !hasMasks || isBusy);
+        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isBusy);
+        this._setDisabled('downloadBtn', !hasImg || isBusy);
+        this._setDisabled('resetBtn', !hasImg || isDefault || isBusy);
+        this._setDisabled('undoBtn', !hasImg || isBusy || !canUndo);
+        this._setDisabled('redoBtn', !hasImg || isBusy || !canRedo);
+        this._setDisabled('cropBtn', !hasImg || isBusy);
+        this._setDisabled('imageInput', isBusy);
         this._setDisabled('applyCropBtn', true);
         this._setDisabled('cancelCropBtn', true);
     }
     _setDisabled(key, disabled) {
+        var _a;
         const id = this.elements[key];
         if (!id)
             return;
         const el = document.getElementById(id);
         if (el && 'disabled' in el) {
             el.disabled = disabled;
+            return;
+        }
+        if (!el)
+            return;
+        if (!this._elementOriginalPointerEvents.has(key)) {
+            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        }
+        if (disabled) {
+            el.setAttribute('aria-disabled', 'true');
+            el.style.pointerEvents = 'none';
+        }
+        else {
+            el.removeAttribute('aria-disabled');
+            el.style.pointerEvents = (_a = this._elementOriginalPointerEvents.get(key)) !== null && _a !== void 0 ? _a : '';
         }
     }
     _updatePlaceholderStatus() {

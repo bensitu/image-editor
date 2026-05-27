@@ -7,10 +7,10 @@
  *
  * ## Owned contracts
  *
- * - When the image bounding rect would produce a
- *   sub-pixel `width` or `height`, the editor SHALL floor each dimension
- *   to integer pixels so JPEG region exports do not end up with a stray
- *   1-pixel translucent edge.
+ * - Export regions SHALL include partially covered trailing pixels so
+ *   sub-pixel image bounds do not lose the right or bottom edge.
+ * - Crop regions SHALL exclude trailing partial pixels so crop does not
+ *   grow by a transparent row or column.
  * - When `applyCrop` runs with
  *   `preserveMasksAfterCrop === true` and the image has been rotated,
  *   each mask's new `left` and `top` SHALL be expressed in the cropped
@@ -72,17 +72,29 @@ export interface IntegerRegion {
     width: number;
     height: number;
 }
+export interface RegionRoundingOptions {
+    /**
+     * When true, `right` / `bottom` are ceiled to include partially covered
+     * trailing pixels. When false, they are floored to exclude them.
+     * @default true
+     */
+    includePartialPixels?: boolean;
+}
+export interface PartialExportEdges {
+    left: boolean;
+    top: boolean;
+    right: boolean;
+    bottom: boolean;
+}
 /**
  * Convert a floating-point rectangle into an {@link IntegerRegion}.
  *
  * - `left` / `top` are floored and clamped to `>= 0` so the region
- *   never starts before the source canvas's top-left corner. Flooring
- *   (rather than rounding) ensures we never accidentally chop off the
- *   leading edge of the image when the bounding rect lands on a
- *   half-pixel.
- * - `width` / `height` are rounded and clamped to `>= 1` so no sub-pixel
- *   dimensions reach Fabric's region export and `drawImage` never
- *   receives a zero-sized region.
+ *   never starts before the source canvas's top-left corner.
+ * - `right` / `bottom` are ceiled by default to include partially covered
+ *   trailing pixels, or floored when `includePartialPixels` is false.
+ * - `width` / `height` are derived from those integer edges and clamped
+ *   to `>= 1` so no sub-pixel dimensions reach Fabric's region export.
  * - Non-finite inputs collapse to a `1×1` region at `(0, 0)` rather than
  *   propagating `NaN` into the canvas pipeline.
  *
@@ -91,12 +103,25 @@ export interface IntegerRegion {
  * @param rect The floating-point bounding rect to discretize.
  * @returns    An {@link IntegerRegion} safe to pass to `drawImage`.
  */
+export declare function getClampedCanvasRegion(rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}, canvasWidth?: number, canvasHeight?: number, options?: RegionRoundingOptions): IntegerRegion;
 export declare function floorRegion(rect: {
     left: number;
     top: number;
     width: number;
     height: number;
 }): IntegerRegion;
+export declare function hasFractionalCanvasEdge(value: number): boolean;
+export declare function getPartialExportEdges(bounds: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+} | null, angle?: number): PartialExportEdges | null;
 /**
  * Read a Fabric.js object's absolute bounding rectangle in canvas-pixel
  * coordinates.

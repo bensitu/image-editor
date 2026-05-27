@@ -187,6 +187,53 @@ test('assertNotAnimating throws inside runAnimation, succeeds outside', async ()
     );
 });
 
+test('loading state blocks external idle operations and animation queueing', () => {
+    const guard = new OperationGuard();
+
+    guard.beginLoading();
+    assert.equal(guard.isLoading(), true);
+    assert.equal(guard.isBusy(), true);
+
+    assert.throws(
+        () => guard.assertIdleForOperation('mergeMasks'),
+        /image is loading/,
+    );
+    assert.throws(
+        () => guard.assertCanQueueAnimation('scaleImage'),
+        /image is loading/,
+    );
+
+    guard.endLoading();
+    assert.equal(guard.isLoading(), false);
+    assert.equal(guard.isBusy(), false);
+    assert.doesNotThrow(() => guard.assertIdleForOperation('mergeMasks'));
+    assert.doesNotThrow(() => guard.assertCanQueueAnimation('scaleImage'));
+});
+
+test('active operation token allows internal calls and blocks external calls', () => {
+    const guard = new OperationGuard();
+    const token = guard.beginBusyOperation('mergeMasks');
+
+    assert.equal(guard.activeOperationName(), 'mergeMasks');
+    assert.equal(guard.isBusy(), true);
+
+    assert.doesNotThrow(() => guard.assertIdleForOperation('loadImage', token));
+    assert.throws(
+        () => guard.assertIdleForOperation('loadImage'),
+        /mergeMasks is running/,
+    );
+    assert.throws(
+        () => guard.assertCanQueueAnimation('scaleImage'),
+        /mergeMasks is running/,
+    );
+
+    guard.endBusyOperation(Symbol('other'));
+    assert.equal(guard.activeOperationName(), 'mergeMasks');
+    guard.endBusyOperation(token);
+    assert.equal(guard.activeOperationName(), null);
+    assert.equal(guard.isBusy(), false);
+});
+
 test('markDisposed forces a quiescent state mid-animation', async () => {
     await fc.assert(
         fc.asyncProperty(delayArb, fc.boolean(), async (ms, callTwice) => {
