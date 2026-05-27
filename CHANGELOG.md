@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decode exported files without requiring a global `atob`, and handle more transparent CSS background forms before JPEG compositing.
 - Guard invalid downsample dimensions and remove stale load-rollback state captured during image replacement.
 - Use a global internal operation token so duplicate module evaluations do not break merge-owned load calls.
+- Restore mask-list interaction after canceling crop mode so restored masks can be selected from the list again.
 - Keep the docs demo busy-state checks on public API, clear successful Base64 loads, and align follow-up UI refreshes with the configured animation duration.
 - Declare Fabric as a dev dependency as well as a peer dependency so local production audits do not treat the test peer install as runtime package surface.
 

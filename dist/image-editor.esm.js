@@ -2796,7 +2796,6 @@ var ImageEditor = class {
     const maskStyleBackups = this._captureMaskExportBackups(masks);
     const labelBackups = this._captureMaskLabelBackups(masks);
     const activeObjectBackup = this._captureActiveObjectBackup();
-    let finalBase64;
     try {
       masks.forEach((mask) => this._removeLabelForMask(mask));
       this.canvas.discardActiveObject();
@@ -2809,7 +2808,7 @@ var ImageEditor = class {
       this.originalImage.setCoords();
       const imageBounds = this.originalImage.getBoundingRect(true, true);
       const exportRegion = this._getClampedCanvasRegion(imageBounds);
-      finalBase64 = await this._exportCanvasRegionToDataURL({
+      return await this._exportCanvasRegionToDataURL({
         ...exportRegion,
         multiplier,
         quality,
@@ -2822,7 +2821,6 @@ var ImageEditor = class {
       this._restoreActiveObjectBackup(activeObjectBackup);
       this.canvas.renderAll();
     }
-    return finalBase64;
   }
   /**
    * Backward-compatible alias for {@link ImageEditor#exportImageBase64}.

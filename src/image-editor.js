@@ -3217,7 +3217,6 @@ function ensureFabric() {
             const labelBackups = this._captureMaskLabelBackups(masks);
             const activeObjectBackup = this._captureActiveObjectBackup();
 
-            let finalBase64;
             try {
                 // Labels are UI overlays and should not be part of the flattened export.
                 masks.forEach(mask => this._removeLabelForMask(mask));
@@ -3236,8 +3235,7 @@ function ensureFabric() {
                 const imageBounds = this.originalImage.getBoundingRect(true, true);
                 const exportRegion = this._getClampedCanvasRegion(imageBounds);
 
-                // Crop precisely in offscreen canvas
-                finalBase64 = await this._exportCanvasRegionToDataURL({
+                return await this._exportCanvasRegionToDataURL({
                     ...exportRegion,
                     multiplier,
                     quality,
@@ -3250,8 +3248,6 @@ function ensureFabric() {
                 this._restoreActiveObjectBackup(activeObjectBackup);
                 this.canvas.renderAll();
             }
-
-            return finalBase64;
         }
 
         /**
