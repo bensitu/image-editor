@@ -42,11 +42,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const {
-    enterCropMode,
-    applyCrop,
-    cancelCrop,
-} = await import('../src/crop/crop-controller.ts');
+const { enterCropMode, applyCrop, cancelCrop } = await import('../src/crop/crop-controller.ts');
 const { CropApplyError } = await import('../src/core/errors.ts');
 const { HistoryManager } = await import('../src/history/history-manager.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
@@ -108,7 +104,7 @@ class MockCropRect {
     }
     /** Number of bound handlers that are still attached. */
     liveHandlerCount() {
-        return this._handlers.filter(h => !h.detached).length;
+        return this._handlers.filter((h) => !h.detached).length;
     }
 }
 
@@ -345,17 +341,39 @@ const objectCountArb = fc.integer({ min: 0, max: 5 });
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
+test('enterCropMode clamps crop rectangle movement and scaling inside image bounds', () => {
+    const { ctx, sessionRef } = makeContext();
+    enterCropMode(ctx);
+    const cropRect = sessionRef.current.cropRect;
+    const movingHandler = cropRect._handlers.find((h) => h.event === 'moving')?.fn;
+    assert.equal(typeof movingHandler, 'function', 'crop rect must bind a moving handler');
+
+    cropRect.left = -500;
+    cropRect.top = -500;
+    cropRect.scaleX = 100;
+    cropRect.scaleY = 100;
+    movingHandler();
+
+    assert.equal(cropRect.left, 10, 'left edge must clamp to the padded image inset');
+    assert.equal(cropRect.top, 10, 'top edge must clamp to the padded image inset');
+    assert.ok(cropRect.width * cropRect.scaleX <= 580, 'scaled width must fit bounds');
+    assert.ok(cropRect.height * cropRect.scaleY <= 380, 'scaled height must fit bounds');
+
+    cropRect.left = 10000;
+    cropRect.top = 10000;
+    cropRect.scaleX = 1;
+    cropRect.scaleY = 1;
+    movingHandler();
+
+    assert.equal(cropRect.left, 540, 'right edge must clamp inside the padded image inset');
+    assert.equal(cropRect.top, 340, 'bottom edge must clamp inside the padded image inset');
+});
+
 test('enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect, exactly one history entry on success, undo restores the pre-crop snapshot, session cleared and crop-rect handlers detached after completion', async () => {
     await fc.assert(
         fc.asyncProperty(objectCountArb, async (objectCount) => {
-            const {
-                ctx,
-                canvas,
-                historyManager,
-                saveStateCalls,
-                loadFromStateCalls,
-                sessionRef,
-            } = makeContext({ failLoadImage: false });
+            const { ctx, canvas, historyManager, saveStateCalls, loadFromStateCalls, sessionRef } =
+                makeContext({ failLoadImage: false });
 
             // Seed the canvas with a few non-interactive objects so
             // the freeze loop has something to capture into
@@ -476,13 +494,13 @@ test('enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect, 
             assert.equal(
                 loadFromStateCalls[restoresBefore],
                 beforeSnap,
-                "the documented contract: command.undo() must restore the pre-crop snapshot",
+                'the documented contract: command.undo() must restore the pre-crop snapshot',
             );
             await cmd.execute();
             assert.equal(
                 loadFromStateCalls[restoresBefore + 1],
                 afterSnap,
-                "the documented contract: command.execute() must re-apply the post-crop snapshot",
+                'the documented contract: command.execute() must re-apply the post-crop snapshot',
             );
 
             // The success path itself must NOT have invoked
@@ -520,13 +538,9 @@ test('enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect, 
 test('enterCropMode → cancelCrop — no history entry produced, session cleared, crop-rect handlers detached', async () => {
     await fc.assert(
         fc.asyncProperty(objectCountArb, async (objectCount) => {
-            const {
-                ctx,
-                canvas,
-                historyManager,
-                loadFromStateCalls,
-                sessionRef,
-            } = makeContext({ failLoadImage: false });
+            const { ctx, canvas, historyManager, loadFromStateCalls, sessionRef } = makeContext({
+                failLoadImage: false,
+            });
 
             for (let i = 0; i < objectCount; i++) {
                 canvas._objects.push({
@@ -596,14 +610,8 @@ test('enterCropMode → cancelCrop — no history entry produced, session cleare
 test('failed applyCrop — rejects with CropApplyError, no history entry pushed, pre-crop snapshot restored via loadFromState, session cleared and crop-rect handlers detached', async () => {
     await fc.assert(
         fc.asyncProperty(objectCountArb, async (objectCount) => {
-            const {
-                ctx,
-                canvas,
-                historyManager,
-                saveStateCalls,
-                loadFromStateCalls,
-                sessionRef,
-            } = makeContext({ failLoadImage: true });
+            const { ctx, canvas, historyManager, saveStateCalls, loadFromStateCalls, sessionRef } =
+                makeContext({ failLoadImage: true });
 
             for (let i = 0; i < objectCount; i++) {
                 canvas._objects.push({
@@ -694,21 +702,12 @@ test('cancelCrop and applyCrop are no-ops without an open session', async () => 
     // tests on this spec.
     await fc.assert(
         fc.asyncProperty(fc.constant(null), async () => {
-            const {
-                ctx,
-                historyManager,
-                saveStateCalls,
-                loadFromStateCalls,
-                sessionRef,
-            } = makeContext({ failLoadImage: false });
+            const { ctx, historyManager, saveStateCalls, loadFromStateCalls, sessionRef } =
+                makeContext({ failLoadImage: false });
 
             // No session open → cancelCrop is a no-op.
             cancelCrop(ctx);
-            assert.equal(
-                sessionRef.current,
-                null,
-                'cancelCrop with no session must remain null',
-            );
+            assert.equal(sessionRef.current, null, 'cancelCrop with no session must remain null');
             assert.equal(
                 historyManager.history.length,
                 0,
@@ -718,11 +717,7 @@ test('cancelCrop and applyCrop are no-ops without an open session', async () => 
             // No session open → applyCrop is a no-op (resolves
             // without rejecting and without pushing history).
             await applyCrop(ctx);
-            assert.equal(
-                sessionRef.current,
-                null,
-                'applyCrop with no session must remain null',
-            );
+            assert.equal(sessionRef.current, null, 'applyCrop with no session must remain null');
             assert.equal(
                 historyManager.history.length,
                 0,

@@ -52,12 +52,12 @@ test('barrel exports ImageEditor as both named and default', async () => {
     assert.match(
         source,
         /export\s*\{\s*ImageEditor\s*\}/,
-        'barrel must contain `export { ImageEditor }` (named export)'
+        'barrel must contain `export { ImageEditor }` (named export)',
     );
     assert.match(
         source,
         /export\s+default\s+ImageEditor\b/,
-        'barrel must contain `export default ImageEditor`'
+        'barrel must contain `export default ImageEditor`',
     );
 });
 
@@ -67,7 +67,7 @@ test('barrel exports isMaskObject', async () => {
     assert.match(
         source,
         /export\s*\{\s*isMaskObject\s*\}/,
-        'barrel must contain `export { isMaskObject }`'
+        'barrel must contain `export { isMaskObject }`',
     );
 });
 
@@ -84,7 +84,7 @@ test('barrel re-exports documented public type names', async () => {
         'MaskNumericProp',
         'ResolvedMaskConfig',
         'ElementIdMap',
-        'FabricModule'
+        'FabricModule',
     ];
 
     for (const name of expectedTypeNames) {
@@ -92,7 +92,7 @@ test('barrel re-exports documented public type names', async () => {
         assert.match(
             source,
             pattern,
-            `barrel must re-export the documented public type \`${name}\``
+            `barrel must re-export the documented public type \`${name}\``,
         );
     }
 });
@@ -107,14 +107,14 @@ test('barrel does not export internal helpers', async () => {
         // Any controllers, services, managers should not be value-exported
         /export\s*\{\s*[A-Za-z]+Controller\b/,
         /export\s*\{\s*[A-Za-z]+Service\b/,
-        /export\s*\{\s*[A-Za-z]+Manager\b/
+        /export\s*\{\s*[A-Za-z]+Manager\b/,
     ];
 
     for (const pattern of forbiddenInternalExports) {
         assert.equal(
             pattern.test(source),
             false,
-            `barrel must not match ${pattern} (internal helper leaked to root)`
+            `barrel must not match ${pattern} (internal helper leaked to root)`,
         );
     }
 });

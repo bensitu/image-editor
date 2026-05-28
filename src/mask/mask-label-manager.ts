@@ -54,11 +54,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type {
-    FabricModule,
-    MaskObject,
-    ResolvedOptions,
-} from '../core/public-types.js';
+import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 
 /**
@@ -102,10 +98,7 @@ type LabelText = FabricNS.FabricText & { maskLabel?: boolean };
  * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
  * @param mask The mask whose label overlay should be removed.
  */
-export function removeLabelForMask(
-    ctx: MaskLabelManagerContext,
-    mask: MaskObject,
-): void {
+export function removeLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObject): void {
     if (!ctx.canvas || !mask.__label) return;
     try {
         if (ctx.canvas.getObjects().includes(mask.__label)) {
@@ -145,10 +138,7 @@ export function removeLabelForMask(
  * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
  * @param mask The mask the label overlay is being created for.
  */
-export function createLabelForMask(
-    ctx: MaskLabelManagerContext,
-    mask: MaskObject,
-): void {
+export function createLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObject): void {
     const { canvas, options, fabric: fb } = ctx;
     if (!canvas || !options.maskLabelOnSelect) return;
 
@@ -169,9 +159,10 @@ export function createLabelForMask(
         // index is the stable creation index, not the
         // live list position. legacy passed `this.maskCounter` here.
         const indexForGetText = mask.maskId - 1;
-        const txt = typeof options.label.getText === 'function'
-            ? options.label.getText(mask, indexForGetText)
-            : mask.maskName;
+        const txt =
+            typeof options.label.getText === 'function'
+                ? options.label.getText(mask, indexForGetText)
+                : mask.maskName;
 
         // the label is positioned by its top-left corner,
         // so `originX: 'left'` and `originY: 'top'` MUST be set. The
@@ -188,7 +179,7 @@ export function createLabelForMask(
             originY: 'top',
         };
 
-        textObj = new fb.Text(txt, textOptions);
+        textObj = new fb.FabricText(txt, textOptions);
     }
 
     // Mark as session-only so the Pretty_Printer filter excludes it from
@@ -225,10 +216,7 @@ export function createLabelForMask(
  * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
  * @param mask The mask whose label should be repositioned.
  */
-export function syncMaskLabel(
-    ctx: MaskLabelManagerContext,
-    mask: MaskObject,
-): void {
+export function syncMaskLabel(ctx: MaskLabelManagerContext, mask: MaskObject): void {
     const { canvas, options } = ctx;
     if (!canvas || !options.maskLabelOnSelect || !mask.__label) return;
 
@@ -268,10 +256,7 @@ export function syncMaskLabel(
  * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
  * @param mask The mask whose label should be shown.
  */
-export function showLabelForMask(
-    ctx: MaskLabelManagerContext,
-    mask: MaskObject,
-): void {
+export function showLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObject): void {
     if (!ctx.options.maskLabelOnSelect) return;
     if (!mask.__label) {
         createLabelForMask(ctx, mask);
@@ -307,15 +292,15 @@ export function hideAllMaskLabels(ctx: MaskLabelManagerContext): void {
 
     const objs = canvas.getObjects();
 
-    objs
-        .filter((o) => (o as FabricNS.FabricObject & { maskLabel?: boolean }).maskLabel)
-        .forEach((l) => {
+    objs.filter((o) => (o as FabricNS.FabricObject & { maskLabel?: boolean }).maskLabel).forEach(
+        (l) => {
             try {
                 canvas.remove(l);
             } catch {
                 /* ignore — label may already be detached */
             }
-        });
+        },
+    );
 
     objs.filter(isMaskObject).forEach((o) => {
         try {

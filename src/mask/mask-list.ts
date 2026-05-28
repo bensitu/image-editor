@@ -137,34 +137,35 @@ export function renderMaskList(ctx: MaskListContext): void {
 
     const canvas = ctx.canvas;
 
-    canvas.getObjects().filter(isMaskObject).forEach((mask) => {
-        const li = document.createElement('li');
-        // Class names are part of the documented DOM contract so existing
-        // CSS / theme overrides keep working.
-        li.className = 'list-group-item mask-item';
-        li.textContent = mask.maskName;
-        // stable identifier for click routing and tests.
-        li.dataset.maskId = String(mask.maskId);
+    canvas
+        .getObjects()
+        .filter(isMaskObject)
+        .forEach((mask) => {
+            const li = document.createElement('li');
+            // Class names are part of the documented DOM contract so existing
+            // CSS / theme overrides keep working.
+            li.className = 'list-group-item mask-item';
+            li.textContent = mask.maskName;
+            // stable identifier for click routing and tests.
+            li.dataset.maskId = String(mask.maskId);
 
-        li.onclick = () => {
-            // select by maskId lookup, NOT by list
-            // position. Re-read `canvas.getObjects` at click time so the
-            // lookup tolerates objects that were re-ordered or removed
-            // between render and click.
-            const id = Number(li.dataset.maskId);
-            if (!Number.isFinite(id)) return;
-            const target = canvas
-                .getObjects()
-                .find((o) => isMaskObject(o) && o.maskId === id) as
-                | MaskObject
-                | undefined;
-            if (!target) return;
-            canvas.setActiveObject(target);
-            ctx.onMaskSelected(target);
-        };
+            li.onclick = () => {
+                // select by maskId lookup, NOT by list
+                // position. Re-read `canvas.getObjects` at click time so the
+                // lookup tolerates objects that were re-ordered or removed
+                // between render and click.
+                const id = Number(li.dataset.maskId);
+                if (!Number.isFinite(id)) return;
+                const target = canvas
+                    .getObjects()
+                    .find((o) => isMaskObject(o) && o.maskId === id) as MaskObject | undefined;
+                if (!target) return;
+                canvas.setActiveObject(target);
+                ctx.onMaskSelected(target);
+            };
 
-        listEl.appendChild(li);
-    });
+            listEl.appendChild(li);
+        });
 }
 
 /**
@@ -197,8 +198,7 @@ export function updateMaskListSelection(
 
     const selectedId = selectedMask ? String(selectedMask.maskId) : null;
     listEl.querySelectorAll<HTMLElement>('.mask-item').forEach((item) => {
-        const isSelected =
-            selectedId !== null && item.dataset.maskId === selectedId;
+        const isSelected = selectedId !== null && item.dataset.maskId === selectedId;
         item.classList.toggle('active', isSelected);
     });
 }

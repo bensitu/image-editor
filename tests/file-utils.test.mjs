@@ -41,10 +41,7 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const {
-    inferImageMimeType,
-    readFileAsDataURL,
-} = await import('../src/utils/file.ts');
+const { inferImageMimeType, readFileAsDataURL } = await import('../src/utils/file.ts');
 
 test('inferImageMimeType accepts supported browser MIME types', () => {
     const file = new File(['x'], 'photo.png', { type: 'image/png' });

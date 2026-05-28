@@ -93,11 +93,7 @@ export type ErrorCallbackHost = Pick<ResolvedOptions, 'onError'>;
  *   Human-readable description of what happened. Forwarded as the second
  *   callback argument.
  */
-export function reportWarning(
-    options: WarningCallbackHost,
-    error: unknown,
-    message: string,
-): void {
+export function reportWarning(options: WarningCallbackHost, error: unknown, message: string): void {
     const cb = options.onWarning;
     // The default-options resolver coerces non-functions to `null`, but we
     // re-check at the call site so this helper is safe to call even if a
@@ -151,11 +147,7 @@ export function reportWarning(
  *   Human-readable description of what happened. Forwarded as the second
  *   callback argument.
  */
-export function reportError(
-    options: ErrorCallbackHost,
-    error: unknown,
-    message: string,
-): void {
+export function reportError(options: ErrorCallbackHost, error: unknown, message: string): void {
     const cb = options.onError;
     if (typeof cb !== 'function') return;
 

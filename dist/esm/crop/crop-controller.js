@@ -2,7 +2,7 @@ import { CropApplyError } from '../core/errors.js';
 import { isMaskObject } from '../core/public-types.js';
 import { Command } from '../history/history-manager.js';
 import { applyCropHideMaskStyle, attachMaskHoverHandlers, captureMaskStyleBackup, restoreMaskStyleBackup, } from '../mask/mask-style.js';
-import { getClampedCanvasRegion, getObjectBBox, } from '../utils/canvas-region.js';
+import { getClampedCanvasRegion, getObjectBBox } from '../utils/canvas-region.js';
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
 const CROP_RECT_STROKE = '#00aaff';
 const CROP_RECT_DASH = [6, 4];
@@ -186,7 +186,7 @@ export function enterCropMode(ctx) {
     const hideMasks = !!options.crop.hideMasksDuringCrop;
     const maskBackups = [];
     if (hideMasks) {
-        canvas.getObjects().forEach(obj => {
+        canvas.getObjects().forEach((obj) => {
             if (obj === cropRect)
                 return;
             if (!isMaskObject(obj))
@@ -195,7 +195,7 @@ export function enterCropMode(ctx) {
         });
     }
     const prevEvented = [];
-    canvas.getObjects().forEach(obj => {
+    canvas.getObjects().forEach((obj) => {
         var _a, _b;
         if (obj === cropRect)
             return;
@@ -221,7 +221,18 @@ export function enterCropMode(ctx) {
             const cropHeight = Math.max(1, Number(cropRect.height) || 1);
             const nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
             const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
-            cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
+            const scaledWidth = cropWidth * nextScaleX;
+            const scaledHeight = cropHeight * nextScaleY;
+            const maxLeft = Math.max(rectLeft, rectLeft + maxCropWidth - scaledWidth);
+            const maxTop = Math.max(rectTop, rectTop + maxCropHeight - scaledHeight);
+            const nextLeft = Math.min(maxLeft, Math.max(rectLeft, Number(cropRect.left) || rectLeft));
+            const nextTop = Math.min(maxTop, Math.max(rectTop, Number(cropRect.top) || rectTop));
+            cropRect.set({
+                left: nextLeft,
+                top: nextTop,
+                scaleX: nextScaleX,
+                scaleY: nextScaleY,
+            });
             cropRect.setCoords();
             canvas.requestRenderAll();
         }
@@ -316,9 +327,7 @@ export async function applyCrop(ctx) {
         }
         if (err instanceof CropApplyError)
             throw err;
-        const message = err instanceof Error
-            ? `applyCrop failed: ${err.message}`
-            : 'applyCrop failed';
+        const message = err instanceof Error ? `applyCrop failed: ${err.message}` : 'applyCrop failed';
         throw new CropApplyError(message, err);
     }
 }

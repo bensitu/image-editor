@@ -66,9 +66,7 @@ const DEPRECATED_ALIASES = Object.freeze([
  *
  * Every other file under `tests/` MUST be alias-free.
  */
-const TEST_FILE_ALLOWLIST = new Set([
-    'alias-scrub.test.mjs',
-]);
+const TEST_FILE_ALLOWLIST = new Set(['alias-scrub.test.mjs']);
 
 /**
  * Markdown section heading that is allowed to reference Deprecated_Alias
@@ -87,17 +85,19 @@ const CHANGELOG_ALLOWED_SECTION = '[2.0.0]';
  * file relies on alias names appearing inside one.
  */
 function stripJsCommentsAndStrings(source) {
-    return source
-        // Block comments first so a `//` inside `/* */` is not mis-handled.
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        // Line comments (// to EOL).
-        .replace(/\/\/[^\n]*/g, '')
-        // Single-quoted strings (with backslash-escape support).
-        .replace(/'(?:\\.|[^'\\])*'/g, "''")
-        // Double-quoted strings.
-        .replace(/"(?:\\.|[^"\\])*"/g, '""')
-        // Template literals (best-effort: no recursive `${}` parsing).
-        .replace(/`(?:\\.|[^`\\])*`/g, '``');
+    return (
+        source
+            // Block comments first so a `//` inside `/* */` is not mis-handled.
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            // Line comments (// to EOL).
+            .replace(/\/\/[^\n]*/g, '')
+            // Single-quoted strings (with backslash-escape support).
+            .replace(/'(?:\\.|[^'\\])*'/g, "''")
+            // Double-quoted strings.
+            .replace(/"(?:\\.|[^"\\])*"/g, '""')
+            // Template literals (best-effort: no recursive `${}` parsing).
+            .replace(/`(?:\\.|[^`\\])*`/g, '``')
+    );
 }
 
 /**
@@ -211,24 +211,26 @@ async function listFiles(dir, predicate) {
 
 // ─── 1. dist/types/index.d.ts ────────────────────────────
 
-test('`dist/types/index.d.ts` declares no Deprecated_Alias when present', async () => {
-    const filePath = path.join(repoRoot, 'dist', 'types', 'index.d.ts');
-    let source;
-    try {
-        source = await fs.readFile(filePath, 'utf8');
-    } catch (err) {
-        if (err && err.code === 'ENOENT') return; // clean-tree skip
-        throw err;
-    }
-    const stripped = stripJsCommentsAndStrings(source);
-    const found = findAliases(stripped);
-    assert.deepEqual(
-        found.map(f => f.alias),
-        [],
-        `dist/types/index.d.ts must not declare or reference any Deprecated_Alias ` +
-        `. Offending hits: ${JSON.stringify(found)}`,
-    );
-});
+for (const declarationFile of ['index.d.ts', 'index.d.cts']) {
+    test(`\`dist/types/${declarationFile}\` declares no Deprecated_Alias when present`, async () => {
+        const filePath = path.join(repoRoot, 'dist', 'types', declarationFile);
+        let source;
+        try {
+            source = await fs.readFile(filePath, 'utf8');
+        } catch (err) {
+            if (err && err.code === 'ENOENT') return; // clean-tree skip
+            throw err;
+        }
+        const stripped = stripJsCommentsAndStrings(source);
+        const found = findAliases(stripped);
+        assert.deepEqual(
+            found.map((f) => f.alias),
+            [],
+            `dist/types/${declarationFile} must not declare or reference any Deprecated_Alias ` +
+                `. Offending hits: ${JSON.stringify(found)}`,
+        );
+    });
+}
 
 // ─── 2. README.md ───────────────────────────────────────
 
@@ -237,68 +239,61 @@ test('`README.md` contains no Deprecated_Alias inside any code span', async () =
     const codeText = extractMarkdownCodeSpans(source);
     const found = findAliases(codeText);
     assert.deepEqual(
-        found.map(f => f.alias),
+        found.map((f) => f.alias),
         [],
         `README.md must not reference any Deprecated_Alias as a code identifier ` +
-        `. Offending hits: ${JSON.stringify(found)}`,
+            `. Offending hits: ${JSON.stringify(found)}`,
     );
 });
 
 // ─── 3. docs/ ───────────────────────────────────────────
 
 test('`docs/*.html` contains no Deprecated_Alias identifier', async () => {
-    const htmlFiles = await listFiles(
-        path.join(repoRoot, 'docs'),
-        name => name.endsWith('.html'),
+    const htmlFiles = await listFiles(path.join(repoRoot, 'docs'), (name) =>
+        name.endsWith('.html'),
     );
     for (const filePath of htmlFiles) {
         const source = await fs.readFile(filePath, 'utf8');
         const stripped = stripHtmlComments(source);
         const found = findAliases(stripped);
         assert.deepEqual(
-            found.map(f => f.alias),
+            found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier. ` +
-            `Offending hits: ${JSON.stringify(found)}`,
+                `Deprecated_Alias identifier. ` +
+                `Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
 
 test('`docs/css/*.css` contains no Deprecated_Alias identifier', async () => {
-    const cssFiles = await listFiles(
-        path.join(repoRoot, 'docs'),
-        name => name.endsWith('.css'),
-    );
+    const cssFiles = await listFiles(path.join(repoRoot, 'docs'), (name) => name.endsWith('.css'));
     for (const filePath of cssFiles) {
         const source = await fs.readFile(filePath, 'utf8');
         const stripped = stripCssComments(source);
         const found = findAliases(stripped);
         assert.deepEqual(
-            found.map(f => f.alias),
+            found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier. ` +
-            `Offending hits: ${JSON.stringify(found)}`,
+                `Deprecated_Alias identifier. ` +
+                `Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
 
 test('`docs/js/*.js` contains no Deprecated_Alias identifier', async () => {
-    const jsFiles = await listFiles(
-        path.join(repoRoot, 'docs'),
-        name => name.endsWith('.js'),
-    );
+    const jsFiles = await listFiles(path.join(repoRoot, 'docs'), (name) => name.endsWith('.js'));
     for (const filePath of jsFiles) {
         const source = await fs.readFile(filePath, 'utf8');
         const stripped = stripJsCommentsAndStrings(source);
         const found = findAliases(stripped);
         assert.deepEqual(
-            found.map(f => f.alias),
+            found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier. ` +
-            `Offending hits: ${JSON.stringify(found)}`,
+                `Deprecated_Alias identifier. ` +
+                `Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
@@ -308,7 +303,7 @@ test('`docs/js/*.js` contains no Deprecated_Alias identifier', async () => {
 test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias identifier', async () => {
     const testFiles = await listFiles(
         path.join(repoRoot, 'tests'),
-        name => name.endsWith('.test.mjs') || name.endsWith('.mjs'),
+        (name) => name.endsWith('.test.mjs') || name.endsWith('.mjs'),
     );
     for (const filePath of testFiles) {
         const baseName = path.basename(filePath);
@@ -317,11 +312,11 @@ test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias i
         const stripped = stripJsCommentsAndStrings(source);
         const found = findAliases(stripped);
         assert.deepEqual(
-            found.map(f => f.alias),
+            found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-            `Deprecated_Alias identifier outside the documented allowlist ` +
-            `. Offending hits: ${JSON.stringify(found)}`,
+                `Deprecated_Alias identifier outside the documented allowlist ` +
+                `. Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
@@ -344,8 +339,8 @@ test('`CHANGELOG.md` confines Deprecated_Alias mentions to the `## [2.0.0]` sect
         offenders,
         [],
         `CHANGELOG.md may only reference Deprecated_Alias identifiers in the ` +
-        `\`## ${CHANGELOG_ALLOWED_SECTION}\` section. ` +
-        `Offending sections: ${JSON.stringify(offenders)}`,
+            `\`## ${CHANGELOG_ALLOWED_SECTION}\` section. ` +
+            `Offending sections: ${JSON.stringify(offenders)}`,
     );
 });
 
@@ -366,10 +361,10 @@ test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias',
     assert.ok(
         allowedBody !== null,
         `CHANGELOG.md must contain a \`## ${CHANGELOG_ALLOWED_SECTION}\` ` +
-        `section listing the removed Deprecated_Aliases`,
+            `section listing the removed Deprecated_Aliases`,
     );
     const codeText = extractMarkdownCodeSpans(allowedBody);
-    const missing = DEPRECATED_ALIASES.filter(alias => {
+    const missing = DEPRECATED_ALIASES.filter((alias) => {
         const re = new RegExp(`\\b${alias}\\b`);
         return !re.test(codeText);
     });
@@ -377,8 +372,8 @@ test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias',
         missing,
         [],
         `CHANGELOG.md \`## ${CHANGELOG_ALLOWED_SECTION}\` section must list ` +
-        `every removed Deprecated_Alias in a code span. ` +
-        `Missing: ${JSON.stringify(missing)}`,
+            `every removed Deprecated_Alias in a code span. ` +
+            `Missing: ${JSON.stringify(missing)}`,
     );
 });
 
@@ -393,9 +388,9 @@ test('`package.json` contains no Deprecated_Alias identifier', async () => {
     const source = await fs.readFile(path.join(repoRoot, 'package.json'), 'utf8');
     const found = findAliases(source);
     assert.deepEqual(
-        found.map(f => f.alias),
+        found.map((f) => f.alias),
         [],
         `package.json must not reference any Deprecated_Alias identifier ` +
-        `. Offending hits: ${JSON.stringify(found)}`,
+            `. Offending hits: ${JSON.stringify(found)}`,
     );
 });

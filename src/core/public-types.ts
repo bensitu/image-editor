@@ -81,7 +81,7 @@ export interface MaskObject extends FabricNS.FabricObject {
     isCropRect?: boolean;
     /**
      * Marker flag set on label-overlay text objects so the state serializer
- * can exclude them from history snapshots.
+     * can exclude them from history snapshots.
      */
     maskLabel?: boolean;
 }
@@ -267,11 +267,9 @@ export interface MaskConfig {
 }
 
 /**
- * Internal fully-resolved mask config produced after defaults and percentage
- * resolution have been applied. Retained as a public type because consumers
- * may receive it via `MaskConfig.fabricGenerator`.
- *
- * @internal Implementation detail; shape may be tightened in later tasks.
+ * Fully resolved mask config produced after defaults and percentage resolution
+ * have been applied. Exposed because consumers may receive it via
+ * `MaskConfig.fabricGenerator`.
  */
 export interface ResolvedMaskConfig extends MaskConfig {
     shape: NonNullable<MaskConfig['shape']>;
@@ -574,10 +572,12 @@ export interface ImageEditorOptions {
  * Produced by `core/default-options.ts` after merging defaults with the
  * user-supplied partial options.
  */
-export interface ResolvedOptions extends Required<Omit<
-    ImageEditorOptions,
-    'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning' | 'downsampleQuality'
->> {
+export interface ResolvedOptions extends Required<
+    Omit<
+        ImageEditorOptions,
+        'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning' | 'downsampleQuality'
+    >
+> {
     downsampleQuality: number;
     label: LabelConfig;
     crop: Required<CropConfig>;

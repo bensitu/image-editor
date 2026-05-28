@@ -250,10 +250,7 @@ export class OperationGuard {
      * another active transaction. Internal calls may pass their active
      * operation token to proceed.
      */
-    assertIdleForOperation(
-        operationLabel: string,
-        token?: OperationToken | null,
-    ): void {
+    assertIdleForOperation(operationLabel: string, token?: OperationToken | null): void {
         if (this._isDisposed) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
@@ -281,10 +278,7 @@ export class OperationGuard {
      * transaction is currently active. Existing animations are intentionally
      * left to the animation queue.
      */
-    assertCanQueueAnimation(
-        operationLabel: string,
-        token?: OperationToken | null,
-    ): void {
+    assertCanQueueAnimation(operationLabel: string, token?: OperationToken | null): void {
         if (this._isDisposed) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }

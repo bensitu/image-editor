@@ -56,10 +56,12 @@ const distRoot = path.join(repoRoot, 'dist');
  * The UMD filename is `image-editor.umd.js` per `rollup.config.mjs`.
  */
 const ARTIFACTS = Object.freeze({
-    esm:   'dist/esm/index.js',
-    cjs:   'dist/cjs/index.cjs',
-    umd:   'dist/umd/image-editor.umd.js',
+    esm: 'dist/esm/index.js',
+    cjs: 'dist/cjs/index.cjs',
+    umd: 'dist/umd/image-editor.umd.js',
     types: 'dist/types/index.d.ts',
+    cjsTypes: 'dist/types/index.d.cts',
+    publicTypes: 'dist/types/core/public-types.d.ts',
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -101,37 +103,31 @@ const distIsBuilt = await distDirectoryExists();
 test('dist/esm/index.js exists and is non-empty when dist/ is present', async () => {
     if (!distIsBuilt) return; // skip cleanly on an unbuilt tree
     const { size } = await readArtifact(ARTIFACTS.esm);
-    assert.ok(
-        size > 0,
-        `${ARTIFACTS.esm} must be a non-empty file`,
-    );
+    assert.ok(size > 0, `${ARTIFACTS.esm} must be a non-empty file`);
 });
 
 test('dist/cjs/index.cjs exists and is non-empty when dist/ is present', async () => {
     if (!distIsBuilt) return;
     const { size } = await readArtifact(ARTIFACTS.cjs);
-    assert.ok(
-        size > 0,
-        `${ARTIFACTS.cjs} must be a non-empty file`,
-    );
+    assert.ok(size > 0, `${ARTIFACTS.cjs} must be a non-empty file`);
 });
 
 test('dist/umd/image-editor.umd.js exists and is non-empty when dist/ is present', async () => {
     if (!distIsBuilt) return;
     const { size } = await readArtifact(ARTIFACTS.umd);
-    assert.ok(
-        size > 0,
-        `${ARTIFACTS.umd} must be a non-empty file`,
-    );
+    assert.ok(size > 0, `${ARTIFACTS.umd} must be a non-empty file`);
 });
 
 test('dist/types/index.d.ts exists and is non-empty when dist/ is present', async () => {
     if (!distIsBuilt) return;
     const { size } = await readArtifact(ARTIFACTS.types);
-    assert.ok(
-        size > 0,
-        `${ARTIFACTS.types} must be a non-empty file`,
-    );
+    assert.ok(size > 0, `${ARTIFACTS.types} must be a non-empty file`);
+});
+
+test('dist/types/index.d.cts exists and is non-empty when dist/ is present', async () => {
+    if (!distIsBuilt) return;
+    const { size } = await readArtifact(ARTIFACTS.cjsTypes);
+    assert.ok(size > 0, `${ARTIFACTS.cjsTypes} must be a non-empty file`);
 });
 
 // ─── 2. Bundle shape sanity ────────────────────────────────
@@ -147,7 +143,7 @@ test('ESM bundle uses ESM syntax (import or export)', async () => {
         text,
         /(^|\n)\s*(export|import)\b/,
         `${ARTIFACTS.esm} must contain ESM syntax (top-level \`export\` or ` +
-        `\`import\`) per the documented contract`,
+            `\`import\`) per the documented contract`,
     );
 });
 
@@ -162,14 +158,12 @@ test('CJS bundle uses CJS syntax (`use strict` and exports assignment)', async (
     assert.match(
         text,
         /^\s*['"]use strict['"]\s*;/,
-        `${ARTIFACTS.cjs} must declare \`'use strict';\` at the top ` +
-        ``,
+        `${ARTIFACTS.cjs} must declare \`'use strict';\` at the top ` + ``,
     );
     assert.match(
         text,
         /\b(?:exports\.[A-Za-z_$][\w$]*\s*=|module\.exports\s*=|Object\.defineProperty\(\s*exports\b)/,
-        `${ARTIFACTS.cjs} must assign onto \`exports\` or \`module.exports\` ` +
-        ``,
+        `${ARTIFACTS.cjs} must assign onto \`exports\` or \`module.exports\` ` + ``,
     );
 });
 
@@ -187,7 +181,7 @@ test('UMD bundle exposes the documented `ImageEditor` global identifier', async 
         text,
         /\bImageEditor\b/,
         `${ARTIFACTS.umd} must reference the \`ImageEditor\` global name ` +
-        `assigned by Rollup's UMD wrapper`,
+            `assigned by Rollup's UMD wrapper`,
     );
 });
 
@@ -203,7 +197,27 @@ test('types bundle declares the `ImageEditor` symbol', async () => {
     assert.match(
         text,
         /\bImageEditor\b/,
-        `${ARTIFACTS.types} must declare the \`ImageEditor\` symbol ` +
-        ``,
+        `${ARTIFACTS.types} must declare the \`ImageEditor\` symbol ` + ``,
+    );
+});
+
+test('CJS types bundle declares the `ImageEditor` symbol', async () => {
+    if (!distIsBuilt) return;
+    const { text } = await readArtifact(ARTIFACTS.cjsTypes);
+    assert.match(
+        text,
+        /\bImageEditor\b/,
+        `${ARTIFACTS.cjsTypes} must declare the \`ImageEditor\` symbol ` + ``,
+    );
+});
+
+test('public types declaration exports ResolvedMaskConfig', async () => {
+    if (!distIsBuilt) return;
+    const { text } = await readArtifact(ARTIFACTS.publicTypes);
+    assert.match(
+        text,
+        /\bexport\s+interface\s+ResolvedMaskConfig\b/,
+        `${ARTIFACTS.publicTypes} must export \`ResolvedMaskConfig\` because ` +
+            `the package root re-exports it and MaskConfig.fabricGenerator references it`,
     );
 });

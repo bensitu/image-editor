@@ -42,12 +42,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { createMask, removeAllMasks } = await import(
-    '../src/mask/mask-factory.ts'
-);
-const { saveState, loadFromState } = await import(
-    '../src/core/state-serializer.ts'
-);
+const { createMask, removeAllMasks } = await import('../src/mask/mask-factory.ts');
+const { saveState, loadFromState } = await import('../src/core/state-serializer.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
 // ─── Mock Fabric module ────────────────────────────────────────────────────
@@ -209,9 +205,7 @@ class MockCanvas {
     }
 
     async loadFromJSON(json) {
-        this.objects = Array.isArray(json.objects)
-            ? json.objects.map((o) => ({ ...o }))
-            : [];
+        this.objects = Array.isArray(json.objects) ? json.objects.map((o) => ({ ...o })) : [];
         if (typeof json.width === 'number') this.width = json.width;
         if (typeof json.height === 'number') this.height = json.height;
         this._active = null;
@@ -381,167 +375,152 @@ const operationArb = fc.oneof(
 
 test('mask ID uniqueness across mixed createMask / mergeMasks (simulated removeAll) / undo / redo / additional createMask sequences', async () => {
     await fc.assert(
-        fc.asyncProperty(
-            fc.array(operationArb, { minLength: 1, maxLength: 25 }),
-            async (ops) => {
-                const model = makeModel();
+        fc.asyncProperty(fc.array(operationArb, { minLength: 1, maxLength: 25 }), async (ops) => {
+            const model = makeModel();
 
-                // Undo / redo stacks holding snapshot strings. The
-                // baseline snapshot represents the empty initial state.
-                const undoStack = [takeSnapshot(model)];
-                const redoStack = [];
+            // Undo / redo stacks holding snapshot strings. The
+            // baseline snapshot represents the empty initial state.
+            const undoStack = [takeSnapshot(model)];
+            const redoStack = [];
 
-                assertInvariants(model, 'init');
+            assertInvariants(model, 'init');
 
-                for (let i = 0; i < ops.length; i++) {
-                    const op = ops[i];
-                    const label = `op[${i}]=${op.kind}`;
+            for (let i = 0; i < ops.length; i++) {
+                const op = ops[i];
+                const label = `op[${i}]=${op.kind}`;
 
-                    switch (op.kind) {
-                        case 'create': {
-                            const before = model.getCounter();
-                            const mask = createMask(model.createCtx(), {
-                                shape: op.shape,
-                            });
-                            assert.ok(
-                                mask,
-                                `${label}: createMask must succeed`,
-                            );
+                switch (op.kind) {
+                    case 'create': {
+                        const before = model.getCounter();
+                        const mask = createMask(model.createCtx(), {
+                            shape: op.shape,
+                        });
+                        assert.ok(mask, `${label}: createMask must succeed`);
 
-                            // the documented contract — counter incremented by exactly 1.
-                            assert.equal(
-                                model.getCounter(),
-                                before + 1,
-                                `${label}: the documented contract — maskCounter must increment by exactly 1 (was ${before}, now ${model.getCounter()})`,
-                            );
+                        // the documented contract — counter incremented by exactly 1.
+                        assert.equal(
+                            model.getCounter(),
+                            before + 1,
+                            `${label}: the documented contract — maskCounter must increment by exactly 1 (was ${before}, now ${model.getCounter()})`,
+                        );
 
-                            // the documented contract — new mask carries the new counter as `maskId`.
-                            assert.equal(
-                                mask.maskId,
-                                model.getCounter(),
-                                `${label}: the documented contract — new mask.maskId (${mask.maskId}) must equal updated maskCounter (${model.getCounter()})`,
-                            );
+                        // the documented contract — new mask carries the new counter as `maskId`.
+                        assert.equal(
+                            mask.maskId,
+                            model.getCounter(),
+                            `${label}: the documented contract — new mask.maskId (${mask.maskId}) must equal updated maskCounter (${model.getCounter()})`,
+                        );
 
-                            undoStack.push(takeSnapshot(model));
-                            // New action invalidates redo history.
-                            redoStack.length = 0;
-                            break;
-                        }
-                        case 'removeAll': {
-                            // `mergeMasks` removes every mask before
-                            // reloading the merged image. The
-                            // mask-removal half is the contract Contract
-                            // 18.4 cares about here, so the simulated
-                            // op runs only that half.
-                            removeAllMasks(model.removeCtx(), {
-                                saveHistory: false,
-                            });
-                            // Per `removeAllMasks` docs: maskCounter is
-                            // NOT reset — only `_lastMask` is cleared.
-                            // We assert that explicitly.
-                            assert.equal(
-                                liveMaskIds(model.canvas).length,
-                                0,
-                                `${label}: removeAll must clear all masks`,
-                            );
-
-                            undoStack.push(takeSnapshot(model));
-                            redoStack.length = 0;
-                            break;
-                        }
-                        case 'undo': {
-                            // Undo when there is something to undo to:
-                            // need at least 2 entries (current + at
-                            // least one prior) on the undo stack.
-                            if (undoStack.length > 1) {
-                                redoStack.push(undoStack.pop());
-                                const target =
-                                    undoStack[undoStack.length - 1];
-                                const result = await restoreSnapshot(
-                                    model,
-                                    target,
-                                );
-
-                                // the documented contract — counter equals max(maskId)
-                                // restored from the snapshot, or 0.
-                                const ids = liveMaskIds(model.canvas);
-                                const expectedMax =
-                                    ids.length === 0 ? 0 : Math.max(...ids);
-                                assert.equal(
-                                    result.maxMaskId,
-                                    expectedMax,
-                                    `${label}: the documented contract — loadFromState.maxMaskId must equal max(restored maskId) (got ${result.maxMaskId}, expected ${expectedMax})`,
-                                );
-                                assert.equal(
-                                    model.getCounter(),
-                                    expectedMax,
-                                    `${label}: the documented contract — maskCounter must be set to max(restored maskId) after undo (got ${model.getCounter()}, expected ${expectedMax})`,
-                                );
-                            }
-                            break;
-                        }
-                        case 'redo': {
-                            if (redoStack.length > 0) {
-                                const target = redoStack.pop();
-                                undoStack.push(target);
-                                const result = await restoreSnapshot(
-                                    model,
-                                    target,
-                                );
-
-                                const ids = liveMaskIds(model.canvas);
-                                const expectedMax =
-                                    ids.length === 0 ? 0 : Math.max(...ids);
-                                assert.equal(
-                                    result.maxMaskId,
-                                    expectedMax,
-                                    `${label}: the documented contract — loadFromState.maxMaskId must equal max(restored maskId) after redo (got ${result.maxMaskId}, expected ${expectedMax})`,
-                                );
-                                assert.equal(
-                                    model.getCounter(),
-                                    expectedMax,
-                                    `${label}: the documented contract — maskCounter must be set to max(restored maskId) after redo (got ${model.getCounter()}, expected ${expectedMax})`,
-                                );
-                            }
-                            break;
-                        }
+                        undoStack.push(takeSnapshot(model));
+                        // New action invalidates redo history.
+                        redoStack.length = 0;
+                        break;
                     }
+                    case 'removeAll': {
+                        // `mergeMasks` removes every mask before
+                        // reloading the merged image. The
+                        // mask-removal half is the contract Contract
+                        // 18.4 cares about here, so the simulated
+                        // op runs only that half.
+                        removeAllMasks(model.removeCtx(), {
+                            saveHistory: false,
+                        });
+                        // Per `removeAllMasks` docs: maskCounter is
+                        // NOT reset — only `_lastMask` is cleared.
+                        // We assert that explicitly.
+                        assert.equal(
+                            liveMaskIds(model.canvas).length,
+                            0,
+                            `${label}: removeAll must clear all masks`,
+                        );
 
-                    assertInvariants(model, label);
+                        undoStack.push(takeSnapshot(model));
+                        redoStack.length = 0;
+                        break;
+                    }
+                    case 'undo': {
+                        // Undo when there is something to undo to:
+                        // need at least 2 entries (current + at
+                        // least one prior) on the undo stack.
+                        if (undoStack.length > 1) {
+                            redoStack.push(undoStack.pop());
+                            const target = undoStack[undoStack.length - 1];
+                            const result = await restoreSnapshot(model, target);
+
+                            // the documented contract — counter equals max(maskId)
+                            // restored from the snapshot, or 0.
+                            const ids = liveMaskIds(model.canvas);
+                            const expectedMax = ids.length === 0 ? 0 : Math.max(...ids);
+                            assert.equal(
+                                result.maxMaskId,
+                                expectedMax,
+                                `${label}: the documented contract — loadFromState.maxMaskId must equal max(restored maskId) (got ${result.maxMaskId}, expected ${expectedMax})`,
+                            );
+                            assert.equal(
+                                model.getCounter(),
+                                expectedMax,
+                                `${label}: the documented contract — maskCounter must be set to max(restored maskId) after undo (got ${model.getCounter()}, expected ${expectedMax})`,
+                            );
+                        }
+                        break;
+                    }
+                    case 'redo': {
+                        if (redoStack.length > 0) {
+                            const target = redoStack.pop();
+                            undoStack.push(target);
+                            const result = await restoreSnapshot(model, target);
+
+                            const ids = liveMaskIds(model.canvas);
+                            const expectedMax = ids.length === 0 ? 0 : Math.max(...ids);
+                            assert.equal(
+                                result.maxMaskId,
+                                expectedMax,
+                                `${label}: the documented contract — loadFromState.maxMaskId must equal max(restored maskId) after redo (got ${result.maxMaskId}, expected ${expectedMax})`,
+                            );
+                            assert.equal(
+                                model.getCounter(),
+                                expectedMax,
+                                `${label}: the documented contract — maskCounter must be set to max(restored maskId) after redo (got ${model.getCounter()}, expected ${expectedMax})`,
+                            );
+                        }
+                        break;
+                    }
                 }
 
-                // Final probe: one more `createMask` MUST yield an ID
-                // strictly greater than every live `maskId` and
-                // therefore preserve uniqueness on the canvas. This is
-                // the "next created mask SHALL use an ID greater than
-                // every restored live mask ID" half of .
-                const liveBefore = liveMaskIds(model.canvas);
-                const counterBefore = model.getCounter();
-                const probe = createMask(model.createCtx(), {
-                    shape: 'rect',
-                });
-                assert.ok(probe, 'final probe createMask must succeed');
-                assert.equal(
-                    probe.maskId,
-                    counterBefore + 1,
-                    'final probe: the documented contract — new maskId must be counter+1',
-                );
-                for (const id of liveBefore) {
-                    assert.ok(
-                        probe.maskId > id,
-                        `final probe: the documented contract — next createMask ID (${probe.maskId}) must exceed every restored live maskId (saw ${id})`,
-                    );
-                }
-                const liveAfter = liveMaskIds(model.canvas);
-                assert.equal(
-                    new Set(liveAfter).size,
-                    liveAfter.length,
-                    'final probe: the documented contract — maskIds must remain unique after the probe create',
-                );
+                assertInvariants(model, label);
+            }
 
-                return true;
-            },
-        ),
+            // Final probe: one more `createMask` MUST yield an ID
+            // strictly greater than every live `maskId` and
+            // therefore preserve uniqueness on the canvas. This is
+            // the "next created mask SHALL use an ID greater than
+            // every restored live mask ID" half of .
+            const liveBefore = liveMaskIds(model.canvas);
+            const counterBefore = model.getCounter();
+            const probe = createMask(model.createCtx(), {
+                shape: 'rect',
+            });
+            assert.ok(probe, 'final probe createMask must succeed');
+            assert.equal(
+                probe.maskId,
+                counterBefore + 1,
+                'final probe: the documented contract — new maskId must be counter+1',
+            );
+            for (const id of liveBefore) {
+                assert.ok(
+                    probe.maskId > id,
+                    `final probe: the documented contract — next createMask ID (${probe.maskId}) must exceed every restored live maskId (saw ${id})`,
+                );
+            }
+            const liveAfter = liveMaskIds(model.canvas);
+            assert.equal(
+                new Set(liveAfter).size,
+                liveAfter.length,
+                'final probe: the documented contract — maskIds must remain unique after the probe create',
+            );
+
+            return true;
+        }),
         { numRuns: 100 },
     );
 });

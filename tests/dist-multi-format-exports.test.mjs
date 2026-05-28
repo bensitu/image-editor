@@ -90,11 +90,7 @@ const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
  * so the UMD assertion uses a slightly different shape (covered
  * below).
  */
-const CANONICAL_RUNTIME_EXPORTS = Object.freeze([
-    'ImageEditor',
-    'default',
-    'isMaskObject',
-]);
+const CANONICAL_RUNTIME_EXPORTS = Object.freeze(['ImageEditor', 'default', 'isMaskObject']);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -195,13 +191,12 @@ test('ESM bundle exposes ImageEditor (default + named) and isMaskObject', async 
     assert.equal(
         esmModule.default,
         esmModule.ImageEditor,
-        'ESM `default` and named `ImageEditor` must reference the same class ' +
-        '',
+        'ESM `default` and named `ImageEditor` must reference the same class ' + '',
     );
     assert.equal(
         esmModule.ImageEditor.name,
         'ImageEditor',
-        'ESM bundle\'s exported class must be named `ImageEditor`',
+        "ESM bundle's exported class must be named `ImageEditor`",
     );
     assert.equal(
         typeof esmModule.isMaskObject,
@@ -221,7 +216,7 @@ test('ESM bundle does not root-export any internal helper', async () => {
             ownKeys.includes(internal),
             false,
             `ESM bundle must not root-export internal helper \`${internal}\`. ` +
-            `Got keys: ${JSON.stringify(ownKeys)}`,
+                `Got keys: ${JSON.stringify(ownKeys)}`,
         );
     }
 });
@@ -236,8 +231,7 @@ test('ESM bundle root exports are exactly the canonical runtime set', async () =
     assert.deepEqual(
         exportedKeys,
         expectedKeys,
-        `ESM bundle root exports must equal ${JSON.stringify(expectedKeys)} ` +
-        ``,
+        `ESM bundle root exports must equal ${JSON.stringify(expectedKeys)} ` + ``,
     );
 });
 
@@ -260,19 +254,17 @@ test('CJS bundle exposes ImageEditor (default + named) and isMaskObject', () => 
     assert.equal(
         typeof cjsModule.default,
         'function',
-        'CJS bundle must expose `ImageEditor` as the `default` property ' +
-        '',
+        'CJS bundle must expose `ImageEditor` as the `default` property ' + '',
     );
     assert.equal(
         cjsModule.default,
         cjsModule.ImageEditor,
-        'CJS `default` and `ImageEditor` must reference the same class ' +
-        '',
+        'CJS `default` and `ImageEditor` must reference the same class ' + '',
     );
     assert.equal(
         cjsModule.ImageEditor.name,
         'ImageEditor',
-        'CJS bundle\'s exported class must be named `ImageEditor`',
+        "CJS bundle's exported class must be named `ImageEditor`",
     );
     assert.equal(
         typeof cjsModule.isMaskObject,
@@ -293,7 +285,7 @@ test('CJS bundle does not root-export any internal helper', () => {
             ownKeys.includes(internal),
             false,
             `CJS bundle must not root-export internal helper \`${internal}\`. ` +
-            `Got keys: ${JSON.stringify(ownKeys)}`,
+                `Got keys: ${JSON.stringify(ownKeys)}`,
         );
     }
 });
@@ -315,7 +307,7 @@ test('CJS bundle enumerable exports cover the canonical runtime set', () => {
             exportedKeys.includes(expected),
             true,
             `CJS bundle must export \`${expected}\` ` +
-            `. Got keys: ${JSON.stringify(exportedKeys)}`,
+                `. Got keys: ${JSON.stringify(exportedKeys)}`,
         );
     }
 });
@@ -331,14 +323,10 @@ test('UMD bundle installs `ImageEditor` global with canonical surface', async ()
         typeof umdGlobal,
         'object',
         'UMD bundle must install an `ImageEditor` global as an object ' +
-        '. Rollup\'s UMD wrapper assigns `globalThis.ImageEditor = {}` ' +
-        'and the IIFE populates its exports onto that object.',
+            ". Rollup's UMD wrapper assigns `globalThis.ImageEditor = {}` " +
+            'and the IIFE populates its exports onto that object.',
     );
-    assert.notEqual(
-        umdGlobal,
-        null,
-        'UMD `ImageEditor` global must not be null',
-    );
+    assert.notEqual(umdGlobal, null, 'UMD `ImageEditor` global must not be null');
 
     assert.equal(
         typeof umdGlobal.ImageEditor,
@@ -348,14 +336,12 @@ test('UMD bundle installs `ImageEditor` global with canonical surface', async ()
     assert.equal(
         typeof umdGlobal.default,
         'function',
-        'UMD bundle must expose `default` on its global namespace ' +
-        '',
+        'UMD bundle must expose `default` on its global namespace ' + '',
     );
     assert.equal(
         umdGlobal.default,
         umdGlobal.ImageEditor,
-        'UMD `default` and `ImageEditor` must reference the same class ' +
-        '',
+        'UMD `default` and `ImageEditor` must reference the same class ' + '',
     );
     // The UMD bundle is minified by Rollup's `terser` plugin
     // (`rollup.config.mjs`), so the inner class declaration is
@@ -367,8 +353,7 @@ test('UMD bundle installs `ImageEditor` global with canonical surface', async ()
     assert.equal(
         typeof umdGlobal.isMaskObject,
         'function',
-        'UMD bundle must expose `isMaskObject` on its global namespace ' +
-        '',
+        'UMD bundle must expose `isMaskObject` on its global namespace ' + '',
     );
 });
 
@@ -383,7 +368,7 @@ test('UMD bundle does not expose any internal helper', async () => {
             ownKeys.includes(internal),
             false,
             `UMD \`ImageEditor\` global must not expose internal helper \`${internal}\`. ` +
-            `Got keys: ${JSON.stringify(ownKeys)}`,
+                `Got keys: ${JSON.stringify(ownKeys)}`,
         );
     }
 });
@@ -402,7 +387,7 @@ test('UMD bundle global namespace covers the canonical runtime set', async () =>
             exportedKeys.includes(expected),
             true,
             `UMD bundle must expose \`${expected}\` on its global namespace ` +
-            `. Got keys: ${JSON.stringify(exportedKeys)}`,
+                `. Got keys: ${JSON.stringify(exportedKeys)}`,
         );
     }
 });
@@ -429,20 +414,8 @@ test('ESM, CJS, and UMD bundles agree on the public surface shape', async () => 
     // drift (e.g. CJS dropping `default`) shows up as a single
     // failure.
     for (const expected of CANONICAL_RUNTIME_EXPORTS) {
-        assert.equal(
-            expected in esmModule,
-            true,
-            `ESM bundle must expose \`${expected}\``,
-        );
-        assert.equal(
-            expected in cjsModule,
-            true,
-            `CJS bundle must expose \`${expected}\``,
-        );
-        assert.equal(
-            expected in umdGlobal,
-            true,
-            `UMD bundle must expose \`${expected}\``,
-        );
+        assert.equal(expected in esmModule, true, `ESM bundle must expose \`${expected}\``);
+        assert.equal(expected in cjsModule, true, `CJS bundle must expose \`${expected}\``);
+        assert.equal(expected in umdGlobal, true, `UMD bundle must expose \`${expected}\``);
     }
 });

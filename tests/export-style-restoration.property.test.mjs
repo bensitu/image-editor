@@ -56,15 +56,7 @@ const { exportImageBase64 } = await import('../src/export/export-service.ts');
  * both observe the live values. `setCoords()` is a no-op since the
  * mock has no cached bounding rect.
  */
-function makeMockMask({
-    maskId,
-    opacity,
-    fill,
-    stroke,
-    strokeWidth,
-    selectable,
-    lockRotation,
-}) {
+function makeMockMask({ maskId, opacity, fill, stroke, strokeWidth, selectable, lockRotation }) {
     return {
         maskId,
         opacity,
@@ -89,7 +81,7 @@ function makeMockMask({
  * comparison.
  */
 function snapshotMaskStyles(masks) {
-    return masks.map(mask => ({
+    return masks.map((mask) => ({
         maskId: mask.maskId,
         opacity: mask.opacity,
         fill: mask.fill,
@@ -172,9 +164,7 @@ function makeFakeImage() {
  * export bake-in mutator forces on `stroke`.
  */
 const colorOrNullArb = fc.oneof(
-    fc
-        .integer({ min: 0, max: 0xffffff })
-        .map(n => `#${n.toString(16).padStart(6, '0')}`),
+    fc.integer({ min: 0, max: 0xffffff }).map((n) => `#${n.toString(16).padStart(6, '0')}`),
     fc.constant(null),
 );
 
@@ -220,15 +210,13 @@ const maskStyleArb = fc.record({
  *  multi-mask branches of the bake-in loop. */
 const maskListArb = fc
     .array(maskStyleArb, { minLength: 0, maxLength: 5 })
-    .map(styles =>
-        styles.map((style, idx) => makeMockMask({ maskId: idx + 1, ...style })),
-    );
+    .map((styles) => styles.map((style, idx) => makeMockMask({ maskId: idx + 1, ...style })));
 
 // ─── — successful export restores live styles ─────────────────
 
 test('after a successful exportImageBase64({exportImageArea:true}), every mask style equals the pre-export value', async () => {
     await fc.assert(
-        fc.asyncProperty(maskListArb, async masks => {
+        fc.asyncProperty(maskListArb, async (masks) => {
             const pre = snapshotMaskStyles(masks);
 
             // Capture the mask state Fabric would actually render so we
@@ -301,7 +289,7 @@ test('after a successful exportImageBase64({exportImageArea:true}), every mask s
 
 test('when canvas.toDataURL throws, exportImageBase64 still restores every mask style to the pre-export value', async () => {
     await fc.assert(
-        fc.asyncProperty(maskListArb, async masks => {
+        fc.asyncProperty(maskListArb, async (masks) => {
             const pre = snapshotMaskStyles(masks);
 
             const renderTimeStyles = [];
@@ -322,8 +310,8 @@ test('when canvas.toDataURL throws, exportImageBase64 still restores every mask 
             const rejection = await exportImageBase64(ctx, {
                 exportImageArea: true,
             }).then(
-                value => ({ kind: 'resolved', value }),
-                error => ({ kind: 'rejected', error }),
+                (value) => ({ kind: 'resolved', value }),
+                (error) => ({ kind: 'rejected', error }),
             );
 
             assert.equal(

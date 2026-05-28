@@ -1,0 +1,45 @@
+name: CI
+
+on:
+    pull_request:
+        branches:
+            - main
+            - develop
+    push:
+        branches:
+            - main
+            - develop
+
+permissions:
+    contents: read
+
+jobs:
+    quality:
+        name: Quality checks
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v6
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 22.14.0
+
+            - name: Install native canvas dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                    build-essential \
+                    libcairo2-dev \
+                    libpango1.0-dev \
+                    libjpeg-dev \
+                    libgif-dev \
+                    librsvg2-dev
+
+            - name: Install dependencies
+              run: npm install --include=optional --package-lock=false
+
+            - name: Run quality gate
+              run: npm run ci

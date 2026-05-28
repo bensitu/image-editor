@@ -44,9 +44,7 @@ import fc from 'fast-check';
 import { JSDOM } from 'jsdom';
 
 const { renderMaskList } = await import('../src/mask/mask-list.ts');
-const { createLabelForMask } = await import(
-    '../src/mask/mask-label-manager.ts'
-);
+const { createLabelForMask } = await import('../src/mask/mask-label-manager.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
 // ─── JSDOM setup helper ────────────────────────────────────────────────────
@@ -131,13 +129,13 @@ function makeCanvas(objects) {
 }
 
 /**
- * Minimal fake Fabric module. Only `Text` is invoked — the label
- * manager calls `new fabric.Text(text, opts)` to build the default
+ * Minimal fake Fabric module. Only `FabricText` is invoked — the label
+ * manager calls `new fabric.FabricText(text, opts)` to build the default
  * label overlay.  The constructor records the constructor arguments
  * so the the documented contract assertion can read back the rendered text.
  */
 function makeFabric() {
-    function Text(txt, opts) {
+    function FabricText(txt, opts) {
         this._kind = 'text';
         this.text = txt;
         Object.assign(this, opts ?? {});
@@ -147,7 +145,7 @@ function makeFabric() {
         };
         this.setCoords = function () {};
     }
-    return { Text };
+    return { FabricText };
 }
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
@@ -184,219 +182,202 @@ function permutationArb(items) {
 
 // ─── / 21.2: render produces canonical DOM ────────────────────
 
-test(
-    'renderMaskList renders one <li> per mask in canvas order with data-mask-id',
-    () => {
-        fc.assert(
-            fc.property(maskListArb, (masks) => {
+test('renderMaskList renders one <li> per mask in canvas order with data-mask-id', () => {
+    fc.assert(
+        fc.property(maskListArb, (masks) => {
+            const { document, listId } = installDom();
+            const canvas = makeCanvas(masks);
+            const ctx = {
+                canvas,
+                getListElementId: () => listId,
+                onMaskSelected: () => {},
+            };
+
+            renderMaskList(ctx);
+
+            const ul = document.getElementById(listId);
+            const items = Array.from(ul.querySelectorAll('li.mask-item'));
+
+            // ── the documented contract — exactly one <li> per canvas mask ──────────
+            assert.equal(
+                items.length,
+                masks.length,
+                'the documented contract: number of <li> must equal number of canvas masks',
+            );
+            // The list MUST contain ONLY mask-item entries — no stray
+            // children left over from a prior render.
+            assert.equal(
+                ul.children.length,
+                masks.length,
+                'the documented contract: <ul> must contain only mask-item children',
+            );
+
+            // ── the documented contract — canvas object order is preserved ──────────
+            masks.forEach((mask, i) => {
+                assert.equal(
+                    items[i].dataset.maskId,
+                    String(mask.maskId),
+                    `the documented contract: <li>[${i}].data-mask-id must equal canvas object [${i}].maskId`,
+                );
+            });
+
+            // ── the documented contract — every <li>'s data-mask-id matches its mask
+            items.forEach((li) => {
+                const id = Number(li.dataset.maskId);
+                assert.ok(
+                    Number.isFinite(id),
+                    'the documented contract: data-mask-id must parse as a finite number',
+                );
+                const mask = masks.find((m) => m.maskId === id);
+                assert.ok(
+                    mask,
+                    `the documented contract: every <li> must correspond to a mask on the canvas (got data-mask-id=${id})`,
+                );
+            });
+            return true;
+        }),
+        { numRuns: 100 },
+    );
+});
+
+// ─── clicking selects by maskId regardless of list ordering ─
+
+test('clicking a <li> selects by maskId lookup regardless of list ordering', () => {
+    fc.assert(
+        fc.property(
+            maskListArb.chain((masks) => fc.tuple(fc.constant(masks), permutationArb(masks))),
+            ([masks, permutation]) => {
                 const { document, listId } = installDom();
                 const canvas = makeCanvas(masks);
+                const selected = [];
                 const ctx = {
                     canvas,
                     getListElementId: () => listId,
-                    onMaskSelected: () => {},
+                    onMaskSelected: (m) => selected.push(m),
                 };
 
                 renderMaskList(ctx);
 
+                // Re-order the canvas objects under the rendered
+                // DOM. The list was rendered in the original order
+                // but the click handler reads `canvas.getObjects()`
+                // at click time, so it MUST resolve clicks via the
+                // `data-mask-id` attribute rather than the list
+                // position. After this swap, "list position" and
+                // "canvas object index" differ for every entry that
+                // moved.
+                canvas._objects = permutation.map((i) => masks[i]);
+
                 const ul = document.getElementById(listId);
-                const items = Array.from(
-                    ul.querySelectorAll('li.mask-item'),
-                );
+                const items = Array.from(ul.querySelectorAll('li.mask-item'));
 
-                // ── the documented contract — exactly one <li> per canvas mask ──────────
-                assert.equal(
-                    items.length,
-                    masks.length,
-                    'the documented contract: number of <li> must equal number of canvas masks',
-                );
-                // The list MUST contain ONLY mask-item entries — no stray
-                // children left over from a prior render.
-                assert.equal(
-                    ul.children.length,
-                    masks.length,
-                    'the documented contract: <ul> must contain only mask-item children',
-                );
-
-                // ── the documented contract — canvas object order is preserved ──────────
-                masks.forEach((mask, i) => {
-                    assert.equal(
-                        items[i].dataset.maskId,
-                        String(mask.maskId),
-                        `the documented contract: <li>[${i}].data-mask-id must equal canvas object [${i}].maskId`,
-                    );
-                });
-
-                // ── the documented contract — every <li>'s data-mask-id matches its mask
+                // Click each <li> in DOM order. After every click,
+                // both the canvas-recorded active object AND the
+                // selection callback's last argument MUST be the
+                // mask whose maskId matches the clicked item's
+                // data-mask-id — even though the canvas object list
+                // was permuted before the click.
                 items.forEach((li) => {
-                    const id = Number(li.dataset.maskId);
+                    const expectedId = Number(li.dataset.maskId);
+                    const expectedMask = masks.find((m) => m.maskId === expectedId);
                     assert.ok(
-                        Number.isFinite(id),
-                        'the documented contract: data-mask-id must parse as a finite number',
+                        expectedMask,
+                        'sanity: clicked data-mask-id must correspond to a generated mask',
                     );
-                    const mask = masks.find((m) => m.maskId === id);
-                    assert.ok(
-                        mask,
-                        `the documented contract: every <li> must correspond to a mask on the canvas (got data-mask-id=${id})`,
+                    const beforeCount = selected.length;
+                    li.click();
+                    assert.equal(
+                        selected.length,
+                        beforeCount + 1,
+                        'the documented contract: each click must invoke onMaskSelected exactly once',
+                    );
+                    assert.equal(
+                        canvas._activeObject,
+                        expectedMask,
+                        'the documented contract: canvas.setActiveObject must receive the mask whose maskId matches data-mask-id',
+                    );
+                    assert.equal(
+                        selected[selected.length - 1],
+                        expectedMask,
+                        'the documented contract: onMaskSelected must receive the mask whose maskId matches data-mask-id',
                     );
                 });
                 return true;
-            }),
-            { numRuns: 100 },
-        );
-    },
-);
-
-// ─── clicking selects by maskId regardless of list ordering ─
-
-test(
-    'clicking a <li> selects by maskId lookup regardless of list ordering',
-    () => {
-        fc.assert(
-            fc.property(
-                maskListArb.chain((masks) =>
-                    fc.tuple(fc.constant(masks), permutationArb(masks)),
-                ),
-                ([masks, permutation]) => {
-                    const { document, listId } = installDom();
-                    const canvas = makeCanvas(masks);
-                    const selected = [];
-                    const ctx = {
-                        canvas,
-                        getListElementId: () => listId,
-                        onMaskSelected: (m) => selected.push(m),
-                    };
-
-                    renderMaskList(ctx);
-
-                    // Re-order the canvas objects under the rendered
-                    // DOM. The list was rendered in the original order
-                    // but the click handler reads `canvas.getObjects()`
-                    // at click time, so it MUST resolve clicks via the
-                    // `data-mask-id` attribute rather than the list
-                    // position. After this swap, "list position" and
-                    // "canvas object index" differ for every entry that
-                    // moved.
-                    canvas._objects = permutation.map((i) => masks[i]);
-
-                    const ul = document.getElementById(listId);
-                    const items = Array.from(
-                        ul.querySelectorAll('li.mask-item'),
-                    );
-
-                    // Click each <li> in DOM order. After every click,
-                    // both the canvas-recorded active object AND the
-                    // selection callback's last argument MUST be the
-                    // mask whose maskId matches the clicked item's
-                    // data-mask-id — even though the canvas object list
-                    // was permuted before the click.
-                    items.forEach((li) => {
-                        const expectedId = Number(li.dataset.maskId);
-                        const expectedMask = masks.find(
-                            (m) => m.maskId === expectedId,
-                        );
-                        assert.ok(
-                            expectedMask,
-                            'sanity: clicked data-mask-id must correspond to a generated mask',
-                        );
-                        const beforeCount = selected.length;
-                        li.click();
-                        assert.equal(
-                            selected.length,
-                            beforeCount + 1,
-                            'the documented contract: each click must invoke onMaskSelected exactly once',
-                        );
-                        assert.equal(
-                            canvas._activeObject,
-                            expectedMask,
-                            'the documented contract: canvas.setActiveObject must receive the mask whose maskId matches data-mask-id',
-                        );
-                        assert.equal(
-                            selected[selected.length - 1],
-                            expectedMask,
-                            'the documented contract: onMaskSelected must receive the mask whose maskId matches data-mask-id',
-                        );
-                    });
-                    return true;
-                },
-            ),
-            { numRuns: 100 },
-        );
-    },
-);
+            },
+        ),
+        { numRuns: 100 },
+    );
+});
 
 // ─── label getText receives mask.maskId - 1 ──────
 
-test(
-    'label text uses options.label.getText(mask, mask.maskId - 1)',
-    () => {
-        fc.assert(
-            fc.property(maskListArb, (masks) => {
-                installDom();
-                const canvas = makeCanvas(masks);
-                const fabric = makeFabric();
+test('label text uses options.label.getText(mask, mask.maskId - 1)', () => {
+    fc.assert(
+        fc.property(maskListArb, (masks) => {
+            installDom();
+            const canvas = makeCanvas(masks);
+            const fabric = makeFabric();
 
-                // Recorded `(mask, index)` arguments to `getText`. The
-                // assertion below checks (a) the index argument is the
-                // STABLE creation index `mask.maskId - 1`, NOT the live
-                // canvas object position, and (b) the resulting Fabric
-                // text node is constructed with that exact text.
-                const calls = [];
-                const options = resolveOptions({
-                    maskLabelOnSelect: true,
-                    label: {
-                        getText: (mask, idx) => {
-                            calls.push({ mask, idx });
-                            return `M#${mask.maskId}@${idx}`;
-                        },
+            // Recorded `(mask, index)` arguments to `getText`. The
+            // assertion below checks (a) the index argument is the
+            // STABLE creation index `mask.maskId - 1`, NOT the live
+            // canvas object position, and (b) the resulting Fabric
+            // text node is constructed with that exact text.
+            const calls = [];
+            const options = resolveOptions({
+                maskLabelOnSelect: true,
+                label: {
+                    getText: (mask, idx) => {
+                        calls.push({ mask, idx });
+                        return `M#${mask.maskId}@${idx}`;
                     },
-                });
+                },
+            });
 
-                const ctx = { fabric, canvas, options };
+            const ctx = { fabric, canvas, options };
 
-                masks.forEach((mask) => {
-                    createLabelForMask(ctx, mask);
+            masks.forEach((mask) => {
+                createLabelForMask(ctx, mask);
 
-                    // ── the documented contract — getText was invoked with the right
-                    //                 (mask, index) pair.
-                    const last = calls[calls.length - 1];
-                    assert.equal(
-                        last.mask,
-                        mask,
-                        'the documented contract: getText must receive the mask object',
-                    );
-                    assert.equal(
-                        last.idx,
-                        mask.maskId - 1,
-                        `the documented contract: getText must receive mask.maskId - 1 as the index (got ${last.idx}, expected ${mask.maskId - 1})`,
-                    );
-
-                    // The Text constructor must have been called with
-                    // the value `getText` returned, and the resulting
-                    // label must be attached to the mask via
-                    // `mask.__label`.
-                    assert.ok(mask.__label, 'label must be attached to the mask');
-                    assert.equal(mask.__label._kind, 'text');
-                    assert.equal(
-                        mask.__label.text,
-                        `M#${mask.maskId}@${mask.maskId - 1}`,
-                        'the documented contract: label text must reflect the (mask, mask.maskId - 1) call',
-                    );
-                });
-
-                // The total number of `getText` calls must equal the
-                // mask population. If `getText` ever fired with a
-                // different index for the same mask, the per-iteration
-                // assertions above would have caught it; this final
-                // count check guards against silently-skipped calls.
+                // ── the documented contract — getText was invoked with the right
+                //                 (mask, index) pair.
+                const last = calls[calls.length - 1];
                 assert.equal(
-                    calls.length,
-                    masks.length,
-                    'the documented contract: getText must be called exactly once per createLabelForMask',
+                    last.mask,
+                    mask,
+                    'the documented contract: getText must receive the mask object',
                 );
-                return true;
-            }),
-            { numRuns: 100 },
-        );
-    },
-);
+                assert.equal(
+                    last.idx,
+                    mask.maskId - 1,
+                    `the documented contract: getText must receive mask.maskId - 1 as the index (got ${last.idx}, expected ${mask.maskId - 1})`,
+                );
+
+                // The Text constructor must have been called with
+                // the value `getText` returned, and the resulting
+                // label must be attached to the mask via
+                // `mask.__label`.
+                assert.ok(mask.__label, 'label must be attached to the mask');
+                assert.equal(mask.__label._kind, 'text');
+                assert.equal(
+                    mask.__label.text,
+                    `M#${mask.maskId}@${mask.maskId - 1}`,
+                    'the documented contract: label text must reflect the (mask, mask.maskId - 1) call',
+                );
+            });
+
+            // The total number of `getText` calls must equal the
+            // mask population. If `getText` ever fired with a
+            // different index for the same mask, the per-iteration
+            // assertions above would have caught it; this final
+            // count check guards against silently-skipped calls.
+            assert.equal(
+                calls.length,
+                masks.length,
+                'the documented contract: getText must be called exactly once per createLabelForMask',
+            );
+            return true;
+        }),
+        { numRuns: 100 },
+    );
+});

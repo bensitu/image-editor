@@ -134,12 +134,10 @@ export function resolveOptions(input) {
         resolved[key] = value;
     }
     resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
-    resolved.onError =
-        normalizeCallback(raw.onError);
-    resolved.onWarning =
-        normalizeCallback(raw.onWarning);
+    resolved.onError = normalizeCallback(raw.onError);
+    resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
-    const userLabel = (raw.label && typeof raw.label === 'object') ? raw.label : {};
+    const userLabel = raw.label && typeof raw.label === 'object' ? raw.label : {};
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,
         ...(userLabel.textOptions && typeof userLabel.textOptions === 'object'
@@ -147,9 +145,7 @@ export function resolveOptions(input) {
             : {}),
     };
     const label = {
-        getText: typeof userLabel.getText === 'function'
-            ? userLabel.getText
-            : DEFAULT_LABEL.getText,
+        getText: typeof userLabel.getText === 'function' ? userLabel.getText : DEFAULT_LABEL.getText,
         textOptions: mergedTextOptions,
     };
     if (typeof userLabel.create === 'function') {
@@ -157,7 +153,7 @@ export function resolveOptions(input) {
     }
     Object.freeze(label.textOptions);
     Object.freeze(label);
-    const userCrop = (raw.crop && typeof raw.crop === 'object') ? raw.crop : {};
+    const userCrop = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop = {
         minWidth: (_a = userCrop.minWidth) !== null && _a !== void 0 ? _a : DEFAULT_CROP.minWidth,
         minHeight: (_b = userCrop.minHeight) !== null && _b !== void 0 ? _b : DEFAULT_CROP.minHeight,

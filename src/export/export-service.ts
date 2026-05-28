@@ -92,6 +92,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { isMaskObject } from '../core/public-types.js';
 import type {
     Base64ExportOptions,
     FabricModule,
@@ -112,6 +113,18 @@ import {
     type PartialExportEdges,
 } from '../utils/canvas-region.js';
 import { resolveExportFormat, type ResolvedExportFormat } from './export-format.js';
+
+type LabelBackup = {
+    readonly mask: MaskObject;
+    readonly label: FabricNS.FabricObject;
+    readonly wasOnCanvas: boolean;
+    readonly visible: unknown;
+};
+
+type CanvasWithSelection = FabricNS.Canvas & {
+    getActiveObject?: () => FabricNS.FabricObject | null | undefined;
+    setActiveObject?: (object: FabricNS.FabricObject) => FabricNS.Canvas;
+};
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -224,19 +237,14 @@ function computeExportRegion(
         getWidth?: () => number;
         getHeight?: () => number;
     };
-    const canvasWidth = typeof canvasLike.getWidth === 'function'
-        ? canvasLike.getWidth()
-        : canvasLike.width;
-    const canvasHeight = typeof canvasLike.getHeight === 'function'
-        ? canvasLike.getHeight()
-        : canvasLike.height;
+    const canvasWidth =
+        typeof canvasLike.getWidth === 'function' ? canvasLike.getWidth() : canvasLike.width;
+    const canvasHeight =
+        typeof canvasLike.getHeight === 'function' ? canvasLike.getHeight() : canvasLike.height;
     return {
-        region: getClampedCanvasRegion(
-            bounds,
-            canvasWidth,
-            canvasHeight,
-            { includePartialPixels: true },
-        ),
+        region: getClampedCanvasRegion(bounds, canvasWidth, canvasHeight, {
+            includePartialPixels: true,
+        }),
         partialEdges: getPartialExportEdges(bounds, Number(originalImage.angle) || 0),
     };
 }
@@ -288,6 +296,97 @@ async function bakeMasksForExport<T>(
         applyExportBakeInStyle,
         fn,
     );
+}
+
+function getCanvasObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[] {
+    try {
+        return canvas.getObjects();
+    } catch {
+        return [];
+    }
+}
+
+function isObjectOnCanvas(canvas: FabricNS.Canvas, object: FabricNS.FabricObject): boolean {
+    return getCanvasObjects(canvas).includes(object);
+}
+
+function captureMaskLabelBackups(canvas: FabricNS.Canvas): LabelBackup[] {
+    const backups: LabelBackup[] = [];
+    for (const object of getCanvasObjects(canvas)) {
+        if (!isMaskObject(object)) continue;
+        const label = object.__label;
+        if (!label) continue;
+        const wasOnCanvas = isObjectOnCanvas(canvas, label);
+        backups.push({
+            mask: object,
+            label,
+            wasOnCanvas,
+            visible: (label as { visible?: unknown }).visible,
+        });
+        try {
+            if (typeof label.set === 'function') label.set({ visible: false });
+            if (wasOnCanvas) canvas.remove(label);
+        } catch {
+            /* ignore — stale label references are restored best-effort */
+        }
+    }
+    return backups;
+}
+
+function restoreMaskLabelBackups(canvas: FabricNS.Canvas, backups: readonly LabelBackup[]): void {
+    for (const backup of backups) {
+        try {
+            backup.mask.__label = backup.label;
+            if (typeof backup.label.set === 'function') {
+                backup.label.set({ visible: backup.visible });
+            } else {
+                (backup.label as { visible?: unknown }).visible = backup.visible;
+            }
+            if (backup.wasOnCanvas && !isObjectOnCanvas(canvas, backup.label)) {
+                canvas.add(backup.label);
+                canvas.bringObjectToFront(backup.label);
+            }
+        } catch {
+            /* ignore — label restoration is best-effort after export */
+        }
+    }
+}
+
+function captureActiveObject(canvas: FabricNS.Canvas): FabricNS.FabricObject | null {
+    try {
+        const canvasWithSelection = canvas as CanvasWithSelection;
+        if (typeof canvasWithSelection.getActiveObject !== 'function') return null;
+        return canvasWithSelection.getActiveObject() ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function restoreActiveObject(
+    canvas: FabricNS.Canvas,
+    activeObject: FabricNS.FabricObject | null,
+): void {
+    if (!activeObject) return;
+    try {
+        const canvasWithSelection = canvas as CanvasWithSelection;
+        if (typeof canvasWithSelection.setActiveObject === 'function') {
+            canvasWithSelection.setActiveObject(activeObject);
+        }
+    } catch {
+        /* ignore — selected objects may have been removed during export */
+    }
+}
+
+function requestRender(canvas: FabricNS.Canvas): void {
+    try {
+        if (typeof canvas.requestRenderAll === 'function') {
+            canvas.requestRenderAll();
+        } else {
+            canvas.renderAll();
+        }
+    } catch {
+        /* ignore — export restoration must not mask the original result */
+    }
 }
 
 /**
@@ -447,9 +546,38 @@ async function sealPartialTransparentEdges(
 
 function getJpegBackgroundColor(backgroundColor: unknown): string {
     const value = String(backgroundColor ?? '').trim();
-    if (!value || value === 'transparent') return '#ffffff';
-    if (/^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/i.test(value)) return '#ffffff';
+    if (!value || isTransparentCssColor(value)) return '#ffffff';
     return value;
+}
+
+function isTransparentCssColor(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'transparent') return true;
+
+    const hex = normalized.match(/^#([0-9a-f]{4}|[0-9a-f]{8})$/i);
+    if (hex) {
+        const digits = hex[1]!;
+        const alpha = digits.length === 4 ? digits[3]! : digits.slice(6, 8);
+        return /^0+$/.test(alpha);
+    }
+
+    const commaAlpha = normalized.match(/^(?:rgba|hsla)\((.*),\s*([^,/)]+)\)$/i);
+    if (commaAlpha && isZeroCssAlpha(commaAlpha[2]!)) return true;
+
+    const slashAlpha = normalized.match(/^(?:rgb|rgba|hsl|hsla)\([^/]+\/\s*([^)]+)\)$/i);
+    if (slashAlpha && isZeroCssAlpha(slashAlpha[1]!)) return true;
+
+    return false;
+}
+
+function isZeroCssAlpha(value: string): boolean {
+    const alpha = value.trim();
+    if (alpha.endsWith('%')) {
+        const numericPercent = Number.parseFloat(alpha.slice(0, -1));
+        return Number.isFinite(numericPercent) && numericPercent === 0;
+    }
+    const numericAlpha = Number.parseFloat(alpha);
+    return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
 
 async function convertDataUrlToOpaqueJpeg(
@@ -485,17 +613,36 @@ async function convertDataUrlToOpaqueJpeg(
 function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
     const commaAt = dataUrl.indexOf(',');
     const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
-    const binary = atob(base64);
-    // Explicitly allocate a fresh ArrayBuffer so the resulting
-    // Uint8Array's `buffer` is typed as `ArrayBuffer` (rather than
-    // `ArrayBufferLike`, which the lib.dom `BlobPart` union rejects
-    // because it admits `SharedArrayBuffer`).
-    const buffer = new ArrayBuffer(binary.length);
-    const bytes = new Uint8Array(buffer);
-    for (let i = binary.length - 1; i >= 0; i -= 1) {
-        bytes[i] = binary.charCodeAt(i);
+    if (typeof globalThis.atob === 'function') {
+        const binary = globalThis.atob(base64);
+        // Explicitly allocate a fresh ArrayBuffer so the resulting
+        // Uint8Array's `buffer` is typed as `ArrayBuffer` (rather than
+        // `ArrayBufferLike`, which the lib.dom `BlobPart` union rejects
+        // because it admits `SharedArrayBuffer`).
+        const buffer = new ArrayBuffer(binary.length);
+        const bytes = new Uint8Array(buffer);
+        for (let i = binary.length - 1; i >= 0; i -= 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
     }
-    return bytes;
+
+    const bufferCtor = (
+        globalThis as unknown as {
+            Buffer?: {
+                from(input: string, encoding: 'base64'): Uint8Array;
+            };
+        }
+    ).Buffer;
+    if (bufferCtor && typeof bufferCtor.from === 'function') {
+        const source = bufferCtor.from(base64, 'base64');
+        const buffer = new ArrayBuffer(source.length);
+        const bytes = new Uint8Array(buffer);
+        bytes.set(source);
+        return bytes;
+    }
+
+    throw new Error('No base64 decoder is available for exportImageFile.');
 }
 
 /**
@@ -535,10 +682,7 @@ function reencodeDataUrlAs(
 
 /** Single source of truth for the "no image" warning text. */
 function warnNoImageLoaded(operation: string): void {
-    // eslint-disable-next-line no-console -- the warning is part of the documented contract.
-    console.warn(
-        `[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`,
-    );
+    console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
 }
 
 // ─── exportImageBase64 ───────────────────────────────────────────────────────
@@ -588,41 +732,43 @@ export async function exportImageBase64(
     }
 
     const opts = options ?? {};
-    const exportImageArea = typeof opts.exportImageArea === 'boolean'
-        ? opts.exportImageArea
-        : ctx.options.exportImageAreaByDefault;
+    const exportImageArea =
+        typeof opts.exportImageArea === 'boolean'
+            ? opts.exportImageArea
+            : ctx.options.exportImageAreaByDefault;
 
-    // drop any active selection BEFORE region math.
-    // `discardActiveObject` is a no-op when nothing is selected, so the
-    // call is safe to make unconditionally.
-    ctx.canvas.discardActiveObject();
+    const activeObject = captureActiveObject(ctx.canvas);
+    const labelBackups = captureMaskLabelBackups(ctx.canvas);
+    try {
+        // Drop any active selection BEFORE region math. It is restored in
+        // the finally block so export does not perturb the editor UI.
+        ctx.canvas.discardActiveObject();
 
-    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
-    const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
-    const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
-    const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
-    const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
+        const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+        const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
+        const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
+        const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
+        const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
 
-    let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () =>
-        renderCanvasToDataURL(
-            ctx.canvas,
-            renderFormat,
-            renderQuality,
-            multiplier,
-            region,
-        ),
-    );
-    if (region) {
-        dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
-        if (resolved.format === 'jpeg') {
-            dataUrl = await convertDataUrlToOpaqueJpeg(
-                dataUrl,
-                ctx.options.backgroundColor,
-                resolved.quality,
-            );
+        let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () =>
+            renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region),
+        );
+        if (region) {
+            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
+            if (resolved.format === 'jpeg') {
+                dataUrl = await convertDataUrlToOpaqueJpeg(
+                    dataUrl,
+                    ctx.options.backgroundColor,
+                    resolved.quality,
+                );
+            }
         }
+        return dataUrl;
+    } finally {
+        restoreMaskLabelBackups(ctx.canvas, labelBackups);
+        restoreActiveObject(ctx.canvas, activeObject);
+        requestRender(ctx.canvas);
     }
-    return dataUrl;
 }
 
 // ─── exportImageFile ─────────────────────────────────────────────────────────
@@ -705,10 +851,7 @@ export async function exportImageFile(
  *                  `options.defaultDownloadFileName`.
  *
  */
-export function downloadImage(
-    ctx: ExportServiceContext,
-    fileName?: string,
-): void {
+export function downloadImage(ctx: ExportServiceContext, fileName?: string): void {
     if (!ctx.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
@@ -737,7 +880,6 @@ export function downloadImage(
             }
         })
         .catch((error: unknown) => {
-            // eslint-disable-next-line no-console -- diagnostic only; downloadImage returns void.
             console.error('[ImageEditor] downloadImage failed', error);
         });
 }
@@ -787,10 +929,7 @@ export interface MergeMasksContext extends ExportServiceContext {
      * stable; the merge also restores scroll defensively at the tail of
      * the success path.
      */
-    loadImage(
-        imageBase64: string,
-        options?: LoadImageOptions,
-    ): Promise<void>;
+    loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
 
     /**
      * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
@@ -885,11 +1024,12 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
     //    entry.
     if (!ctx.isImageLoaded()) return;
 
-    const masks = ctx.canvas.getObjects().filter(
-        (o): o is MaskObject =>
-            'maskId' in o &&
-            typeof (o as { maskId?: unknown }).maskId === 'number',
-    );
+    const masks = ctx.canvas
+        .getObjects()
+        .filter(
+            (o): o is MaskObject =>
+                'maskId' in o && typeof (o as { maskId?: unknown }).maskId === 'number',
+        );
     if (masks.length === 0) return;
 
     // 2. drop any active selection BEFORE computing
@@ -926,9 +1066,7 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
             // prevent this branch, but a defensive throw keeps the
             // pipeline total even if the orchestrator's predicate
             // disagrees with the bake-in step about image presence.
-            throw new MergeMasksError(
-                'mergeMasks: exportImageBase64 returned an empty data URL.',
-            );
+            throw new MergeMasksError('mergeMasks: exportImageBase64 returned an empty data URL.');
         }
 
         // 6. Remove every mask WITHOUT pushing a history entry. The
@@ -963,11 +1101,7 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
                     ctx.containerElement.scrollLeft = preScrollLeft;
                 }
             } catch (scrollErr) {
-                // eslint-disable-next-line no-console -- diagnostic only.
-                console.warn(
-                    '[ImageEditor] mergeMasks: scroll restore failed',
-                    scrollErr,
-                );
+                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollErr);
             }
         }
 
@@ -991,19 +1125,14 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         try {
             await ctx.loadFromState(beforeSnapshot);
         } catch (rollbackErr) {
-            // eslint-disable-next-line no-console -- diagnostic only.
-            console.warn(
-                '[ImageEditor] mergeMasks: rollback failed',
-                rollbackErr,
-            );
+            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackErr);
         }
         // If the inner step already raised a `MergeMasksError`, keep
         // it; otherwise wrap so the public surface always reports a
         // consistent error type.
         if (err instanceof MergeMasksError) throw err;
-        const message = err instanceof Error
-            ? `mergeMasks failed: ${err.message}`
-            : 'mergeMasks failed';
+        const message =
+            err instanceof Error ? `mergeMasks failed: ${err.message}` : 'mergeMasks failed';
         throw new MergeMasksError(message, err);
     }
 }

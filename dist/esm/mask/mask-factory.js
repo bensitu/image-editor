@@ -1,6 +1,13 @@
 import { isMaskObject } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 import { attachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
+function isFabricObjectLike(value) {
+    if (!value || typeof value !== 'object')
+        return false;
+    const candidate = value;
+    return typeof candidate.set === 'function' && typeof candidate.on === 'function';
+}
 export function createMask(ctx, config = {}) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
     const { canvas, options, fabric: fabricModule } = ctx;
@@ -54,7 +61,12 @@ export function createMask(ctx, config = {}) {
     }
     let mask;
     if (typeof resolvedConfig.fabricGenerator === 'function') {
-        mask = resolvedConfig.fabricGenerator(resolvedConfig, canvas, options);
+        const generated = resolvedConfig.fabricGenerator(resolvedConfig, canvas, options);
+        if (!isFabricObjectLike(generated)) {
+            reportWarning(options, generated, 'createMask skipped: fabricGenerator did not return a Fabric object.');
+            return null;
+        }
+        mask = generated;
     }
     else {
         const originProps = {

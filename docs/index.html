@@ -1,197 +1,440 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" data-bs-theme="light">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ImageEditor - Demo</title>
+        <link rel="icon" href="./favicon.ico" type="image/x-icon" />
+        <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon" />
+        <meta content="IE=edge" http-equiv="X-UA-Compatible" />
+        <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control" />
+        <meta content="0" http-equiv="Expires" />
+        <script>
+            (function () {
+                try {
+                    const storedTheme = window.localStorage.getItem('imageEditorDemoTheme');
+                    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+                        ? 'dark'
+                        : 'light';
+                    document.documentElement.setAttribute(
+                        'data-bs-theme',
+                        storedTheme || systemTheme,
+                    );
+                } catch (error) {
+                    document.documentElement.setAttribute('data-bs-theme', 'light');
+                }
+            })();
+        </script>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        />
+        <link rel="stylesheet" href="css/style.css" />
+    </head>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ImageEditor - Demo</title>
-    <link rel="icon" href="./favicon.ico" type="image/x-icon">
-    <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
-    <meta content="IE=edge" http-equiv="X-UA-Compatible">
-    <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control">
-    <meta content="0" http-equiv="Expires">
-    <script>
-        (function () {
-            try {
-                const storedTheme = window.localStorage.getItem('imageEditorDemoTheme');
-                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                document.documentElement.setAttribute('data-bs-theme', storedTheme || systemTheme);
-            } catch (error) {
-                document.documentElement.setAttribute('data-bs-theme', 'light');
-            }
-        }());
-    </script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/style.css">
-</head>
-
-<body>
-    <main class="demo-shell">
-        <header class="demo-header">
-            <div>
-                <h1>ImageEditor</h1>
-                <p data-i18n="appSubtitle">Canvas mask, crop, transform, and export demo</p>
-            </div>
-            <div class="header-actions" aria-label="Demo preferences">
-                <label class="theme-switch" for="darkModeToggle" title="Dark mode">
-                    <input id="darkModeToggle" type="checkbox" aria-label="Dark mode">
-                    <span class="theme-slider" aria-hidden="true"></span>
-                </label>
-                <div class="language-switcher" role="group" aria-label="Language">
-                    <button class="language-button active" type="button" data-language="en" aria-label="English" title="English">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Flag_of_the_United_States.svg" alt="">
-                    </button>
-                    <button class="language-button" type="button" data-language="zh" aria-label="中文" title="中文">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Flag_of_the_People%27s_Republic_of_China.svg" alt="">
-                    </button>
-                    <button class="language-button" type="button" data-language="ja" aria-label="日本語" title="日本語">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/9/9e/Flag_of_Japan.svg" alt="">
-                    </button>
-                    <button class="language-button" type="button" data-language="ko" aria-label="한국어" title="한국어">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/0/09/Flag_of_South_Korea.svg" alt="">
-                    </button>
-                    <button class="language-button" type="button" data-language="fr" aria-label="Français" title="Français">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg" alt="">
-                    </button>
-                    <button class="language-button" type="button" data-language="es" aria-label="Español" title="Español">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Flag_of_Spain.svg" alt="">
+    <body>
+        <main class="demo-shell">
+            <header class="demo-header">
+                <div>
+                    <h1>ImageEditor</h1>
+                    <p data-i18n="appSubtitle">Canvas mask, crop, transform, and export demo</p>
+                </div>
+                <div class="header-actions" aria-label="Demo preferences">
+                    <label class="theme-switch" for="darkModeToggle" title="Dark mode">
+                        <input id="darkModeToggle" type="checkbox" aria-label="Dark mode" />
+                        <span class="theme-slider" aria-hidden="true"></span>
+                    </label>
+                    <div class="language-switcher" role="group" aria-label="Language">
+                        <button
+                            class="language-button active"
+                            type="button"
+                            data-language="en"
+                            aria-label="English"
+                            title="English"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Flag_of_the_United_States.svg"
+                                alt=""
+                            />
+                        </button>
+                        <button
+                            class="language-button"
+                            type="button"
+                            data-language="zh"
+                            aria-label="中文"
+                            title="中文"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Flag_of_the_People%27s_Republic_of_China.svg"
+                                alt=""
+                            />
+                        </button>
+                        <button
+                            class="language-button"
+                            type="button"
+                            data-language="ja"
+                            aria-label="日本語"
+                            title="日本語"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/9/9e/Flag_of_Japan.svg"
+                                alt=""
+                            />
+                        </button>
+                        <button
+                            class="language-button"
+                            type="button"
+                            data-language="ko"
+                            aria-label="한국어"
+                            title="한국어"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/0/09/Flag_of_South_Korea.svg"
+                                alt=""
+                            />
+                        </button>
+                        <button
+                            class="language-button"
+                            type="button"
+                            data-language="fr"
+                            aria-label="Français"
+                            title="Français"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg"
+                                alt=""
+                            />
+                        </button>
+                        <button
+                            class="language-button"
+                            type="button"
+                            data-language="es"
+                            aria-label="Español"
+                            title="Español"
+                        >
+                            <img
+                                src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Flag_of_Spain.svg"
+                                alt=""
+                            />
+                        </button>
+                    </div>
+                    <button
+                        id="legacyDemoToggle"
+                        class="legacy-demo-toggle"
+                        type="button"
+                        hidden
+                        data-demo-target="legacy-v1"
+                        data-i18n="legacyDemo"
+                    >
+                        Legacy v1 demo
                     </button>
                 </div>
-                <button id="legacyDemoToggle" class="legacy-demo-toggle" type="button" hidden data-demo-target="legacy-v1" data-i18n="legacyDemo">Legacy v1 demo</button>
-            </div>
-        </header>
+            </header>
 
-        <section class="load-panel" aria-label="Image loading">
-            <div class="layout-switcher btn-group" role="group" aria-label="Image layout mode">
-                <input type="radio" class="btn-check" name="imageOptions" id="fitImage" autocomplete="off" checked>
-                <label class="btn btn-outline-primary" for="fitImage" data-i18n="fitMode">Fit</label>
-                <input type="radio" class="btn-check" name="imageOptions" id="coverCanvas" autocomplete="off">
-                <label class="btn btn-outline-primary" for="coverCanvas" data-i18n="coverMode">Cover</label>
-                <input type="radio" class="btn-check" name="imageOptions" id="expandCanvas" autocomplete="off">
-                <label class="btn btn-outline-primary" for="expandCanvas" data-i18n="expandMode">Expand</label>
-            </div>
-            <div class="upload-area" id="uploadArea">
-                <strong data-i18n="dropImage">Drop image here</strong>
-                <span data-i18n="selectImageHint">or click to select JPG, PNG, or WEBP</span>
-                <input type="file" id="imageInput" accept="image/*">
-            </div>
-            <div class="base64-panel">
-                <label class="form-label" for="base64Input" data-i18n="base64Input">Base64 input</label>
-                <div class="base64-row">
-                    <textarea id="base64Input" class="form-control" rows="2" placeholder="Paste data:image/jpeg;base64,..." data-i18n-placeholder="base64Placeholder"></textarea>
-                    <button id="loadBtn" class="btn btn-primary" type="button" data-i18n="loadImage">Load</button>
+            <section class="load-panel" aria-label="Image loading">
+                <div class="layout-switcher btn-group" role="group" aria-label="Image layout mode">
+                    <input
+                        type="radio"
+                        class="btn-check"
+                        name="imageOptions"
+                        id="fitImage"
+                        autocomplete="off"
+                        checked
+                    />
+                    <label class="btn btn-outline-primary" for="fitImage" data-i18n="fitMode"
+                        >Fit</label
+                    >
+                    <input
+                        type="radio"
+                        class="btn-check"
+                        name="imageOptions"
+                        id="coverCanvas"
+                        autocomplete="off"
+                    />
+                    <label class="btn btn-outline-primary" for="coverCanvas" data-i18n="coverMode"
+                        >Cover</label
+                    >
+                    <input
+                        type="radio"
+                        class="btn-check"
+                        name="imageOptions"
+                        id="expandCanvas"
+                        autocomplete="off"
+                    />
+                    <label class="btn btn-outline-primary" for="expandCanvas" data-i18n="expandMode"
+                        >Expand</label
+                    >
                 </div>
-                <div id="demoError" class="demo-error" role="alert" hidden></div>
-            </div>
-        </section>
-
-        <section class="tool-panel" aria-label="Editor controls">
-            <div class="tool-group" role="group" aria-label="Zoom actions">
-                <button class="btn tool-button icon-button" id="zoomOutBtn" type="button" title="Zoom Out" aria-label="Zoom Out">-</button>
-                <div class="scale-readout">
-                    <input id="scaleRate" value="100" readonly aria-label="Scale percent">
-                    <span>%</span>
+                <div class="upload-area" id="uploadArea">
+                    <strong data-i18n="dropImage">Drop image here</strong>
+                    <span data-i18n="selectImageHint">or click to select JPG, PNG, or WEBP</span>
+                    <input type="file" id="imageInput" accept="image/*" />
                 </div>
-                <button class="btn tool-button icon-button" id="zoomInBtn" type="button" title="Zoom In" aria-label="Zoom In">+</button>
-            </div>
+                <div class="base64-panel">
+                    <label class="form-label" for="base64Input" data-i18n="base64Input"
+                        >Base64 input</label
+                    >
+                    <div class="base64-row">
+                        <textarea
+                            id="base64Input"
+                            class="form-control"
+                            rows="2"
+                            placeholder="Paste data:image/jpeg;base64,..."
+                            data-i18n-placeholder="base64Placeholder"
+                        ></textarea>
+                        <button
+                            id="loadBtn"
+                            class="btn btn-primary"
+                            type="button"
+                            data-i18n="loadImage"
+                        >
+                            Load
+                        </button>
+                    </div>
+                    <div id="demoError" class="demo-error" role="alert" hidden></div>
+                </div>
+            </section>
 
-            <div class="tool-group" role="group" aria-label="Rotation actions">
-                <button class="btn tool-button icon-button" id="rotateLeftBtn" type="button" title="Rotate Left" aria-label="Rotate Left">&#10226;</button>
-                <input id="leftValue" class="tool-input" value="90" type="number" aria-label="Rotate left degrees">
-                <button class="btn tool-button icon-button" id="rotateRightBtn" type="button" title="Rotate Right" aria-label="Rotate Right">&#10227;</button>
-                <input id="rightValue" class="tool-input" value="90" type="number" aria-label="Rotate right degrees">
-            </div>
+            <section class="tool-panel" aria-label="Editor controls">
+                <div class="tool-group" role="group" aria-label="Zoom actions">
+                    <button
+                        class="btn tool-button icon-button"
+                        id="zoomOutBtn"
+                        type="button"
+                        title="Zoom Out"
+                        aria-label="Zoom Out"
+                    >
+                        -
+                    </button>
+                    <div class="scale-readout">
+                        <input id="scaleRate" value="100" readonly aria-label="Scale percent" />
+                        <span>%</span>
+                    </div>
+                    <button
+                        class="btn tool-button icon-button"
+                        id="zoomInBtn"
+                        type="button"
+                        title="Zoom In"
+                        aria-label="Zoom In"
+                    >
+                        +
+                    </button>
+                </div>
 
-            <div class="tool-group" role="group" aria-label="History actions">
-                <button class="btn tool-button" id="resetBtn" type="button" data-i18n="resetTransform">Reset</button>
-                <button id="undoBtn" class="btn tool-button" type="button" data-i18n="undo">Undo</button>
-                <button id="redoBtn" class="btn tool-button" type="button" data-i18n="redo">Redo</button>
-            </div>
+                <div class="tool-group" role="group" aria-label="Rotation actions">
+                    <button
+                        class="btn tool-button icon-button"
+                        id="rotateLeftBtn"
+                        type="button"
+                        title="Rotate Left"
+                        aria-label="Rotate Left"
+                    >
+                        &#10226;
+                    </button>
+                    <input
+                        id="leftValue"
+                        class="tool-input"
+                        value="90"
+                        type="number"
+                        aria-label="Rotate left degrees"
+                    />
+                    <button
+                        class="btn tool-button icon-button"
+                        id="rotateRightBtn"
+                        type="button"
+                        title="Rotate Right"
+                        aria-label="Rotate Right"
+                    >
+                        &#10227;
+                    </button>
+                    <input
+                        id="rightValue"
+                        class="tool-input"
+                        value="90"
+                        type="number"
+                        aria-label="Rotate right degrees"
+                    />
+                </div>
 
-            <div class="tool-group" role="group" aria-label="Mask actions">
-                <select id="maskShapeSelect" class="tool-select form-select form-select-sm" aria-label="Mask shape">
-                    <option value="rect" data-i18n="maskShapeRect">Rect</option>
-                    <option value="circle" data-i18n="maskShapeCircle">Circle</option>
-                    <option value="ellipse" data-i18n="maskShapeEllipse">Ellipse</option>
-                    <option value="polygon" data-i18n="maskShapePolygon">Polygon</option>
-                </select>
-                <button class="btn tool-button" id="addMaskBtn" type="button" data-i18n="createMask">Create Mask</button>
-                <button class="btn tool-button" id="removeMaskBtn" type="button" data-i18n="removeMask">Remove</button>
-                <button class="btn tool-button" id="removeAllMasksBtn" type="button" data-i18n="removeAllMasks">Remove All</button>
-            </div>
+                <div class="tool-group" role="group" aria-label="History actions">
+                    <button
+                        class="btn tool-button"
+                        id="resetBtn"
+                        type="button"
+                        data-i18n="resetTransform"
+                    >
+                        Reset
+                    </button>
+                    <button id="undoBtn" class="btn tool-button" type="button" data-i18n="undo">
+                        Undo
+                    </button>
+                    <button id="redoBtn" class="btn tool-button" type="button" data-i18n="redo">
+                        Redo
+                    </button>
+                </div>
 
-            <div class="tool-group" role="group" aria-label="Crop actions">
-                <button id="cropBtn" class="btn tool-button" type="button" data-i18n="crop">Crop</button>
-                <button id="applyCropBtn" class="btn tool-button" type="button" data-i18n="apply">Apply</button>
-                <button id="cancelCropBtn" class="btn tool-button" type="button" data-i18n="cancel">Cancel</button>
-            </div>
+                <div class="tool-group" role="group" aria-label="Mask actions">
+                    <select
+                        id="maskShapeSelect"
+                        class="tool-select form-select form-select-sm"
+                        aria-label="Mask shape"
+                    >
+                        <option value="rect" data-i18n="maskShapeRect">Rect</option>
+                        <option value="circle" data-i18n="maskShapeCircle">Circle</option>
+                        <option value="ellipse" data-i18n="maskShapeEllipse">Ellipse</option>
+                        <option value="polygon" data-i18n="maskShapePolygon">Polygon</option>
+                    </select>
+                    <button
+                        class="btn tool-button"
+                        id="addMaskBtn"
+                        type="button"
+                        data-i18n="createMask"
+                    >
+                        Create Mask
+                    </button>
+                    <button
+                        class="btn tool-button"
+                        id="removeMaskBtn"
+                        type="button"
+                        data-i18n="removeMask"
+                    >
+                        Remove
+                    </button>
+                    <button
+                        class="btn tool-button"
+                        id="removeAllMasksBtn"
+                        type="button"
+                        data-i18n="removeAllMasks"
+                    >
+                        Remove All
+                    </button>
+                </div>
 
-            <div class="tool-group" role="group" aria-label="Export actions">
-                <button id="mergeBtn" class="btn tool-button" type="button" data-i18n="mergeMasks">Merge</button>
-                <button id="downloadBtn" class="btn tool-button primary-action" type="button" data-i18n="download">Download</button>
-                <button id="base64Btn" class="btn tool-button" type="button" data-i18n="consoleBase64">Console Base64</button>
-            </div>
-        </section>
+                <div class="tool-group" role="group" aria-label="Crop actions">
+                    <button id="cropBtn" class="btn tool-button" type="button" data-i18n="crop">
+                        Crop
+                    </button>
+                    <button
+                        id="applyCropBtn"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="apply"
+                    >
+                        Apply
+                    </button>
+                    <button
+                        id="cancelCropBtn"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="cancel"
+                    >
+                        Cancel
+                    </button>
+                </div>
 
-        <section class="workspace-grid" aria-label="Canvas workspace">
-            <div id="canvasWrapper" class="canvas-shell">
-                <figure id="imgPlaceholder" class="placeholder-panel flex-column justify-content-center align-items-center" draggable="false">
-                    <img class="imgPlaceholderIcon" src="assets/no-images-gray.svg" alt="No images">
-                    <figcaption class="imgPlaceholderText" data-i18n="noImageLoaded">No image loaded</figcaption>
-                </figure>
-                <figure id="imageContainer" class="imageContainer transparent">
-                    <canvas id="fabricCanvas" aria-label="Editable Image">Editable Image(your browser does not support canvas)</canvas>
-                    <figcaption id="canvasCaption" class="visually-hidden">Editable Image</figcaption>
-                </figure>
-            </div>
-            <aside class="maskListContainer">
-                <h2 data-i18n="maskList">Mask list</h2>
-                <ul id="maskList" class="list-group"></ul>
-            </aside>
-        </section>
-    </main>
+                <div class="tool-group" role="group" aria-label="Export actions">
+                    <button
+                        id="mergeBtn"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="mergeMasks"
+                    >
+                        Merge
+                    </button>
+                    <button
+                        id="downloadBtn"
+                        class="btn tool-button primary-action"
+                        type="button"
+                        data-i18n="download"
+                    >
+                        Download
+                    </button>
+                    <button
+                        id="base64Btn"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="consoleBase64"
+                    >
+                        Console Base64
+                    </button>
+                </div>
+            </section>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-    <!--
+            <section class="workspace-grid" aria-label="Canvas workspace">
+                <div id="canvasWrapper" class="canvas-shell">
+                    <figure
+                        id="imgPlaceholder"
+                        class="placeholder-panel flex-column justify-content-center align-items-center"
+                        draggable="false"
+                    >
+                        <img
+                            class="imgPlaceholderIcon"
+                            src="assets/no-images-gray.svg"
+                            alt="No images"
+                        />
+                        <figcaption class="imgPlaceholderText" data-i18n="noImageLoaded">
+                            No image loaded
+                        </figcaption>
+                    </figure>
+                    <figure id="imageContainer" class="imageContainer transparent">
+                        <canvas id="fabricCanvas" aria-label="Editable Image"
+                            >Editable Image(your browser does not support canvas)</canvas
+                        >
+                        <figcaption id="canvasCaption" class="visually-hidden">
+                            Editable Image
+                        </figcaption>
+                    </figure>
+                </div>
+                <aside class="maskListContainer">
+                    <h2 data-i18n="maskList">Mask list</h2>
+                    <ul id="maskList" class="list-group"></ul>
+                </aside>
+            </section>
+        </main>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+        <!--
         Fabric.js v7 dual entry-point: the package ships an ESM build for
         bundlers and a UMD build for `<script>` tags. The UMD build below
         publishes the Fabric module on `globalThis.fabric`, which is what
         the ImageEditor v2 UMD bundle reads when constructed without an
         explicit module argument.
-    -->
-    <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
-    <script>
-        (function () {
-            // The published UMD bundle is the documented browser entry-point
-            // for `@bensitu/image-editor` v2 (registered global: `ImageEditor`).
-            const imageEditorSources = window.location.hostname.endsWith('github.io')
-                ? ['https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js']
-                : ['../dist/umd/image-editor.umd.js', 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js'];
+        -->
+        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
+        <script>
+            (function () {
+                // The published UMD bundle is the documented browser entry-point
+                // for `@bensitu/image-editor` v2 (registered global: `ImageEditor`).
+                const imageEditorSources = window.location.hostname.endsWith('github.io')
+                    ? [
+                          'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
+                      ]
+                    : [
+                          '../dist/umd/image-editor.umd.js',
+                          'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
+                      ];
 
-            function loadScript(src, onload, onerror) {
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = onload;
-                script.onerror = onerror;
-                document.body.appendChild(script);
-            }
+                function loadScript(src, onload, onerror) {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = onload;
+                    script.onerror = onerror;
+                    document.body.appendChild(script);
+                }
 
-            function loadDemoScript() {
-                loadScript('js/script.js');
-            }
+                function loadDemoScript() {
+                    loadScript('js/script.js');
+                }
 
-            function loadImageEditor(index) {
-                if (index >= imageEditorSources.length) return;
-                loadScript(
-                    imageEditorSources[index],
-                    loadDemoScript,
-                    () => loadImageEditor(index + 1)
-                );
-            }
+                function loadImageEditor(index) {
+                    if (index >= imageEditorSources.length) return;
+                    loadScript(imageEditorSources[index], loadDemoScript, () =>
+                        loadImageEditor(index + 1),
+                    );
+                }
 
-            loadImageEditor(0);
-        }());
-    </script>
-</body>
-
+                loadImageEditor(0);
+            })();
+        </script>
+    </body>
 </html>

@@ -43,9 +43,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { detectLayoutConflict, selectLayoutStrategy } = await import(
-    '../src/image/layout-manager.ts'
-);
+const { detectLayoutConflict, selectLayoutStrategy } =
+    await import('../src/image/layout-manager.ts');
 const { ImageEditor } = await import('../src/image-editor.ts');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -107,7 +106,9 @@ test('detectLayoutConflict returns null when at most one of fit/cover is enabled
 
 test('ImageEditor reports the conflict via onWarning when fit and cover are both enabled', () => {
     const calls = [];
-    const onWarning = (error, message) => { calls.push({ error, message }); };
+    const onWarning = (error, message) => {
+        calls.push({ error, message });
+    };
     withSilencedConsoleError(() => {
         new ImageEditor(makeFakeFabric(), {
             fitImageToCanvas: true,
@@ -124,7 +125,9 @@ test('ImageEditor reports the conflict via onWarning when fit and cover are both
 
 test('ImageEditor does not warn when only one layout flag is enabled', () => {
     const calls = [];
-    const onWarning = (error, message) => { calls.push({ error, message }); };
+    const onWarning = (error, message) => {
+        calls.push({ error, message });
+    };
     withSilencedConsoleError(() => {
         new ImageEditor(makeFakeFabric(), {
             fitImageToCanvas: true,

@@ -43,9 +43,7 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { JSDOM } from 'jsdom';
 
-const { setPlaceholderVisible } = await import(
-    '../src/ui/visibility-state.ts'
-);
+const { setPlaceholderVisible } = await import('../src/ui/visibility-state.ts');
 
 // ─── JSDOM setup helper ────────────────────────────────────────────────────
 
@@ -135,11 +133,7 @@ test('setPlaceholderVisible(p, c, true) sets hidden/aria-hidden per the document
                 'false',
                 "show=true must set placeholder aria-hidden = 'false'",
             );
-            assert.equal(
-                container.hidden,
-                true,
-                'show=true must set container.hidden = true',
-            );
+            assert.equal(container.hidden, true, 'show=true must set container.hidden = true');
             assert.equal(
                 container.getAttribute('aria-hidden'),
                 'true',
@@ -162,21 +156,13 @@ test('setPlaceholderVisible(p, c, false) sets hidden/aria-hidden per the documen
 
             setPlaceholderVisible(placeholder, container, false);
 
-            assert.equal(
-                placeholder.hidden,
-                true,
-                'show=false must set placeholder.hidden = true',
-            );
+            assert.equal(placeholder.hidden, true, 'show=false must set placeholder.hidden = true');
             assert.equal(
                 placeholder.getAttribute('aria-hidden'),
                 'true',
                 "show=false must set placeholder aria-hidden = 'true'",
             );
-            assert.equal(
-                container.hidden,
-                false,
-                'show=false must set container.hidden = false',
-            );
+            assert.equal(container.hidden, false, 'show=false must set container.hidden = false');
             assert.equal(
                 container.getAttribute('aria-hidden'),
                 'false',
@@ -259,7 +245,7 @@ test('setPlaceholderVisible updates the placeholder when container is null', () 
             assert.equal(
                 placeholder.getAttribute('aria-hidden'),
                 show ? 'false' : 'true',
-                "placeholder aria-hidden must mirror show, even when container is null",
+                'placeholder aria-hidden must mirror show, even when container is null',
             );
             assert.deepEqual(
                 classTokens(placeholder),

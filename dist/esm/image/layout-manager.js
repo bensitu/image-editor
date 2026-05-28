@@ -16,7 +16,7 @@ export function detectLayoutConflict(options) {
     return {
         enabled,
         selected,
-        message: `Layout flags ${enabled.map(s => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
+        message: `Layout flags ${enabled.map((s) => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
             `Using precedence \`fit > cover > expand\`; selected \`${selected}\`.`,
     };
 }

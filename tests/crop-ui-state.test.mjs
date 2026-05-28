@@ -45,12 +45,7 @@ import { JSDOM } from 'jsdom';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
 
-const CONTROL_KEYS = [
-    'scaleRate',
-    'rotationLeftInput',
-    'rotationRightInput',
-    'imageInput',
-];
+const CONTROL_KEYS = ['scaleRate', 'rotationLeftInput', 'rotationRightInput', 'imageInput'];
 
 class MockCanvas {
     constructor() {
@@ -58,8 +53,12 @@ class MockCanvas {
         this._active = null;
     }
     on() {}
-    getObjects() { return [...this._objects]; }
-    getActiveObject() { return this._active; }
+    getObjects() {
+        return [...this._objects];
+    }
+    getActiveObject() {
+        return this._active;
+    }
     discardActiveObject() {
         this._active = null;
         return this;
@@ -114,7 +113,6 @@ function makeFabricStub() {
         Circle: class FakeCircle {},
         Ellipse: class FakeEllipse {},
         Polygon: class FakePolygon {},
-        Text: class FakeText {},
         FabricText: class FakeFabricText {},
     };
     fabric.Canvas = class CapturingCanvas extends MockCanvas {
@@ -141,7 +139,7 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     });
 
     editor.init({});
-    editor.originalImage = new fabric.Image();
+    editor.originalImage = new fabric.FabricImage();
 
     editor._cropSession = {};
     editor._updateUI();

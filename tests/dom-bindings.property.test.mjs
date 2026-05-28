@@ -107,11 +107,13 @@ const bindingArb = fc.record({
 // Subset of keys to materialize as actual DOM nodes for a given run.
 // `unmappedKey` is intentionally never included so it always
 // represents a missing-element case.
-const presentKeysArb = fc
-    .subarray(KEY_POOL.filter((k) => k !== 'unmappedKey'), {
+const presentKeysArb = fc.subarray(
+    KEY_POOL.filter((k) => k !== 'unmappedKey'),
+    {
         minLength: 0,
         maxLength: KEY_POOL.length - 1,
-    });
+    },
+);
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -144,11 +146,7 @@ test('bindIfExists records every successful attachment in the registry', () => {
                 let expected = 0;
                 for (const { key, eventType } of bindings) {
                     const sizeBefore = registry.size();
-                    const ok = registry.bindIfExists(
-                        key,
-                        eventType,
-                        () => {},
-                    );
+                    const ok = registry.bindIfExists(key, eventType, () => {});
                     if (ok) {
                         expected += 1;
                         assert.equal(
@@ -203,28 +201,15 @@ test('bound handlers exit when isDisposed() is true', () => {
                 // type, then dispatch and confirm it fires while alive.
                 let calls = 0;
                 for (const key of presentKeys) {
-                    const ok = registry.bindIfExists(
-                        key,
-                        eventType,
-                        () => {
-                            calls += 1;
-                        },
-                    );
-                    assert.ok(
-                        ok,
-                        'sanity: present keys must bind successfully',
-                    );
+                    const ok = registry.bindIfExists(key, eventType, () => {
+                        calls += 1;
+                    });
+                    assert.ok(ok, 'sanity: present keys must bind successfully');
                 }
                 for (const key of presentKeys) {
-                    document.getElementById(key).dispatchEvent(
-                        new Event(eventType),
-                    );
+                    document.getElementById(key).dispatchEvent(new Event(eventType));
                 }
-                assert.equal(
-                    calls,
-                    presentKeys.length,
-                    'handlers must fire while not disposed',
-                );
+                assert.equal(calls, presentKeys.length, 'handlers must fire while not disposed');
 
                 // Flip the disposed flag and dispatch again. The wrapper
                 // installed by bindIfExists must short-circuit, so the
@@ -232,9 +217,7 @@ test('bound handlers exit when isDisposed() is true', () => {
                 disposed.value = true;
                 const callsBeforeDispatch = calls;
                 for (const key of presentKeys) {
-                    document.getElementById(key).dispatchEvent(
-                        new Event(eventType),
-                    );
+                    document.getElementById(key).dispatchEvent(new Event(eventType));
                 }
                 assert.equal(
                     calls,
@@ -262,13 +245,9 @@ test('removeAll() detaches every recorded listener and clears the registry', () 
                 let calls = 0;
                 const successfulBinds = [];
                 for (const { key, eventType } of bindings) {
-                    const ok = registry.bindIfExists(
-                        key,
-                        eventType,
-                        () => {
-                            calls += 1;
-                        },
-                    );
+                    const ok = registry.bindIfExists(key, eventType, () => {
+                        calls += 1;
+                    });
                     if (ok) successfulBinds.push({ key, eventType });
                 }
 
@@ -283,9 +262,7 @@ test('removeAll() detaches every recorded listener and clears the registry', () 
                     const tag = `${key}\u0000${eventType}`;
                     if (dispatched.has(tag)) continue;
                     dispatched.add(tag);
-                    document.getElementById(key).dispatchEvent(
-                        new Event(eventType),
-                    );
+                    document.getElementById(key).dispatchEvent(new Event(eventType));
                 }
                 assert.equal(
                     calls,
@@ -294,11 +271,7 @@ test('removeAll() detaches every recorded listener and clears the registry', () 
                 );
 
                 registry.removeAll();
-                assert.equal(
-                    registry.size(),
-                    0,
-                    'removeAll() must zero the registry size',
-                );
+                assert.equal(registry.size(), 0, 'removeAll() must zero the registry size');
 
                 // After removeAll, dispatching the same events must NOT
                 // increment the call counter — every listener was
@@ -310,9 +283,7 @@ test('removeAll() detaches every recorded listener and clears the registry', () 
                     const tag = `${key}\u0000${eventType}`;
                     if (dispatchedAfter.has(tag)) continue;
                     dispatchedAfter.add(tag);
-                    document.getElementById(key).dispatchEvent(
-                        new Event(eventType),
-                    );
+                    document.getElementById(key).dispatchEvent(new Event(eventType));
                 }
                 assert.equal(
                     calls,
@@ -347,15 +318,8 @@ test('removeAll() is idempotent', () => {
 
                 // Second removeAll must not throw and must leave the
                 // registry empty.
-                assert.doesNotThrow(
-                    () => registry.removeAll(),
-                    'second removeAll must not throw',
-                );
-                assert.equal(
-                    registry.size(),
-                    0,
-                    'second removeAll must leave the registry empty',
-                );
+                assert.doesNotThrow(() => registry.removeAll(), 'second removeAll must not throw');
+                assert.equal(registry.size(), 0, 'second removeAll must leave the registry empty');
 
                 // A third call for good measure — the contract is
                 // "any number of repeats is a no-op", not just two.
@@ -372,50 +336,36 @@ test('removeAll() is idempotent', () => {
 
 test('bindIfExists returns false and leaves the registry unchanged when the element is missing', () => {
     fc.assert(
-        fc.property(
-            presentKeysArb,
-            keyArb,
-            eventTypeArb,
-            (presentKeys, key, eventType) => {
-                installDom(presentKeys);
-                const { bindings: registry } = makeBindings();
+        fc.property(presentKeysArb, keyArb, eventTypeArb, (presentKeys, key, eventType) => {
+            installDom(presentKeys);
+            const { bindings: registry } = makeBindings();
 
-                const sizeBefore = registry.size();
-                const elementMissing =
-                    key === 'unmappedKey' || !presentKeys.includes(key);
+            const sizeBefore = registry.size();
+            const elementMissing = key === 'unmappedKey' || !presentKeys.includes(key);
 
-                const ok = registry.bindIfExists(
-                    key,
-                    eventType,
-                    () => {},
+            const ok = registry.bindIfExists(key, eventType, () => {});
+
+            if (elementMissing) {
+                assert.equal(
+                    ok,
+                    false,
+                    'bindIfExists must return false when the element cannot be resolved',
                 );
-
-                if (elementMissing) {
-                    assert.equal(
-                        ok,
-                        false,
-                        'bindIfExists must return false when the element cannot be resolved',
-                    );
-                    assert.equal(
-                        registry.size(),
-                        sizeBefore,
-                        'registry size must not change for a missing element',
-                    );
-                } else {
-                    assert.equal(
-                        ok,
-                        true,
-                        'bindIfExists must return true when the element exists',
-                    );
-                    assert.equal(
-                        registry.size(),
-                        sizeBefore + 1,
-                        'registry size must grow by 1 on a successful bind',
-                    );
-                }
-                return true;
-            },
-        ),
+                assert.equal(
+                    registry.size(),
+                    sizeBefore,
+                    'registry size must not change for a missing element',
+                );
+            } else {
+                assert.equal(ok, true, 'bindIfExists must return true when the element exists');
+                assert.equal(
+                    registry.size(),
+                    sizeBefore + 1,
+                    'registry size must grow by 1 on a successful bind',
+                );
+            }
+            return true;
+        }),
         { numRuns: 100 },
     );
 });

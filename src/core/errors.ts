@@ -44,7 +44,9 @@ function fixPrototype(self: Error, ctor: new (...args: never[]) => Error): void 
 export class FabricUnavailableError extends Error {
     public override readonly name = 'FabricUnavailableError';
 
-    constructor(message = 'Fabric.js v7 is not available. Pass the Fabric module explicitly to the constructor or expose it as `globalThis.fabric`.') {
+    constructor(
+        message = 'Fabric.js v7 is not available. Pass the Fabric module explicitly to the constructor or expose it as `globalThis.fabric`.',
+    ) {
         super(message);
         fixPrototype(this, FabricUnavailableError);
     }
@@ -115,7 +117,10 @@ export class DownsampleError extends Error {
     /** Original error, if any. Usually `null`. */
     public readonly originalError: unknown;
 
-    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError: unknown = null) {
+    constructor(
+        message = 'Failed to obtain a 2D context for downsampling.',
+        originalError: unknown = null,
+    ) {
         super(message);
         this.originalError = originalError;
         fixPrototype(this, DownsampleError);

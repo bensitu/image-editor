@@ -97,9 +97,7 @@ export interface LayoutConflict {
     readonly message: string;
 }
 
-export function detectLayoutConflict(
-    options: LayoutFlags,
-): LayoutConflict | null {
+export function detectLayoutConflict(options: LayoutFlags): LayoutConflict | null {
     if (!options.fitImageToCanvas || !options.coverImageToCanvas) return null;
     const enabled: LayoutStrategy[] = ['fit', 'cover'];
     if (options.expandCanvasToImage) enabled.push('expand');
@@ -108,7 +106,7 @@ export function detectLayoutConflict(
         enabled,
         selected,
         message:
-            `Layout flags ${enabled.map(s => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
+            `Layout flags ${enabled.map((s) => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
             `Using precedence \`fit > cover > expand\`; selected \`${selected}\`.`,
     };
 }
@@ -165,10 +163,7 @@ export class ViewportCache {
      *                  cached measurement is available. Callers should
      *                  pass `(options.canvasWidth, options.canvasHeight)`.
      */
-    measure(
-        container: HTMLElement | null,
-        fallback: ViewportSize,
-    ): ViewportSize {
+    measure(container: HTMLElement | null, fallback: ViewportSize): ViewportSize {
         if (!container) return fallback;
         // `clientWidth` / `clientHeight` already exclude any visible
         // scrollbar gutter, so no `overflow` mutation is needed
@@ -239,14 +234,8 @@ export function computeFitLayout(
     optionsCanvasHeight: number,
     containerSize: ViewportSize,
 ): LayoutResult {
-    const cw = Math.max(
-        1,
-        Math.min(optionsCanvasWidth, containerSize.width) - 1,
-    );
-    const ch = Math.max(
-        1,
-        Math.min(optionsCanvasHeight, containerSize.height) - 1,
-    );
+    const cw = Math.max(1, Math.min(optionsCanvasWidth, containerSize.width) - 1);
+    const ch = Math.max(1, Math.min(optionsCanvasHeight, containerSize.height) - 1);
     const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
     return {
         canvasWidth: cw,

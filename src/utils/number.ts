@@ -50,11 +50,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type {
-    MaskNumericProp,
-    PolygonPoint,
-    ResolvedOptions,
-} from '../core/public-types.js';
+import type { MaskNumericProp, PolygonPoint, ResolvedOptions } from '../core/public-types.js';
 
 /**
  * Axis selector used by {@link resolveNumeric} to decide which canvas

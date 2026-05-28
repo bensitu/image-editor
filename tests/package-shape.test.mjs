@@ -56,29 +56,17 @@ test('package.json declares a compatible semver `version`', () => {
 });
 
 test('package.json declares `type` as "module"', () => {
-    assert.equal(
-        pkg.type,
-        'module',
-        '`type` must be "module"',
-    );
+    assert.equal(pkg.type, 'module', '`type` must be "module"');
 });
 
 // ─── 2. Node engines ──────────────────────────────────────────────────────
 
 test('package.json declares `engines.node` at >= 20', () => {
-    assert.equal(
-        typeof pkg.engines,
-        'object',
-        '`engines` must be an object',
-    );
+    assert.equal(typeof pkg.engines, 'object', '`engines` must be an object');
     assert.notEqual(pkg.engines, null, '`engines` must not be null');
 
     const nodeRange = pkg.engines.node;
-    assert.equal(
-        typeof nodeRange,
-        'string',
-        '`engines.node` must be a string',
-    );
+    assert.equal(typeof nodeRange, 'string', '`engines.node` must be a string');
     // Accept `>=20`, `>= 20`, `>=20.0.0`, etc. — the constraint is "Node
     // 20 or newer", expressed as a `>=` range starting at major 20.
     assert.match(
@@ -91,16 +79,8 @@ test('package.json declares `engines.node` at >= 20', () => {
 // ─── 3. Fabric peer dependency ────────────────────────────────────────────
 
 test('package.json declares fabric as a `^7.0.0` peer dependency', () => {
-    assert.equal(
-        typeof pkg.peerDependencies,
-        'object',
-        '`peerDependencies` must be an object',
-    );
-    assert.notEqual(
-        pkg.peerDependencies,
-        null,
-        '`peerDependencies` must not be null',
-    );
+    assert.equal(typeof pkg.peerDependencies, 'object', '`peerDependencies` must be an object');
+    assert.notEqual(pkg.peerDependencies, null, '`peerDependencies` must not be null');
     assert.equal(
         pkg.peerDependencies.fabric,
         '^7.0.0',
@@ -134,76 +114,46 @@ test('package.json keeps canvas as a development-only dependency', () => {
 // ─── 4. `exports['.']` conditional map ────────────────────────────────────
 
 test('package.json `exports["."]` map points at the documented bundle paths', () => {
-    assert.equal(
-        typeof pkg.exports,
-        'object',
-        '`exports` must be an object',
-    );
+    assert.equal(typeof pkg.exports, 'object', '`exports` must be an object');
     assert.notEqual(pkg.exports, null, '`exports` must not be null');
 
     const rootExport = pkg.exports['.'];
-    assert.equal(
-        typeof rootExport,
-        'object',
-        '`exports["."]` must be an object map',
-    );
-    assert.notEqual(
-        rootExport,
-        null,
-        '`exports["."]` must not be null',
-    );
+    assert.equal(typeof rootExport, 'object', '`exports["."]` must be an object map');
+    assert.notEqual(rootExport, null, '`exports["."]` must not be null');
 
-    // Pin every documented condition key to its canonical path. Using a
-    // table keeps the assertion list flat and the failure messages
-    // pointed at the exact key that drifted.
-    const expectedConditions = {
+    assert.deepEqual(rootExport.import, {
         types: './dist/types/index.d.ts',
-        import: './dist/esm/index.js',
-        require: './dist/cjs/index.cjs',
         default: './dist/esm/index.js',
-    };
-
-    for (const [condition, expectedPath] of Object.entries(expectedConditions)) {
-        assert.equal(
-            rootExport[condition],
-            expectedPath,
-            `\`exports["."].${condition}\` must be ${JSON.stringify(expectedPath)} ` +
-            `for the root export`,
-        );
-    }
+    });
+    assert.deepEqual(rootExport.require, {
+        types: './dist/types/index.d.cts',
+        default: './dist/cjs/index.cjs',
+    });
+    assert.equal(rootExport.default, './dist/esm/index.js');
 });
 
 test('package.json `exports["."]` does not declare any unexpected condition keys', () => {
-    // the documented contract pins exactly four conditions for the root export. A
-    // stray condition (for example a `node` or `browser` override) is a
+    // the documented contract pins exactly three conditions for the root export. A
+    // stray condition (for example a `node`, `browser`, or top-level `types`) is a
     // distribution-shape change that should be reviewed before landing.
     const rootExport = pkg.exports['.'];
     const actualKeys = Object.keys(rootExport).sort();
-    const expectedKeys = ['default', 'import', 'require', 'types'];
+    const expectedKeys = ['default', 'import', 'require'];
     assert.deepEqual(
         actualKeys,
         expectedKeys,
-        `\`exports["."]\` keys must equal ${JSON.stringify(expectedKeys)} ` +
-        `for the root export`,
+        `\`exports["."]\` keys must equal ${JSON.stringify(expectedKeys)} ` + `for the root export`,
     );
 });
 
 // ─── 5. Top-level entry fields ────────────────────────────────────────────
 
 test('package.json `main` points to the CJS bundle', () => {
-    assert.equal(
-        pkg.main,
-        './dist/cjs/index.cjs',
-        '`main` must point to the CJS bundle',
-    );
+    assert.equal(pkg.main, './dist/cjs/index.cjs', '`main` must point to the CJS bundle');
 });
 
 test('package.json `module` points to the ESM bundle', () => {
-    assert.equal(
-        pkg.module,
-        './dist/esm/index.js',
-        '`module` must point to the ESM bundle',
-    );
+    assert.equal(pkg.module, './dist/esm/index.js', '`module` must point to the ESM bundle');
 });
 
 test('package.json `types` points to the declarations bundle', () => {
@@ -216,16 +166,8 @@ test('package.json `types` points to the declarations bundle', () => {
 
 test('package.json `unpkg` and `jsdelivr` both point to the UMD bundle', () => {
     const expectedUmdPath = './dist/umd/image-editor.umd.js';
-    assert.equal(
-        pkg.unpkg,
-        expectedUmdPath,
-        '`unpkg` must point to the UMD bundle',
-    );
-    assert.equal(
-        pkg.jsdelivr,
-        expectedUmdPath,
-        '`jsdelivr` must point to the UMD bundle',
-    );
+    assert.equal(pkg.unpkg, expectedUmdPath, '`unpkg` must point to the UMD bundle');
+    assert.equal(pkg.jsdelivr, expectedUmdPath, '`jsdelivr` must point to the UMD bundle');
 });
 
 // ─── 6. Tree-shaking contract ─────────────────────────────────────────────

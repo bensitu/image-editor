@@ -13,9 +13,7 @@ export function getMaskNormalStyle(mask) {
     const opacity = Number(mask.originalAlpha);
     return {
         stroke: (_a = mask.originalStroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK,
-        strokeWidth: Number.isFinite(strokeWidth)
-            ? strokeWidth
-            : DEFAULT_STROKE_WIDTH_FALLBACK,
+        strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : DEFAULT_STROKE_WIDTH_FALLBACK,
         opacity: Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK,
     };
 }
@@ -36,9 +34,7 @@ export function applyMaskUnselectedStyle(mask) {
     const strokeWidth = Number(mask.originalStrokeWidth);
     mask.set({
         stroke: (_a = mask.originalStroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK,
-        strokeWidth: Number.isFinite(strokeWidth)
-            ? strokeWidth
-            : DEFAULT_STROKE_WIDTH_FALLBACK,
+        strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : DEFAULT_STROKE_WIDTH_FALLBACK,
     });
 }
 export function attachMaskHoverHandlers(mask) {
@@ -72,18 +68,14 @@ export function reattachMaskHoverHandlers(mask) {
     const patch = {};
     if (!Number.isFinite(Number(tagged.originalAlpha))) {
         const opacity = Number(tagged.opacity);
-        patch.originalAlpha = Number.isFinite(opacity)
-            ? opacity
-            : DEFAULT_ALPHA_FALLBACK;
+        patch.originalAlpha = Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK;
     }
     if (tagged.originalStroke == null) {
         patch.originalStroke = (_a = tagged.stroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK;
     }
     if (!Number.isFinite(Number(tagged.originalStrokeWidth))) {
         const sw = Number(tagged.strokeWidth);
-        patch.originalStrokeWidth = Number.isFinite(sw)
-            ? sw
-            : DEFAULT_STROKE_WIDTH_FALLBACK;
+        patch.originalStrokeWidth = Number.isFinite(sw) ? sw : DEFAULT_STROKE_WIDTH_FALLBACK;
     }
     if (Object.keys(patch).length > 0)
         tagged.set(patch);
@@ -140,7 +132,7 @@ export function withNormalizedMaskStyles(ctx, callback) {
             const normal = getMaskNormalStyle(mask);
             const snapshot = {};
             const stylePatch = {};
-            Object.keys(normal).forEach(key => {
+            Object.keys(normal).forEach((key) => {
                 const live = mask[key];
                 if (live !== normal[key]) {
                     snapshot[key] = live;

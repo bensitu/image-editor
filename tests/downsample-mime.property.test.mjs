@@ -40,9 +40,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { selectDownsampleMimeType } = await import(
-    '../src/image/image-resampler.ts'
-);
+const { selectDownsampleMimeType } = await import('../src/image/image-resampler.ts');
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -62,13 +60,7 @@ const preserveArb = fc.boolean();
 
 // `downsampleMimeType` is typed as `ImageMimeType | null | undefined` in
 // the public options, so the arbitrary covers both falsy variants.
-const downsampleMimeArb = fc.constantFrom(
-    'image/png',
-    'image/jpeg',
-    'image/webp',
-    null,
-    undefined,
-);
+const downsampleMimeArb = fc.constantFrom('image/png', 'image/jpeg', 'image/webp', null, undefined);
 
 const ALPHA_CAPABLE = new Set(['image/png', 'image/webp']);
 
@@ -144,10 +136,7 @@ test('defaults to image/jpeg when no override and source not preserved', () => {
             downsampleMimeArb,
             (sourceMime, preserveSourceFormat, downsampleMimeType) => {
                 fc.pre(!downsampleMimeType);
-                fc.pre(
-                    preserveSourceFormat === false ||
-                        !ALPHA_CAPABLE.has(sourceMime),
-                );
+                fc.pre(preserveSourceFormat === false || !ALPHA_CAPABLE.has(sourceMime));
 
                 const out = selectDownsampleMimeType(
                     sourceMime,

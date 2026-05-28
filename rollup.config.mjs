@@ -27,7 +27,7 @@
  */
 
 import resolve from '@rollup/plugin-node-resolve';
-import terser  from '@rollup/plugin-terser';
+import terser from '@rollup/plugin-terser';
 
 const FORMAT = process.env.FORMAT ?? 'umd';
 

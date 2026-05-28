@@ -85,6 +85,7 @@ import type {
     ResolvedOptions,
 } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 import { attachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 
@@ -123,6 +124,15 @@ export interface CreateMaskContext {
     expandCanvasIfNeeded?: (width: number, height: number) => void;
 }
 
+function isFabricObjectLike(value: unknown): value is FabricNS.FabricObject {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as {
+        set?: unknown;
+        on?: unknown;
+    };
+    return typeof candidate.set === 'function' && typeof candidate.on === 'function';
+}
+
 /**
  * Create a mask via the resolved {@link MaskConfig} and add it to the
  * canvas.
@@ -152,10 +162,7 @@ export interface CreateMaskContext {
  * @param config User-supplied mask configuration.
  * @returns      The created mask object, or `null` if the canvas is unset.
  */
-export function createMask(
-    ctx: CreateMaskContext,
-    config: MaskConfig = {},
-): MaskObject | null {
+export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): MaskObject | null {
     const { canvas, options, fabric: fabricModule } = ctx;
     if (!canvas) return null;
 
@@ -197,8 +204,20 @@ export function createMask(
     }
 
     // ── Resolve dimensions (axis-aware percentages) ──
-    resolvedConfig.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
-    resolvedConfig.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
+    resolvedConfig.width = resolveNumeric(
+        config.width,
+        'x',
+        options.defaultMaskWidth,
+        canvas,
+        options,
+    );
+    resolvedConfig.height = resolveNumeric(
+        config.height,
+        'y',
+        options.defaultMaskHeight,
+        canvas,
+        options,
+    );
 
     // ── Expand canvas only when placement would overflow ─────────────────
     //    Never use viewport dimensions as a floor here — that would shrink a
@@ -221,7 +240,20 @@ export function createMask(
     let mask: FabricNS.FabricObject;
 
     if (typeof resolvedConfig.fabricGenerator === 'function') {
-        mask = resolvedConfig.fabricGenerator(resolvedConfig, canvas, options);
+        const generated = resolvedConfig.fabricGenerator(
+            resolvedConfig,
+            canvas,
+            options,
+        ) as unknown;
+        if (!isFabricObjectLike(generated)) {
+            reportWarning(
+                options,
+                generated,
+                'createMask skipped: fabricGenerator did not return a Fabric object.',
+            );
+            return null;
+        }
+        mask = generated;
     } else {
         // v7: All new objects default to originX/Y 'center'/'center'.
         // Masks must declare 'left'/'top' so coordinates refer to the
@@ -501,10 +533,7 @@ export function removeSelectedMask(ctx: RemoveMaskContext): void {
  * @param ctx     Orchestration context — see {@link RemoveMaskContext}.
  * @param options Bulk-removal options. Defaults to `{ saveHistory: true}`.
  */
-export function removeAllMasks(
-    ctx: RemoveMaskContext,
-    options: RemoveAllMasksOptions = {},
-): void {
+export function removeAllMasks(ctx: RemoveMaskContext, options: RemoveAllMasksOptions = {}): void {
     const masks = ctx.canvas.getObjects().filter(isMaskObject);
     if (masks.length === 0) return;
 

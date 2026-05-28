@@ -74,7 +74,9 @@ interface BindingEntry {
  */
 export class DomBindings {
     /** @internal */ private registry: BindingEntry[] = [];
-    /** @internal */ private readonly resolveElementId: (key: ElementKey) => string | null | undefined;
+    /** @internal */ private readonly resolveElementId: (
+        key: ElementKey,
+    ) => string | null | undefined;
     /** @internal */ private readonly isDisposed: () => boolean;
 
     /**

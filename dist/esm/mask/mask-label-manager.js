@@ -37,7 +37,7 @@ export function createLabelForMask(ctx, mask) {
             originX: 'left',
             originY: 'top',
         };
-        textObj = new fb.Text(txt, textOptions);
+        textObj = new fb.FabricText(txt, textOptions);
     }
     textObj.maskLabel = true;
     mask.__label = textObj;
@@ -88,9 +88,7 @@ export function hideAllMaskLabels(ctx) {
     if (!canvas)
         return;
     const objs = canvas.getObjects();
-    objs
-        .filter((o) => o.maskLabel)
-        .forEach((l) => {
+    objs.filter((o) => o.maskLabel).forEach((l) => {
         try {
             canvas.remove(l);
         }

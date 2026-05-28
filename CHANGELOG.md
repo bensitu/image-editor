@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-05-28
+## [2.0.0] - 2026-05-31
 
 This release is a behavior-preserving migration of the v1 image editor onto
 a TypeScript and Fabric.js v7 foundation, published in multiple module
 formats from a single source tree. On-screen behavior is carried forward
-from v1.4.0 — sizing, scroll, overflow, rollback, mask metadata, history
+from v1.4.2 — sizing, scroll, overflow, rollback, mask metadata, history
 snapshots, export framing, crop session lifecycle, and dispose ordering
 all match v1. The only intentional default change is
 `crop.preserveMasksAfterCrop` (see Changed). The public API is canonical
@@ -33,9 +33,9 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
   history, image, mask, crop, export, ui, core, fabric, utils).
   `ImageEditor` remains the only public class and the package facade.
 - Upgrade the rendering engine to Fabric.js v7 and use Fabric v7 promise
-  APIs (`FabricImage.fromURL`, `canvas.loadFromJSON`, promise-wrapped
-  `obj.animate`) throughout the async control flow for image load,
-  scale, rotate, merge, crop, and export.
+  APIs (`FabricImage.fromURL`, `canvas.loadFromJSON`) plus the local
+  Promise wrapper around Fabric v7 animation handles throughout the async
+  control flow for image load, scale, rotate, merge, crop, and export.
 - Change `crop.preserveMasksAfterCrop` to default to `false`. v1
   defaulted to `true`; callers that relied on the old default must now
   pass `crop: { preserveMasksAfterCrop: true }` explicitly.
@@ -57,6 +57,43 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
   `Command`, `HistoryManager`, subsystem controllers, services, managers,
   and utility modules. The package root exports only `ImageEditor`
   (default and named), `isMaskObject`, and the documented public types.
+
+## [1.4.2] - 2026-05-28
+
+### Added
+
+- Add a public `isBusy()` helper so demo integrations can avoid private loading and crop state.
+
+### Fixed
+
+- Preserve selected mask labels, editable mask styling, and active selection after both merged and plain exports.
+- Validate custom `fabricGenerator` results before applying mask setup, returning `null` with a warning instead of throwing a raw TypeError.
+- Reject broken restored image elements instead of treating a completed zero-dimension image as ready.
+- Clamp the crop rectangle inside the image bounds during move and resize operations.
+- Roll back crop state when mask preparation fails before crop export.
+- Decode exported files without requiring a global `atob`, and handle more transparent CSS background forms before JPEG compositing.
+- Guard invalid downsample dimensions and remove stale load-rollback state captured during image replacement.
+- Use a global internal operation token so duplicate module evaluations do not break merge-owned load calls.
+- Restore mask-list interaction after canceling crop mode so restored masks can be selected from the list again.
+- Keep the docs demo busy-state checks on public API, clear successful Base64 loads, and align follow-up UI refreshes with the configured animation duration.
+- Declare Fabric as a dev dependency as well as a peer dependency so local production audits do not treat the test peer install as runtime package surface.
+
+## [1.4.1] - 2026-05-27
+
+### Changed
+
+- Move Node canvas support to a dev-only `canvas` dependency and remove the package-level override so Fabric's optional peer dependency resolution is left to consumers.
+
+### Fixed
+
+- Track image loading as an editor busy state so overlapping loads, transforms, exports, masks, and demo actions cannot mutate canvas state while a load is in progress.
+- Make mask merging rollback-safe when the flattened image reload fails, without adding broken history entries.
+- Preserve right and bottom image edges when merging masks over images whose displayed bounds end on partial pixels.
+- Seal fractional export edge alpha during merge and export, including manual zoom states, so trailing rows or columns keep their own edge colors without resampling the full image.
+- Composite genuinely transparent JPEG export areas against an explicit background because JPEG cannot encode alpha.
+- Preserve the original container overflow snapshot across failed image-load rollbacks and disposal.
+- Treat `null`, `undefined`, and invalid quality values as absent values instead of exporting at quality `0`.
+- Harden animation queue cancellation, image readiness listeners, pointer-event restoration, demo optional controls, and async history tests.
 
 ## [1.4.0] - 2026-05-24
 

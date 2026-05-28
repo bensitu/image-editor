@@ -44,16 +44,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const {
-    enterCropMode,
-    applyCrop,
-} = await import('../src/crop/crop-controller.ts');
+const { enterCropMode, applyCrop } = await import('../src/crop/crop-controller.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 const { HistoryManager } = await import('../src/history/history-manager.ts');
-const {
-    floorRegion,
-    clampRegionToCanvas,
-} = await import('../src/utils/canvas-region.ts');
+const { floorRegion, clampRegionToCanvas } = await import('../src/utils/canvas-region.ts');
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
 
@@ -123,11 +117,19 @@ class MockCanvas {
         this._selection = true;
     }
 
-    get selection() { return this._selection; }
-    set selection(v) { this._selection = v; }
+    get selection() {
+        return this._selection;
+    }
+    set selection(v) {
+        this._selection = v;
+    }
 
-    discardActiveObject() { return this; }
-    getObjects() { return [...this._objects]; }
+    discardActiveObject() {
+        return this;
+    }
+    getObjects() {
+        return [...this._objects];
+    }
     add(obj) {
         this._objects.push(obj);
     }
@@ -142,12 +144,20 @@ class MockCanvas {
             this._objects.push(obj);
         }
     }
-    setActiveObject() { return this; }
-    getWidth() { return this._width; }
-    getHeight() { return this._height; }
+    setActiveObject() {
+        return this;
+    }
+    getWidth() {
+        return this._width;
+    }
+    getHeight() {
+        return this._height;
+    }
     renderAll() {}
     requestRenderAll() {}
-    toDataURL() { return 'data:image/jpeg;base64,STUB'; }
+    toDataURL() {
+        return 'data:image/jpeg;base64,STUB';
+    }
     clear() {
         this._objects = [];
     }
@@ -336,7 +346,9 @@ function makeContext({
         isImageLoaded: () => true,
         getOriginalImage: () => originalImage,
         getCropSession: () => sessionRef.current,
-        setCropSession: (s) => { sessionRef.current = s; },
+        setCropSession: (s) => {
+            sessionRef.current = s;
+        },
         saveState,
         loadFromState,
         loadImage,
@@ -355,11 +367,7 @@ function makeContext({
  * geometry policy.
  */
 function deriveCropRegion(rectBounds, canvasWidth, canvasHeight) {
-    return clampRegionToCanvas(
-        floorRegion(rectBounds),
-        canvasWidth,
-        canvasHeight,
-    );
+    return clampRegionToCanvas(floorRegion(rectBounds), canvasWidth, canvasHeight);
 }
 
 /**
@@ -470,10 +478,9 @@ const maskTransformArb = fc.record({
  * is bounded so each property iteration runs in single-digit
  * milliseconds.
  */
-const maskSetArb = fc.array(maskTransformArb, { minLength: 1, maxLength: 6 })
-    .map((transforms) =>
-        transforms.map((t, i) => makeMockMask({ ...t, maskId: i + 1 })),
-    );
+const maskSetArb = fc
+    .array(maskTransformArb, { minLength: 1, maxLength: 6 })
+    .map((transforms) => transforms.map((t, i) => makeMockMask({ ...t, maskId: i + 1 })));
 
 /**
  * Override values for the cropRect bounds the controller reads in
@@ -494,7 +501,7 @@ const cropBoundsArb = fc.record({
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('applyCrop with preserveMasksAfterCrop=true shifts each surviving mask\'s left/top by -cropRegion.left/-cropRegion.top while preserving angle, scaleX, scaleY verbatim, regardless of image rotation', async () => {
+test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's left/top by -cropRegion.left/-cropRegion.top while preserving angle, scaleX, scaleY verbatim, regardless of image rotation", async () => {
     await fc.assert(
         fc.asyncProperty(
             maskSetArb,

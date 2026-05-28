@@ -42,9 +42,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { computeCoverLayout } = await import(
-    '../src/image/layout-manager.ts'
-);
+const { computeCoverLayout } = await import('../src/image/layout-manager.ts');
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -112,10 +110,8 @@ test('canvas tracks the visible viewport, falling back to options on a zero axis
                 input.optsCanvasHeight,
                 input.container,
             );
-            const expectedW =
-                input.container.width || input.optsCanvasWidth;
-            const expectedH =
-                input.container.height || input.optsCanvasHeight;
+            const expectedW = input.container.width || input.optsCanvasWidth;
+            const expectedH = input.container.height || input.optsCanvasHeight;
             assert.equal(
                 out.canvasWidth,
                 expectedW,
@@ -176,10 +172,8 @@ test('imageScale * imgW >= canvasWidth and imageScale * imgH >= canvasHeight', (
                 input.optsCanvasHeight,
                 input.container,
             );
-            const widthCovered =
-                out.imageScale * input.imageWidth + FILL_TOLERANCE;
-            const heightCovered =
-                out.imageScale * input.imageHeight + FILL_TOLERANCE;
+            const widthCovered = out.imageScale * input.imageWidth + FILL_TOLERANCE;
+            const heightCovered = out.imageScale * input.imageHeight + FILL_TOLERANCE;
             assert.ok(
                 widthCovered >= out.canvasWidth,
                 `width not covered: scale=${out.imageScale} ` +
@@ -272,8 +266,7 @@ test('imageScale is not capped at 1 — it grows with the canvas-to-image ratio'
             );
             assert.ok(
                 out.imageScale > 1,
-                `cover capped at 1 for ${JSON.stringify(input)}: ` +
-                    `imageScale=${out.imageScale}`,
+                `cover capped at 1 for ${JSON.stringify(input)}: ` + `imageScale=${out.imageScale}`,
             );
             return true;
         }),

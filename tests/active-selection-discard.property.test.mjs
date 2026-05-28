@@ -90,7 +90,7 @@ class MockCanvas {
             version: '6.0.0',
             width: this.width,
             height: this.height,
-            objects: this.objects.map(o => {
+            objects: this.objects.map((o) => {
                 const out = {
                     type: o.type,
                     left: o.left ?? 0,
@@ -114,18 +114,12 @@ const dimensionArb = fc.record({
 });
 
 const editorStateArb = fc.record({
-    currentScale: fc.integer({ min: 1, max: 500 }).map(n => n / 100),
+    currentScale: fc.integer({ min: 1, max: 500 }).map((n) => n / 100),
     currentRotation: fc.integer({ min: -360, max: 360 }),
-    baseImageScale: fc.integer({ min: 1, max: 200 }).map(n => n / 100),
+    baseImageScale: fc.integer({ min: 1, max: 200 }).map((n) => n / 100),
 });
 
-const shapeTypeArb = fc.constantFrom(
-    'rect',
-    'circle',
-    'ellipse',
-    'polygon',
-    'image',
-);
+const shapeTypeArb = fc.constantFrom('rect', 'circle', 'ellipse', 'polygon', 'image');
 
 // A canvas object payload — masks, transient crop rect markers, label
 // text markers, and plain non-mask images are all valid inputs to
@@ -134,13 +128,13 @@ const canvasObjectArb = fc.record({
     type: shapeTypeArb,
     left: fc.integer({ min: 0, max: 600 }),
     top: fc.integer({ min: 0, max: 500 }),
-    opacity: fc.integer({ min: 0, max: 100 }).map(n => n / 100),
+    opacity: fc.integer({ min: 0, max: 100 }).map((n) => n / 100),
     maskId: fc.option(fc.integer({ min: 1, max: 10_000 }), { nil: undefined }),
     maskName: fc.option(
         fc
             .string({ minLength: 1, maxLength: 8 })
-            .map(s => s.replace(/[^A-Za-z0-9_-]/g, '_'))
-            .filter(s => s.length > 0),
+            .map((s) => s.replace(/[^A-Za-z0-9_-]/g, '_'))
+            .filter((s) => s.length > 0),
         { nil: undefined },
     ),
     isCropRect: fc.option(fc.constant(true), { nil: undefined }),
@@ -160,7 +154,7 @@ const scenarioArb = fc.record({
 
 test('saveState discards ActiveSelection before serializing', () => {
     fc.assert(
-        fc.property(scenarioArb, scenario => {
+        fc.property(scenarioArb, (scenario) => {
             const canvas = new MockCanvas();
             canvas.width = scenario.dims.width;
             canvas.height = scenario.dims.height;
@@ -202,9 +196,7 @@ test('saveState discards ActiveSelection before serializing', () => {
                 'the documented contract: discardActiveObject must be the first canvas method called by saveState',
             );
             const firstToJSON = canvas.callOrder.indexOf('toJSON');
-            const firstDiscard = canvas.callOrder.indexOf(
-                'discardActiveObject',
-            );
+            const firstDiscard = canvas.callOrder.indexOf('discardActiveObject');
             assert.ok(
                 firstToJSON > firstDiscard,
                 'the documented contract: discardActiveObject must precede toJSON',

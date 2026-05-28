@@ -40,12 +40,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const {
-    normalizeImageFormat,
-    mimeTypeFor,
-    clampQuality,
-    resolveExportFormat,
-} = await import('../src/export/export-format.ts');
+const { normalizeImageFormat, mimeTypeFor, clampQuality, resolveExportFormat } =
+    await import('../src/export/export-format.ts');
 
 // ─── Reference tables ──────────────────────────────────────────────────────
 //
@@ -68,9 +64,7 @@ const MIME_TABLE = Object.freeze({
 // Set of every accepted alias (lowercased). Used by the "unknown input"
 // arbitrary to filter random strings that would coincidentally collide
 // with a real alias.
-const KNOWN_ALIASES = new Set(
-    Object.values(FORMAT_ALIAS_TABLE).flat(),
-);
+const KNOWN_ALIASES = new Set(Object.values(FORMAT_ALIAS_TABLE).flat());
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -92,10 +86,7 @@ function casedAliasArb(canonicals) {
             let alias = '';
             for (let i = 0; i < base.length; i++) {
                 const ch = base[i];
-                alias +=
-                    ((caseMask >> (i % 16)) & 1) === 1
-                        ? ch.toUpperCase()
-                        : ch.toLowerCase();
+                alias += ((caseMask >> (i % 16)) & 1) === 1 ? ch.toUpperCase() : ch.toLowerCase();
             }
             return { canonical, alias };
         });
@@ -190,19 +181,16 @@ test('normalizeImageFormat collapses aliases case-insensitively', () => {
 
 test('nullish, empty, and unknown input default to jpeg', () => {
     fc.assert(
-        fc.property(
-            fc.oneof(nullishInputArb, unknownStringArb),
-            (input) => {
-                const result = normalizeImageFormat(input);
-                assert.equal(
-                    result,
-                    'jpeg',
-                    `unknown/nullish input ${JSON.stringify(input)} → ${result}, expected 'jpeg'`,
-                );
-                assert.equal(mimeTypeFor(result), 'image/jpeg');
-                return true;
-            },
-        ),
+        fc.property(fc.oneof(nullishInputArb, unknownStringArb), (input) => {
+            const result = normalizeImageFormat(input);
+            assert.equal(
+                result,
+                'jpeg',
+                `unknown/nullish input ${JSON.stringify(input)} → ${result}, expected 'jpeg'`,
+            );
+            assert.equal(mimeTypeFor(result), 'image/jpeg');
+            return true;
+        }),
         { numRuns: 200 },
     );
 });
@@ -254,10 +242,7 @@ test('clampQuality clamps finite input to [0, 1]', () => {
     fc.assert(
         fc.property(finiteQualityArb, fallbackQualityArb, (q, fallback) => {
             const out = clampQuality(q, fallback);
-            assert.ok(
-                out >= 0 && out <= 1,
-                `clamped output ${out} outside [0, 1] for input ${q}`,
-            );
+            assert.ok(out >= 0 && out <= 1, `clamped output ${out} outside [0, 1] for input ${q}`);
             assert.equal(
                 out,
                 Math.max(0, Math.min(1, q)),
@@ -350,10 +335,7 @@ test('resolveExportFormat falls back to downsampleQuality for omitted/non-finite
     // and route through the `?? downsampleQuality` step before the clamp
     // (so they also resolve to `downsampleQuality`). Combine both
     // branches here so the property covers the whole "fallback" surface.
-    const omittedOrNonFiniteArb = fc.oneof(
-        nonFiniteQualityArb,
-        fc.constant(null),
-    );
+    const omittedOrNonFiniteArb = fc.oneof(nonFiniteQualityArb, fc.constant(null));
     fc.assert(
         fc.property(
             lossyAliasArb,

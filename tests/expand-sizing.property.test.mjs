@@ -40,9 +40,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { computeExpandLayout } = await import(
-    '../src/image/layout-manager.ts'
-);
+const { computeExpandLayout } = await import('../src/image/layout-manager.ts');
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -79,14 +77,8 @@ test('canvas dimensions equal max(viewport, floor(image)) per axis', () => {
                 input.optsCanvasHeight,
                 input.container,
             );
-            const expectedW = Math.max(
-                input.container.width,
-                Math.floor(input.imageWidth),
-            );
-            const expectedH = Math.max(
-                input.container.height,
-                Math.floor(input.imageHeight),
-            );
+            const expectedW = Math.max(input.container.width, Math.floor(input.imageWidth));
+            const expectedH = Math.max(input.container.height, Math.floor(input.imageHeight));
             assert.equal(
                 out.canvasWidth,
                 expectedW,

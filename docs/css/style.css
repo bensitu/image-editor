@@ -19,7 +19,7 @@
     --shadow: 0 8px 24px rgba(30, 41, 59, 0.08);
 }
 
-[data-bs-theme="dark"] {
+[data-bs-theme='dark'] {
     --accent-strong: #8db0ff;
     --disabled-bg: #1c2431;
     --disabled-text: #6f7b8d;
@@ -61,8 +61,8 @@ textarea {
     resize: vertical;
 }
 
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
     margin: 0;
     -webkit-appearance: none;
 }
@@ -149,7 +149,7 @@ input[type="number"]::-webkit-inner-spin-button {
     height: 22px;
     border-radius: 50%;
     background: var(--accent);
-    content: "";
+    content: '';
     transition:
         background-color 0.18s ease,
         transform 0.18s ease;

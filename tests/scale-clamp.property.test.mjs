@@ -42,9 +42,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { TransformController } = await import(
-    '../src/image/transform-controller.ts'
-);
+const { TransformController } = await import('../src/image/transform-controller.ts');
 const { OperationGuard } = await import('../src/core/operation-guard.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
@@ -233,155 +231,136 @@ const factorArb = fc.double({
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test(
-    'scaleImage clamps currentScale to [minScale, maxScale]',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(
-                scaleBoundsArb,
-                factorArb,
-                async ({ minScale, maxScale }, factor) => {
-                    const { ctx, image } = makeTransformCtx({
-                        minScale,
-                        maxScale,
-                    });
-                    const controller = new TransformController(ctx);
+test('scaleImage clamps currentScale to [minScale, maxScale]', async () => {
+    await fc.assert(
+        fc.asyncProperty(scaleBoundsArb, factorArb, async ({ minScale, maxScale }, factor) => {
+            const { ctx, image } = makeTransformCtx({
+                minScale,
+                maxScale,
+            });
+            const controller = new TransformController(ctx);
 
-                    await controller.scaleImage(factor);
+            await controller.scaleImage(factor);
 
-                    const expected = clampScale(factor, minScale, maxScale);
+            const expected = clampScale(factor, minScale, maxScale);
 
-                    assert.equal(
-                        ctx.getCurrentScale(),
-                        expected,
-                        'the documented contract: currentScale must equal clamp(factor, minScale, maxScale)',
-                    );
+            assert.equal(
+                ctx.getCurrentScale(),
+                expected,
+                'the documented contract: currentScale must equal clamp(factor, minScale, maxScale)',
+            );
 
-                    // Sanity: the post-animation snap mirrors the clamp
-                    // through `baseImageScale` (1 here) so `scaleX` and
-                    // `scaleY` stay synchronized with the clamped value.
-                    assert.equal(
-                        image.scaleX,
-                        expected,
-                        'the documented contract: image.scaleX must reflect the clamped scale (baseImageScale=1)',
-                    );
-                    assert.equal(
-                        image.scaleY,
-                        expected,
-                        'the documented contract: image.scaleY must reflect the clamped scale (baseImageScale=1)',
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
+            // Sanity: the post-animation snap mirrors the clamp
+            // through `baseImageScale` (1 here) so `scaleX` and
+            // `scaleY` stay synchronized with the clamped value.
+            assert.equal(
+                image.scaleX,
+                expected,
+                'the documented contract: image.scaleX must reflect the clamped scale (baseImageScale=1)',
+            );
+            assert.equal(
+                image.scaleY,
+                expected,
+                'the documented contract: image.scaleY must reflect the clamped scale (baseImageScale=1)',
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
 
-test(
-    'factor below minScale clamps up',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
+test('factor below minScale clamps up', async () => {
+    await fc.assert(
+        fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
+            const { ctx } = makeTransformCtx({ minScale, maxScale });
+            const controller = new TransformController(ctx);
+
+            // Below the floor — must clamp up to `minScale`.
+            await controller.scaleImage(minScale / 2);
+
+            assert.equal(
+                ctx.getCurrentScale(),
+                minScale,
+                'the documented contract: factor < minScale must clamp up to minScale',
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
+
+test('factor above maxScale clamps down', async () => {
+    await fc.assert(
+        fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
+            const { ctx } = makeTransformCtx({ minScale, maxScale });
+            const controller = new TransformController(ctx);
+
+            // Above the ceiling — must clamp down to `maxScale`.
+            await controller.scaleImage(maxScale * 2 + 1);
+
+            assert.equal(
+                ctx.getCurrentScale(),
+                maxScale,
+                'the documented contract: factor > maxScale must clamp down to maxScale',
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
+
+test('factor within bounds passes through', async () => {
+    await fc.assert(
+        fc.asyncProperty(
+            scaleBoundsArb,
+            fc.double({
+                min: 0,
+                max: 1,
+                noNaN: true,
+                noDefaultInfinity: true,
+            }),
+            async ({ minScale, maxScale }, t) => {
                 const { ctx } = makeTransformCtx({ minScale, maxScale });
                 const controller = new TransformController(ctx);
 
-                // Below the floor — must clamp up to `minScale`.
-                await controller.scaleImage(minScale / 2);
+                // Linear interpolation between minScale and maxScale
+                // keeps the factor strictly inside the closed interval
+                // for every `t in [0, 1]`.
+                const factor = minScale + (maxScale - minScale) * t;
+                await controller.scaleImage(factor);
 
+                assert.equal(
+                    ctx.getCurrentScale(),
+                    factor,
+                    'the documented contract: factor in [minScale, maxScale] must pass through unchanged',
+                );
+            },
+        ),
+        { numRuns: 30 },
+    );
+});
+
+test('factor === minScale and factor === maxScale clamp to themselves', async () => {
+    await fc.assert(
+        fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
+            {
+                const { ctx } = makeTransformCtx({ minScale, maxScale });
+                const controller = new TransformController(ctx);
+                await controller.scaleImage(minScale);
                 assert.equal(
                     ctx.getCurrentScale(),
                     minScale,
-                    'the documented contract: factor < minScale must clamp up to minScale',
+                    'the documented contract: factor === minScale must clamp to minScale',
                 );
-            }),
-            { numRuns: 30 },
-        );
-    },
-);
-
-test(
-    'factor above maxScale clamps down',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
+            }
+            {
                 const { ctx } = makeTransformCtx({ minScale, maxScale });
                 const controller = new TransformController(ctx);
-
-                // Above the ceiling — must clamp down to `maxScale`.
-                await controller.scaleImage(maxScale * 2 + 1);
-
+                await controller.scaleImage(maxScale);
                 assert.equal(
                     ctx.getCurrentScale(),
                     maxScale,
-                    'the documented contract: factor > maxScale must clamp down to maxScale',
+                    'the documented contract: factor === maxScale must clamp to maxScale',
                 );
-            }),
-            { numRuns: 30 },
-        );
-    },
-);
-
-test(
-    'factor within bounds passes through',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(
-                scaleBoundsArb,
-                fc.double({
-                    min: 0,
-                    max: 1,
-                    noNaN: true,
-                    noDefaultInfinity: true,
-                }),
-                async ({ minScale, maxScale }, t) => {
-                    const { ctx } = makeTransformCtx({ minScale, maxScale });
-                    const controller = new TransformController(ctx);
-
-                    // Linear interpolation between minScale and maxScale
-                    // keeps the factor strictly inside the closed interval
-                    // for every `t in [0, 1]`.
-                    const factor = minScale + (maxScale - minScale) * t;
-                    await controller.scaleImage(factor);
-
-                    assert.equal(
-                        ctx.getCurrentScale(),
-                        factor,
-                        'the documented contract: factor in [minScale, maxScale] must pass through unchanged',
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
-
-test(
-    'factor === minScale and factor === maxScale clamp to themselves',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(scaleBoundsArb, async ({ minScale, maxScale }) => {
-                {
-                    const { ctx } = makeTransformCtx({ minScale, maxScale });
-                    const controller = new TransformController(ctx);
-                    await controller.scaleImage(minScale);
-                    assert.equal(
-                        ctx.getCurrentScale(),
-                        minScale,
-                        'the documented contract: factor === minScale must clamp to minScale',
-                    );
-                }
-                {
-                    const { ctx } = makeTransformCtx({ minScale, maxScale });
-                    const controller = new TransformController(ctx);
-                    await controller.scaleImage(maxScale);
-                    assert.equal(
-                        ctx.getCurrentScale(),
-                        maxScale,
-                        'the documented contract: factor === maxScale must clamp to maxScale',
-                    );
-                }
-            }),
-            { numRuns: 30 },
-        );
-    },
-);
+            }
+        }),
+        { numRuns: 30 },
+    );
+});

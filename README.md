@@ -61,13 +61,13 @@ resolves the exact version your application uses.
 The package ships a single public entry, resolved by tooling via the
 `exports` map in `package.json`:
 
-| Consumer                              | Resolves to                          |
-| ------------------------------------- | ------------------------------------ |
-| ESM (`import`)                        | `dist/esm/index.js`                  |
-| CommonJS (`require`)                  | `dist/cjs/index.cjs`                 |
-| TypeScript (`types`)                  | `dist/types/index.d.ts`              |
-| UMD (`<script>`, `unpkg`, `jsdelivr`) | `dist/umd/image-editor.umd.js`       |
-| `default` fallback                    | `dist/esm/index.js`                  |
+| Consumer                              | Resolves to                    |
+| ------------------------------------- | ------------------------------ |
+| ESM (`import`)                        | `dist/esm/index.js`            |
+| CommonJS (`require`)                  | `dist/cjs/index.cjs`           |
+| TypeScript (`types`)                  | `dist/types/index.d.ts`        |
+| UMD (`<script>`, `unpkg`, `jsdelivr`) | `dist/umd/image-editor.umd.js` |
+| `default` fallback                    | `dist/esm/index.js`            |
 
 The UMD bundle exposes a global named `ImageEditor` and treats `fabric` as an
 external global named `fabric`.
@@ -81,29 +81,29 @@ in all four formats:
 - **Explicit module form** (recommended for bundled apps): pass the Fabric
   module as the first argument.
 
-  ```ts
-  import * as fabric from 'fabric';
-  import { ImageEditor } from '@bensitu/image-editor';
+    ```ts
+    import * as fabric from 'fabric';
+    import { ImageEditor } from '@bensitu/image-editor';
 
-  const editor = new ImageEditor(fabric, {
-    canvasWidth: 800,
-    canvasHeight: 600,
-  });
-  ```
+    const editor = new ImageEditor(fabric, {
+        canvasWidth: 800,
+        canvasHeight: 600,
+    });
+    ```
 
 - **Global form** (UMD `<script>` consumers): omit the first argument; the
   constructor reads `globalThis.fabric`.
 
-  ```html
-  <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
-  <script>
-    const editor = new ImageEditor({
-      canvasWidth: 800,
-      canvasHeight: 600,
-    });
-  </script>
-  ```
+    ```html
+    <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
+    <script>
+        const editor = new ImageEditor({
+            canvasWidth: 800,
+            canvasHeight: 600,
+        });
+    </script>
+    ```
 
 If neither form yields a usable Fabric module, the constructor logs a single
 descriptive `console.error` and `init()` and `loadImage()` become no-ops that
@@ -119,9 +119,9 @@ resolve to `undefined`.
 <button id="zoomInBtn">Zoom In</button>
 <button id="zoomOutBtn">Zoom Out</button>
 <button id="rotateLeftBtn">Rotate Left</button>
-<input  id="rotationLeftInput" type="number" value="90">
+<input id="rotationLeftInput" type="number" value="90" />
 <button id="rotateRightBtn">Rotate Right</button>
-<input  id="rotationRightInput" type="number" value="90">
+<input id="rotationRightInput" type="number" value="90" />
 
 <button id="addMaskBtn">Add Mask</button>
 <button id="removeMaskBtn">Remove Mask</button>
@@ -137,8 +137,8 @@ resolve to `undefined`.
 <button id="redoBtn">Redo</button>
 <button id="resetBtn">Reset</button>
 
-<input id="imageInput" type="file" accept="image/*">
-<ul    id="maskList"></ul>
+<input id="imageInput" type="file" accept="image/*" />
+<ul id="maskList"></ul>
 ```
 
 ### TypeScript / ESM
@@ -149,32 +149,32 @@ import { ImageEditor } from '@bensitu/image-editor';
 import type { ImageEditorOptions, MaskConfig } from '@bensitu/image-editor';
 
 const editor = new ImageEditor(fabric, {
-  canvasWidth: 800,
-  canvasHeight: 600,
-  backgroundColor: '#ffffff',
+    canvasWidth: 800,
+    canvasHeight: 600,
+    backgroundColor: '#ffffff',
 } satisfies ImageEditorOptions);
 
 editor.init({
-  canvas: 'fabricCanvas',
-  zoomInBtn: 'zoomInBtn',
-  zoomOutBtn: 'zoomOutBtn',
-  rotateLeftBtn: 'rotateLeftBtn',
-  rotationLeftInput: 'rotationLeftInput',
-  rotateRightBtn: 'rotateRightBtn',
-  rotationRightInput: 'rotationRightInput',
-  addMaskBtn: 'addMaskBtn',
-  removeMaskBtn: 'removeMaskBtn',
-  removeAllMasksBtn: 'removeAllMasksBtn',
-  cropBtn: 'cropBtn',
-  applyCropBtn: 'applyCropBtn',
-  cancelCropBtn: 'cancelCropBtn',
-  mergeBtn: 'mergeBtn',
-  downloadBtn: 'downloadBtn',
-  undoBtn: 'undoBtn',
-  redoBtn: 'redoBtn',
-  resetBtn: 'resetBtn',
-  imageInput: 'imageInput',
-  maskList: 'maskList',
+    canvas: 'fabricCanvas',
+    zoomInBtn: 'zoomInBtn',
+    zoomOutBtn: 'zoomOutBtn',
+    rotateLeftBtn: 'rotateLeftBtn',
+    rotationLeftInput: 'rotationLeftInput',
+    rotateRightBtn: 'rotateRightBtn',
+    rotationRightInput: 'rotationRightInput',
+    addMaskBtn: 'addMaskBtn',
+    removeMaskBtn: 'removeMaskBtn',
+    removeAllMasksBtn: 'removeAllMasksBtn',
+    cropBtn: 'cropBtn',
+    applyCropBtn: 'applyCropBtn',
+    cancelCropBtn: 'cancelCropBtn',
+    mergeBtn: 'mergeBtn',
+    downloadBtn: 'downloadBtn',
+    undoBtn: 'undoBtn',
+    redoBtn: 'redoBtn',
+    resetBtn: 'resetBtn',
+    imageInput: 'imageInput',
+    maskList: 'maskList',
 });
 
 // Load an image programmatically (base64 data URL).
@@ -213,17 +213,18 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 
 ### Lifecycle
 
-| Method                       | Description                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| `init(idMap?)`               | Bind the editor to DOM elements. Pass an `ElementIdMap`; any key may be omitted. |
-| `dispose()`                  | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent. |
+| Method         | Description                                                                          |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `init(idMap?)` | Bind the editor to DOM elements. Pass an `ElementIdMap`; any key may be omitted.     |
+| `dispose()`    | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent. |
 
 ### Image loading
 
-| Method                             | Description                                                              |
-| ---------------------------------- | ------------------------------------------------------------------------ |
-| `loadImage(base64, options?)`      | Load an image from a `data:image/...` URL. Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
-| `isImageLoaded()`                  | Returns `true` if a valid image is currently loaded on the canvas.       |
+| Method                        | Description                                                                                                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadImage(base64, options?)` | Load an image from a `data:image/...` URL. Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
+| `isImageLoaded()`             | Returns `true` if a valid image is currently loaded on the canvas.                                                                                              |
+| `isBusy()`                    | Returns `true` while the editor is loading, animating, or in crop mode.                                                                                         |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
 preserving the container's scroll position across both successful loads and
@@ -231,19 +232,19 @@ rollback paths.
 
 ### Transforms
 
-| Method                       | Description                                                                                            |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `scaleImage(factor)`         | Scale to `factor` (clamped to `[minScale, maxScale]`). Animated. Returns `Promise<void>`.              |
-| `rotateImage(degrees)`       | Rotate to `degrees`. `NaN` resolves immediately without changing canvas state. Animated.               |
-| `resetImageTransform()`      | Animate to scale 1 and rotation 0. Records exactly one history entry covering the entire transform.    |
+| Method                  | Description                                                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Animated. Returns `Promise<void>`.           |
+| `rotateImage(degrees)`  | Rotate to `degrees`. `NaN` resolves immediately without changing canvas state. Animated.            |
+| `resetImageTransform()` | Animate to scale 1 and rotation 0. Records exactly one history entry covering the entire transform. |
 
 ### Masks
 
-| Method                            | Description                                                              |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| `createMask(config?)`             | The single mask-creation entry point. Returns the new `MaskObject` or `null`. |
-| `removeSelectedMask()`            | Remove the currently selected mask and push one history entry.           |
-| `removeAllMasks(options?)`        | Remove every mask. `options.saveHistory` defaults to `true`.             |
+| Method                     | Description                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| `createMask(config?)`      | The single mask-creation entry point. Returns the new `MaskObject` or `null`. |
+| `removeSelectedMask()`     | Remove the currently selected mask and push one history entry.                |
+| `removeAllMasks(options?)` | Remove every mask. `options.saveHistory` defaults to `true`.                  |
 
 `MaskConfig` supports rect, circle, ellipse, polygon, and a custom
 `fabricGenerator`. Falsy values in `styles` (`0`, `false`, `null`, `''`,
@@ -251,20 +252,20 @@ rollback paths.
 
 ### Crop
 
-| Method            | Description                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| `enterCropMode()` | Add an interactive crop rectangle on top of the image.                                            |
-| `applyCrop()`     | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.               |
-| `cancelCrop()`    | Cancel crop mode and restore the prior canvas state without pushing a history entry.              |
+| Method            | Description                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `enterCropMode()` | Add an interactive crop rectangle on top of the image.                               |
+| `applyCrop()`     | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.  |
+| `cancelCrop()`    | Cancel crop mode and restore the prior canvas state without pushing a history entry. |
 
 ### Merge and export
 
-| Method                              | Description                                                                                  |
-| ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| `mergeMasks()`                      | Bake masks into the base image atomically. Returns `Promise<void>`.                          |
-| `exportImageBase64(options?)`       | Returns `Promise<string>` (data URL). Resolves to `''` with a warning when no image is loaded. |
-| `exportImageFile(options?)`         | Returns `Promise<File>`. Rejects when no image is loaded.                                    |
-| `downloadImage(fileName?)`          | Triggers a browser download. No-op when no image is loaded.                                  |
+| Method                        | Description                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `mergeMasks()`                | Bake masks into the base image atomically. Returns `Promise<void>`.                            |
+| `exportImageBase64(options?)` | Returns `Promise<string>` (data URL). Resolves to `''` with a warning when no image is loaded. |
+| `exportImageFile(options?)`   | Returns `Promise<File>`. Rejects when no image is loaded.                                      |
+| `downloadImage(fileName?)`    | Triggers a browser download. No-op when no image is loaded.                                    |
 
 `Base64ExportOptions` and `ImageFileExportOptions` accept `fileType`
 (`'png' | 'jpeg' | 'jpg' | 'webp'` plus full MIME forms), `quality` (clamped
@@ -273,12 +274,12 @@ masks are baked in.
 
 ### State and history
 
-| Method                       | Description                                                                                |
-| ---------------------------- | ------------------------------------------------------------------------------------------ |
-| `saveState()`                | Capture a snapshot of the canvas plus editor metadata into the history stack.              |
-| `loadFromState(snapshot)`    | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.        |
-| `undo()`                     | Undo the last state change. Routed through the animation queue. No-op while disposed.      |
-| `redo()`                     | Redo the next state change. Routed through the animation queue. No-op while disposed.      |
+| Method                    | Description                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `saveState()`             | Capture a snapshot of the canvas plus editor metadata into the history stack.         |
+| `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.  |
+| `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed. |
+| `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed. |
 
 ## Configuration options
 
@@ -286,42 +287,42 @@ Pass an `ImageEditorOptions` object as the second constructor argument
 (or as the only argument when using the UMD global form). Unknown keys are
 ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 
-| Option                     | Default              | Description                                                                                  |
-| -------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
-| `canvasWidth`              | `800`                | Initial canvas width in pixels.                                                              |
-| `canvasHeight`             | `600`                | Initial canvas height in pixels.                                                             |
-| `backgroundColor`          | `'transparent'`      | Fabric canvas background color.                                                              |
-| `animationDuration`        | `300`                | Duration of scale and rotate animations (ms).                                                |
-| `minScale`                 | `0.1`                | Minimum scale factor.                                                                        |
-| `maxScale`                 | `5.0`                | Maximum scale factor.                                                                        |
-| `scaleStep`                | `0.05`               | Scale delta per zoom step.                                                                   |
-| `rotationStep`             | `90`                 | Rotation step in degrees.                                                                    |
-| `expandCanvasToImage`      | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                          |
-| `fitImageToCanvas`         | `false`              | Fit the image inside the current canvas (highest layout precedence).                         |
-| `coverImageToCanvas`       | `false`              | Cover the canvas viewport with the image (overrides `expandCanvasToImage`).                  |
-| `downsampleOnLoad`         | `true`               | Downsample large images on load.                                                             |
-| `downsampleMaxWidth`       | `4000`               | Max width before downsampling kicks in.                                                      |
-| `downsampleMaxHeight`      | `3000`               | Max height before downsampling kicks in.                                                     |
-| `downsampleQuality`        | `0.92`               | Lossy quality used when downsampling and exporting.                                          |
-| `preserveSourceFormat`     | `true`               | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.              |
-| `downsampleMimeType`       | `null`               | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                             |
-| `imageLoadTimeoutMs`       | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.               |
-| `exportMultiplier`         | `1`                  | Output resolution multiplier.                                                                |
-| `exportImageAreaByDefault` | `true`               | Clip exports to the image bounding box and bake in masks by default.                         |
-| `defaultMaskWidth`         | `50`                 | Default mask width.                                                                          |
-| `defaultMaskHeight`        | `80`                 | Default mask height.                                                                         |
-| `maskRotatable`            | `false`              | Allow masks to be rotated by the user.                                                       |
-| `maskLabelOnSelect`        | `true`               | Show a label above a selected mask.                                                          |
-| `maskLabelOffset`          | `3`                  | Pixel offset of the label from the mask's top-left corner.                                   |
-| `maskName`                 | `'mask'`             | Prefix used for auto-generated mask names.                                                   |
-| `groupSelection`           | `false`              | Allow Fabric multi-object group selection on the canvas.                                     |
-| `showPlaceholder`          | `true`               | Show a placeholder element while no image is loaded.                                         |
-| `initialImageBase64`       | `null`               | Base64 data URL auto-loaded after construction.                                              |
-| `defaultDownloadFileName`  | `'edited_image.jpg'` | Default file name used by `downloadImage()`.                                                 |
-| `onImageLoaded`            | `null`               | Called once after a successful `loadImage`. Errors are caught and logged.                    |
-| `onError`                  | `null`               | Called as `(error, message)` when the editor reports an error.                               |
-| `onWarning`                | `null`               | Called as `(error, message)` when the editor reports a recoverable warning.                  |
-| `label`                    | see source           | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                 |
+| Option                     | Default              | Description                                                                                                                                      |
+| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `canvasWidth`              | `800`                | Initial canvas width in pixels.                                                                                                                  |
+| `canvasHeight`             | `600`                | Initial canvas height in pixels.                                                                                                                 |
+| `backgroundColor`          | `'transparent'`      | Fabric canvas background color.                                                                                                                  |
+| `animationDuration`        | `300`                | Duration of scale and rotate animations (ms).                                                                                                    |
+| `minScale`                 | `0.1`                | Minimum scale factor.                                                                                                                            |
+| `maxScale`                 | `5.0`                | Maximum scale factor.                                                                                                                            |
+| `scaleStep`                | `0.05`               | Scale delta per zoom step.                                                                                                                       |
+| `rotationStep`             | `90`                 | Rotation step in degrees.                                                                                                                        |
+| `expandCanvasToImage`      | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                                                                              |
+| `fitImageToCanvas`         | `false`              | Fit the image inside the current canvas (highest layout precedence).                                                                             |
+| `coverImageToCanvas`       | `false`              | Cover the canvas viewport with the image (overrides `expandCanvasToImage`).                                                                      |
+| `downsampleOnLoad`         | `true`               | Downsample large images on load.                                                                                                                 |
+| `downsampleMaxWidth`       | `4000`               | Max width before downsampling kicks in.                                                                                                          |
+| `downsampleMaxHeight`      | `3000`               | Max height before downsampling kicks in.                                                                                                         |
+| `downsampleQuality`        | `0.92`               | Lossy quality used when downsampling and exporting.                                                                                              |
+| `preserveSourceFormat`     | `true`               | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                  |
+| `downsampleMimeType`       | `null`               | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                 |
+| `imageLoadTimeoutMs`       | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                   |
+| `exportMultiplier`         | `1`                  | Output resolution multiplier.                                                                                                                    |
+| `exportImageAreaByDefault` | `true`               | Clip exports to the image bounding box and bake in masks by default.                                                                             |
+| `defaultMaskWidth`         | `50`                 | Default mask width.                                                                                                                              |
+| `defaultMaskHeight`        | `80`                 | Default mask height.                                                                                                                             |
+| `maskRotatable`            | `false`              | Allow masks to be rotated by the user.                                                                                                           |
+| `maskLabelOnSelect`        | `true`               | Show a label above a selected mask.                                                                                                              |
+| `maskLabelOffset`          | `3`                  | Pixel offset of the label from the mask's top-left corner.                                                                                       |
+| `maskName`                 | `'mask'`             | Prefix used for auto-generated mask names.                                                                                                       |
+| `groupSelection`           | `false`              | Allow Fabric multi-object group selection on the canvas.                                                                                         |
+| `showPlaceholder`          | `true`               | Show a placeholder element while no image is loaded.                                                                                             |
+| `initialImageBase64`       | `null`               | Base64 data URL auto-loaded after construction.                                                                                                  |
+| `defaultDownloadFileName`  | `'edited_image.jpg'` | Default file name used by `downloadImage()`.                                                                                                     |
+| `onImageLoaded`            | `null`               | Called once after a successful `loadImage`. Errors are caught and logged.                                                                        |
+| `onError`                  | `null`               | Called as `(error, message)` when the editor reports an error.                                                                                   |
+| `onWarning`                | `null`               | Called as `(error, message)` when the editor reports a recoverable warning.                                                                      |
+| `label`                    | see source           | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                     |
 | `crop`                     | see source           | `CropConfig` (`minWidth`, `minHeight`, `padding`, `hideMasksDuringCrop`, `preserveMasksAfterCrop` (default `false`), `allowRotationOfCropRect`). |
 
 ## Example workflow
@@ -370,23 +371,23 @@ Public types are re-exported from the package root:
 
 ```ts
 import type {
-  ImageEditorOptions,
-  ResolvedOptions,
-  LabelConfig,
-  CropConfig,
-  LoadImageOptions,
-  RemoveAllMasksOptions,
-  MaskConfig,
-  MaskObject,
-  MaskNumericProp,
-  ResolvedMaskConfig,
-  ImageMimeType,
-  ImageFileType,
-  NormalizedImageFormat,
-  Base64ExportOptions,
-  ImageFileExportOptions,
-  ElementIdMap,
-  FabricModule,
+    ImageEditorOptions,
+    ResolvedOptions,
+    LabelConfig,
+    CropConfig,
+    LoadImageOptions,
+    RemoveAllMasksOptions,
+    MaskConfig,
+    MaskObject,
+    MaskNumericProp,
+    ResolvedMaskConfig,
+    ImageMimeType,
+    ImageFileType,
+    NormalizedImageFormat,
+    Base64ExportOptions,
+    ImageFileExportOptions,
+    ElementIdMap,
+    FabricModule,
 } from '@bensitu/image-editor';
 ```
 

@@ -13,7 +13,6 @@ import { reportError, reportWarning } from './core/callback-reporter.js';
 import { resolveOptions } from './core/default-options.js';
 import { OperationGuard, type OperationToken } from './core/operation-guard.js';
 import {
-    SNAPSHOT_CUSTOM_KEYS,
     loadFromState as loadFromStateImpl,
     saveState as saveStateImpl,
     type CanvasJSON,
@@ -54,10 +53,7 @@ import {
     applyCanvasDimensions,
     detectLayoutConflict,
 } from './image/layout-manager.js';
-import {
-    TransformController,
-    type TransformContext,
-} from './image/transform-controller.js';
+import { TransformController, type TransformContext } from './image/transform-controller.js';
 import {
     createMask as createMaskImpl,
     removeAllMasks as removeAllMasksImpl,
@@ -73,11 +69,7 @@ import {
     syncMaskLabel,
     type MaskLabelManagerContext,
 } from './mask/mask-label-manager.js';
-import {
-    renderMaskList,
-    updateMaskListSelection,
-    type MaskListContext,
-} from './mask/mask-list.js';
+import { renderMaskList, updateMaskListSelection, type MaskListContext } from './mask/mask-list.js';
 import {
     applyMaskSelectedStyle,
     applyMaskUnselectedStyle,
@@ -85,11 +77,7 @@ import {
 } from './mask/mask-style.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
-import {
-    inferImageMimeType,
-    readFileAsDataURL,
-    resetFileInput,
-} from './utils/file.js';
+import { inferImageMimeType, readFileAsDataURL, resetFileInput } from './utils/file.js';
 
 // ─── Internal element-key type ────────────────────────────────────────────────
 
@@ -99,7 +87,7 @@ type ElementKey = keyof Required<ElementIdMap>;
 
 type ResolvedElementIdMap = Record<ElementKey, string | null>;
 
-const INTERNAL_OPERATION_TOKEN: unique symbol = Symbol('ImageEditorInternalOperation');
+const INTERNAL_OPERATION_TOKEN: unique symbol = Symbol.for('ImageEditorInternalOperation') as never;
 
 type InternalOperationOptions = {
     [INTERNAL_OPERATION_TOKEN]?: OperationToken;
@@ -129,10 +117,7 @@ const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
     'cancelCropBtn',
 ];
 
-const CROP_MODE_ENABLED_KEYS: readonly ElementKey[] = [
-    'applyCropBtn',
-    'cancelCropBtn',
-];
+const CROP_MODE_ENABLED_KEYS: readonly ElementKey[] = ['applyCropBtn', 'cancelCropBtn'];
 
 // ─── ImageEditor ─────────────────────────────────────────────────────────────
 
@@ -257,7 +242,6 @@ export class ImageEditor {
      */
     private _suppressSaveState = false;
 
-
     // ── Callbacks ───────────────────────────────────────────────────────────
     // The `onImageLoaded`, `onError`, and `onWarning` callbacks live on
     // `this.options` after `resolveOptions` and are read directly by the
@@ -316,7 +300,7 @@ export class ImageEditor {
         // exactly as before. The `_fabricLoaded` flag is the single
         // source of truth for "is Fabric usable?" — every public method
         // that touches Fabric checks it before mutating canvas state.
-        this._fabric = (detected.fabric ?? ({} as FabricModule));
+        this._fabric = detected.fabric ?? ({} as FabricModule);
         this._fabricLoaded = detected._fabricLoaded;
 
         // resolve options through the canonical
@@ -423,9 +407,7 @@ export class ImageEditor {
         // Construct the transform controller now that the Fabric canvas
         // is available. The context binds back to facade fields so the
         // controller does not duplicate state.
-        this._transformController = new TransformController(
-            this._buildTransformContext(),
-        );
+        this._transformController = new TransformController(this._buildTransformContext());
         this._bindEvents();
         this._updateInputs();
         this._updateMaskList();
@@ -451,7 +433,8 @@ export class ImageEditor {
 
         const containerId = this.elements.canvasContainer;
         if (containerId) {
-            this.containerElement = document.getElementById(containerId) ?? canvasElement.parentElement;
+            this.containerElement =
+                document.getElementById(containerId) ?? canvasElement.parentElement;
         } else {
             this.containerElement = canvasElement.parentElement;
         }
@@ -464,7 +447,10 @@ export class ImageEditor {
         if (this.containerElement) {
             const cw = Math.floor(this.containerElement.clientWidth);
             const ch = Math.floor(this.containerElement.clientHeight);
-            if (cw > 0 && ch > 0) { initialW = cw; initialH = ch; }
+            if (cw > 0 && ch > 0) {
+                initialW = cw;
+                initialH = ch;
+            }
         }
 
         this.canvas = new this._fabric.Canvas(canvasElement, {
@@ -508,42 +494,76 @@ export class ImageEditor {
             if (f) void this._loadImageFile(f);
         });
 
-        this._bindIfExists('zoomInBtn', 'click', () => { void this.scaleImage(this.currentScale + this.options.scaleStep); });
-        this._bindIfExists('zoomOutBtn', 'click', () => { void this.scaleImage(this.currentScale - this.options.scaleStep); });
-        this._bindIfExists('resetBtn', 'click', () => { void this.resetImageTransform(); });
+        this._bindIfExists('zoomInBtn', 'click', () => {
+            void this.scaleImage(this.currentScale + this.options.scaleStep);
+        });
+        this._bindIfExists('zoomOutBtn', 'click', () => {
+            void this.scaleImage(this.currentScale - this.options.scaleStep);
+        });
+        this._bindIfExists('resetBtn', 'click', () => {
+            void this.resetImageTransform();
+        });
 
-        this._bindIfExists('addMaskBtn', 'click', () => { this.createMask(); });
-        this._bindIfExists('removeMaskBtn', 'click', () => { this.removeSelectedMask(); });
-        this._bindIfExists('removeAllMasksBtn', 'click', () => { this.removeAllMasks(); });
+        this._bindIfExists('addMaskBtn', 'click', () => {
+            this.createMask();
+        });
+        this._bindIfExists('removeMaskBtn', 'click', () => {
+            this.removeSelectedMask();
+        });
+        this._bindIfExists('removeAllMasksBtn', 'click', () => {
+            this.removeAllMasks();
+        });
 
-        this._bindIfExists('mergeBtn', 'click', () => { void this.mergeMasks(); });
-        this._bindIfExists('downloadBtn', 'click', () => { this.downloadImage(); });
+        this._bindIfExists('mergeBtn', 'click', () => {
+            void this.mergeMasks();
+        });
+        this._bindIfExists('downloadBtn', 'click', () => {
+            this.downloadImage();
+        });
 
-        this._bindIfExists('undoBtn', 'click', () => { this.undo(); });
-        this._bindIfExists('redoBtn', 'click', () => { this.redo(); });
+        this._bindIfExists('undoBtn', 'click', () => {
+            this.undo();
+        });
+        this._bindIfExists('redoBtn', 'click', () => {
+            this.redo();
+        });
 
         this._bindIfExists('rotateLeftBtn', 'click', () => {
             const inputId = this.elements.rotationLeftInput;
-            const inputEl = inputId ? document.getElementById(inputId) as HTMLInputElement | null : null;
+            const inputEl = inputId
+                ? (document.getElementById(inputId) as HTMLInputElement | null)
+                : null;
             let step = this.options.rotationStep;
-            if (inputEl) { const p = parseFloat(inputEl.value); if (!isNaN(p)) step = p; }
+            if (inputEl) {
+                const p = parseFloat(inputEl.value);
+                if (!isNaN(p)) step = p;
+            }
             void this.rotateImage(this.currentRotation - step);
         });
         this._bindIfExists('rotateRightBtn', 'click', () => {
             const inputId = this.elements.rotationRightInput;
-            const inputEl = inputId ? document.getElementById(inputId) as HTMLInputElement | null : null;
+            const inputEl = inputId
+                ? (document.getElementById(inputId) as HTMLInputElement | null)
+                : null;
             let step = this.options.rotationStep;
-            if (inputEl) { const p = parseFloat(inputEl.value); if (!isNaN(p)) step = p; }
+            if (inputEl) {
+                const p = parseFloat(inputEl.value);
+                if (!isNaN(p)) step = p;
+            }
             void this.rotateImage(this.currentRotation + step);
         });
 
-        this._bindIfExists('cropBtn', 'click', () => { this.enterCropMode(); });
+        this._bindIfExists('cropBtn', 'click', () => {
+            this.enterCropMode();
+        });
         this._bindIfExists('applyCropBtn', 'click', () => {
-            void this.applyCrop().catch(err => {
+            void this.applyCrop().catch((err) => {
                 reportError(this.options, err, 'Crop apply failed.');
             });
         });
-        this._bindIfExists('cancelCropBtn', 'click', () => { this.cancelCrop(); });
+        this._bindIfExists('cancelCropBtn', 'click', () => {
+            this.cancelCrop();
+        });
     }
 
     /** @internal */
@@ -573,7 +593,7 @@ export class ImageEditor {
     private async _loadImageFile(file: File): Promise<void> {
         const inputId = this.elements.imageInput;
         const inputEl = inputId
-            ? document.getElementById(inputId) as HTMLInputElement | null
+            ? (document.getElementById(inputId) as HTMLInputElement | null)
             : null;
 
         const mime = inferImageMimeType(file);
@@ -665,37 +685,45 @@ export class ImageEditor {
             viewportCache: this._viewportCache,
 
             getOriginalImage: () => this.originalImage,
-            setOriginalImage: v => { this.originalImage = v; },
+            setOriginalImage: (v) => {
+                this.originalImage = v;
+            },
             getIsImageLoadedToCanvas: () => this.isImageLoadedToCanvas,
-            setIsImageLoadedToCanvas: v => { this.isImageLoadedToCanvas = v; },
+            setIsImageLoadedToCanvas: (v) => {
+                this.isImageLoadedToCanvas = v;
+            },
             getLastSnapshot: () => this._lastSnapshot,
-            setLastSnapshot: v => { this._lastSnapshot = v; },
+            setLastSnapshot: (v) => {
+                this._lastSnapshot = v;
+            },
             getMaskCounter: () => this.maskCounter,
-            setMaskCounter: v => { this.maskCounter = v; },
+            setMaskCounter: (v) => {
+                this.maskCounter = v;
+            },
             getCurrentScale: () => this.currentScale,
-            setCurrentScale: v => { this.currentScale = v; },
+            setCurrentScale: (v) => {
+                this.currentScale = v;
+            },
             getCurrentRotation: () => this.currentRotation,
-            setCurrentRotation: v => { this.currentRotation = v; },
+            setCurrentRotation: (v) => {
+                this.currentRotation = v;
+            },
             getBaseImageScale: () => this.baseImageScale,
-            setBaseImageScale: v => { this.baseImageScale = v; },
+            setBaseImageScale: (v) => {
+                this.baseImageScale = v;
+            },
 
             // Route placeholder visibility through the canonical helper
             // (`ui/visibility-state.ts`) so the loader's rollback path
             // restores the placeholder using the same standard-DOM-state
             // transition as every other code path.
-            setPlaceholderVisible: show => {
+            setPlaceholderVisible: (show) => {
                 setPlaceholderVisibleImpl(this.placeholderElement, this.containerElement, show);
             },
         };
 
         try {
             await loadImageImpl(ctx, base64, options);
-        } catch (err) {
-            // The loader has already replayed the rollback bundle and
-            // routed the error through `onError`. Re-throw so the
-            // returned promise rejects with the original error
-            //.
-            throw err;
         } finally {
             this._guard.endLoading();
             if (!this._disposed && this.canvas) this._updateUI();
@@ -718,7 +746,10 @@ export class ImageEditor {
 
     /** @internal */
     private _getInternalOperationToken(options?: object | null): OperationToken | null {
-        return (options as InternalOperationOptions | null | undefined)?.[INTERNAL_OPERATION_TOKEN] ?? null;
+        return (
+            (options as InternalOperationOptions | null | undefined)?.[INTERNAL_OPERATION_TOKEN] ??
+            null
+        );
     }
 
     /** @internal */
@@ -767,10 +798,17 @@ export class ImageEditor {
     isImageLoaded(): boolean {
         return !!(
             this.originalImage &&
-            this.originalImage instanceof this._fabric.Image &&
+            this.originalImage instanceof this._fabric.FabricImage &&
             (this.originalImage.width ?? 0) > 0 &&
             (this.originalImage.height ?? 0) > 0
         );
+    }
+
+    /**
+     * Returns `true` while the editor is loading, animating, or in crop mode.
+     */
+    isBusy(): boolean {
+        return this._guard.isBusy() || this.animQueue.isBusy() || this._cropSession !== null;
     }
 
     /**
@@ -823,8 +861,12 @@ export class ImageEditor {
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
 
-        const containerW = this.containerElement ? Math.ceil(this.containerElement.clientWidth || 0) : 0;
-        const containerH = this.containerElement ? Math.ceil(this.containerElement.clientHeight || 0) : 0;
+        const containerW = this.containerElement
+            ? Math.ceil(this.containerElement.clientWidth || 0)
+            : 0;
+        const containerH = this.containerElement
+            ? Math.ceil(this.containerElement.clientHeight || 0)
+            : 0;
 
         // If image fits inside the viewport, keep the canvas viewport-sized
         if (
@@ -875,23 +917,32 @@ export class ImageEditor {
             getOriginalImage: () => this.originalImage,
 
             getCurrentScale: () => this.currentScale,
-            setCurrentScale: (n) => { this.currentScale = n; },
+            setCurrentScale: (n) => {
+                this.currentScale = n;
+            },
 
             getCurrentRotation: () => this.currentRotation,
-            setCurrentRotation: (n) => { this.currentRotation = n; },
+            setCurrentRotation: (n) => {
+                this.currentRotation = n;
+            },
 
             getBaseImageScale: () => this.baseImageScale,
 
-            saveCanvasState: () => { this.saveState(); },
-            setSuppressSaveState: (suppress) => { this._suppressSaveState = suppress; },
+            saveCanvasState: () => {
+                this.saveState();
+            },
+            setSuppressSaveState: (suppress) => {
+                this._suppressSaveState = suppress;
+            },
 
             afterTransformSnap: () => {
                 if (this._disposed || !this.canvas || !this.originalImage) return;
                 if (this.options.expandCanvasToImage) this._updateCanvasSizeToImageBounds();
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
-                this.canvas.getObjects()
+                this.canvas
+                    .getObjects()
                     .filter(isMaskObject)
-                    .forEach(maskObject => this._syncMaskLabel(maskObject));
+                    .forEach((maskObject) => this._syncMaskLabel(maskObject));
             },
         };
     }
@@ -1049,8 +1100,10 @@ export class ImageEditor {
             this.originalImage = result.originalImage;
             if (this.originalImage) {
                 this.originalImage.set({
-                    originX: 'left', originY: 'top',
-                    selectable: false, evented: false,
+                    originX: 'left',
+                    originY: 'top',
+                    selectable: false,
+                    evented: false,
                     hasControls: false,
                     hoverCursor: 'default',
                 });
@@ -1074,12 +1127,10 @@ export class ImageEditor {
 
             // Re-attach mouseover/mouseout hover handlers (Fabric never
             // serializes event listeners).
-            result.objects
-                .filter(isMaskObject)
-                .forEach(maskObject => {
-                    applyMaskUnselectedStyle(maskObject);
-                    reattachMaskHoverHandlers(maskObject);
-                });
+            result.objects.filter(isMaskObject).forEach((maskObject) => {
+                applyMaskUnselectedStyle(maskObject);
+                reattachMaskHoverHandlers(maskObject);
+            });
 
             // Undo/redo callers await this method and should settle after
             // Fabric has painted the restored state.
@@ -1127,7 +1178,9 @@ export class ImageEditor {
                     }
                     executedOnce = true;
                 },
-                async () => { await this.loadFromState(before); },
+                async () => {
+                    await this.loadFromState(before);
+                },
             );
 
             this.historyManager.execute(cmd);
@@ -1269,12 +1322,22 @@ export class ImageEditor {
             canvas: this.canvas!,
             options: this.options,
             getLastMask: () => this._lastMask,
-            setLastMask: (maskObject) => { this._lastMask = maskObject; },
+            setLastMask: (maskObject) => {
+                this._lastMask = maskObject;
+            },
             getMaskCounter: () => this.maskCounter,
-            setMaskCounter: (n) => { this.maskCounter = n; },
-            updateMaskList: () => { this._updateMaskList(); },
-            saveCanvasState: () => { this.saveState(); },
-            expandCanvasIfNeeded: (w, h) => { this._setCanvasSizeInt(w, h); },
+            setMaskCounter: (n) => {
+                this.maskCounter = n;
+            },
+            updateMaskList: () => {
+                this._updateMaskList();
+            },
+            saveCanvasState: () => {
+                this.saveState();
+            },
+            expandCanvasIfNeeded: (w, h) => {
+                this._setCanvasSizeInt(w, h);
+            },
         };
     }
 
@@ -1289,10 +1352,18 @@ export class ImageEditor {
     private _buildRemoveMaskContext(): RemoveMaskContext {
         return {
             canvas: this.canvas!,
-            removeLabelForMask: (mask) => { this._removeLabelForMask(mask); },
-            updateMaskList: () => { this._updateMaskList(); },
-            saveCanvasState: () => { this.saveState(); },
-            setLastMask: (maskObject) => { this._lastMask = maskObject; },
+            removeLabelForMask: (mask) => {
+                this._removeLabelForMask(mask);
+            },
+            updateMaskList: () => {
+                this._updateMaskList();
+            },
+            saveCanvasState: () => {
+                this.saveState();
+            },
+            setLastMask: (maskObject) => {
+                this._lastMask = maskObject;
+            },
         };
     }
 
@@ -1347,7 +1418,7 @@ export class ImageEditor {
         const selectedMask = selected.find(isMaskObject) ?? null;
         const masks = this.canvas.getObjects().filter(isMaskObject);
 
-        masks.forEach(maskObject => {
+        masks.forEach((maskObject) => {
             if (maskObject !== selectedMask) {
                 if (maskObject.__label) {
                     this._removeLabelForMask(maskObject);
@@ -1546,10 +1617,7 @@ export class ImageEditor {
             historyManager: this.historyManager,
             containerElement: this.containerElement,
             loadImage: (base64, opts) =>
-                this.loadImage(
-                    base64,
-                    this._withInternalOperationOptions(operationToken, opts),
-                ),
+                this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {
@@ -1690,17 +1758,20 @@ export class ImageEditor {
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
             getCropSession: () => this._cropSession,
-            setCropSession: (s) => { this._cropSession = s; },
+            setCropSession: (s) => {
+                this._cropSession = s;
+            },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             loadImage: (base64, opts) =>
-                this.loadImage(
-                    base64,
-                    this._withInternalOperationOptions(operationToken, opts),
-                ),
+                this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             getMaskCounter: () => this.maskCounter,
-            setMaskCounter: (n) => { this.maskCounter = n; },
-            updateMaskList: () => { this._updateMaskList(); },
+            setMaskCounter: (n) => {
+                this.maskCounter = n;
+            },
+            updateMaskList: () => {
+                this._updateMaskList();
+            },
         };
     }
 
@@ -1732,7 +1803,7 @@ export class ImageEditor {
         const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
 
         if (inCrop) {
-            CROP_MODE_CONTROL_KEYS.forEach(key => {
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 const id = this.elements[key];
                 if (!id) return;
                 const el = document.getElementById(id);
@@ -1746,8 +1817,14 @@ export class ImageEditor {
         this._setDisabled('scaleRate', !hasImg || isBusy);
         this._setDisabled('rotationLeftInput', !hasImg || isBusy);
         this._setDisabled('rotationRightInput', !hasImg || isBusy);
-        this._setDisabled('zoomInBtn', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutBtn', !hasImg || isBusy || this.currentScale <= this.options.minScale);
+        this._setDisabled(
+            'zoomInBtn',
+            !hasImg || isBusy || this.currentScale >= this.options.maxScale,
+        );
+        this._setDisabled(
+            'zoomOutBtn',
+            !hasImg || isBusy || this.currentScale <= this.options.minScale,
+        );
         this._setDisabled('rotateLeftBtn', !hasImg || isBusy);
         this._setDisabled('rotateRightBtn', !hasImg || isBusy);
         this._setDisabled('addMaskBtn', !hasImg || isBusy);
@@ -1857,12 +1934,20 @@ export class ImageEditor {
             try {
                 const ctx = this._buildCropControllerContext();
                 cancelCropImpl(ctx);
-            } catch { /* ignore */ }
+            } catch {
+                /* ignore */
+            }
             this._cropSession = null;
         }
 
         if (this.canvas) {
-            try { this.canvas.dispose(); } catch { /* ignore */ }
+            try {
+                void Promise.resolve(this.canvas.dispose()).catch(() => {
+                    /* ignore */
+                });
+            } catch {
+                /* ignore */
+            }
             this.canvas = null;
             this.canvasElement = null;
             this.isImageLoadedToCanvas = false;

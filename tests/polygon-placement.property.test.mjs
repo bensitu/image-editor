@@ -204,109 +204,95 @@ const placementArb = fc.record({
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test(
-    "polygon bounding-rect top-left equals requested (left, top)",
-    () => {
-        fc.assert(
-            fc.property(
-                polygonPointsArb,
-                placementArb,
-                (points, { left, top }) => {
-                    const ctx = makeContext();
-                    const mask = createMask(ctx, {
-                        shape: 'polygon',
-                        points,
-                        left,
-                        top,
-                    });
+test('polygon bounding-rect top-left equals requested (left, top)', () => {
+    fc.assert(
+        fc.property(polygonPointsArb, placementArb, (points, { left, top }) => {
+            const ctx = makeContext();
+            const mask = createMask(ctx, {
+                shape: 'polygon',
+                points,
+                left,
+                top,
+            });
 
-                    assert.ok(mask, 'polygon mask must be created');
+            assert.ok(mask, 'polygon mask must be created');
 
-                    const br = mask.getBoundingRect();
-                    assert.equal(
-                        br.left,
-                        left,
-                        `the documented contract: bounding rect left must equal requested left (got ${br.left}, expected ${left})`,
-                    );
-                    assert.equal(
-                        br.top,
-                        top,
-                        `the documented contract: bounding rect top must equal requested top (got ${br.top}, expected ${top})`,
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
+            const br = mask.getBoundingRect();
+            assert.equal(
+                br.left,
+                left,
+                `the documented contract: bounding rect left must equal requested left (got ${br.left}, expected ${left})`,
+            );
+            assert.equal(
+                br.top,
+                top,
+                `the documented contract: bounding rect top must equal requested top (got ${br.top}, expected ${top})`,
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
 
-test(
-    "{x,y} object and [x,y] tuple point forms produce identical polygons",
-    () => {
-        fc.assert(
-            fc.property(
-                polygonPointsArb,
-                placementArb,
-                (points, { left, top }) => {
-                    // Same coordinates expressed in the two accepted
-                    // input forms.
-                    const objectForm = points.map((p) => ({ x: p.x, y: p.y }));
-                    const tupleForm = points.map((p) => [p.x, p.y]);
+test('{x,y} object and [x,y] tuple point forms produce identical polygons', () => {
+    fc.assert(
+        fc.property(polygonPointsArb, placementArb, (points, { left, top }) => {
+            // Same coordinates expressed in the two accepted
+            // input forms.
+            const objectForm = points.map((p) => ({ x: p.x, y: p.y }));
+            const tupleForm = points.map((p) => [p.x, p.y]);
 
-                    const ctxA = makeContext();
-                    const ctxB = makeContext();
+            const ctxA = makeContext();
+            const ctxB = makeContext();
 
-                    const maskA = createMask(ctxA, {
-                        shape: 'polygon',
-                        points: objectForm,
-                        left,
-                        top,
-                    });
-                    const maskB = createMask(ctxB, {
-                        shape: 'polygon',
-                        points: tupleForm,
-                        left,
-                        top,
-                    });
+            const maskA = createMask(ctxA, {
+                shape: 'polygon',
+                points: objectForm,
+                left,
+                top,
+            });
+            const maskB = createMask(ctxB, {
+                shape: 'polygon',
+                points: tupleForm,
+                left,
+                top,
+            });
 
-                    assert.ok(maskA, 'object-form polygon must be created');
-                    assert.ok(maskB, 'tuple-form polygon must be created');
+            assert.ok(maskA, 'object-form polygon must be created');
+            assert.ok(maskB, 'tuple-form polygon must be created');
 
-                    // After `coercePoint`, both forms must produce the
-                    // same numeric `{ x, y }` vertex list.
-                    assert.deepEqual(
-                        maskA.points,
-                        maskB.points,
-                        'the documented contract: coerced polygon points must match',
-                    );
+            // After `coercePoint`, both forms must produce the
+            // same numeric `{ x, y }` vertex list.
+            assert.deepEqual(
+                maskA.points,
+                maskB.points,
+                'the documented contract: coerced polygon points must match',
+            );
 
-                    // The factory's bounding-box realignment must
-                    // produce identical rendered geometry for both
-                    // input forms.
-                    const brA = maskA.getBoundingRect();
-                    const brB = maskB.getBoundingRect();
-                    assert.deepEqual(
-                        brA,
-                        brB,
-                        'the documented contract: bounding rect must match across input forms',
-                    );
+            // The factory's bounding-box realignment must
+            // produce identical rendered geometry for both
+            // input forms.
+            const brA = maskA.getBoundingRect();
+            const brB = maskB.getBoundingRect();
+            assert.deepEqual(
+                brA,
+                brB,
+                'the documented contract: bounding rect must match across input forms',
+            );
 
-                    // The post-shift left/top of the polygon object
-                    // itself must also agree, since the delta-shift is
-                    // computed from the same coerced geometry.
-                    assert.equal(
-                        maskA.left,
-                        maskB.left,
-                        'the documented contract: polygon.left must match across input forms',
-                    );
-                    assert.equal(
-                        maskA.top,
-                        maskB.top,
-                        'the documented contract: polygon.top must match across input forms',
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
+            // The post-shift left/top of the polygon object
+            // itself must also agree, since the delta-shift is
+            // computed from the same coerced geometry.
+            assert.equal(
+                maskA.left,
+                maskB.left,
+                'the documented contract: polygon.left must match across input forms',
+            );
+            assert.equal(
+                maskA.top,
+                maskB.top,
+                'the documented contract: polygon.top must match across input forms',
+            );
+        }),
+        { numRuns: 30 },
+    );
+});

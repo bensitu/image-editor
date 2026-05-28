@@ -44,9 +44,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { saveState, loadFromState, SNAPSHOT_CUSTOM_KEYS } = await import(
-    '../src/core/state-serializer.ts'
-);
+const { saveState, loadFromState, SNAPSHOT_CUSTOM_KEYS } =
+    await import('../src/core/state-serializer.ts');
 
 // ─── Mock Fabric canvas ─────────────────────────────────────────────────────
 
@@ -94,7 +93,7 @@ class MockCanvas {
             version: '6.0.0',
             width: this.width,
             height: this.height,
-            objects: this.objects.map(o => {
+            objects: this.objects.map((o) => {
                 const out = {
                     type: o.type,
                     left: o.left ?? 0,
@@ -110,9 +109,7 @@ class MockCanvas {
     }
 
     async loadFromJSON(json) {
-        this.objects = Array.isArray(json.objects)
-            ? json.objects.map(o => ({ ...o }))
-            : [];
+        this.objects = Array.isArray(json.objects) ? json.objects.map((o) => ({ ...o })) : [];
         if (typeof json.width === 'number') this.width = json.width;
         if (typeof json.height === 'number') this.height = json.height;
         return this;
@@ -139,9 +136,9 @@ const dimensionArb = fc.record({
 // values to keep the property's equality check on the parsed snapshot
 // comparison rather than on float-formatting peculiarities.
 const editorStateArb = fc.record({
-    currentScale: fc.integer({ min: 1, max: 500 }).map(n => n / 100),
+    currentScale: fc.integer({ min: 1, max: 500 }).map((n) => n / 100),
     currentRotation: fc.integer({ min: -360, max: 360 }),
-    baseImageScale: fc.integer({ min: 1, max: 200 }).map(n => n / 100),
+    baseImageScale: fc.integer({ min: 1, max: 200 }).map((n) => n / 100),
 });
 
 const shapeTypeArb = fc.constantFrom('rect', 'circle', 'ellipse', 'polygon');
@@ -158,10 +155,10 @@ const maskBlueprintArb = fc.record({
         // Avoid characters that JSON would escape unevenly between our
         // mock and a real Fabric — letters/digits/dashes are universally
         // round-trip safe and exercise the metadata path identically.
-        .map(s => s.replace(/[^A-Za-z0-9_-]/g, '_'))
-        .filter(s => s.length > 0),
-    originalAlpha: fc.integer({ min: 0, max: 100 }).map(n => n / 100),
-    opacity: fc.integer({ min: 0, max: 100 }).map(n => n / 100),
+        .map((s) => s.replace(/[^A-Za-z0-9_-]/g, '_'))
+        .filter((s) => s.length > 0),
+    originalAlpha: fc.integer({ min: 0, max: 100 }).map((n) => n / 100),
+    opacity: fc.integer({ min: 0, max: 100 }).map((n) => n / 100),
     // Falsy style fields — the documented contract says these must round-trip
     // verbatim through the snapshot. Fabric serializes any custom key
     // declared in `propertiesToInclude` as-is; here we cover both a
@@ -221,28 +218,19 @@ const scenarioArb = fc
             maxLength: 5,
         }),
     )
-    .map(
-        ([
+    .map(([dims, editorState, blueprints, transients, originalImage, maskIdPool]) => {
+        const masks = blueprints.map((b, i) => ({
+            ...b,
+            maskId: maskIdPool[i],
+        }));
+        return {
             dims,
             editorState,
-            blueprints,
+            masks,
             transients,
             originalImage,
-            maskIdPool,
-        ]) => {
-            const masks = blueprints.map((b, i) => ({
-                ...b,
-                maskId: maskIdPool[i],
-            }));
-            return {
-                dims,
-                editorState,
-                masks,
-                transients,
-                originalImage,
-            };
-        },
-    );
+        };
+    });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -284,16 +272,8 @@ function assertSnapshotsEquivalent(s1, s2, scenario) {
     const j1 = JSON.parse(s1);
     const j2 = JSON.parse(s2);
 
-    assert.equal(
-        j1.width,
-        j2.width,
-        'the documented contract: canvas width must round-trip',
-    );
-    assert.equal(
-        j1.height,
-        j2.height,
-        'the documented contract: canvas height must round-trip',
-    );
+    assert.equal(j1.width, j2.width, 'the documented contract: canvas width must round-trip');
+    assert.equal(j1.height, j2.height, 'the documented contract: canvas height must round-trip');
 
     assert.deepEqual(
         j1._editorState,
@@ -320,7 +300,7 @@ function assertSnapshotsEquivalent(s1, s2, scenario) {
 
 test('saveState→loadFromState→saveState produces an identical snapshot', async () => {
     await fc.assert(
-        fc.asyncProperty(scenarioArb, async scenario => {
+        fc.asyncProperty(scenarioArb, async (scenario) => {
             // ── Build the source canvas ──────────────────────────────
             const src = buildSourceCanvas(scenario);
 
@@ -339,14 +319,9 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
                 j1._editorState && typeof j1._editorState === 'object',
                 'the documented contract: snapshot must carry _editorState',
             );
+            assert.ok(Array.isArray(j1.objects), 'snapshot must carry an objects array');
             assert.ok(
-                Array.isArray(j1.objects),
-                'snapshot must carry an objects array',
-            );
-            assert.ok(
-                j1.objects.every(
-                    o => o.isCropRect !== true && o.maskLabel !== true,
-                ),
+                j1.objects.every((o) => o.isCropRect !== true && o.maskLabel !== true),
                 'the documented contract: session-only crop rect / mask labels must be filtered before history',
             );
 
@@ -379,10 +354,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
 
             // the documented contract: maxMaskId equals the maximum mask id present in
             // the source (or 0 when no masks survived).
-            const expectedMaxMaskId = scenario.masks.reduce(
-                (max, m) => Math.max(max, m.maskId),
-                0,
-            );
+            const expectedMaxMaskId = scenario.masks.reduce((max, m) => Math.max(max, m.maskId), 0);
             assert.equal(
                 result.maxMaskId,
                 expectedMaxMaskId,
@@ -415,7 +387,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
             // a stale Fabric `_setOptions` regression.
             for (const sourceMask of scenario.masks) {
                 const restored = result.objects.find(
-                    o =>
+                    (o) =>
                         o.type === sourceMask.type &&
                         Math.abs((o.left ?? 0) - sourceMask.left) < 0.5 &&
                         Math.abs((o.top ?? 0) - sourceMask.top) < 0.5 &&
@@ -441,9 +413,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
             // because the snapshot they would have come from was already
             // filtered.
             assert.ok(
-                result.objects.every(
-                    o => o.isCropRect !== true && o.maskLabel !== true,
-                ),
+                result.objects.every((o) => o.isCropRect !== true && o.maskLabel !== true),
                 'the documented contract: session-only objects must not appear after a round-trip',
             );
 
@@ -478,10 +448,7 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
         'originalStroke',
         'originalStrokeWidth',
     ]) {
-        assert.ok(
-            SNAPSHOT_CUSTOM_KEYS.includes(k),
-            `SNAPSHOT_CUSTOM_KEYS must include '${k}'`,
-        );
+        assert.ok(SNAPSHOT_CUSTOM_KEYS.includes(k), `SNAPSHOT_CUSTOM_KEYS must include '${k}'`);
     }
 });
 

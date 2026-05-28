@@ -114,6 +114,10 @@ export declare class ImageEditor {
      */
     isImageLoaded(): boolean;
     /**
+     * Returns `true` while the editor is loading, animating, or in crop mode.
+     */
+    isBusy(): boolean;
+    /**
      * Animates the image to the given scale factor.
      * The factor is clamped to `[options.minScale, options.maxScale]`.
      *

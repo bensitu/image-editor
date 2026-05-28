@@ -262,7 +262,6 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
                     return {};
                 },
             };
-            // eslint-disable-next-line no-undef -- intentional global install
             globalThis.document = documentSpy;
 
             try {
@@ -290,7 +289,6 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
                 if (previousDocument === undefined) {
                     delete globalThis.document;
                 } else {
-                    // eslint-disable-next-line no-undef -- restore prior value
                     globalThis.document = previousDocument;
                 }
             }
@@ -303,12 +301,16 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
 
 test('getClampedCanvasRegion includes export partial pixels but excludes crop trailing pixels', () => {
     const rect = { left: 0, top: 0, width: 39.5, height: 59.5 };
-    assert.deepEqual(
-        getClampedCanvasRegion(rect, 120, 80, { includePartialPixels: true }),
-        { left: 0, top: 0, width: 40, height: 60 },
-    );
-    assert.deepEqual(
-        getClampedCanvasRegion(rect, 120, 80, { includePartialPixels: false }),
-        { left: 0, top: 0, width: 39, height: 59 },
-    );
+    assert.deepEqual(getClampedCanvasRegion(rect, 120, 80, { includePartialPixels: true }), {
+        left: 0,
+        top: 0,
+        width: 40,
+        height: 60,
+    });
+    assert.deepEqual(getClampedCanvasRegion(rect, 120, 80, { includePartialPixels: false }), {
+        left: 0,
+        top: 0,
+        width: 39,
+        height: 59,
+    });
 });

@@ -1,112 +1,112 @@
 name: Publish npm package
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Package semantic version to publish. Prefix with v is optional.'
-        required: true
-        type: string
-      npm_tag:
-        description: 'npm dist-tag to publish with'
-        required: false
-        default: 'latest'
+    workflow_dispatch:
+        inputs:
+            version:
+                description: 'Package semantic version to publish. Prefix with v is optional.'
+                required: true
+                type: string
+            npm_tag:
+                description: 'npm dist-tag to publish with'
+                required: false
+                default: 'latest'
 
 permissions:
-  contents: read
-  id-token: write
+    contents: read
+    id-token: write
 
 concurrency:
-  group: npm-publish-${{ github.event.inputs.version }}
-  cancel-in-progress: false
+    group: npm-publish-${{ github.event.inputs.version }}
+    cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish release artifact
-    runs-on: ubuntu-latest
+    publish:
+        name: Publish release artifact
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22.14.0
-          registry-url: https://registry.npmjs.org
+        steps:
+            - name: Set up Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 22.14.0
+                  registry-url: https://registry.npmjs.org
 
-      - name: Use npm with trusted publishing support
-        run: npm install -g npm@^11.5.1
+            - name: Use npm with trusted publishing support
+              run: npm install -g npm@^11.5.1
 
-      - name: Validate requested version
-        shell: bash
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-          VERSION="${VERSION#v}"
+            - name: Validate requested version
+              shell: bash
+              run: |
+                  VERSION="${{ github.event.inputs.version }}"
+                  VERSION="${VERSION#v}"
 
-          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Version must be a semantic version. Prefix with v is optional." >&2
-            exit 1
-          fi
+                  if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+                    echo "Version must be a semantic version. Prefix with v is optional." >&2
+                    exit 1
+                  fi
 
-          {
-            echo "VERSION=${VERSION}"
-            echo "TAG_NAME=v${VERSION}"
-          } >> "${GITHUB_ENV}"
+                  {
+                    echo "VERSION=${VERSION}"
+                    echo "TAG_NAME=v${VERSION}"
+                  } >> "${GITHUB_ENV}"
 
-      - name: Download release artifact
-        shell: bash
-        run: |
-          IS_DRAFT="$(gh release view "${TAG_NAME}" --json isDraft --jq '.isDraft')"
-          if [[ "${IS_DRAFT}" != "false" ]]; then
-            echo "Release ${TAG_NAME} must be published before publishing to npm." >&2
-            exit 1
-          fi
+            - name: Download release artifact
+              shell: bash
+              run: |
+                  IS_DRAFT="$(gh release view "${TAG_NAME}" --json isDraft --jq '.isDraft')"
+                  if [[ "${IS_DRAFT}" != "false" ]]; then
+                    echo "Release ${TAG_NAME} must be published before publishing to npm." >&2
+                    exit 1
+                  fi
 
-          rm -f ./*.tgz ./*.sha256
-          gh release download "${TAG_NAME}" --pattern '*.tgz' --pattern '*.sha256' --clobber
+                  rm -f ./*.tgz ./*.sha256
+                  gh release download "${TAG_NAME}" --pattern '*.tgz' --pattern '*.sha256' --clobber
 
-          shopt -s nullglob
-          PACKAGE_TARBALLS=(*.tgz)
-          PACKAGE_CHECKSUMS=(*.sha256)
-          if [[ "${#PACKAGE_TARBALLS[@]}" -ne 1 || "${#PACKAGE_CHECKSUMS[@]}" -ne 1 ]]; then
-            echo "Release ${TAG_NAME} must contain exactly one .tgz package and one .sha256 checksum." >&2
-            exit 1
-          fi
+                  shopt -s nullglob
+                  PACKAGE_TARBALLS=(*.tgz)
+                  PACKAGE_CHECKSUMS=(*.sha256)
+                  if [[ "${#PACKAGE_TARBALLS[@]}" -ne 1 || "${#PACKAGE_CHECKSUMS[@]}" -ne 1 ]]; then
+                    echo "Release ${TAG_NAME} must contain exactly one .tgz package and one .sha256 checksum." >&2
+                    exit 1
+                  fi
 
-          sha256sum -c "${PACKAGE_CHECKSUMS[0]}"
-          echo "PACKAGE_TARBALL=${PACKAGE_TARBALLS[0]}" >> "${GITHUB_ENV}"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+                  sha256sum -c "${PACKAGE_CHECKSUMS[0]}"
+                  echo "PACKAGE_TARBALL=${PACKAGE_TARBALLS[0]}" >> "${GITHUB_ENV}"
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
 
-      - name: Validate release artifact metadata
-        shell: bash
-        run: |
-          tar -xOf "${PACKAGE_TARBALL}" package/package.json > package-from-tarball.json
-          PACKAGE_NAME="$(node -p "require('./package-from-tarball.json').name")"
-          PACKAGE_VERSION="$(node -p "require('./package-from-tarball.json').version")"
+            - name: Validate release artifact metadata
+              shell: bash
+              run: |
+                  tar -xOf "${PACKAGE_TARBALL}" package/package.json > package-from-tarball.json
+                  PACKAGE_NAME="$(node -p "require('./package-from-tarball.json').name")"
+                  PACKAGE_VERSION="$(node -p "require('./package-from-tarball.json').version")"
 
-          echo "Package: ${PACKAGE_NAME}@${PACKAGE_VERSION}"
-          if [[ "${PACKAGE_VERSION}" != "${VERSION}" ]]; then
-            echo "Package artifact version (${PACKAGE_VERSION}) must match requested version (${VERSION})." >&2
-            exit 1
-          fi
+                  echo "Package: ${PACKAGE_NAME}@${PACKAGE_VERSION}"
+                  if [[ "${PACKAGE_VERSION}" != "${VERSION}" ]]; then
+                    echo "Package artifact version (${PACKAGE_VERSION}) must match requested version (${VERSION})." >&2
+                    exit 1
+                  fi
 
-          {
-            echo "PACKAGE_NAME=${PACKAGE_NAME}"
-            echo "PACKAGE_VERSION=${PACKAGE_VERSION}"
-          } >> "${GITHUB_ENV}"
+                  {
+                    echo "PACKAGE_NAME=${PACKAGE_NAME}"
+                    echo "PACKAGE_VERSION=${PACKAGE_VERSION}"
+                  } >> "${GITHUB_ENV}"
 
-      - name: Check npm version availability
-        shell: bash
-        run: |
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
-            exit 1
-          fi
+            - name: Check npm version availability
+              shell: bash
+              run: |
+                  if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
+                    echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
+                    exit 1
+                  fi
 
-      - name: Publish release artifact to npm
-        shell: bash
-        env:
-          WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
-        run: |
-          NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
-          npm publish "./${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}"
+            - name: Publish release artifact to npm
+              shell: bash
+              env:
+                  WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
+              run: |
+                  NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
+                  npm publish "./${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}"

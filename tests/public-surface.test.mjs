@@ -54,6 +54,7 @@ const CANONICAL_METHODS = Object.freeze([
     'dispose',
     'loadImage',
     'isImageLoaded',
+    'isBusy',
     'scaleImage',
     'rotateImage',
     'resetImageTransform',
@@ -106,21 +107,32 @@ const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
 // ─── 1. Default + named exports ─────────────────────────
 
 test('barrel exposes ImageEditor as default and named export, both pointing to the same class', () => {
-    assert.equal(typeof NamedImageEditor, 'function',
-        'named `ImageEditor` export must be a class (function)');
-    assert.equal(typeof DefaultImageEditor, 'function',
-        'default export must be a class (function)');
-    assert.equal(DefaultImageEditor, NamedImageEditor,
-        'default and named exports must resolve to the same class');
-    assert.equal(NamedImageEditor.name, 'ImageEditor',
-        'class name must be `ImageEditor`');
+    assert.equal(
+        typeof NamedImageEditor,
+        'function',
+        'named `ImageEditor` export must be a class (function)',
+    );
+    assert.equal(
+        typeof DefaultImageEditor,
+        'function',
+        'default export must be a class (function)',
+    );
+    assert.equal(
+        DefaultImageEditor,
+        NamedImageEditor,
+        'default and named exports must resolve to the same class',
+    );
+    assert.equal(NamedImageEditor.name, 'ImageEditor', 'class name must be `ImageEditor`');
 });
 
 // ─── 2. isMaskObject is exported ────────────────────────
 
 test('barrel exposes isMaskObject as a runtime function', () => {
-    assert.equal(typeof isMaskObject, 'function',
-        '`isMaskObject` must be a runtime export from the barrel');
+    assert.equal(
+        typeof isMaskObject,
+        'function',
+        '`isMaskObject` must be a runtime export from the barrel',
+    );
 });
 
 // ─── 3. Canonical methods on ImageEditor.prototype ──────
@@ -136,10 +148,10 @@ test('every canonical method from the documented contract is a function on Image
     }
 });
 
-test('canonical method set includes the documented introspection trio', () => {
+test('canonical method set includes the documented introspection methods', () => {
     // Spot-check these names so a future refactor that drops one of them
     // fails this test by name rather than by index.
-    for (const introspector of ['isImageLoaded', 'saveState', 'loadFromState']) {
+    for (const introspector of ['isImageLoaded', 'isBusy', 'saveState', 'loadFromState']) {
         assert.equal(
             typeof NamedImageEditor.prototype[introspector],
             'function',

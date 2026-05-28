@@ -34,9 +34,7 @@ export const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string> = {
     bmp: 'image/bmp',
 };
 
-export const SUPPORTED_IMAGE_MIME_TYPES = new Set(
-    Object.values(SUPPORTED_IMAGE_EXTENSIONS),
-);
+export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
 
 /**
  * Determine whether a `File` is a supported image and return its resolved

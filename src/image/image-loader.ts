@@ -96,12 +96,8 @@
 
 import type * as FabricNS from 'fabric';
 
-import type {
-    FabricModule,
-    LoadImageOptions,
-    ResolvedOptions,
-} from '../core/public-types.js';
-import { reportError } from '../core/callback-reporter.js';
+import type { FabricModule, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -314,14 +310,10 @@ export async function loadImage(
     //    mutation. Reads `style.overflow` (NOT computed style) so the
     //    rollback restores the developer's inline value verbatim
     //    (never invent a new inline style).
-    const placeholderHidden =
-        ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
-    const containerScrollTop =
-        ctx.containerElement ? ctx.containerElement.scrollTop : null;
-    const containerScrollLeft =
-        ctx.containerElement ? ctx.containerElement.scrollLeft : null;
-    const containerOverflow =
-        ctx.containerElement ? ctx.containerElement.style.overflow : null;
+    const placeholderHidden = ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
+    const containerScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
+    const containerScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
+    const containerOverflow = ctx.containerElement ? ctx.containerElement.style.overflow : null;
 
     const bundle: RollbackBundle = {
         placeholderHidden,
@@ -443,10 +435,7 @@ export async function loadImage(
                     ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             } catch (err) {
-                console.warn(
-                    '[ImageEditor] preserveScroll restore failed',
-                    err,
-                );
+                console.warn('[ImageEditor] preserveScroll restore failed', err);
             }
         }
 
@@ -466,10 +455,7 @@ export async function loadImage(
             try {
                 cb();
             } catch (err) {
-                console.error(
-                    '[ImageEditor] onImageLoaded callback threw',
-                    err,
-                );
+                console.error('[ImageEditor] onImageLoaded callback threw', err);
             }
         }
     } catch (err) {
@@ -485,9 +471,8 @@ export async function loadImage(
         // helper is invoked AFTER `replayRollback` so the editor state
         // observable from inside `onError` matches the pre-call state
         // (atomic rewind).
-        const errorMessage = err instanceof Error
-            ? `loadImage failed: ${err.message}`
-            : 'loadImage failed';
+        const errorMessage =
+            err instanceof Error ? `loadImage failed: ${err.message}` : 'loadImage failed';
         reportError(ctx.options, err, errorMessage);
 
         throw err;
@@ -522,6 +507,16 @@ function startImageDecode(dataUrl: string): ImageDecodeHandle {
     };
 
     const handleLoad = (): void => {
+        if (!hasNaturalImageDimensions(img)) {
+            cleanup(true);
+            rejectImage(
+                new ImageDecodeError(
+                    'Failed to decode image data URL: image has no natural dimensions.',
+                    null,
+                ),
+            );
+            return;
+        }
         cleanup(false);
         resolveImage(img);
     };
@@ -548,6 +543,19 @@ function startImageDecode(dataUrl: string): ImageDecodeHandle {
     return { promise, cleanup };
 }
 
+function hasNaturalImageDimensions(img: HTMLImageElement): boolean {
+    return (
+        Number.isFinite(img.naturalWidth) &&
+        Number.isFinite(img.naturalHeight) &&
+        img.naturalWidth > 0 &&
+        img.naturalHeight > 0
+    );
+}
+
+function isPositiveFinite(value: number): boolean {
+    return Number.isFinite(value) && value > 0;
+}
+
 /**
  * Run the resampler when the source image exceeds the configured bounds
  * and downsampling is enabled. Returns the (possibly rewritten) data URL
@@ -562,6 +570,18 @@ function maybeDownsample(
     options: ResolvedOptions,
 ): string {
     if (!options.downsampleOnLoad) return originalDataUrl;
+
+    if (
+        !isPositiveFinite(options.downsampleMaxWidth) ||
+        !isPositiveFinite(options.downsampleMaxHeight)
+    ) {
+        reportWarning(
+            options,
+            null,
+            'loadImage skipped downsampling because downsample bounds are invalid.',
+        );
+        return originalDataUrl;
+    }
 
     const dims = computeDownsampleDimensions(
         imgEl.naturalWidth,
@@ -588,10 +608,7 @@ function maybeDownsample(
  * {@link selectLayoutStrategy} and the per-strategy computers in
  * `image/layout-manager.ts`.
  */
-function computeLayout(
-    ctx: LoadImageContext,
-    fimg: FabricNS.FabricImage,
-): LayoutResult {
+function computeLayout(ctx: LoadImageContext, fimg: FabricNS.FabricImage): LayoutResult {
     const imgW = fimg.width ?? 0;
     const imgH = fimg.height ?? 0;
     const viewport = ctx.viewportCache.measure(ctx.containerElement, {
@@ -651,10 +668,7 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
  * and swallowed: the loader must always reject with the *original* error
  *, so a defective rollback cannot mask the cause.
  */
-async function replayRollback(
-    ctx: LoadImageContext,
-    bundle: RollbackBundle,
-): Promise<void> {
+async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Promise<void> {
     // 1. Restore container `overflow` inline value first so subsequent
     //    DOM reads (scroll metrics, layout) see the developer's CSS.
     if (ctx.containerElement && bundle.containerOverflow !== null) {

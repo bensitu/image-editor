@@ -264,10 +264,7 @@ export class TransformController {
             img.setPositionByOrigin(topLeft, 'left', 'top');
             img.setCoords();
         } catch (err) {
-            console.warn(
-                '[ImageEditor] scaleImage: origin pre-anchor failed',
-                err,
-            );
+            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', err);
         }
 
         try {
@@ -359,10 +356,7 @@ export class TransformController {
             img.setPositionByOrigin(centre, 'center', 'center');
             img.setCoords();
         } catch (err) {
-            console.warn(
-                '[ImageEditor] rotateImage: origin pre-anchor failed',
-                err,
-            );
+            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', err);
         }
 
         let animationFailed = false;
@@ -410,10 +404,7 @@ export class TransformController {
             img.setPositionByOrigin(newTopLeft, 'left', 'top');
             img.setCoords();
         } catch (err) {
-            console.warn(
-                '[ImageEditor] rotateImage: origin post-restore failed',
-                err,
-            );
+            console.warn('[ImageEditor] rotateImage: origin post-restore failed', err);
         }
 
         // record a snapshot so the new rotation is undoable.
@@ -449,17 +440,14 @@ export class TransformController {
     async resetImageTransform(): Promise<void> {
         if (!this.ctx.getOriginalImage()) return;
 
-        let chainSucceeded = false;
         this.ctx.setSuppressSaveState(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
-            chainSucceeded = true;
         } finally {
             this.ctx.setSuppressSaveState(false);
         }
 
-        if (!chainSucceeded) return;
         if (this.ctx.guard.isDisposed()) return;
 
         // single history entry for the whole reset.

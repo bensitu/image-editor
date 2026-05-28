@@ -62,7 +62,7 @@ export interface MaskObject extends FabricNS.FabricObject {
     isCropRect?: boolean;
     /**
      * Marker flag set on label-overlay text objects so the state serializer
- * can exclude them from history snapshots.
+     * can exclude them from history snapshots.
      */
     maskLabel?: boolean;
 }
@@ -218,6 +218,21 @@ export interface MaskConfig {
      * resolved editor options.
      */
     fabricGenerator?: (cfg: ResolvedMaskConfig, canvas: FabricNS.Canvas, options: ResolvedOptions) => FabricNS.FabricObject;
+}
+/**
+ * Fully resolved mask config produced after defaults and percentage resolution
+ * have been applied. Exposed because consumers may receive it via
+ * `MaskConfig.fabricGenerator`.
+ */
+export interface ResolvedMaskConfig extends MaskConfig {
+    shape: NonNullable<MaskConfig['shape']>;
+    width: number;
+    height: number;
+    color: string;
+    alpha: number;
+    gap: number;
+    angle: number;
+    selectable: boolean;
 }
 /**
  * Options accepted by `ImageEditor.loadImage(imageBase64, options?)`.

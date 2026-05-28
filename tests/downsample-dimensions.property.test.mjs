@@ -40,9 +40,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { computeDownsampleDimensions } = await import(
-    '../src/image/image-resampler.ts'
-);
+const { computeDownsampleDimensions } = await import('../src/image/image-resampler.ts');
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -125,12 +123,12 @@ test('aspect ratio preserved when scaling occurred', () => {
             const idealWidth = srcW * ratio;
             const idealHeight = srcH * ratio;
 
-            const widthDelta = idealWidth < 1 && out.width === 1
-                ? 0 // floor case: ideal rounds below 1px, output clamped to 1
-                : Math.abs(out.width - idealWidth);
-            const heightDelta = idealHeight < 1 && out.height === 1
-                ? 0
-                : Math.abs(out.height - idealHeight);
+            const widthDelta =
+                idealWidth < 1 && out.width === 1
+                    ? 0 // floor case: ideal rounds below 1px, output clamped to 1
+                    : Math.abs(out.width - idealWidth);
+            const heightDelta =
+                idealHeight < 1 && out.height === 1 ? 0 : Math.abs(out.height - idealHeight);
 
             assert.ok(
                 widthDelta <= 1,
@@ -170,4 +168,22 @@ test('output dimensions are always >= 1', () => {
         }),
         { numRuns: 100 },
     );
+});
+
+test('invalid bounds keep the original positive source dimensions', () => {
+    for (const [maxW, maxH] of [
+        [0, 100],
+        [100, 0],
+        [-1, 100],
+        [100, -1],
+        [Number.NaN, 100],
+        [100, Number.POSITIVE_INFINITY],
+    ]) {
+        const out = computeDownsampleDimensions(640, 480, maxW, maxH);
+        assert.deepEqual(out, {
+            width: 640,
+            height: 480,
+            needsResize: false,
+        });
+    }
 });

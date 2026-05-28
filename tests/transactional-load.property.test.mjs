@@ -77,10 +77,11 @@ function installImageStub(mode = 'success') {
         constructor() {
             this.onload = null;
             this.onerror = null;
-            this.naturalWidth = 100;
-            this.naturalHeight = 100;
-            this.width = 100;
-            this.height = 100;
+            const naturalSize = mode === 'zero-dim' ? 0 : 100;
+            this.naturalWidth = naturalSize;
+            this.naturalHeight = naturalSize;
+            this.width = naturalSize;
+            this.height = naturalSize;
         }
         set src(value) {
             this._src = value;
@@ -165,7 +166,7 @@ class MockCanvas {
             width: this.width,
             height: this.height,
             background: this.backgroundColor,
-            objects: this.objects.map(o => {
+            objects: this.objects.map((o) => {
                 const out = { type: o.type ?? 'object' };
                 for (const k of ['left', 'top', 'width', 'height']) {
                     if (k in o) out[k] = o[k];
@@ -189,9 +190,7 @@ class MockCanvas {
         if (typeof json.background === 'string') {
             this.backgroundColor = json.background;
         }
-        this.objects = Array.isArray(json.objects)
-            ? json.objects.map(o => ({ ...o }))
-            : [];
+        this.objects = Array.isArray(json.objects) ? json.objects.map((o) => ({ ...o })) : [];
         return this;
     }
 }
@@ -268,34 +267,34 @@ function makeStateHolder(initial) {
         state,
         placeholderShows,
         getOriginalImage: () => state.originalImage,
-        setOriginalImage: v => {
+        setOriginalImage: (v) => {
             state.originalImage = v;
         },
         getIsImageLoadedToCanvas: () => state.isImageLoadedToCanvas,
-        setIsImageLoadedToCanvas: v => {
+        setIsImageLoadedToCanvas: (v) => {
             state.isImageLoadedToCanvas = v;
         },
         getLastSnapshot: () => state.lastSnapshot,
-        setLastSnapshot: v => {
+        setLastSnapshot: (v) => {
             state.lastSnapshot = v;
         },
         getMaskCounter: () => state.maskCounter,
-        setMaskCounter: v => {
+        setMaskCounter: (v) => {
             state.maskCounter = v;
         },
         getCurrentScale: () => state.currentScale,
-        setCurrentScale: v => {
+        setCurrentScale: (v) => {
             state.currentScale = v;
         },
         getCurrentRotation: () => state.currentRotation,
-        setCurrentRotation: v => {
+        setCurrentRotation: (v) => {
             state.currentRotation = v;
         },
         getBaseImageScale: () => state.baseImageScale,
-        setBaseImageScale: v => {
+        setBaseImageScale: (v) => {
             state.baseImageScale = v;
         },
-        setPlaceholderVisible: show => {
+        setPlaceholderVisible: (show) => {
             placeholderShows.push(show);
         },
     };
@@ -369,9 +368,7 @@ const nonDataImageStringArb = fc.oneof(
         'DATA:IMAGE/PNG;base64,xxx', // case-sensitive prefix per the documented contract
         'file:///tmp/foo.png',
     ),
-    fc.string({ minLength: 0, maxLength: 32 }).filter(
-        s => !s.startsWith('data:image/'),
-    ),
+    fc.string({ minLength: 0, maxLength: 32 }).filter((s) => !s.startsWith('data:image/')),
 );
 
 const preserveScrollArb = fc.option(fc.boolean(), { nil: undefined });
@@ -445,7 +442,7 @@ test('non-data:image strings cause zero mutation', async () => {
 
 test('success commits the new-image state', async () => {
     await fc.assert(
-        fc.asyncProperty(preserveScrollArb, async preserveScroll => {
+        fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {
             installImageStub('success');
             const { ctx, holder } = makeContext();
 
@@ -478,8 +475,7 @@ test('success commits the new-image state', async () => {
                 'the documented contract: success must set currentRotation to 0',
             );
             assert.ok(
-                holder.state.lastSnapshot !== null &&
-                    typeof holder.state.lastSnapshot === 'string',
+                holder.state.lastSnapshot !== null && typeof holder.state.lastSnapshot === 'string',
                 'the documented contract: success must emit a fresh _lastSnapshot string',
             );
             assert.ok(
@@ -493,7 +489,7 @@ test('success commits the new-image state', async () => {
 
 test('success fires onImageLoaded exactly once', async () => {
     await fc.assert(
-        fc.asyncProperty(preserveScrollArb, async preserveScroll => {
+        fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {
             installImageStub('success');
             let onImageLoadedCalls = 0;
             const { ctx } = makeContext({
@@ -520,7 +516,7 @@ test('success fires onImageLoaded exactly once', async () => {
 
 test('failure restores editor scalar state', async () => {
     await fc.assert(
-        fc.asyncProperty(preserveScrollArb, async preserveScroll => {
+        fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {
             installImageStub('success');
             const { ctx, holder, initial } = makeContext({ failFromUrl: true });
 
@@ -531,13 +527,10 @@ test('failure restores editor scalar state', async () => {
                         VALID_PNG_DATA_URL,
                         preserveScroll === undefined ? undefined : { preserveScroll },
                     ),
-                err => {
+                (err) => {
                     // the documented contract — the original error is what the
                     // promise rejects with.
-                    return (
-                        err instanceof Error &&
-                        err.message === 'FabricImage.fromURL failed'
-                    );
+                    return err instanceof Error && err.message === 'FabricImage.fromURL failed';
                 },
                 'the documented contract: failure path must reject with the original error',
             );
@@ -565,7 +558,7 @@ test('failure restores editor scalar state', async () => {
 
 test('failure does NOT fire onImageLoaded', async () => {
     await fc.assert(
-        fc.asyncProperty(preserveScrollArb, async preserveScroll => {
+        fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {
             installImageStub('success');
             let onImageLoadedCalls = 0;
             const { ctx } = makeContext({
@@ -590,5 +583,26 @@ test('failure does NOT fire onImageLoaded', async () => {
             );
         }),
         { numRuns: 30 },
+    );
+});
+
+test('completed zero-dimension image load rejects and rolls back', async () => {
+    installImageStub('zero-dim');
+    const { ctx, holder, initial } = makeContext();
+
+    await assert.rejects(() => loadImage(ctx, VALID_PNG_DATA_URL), /no natural dimensions/i);
+
+    assert.deepEqual(
+        {
+            originalImage: holder.state.originalImage,
+            isImageLoadedToCanvas: holder.state.isImageLoadedToCanvas,
+            lastSnapshot: holder.state.lastSnapshot,
+            maskCounter: holder.state.maskCounter,
+            currentScale: holder.state.currentScale,
+            currentRotation: holder.state.currentRotation,
+            baseImageScale: holder.state.baseImageScale,
+        },
+        initial,
+        'zero-dimension decode failure must restore every editor scalar',
     );
 });

@@ -1,3 +1,4 @@
+import { isMaskObject } from '../core/public-types.js';
 import { ExportNotReadyError, MergeMasksError } from '../core/errors.js';
 import { Command } from '../history/history-manager.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
@@ -18,14 +19,12 @@ function computeExportRegion(ctx, exportImageArea) {
         return { region: null, partialEdges: null };
     const bounds = getObjectBBox(originalImage);
     const canvasLike = ctx.canvas;
-    const canvasWidth = typeof canvasLike.getWidth === 'function'
-        ? canvasLike.getWidth()
-        : canvasLike.width;
-    const canvasHeight = typeof canvasLike.getHeight === 'function'
-        ? canvasLike.getHeight()
-        : canvasLike.height;
+    const canvasWidth = typeof canvasLike.getWidth === 'function' ? canvasLike.getWidth() : canvasLike.width;
+    const canvasHeight = typeof canvasLike.getHeight === 'function' ? canvasLike.getHeight() : canvasLike.height;
     return {
-        region: getClampedCanvasRegion(bounds, canvasWidth, canvasHeight, { includePartialPixels: true }),
+        region: getClampedCanvasRegion(bounds, canvasWidth, canvasHeight, {
+            includePartialPixels: true,
+        }),
         partialEdges: getPartialExportEdges(bounds, Number(originalImage.angle) || 0),
     };
 }
@@ -33,6 +32,98 @@ async function bakeMasksForExport(ctx, exportImageArea, fn) {
     if (!exportImageArea)
         return fn();
     return withMaskStyleBackup({ canvas: ctx.canvas, options: ctx.options }, applyExportBakeInStyle, fn);
+}
+function getCanvasObjects(canvas) {
+    try {
+        return canvas.getObjects();
+    }
+    catch {
+        return [];
+    }
+}
+function isObjectOnCanvas(canvas, object) {
+    return getCanvasObjects(canvas).includes(object);
+}
+function captureMaskLabelBackups(canvas) {
+    const backups = [];
+    for (const object of getCanvasObjects(canvas)) {
+        if (!isMaskObject(object))
+            continue;
+        const label = object.__label;
+        if (!label)
+            continue;
+        const wasOnCanvas = isObjectOnCanvas(canvas, label);
+        backups.push({
+            mask: object,
+            label,
+            wasOnCanvas,
+            visible: label.visible,
+        });
+        try {
+            if (typeof label.set === 'function')
+                label.set({ visible: false });
+            if (wasOnCanvas)
+                canvas.remove(label);
+        }
+        catch {
+        }
+    }
+    return backups;
+}
+function restoreMaskLabelBackups(canvas, backups) {
+    for (const backup of backups) {
+        try {
+            backup.mask.__label = backup.label;
+            if (typeof backup.label.set === 'function') {
+                backup.label.set({ visible: backup.visible });
+            }
+            else {
+                backup.label.visible = backup.visible;
+            }
+            if (backup.wasOnCanvas && !isObjectOnCanvas(canvas, backup.label)) {
+                canvas.add(backup.label);
+                canvas.bringObjectToFront(backup.label);
+            }
+        }
+        catch {
+        }
+    }
+}
+function captureActiveObject(canvas) {
+    var _a;
+    try {
+        const canvasWithSelection = canvas;
+        if (typeof canvasWithSelection.getActiveObject !== 'function')
+            return null;
+        return (_a = canvasWithSelection.getActiveObject()) !== null && _a !== void 0 ? _a : null;
+    }
+    catch {
+        return null;
+    }
+}
+function restoreActiveObject(canvas, activeObject) {
+    if (!activeObject)
+        return;
+    try {
+        const canvasWithSelection = canvas;
+        if (typeof canvasWithSelection.setActiveObject === 'function') {
+            canvasWithSelection.setActiveObject(activeObject);
+        }
+    }
+    catch {
+    }
+}
+function requestRender(canvas) {
+    try {
+        if (typeof canvas.requestRenderAll === 'function') {
+            canvas.requestRenderAll();
+        }
+        else {
+            canvas.renderAll();
+        }
+    }
+    catch {
+    }
 }
 function applyExportBakeInStyle(mask) {
     try {
@@ -158,11 +249,36 @@ async function sealPartialTransparentEdges(dataUrl, edges) {
 }
 function getJpegBackgroundColor(backgroundColor) {
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
-    if (!value || value === 'transparent')
-        return '#ffffff';
-    if (/^rgba\([^)]*,\s*0(?:\.0+)?\s*\)$/i.test(value))
+    if (!value || isTransparentCssColor(value))
         return '#ffffff';
     return value;
+}
+function isTransparentCssColor(value) {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'transparent')
+        return true;
+    const hex = normalized.match(/^#([0-9a-f]{4}|[0-9a-f]{8})$/i);
+    if (hex) {
+        const digits = hex[1];
+        const alpha = digits.length === 4 ? digits[3] : digits.slice(6, 8);
+        return /^0+$/.test(alpha);
+    }
+    const commaAlpha = normalized.match(/^(?:rgba|hsla)\((.*),\s*([^,/)]+)\)$/i);
+    if (commaAlpha && isZeroCssAlpha(commaAlpha[2]))
+        return true;
+    const slashAlpha = normalized.match(/^(?:rgb|rgba|hsl|hsla)\([^/]+\/\s*([^)]+)\)$/i);
+    if (slashAlpha && isZeroCssAlpha(slashAlpha[1]))
+        return true;
+    return false;
+}
+function isZeroCssAlpha(value) {
+    const alpha = value.trim();
+    if (alpha.endsWith('%')) {
+        const numericPercent = Number.parseFloat(alpha.slice(0, -1));
+        return Number.isFinite(numericPercent) && numericPercent === 0;
+    }
+    const numericAlpha = Number.parseFloat(alpha);
+    return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
 async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
     const imageElement = await loadImageElement(dataUrl);
@@ -181,13 +297,24 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
 function dataUrlToBytes(dataUrl) {
     const commaAt = dataUrl.indexOf(',');
     const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
-    const binary = atob(base64);
-    const buffer = new ArrayBuffer(binary.length);
-    const bytes = new Uint8Array(buffer);
-    for (let i = binary.length - 1; i >= 0; i -= 1) {
-        bytes[i] = binary.charCodeAt(i);
+    if (typeof globalThis.atob === 'function') {
+        const binary = globalThis.atob(base64);
+        const buffer = new ArrayBuffer(binary.length);
+        const bytes = new Uint8Array(buffer);
+        for (let i = binary.length - 1; i >= 0; i -= 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
     }
-    return bytes;
+    const bufferCtor = globalThis.Buffer;
+    if (bufferCtor && typeof bufferCtor.from === 'function') {
+        const source = bufferCtor.from(base64, 'base64');
+        const buffer = new ArrayBuffer(source.length);
+        const bytes = new Uint8Array(buffer);
+        bytes.set(source);
+        return bytes;
+    }
+    throw new Error('No base64 decoder is available for exportImageFile.');
 }
 function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
@@ -221,20 +348,29 @@ export async function exportImageBase64(ctx, options) {
     const exportImageArea = typeof opts.exportImageArea === 'boolean'
         ? opts.exportImageArea
         : ctx.options.exportImageAreaByDefault;
-    ctx.canvas.discardActiveObject();
-    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
-    const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
-    const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
-    const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
-    const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
-    let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region));
-    if (region) {
-        dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
-        if (resolved.format === 'jpeg') {
-            dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, ctx.options.backgroundColor, resolved.quality);
+    const activeObject = captureActiveObject(ctx.canvas);
+    const labelBackups = captureMaskLabelBackups(ctx.canvas);
+    try {
+        ctx.canvas.discardActiveObject();
+        const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+        const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
+        const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
+        const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
+        const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
+        let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region));
+        if (region) {
+            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
+            if (resolved.format === 'jpeg') {
+                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, ctx.options.backgroundColor, resolved.quality);
+            }
         }
+        return dataUrl;
     }
-    return dataUrl;
+    finally {
+        restoreMaskLabelBackups(ctx.canvas, labelBackups);
+        restoreActiveObject(ctx.canvas, activeObject);
+        requestRender(ctx.canvas);
+    }
 }
 export async function exportImageFile(ctx, options) {
     var _a;
@@ -290,8 +426,9 @@ export function downloadImage(ctx, fileName) {
 export async function mergeMasks(ctx) {
     if (!ctx.isImageLoaded())
         return;
-    const masks = ctx.canvas.getObjects().filter((o) => 'maskId' in o &&
-        typeof o.maskId === 'number');
+    const masks = ctx.canvas
+        .getObjects()
+        .filter((o) => 'maskId' in o && typeof o.maskId === 'number');
     if (masks.length === 0)
         return;
     ctx.canvas.discardActiveObject();
@@ -337,9 +474,7 @@ export async function mergeMasks(ctx) {
         }
         if (err instanceof MergeMasksError)
             throw err;
-        const message = err instanceof Error
-            ? `mergeMasks failed: ${err.message}`
-            : 'mergeMasks failed';
+        const message = err instanceof Error ? `mergeMasks failed: ${err.message}` : 'mergeMasks failed';
         throw new MergeMasksError(message, err);
     }
 }

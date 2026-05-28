@@ -147,12 +147,10 @@ test('FIFO order, at most one running, all promises settle', async () => {
             const settled = [];
             const promises = specs.map((spec, i) => {
                 const fn = makeTrackedFn(i, spec, tracker);
-                const p = queue
-                    .add(fn)
-                    .then(
-                        () => settled.push({ id: i, status: 'fulfilled' }),
-                        (err) => settled.push({ id: i, status: 'rejected', err }),
-                    );
+                const p = queue.add(fn).then(
+                    () => settled.push({ id: i, status: 'fulfilled' }),
+                    (err) => settled.push({ id: i, status: 'rejected', err }),
+                );
                 return p;
             });
 
@@ -309,60 +307,55 @@ test('clear(reason) rejects pending while head task still settles', async () => 
 
 test('clear() with no reason resolves pending entries', async () => {
     await fc.assert(
-        fc.asyncProperty(
-            fc.array(delayArb, { minLength: 2, maxLength: 6 }),
-            async (delays) => {
-                const queue = new AnimationQueue();
+        fc.asyncProperty(fc.array(delayArb, { minLength: 2, maxLength: 6 }), async (delays) => {
+            const queue = new AnimationQueue();
 
-                const headDelay = Math.max(2, delays[0]);
-                const tailDelays = delays.slice(1);
+            const headDelay = Math.max(2, delays[0]);
+            const tailDelays = delays.slice(1);
 
-                const outcomes = [];
+            const outcomes = [];
+            outcomes.push({
+                id: 0,
+                kind: 'head',
+                promise: queue.add(async () => {
+                    await delay(headDelay);
+                }),
+            });
+
+            tailDelays.forEach((d, i) => {
+                const id = i + 1;
                 outcomes.push({
-                    id: 0,
-                    kind: 'head',
+                    id,
+                    kind: 'tail',
                     promise: queue.add(async () => {
-                        await delay(headDelay);
+                        await delay(d);
+                        throw new Error(`tail task ${id} body executed despite clear()`);
                     }),
                 });
+            });
 
-                tailDelays.forEach((d, i) => {
-                    const id = i + 1;
-                    outcomes.push({
-                        id,
-                        kind: 'tail',
-                        promise: queue.add(async () => {
-                            await delay(d);
-                            throw new Error(
-                                `tail task ${id} body executed despite clear()`,
-                            );
-                        }),
-                    });
-                });
+            // No reason → pending entries resolve normally. The
+            // dispose path uses this default because its own
+            // disposed guards stop callbacks from touching the
+            // canvas, so a soft drain is safe.
+            queue.clear();
 
-                // No reason → pending entries resolve normally. The
-                // dispose path uses this default because its own
-                // disposed guards stop callbacks from touching the
-                // canvas, so a soft drain is safe.
-                queue.clear();
+            const results = await withTimeout(
+                Promise.allSettled(outcomes.map((o) => o.promise)),
+                settleBudgetMs(delays.map((d) => ({ delay: d, mode: 'resolve' }))),
+                'clear() (no reason) settlement',
+            );
 
-                const results = await withTimeout(
-                    Promise.allSettled(outcomes.map((o) => o.promise)),
-                    settleBudgetMs(delays.map((d) => ({ delay: d, mode: 'resolve' }))),
-                    'clear() (no reason) settlement',
+            for (const r of results) {
+                assert.equal(
+                    r.status,
+                    'fulfilled',
+                    `every entry must resolve when clear() is called without a reason; got ${r.status}`,
                 );
+            }
 
-                for (const r of results) {
-                    assert.equal(
-                        r.status,
-                        'fulfilled',
-                        `every entry must resolve when clear() is called without a reason; got ${r.status}`,
-                    );
-                }
-
-                assert.equal(queue.isRunning(), false, 'queue must be idle after settlement');
-            },
-        ),
+            assert.equal(queue.isRunning(), false, 'queue must be idle after settlement');
+        }),
         { numRuns: 100 },
     );
 });
@@ -376,19 +369,23 @@ test('waitForIdle() resolves only after every queued task has settled', async ()
             const total = specs.length;
 
             specs.forEach((spec, i) => {
-                queue.add(makeTrackedFn(i, spec, {
-                    tick: 0,
-                    concurrent: 0,
-                    maxConcurrent: 0,
-                    events: [],
-                })).then(
-                    () => {
-                        settledCount += 1;
-                    },
-                    () => {
-                        settledCount += 1;
-                    },
-                );
+                queue
+                    .add(
+                        makeTrackedFn(i, spec, {
+                            tick: 0,
+                            concurrent: 0,
+                            maxConcurrent: 0,
+                            events: [],
+                        }),
+                    )
+                    .then(
+                        () => {
+                            settledCount += 1;
+                        },
+                        () => {
+                            settledCount += 1;
+                        },
+                    );
             });
 
             // waitForIdle() appends a no-op sentinel that inherits the
@@ -396,11 +393,7 @@ test('waitForIdle() resolves only after every queued task has settled', async ()
             // entry has settled. Once it resolves, every prior promise
             // must also have run its `then`/`catch` callback, i.e.
             // `settledCount === total`.
-            await withTimeout(
-                queue.waitForIdle(),
-                settleBudgetMs(specs),
-                'waitForIdle()',
-            );
+            await withTimeout(queue.waitForIdle(), settleBudgetMs(specs), 'waitForIdle()');
 
             // Drain the microtask queue once so the `then` callbacks
             // attached above can run before we check settledCount. The
@@ -429,67 +422,63 @@ test('waitForIdle() resolves only after every queued task has settled', async ()
 
 test('isRunning() is true during an awaited task and false when idle', async () => {
     await fc.assert(
-        fc.asyncProperty(
-            fc.integer({ min: 1, max: 5 }),
-            delayArb,
-            async (count, taskDelay) => {
-                const queue = new AnimationQueue();
+        fc.asyncProperty(fc.integer({ min: 1, max: 5 }), delayArb, async (count, taskDelay) => {
+            const queue = new AnimationQueue();
 
-                // Fresh queue is idle.
-                assert.equal(queue.isRunning(), false);
+            // Fresh queue is idle.
+            assert.equal(queue.isRunning(), false);
 
-                const observations = [];
-                const promises = [];
-                for (let i = 0; i < count; i++) {
-                    promises.push(
-                        queue.add(async () => {
-                            // Inside an awaited task, isRunning() must
-                            // always report true.
-                            observations.push({
-                                id: i,
-                                isRunning: queue.isRunning(),
-                            });
-                            await delay(Math.max(1, taskDelay));
-                        }),
-                    );
-                }
+            const observations = [];
+            const promises = [];
+            for (let i = 0; i < count; i++) {
+                promises.push(
+                    queue.add(async () => {
+                        // Inside an awaited task, isRunning() must
+                        // always report true.
+                        observations.push({
+                            id: i,
+                            isRunning: queue.isRunning(),
+                        });
+                        await delay(Math.max(1, taskDelay));
+                    }),
+                );
+            }
 
-                // Right after the synchronous add() calls, the head
-                // task has already entered its body (the `_process`
-                // micro-runner runs synchronously up to its first
-                // await), so the queue must report running.
+            // Right after the synchronous add() calls, the head
+            // task has already entered its body (the `_process`
+            // micro-runner runs synchronously up to its first
+            // await), so the queue must report running.
+            assert.equal(
+                queue.isRunning(),
+                true,
+                'queue must report running synchronously after the first add()',
+            );
+
+            await withTimeout(
+                Promise.all(promises),
+                settleBudgetMs(new Array(count).fill({ delay: taskDelay, mode: 'resolve' })),
+                'isRunning()-cycle settlement',
+            );
+
+            // Every observation taken from inside a task body must
+            // see isRunning() === true.
+            for (const obs of observations) {
                 assert.equal(
-                    queue.isRunning(),
+                    obs.isRunning,
                     true,
-                    'queue must report running synchronously after the first add()',
+                    `isRunning() must be true while task ${obs.id} is awaited`,
                 );
+            }
 
-                await withTimeout(
-                    Promise.all(promises),
-                    settleBudgetMs(new Array(count).fill({ delay: taskDelay, mode: 'resolve' })),
-                    'isRunning()-cycle settlement',
-                );
-
-                // Every observation taken from inside a task body must
-                // see isRunning() === true.
-                for (const obs of observations) {
-                    assert.equal(
-                        obs.isRunning,
-                        true,
-                        `isRunning() must be true while task ${obs.id} is awaited`,
-                    );
-                }
-
-                // After the queue drains, isRunning() must flip back to
-                // false on the next microtask tick.
-                await Promise.resolve();
-                assert.equal(
-                    queue.isRunning(),
-                    false,
-                    'isRunning() must be false once every task settles',
-                );
-            },
-        ),
+            // After the queue drains, isRunning() must flip back to
+            // false on the next microtask tick.
+            await Promise.resolve();
+            assert.equal(
+                queue.isRunning(),
+                false,
+                'isRunning() must be false once every task settles',
+            );
+        }),
         { numRuns: 100 },
     );
 });

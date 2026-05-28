@@ -36,10 +36,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-    reportWarning,
-    reportError,
-} from '../src/core/callback-reporter.ts';
+import { reportWarning, reportError } from '../src/core/callback-reporter.ts';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -53,8 +50,12 @@ function withConsoleSpies(body) {
     const errorCalls = [];
     const originalWarn = console.warn;
     const originalError = console.error;
-    console.warn = (...args) => { warnCalls.push(args); };
-    console.error = (...args) => { errorCalls.push(args); };
+    console.warn = (...args) => {
+        warnCalls.push(args);
+    };
+    console.error = (...args) => {
+        errorCalls.push(args);
+    };
     try {
         const result = body({ warnCalls, errorCalls });
         return { warnCalls, errorCalls, result };
@@ -69,7 +70,9 @@ function withConsoleSpies(body) {
 test('reportWarning: forwards (error, message) in the public argument order', () => {
     const calls = [];
     const options = {
-        onWarning: (err, msg) => { calls.push([err, msg]); },
+        onWarning: (err, msg) => {
+            calls.push([err, msg]);
+        },
     };
     const sentinel = new Error('downsample fallback');
 
@@ -80,33 +83,36 @@ test('reportWarning: forwards (error, message) in the public argument order', ()
     assert.equal(calls.length, 1, 'callback must fire exactly once');
     assert.equal(calls[0].length, 2, 'callback must receive exactly two args');
     assert.equal(calls[0][0], sentinel, 'first arg must be the original error');
-    assert.equal(calls[0][1], 'Downsample fell back to source format.',
-        'second arg must be the message');
+    assert.equal(
+        calls[0][1],
+        'Downsample fell back to source format.',
+        'second arg must be the message',
+    );
     assert.equal(warnCalls.length, 0, 'no console.warn on success');
     assert.equal(errorCalls.length, 0, 'no console.error on success');
 });
 
 test('reportWarning: forwards non-Error error values unchanged', () => {
-    const cases = [
-        'string error',
-        42,
-        null,
-        undefined,
-        { code: 'E_FAKE' },
-        false,
-    ];
+    const cases = ['string error', 42, null, undefined, { code: 'E_FAKE' }, false];
 
     for (const value of cases) {
         const calls = [];
-        const options = { onWarning: (err, msg) => { calls.push([err, msg]); } };
+        const options = {
+            onWarning: (err, msg) => {
+                calls.push([err, msg]);
+            },
+        };
 
         withConsoleSpies(() => {
             reportWarning(options, value, 'msg');
         });
 
         assert.equal(calls.length, 1, `callback must fire for value=${String(value)}`);
-        assert.equal(calls[0][0], value,
-            `error arg must be forwarded unchanged for value=${String(value)}`);
+        assert.equal(
+            calls[0][0],
+            value,
+            `error arg must be forwarded unchanged for value=${String(value)}`,
+        );
         assert.equal(calls[0][1], 'msg');
     }
 });
@@ -130,17 +136,25 @@ test('reportWarning: missing or non-function onWarning is a no-op', () => {
             );
         });
 
-        assert.equal(warnCalls.length, 0,
-            `no console.warn for no-callback options=${JSON.stringify(options)}`);
-        assert.equal(errorCalls.length, 0,
-            `no console.error for no-callback options=${JSON.stringify(options)}`);
+        assert.equal(
+            warnCalls.length,
+            0,
+            `no console.warn for no-callback options=${JSON.stringify(options)}`,
+        );
+        assert.equal(
+            errorCalls.length,
+            0,
+            `no console.error for no-callback options=${JSON.stringify(options)}`,
+        );
     }
 });
 
 test('reportWarning: catches callback exceptions and logs to console.warn', () => {
     const callbackError = new Error('user warning callback exploded');
     const options = {
-        onWarning: () => { throw callbackError; },
+        onWarning: () => {
+            throw callbackError;
+        },
     };
 
     const { warnCalls, errorCalls } = withConsoleSpies(() => {
@@ -151,16 +165,21 @@ test('reportWarning: catches callback exceptions and logs to console.warn', () =
         );
     });
 
-    assert.equal(warnCalls.length, 1,
-        'console.warn must be called exactly once on callback exception');
+    assert.equal(
+        warnCalls.length,
+        1,
+        'console.warn must be called exactly once on callback exception',
+    );
     // Diagnostic line should name the helper and include the thrown value
     // so the misbehaving callback is easy to locate from the logs.
     assert.equal(typeof warnCalls[0][0], 'string');
     assert.match(warnCalls[0][0], /onWarning/);
-    assert.equal(warnCalls[0][1], callbackError,
-        'console.warn must include the callback exception value');
-    assert.equal(errorCalls.length, 0,
-        'reportWarning must not log to console.error');
+    assert.equal(
+        warnCalls[0][1],
+        callbackError,
+        'console.warn must include the callback exception value',
+    );
+    assert.equal(errorCalls.length, 0, 'reportWarning must not log to console.error');
 });
 
 // ─── reportError ──────────────────────────────────────────────────────────
@@ -168,7 +187,9 @@ test('reportWarning: catches callback exceptions and logs to console.warn', () =
 test('reportError: forwards (error, message) in the public argument order', () => {
     const calls = [];
     const options = {
-        onError: (err, msg) => { calls.push([err, msg]); },
+        onError: (err, msg) => {
+            calls.push([err, msg]);
+        },
     };
     const sentinel = new Error('image decode failed');
 
@@ -179,8 +200,7 @@ test('reportError: forwards (error, message) in the public argument order', () =
     assert.equal(calls.length, 1, 'callback must fire exactly once');
     assert.equal(calls[0].length, 2, 'callback must receive exactly two args');
     assert.equal(calls[0][0], sentinel, 'first arg must be the original error');
-    assert.equal(calls[0][1], 'Image load failed: decode error.',
-        'second arg must be the message');
+    assert.equal(calls[0][1], 'Image load failed: decode error.', 'second arg must be the message');
     assert.equal(warnCalls.length, 0, 'no console.warn on success');
     assert.equal(errorCalls.length, 0, 'no console.error on success');
 });
@@ -203,17 +223,25 @@ test('reportError: missing or non-function onError is a no-op', () => {
             );
         });
 
-        assert.equal(warnCalls.length, 0,
-            `no console.warn for no-callback options=${JSON.stringify(options)}`);
-        assert.equal(errorCalls.length, 0,
-            `no console.error for no-callback options=${JSON.stringify(options)}`);
+        assert.equal(
+            warnCalls.length,
+            0,
+            `no console.warn for no-callback options=${JSON.stringify(options)}`,
+        );
+        assert.equal(
+            errorCalls.length,
+            0,
+            `no console.error for no-callback options=${JSON.stringify(options)}`,
+        );
     }
 });
 
 test('reportError: catches callback exceptions and logs to console.error', () => {
     const callbackError = new Error('user error callback exploded');
     const options = {
-        onError: () => { throw callbackError; },
+        onError: () => {
+            throw callbackError;
+        },
     };
 
     const { warnCalls, errorCalls } = withConsoleSpies(() => {
@@ -224,14 +252,19 @@ test('reportError: catches callback exceptions and logs to console.error', () =>
         );
     });
 
-    assert.equal(errorCalls.length, 1,
-        'console.error must be called exactly once on callback exception');
+    assert.equal(
+        errorCalls.length,
+        1,
+        'console.error must be called exactly once on callback exception',
+    );
     assert.equal(typeof errorCalls[0][0], 'string');
     assert.match(errorCalls[0][0], /onError/);
-    assert.equal(errorCalls[0][1], callbackError,
-        'console.error must include the callback exception value');
-    assert.equal(warnCalls.length, 0,
-        'reportError must not log to console.warn');
+    assert.equal(
+        errorCalls[0][1],
+        callbackError,
+        'console.error must include the callback exception value',
+    );
+    assert.equal(warnCalls.length, 0, 'reportError must not log to console.warn');
 });
 
 // ─── Original-error preservation ────────────────────────────────
@@ -243,7 +276,9 @@ test('reportError: original editor error is not masked when callback throws', as
     const original = new Error('original editor error');
     const callbackError = new Error('callback exploded');
     const options = {
-        onError: () => { throw callbackError; },
+        onError: () => {
+            throw callbackError;
+        },
     };
 
     const promise = (async () => {
@@ -254,14 +289,17 @@ test('reportError: original editor error is not masked when callback throws', as
         throw original;
     })();
 
-    await assert.rejects(
-        promise,
-        (err) => {
-            assert.equal(err, original,
-                'consumer must observe the original error, not the callback exception');
-            assert.notEqual(err, callbackError,
-                'callback exception must not surface on the consumer promise');
-            return true;
-        },
-    );
+    await assert.rejects(promise, (err) => {
+        assert.equal(
+            err,
+            original,
+            'consumer must observe the original error, not the callback exception',
+        );
+        assert.notEqual(
+            err,
+            callbackError,
+            'callback exception must not surface on the consumer promise',
+        );
+        return true;
+    });
 });

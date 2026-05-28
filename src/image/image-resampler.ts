@@ -67,6 +67,19 @@ export function computeDownsampleDimensions(
     maxWidth: number,
     maxHeight: number,
 ): { width: number; height: number; needsResize: boolean } {
+    if (
+        !isPositiveFinite(srcWidth) ||
+        !isPositiveFinite(srcHeight) ||
+        !isPositiveFinite(maxWidth) ||
+        !isPositiveFinite(maxHeight)
+    ) {
+        return {
+            width: Math.max(1, Math.round(srcWidth) || 1),
+            height: Math.max(1, Math.round(srcHeight) || 1),
+            needsResize: false,
+        };
+    }
+
     const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
     if (!needsResize) {
         return { width: srcWidth, height: srcHeight, needsResize: false };
@@ -83,6 +96,10 @@ export function computeDownsampleDimensions(
         height: Math.max(1, Math.round(srcHeight * ratio)),
         needsResize: true,
     };
+}
+
+function isPositiveFinite(value: number): boolean {
+    return Number.isFinite(value) && value > 0;
 }
 
 /**
@@ -195,11 +212,7 @@ export function resampleImage(
         maxHeight,
     );
 
-    const mimeType = selectDownsampleMimeType(
-        sourceMime,
-        preserveSourceFormat,
-        downsampleMimeType,
-    );
+    const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
 
     // Offscreen raster. We use a plain detached <canvas> rather than
     // `OffscreenCanvas` for broader browser support; the failure semantics
@@ -210,23 +223,16 @@ export function resampleImage(
 
     const ctx = oc.getContext('2d');
     if (!ctx) {
-        throw new DownsampleError(
-            'Failed to obtain a 2D context for downsampling.',
-        );
+        throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
     }
 
-    ctx.drawImage(
-        imgEl,
-        0, 0, imgEl.naturalWidth, imgEl.naturalHeight,
-        0, 0, width, height,
-    );
+    ctx.drawImage(imgEl, 0, 0, imgEl.naturalWidth, imgEl.naturalHeight, 0, 0, width, height);
 
     // PNG is lossless; passing `quality` to `toDataURL('image/png', q)` is a
     // no-op in spec but some engines warn. Branch explicitly to keep call
     // sites and stack traces clean.
-    const dataUrl = mimeType === 'image/png'
-        ? oc.toDataURL(mimeType)
-        : oc.toDataURL(mimeType, quality);
+    const dataUrl =
+        mimeType === 'image/png' ? oc.toDataURL(mimeType) : oc.toDataURL(mimeType, quality);
 
     return { dataUrl, width, height, mimeType };
 }

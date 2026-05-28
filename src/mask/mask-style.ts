@@ -89,11 +89,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type {
-    MaskBackup,
-    MaskObject,
-    ResolvedOptions,
-} from '../core/public-types.js';
+import type { MaskBackup, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 
 // ─── Constants — visual literals (match legacy verbatim) ─────────────────────────
@@ -191,9 +187,7 @@ export function getMaskNormalStyle(mask: MaskObject): MaskNormalStyle {
     const opacity = Number(mask.originalAlpha);
     return {
         stroke: mask.originalStroke ?? DEFAULT_STROKE_FALLBACK,
-        strokeWidth: Number.isFinite(strokeWidth)
-            ? strokeWidth
-            : DEFAULT_STROKE_WIDTH_FALLBACK,
+        strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : DEFAULT_STROKE_WIDTH_FALLBACK,
         opacity: Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK,
     };
 }
@@ -249,9 +243,7 @@ export function applyMaskUnselectedStyle(mask: MaskObject): void {
     const strokeWidth = Number(mask.originalStrokeWidth);
     mask.set({
         stroke: mask.originalStroke ?? DEFAULT_STROKE_FALLBACK,
-        strokeWidth: Number.isFinite(strokeWidth)
-            ? strokeWidth
-            : DEFAULT_STROKE_WIDTH_FALLBACK,
+        strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : DEFAULT_STROKE_WIDTH_FALLBACK,
     });
 }
 
@@ -335,18 +327,14 @@ export function reattachMaskHoverHandlers(mask: MaskObject): void {
     }> = {};
     if (!Number.isFinite(Number(tagged.originalAlpha))) {
         const opacity = Number(tagged.opacity);
-        patch.originalAlpha = Number.isFinite(opacity)
-            ? opacity
-            : DEFAULT_ALPHA_FALLBACK;
+        patch.originalAlpha = Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK;
     }
     if (tagged.originalStroke == null) {
         patch.originalStroke = tagged.stroke ?? DEFAULT_STROKE_FALLBACK;
     }
     if (!Number.isFinite(Number(tagged.originalStrokeWidth))) {
         const sw = Number(tagged.strokeWidth);
-        patch.originalStrokeWidth = Number.isFinite(sw)
-            ? sw
-            : DEFAULT_STROKE_WIDTH_FALLBACK;
+        patch.originalStrokeWidth = Number.isFinite(sw) ? sw : DEFAULT_STROKE_WIDTH_FALLBACK;
     }
     if (Object.keys(patch).length > 0) tagged.set(patch);
 
@@ -483,10 +471,7 @@ interface NormalizedStylePatch {
  * @param callback Body to execute with normalized mask styles.
  * @returns        The value returned by `callback` (or the promise it returned).
  */
-export function withNormalizedMaskStyles<T>(
-    ctx: MaskStyleContext,
-    callback: () => T,
-): T {
+export function withNormalizedMaskStyles<T>(ctx: MaskStyleContext, callback: () => T): T {
     if (!ctx.canvas) return callback();
     const masks = ctx.canvas.getObjects().filter(isMaskObject);
     const patches: NormalizedStylePatch[] = [];
@@ -496,7 +481,7 @@ export function withNormalizedMaskStyles<T>(
             const normal = getMaskNormalStyle(mask);
             const snapshot: Partial<MaskNormalStyle> = {};
             const stylePatch: Partial<MaskNormalStyle> = {};
-            (Object.keys(normal) as Array<keyof MaskNormalStyle>).forEach(key => {
+            (Object.keys(normal) as Array<keyof MaskNormalStyle>).forEach((key) => {
                 const live = (mask as unknown as Record<string, unknown>)[key];
                 if (live !== normal[key]) {
                     snapshot[key] = live as never;

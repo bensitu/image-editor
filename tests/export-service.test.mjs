@@ -44,9 +44,8 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { exportImageBase64, exportImageFile, downloadImage } = await import(
-    '../src/export/export-service.ts'
-);
+const { exportImageBase64, exportImageFile, downloadImage } =
+    await import('../src/export/export-service.ts');
 const { ExportNotReadyError } = await import('../src/core/errors.ts');
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
@@ -77,6 +76,12 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
             callOrder.push('toDataURL');
             toDataURLArgs.push(options);
             return stubDataUrl;
+        },
+        requestRenderAll() {
+            callOrder.push('requestRenderAll');
+        },
+        renderAll() {
+            callOrder.push('renderAll');
         },
     };
 }
@@ -138,11 +143,7 @@ test('exportImageBase64: resolves to "" and warns when no image is loaded', asyn
     const message = String(warnings[0][0] ?? '');
     assert.match(message, /exportImageBase64/, 'warning must name the operation');
     assert.match(message, /no image is loaded/i, 'warning must identify the missing image');
-    assert.equal(
-        ctx.canvas.callOrder.length,
-        0,
-        'no-image gate must skip every canvas method',
-    );
+    assert.equal(ctx.canvas.callOrder.length, 0, 'no-image gate must skip every canvas method');
 });
 
 test('exportImageFile: rejects with ExportNotReadyError and warns when no image is loaded', async () => {
@@ -154,10 +155,7 @@ test('exportImageFile: rejects with ExportNotReadyError and warns when no image 
             (err) => err,
         );
     });
-    assert.ok(
-        rejected instanceof ExportNotReadyError,
-        'must reject with ExportNotReadyError',
-    );
+    assert.ok(rejected instanceof ExportNotReadyError, 'must reject with ExportNotReadyError');
     assert.equal(warnings.length, 1, 'must emit exactly one console.warn');
     assert.match(String(warnings[0][0] ?? ''), /exportImageFile/);
     assert.equal(ctx.canvas.callOrder.length, 0);
@@ -183,10 +181,100 @@ test('exportImageBase64: discards ActiveSelection before toDataURL', async () =>
     const firstRender = ctx.canvas.callOrder.indexOf('toDataURL');
     assert.notEqual(firstDiscard, -1, 'must call discardActiveObject');
     assert.notEqual(firstRender, -1, 'must call toDataURL');
+    assert.ok(firstDiscard < firstRender, 'discardActiveObject must precede toDataURL');
+});
+
+test('exportImageBase64: restores the active object after rendering', async () => {
+    const activeObject = { type: 'activeSelection' };
+    const canvas = {
+        ...makeMockCanvas(),
+        activeObject,
+        getActiveObject() {
+            return this.activeObject;
+        },
+        discardActiveObject() {
+            this.callOrder.push('discardActiveObject');
+            this.activeObject = null;
+            return this;
+        },
+        setActiveObject(object) {
+            this.callOrder.push('setActiveObject');
+            this.activeObject = object;
+            return this;
+        },
+    };
+    const ctx = makeContext({ canvas });
+
+    await exportImageBase64(ctx);
+
+    assert.equal(canvas.activeObject, activeObject, 'active object must be restored');
     assert.ok(
-        firstDiscard < firstRender,
-        'discardActiveObject must precede toDataURL',
+        canvas.callOrder.indexOf('setActiveObject') > canvas.callOrder.indexOf('toDataURL'),
+        'selection restore must happen after rendering',
     );
+});
+
+test('exportImageBase64: hides mask labels during export and restores them afterward', async () => {
+    const label = {
+        type: 'textbox',
+        visible: true,
+        set(patch) {
+            Object.assign(this, patch);
+        },
+    };
+    const mask = {
+        type: 'rect',
+        maskId: 1,
+        __label: label,
+        set(patch) {
+            Object.assign(this, patch);
+        },
+        setCoords() {},
+    };
+    const canvas = {
+        ...makeMockCanvas(),
+        objects: [mask, label],
+        getObjects() {
+            return this.objects;
+        },
+        remove(object) {
+            this.callOrder.push('remove');
+            const index = this.objects.indexOf(object);
+            if (index >= 0) this.objects.splice(index, 1);
+            return this;
+        },
+        add(object) {
+            this.callOrder.push('add');
+            this.objects.push(object);
+            return this;
+        },
+        bringObjectToFront(object) {
+            this.callOrder.push('bringObjectToFront');
+            const index = this.objects.indexOf(object);
+            if (index >= 0) {
+                this.objects.splice(index, 1);
+                this.objects.push(object);
+            }
+            return this;
+        },
+        toDataURL(options) {
+            assert.equal(
+                this.objects.includes(label),
+                false,
+                'label overlay must not be on the canvas during render',
+            );
+            this.callOrder.push('toDataURL');
+            this.toDataURLArgs.push(options);
+            return 'data:image/jpeg;base64,AAAA';
+        },
+    };
+    const ctx = makeContext({ canvas });
+
+    await exportImageBase64(ctx);
+
+    assert.equal(mask.__label, label, 'mask label reference must be restored');
+    assert.equal(canvas.objects.includes(label), true, 'label overlay must return to canvas');
+    assert.equal(label.visible, true, 'label visibility must be restored');
 });
 
 test('downloadImage: discards ActiveSelection before toDataURL', async () => {
@@ -284,10 +372,24 @@ test('exportImageFile: produces a File whose name matches options.fileName', asy
     assert.ok(file.size > 0, 'File must contain decoded bytes');
 });
 
+test('exportImageFile: falls back to Buffer when global atob is unavailable', async () => {
+    const originalAtob = globalThis.atob;
+    try {
+        globalThis.atob = undefined;
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('no-atob').toString('base64'),
+        );
+        const ctx = makeContext({ canvas });
+        const file = await exportImageFile(ctx, { fileType: 'jpeg' });
+
+        assert.equal(await file.text(), 'no-atob');
+    } finally {
+        globalThis.atob = originalAtob;
+    }
+});
+
 test('exportImageFile: falls back to defaultDownloadFileName when fileName is omitted', async () => {
-    const canvas = makeMockCanvas(
-        'data:image/jpeg;base64,' + Buffer.from('hi').toString('base64'),
-    );
+    const canvas = makeMockCanvas('data:image/jpeg;base64,' + Buffer.from('hi').toString('base64'));
     const ctx = makeContext({
         canvas,
         options: { defaultDownloadFileName: 'fallback.jpg' },
@@ -297,9 +399,7 @@ test('exportImageFile: falls back to defaultDownloadFileName when fileName is om
 });
 
 test('exportImageFile: discards ActiveSelection before toDataURL', async () => {
-    const canvas = makeMockCanvas(
-        'data:image/jpeg;base64,' + Buffer.from('a').toString('base64'),
-    );
+    const canvas = makeMockCanvas('data:image/jpeg;base64,' + Buffer.from('a').toString('base64'));
     const ctx = makeContext({ canvas });
     await exportImageFile(ctx, { fileType: 'jpeg' });
     const firstDiscard = canvas.callOrder.indexOf('discardActiveObject');

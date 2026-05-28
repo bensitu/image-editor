@@ -52,12 +52,7 @@ function delay(ms) {
  * only the expected bodies actually ran.
  */
 function makeTrackedCommand(id, tracker, opts = {}) {
-    const {
-        executeDelay = 0,
-        undoDelay = 0,
-        executeRejects = false,
-        undoRejects = false,
-    } = opts;
+    const { executeDelay = 0, undoDelay = 0, executeRejects = false, undoRejects = false } = opts;
     return new Command(
         async () => {
             await delay(executeDelay);
@@ -598,11 +593,7 @@ test('overflow eviction keeps the last maxSize entries with currentIndex = maxSi
                 while (hm.canUndo()) {
                     await withTimeout(hm.undo(), 250, 'drain undo() in overflow');
                 }
-                assert.equal(
-                    hm.currentIndex,
-                    -1,
-                    'after draining undo, currentIndex must be -1',
-                );
+                assert.equal(hm.currentIndex, -1, 'after draining undo, currentIndex must be -1');
 
                 // The recorded undo ids must equal the kept set in
                 // reverse order — proving the evicted ids are gone.

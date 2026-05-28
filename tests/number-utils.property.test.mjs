@@ -114,11 +114,7 @@ test('number passthrough is identity', () => {
                 const canvas = mockCanvas(cw, ch);
                 const opts = mockOptions('passthrough');
                 const out = resolveNumeric(n, axis, fallback, canvas, opts);
-                assert.equal(
-                    out,
-                    n,
-                    `expected ${n} to pass through unchanged on axis '${axis}'`,
-                );
+                assert.equal(out, n, `expected ${n} to pass through unchanged on axis '${axis}'`);
                 return true;
             },
         ),

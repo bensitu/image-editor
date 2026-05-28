@@ -3,7 +3,12 @@ import * as fabricModule from 'fabric';
 import { JSDOM } from 'jsdom';
 import { Image as CanvasImage } from 'canvas';
 
-export const fabric = { ...(fabricModule.fabric || fabricModule.default?.fabric || fabricModule.default || fabricModule) };
+export const fabric = {
+    ...(fabricModule.fabric ||
+        fabricModule.default?.fabric ||
+        fabricModule.default ||
+        fabricModule),
+};
 
 let domCounter = 0;
 
@@ -12,7 +17,7 @@ function defineGlobal(name, value) {
         configurable: true,
         enumerable: true,
         writable: true,
-        value
+        value,
     });
 }
 
@@ -102,7 +107,7 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         uploadArea: `uploadArea-${domCounter}`,
         cropBtn: `cropBtn-${domCounter}`,
         applyCropBtn: `applyCropBtn-${domCounter}`,
-        cancelCropBtn: `cancelCropBtn-${domCounter}`
+        cancelCropBtn: `cancelCropBtn-${domCounter}`,
     };
 
     document.body.innerHTML = `
@@ -134,11 +139,11 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
     const container = document.getElementById(ids.canvasContainer);
     Object.defineProperty(container, 'clientWidth', {
         configurable: true,
-        value: containerWidth
+        value: containerWidth,
     });
     Object.defineProperty(container, 'clientHeight', {
         configurable: true,
-        value: containerHeight
+        value: containerHeight,
     });
 
     return ids;
@@ -152,7 +157,7 @@ export async function createEditor(options = {}, domOptions = {}) {
         canvasHeight: 240,
         animationDuration: 0,
         showPlaceholder: false,
-        ...options
+        ...options,
     });
 
     editor.init(ids);
@@ -174,7 +179,7 @@ export function makeImageDataUrl({
     width = 160,
     height = 120,
     fill = '#d7ebff',
-    format = 'image/png'
+    format = 'image/png',
 } = {}) {
     const canvas = fabric.document.createElement('canvas');
     canvas.width = width;
@@ -185,7 +190,12 @@ export function makeImageDataUrl({
     ctx.fillStyle = '#2374ab';
     ctx.fillRect(8, 8, Math.max(1, Math.floor(width / 2)), Math.max(1, Math.floor(height / 2)));
     ctx.fillStyle = '#f2a541';
-    ctx.fillRect(Math.max(1, Math.floor(width / 2)), Math.max(1, Math.floor(height / 3)), Math.max(1, Math.floor(width / 3)), Math.max(1, Math.floor(height / 3)));
+    ctx.fillRect(
+        Math.max(1, Math.floor(width / 2)),
+        Math.max(1, Math.floor(height / 3)),
+        Math.max(1, Math.floor(width / 3)),
+        Math.max(1, Math.floor(height / 3)),
+    );
     return canvas.toDataURL(format);
 }
 
@@ -199,12 +209,13 @@ export async function getImageDimensionsFromDataUrl(dataUrl) {
     await installFabricDom();
     return new Promise((resolve, reject) => {
         const imageElement = new Image();
-        imageElement.onload = () => resolve({ width: imageElement.width, height: imageElement.height });
+        imageElement.onload = () =>
+            resolve({ width: imageElement.width, height: imageElement.height });
         imageElement.onerror = reject;
         imageElement.src = dataUrl;
     });
 }
 
 export async function waitForCanvasCallbacks(ms = 50) {
-    await new Promise(resolve => setTimeout(resolve, ms));
+    await new Promise((resolve) => setTimeout(resolve, ms));
 }

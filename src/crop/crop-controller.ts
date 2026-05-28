@@ -140,10 +140,7 @@ import {
     captureMaskStyleBackup,
     restoreMaskStyleBackup,
 } from '../mask/mask-style.js';
-import {
-    getClampedCanvasRegion,
-    getObjectBBox,
-} from '../utils/canvas-region.js';
+import { getClampedCanvasRegion, getObjectBBox } from '../utils/canvas-region.js';
 
 // ─── Crop session state ──────────────────────────────────────────────────────
 
@@ -259,10 +256,7 @@ export interface CropControllerContext {
      * routes the cropped data URL through this so a failed reload
      * propagates back here and the rollback path catches it.
      */
-    loadImage(
-        imageBase64: string,
-        options?: LoadImageOptions,
-    ): Promise<void>;
+    loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
 
     /**
      * Reads the orchestrator's mask counter. Used by the
@@ -333,10 +327,7 @@ function clampQuality(quality: unknown): number {
  *
  * @internal
  */
-function removeCropRect(
-    ctx: CropControllerContext,
-    session: CropSession,
-): void {
+function removeCropRect(ctx: CropControllerContext, session: CropSession): void {
     // Detach handlers first.
     for (const targetHandlers of session.handlers) {
         for (const rec of targetHandlers.handlers) {
@@ -437,10 +428,7 @@ function restoreCropMaskBackups(session: CropSession): void {
  * @internal
  *
  */
-function teardownSession(
-    ctx: CropControllerContext,
-    session: CropSession,
-): void {
+function teardownSession(ctx: CropControllerContext, session: CropSession): void {
     removeCropRect(ctx, session);
     restoreCropObjectState(session);
     restoreCropMaskBackups(session);
@@ -785,7 +773,7 @@ export function enterCropMode(ctx: CropControllerContext): void {
     const hideMasks = !!options.crop.hideMasksDuringCrop;
     const maskBackups: MaskBackup[] = [];
     if (hideMasks) {
-        canvas.getObjects().forEach(obj => {
+        canvas.getObjects().forEach((obj) => {
             if (obj === cropRect) return;
             if (!isMaskObject(obj)) return;
             maskBackups.push(captureMaskStyleBackup(obj));
@@ -796,7 +784,7 @@ export function enterCropMode(ctx: CropControllerContext): void {
     // prior `evented` / `selectable` state. The crop rectangle itself
     // is excluded so it remains interactive.
     const prevEvented: CropPrevEvented[] = [];
-    canvas.getObjects().forEach(obj => {
+    canvas.getObjects().forEach((obj) => {
         if (obj === cropRect) return;
         prevEvented.push({
             obj,
@@ -830,19 +818,27 @@ export function enterCropMode(ctx: CropControllerContext): void {
             const cropHeight = Math.max(1, Number(cropRect.height) || 1);
             const nextScaleX = Math.min(
                 maxCropWidth / cropWidth,
-                Math.max(
-                    minCropWidth / cropWidth,
-                    Number(cropRect.scaleX) || 1,
-                ),
+                Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1),
             );
             const nextScaleY = Math.min(
                 maxCropHeight / cropHeight,
-                Math.max(
-                    minCropHeight / cropHeight,
-                    Number(cropRect.scaleY) || 1,
-                ),
+                Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1),
             );
-            cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
+            const scaledWidth = cropWidth * nextScaleX;
+            const scaledHeight = cropHeight * nextScaleY;
+            const maxLeft = Math.max(rectLeft, rectLeft + maxCropWidth - scaledWidth);
+            const maxTop = Math.max(rectTop, rectTop + maxCropHeight - scaledHeight);
+            const nextLeft = Math.min(
+                maxLeft,
+                Math.max(rectLeft, Number(cropRect.left) || rectLeft),
+            );
+            const nextTop = Math.min(maxTop, Math.max(rectTop, Number(cropRect.top) || rectTop));
+            cropRect.set({
+                left: nextLeft,
+                top: nextTop,
+                scaleX: nextScaleX,
+                scaleY: nextScaleY,
+            });
             cropRect.setCoords();
             canvas.requestRenderAll();
         } catch {
@@ -1127,17 +1123,12 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         try {
             await ctx.loadFromState(beforeJson);
         } catch (rollbackErr) {
-            // eslint-disable-next-line no-console -- diagnostic only.
-            console.warn(
-                '[ImageEditor] applyCrop: rollback failed',
-                rollbackErr,
-            );
+            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackErr);
         }
 
         if (err instanceof CropApplyError) throw err;
-        const message = err instanceof Error
-            ? `applyCrop failed: ${err.message}`
-            : 'applyCrop failed';
+        const message =
+            err instanceof Error ? `applyCrop failed: ${err.message}` : 'applyCrop failed';
         throw new CropApplyError(message, err);
     }
 }

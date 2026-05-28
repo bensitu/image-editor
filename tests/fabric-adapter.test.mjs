@@ -73,9 +73,7 @@ test('detectFabric: explicit module form treats first arg as Fabric and second a
     const fakeFabric = makeFakeFabric();
     const userOptions = { canvasWidth: 100 };
 
-    const { calls, result } = withConsoleError(() =>
-        detectFabric(fakeFabric, userOptions),
-    );
+    const { calls, result } = withConsoleError(() => detectFabric(fakeFabric, userOptions));
 
     assert.equal(result.fabric, fakeFabric, 'fabric should be the explicit module');
     assert.equal(result._fabricLoaded, true, '_fabricLoaded must be true on hit');
@@ -87,9 +85,7 @@ test('detectFabric: explicit module form treats first arg as Fabric and second a
 test('detectFabric: explicit module form normalizes missing options to {}', () => {
     const fakeFabric = makeFakeFabric();
 
-    const { calls, result } = withConsoleError(() =>
-        detectFabric(fakeFabric, undefined),
-    );
+    const { calls, result } = withConsoleError(() => detectFabric(fakeFabric, undefined));
 
     assert.equal(result.fabric, fakeFabric);
     assert.equal(result._fabricLoaded, true);
@@ -119,9 +115,7 @@ test('detectFabric: global form accepts null first arg and yields empty options'
     const fakeFabric = makeFakeFabric();
     const globalScope = { fabric: fakeFabric };
 
-    const { calls, result } = withConsoleError(() =>
-        detectFabric(null, undefined, globalScope),
-    );
+    const { calls, result } = withConsoleError(() => detectFabric(null, undefined, globalScope));
 
     assert.equal(result.fabric, fakeFabric);
     assert.equal(result._fabricLoaded, true);
@@ -170,9 +164,7 @@ test('detectFabric: miss returns null fabric, false _fabricLoaded, and logs once
 test('detectFabric: miss with null first arg still yields empty options and one log', () => {
     const globalScope = {}; // no `fabric` attached
 
-    const { calls, result } = withConsoleError(() =>
-        detectFabric(null, undefined, globalScope),
-    );
+    const { calls, result } = withConsoleError(() => detectFabric(null, undefined, globalScope));
 
     assert.equal(result.fabric, null);
     assert.equal(result._fabricLoaded, false);
@@ -187,9 +179,7 @@ test('detectFabric: miss when globalScope.fabric is present but lacks Canvas', (
     // adapter must fall through to the miss branch.
     const globalScope = { fabric: { Canvas: 'not-a-function' } };
 
-    const { calls, result } = withConsoleError(() =>
-        detectFabric({}, undefined, globalScope),
-    );
+    const { calls, result } = withConsoleError(() => detectFabric({}, undefined, globalScope));
 
     assert.equal(result.fabric, null);
     assert.equal(result._fabricLoaded, false);

@@ -40,9 +40,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { selectLayoutStrategy } = await import(
-    '../src/image/layout-manager.ts'
-);
+const { selectLayoutStrategy } = await import('../src/image/layout-manager.ts');
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -62,11 +60,7 @@ test("fitImageToCanvas=true => 'fit' regardless of other flags", () => {
             fc.pre(flags.fitImageToCanvas === true);
 
             const out = selectLayoutStrategy(flags);
-            assert.equal(
-                out,
-                'fit',
-                `expected 'fit' for ${JSON.stringify(flags)}`,
-            );
+            assert.equal(out, 'fit', `expected 'fit' for ${JSON.stringify(flags)}`);
             return true;
         }),
         { numRuns: 100 },
@@ -82,11 +76,7 @@ test("fit=false, cover=true => 'cover' regardless of expand", () => {
             fc.pre(flags.coverImageToCanvas === true);
 
             const out = selectLayoutStrategy(flags);
-            assert.equal(
-                out,
-                'cover',
-                `expected 'cover' for ${JSON.stringify(flags)}`,
-            );
+            assert.equal(out, 'cover', `expected 'cover' for ${JSON.stringify(flags)}`);
             return true;
         }),
         { numRuns: 100 },
@@ -103,11 +93,7 @@ test("fit=false, cover=false, expand=true => 'expand'", () => {
             fc.pre(flags.expandCanvasToImage === true);
 
             const out = selectLayoutStrategy(flags);
-            assert.equal(
-                out,
-                'expand',
-                `expected 'expand' for ${JSON.stringify(flags)}`,
-            );
+            assert.equal(out, 'expand', `expected 'expand' for ${JSON.stringify(flags)}`);
             return true;
         }),
         { numRuns: 100 },
@@ -150,8 +136,7 @@ test('selection is deterministic across key order and repeat calls', () => {
             assert.equal(
                 a,
                 c,
-                `repeat call changed result for ${JSON.stringify(flags)}: ` +
-                    `${a} -> ${c}`,
+                `repeat call changed result for ${JSON.stringify(flags)}: ` + `${a} -> ${c}`,
             );
             return true;
         }),

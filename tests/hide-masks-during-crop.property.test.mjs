@@ -44,10 +44,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const {
-    enterCropMode,
-    cancelCrop,
-} = await import('../src/crop/crop-controller.ts');
+const { enterCropMode, cancelCrop } = await import('../src/crop/crop-controller.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 const { HistoryManager } = await import('../src/history/history-manager.ts');
 
@@ -115,12 +112,22 @@ class MockCanvas {
         this._selection = true;
     }
 
-    get selection() { return this._selection; }
-    set selection(v) { this._selection = v; }
+    get selection() {
+        return this._selection;
+    }
+    set selection(v) {
+        this._selection = v;
+    }
 
-    discardActiveObject() { return this; }
-    getObjects() { return [...this._objects]; }
-    add(obj) { this._objects.push(obj); }
+    discardActiveObject() {
+        return this;
+    }
+    getObjects() {
+        return [...this._objects];
+    }
+    add(obj) {
+        this._objects.push(obj);
+    }
     remove(obj) {
         const i = this._objects.indexOf(obj);
         if (i >= 0) this._objects.splice(i, 1);
@@ -132,12 +139,20 @@ class MockCanvas {
             this._objects.push(obj);
         }
     }
-    setActiveObject() { return this; }
-    getWidth() { return this._width; }
-    getHeight() { return this._height; }
+    setActiveObject() {
+        return this;
+    }
+    getWidth() {
+        return this._width;
+    }
+    getHeight() {
+        return this._height;
+    }
     renderAll() {}
     requestRenderAll() {}
-    toDataURL() { return 'data:image/jpeg;base64,STUB'; }
+    toDataURL() {
+        return 'data:image/jpeg;base64,STUB';
+    }
 }
 
 /**
@@ -244,7 +259,9 @@ function makeContext({ hideMasksDuringCrop, masks }) {
         isImageLoaded: () => true,
         getOriginalImage: () => originalImage,
         getCropSession: () => sessionRef.current,
-        setCropSession: (s) => { sessionRef.current = s; },
+        setCropSession: (s) => {
+            sessionRef.current = s;
+        },
         saveState,
         loadFromState,
         loadImage,
@@ -280,12 +297,8 @@ function makeContext({ hideMasksDuringCrop, masks }) {
  */
 const maskStyleArb = fc.record({
     opacity: fc.double({ min: 0.05, max: 1, noNaN: true }),
-    fill: fc.oneof(
-        fc.constantFrom('#ff0000', '#00ff00', '#0000ff', '#abcdef', null),
-    ),
-    stroke: fc.oneof(
-        fc.constantFrom('#000000', '#cccccc', '#123456', null),
-    ),
+    fill: fc.oneof(fc.constantFrom('#ff0000', '#00ff00', '#0000ff', '#abcdef', null)),
+    stroke: fc.oneof(fc.constantFrom('#000000', '#cccccc', '#123456', null)),
     strokeWidth: fc.integer({ min: 0, max: 10 }),
     selectable: fc.boolean(),
     lockRotation: fc.boolean(),
@@ -298,7 +311,8 @@ const maskStyleArb = fc.record({
  * matches all of them. Cardinality is bounded at 5 to keep the property
  * fast while still exercising the per-mask loop more than once.
  */
-const maskSetArb = fc.array(maskStyleArb, { minLength: 0, maxLength: 5 })
+const maskSetArb = fc
+    .array(maskStyleArb, { minLength: 0, maxLength: 5 })
     .map((styles) => styles.map((style, idx) => makeMockMask(idx + 1, style)));
 
 // ─── Helper: snapshot a mask's pre-crop style for later comparison ───────────
@@ -339,11 +353,7 @@ test('enterCropMode with hideMasksDuringCrop=true backs up prior mask styles and
             enterCropMode(ctx);
 
             const session = sessionRef.current;
-            assert.notEqual(
-                session,
-                null,
-                'enterCropMode must open a session',
-            );
+            assert.notEqual(session, null, 'enterCropMode must open a session');
 
             // the documented contract — exactly one MaskBackup is captured
             // per mask currently on the canvas. Non-mask objects must
@@ -633,11 +643,7 @@ test('enterCropMode with hideMasksDuringCrop=false captures NO mask backups and 
                 );
             }
 
-            assert.equal(
-                sessionRef.current,
-                null,
-                'session pointer must be null after cancelCrop',
-            );
+            assert.equal(sessionRef.current, null, 'session pointer must be null after cancelCrop');
 
             return true;
         }),

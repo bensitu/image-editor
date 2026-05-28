@@ -1,4 +1,4 @@
-import { reportError } from '../core/callback-reporter.js';
+import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -92,9 +92,7 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
     }
     catch (err) {
         await replayRollback(ctx, bundle);
-        const errorMessage = err instanceof Error
-            ? `loadImage failed: ${err.message}`
-            : 'loadImage failed';
+        const errorMessage = err instanceof Error ? `loadImage failed: ${err.message}` : 'loadImage failed';
         reportError(ctx.options, err, errorMessage);
         throw err;
     }
@@ -115,6 +113,11 @@ function startImageDecode(dataUrl) {
         }
     };
     const handleLoad = () => {
+        if (!hasNaturalImageDimensions(img)) {
+            cleanup(true);
+            rejectImage(new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null));
+            return;
+        }
         cleanup(false);
         resolveImage(img);
     };
@@ -139,9 +142,23 @@ function startImageDecode(dataUrl) {
     });
     return { promise, cleanup };
 }
+function hasNaturalImageDimensions(img) {
+    return (Number.isFinite(img.naturalWidth) &&
+        Number.isFinite(img.naturalHeight) &&
+        img.naturalWidth > 0 &&
+        img.naturalHeight > 0);
+}
+function isPositiveFinite(value) {
+    return Number.isFinite(value) && value > 0;
+}
 function maybeDownsample(imgEl, originalDataUrl, options) {
     if (!options.downsampleOnLoad)
         return originalDataUrl;
+    if (!isPositiveFinite(options.downsampleMaxWidth) ||
+        !isPositiveFinite(options.downsampleMaxHeight)) {
+        reportWarning(options, null, 'loadImage skipped downsampling because downsample bounds are invalid.');
+        return originalDataUrl;
+    }
     const dims = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
     if (!dims.needsResize)
         return originalDataUrl;

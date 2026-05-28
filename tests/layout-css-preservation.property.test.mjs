@@ -41,9 +41,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { applyCanvasDimensions } = await import(
-    '../src/image/layout-manager.ts'
-);
+const { applyCanvasDimensions } = await import('../src/image/layout-manager.ts');
 
 // ─── Mock factories ────────────────────────────────────────────────────────
 
@@ -137,45 +135,40 @@ const styleArb = fc.record({
 
 test('applyCanvasDimensions never mutates canvas.style or container.style', () => {
     fc.assert(
-        fc.property(
-            widthHeightArb,
-            widthHeightArb,
-            styleArb,
-            (width, height, initialStyle) => {
-                const canvas = makeCanvasMock();
-                const { container } = makeContainerMock(initialStyle);
+        fc.property(widthHeightArb, widthHeightArb, styleArb, (width, height, initialStyle) => {
+            const canvas = makeCanvasMock();
+            const { container } = makeContainerMock(initialStyle);
 
-                // Snapshot every CSS property the Contract names.
-                const before = { ...container.style };
+            // Snapshot every CSS property the Contract names.
+            const before = { ...container.style };
 
-                applyCanvasDimensions(canvas, width, height, container);
+            applyCanvasDimensions(canvas, width, height, container);
 
-                // Every property the Contract names must be byte-for-byte
-                // equal to its pre-call value. Using strict equality on each
-                // key (rather than deepEqual on the whole object) gives a
-                // precise failure message that names which property changed.
-                for (const key of ['width', 'height', 'display', 'overflow']) {
-                    assert.equal(
-                        container.style[key],
-                        before[key],
-                        `container.style.${key} must not change`,
-                    );
-                }
-
-                // The canvas mock has no `style` field; reading
-                // `canvas.style` would yield `undefined`, and any attempt
-                // by `applyCanvasDimensions` to assign through it would
-                // throw. The assertion is made explicit so the test
-                // documents the contract.
+            // Every property the Contract names must be byte-for-byte
+            // equal to its pre-call value. Using strict equality on each
+            // key (rather than deepEqual on the whole object) gives a
+            // precise failure message that names which property changed.
+            for (const key of ['width', 'height', 'display', 'overflow']) {
                 assert.equal(
-                    canvas.style,
-                    undefined,
-                    'applyCanvasDimensions must not access canvas.style at all',
+                    container.style[key],
+                    before[key],
+                    `container.style.${key} must not change`,
                 );
+            }
 
-                return true;
-            },
-        ),
+            // The canvas mock has no `style` field; reading
+            // `canvas.style` would yield `undefined`, and any attempt
+            // by `applyCanvasDimensions` to assign through it would
+            // throw. The assertion is made explicit so the test
+            // documents the contract.
+            assert.equal(
+                canvas.style,
+                undefined,
+                'applyCanvasDimensions must not access canvas.style at all',
+            );
+
+            return true;
+        }),
         { numRuns: 100 },
     );
 });
@@ -184,45 +177,28 @@ test('applyCanvasDimensions never mutates canvas.style or container.style', () =
 
 test('applyCanvasDimensions calls canvas.setDimensions with integer width/height ≥ 1', () => {
     fc.assert(
-        fc.property(
-            widthHeightArb,
-            widthHeightArb,
-            styleArb,
-            (width, height, initialStyle) => {
-                const canvas = makeCanvasMock();
-                const { container } = makeContainerMock(initialStyle);
+        fc.property(widthHeightArb, widthHeightArb, styleArb, (width, height, initialStyle) => {
+            const canvas = makeCanvasMock();
+            const { container } = makeContainerMock(initialStyle);
 
-                applyCanvasDimensions(canvas, width, height, container);
+            applyCanvasDimensions(canvas, width, height, container);
 
-                assert.equal(
-                    canvas.calls.length,
-                    1,
-                    'setDimensions must be called exactly once',
-                );
-                const call = canvas.calls[0];
-                const expectedW = Math.max(1, Math.round(Number(width) || 1));
-                const expectedH = Math.max(1, Math.round(Number(height) || 1));
-                assert.equal(
-                    call.width,
-                    expectedW,
-                    'width must be rounded and clamped to ≥ 1',
-                );
-                assert.equal(
-                    call.height,
-                    expectedH,
-                    'height must be rounded and clamped to ≥ 1',
-                );
-                assert.ok(
-                    Number.isInteger(call.width) && call.width >= 1,
-                    'width passed to setDimensions must be a positive integer',
-                );
-                assert.ok(
-                    Number.isInteger(call.height) && call.height >= 1,
-                    'height passed to setDimensions must be a positive integer',
-                );
-                return true;
-            },
-        ),
+            assert.equal(canvas.calls.length, 1, 'setDimensions must be called exactly once');
+            const call = canvas.calls[0];
+            const expectedW = Math.max(1, Math.round(Number(width) || 1));
+            const expectedH = Math.max(1, Math.round(Number(height) || 1));
+            assert.equal(call.width, expectedW, 'width must be rounded and clamped to ≥ 1');
+            assert.equal(call.height, expectedH, 'height must be rounded and clamped to ≥ 1');
+            assert.ok(
+                Number.isInteger(call.width) && call.width >= 1,
+                'width passed to setDimensions must be a positive integer',
+            );
+            assert.ok(
+                Number.isInteger(call.height) && call.height >= 1,
+                'height passed to setDimensions must be a positive integer',
+            );
+            return true;
+        }),
         { numRuns: 100 },
     );
 });
@@ -231,29 +207,17 @@ test('applyCanvasDimensions calls canvas.setDimensions with integer width/height
 
 test('applyCanvasDimensions forces a synchronous reflow by reading container.offsetWidth', () => {
     fc.assert(
-        fc.property(
-            widthHeightArb,
-            widthHeightArb,
-            styleArb,
-            (width, height, initialStyle) => {
-                const canvas = makeCanvasMock();
-                const { container, getReads } = makeContainerMock(initialStyle);
+        fc.property(widthHeightArb, widthHeightArb, styleArb, (width, height, initialStyle) => {
+            const canvas = makeCanvasMock();
+            const { container, getReads } = makeContainerMock(initialStyle);
 
-                assert.equal(
-                    getReads(),
-                    0,
-                    'sanity: offsetWidth has not been read before the call',
-                );
+            assert.equal(getReads(), 0, 'sanity: offsetWidth has not been read before the call');
 
-                applyCanvasDimensions(canvas, width, height, container);
+            applyCanvasDimensions(canvas, width, height, container);
 
-                assert.ok(
-                    getReads() >= 1,
-                    'forceReflow must read container.offsetWidth at least once',
-                );
-                return true;
-            },
-        ),
+            assert.ok(getReads() >= 1, 'forceReflow must read container.offsetWidth at least once');
+            return true;
+        }),
         { numRuns: 100 },
     );
 });
@@ -262,21 +226,17 @@ test('applyCanvasDimensions forces a synchronous reflow by reading container.off
 
 test('applyCanvasDimensions with a null container still resizes and does not throw', () => {
     fc.assert(
-        fc.property(
-            widthHeightArb,
-            widthHeightArb,
-            (width, height) => {
-                const canvas = makeCanvasMock();
-                // Should not throw — `forceReflow(null)` is a documented no-op.
-                applyCanvasDimensions(canvas, width, height, null);
-                assert.equal(
-                    canvas.calls.length,
-                    1,
-                    'setDimensions must still be called when container is null',
-                );
-                return true;
-            },
-        ),
+        fc.property(widthHeightArb, widthHeightArb, (width, height) => {
+            const canvas = makeCanvasMock();
+            // Should not throw — `forceReflow(null)` is a documented no-op.
+            applyCanvasDimensions(canvas, width, height, null);
+            assert.equal(
+                canvas.calls.length,
+                1,
+                'setDimensions must still be called when container is null',
+            );
+            return true;
+        }),
         { numRuns: 100 },
     );
 });

@@ -142,8 +142,8 @@ export function detectFabric(
     // instance — `init`, `loadImage` — early-return without re-logging.
     console.error(
         '[ImageEditor] fabric.js v7 is not available. ' +
-        'Pass it as the first constructor argument (ESM) or ' +
-        'load it as a global <script> before instantiation.',
+            'Pass it as the first constructor argument (ESM) or ' +
+            'load it as a global <script> before instantiation.',
     );
 
     return {

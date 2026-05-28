@@ -1,5 +1,15 @@
 import { DownsampleError } from '../core/errors.js';
 export function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHeight) {
+    if (!isPositiveFinite(srcWidth) ||
+        !isPositiveFinite(srcHeight) ||
+        !isPositiveFinite(maxWidth) ||
+        !isPositiveFinite(maxHeight)) {
+        return {
+            width: Math.max(1, Math.round(srcWidth) || 1),
+            height: Math.max(1, Math.round(srcHeight) || 1),
+            needsResize: false,
+        };
+    }
     const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
     if (!needsResize) {
         return { width: srcWidth, height: srcHeight, needsResize: false };
@@ -10,6 +20,9 @@ export function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHe
         height: Math.max(1, Math.round(srcHeight * ratio)),
         needsResize: true,
     };
+}
+function isPositiveFinite(value) {
+    return Number.isFinite(value) && value > 0;
 }
 export function selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType) {
     if (downsampleMimeType)
@@ -34,9 +47,7 @@ export function resampleImage(imgEl, maxWidth, maxHeight, sourceMime, preserveSo
         throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
     }
     ctx.drawImage(imgEl, 0, 0, imgEl.naturalWidth, imgEl.naturalHeight, 0, 0, width, height);
-    const dataUrl = mimeType === 'image/png'
-        ? oc.toDataURL(mimeType)
-        : oc.toDataURL(mimeType, quality);
+    const dataUrl = mimeType === 'image/png' ? oc.toDataURL(mimeType) : oc.toDataURL(mimeType, quality);
     return { dataUrl, width, height, mimeType };
 }
 //# sourceMappingURL=image-resampler.js.map

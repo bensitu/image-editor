@@ -135,22 +135,10 @@ export function getClampedCanvasRegion(
         ? Math.max(1, Math.round(Number(canvasHeight)))
         : Number.POSITIVE_INFINITY;
 
-    const left = Math.min(
-        safeCanvasWidth - 1,
-        Math.max(0, Math.floor(safeLeft)),
-    );
-    const top = Math.min(
-        safeCanvasHeight - 1,
-        Math.max(0, Math.floor(safeTop)),
-    );
-    const right = Math.min(
-        safeCanvasWidth,
-        Math.max(left + 1, roundEnd(safeLeft + safeWidth)),
-    );
-    const bottom = Math.min(
-        safeCanvasHeight,
-        Math.max(top + 1, roundEnd(safeTop + safeHeight)),
-    );
+    const left = Math.min(safeCanvasWidth - 1, Math.max(0, Math.floor(safeLeft)));
+    const top = Math.min(safeCanvasHeight - 1, Math.max(0, Math.floor(safeTop)));
+    const right = Math.min(safeCanvasWidth, Math.max(left + 1, roundEnd(safeLeft + safeWidth)));
+    const bottom = Math.min(safeCanvasHeight, Math.max(top + 1, roundEnd(safeTop + safeHeight)));
 
     return {
         left,
@@ -166,12 +154,7 @@ export function floorRegion(rect: {
     width: number;
     height: number;
 }): IntegerRegion {
-    return getClampedCanvasRegion(
-        rect,
-        undefined,
-        undefined,
-        { includePartialPixels: false },
-    );
+    return getClampedCanvasRegion(rect, undefined, undefined, { includePartialPixels: false });
 }
 
 export function hasFractionalCanvasEdge(value: number): boolean {
@@ -186,8 +169,7 @@ export function getPartialExportEdges(
 ): PartialExportEdges | null {
     if (!bounds) return null;
     const normalizedAngle = Math.abs((Number(angle) || 0) % 90);
-    const isAxisAligned =
-        normalizedAngle < 0.01 || Math.abs(normalizedAngle - 90) < 0.01;
+    const isAxisAligned = normalizedAngle < 0.01 || Math.abs(normalizedAngle - 90) < 0.01;
     if (!isAxisAligned) return null;
 
     const left = Number(bounds.left) || 0;
@@ -217,9 +199,12 @@ export function getPartialExportEdges(
  * @param obj The Fabric.js object to measure.
  * @returns   The absolute bounding rect in canvas pixels.
  */
-export function getObjectBBox(
-    obj: FabricNS.FabricObject,
-): { left: number; top: number; width: number; height: number } {
+export function getObjectBBox(obj: FabricNS.FabricObject): {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+} {
     obj.setCoords();
     const br = obj.getBoundingRect();
     return { left: br.left, top: br.top, width: br.width, height: br.height };

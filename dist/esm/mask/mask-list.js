@@ -8,7 +8,10 @@ export function renderMaskList(ctx) {
         return;
     listEl.innerHTML = '';
     const canvas = ctx.canvas;
-    canvas.getObjects().filter(isMaskObject).forEach((mask) => {
+    canvas
+        .getObjects()
+        .filter(isMaskObject)
+        .forEach((mask) => {
         const li = document.createElement('li');
         li.className = 'list-group-item mask-item';
         li.textContent = mask.maskName;

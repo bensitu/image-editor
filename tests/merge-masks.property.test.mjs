@@ -354,14 +354,14 @@ test('successful merge — pre-merge snapshot captured before any mutation, exac
                 assert.equal(
                     undoArg,
                     beforeSnap,
-                    "the documented contract: command.undo() must restore the pre-merge snapshot",
+                    'the documented contract: command.undo() must restore the pre-merge snapshot',
                 );
                 await cmd.execute();
                 const execArg = loadFromStateCalls[restoresBefore + 1];
                 assert.equal(
                     execArg,
                     afterSnap,
-                    "the documented contract: command.execute() must re-apply the merged snapshot",
+                    'the documented contract: command.execute() must re-apply the merged snapshot',
                 );
 
                 // The success path must NOT have invoked

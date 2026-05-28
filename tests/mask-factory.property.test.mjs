@@ -42,9 +42,8 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
 const { createMask } = await import('../src/mask/mask-factory.ts');
-const { applyMaskSelectedStyle, applyMaskUnselectedStyle } = await import(
-    '../src/mask/mask-style.ts'
-);
+const { applyMaskSelectedStyle, applyMaskUnselectedStyle } =
+    await import('../src/mask/mask-style.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
@@ -186,163 +185,174 @@ const strokeArb = fc.constantFrom('red', null, '', '#fff');
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test(
-    'per-shape origin is left/top for rect, circle, ellipse',
-    () => {
-        fc.assert(
-            fc.property(shapeArb, (shape) => {
+test('invalid fabricGenerator result is rejected without canvas or history writes', () => {
+    const warnings = [];
+    const ctx = makeContext({
+        options: {
+            onWarning: (error, message) => {
+                warnings.push({ error, message });
+            },
+        },
+    });
+    let counter = 0;
+    let counterWrites = 0;
+    let listUpdates = 0;
+    let saveCalls = 0;
+    ctx.getMaskCounter = () => counter;
+    ctx.setMaskCounter = (next) => {
+        counter = next;
+        counterWrites += 1;
+    };
+    ctx.updateMaskList = () => {
+        listUpdates += 1;
+    };
+    ctx.saveCanvasState = () => {
+        saveCalls += 1;
+    };
+
+    const result = createMask(ctx, { fabricGenerator: () => null });
+
+    assert.equal(result, null, 'invalid custom generator result must be rejected');
+    assert.equal(ctx.canvas.objects.length, 0, 'no invalid mask must be added');
+    assert.equal(counter, 0, 'mask counter must remain unchanged');
+    assert.equal(counterWrites, 0, 'mask counter setter must not run');
+    assert.equal(listUpdates, 0, 'mask list must not update');
+    assert.equal(saveCalls, 0, 'history must not be saved');
+    assert.equal(warnings.length, 1, 'invalid generator must emit one warning');
+    assert.match(warnings[0].message, /fabricGenerator/);
+});
+
+test('per-shape origin is left/top for rect, circle, ellipse', () => {
+    fc.assert(
+        fc.property(shapeArb, (shape) => {
+            const ctx = makeContext();
+            const mask = createMask(ctx, { shape });
+
+            assert.ok(mask, 'mask must be created');
+            assert.equal(
+                mask.originX,
+                'left',
+                `the documented contract: ${shape} mask must use originX='left'`,
+            );
+            assert.equal(
+                mask.originY,
+                'top',
+                `the documented contract: ${shape} mask must use originY='top'`,
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
+
+test('falsy styles in config.styles are preserved verbatim', () => {
+    fc.assert(
+        fc.property(shapeArb, strokeWidthArb, strokeArb, (shape, strokeWidth, stroke) => {
+            const ctx = makeContext();
+            // Only include keys that were generated as defined so
+            // that the absence of a key tests the default branch
+            // and the presence (even with falsy values) tests the
+            // verbatim-pass-through branch.
+            const styles = {};
+            if (strokeWidth !== undefined) {
+                styles.strokeWidth = strokeWidth;
+            }
+            if (stroke !== undefined) {
+                styles.stroke = stroke;
+            }
+
+            const mask = createMask(ctx, { shape, styles });
+
+            assert.ok(mask, 'mask must be created');
+            // `Object.is` so `0`, `''`, `null`, and `NaN` compare
+            // by identity rather than coercion.
+            assert.ok(
+                Object.is(mask.strokeWidth, strokeWidth),
+                `the documented contract: strokeWidth must round-trip verbatim (got ${
+                    mask.strokeWidth
+                }, expected ${strokeWidth})`,
+            );
+            assert.ok(
+                Object.is(mask.stroke, stroke),
+                `the documented contract: stroke must round-trip verbatim (got ${
+                    mask.stroke
+                }, expected ${stroke})`,
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
+
+test('explicit false on hasControls/selectable is preserved', () => {
+    fc.assert(
+        fc.property(shapeArb, fc.boolean(), fc.boolean(), (shape, hasControls, selectable) => {
+            const ctx = makeContext();
+            const mask = createMask(ctx, {
+                shape,
+                hasControls,
+                selectable,
+            });
+
+            assert.ok(mask, 'mask must be created');
+            assert.equal(
+                mask.hasControls,
+                hasControls,
+                `the documented contract: hasControls=${hasControls} must be preserved`,
+            );
+            assert.equal(
+                mask.selectable,
+                selectable,
+                `the documented contract: selectable=${selectable} must be preserved`,
+            );
+        }),
+        { numRuns: 30 },
+    );
+});
+
+test('transparentCorners and strokeUniform falsy values preserved with documented defaults', () => {
+    fc.assert(
+        fc.property(
+            shapeArb,
+            // `undefined` exercises the "not in config" branch which
+            // must fall back to the documented default (false for
+            // transparentCorners, true for strokeUniform). `true` /
+            // `false` exercise the explicit-pass-through branch.
+            fc.constantFrom(undefined, true, false),
+            fc.constantFrom(undefined, true, false),
+            (shape, transparentCorners, strokeUniform) => {
                 const ctx = makeContext();
-                const mask = createMask(ctx, { shape });
+                const config = { shape };
+                if (transparentCorners !== undefined) {
+                    config.transparentCorners = transparentCorners;
+                }
+                if (strokeUniform !== undefined) {
+                    config.strokeUniform = strokeUniform;
+                }
+
+                const mask = createMask(ctx, config);
 
                 assert.ok(mask, 'mask must be created');
+
+                // Documented defaults from `mask-factory.ts`:
+                //   - transparentCorners → false when omitted.
+                //   - strokeUniform → true when omitted.
+                const expectedTC = transparentCorners === undefined ? false : transparentCorners;
+                const expectedSU = strokeUniform === undefined ? true : strokeUniform;
+
                 assert.equal(
-                    mask.originX,
-                    'left',
-                    `the documented contract: ${shape} mask must use originX='left'`,
+                    mask.transparentCorners,
+                    expectedTC,
+                    `the documented contract: transparentCorners=${transparentCorners} → ${expectedTC}`,
                 );
                 assert.equal(
-                    mask.originY,
-                    'top',
-                    `the documented contract: ${shape} mask must use originY='top'`,
+                    mask.strokeUniform,
+                    expectedSU,
+                    `the documented contract: strokeUniform=${strokeUniform} → ${expectedSU}`,
                 );
-            }),
-            { numRuns: 30 },
-        );
-    },
-);
-
-test(
-    'falsy styles in config.styles are preserved verbatim',
-    () => {
-        fc.assert(
-            fc.property(
-                shapeArb,
-                strokeWidthArb,
-                strokeArb,
-                (shape, strokeWidth, stroke) => {
-                    const ctx = makeContext();
-                    // Only include keys that were generated as defined so
-                    // that the absence of a key tests the default branch
-                    // and the presence (even with falsy values) tests the
-                    // verbatim-pass-through branch.
-                    const styles = {};
-                    if (strokeWidth !== undefined) {
-                        styles.strokeWidth = strokeWidth;
-                    }
-                    if (stroke !== undefined) {
-                        styles.stroke = stroke;
-                    }
-
-                    const mask = createMask(ctx, { shape, styles });
-
-                    assert.ok(mask, 'mask must be created');
-                    // `Object.is` so `0`, `''`, `null`, and `NaN` compare
-                    // by identity rather than coercion.
-                    assert.ok(
-                        Object.is(mask.strokeWidth, strokeWidth),
-                        `the documented contract: strokeWidth must round-trip verbatim (got ${
-                            mask.strokeWidth
-                        }, expected ${strokeWidth})`,
-                    );
-                    assert.ok(
-                        Object.is(mask.stroke, stroke),
-                        `the documented contract: stroke must round-trip verbatim (got ${
-                            mask.stroke
-                        }, expected ${stroke})`,
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
-
-test(
-    'explicit false on hasControls/selectable is preserved',
-    () => {
-        fc.assert(
-            fc.property(
-                shapeArb,
-                fc.boolean(),
-                fc.boolean(),
-                (shape, hasControls, selectable) => {
-                    const ctx = makeContext();
-                    const mask = createMask(ctx, {
-                        shape,
-                        hasControls,
-                        selectable,
-                    });
-
-                    assert.ok(mask, 'mask must be created');
-                    assert.equal(
-                        mask.hasControls,
-                        hasControls,
-                        `the documented contract: hasControls=${hasControls} must be preserved`,
-                    );
-                    assert.equal(
-                        mask.selectable,
-                        selectable,
-                        `the documented contract: selectable=${selectable} must be preserved`,
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
-
-test(
-    'transparentCorners and strokeUniform falsy values preserved with documented defaults',
-    () => {
-        fc.assert(
-            fc.property(
-                shapeArb,
-                // `undefined` exercises the "not in config" branch which
-                // must fall back to the documented default (false for
-                // transparentCorners, true for strokeUniform). `true` /
-                // `false` exercise the explicit-pass-through branch.
-                fc.constantFrom(undefined, true, false),
-                fc.constantFrom(undefined, true, false),
-                (shape, transparentCorners, strokeUniform) => {
-                    const ctx = makeContext();
-                    const config = { shape };
-                    if (transparentCorners !== undefined) {
-                        config.transparentCorners = transparentCorners;
-                    }
-                    if (strokeUniform !== undefined) {
-                        config.strokeUniform = strokeUniform;
-                    }
-
-                    const mask = createMask(ctx, config);
-
-                    assert.ok(mask, 'mask must be created');
-
-                    // Documented defaults from `mask-factory.ts`:
-                    //   - transparentCorners → false when omitted.
-                    //   - strokeUniform → true when omitted.
-                    const expectedTC =
-                        transparentCorners === undefined
-                            ? false
-                            : transparentCorners;
-                    const expectedSU =
-                        strokeUniform === undefined ? true : strokeUniform;
-
-                    assert.equal(
-                        mask.transparentCorners,
-                        expectedTC,
-                        `the documented contract: transparentCorners=${transparentCorners} → ${expectedTC}`,
-                    );
-                    assert.equal(
-                        mask.strokeUniform,
-                        expectedSU,
-                        `the documented contract: strokeUniform=${strokeUniform} → ${expectedSU}`,
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
+            },
+        ),
+        { numRuns: 30 },
+    );
+});
 
 test('createMask preserves custom stroke through select and unselect styling', () => {
     const ctx = makeContext();

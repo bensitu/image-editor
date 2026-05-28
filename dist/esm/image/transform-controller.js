@@ -105,18 +105,14 @@ export class TransformController {
     async resetImageTransform() {
         if (!this.ctx.getOriginalImage())
             return;
-        let chainSucceeded = false;
         this.ctx.setSuppressSaveState(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
-            chainSucceeded = true;
         }
         finally {
             this.ctx.setSuppressSaveState(false);
         }
-        if (!chainSucceeded)
-            return;
         if (this.ctx.guard.isDisposed())
             return;
         this.ctx.saveCanvasState();

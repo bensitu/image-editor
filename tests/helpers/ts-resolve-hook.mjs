@@ -17,22 +17,13 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export function resolve(specifier, context, nextResolve) {
-    if (
-        (specifier.startsWith('./') || specifier.startsWith('../')) &&
-        specifier.endsWith('.js')
-    ) {
+    if ((specifier.startsWith('./') || specifier.startsWith('../')) && specifier.endsWith('.js')) {
         const parentURL = context.parentURL;
         if (parentURL) {
-            const tsURL = new URL(
-                specifier.replace(/\.js$/, '.ts'),
-                parentURL,
-            );
+            const tsURL = new URL(specifier.replace(/\.js$/, '.ts'), parentURL);
             try {
                 if (existsSync(fileURLToPath(tsURL))) {
-                    return nextResolve(
-                        specifier.replace(/\.js$/, '.ts'),
-                        context,
-                    );
+                    return nextResolve(specifier.replace(/\.js$/, '.ts'), context);
                 }
             } catch {
                 // fall through to the default resolver

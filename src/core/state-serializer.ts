@@ -198,7 +198,7 @@ export function saveState(input: SaveStateInput): string {
     //    rectangle, mask labels) before the snapshot enters history.
     if (Array.isArray(jsonObj.objects)) {
         jsonObj.objects = jsonObj.objects.filter(
-            o => o.isCropRect !== true && o.maskLabel !== true,
+            (o) => o.isCropRect !== true && o.maskLabel !== true,
         );
     }
 
@@ -323,16 +323,12 @@ export interface LoadFromStateResult {
  * @returns Resolves with the restored metadata bundle.
  *
  */
-export async function loadFromState(
-    input: LoadFromStateInput,
-): Promise<LoadFromStateResult> {
+export async function loadFromState(input: LoadFromStateInput): Promise<LoadFromStateResult> {
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
 
     // 1. Normalize the snapshot to a canonical JSON string and parse.
     const jsonString =
-        typeof snapshotInput === 'string'
-            ? snapshotInput
-            : JSON.stringify(snapshotInput);
+        typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
     const json: CanvasJSON = JSON.parse(jsonString) as CanvasJSON;
 
     // 2. restore canvas pixel dimensions before
@@ -366,19 +362,19 @@ export async function loadFromState(
     const editorState: EditorStateMeta | null =
         json._editorState && typeof json._editorState === 'object'
             ? {
-                currentScale:
-                    typeof json._editorState.currentScale === 'number'
-                        ? json._editorState.currentScale
-                        : 1,
-                currentRotation:
-                    typeof json._editorState.currentRotation === 'number'
-                        ? json._editorState.currentRotation
-                        : 0,
-                baseImageScale:
-                    typeof json._editorState.baseImageScale === 'number'
-                        ? json._editorState.baseImageScale
-                        : 1,
-            }
+                  currentScale:
+                      typeof json._editorState.currentScale === 'number'
+                          ? json._editorState.currentScale
+                          : 1,
+                  currentRotation:
+                      typeof json._editorState.currentRotation === 'number'
+                          ? json._editorState.currentRotation
+                          : 0,
+                  baseImageScale:
+                      typeof json._editorState.baseImageScale === 'number'
+                          ? json._editorState.baseImageScale
+                          : 1,
+              }
             : null;
 
     // 5b. `maskCounter` is the maximum restored
@@ -390,9 +386,8 @@ export async function loadFromState(
     // 5c. The first non-mask `'image'` object is the editor's
     //     `originalImage`. Returning `null` when missing keeps the facade
     //     free of "did the snapshot have an image?" guesses.
-    const originalImage =
-        (objects.find(o => o.type === 'image' && !isMaskObject(o)) ??
-            null) as FabricNS.FabricImage | null;
+    const originalImage = (objects.find((o) => o.type === 'image' && !isMaskObject(o)) ??
+        null) as FabricNS.FabricImage | null;
 
     return {
         editorState,
@@ -447,10 +442,7 @@ function restoreMaskPropsFromJSON(
         const matchIndex = canvasObjs.findIndex((o, index) => {
             if (consumedCanvasIndexes.has(index)) return false;
             if (jType && o.type !== jType) return false;
-            return (
-                Math.abs((o.left ?? 0) - jLeft) < 0.5 &&
-                Math.abs((o.top ?? 0) - jTop) < 0.5
-            );
+            return Math.abs((o.left ?? 0) - jLeft) < 0.5 && Math.abs((o.top ?? 0) - jTop) < 0.5;
         });
         if (matchIndex < 0) continue;
         consumedCanvasIndexes.add(matchIndex);

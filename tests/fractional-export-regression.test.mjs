@@ -41,9 +41,10 @@ async function getEdgeAverageLuminance(dataUrl, edge) {
     canvas.height = imageElement.height;
     const context = canvas.getContext('2d');
     context.drawImage(imageElement, 0, 0);
-    const imageData = edge === 'bottom'
-        ? context.getImageData(0, canvas.height - 1, canvas.width, 1).data
-        : context.getImageData(canvas.width - 1, 0, 1, canvas.height).data;
+    const imageData =
+        edge === 'bottom'
+            ? context.getImageData(0, canvas.height - 1, canvas.width, 1).data
+            : context.getImageData(canvas.width - 1, 0, 1, canvas.height).data;
     let luminanceSum = 0;
     for (let index = 0; index < imageData.length; index += 4) {
         luminanceSum += (imageData[index] + imageData[index + 1] + imageData[index + 2]) / 3;
@@ -52,14 +53,17 @@ async function getEdgeAverageLuminance(dataUrl, edge) {
 }
 
 test('mergeMasks preserves the right edge when image width lands on a partial pixel', async (t) => {
-    const { editor } = await createEditor({
-        fitImageToCanvas: true,
-        expandCanvasToImage: false,
-        exportMultiplier: 1,
-    }, {
-        containerWidth: 120,
-        containerHeight: 80,
-    });
+    const { editor } = await createEditor(
+        {
+            fitImageToCanvas: true,
+            expandCanvasToImage: false,
+            exportMultiplier: 1,
+        },
+        {
+            containerWidth: 120,
+            containerHeight: 80,
+        },
+    );
     t.after(() => disposeEditor(editor));
 
     await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 100, height: 200, right: true }));
@@ -79,21 +83,29 @@ test('mergeMasks preserves the right edge when image width lands on a partial pi
     const rightEdgeLuminance = await getEdgeAverageLuminance(exportedAfterMerge, 'right');
 
     assert.equal(size.width, 40);
-    assert.ok(rightEdgeLuminance < 180, `expected a visible dark right edge, got luminance ${rightEdgeLuminance}`);
+    assert.ok(
+        rightEdgeLuminance < 180,
+        `expected a visible dark right edge, got luminance ${rightEdgeLuminance}`,
+    );
 });
 
 test('mergeMasks preserves the bottom edge when image height lands on a partial pixel', async (t) => {
-    const { editor } = await createEditor({
-        fitImageToCanvas: true,
-        expandCanvasToImage: false,
-        exportMultiplier: 1,
-    }, {
-        containerWidth: 120,
-        containerHeight: 80,
-    });
+    const { editor } = await createEditor(
+        {
+            fitImageToCanvas: true,
+            expandCanvasToImage: false,
+            exportMultiplier: 1,
+        },
+        {
+            containerWidth: 120,
+            containerHeight: 80,
+        },
+    );
     t.after(() => disposeEditor(editor));
 
-    await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: true }));
+    await editor.loadImage(
+        makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: true }),
+    );
     editor.createMask({ left: 5, top: 5, width: 10, height: 10 });
 
     editor.originalImage.setCoords();
@@ -110,21 +122,29 @@ test('mergeMasks preserves the bottom edge when image height lands on a partial 
     const bottomEdgeLuminance = await getEdgeAverageLuminance(exportedAfterMerge, 'bottom');
 
     assert.equal(size.height, 60);
-    assert.ok(bottomEdgeLuminance < 180, `expected a visible dark bottom edge, got luminance ${bottomEdgeLuminance}`);
+    assert.ok(
+        bottomEdgeLuminance < 180,
+        `expected a visible dark bottom edge, got luminance ${bottomEdgeLuminance}`,
+    );
 });
 
 test('JPEG export composites partial transparent edges without introducing black pixels', async (t) => {
-    const { editor } = await createEditor({
-        fitImageToCanvas: true,
-        expandCanvasToImage: false,
-        exportMultiplier: 1,
-    }, {
-        containerWidth: 120,
-        containerHeight: 80,
-    });
+    const { editor } = await createEditor(
+        {
+            fitImageToCanvas: true,
+            expandCanvasToImage: false,
+            exportMultiplier: 1,
+        },
+        {
+            containerWidth: 120,
+            containerHeight: 80,
+        },
+    );
     t.after(() => disposeEditor(editor));
 
-    await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: false }));
+    await editor.loadImage(
+        makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: false }),
+    );
     editor.originalImage.setCoords();
     const imageBounds = editor.originalImage.getBoundingRect();
     assert.equal(imageBounds.height, 59.5);
@@ -139,7 +159,10 @@ test('JPEG export composites partial transparent edges without introducing black
     const bottomEdgeLuminance = await getEdgeAverageLuminance(exported, 'bottom');
 
     assert.equal(size.height, 60);
-    assert.ok(bottomEdgeLuminance > 230, `expected a light bottom edge, got luminance ${bottomEdgeLuminance}`);
+    assert.ok(
+        bottomEdgeLuminance > 230,
+        `expected a light bottom edge, got luminance ${bottomEdgeLuminance}`,
+    );
 });
 
 test('facade blocks mutating operations while a load is active', async (t) => {
@@ -151,10 +174,7 @@ test('facade blocks mutating operations while a load is active', async (t) => {
     try {
         assert.equal(editor.createMask({ width: 20, height: 20 }), null);
         assert.equal(await editor.exportImageBase64({ exportImageArea: true }), '');
-        await assert.rejects(
-            () => editor.scaleImage(1.1),
-            /image is loading/,
-        );
+        await assert.rejects(() => editor.scaleImage(1.1), /image is loading/);
     } finally {
         editor._guard.endLoading();
     }

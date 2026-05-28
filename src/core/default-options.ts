@@ -241,17 +241,17 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
 
     // ── Callbacks ───────────────────────────────────
     resolved.onImageLoaded = normalizeCallback<() => void>(raw.onImageLoaded);
-    resolved.onError =
-        normalizeCallback<(error: unknown, message: string) => void>(raw.onError);
-    resolved.onWarning =
-        normalizeCallback<(error: unknown, message: string) => void>(raw.onWarning);
+    resolved.onError = normalizeCallback<(error: unknown, message: string) => void>(raw.onError);
+    resolved.onWarning = normalizeCallback<(error: unknown, message: string) => void>(
+        raw.onWarning,
+    );
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
 
     // ── Label ─────────────────────────────────────────────
     // Deep-merge `textOptions` so user keys override defaults while leaving
     // unspecified default keys in place. Both `getText` and `create` must be
     // functions to be honored; otherwise the defaults apply.
-    const userLabel: LabelConfig = (raw.label && typeof raw.label === 'object') ? raw.label : {};
+    const userLabel: LabelConfig = raw.label && typeof raw.label === 'object' ? raw.label : {};
 
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,
@@ -261,9 +261,8 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     };
 
     const label: LabelConfig = {
-        getText: typeof userLabel.getText === 'function'
-            ? userLabel.getText
-            : DEFAULT_LABEL.getText,
+        getText:
+            typeof userLabel.getText === 'function' ? userLabel.getText : DEFAULT_LABEL.getText,
         textOptions: mergedTextOptions,
     };
     if (typeof userLabel.create === 'function') {
@@ -276,14 +275,16 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     Object.freeze(label);
 
     // ── Crop ──────────────────────────────────────────────
-    const userCrop: CropConfig = (raw.crop && typeof raw.crop === 'object') ? raw.crop : {};
+    const userCrop: CropConfig = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop: Required<CropConfig> = {
         minWidth: userCrop.minWidth ?? DEFAULT_CROP.minWidth,
         minHeight: userCrop.minHeight ?? DEFAULT_CROP.minHeight,
         padding: userCrop.padding ?? DEFAULT_CROP.padding,
         hideMasksDuringCrop: userCrop.hideMasksDuringCrop ?? DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: userCrop.preserveMasksAfterCrop ?? DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: userCrop.allowRotationOfCropRect ?? DEFAULT_CROP.allowRotationOfCropRect,
+        preserveMasksAfterCrop:
+            userCrop.preserveMasksAfterCrop ?? DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect:
+            userCrop.allowRotationOfCropRect ?? DEFAULT_CROP.allowRotationOfCropRect,
     };
     Object.freeze(crop);
 

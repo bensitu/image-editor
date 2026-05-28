@@ -42,9 +42,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { TransformController } = await import(
-    '../src/image/transform-controller.ts'
-);
+const { TransformController } = await import('../src/image/transform-controller.ts');
 const { OperationGuard } = await import('../src/core/operation-guard.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 
@@ -235,127 +233,118 @@ const startingRotationArb = fc.double({
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test(
-    'resetImageTransform produces exactly one history entry',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(
-                startingScaleArb,
-                startingRotationArb,
-                async (initialScale, initialRotation) => {
-                    const harness = makeContextWithSuppression({
-                        initialScale,
-                        initialRotation,
-                    });
-                    const controller = new TransformController(harness.ctx);
+test('resetImageTransform produces exactly one history entry', async () => {
+    await fc.assert(
+        fc.asyncProperty(
+            startingScaleArb,
+            startingRotationArb,
+            async (initialScale, initialRotation) => {
+                const harness = makeContextWithSuppression({
+                    initialScale,
+                    initialRotation,
+                });
+                const controller = new TransformController(harness.ctx);
 
-                    await controller.resetImageTransform();
+                await controller.resetImageTransform();
 
-                    // the documented contract — exactly one non-suppressed
-                    // `saveCanvasState` covers the entire reset.
-                    assert.equal(
-                        harness.getSaveCalls(),
-                        1,
-                        'the documented contract: resetImageTransform must record exactly one history entry',
-                    );
+                // the documented contract — exactly one non-suppressed
+                // `saveCanvasState` covers the entire reset.
+                assert.equal(
+                    harness.getSaveCalls(),
+                    1,
+                    'the documented contract: resetImageTransform must record exactly one history entry',
+                );
 
-                    // the documented contract — final state is the default (scale 1,
-                    // rotation 0). The chained `scaleImage(1)` and
-                    // `rotateImage(0)` write these values.
-                    assert.equal(
-                        harness.ctx.getCurrentScale(),
-                        1,
-                        'the documented contract: post-reset currentScale must be 1',
-                    );
-                    assert.equal(
-                        harness.ctx.getCurrentRotation(),
-                        0,
-                        'the documented contract: post-reset currentRotation must be 0',
-                    );
+                // the documented contract — final state is the default (scale 1,
+                // rotation 0). The chained `scaleImage(1)` and
+                // `rotateImage(0)` write these values.
+                assert.equal(
+                    harness.ctx.getCurrentScale(),
+                    1,
+                    'the documented contract: post-reset currentScale must be 1',
+                );
+                assert.equal(
+                    harness.ctx.getCurrentRotation(),
+                    0,
+                    'the documented contract: post-reset currentRotation must be 0',
+                );
 
-                    // Suppression flag MUST be released after the reset
-                    // so subsequent transforms continue to record
-                    // history (the controller's `finally` block).
-                    assert.equal(
-                        harness.getSuppressed(),
-                        false,
-                        'the documented contract: suppression flag must be cleared after reset',
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
+                // Suppression flag MUST be released after the reset
+                // so subsequent transforms continue to record
+                // history (the controller's `finally` block).
+                assert.equal(
+                    harness.getSuppressed(),
+                    false,
+                    'the documented contract: suppression flag must be cleared after reset',
+                );
+            },
+        ),
+        { numRuns: 30 },
+    );
+});
 
-test(
-    'inner scaleImage/rotateImage calls run under suppression; final save does not',
-    async () => {
-        await fc.assert(
-            fc.asyncProperty(
-                startingScaleArb,
-                startingRotationArb,
-                async (initialScale, initialRotation) => {
-                    const harness = makeContextWithSuppression({
-                        initialScale,
-                        initialRotation,
-                    });
-                    const controller = new TransformController(harness.ctx);
+test('inner scaleImage/rotateImage calls run under suppression; final save does not', async () => {
+    await fc.assert(
+        fc.asyncProperty(
+            startingScaleArb,
+            startingRotationArb,
+            async (initialScale, initialRotation) => {
+                const harness = makeContextWithSuppression({
+                    initialScale,
+                    initialRotation,
+                });
+                const controller = new TransformController(harness.ctx);
 
-                    await controller.resetImageTransform();
+                await controller.resetImageTransform();
 
-                    // Three `saveCanvasState` invocations occur:
-                    //   1. `scaleImage(1)` save  — suppressed === true
-                    //   2. `rotateImage(0)` save — suppressed === true
-                    //   3. final reset save     — suppressed === false
-                    // The mock records suppression state at each call.
-                    const trace = harness.getSuppressedAtSave();
+                // Three `saveCanvasState` invocations occur:
+                //   1. `scaleImage(1)` save  — suppressed === true
+                //   2. `rotateImage(0)` save — suppressed === true
+                //   3. final reset save     — suppressed === false
+                // The mock records suppression state at each call.
+                const trace = harness.getSuppressedAtSave();
 
-                    assert.equal(
-                        trace.length,
-                        3,
-                        'the documented contract: scaleImage, rotateImage, and the final reset each invoke saveCanvasState (3 calls total)',
-                    );
-                    assert.deepEqual(
-                        trace,
-                        [true, true, false],
-                        'the documented contract: chained inner saves must run under suppression; only the final reset save is recorded',
-                    );
-                },
-            ),
-            { numRuns: 30 },
-        );
-    },
-);
+                assert.equal(
+                    trace.length,
+                    3,
+                    'the documented contract: scaleImage, rotateImage, and the final reset each invoke saveCanvasState (3 calls total)',
+                );
+                assert.deepEqual(
+                    trace,
+                    [true, true, false],
+                    'the documented contract: chained inner saves must run under suppression; only the final reset save is recorded',
+                );
+            },
+        ),
+        { numRuns: 30 },
+    );
+});
 
-test(
-    'resetImageTransform is a no-op when no image is loaded',
-    async () => {
-        const harness = makeContextWithSuppression({
-            initialScale: 2,
-            initialRotation: 45,
-        });
-        // Override `getOriginalImage` to mirror the "no image loaded"
-        // branch that `resetImageTransform` short-circuits on.
-        harness.ctx.getOriginalImage = () => null;
-        const controller = new TransformController(harness.ctx);
+test('resetImageTransform is a no-op when no image is loaded', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 2,
+        initialRotation: 45,
+    });
+    // Override `getOriginalImage` to mirror the "no image loaded"
+    // branch that `resetImageTransform` short-circuits on.
+    harness.ctx.getOriginalImage = () => null;
+    const controller = new TransformController(harness.ctx);
 
-        await controller.resetImageTransform();
+    await controller.resetImageTransform();
 
-        assert.equal(
-            harness.getSaveCalls(),
-            0,
-            'the documented contract: no history entry when no image is loaded',
-        );
-        assert.equal(
-            harness.ctx.getCurrentScale(),
-            2,
-            'the documented contract: state is unchanged when no image is loaded',
-        );
-        assert.equal(
-            harness.ctx.getCurrentRotation(),
-            45,
-            'the documented contract: state is unchanged when no image is loaded',
-        );
-    },
-);
+    assert.equal(
+        harness.getSaveCalls(),
+        0,
+        'the documented contract: no history entry when no image is loaded',
+    );
+    assert.equal(
+        harness.ctx.getCurrentScale(),
+        2,
+        'the documented contract: state is unchanged when no image is loaded',
+    );
+    assert.equal(
+        harness.ctx.getCurrentRotation(),
+        45,
+        'the documented contract: state is unchanged when no image is loaded',
+    );
+});

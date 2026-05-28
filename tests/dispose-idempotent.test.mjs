@@ -89,23 +89,44 @@ class MockFabricCanvas {
         for (const fn of arr.slice()) fn(payload);
     }
 
-    getWidth() { return this.width; }
-    getHeight() { return this.height; }
-    setDimensions({ width, height }) { this.width = width; this.height = height; }
-    getObjects() { return this.objects.slice(); }
-    add(o) { this.objects.push(o); }
+    getWidth() {
+        return this.width;
+    }
+    getHeight() {
+        return this.height;
+    }
+    setDimensions({ width, height }) {
+        this.width = width;
+        this.height = height;
+    }
+    getObjects() {
+        return this.objects.slice();
+    }
+    add(o) {
+        this.objects.push(o);
+    }
     remove(o) {
         const i = this.objects.indexOf(o);
         if (i >= 0) this.objects.splice(i, 1);
     }
-    discardActiveObject() { this._active = null; }
-    getActiveObject() { return this._active ?? null; }
-    setActiveObject(o) { this._active = o; }
+    discardActiveObject() {
+        this._active = null;
+    }
+    getActiveObject() {
+        return this._active ?? null;
+    }
+    setActiveObject(o) {
+        this._active = o;
+    }
     bringObjectToFront() {}
     sendObjectToBack() {}
-    renderAll() { this.renderAllCalls += 1; }
+    renderAll() {
+        this.renderAllCalls += 1;
+    }
     requestRenderAll() {}
-    toJSON() { return { objects: [], width: this.width, height: this.height }; }
+    toJSON() {
+        return { objects: [], width: this.width, height: this.height };
+    }
     async loadFromJSON() {}
 
     dispose() {
@@ -128,28 +149,32 @@ class MockFabricCanvas {
  * is consumed via `this._fabric.<X>` from the facade, so we expose
  * only the constructors that the init / dispose / no-op-paths reach.
  *
- * `Image` is needed by `isImageLoaded()` (instance check) and `Text`
- * is needed by the optional label-creation path. Neither is invoked
+ * `FabricImage` is needed by `isImageLoaded()` (instance check) and
+ * `FabricText` is needed by the optional label-creation path. Neither is invoked
  * during a no-image init/dispose cycle; they are present so a future
  * extension of this test can load an image without re-stubbing the
  * module.
  */
 function makeFabricStub() {
     const fabric = {
-        Image: class FakeImage {},
         FabricImage: class FakeFabricImage {
-            static async fromURL() { return new FakeFabricImage(); }
+            static async fromURL() {
+                return new FakeFabricImage();
+            }
         },
-        Text: class FakeText {
+        FabricText: class FakeFabricText {
             constructor(text, opts) {
                 this.text = text;
                 Object.assign(this, opts);
             }
-            set(props) { Object.assign(this, props); }
+            set(props) {
+                Object.assign(this, props);
+            }
             setCoords() {}
-            getBoundingRect() { return { left: 0, top: 0, width: 0, height: 0 }; }
+            getBoundingRect() {
+                return { left: 0, top: 0, width: 0, height: 0 };
+            }
         },
-        FabricText: class FakeFabricText {},
         Rect: class FakeRect {},
         Circle: class FakeCircle {},
         Ellipse: class FakeEllipse {},
@@ -257,19 +282,28 @@ test('dispose() called twice does not throw', () => {
     //   4. `canvas.dispose()`
     // The second call MUST be a pure no-op.
     assert.doesNotThrow(() => editor.dispose(), 'first dispose must not throw');
-    assert.equal(canvasStub.disposeCalls, 1,
-        'first dispose() must call canvas.dispose() exactly once');
+    assert.equal(
+        canvasStub.disposeCalls,
+        1,
+        'first dispose() must call canvas.dispose() exactly once',
+    );
 
     assert.doesNotThrow(() => editor.dispose(), 'second dispose must not throw');
-    assert.equal(canvasStub.disposeCalls, 1,
-        'second dispose() must NOT re-invoke canvas.dispose() (idempotent)');
+    assert.equal(
+        canvasStub.disposeCalls,
+        1,
+        'second dispose() must NOT re-invoke canvas.dispose() (idempotent)',
+    );
 
     // A third call for good measure — the contract is "any number of
     // repeats is a no-op", not just two. Mirrors in
     // `tests/dom-bindings.property.test.mjs`.
     assert.doesNotThrow(() => editor.dispose(), 'third dispose must not throw');
-    assert.equal(canvasStub.disposeCalls, 1,
-        'subsequent dispose() calls must NOT re-invoke canvas.dispose()');
+    assert.equal(
+        canvasStub.disposeCalls,
+        1,
+        'subsequent dispose() calls must NOT re-invoke canvas.dispose()',
+    );
 });
 
 test('dispose() drains the DOM bindings registry', () => {
@@ -289,10 +323,18 @@ test('dispose() drains the DOM bindings registry', () => {
     // same drain on the registry primitive in isolation.
     for (const id of [
         'addMaskBtn',
-        'zoomInBtn', 'zoomOutBtn', 'resetBtn',
-        'removeMaskBtn', 'removeAllMasksBtn', 'mergeBtn',
-        'downloadBtn', 'undoBtn', 'redoBtn',
-        'cropBtn', 'applyCropBtn', 'cancelCropBtn',
+        'zoomInBtn',
+        'zoomOutBtn',
+        'resetBtn',
+        'removeMaskBtn',
+        'removeAllMasksBtn',
+        'mergeBtn',
+        'downloadBtn',
+        'undoBtn',
+        'redoBtn',
+        'cropBtn',
+        'applyCropBtn',
+        'cancelCropBtn',
         'uploadArea',
     ]) {
         const el = document.getElementById(id);
@@ -308,17 +350,21 @@ test('dispose() tears down the live Fabric canvas exactly once', () => {
     installDom();
     const { editor, canvasStub } = makeEditor();
 
-    assert.equal(canvasStub.disposed, false,
-        'sanity: stubbed Fabric canvas should not yet be disposed');
+    assert.equal(
+        canvasStub.disposed,
+        false,
+        'sanity: stubbed Fabric canvas should not yet be disposed',
+    );
 
     editor.dispose();
 
-    assert.equal(canvasStub.disposed, true,
-        'underlying Fabric canvas must have its dispose() called');
-    assert.equal(canvasStub.disposeCalls, 1,
-        'dispose() must call canvas.dispose() exactly once');
-    assert.equal(editor.isImageLoaded(), false,
-        'isImageLoaded() must be false after dispose');
+    assert.equal(
+        canvasStub.disposed,
+        true,
+        'underlying Fabric canvas must have its dispose() called',
+    );
+    assert.equal(canvasStub.disposeCalls, 1, 'dispose() must call canvas.dispose() exactly once');
+    assert.equal(editor.isImageLoaded(), false, 'isImageLoaded() must be false after dispose');
 });
 
 test('post-dispose synchronous public methods are no-ops and do not throw', () => {
@@ -330,38 +376,60 @@ test('post-dispose synchronous public methods are no-ops and do not throw', () =
     // (or stronger). Each must accept a representative argument shape
     // and return the documented no-op value without ever touching the
     // (null) canvas.
-    assert.doesNotThrow(() => editor.saveState(),
-        'saveState() must be a safe no-op after dispose');
+    assert.doesNotThrow(() => editor.saveState(), 'saveState() must be a safe no-op after dispose');
 
     // `createMask` has a documented `null` return when the canvas is
     // null, which is exactly the post-dispose state.
-    assert.equal(editor.createMask({ shape: 'rect' }), null,
-        'createMask() must return null after dispose');
-    assert.equal(editor.createMask(), null,
-        'createMask() with default config must return null after dispose');
+    assert.equal(
+        editor.createMask({ shape: 'rect' }),
+        null,
+        'createMask() must return null after dispose',
+    );
+    assert.equal(
+        editor.createMask(),
+        null,
+        'createMask() with default config must return null after dispose',
+    );
 
-    assert.doesNotThrow(() => editor.removeSelectedMask(),
-        'removeSelectedMask() must be a safe no-op after dispose');
-    assert.doesNotThrow(() => editor.removeAllMasks(),
-        'removeAllMasks() must be a safe no-op after dispose');
-    assert.doesNotThrow(() => editor.removeAllMasks({ saveHistory: false }),
-        'removeAllMasks({ saveHistory: false }) must be a safe no-op after dispose');
+    assert.doesNotThrow(
+        () => editor.removeSelectedMask(),
+        'removeSelectedMask() must be a safe no-op after dispose',
+    );
+    assert.doesNotThrow(
+        () => editor.removeAllMasks(),
+        'removeAllMasks() must be a safe no-op after dispose',
+    );
+    assert.doesNotThrow(
+        () => editor.removeAllMasks({ saveHistory: false }),
+        'removeAllMasks({ saveHistory: false }) must be a safe no-op after dispose',
+    );
 
-    assert.doesNotThrow(() => editor.enterCropMode(),
-        'enterCropMode() must be a safe no-op after dispose');
-    assert.doesNotThrow(() => editor.cancelCrop(),
-        'cancelCrop() must be a safe no-op after dispose');
+    assert.doesNotThrow(
+        () => editor.enterCropMode(),
+        'enterCropMode() must be a safe no-op after dispose',
+    );
+    assert.doesNotThrow(
+        () => editor.cancelCrop(),
+        'cancelCrop() must be a safe no-op after dispose',
+    );
 
-    assert.doesNotThrow(() => editor.downloadImage(),
-        'downloadImage() must be a safe no-op after dispose');
-    assert.doesNotThrow(() => editor.downloadImage('foo.png'),
-        'downloadImage(name) must be a safe no-op after dispose');
+    assert.doesNotThrow(
+        () => editor.downloadImage(),
+        'downloadImage() must be a safe no-op after dispose',
+    );
+    assert.doesNotThrow(
+        () => editor.downloadImage('foo.png'),
+        'downloadImage(name) must be a safe no-op after dispose',
+    );
 
     // `isImageLoaded()` reads `this.originalImage` rather than the
     // canvas, so it should still return a sensible boolean after
     // dispose. The "no image was ever loaded" path returns `false`.
-    assert.equal(editor.isImageLoaded(), false,
-        'isImageLoaded() must return false after dispose when no image was loaded');
+    assert.equal(
+        editor.isImageLoaded(),
+        false,
+        'isImageLoaded() must return false after dispose when no image was loaded',
+    );
 });
 
 test('post-dispose async public methods resolve safely without touching the canvas', async () => {
@@ -414,21 +482,14 @@ test('post-dispose async public methods resolve safely without touching the canv
     // without touching the canvas. The facade short-circuits at the
     // top BEFORE enqueueing, so the resolved promise does not depend
     // on the (already drained) AnimationQueue.
-    await assert.doesNotReject(
-        editor.undo(),
-        'post-dispose undo must resolve without throwing',
-    );
-    await assert.doesNotReject(
-        editor.redo(),
-        'post-dispose redo must resolve without throwing',
-    );
+    await assert.doesNotReject(editor.undo(), 'post-dispose undo must resolve without throwing');
+    await assert.doesNotReject(editor.redo(), 'post-dispose redo must resolve without throwing');
 
     // ── exportImageBase64 ─────────────────────────
     // The facade gates at `if (!this.canvas) return ''`, so the
     // documented empty-string no-op shape is preserved after dispose.
     const base64 = await editor.exportImageBase64();
-    assert.equal(base64, '',
-        'post-dispose exportImageBase64 must resolve to the empty string');
+    assert.equal(base64, '', 'post-dispose exportImageBase64 must resolve to the empty string');
 
     // ── loadFromState ───────────────────────────────────
     // `loadFromState` short-circuits on `!this.canvas`. A subsequent
@@ -459,10 +520,16 @@ test('post-dispose async public methods resolve safely without touching the canv
     // No async public method may have routed back through the
     // (disposed) Fabric canvas: the renderAll counter must not have
     // moved and the canvas must not have been re-disposed.
-    assert.equal(canvasStub.renderAllCalls, renderAllAtDispose,
-        'post-dispose calls must not invoke canvas.renderAll()');
-    assert.equal(canvasStub.disposeCalls, disposeCallsAtDispose,
-        'post-dispose calls must not re-invoke canvas.dispose()');
+    assert.equal(
+        canvasStub.renderAllCalls,
+        renderAllAtDispose,
+        'post-dispose calls must not invoke canvas.renderAll()',
+    );
+    assert.equal(
+        canvasStub.disposeCalls,
+        disposeCallsAtDispose,
+        'post-dispose calls must not re-invoke canvas.dispose()',
+    );
 });
 
 test('animations enqueued before dispose settle after dispose', async () => {
@@ -495,17 +562,18 @@ test('animations enqueued before dispose settle after dispose', async () => {
     const results = await Promise.allSettled(promises);
     for (let i = 0; i < results.length; i++) {
         const r = results[i];
-        assert.notEqual(r.status, undefined,
-            `promise ${i} must have settled after dispose`);
+        assert.notEqual(r.status, undefined, `promise ${i} must have settled after dispose`);
         // If a promise rejected, the rejection must be a normal Error,
         // not a TypeError from touching a null canvas.
         if (r.status === 'rejected') {
-            assert.ok(r.reason instanceof Error,
-                `rejected promise ${i} must reject with an Error, got ${typeof r.reason}`);
+            assert.ok(
+                r.reason instanceof Error,
+                `rejected promise ${i} must reject with an Error, got ${typeof r.reason}`,
+            );
             assert.ok(
                 !/Cannot read|null|undefined/i.test(String(r.reason?.message ?? '')),
                 `rejected promise ${i} must not surface a null-canvas TypeError ` +
-                `(got "${r.reason?.message ?? r.reason}")`,
+                    `(got "${r.reason?.message ?? r.reason}")`,
             );
         }
     }
@@ -521,12 +589,10 @@ test('post-dispose calls before any init() are also safe', () => {
     const fabric = makeFabricStub();
     const editor = new ImageEditor(fabric, { animationDuration: 0 });
 
-    assert.doesNotThrow(() => editor.dispose(),
-        'dispose() before init() must not throw');
+    assert.doesNotThrow(() => editor.dispose(), 'dispose() before init() must not throw');
 
     // Repeat to confirm idempotency holds even on the never-init path.
-    assert.doesNotThrow(() => editor.dispose(),
-        'second dispose() before init() must not throw');
+    assert.doesNotThrow(() => editor.dispose(), 'second dispose() before init() must not throw');
 
     // Public methods called against the never-initialized + disposed
     // editor must still be safe.

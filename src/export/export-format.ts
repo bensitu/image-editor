@@ -103,9 +103,7 @@ const MIME_TABLE: Readonly<Record<NormalizedImageFormat, ImageMimeType>> = Objec
  * @returns The normalized format token to pass to Fabric's `format` arg.
  *
  */
-export function normalizeImageFormat(
-    input?: string | null,
-): NormalizedImageFormat {
+export function normalizeImageFormat(input?: string | null): NormalizedImageFormat {
     // Match legacy's `String(format || 'jpeg').toLowerCase` — falsy input
     // (including `null`, `undefined`, and `''`) collapses to `'jpeg'` before
     // the table lookup.

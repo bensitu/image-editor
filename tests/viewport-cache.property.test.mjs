@@ -105,8 +105,16 @@ test('visible measure returns floor(clientW/H) and updates the cache', () => {
             );
             const peeked = cache.peek();
             assert.notEqual(peeked, null, 'peek must report a cached size after a visible measure');
-            assert.equal(peeked.width, out.width, 'peek().width must match the last visible measurement');
-            assert.equal(peeked.height, out.height, 'peek().height must match the last visible measurement');
+            assert.equal(
+                peeked.width,
+                out.width,
+                'peek().width must match the last visible measurement',
+            );
+            assert.equal(
+                peeked.height,
+                out.height,
+                'peek().height must match the last visible measurement',
+            );
             return true;
         }),
         { numRuns: 100 },
@@ -168,11 +176,7 @@ test('hidden measure with empty cache returns the fallback', () => {
                 'fallback height must be returned when no cache and container is hidden',
             );
             // A hidden read must not seed the cache, so peek is still null.
-            assert.equal(
-                cache.peek(),
-                null,
-                'hidden-axis read must not populate the cache',
-            );
+            assert.equal(cache.peek(), null, 'hidden-axis read must not populate the cache');
             return true;
         }),
         { numRuns: 100 },
@@ -193,11 +197,7 @@ test('null container yields the fallback verbatim and never mutates the cache', 
                 const outFresh = cache.measure(null, nullFallback);
                 assert.equal(outFresh.width, nullFallback.width);
                 assert.equal(outFresh.height, nullFallback.height);
-                assert.equal(
-                    cache.peek(),
-                    null,
-                    'measure(null, ...) must not populate the cache',
-                );
+                assert.equal(cache.peek(), null, 'measure(null, ...) must not populate the cache');
 
                 // Case B: primed cache. Null container still returns
                 // the fallback (mirrors the implementation: a missing
@@ -229,11 +229,7 @@ test('clear() resets the cache; next hidden measure returns fallback', () => {
             (visibleContainer, hiddenContainer, fallback) => {
                 const cache = new ViewportCache();
                 cache.measure(visibleContainer, fallback);
-                assert.notEqual(
-                    cache.peek(),
-                    null,
-                    'sanity: visible measure populated the cache',
-                );
+                assert.notEqual(cache.peek(), null, 'sanity: visible measure populated the cache');
                 cache.clear();
                 assert.equal(
                     cache.peek(),

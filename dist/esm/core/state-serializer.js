@@ -13,7 +13,7 @@ export function saveState(input) {
     canvas.discardActiveObject();
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     if (Array.isArray(jsonObj.objects)) {
-        jsonObj.objects = jsonObj.objects.filter(o => o.isCropRect !== true && o.maskLabel !== true);
+        jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true);
     }
     jsonObj._editorState = {
         currentScale,
@@ -25,9 +25,7 @@ export function saveState(input) {
 export async function loadFromState(input) {
     var _a, _b;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
-    const jsonString = typeof snapshotInput === 'string'
-        ? snapshotInput
-        : JSON.stringify(snapshotInput);
+    const jsonString = typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
     const json = JSON.parse(jsonString);
     if (typeof json.width === 'number' &&
         json.width > 0 &&
@@ -54,7 +52,7 @@ export async function loadFromState(input) {
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
-    const originalImage = ((_b = objects.find(o => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
+    const originalImage = ((_b = objects.find((o) => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
     return {
         editorState,
         maxMaskId,
@@ -78,8 +76,7 @@ function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
                 return false;
             if (jType && o.type !== jType)
                 return false;
-            return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
-                Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5);
+            return Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 && Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5;
         });
         if (matchIndex < 0)
             continue;

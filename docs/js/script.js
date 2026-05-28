@@ -35,7 +35,7 @@ const translations = {
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
-        maskShapePolygon: 'Polygon'
+        maskShapePolygon: 'Polygon',
     },
     zh: {
         appSubtitle: '画布遮罩、裁剪、变换与导出演示',
@@ -65,7 +65,7 @@ const translations = {
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
-        maskShapePolygon: '多边形'
+        maskShapePolygon: '多边形',
     },
     ja: {
         appSubtitle: 'キャンバスマスク、切り抜き、変形、書き出しデモ',
@@ -95,7 +95,7 @@ const translations = {
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
-        maskShapePolygon: '多角形'
+        maskShapePolygon: '多角形',
     },
     ko: {
         appSubtitle: '캔버스 마스크, 자르기, 변형, 내보내기 데모',
@@ -125,7 +125,7 @@ const translations = {
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
-        maskShapePolygon: '다각형'
+        maskShapePolygon: '다각형',
     },
     fr: {
         appSubtitle: 'Démo de masques, recadrage, transformation et export canvas',
@@ -155,7 +155,7 @@ const translations = {
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
-        maskShapePolygon: 'Polygone'
+        maskShapePolygon: 'Polygone',
     },
     es: {
         appSubtitle: 'Demo de máscaras, recorte, transformación y exportación en canvas',
@@ -185,15 +185,22 @@ const translations = {
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
-        maskShapePolygon: 'Polígono'
-    }
+        maskShapePolygon: 'Polígono',
+    },
 };
 
 const maskShapeConfigs = {
     rect: { shape: 'rect' },
     circle: { shape: 'circle' },
     ellipse: { shape: 'ellipse' },
-    polygon: { shape: 'polygon', points: [[0, 0], [80, 0], [40, 64]] }
+    polygon: {
+        shape: 'polygon',
+        points: [
+            [0, 0],
+            [80, 0],
+            [40, 64],
+        ],
+    },
 };
 
 function getOptionalElement(id) {
@@ -243,7 +250,9 @@ function getInitialLanguage() {
 }
 
 function getSystemTheme() {
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
 }
 
 function getInitialTheme() {
@@ -256,14 +265,14 @@ function applyLanguage(language) {
     const languageTranslations = translations[nextLanguage];
     document.documentElement.lang = nextLanguage;
 
-    document.querySelectorAll('[data-i18n]').forEach(function(element) {
+    document.querySelectorAll('[data-i18n]').forEach(function (element) {
         const translationKey = element.dataset.i18n;
         if (languageTranslations[translationKey]) {
             element.textContent = languageTranslations[translationKey];
         }
     });
 
-    document.querySelectorAll('[data-i18n-placeholder]').forEach(function(element) {
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function (element) {
         const translationKey = element.dataset.i18nPlaceholder;
         if (languageTranslations[translationKey]) {
             element.setAttribute('placeholder', languageTranslations[translationKey]);
@@ -273,10 +282,12 @@ function applyLanguage(language) {
     const darkModeToggleElement = getOptionalElement('darkModeToggle');
     if (darkModeToggleElement) {
         darkModeToggleElement.setAttribute('aria-label', languageTranslations.darkMode);
-        darkModeToggleElement.closest('.theme-switch')?.setAttribute('title', languageTranslations.darkMode);
+        darkModeToggleElement
+            .closest('.theme-switch')
+            ?.setAttribute('title', languageTranslations.darkMode);
     }
 
-    document.querySelectorAll('.language-button').forEach(function(buttonElement) {
+    document.querySelectorAll('.language-button').forEach(function (buttonElement) {
         buttonElement.classList.toggle('active', buttonElement.dataset.language === nextLanguage);
     });
 
@@ -301,7 +312,9 @@ function initEditor() {
         window.ImageEditor ||
         (typeof ImageEditor !== 'undefined' ? ImageEditor : null);
     if (!ImageEditorCtor) {
-        console.error('ImageEditor constructor not found. Make sure the UMD bundle is loaded before this script.');
+        console.error(
+            'ImageEditor constructor not found. Make sure the UMD bundle is loaded before this script.',
+        );
         return;
     }
 
@@ -319,7 +332,7 @@ function initEditor() {
         animationDuration: 100,
         maskLabelOffset: 5,
         showPlaceholder: true,
-        exportImageAreaByDefault: true
+        exportImageAreaByDefault: true,
     });
     editor.init({
         canvas: 'fabricCanvas',
@@ -343,7 +356,7 @@ function initEditor() {
         cancelCropBtn: 'cancelCropBtn',
         canvasContainer: null,
         imageInput: null,
-        uploadArea: null
+        uploadArea: null,
     });
 }
 
@@ -377,32 +390,38 @@ function isEditorReady() {
     return !!editor && typeof editor.isImageLoaded === 'function';
 }
 
+function isEditorBusy() {
+    return demoLoading || !!(editor && typeof editor.isBusy === 'function' && editor.isBusy());
+}
+
 function canLoadImage() {
-    // Only refuse to start a new load while a previous demo-driven load
-    // is still in flight. The editor itself rejects concurrent loads
-    // during animations, so we do not duplicate that check here.
-    return !!editor && !demoLoading;
+    return !!editor && !isEditorBusy();
 }
 
 function updateDemoControls() {
     const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
+    const busy = isEditorBusy();
     const addMaskButtonElement = getOptionalElement('addMaskBtn');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadButtonElement = getOptionalElement('loadBtn');
 
-    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || demoLoading;
-    if (maskShapeSelectElement) maskShapeSelectElement.disabled = demoLoading;
-    if (loadButtonElement) loadButtonElement.disabled = demoLoading;
-    if (imageInputElement) imageInputElement.disabled = demoLoading;
+    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || busy;
+    if (maskShapeSelectElement) maskShapeSelectElement.disabled = busy;
+    if (loadButtonElement) loadButtonElement.disabled = busy;
+    if (imageInputElement) imageInputElement.disabled = busy;
     if (uploadAreaElement) {
-        uploadAreaElement.classList.toggle('disabled', demoLoading);
-        uploadAreaElement.setAttribute('aria-disabled', demoLoading ? 'true' : 'false');
+        uploadAreaElement.classList.toggle('disabled', busy);
+        uploadAreaElement.setAttribute('aria-disabled', busy ? 'true' : 'false');
     }
 }
 
 function scheduleDemoControlUpdate() {
+    const animationDuration = Number(editor?.options?.animationDuration);
+    const settledDelay = Number.isFinite(animationDuration)
+        ? Math.max(0, animationDuration) + 50
+        : 350;
     window.setTimeout(updateDemoControls, 0);
-    window.setTimeout(updateDemoControls, 350);
+    window.setTimeout(updateDemoControls, settledDelay);
 }
 
 function getSelectedMaskConfig() {
@@ -411,7 +430,7 @@ function getSelectedMaskConfig() {
 }
 
 function handleAddMaskButtonClick() {
-    if (!editor || !editor.isImageLoaded()) return;
+    if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
     // `createMask` is the canonical v2 entry point; it returns the new
     // mask object or `null`. The editor handles its own animation guard.
     editor.createMask(getSelectedMaskConfig());
@@ -427,21 +446,21 @@ function loadFile(file) {
     updateDemoControls();
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = function(loadEvent) {
+        reader.onload = function (loadEvent) {
             const imageBase64 = loadEvent.target.result;
-            editor.loadImage(imageBase64)
-                .then(resolve)
-                .catch(reject);
+            editor.loadImage(imageBase64).then(resolve).catch(reject);
         };
         reader.onerror = () => reject(new Error('Image file could not be read'));
         reader.readAsDataURL(file);
-    }).catch(function(error) {
-        showDemoError(error);
-        console.error(error);
-    }).finally(function() {
-        demoLoading = false;
-        updateDemoControls();
-    });
+    })
+        .catch(function (error) {
+            showDemoError(error);
+            console.error(error);
+        })
+        .finally(function () {
+            demoLoading = false;
+            updateDemoControls();
+        });
 }
 
 function handleLoadButtonClick() {
@@ -452,19 +471,24 @@ function handleLoadButtonClick() {
     const imageBase64 = getOptionalElement('base64Input')?.value || '';
     demoLoading = true;
     updateDemoControls();
-    editor.loadImage(imageBase64)
-        .catch(function(error) {
+    editor
+        .loadImage(imageBase64)
+        .then(function () {
+            const base64Input = getOptionalElement('base64Input');
+            if (base64Input) base64Input.value = '';
+        })
+        .catch(function (error) {
             showDemoError(error);
             console.error(error);
         })
-        .finally(function() {
+        .finally(function () {
             demoLoading = false;
             updateDemoControls();
         });
 }
 
 function handleImageInputChange(event) {
-    loadFile(event.target.files[0]).finally(function() {
+    loadFile(event.target.files[0]).finally(function () {
         event.target.value = '';
     });
 }
@@ -505,7 +529,7 @@ if (addMaskButtonElement) {
     addMaskButtonElement.addEventListener('click', handleAddMaskButtonClick);
 }
 
-['cropBtn', 'applyCropBtn', 'cancelCropBtn'].forEach(function(buttonId) {
+['cropBtn', 'applyCropBtn', 'cancelCropBtn'].forEach(function (buttonId) {
     getOptionalElement(buttonId)?.addEventListener('click', scheduleDemoControlUpdate);
 });
 
@@ -522,8 +546,8 @@ if (uploadAreaElement) {
     uploadAreaElement.addEventListener('dragleave', handleUploadAreaDragLeave);
 }
 
-document.querySelectorAll('.language-button').forEach(function(buttonElement) {
-    buttonElement.addEventListener('click', function() {
+document.querySelectorAll('.language-button').forEach(function (buttonElement) {
+    buttonElement.addEventListener('click', function () {
         applyLanguage(buttonElement.dataset.language);
     });
 });
@@ -534,7 +558,7 @@ if (darkModeToggleElement) {
     const isDarkModeEnabled = getInitialTheme() === 'dark';
     darkModeToggleElement.checked = isDarkModeEnabled;
     applyTheme(isDarkModeEnabled, !!storedTheme);
-    darkModeToggleElement.addEventListener('change', function(event) {
+    darkModeToggleElement.addEventListener('change', function (event) {
         applyTheme(event.target.checked);
     });
 }
@@ -544,7 +568,7 @@ updateDemoControls();
 
 if (window.matchMedia) {
     const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    systemThemeQuery.addEventListener('change', function(event) {
+    systemThemeQuery.addEventListener('change', function (event) {
         if (getStoredValue('imageEditorDemoTheme')) return;
 
         const shouldUseDarkMode = event.matches;

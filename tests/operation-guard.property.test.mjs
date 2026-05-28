@@ -118,18 +118,30 @@ test('runAnimation clears isAnimating on both resolve and reject', async () => {
             }
 
             // Mid-animation, the bracket was active.
-            assert.equal(observed.isAnimating, true,
-                'guard must report isAnimating=true inside the runAnimation block');
-            assert.equal(observed.isDisposed, false,
-                'guard must report isDisposed=false inside a fresh runAnimation block');
+            assert.equal(
+                observed.isAnimating,
+                true,
+                'guard must report isAnimating=true inside the runAnimation block',
+            );
+            assert.equal(
+                observed.isDisposed,
+                false,
+                'guard must report isDisposed=false inside a fresh runAnimation block',
+            );
 
             // Post-condition: the documented contract — flag is cleared before the
             // promise settled, so it must read `false` here regardless of
             // resolve/reject path.
-            assert.equal(guard.isAnimating(), false,
-                'isAnimating must be false after runAnimation settles');
-            assert.equal(guard.isDisposed(), false,
-                'isDisposed must remain false after a normal runAnimation cycle');
+            assert.equal(
+                guard.isAnimating(),
+                false,
+                'isAnimating must be false after runAnimation settles',
+            );
+            assert.equal(
+                guard.isDisposed(),
+                false,
+                'isDisposed must remain false after a normal runAnimation cycle',
+            );
         }),
         { numRuns: 100 },
     );
@@ -155,8 +167,10 @@ test('assertNotAnimating throws inside runAnimation, succeeds outside', async ()
                     assert.throws(
                         () => guard.assertNotAnimating(label),
                         (err) => {
-                            assert.ok(err instanceof Error,
-                                'assertNotAnimating must throw an Error');
+                            assert.ok(
+                                err instanceof Error,
+                                'assertNotAnimating must throw an Error',
+                            );
                             // The label is embedded verbatim in the message
                             // so each public method's documented no-op shape
                             // can branch on the operation name.
@@ -194,14 +208,8 @@ test('loading state blocks external idle operations and animation queueing', () 
     assert.equal(guard.isLoading(), true);
     assert.equal(guard.isBusy(), true);
 
-    assert.throws(
-        () => guard.assertIdleForOperation('mergeMasks'),
-        /image is loading/,
-    );
-    assert.throws(
-        () => guard.assertCanQueueAnimation('scaleImage'),
-        /image is loading/,
-    );
+    assert.throws(() => guard.assertIdleForOperation('mergeMasks'), /image is loading/);
+    assert.throws(() => guard.assertCanQueueAnimation('scaleImage'), /image is loading/);
 
     guard.endLoading();
     assert.equal(guard.isLoading(), false);
@@ -218,14 +226,8 @@ test('active operation token allows internal calls and blocks external calls', (
     assert.equal(guard.isBusy(), true);
 
     assert.doesNotThrow(() => guard.assertIdleForOperation('loadImage', token));
-    assert.throws(
-        () => guard.assertIdleForOperation('loadImage'),
-        /mergeMasks is running/,
-    );
-    assert.throws(
-        () => guard.assertCanQueueAnimation('scaleImage'),
-        /mergeMasks is running/,
-    );
+    assert.throws(() => guard.assertIdleForOperation('loadImage'), /mergeMasks is running/);
+    assert.throws(() => guard.assertCanQueueAnimation('scaleImage'), /mergeMasks is running/);
 
     guard.endBusyOperation(Symbol('other'));
     assert.equal(guard.activeOperationName(), 'mergeMasks');
@@ -302,8 +304,11 @@ test('sequential runAnimation calls each bracket cleanly', async () => {
 
             for (const [i, step] of steps.entries()) {
                 // Between calls: quiescent.
-                assert.equal(guard.isAnimating(), false,
-                    `guard must be quiescent before step ${i}`);
+                assert.equal(
+                    guard.isAnimating(),
+                    false,
+                    `guard must be quiescent before step ${i}`,
+                );
 
                 let sawAnimating = false;
                 const fn = makeAnimation(guard, step.mode, step.ms, (a) => {
@@ -317,12 +322,21 @@ test('sequential runAnimation calls each bracket cleanly', async () => {
                     await assert.rejects(() => guard.runAnimation(fn));
                 }
 
-                assert.equal(sawAnimating, true,
-                    `step ${i}: guard must report isAnimating=true inside its bracket`);
-                assert.equal(guard.isAnimating(), false,
-                    `step ${i}: guard must be quiescent after settle`);
-                assert.equal(guard.isDisposed(), false,
-                    `step ${i}: dispose flag must remain false`);
+                assert.equal(
+                    sawAnimating,
+                    true,
+                    `step ${i}: guard must report isAnimating=true inside its bracket`,
+                );
+                assert.equal(
+                    guard.isAnimating(),
+                    false,
+                    `step ${i}: guard must be quiescent after settle`,
+                );
+                assert.equal(
+                    guard.isDisposed(),
+                    false,
+                    `step ${i}: dispose flag must remain false`,
+                );
             }
         }),
         { numRuns: 100 },
