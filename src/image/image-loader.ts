@@ -107,6 +107,7 @@ import {
     computeFitLayout,
     selectLayoutStrategy,
     applyCanvasDimensions,
+    measureScrollbarSize,
     type LayoutResult,
     type ViewportCache,
 } from './layout-manager.js';
@@ -611,10 +612,15 @@ function maybeDownsample(
 function computeLayout(ctx: LoadImageContext, fimg: FabricNS.FabricImage): LayoutResult {
     const imgW = fimg.width ?? 0;
     const imgH = fimg.height ?? 0;
-    const viewport = ctx.viewportCache.measure(ctx.containerElement, {
-        width: ctx.options.canvasWidth,
-        height: ctx.options.canvasHeight,
-    });
+    const scrollbarSize = measureScrollbarSize(ctx.containerElement?.ownerDocument ?? null);
+    const viewport = ctx.viewportCache.measure(
+        ctx.containerElement,
+        {
+            width: ctx.options.canvasWidth,
+            height: ctx.options.canvasHeight,
+        },
+        scrollbarSize,
+    );
 
     const strategy = selectLayoutStrategy(ctx.options);
     if (strategy === 'fit') {
@@ -633,6 +639,7 @@ function computeLayout(ctx: LoadImageContext, fimg: FabricNS.FabricImage): Layou
             ctx.options.canvasWidth,
             ctx.options.canvasHeight,
             viewport,
+            scrollbarSize,
         );
     }
     return computeExpandLayout(

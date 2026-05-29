@@ -383,10 +383,10 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
 
-    // 5c. The first non-mask `'image'` object is the editor's
+    // 5c. The first non-mask image object is the editor's
     //     `originalImage`. Returning `null` when missing keeps the facade
     //     free of "did the snapshot have an image?" guesses.
-    const originalImage = (objects.find((o) => o.type === 'image' && !isMaskObject(o)) ??
+    const originalImage = (objects.find(isOriginalImageObject) ??
         null) as FabricNS.FabricImage | null;
 
     return {
@@ -396,6 +396,16 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
         objects,
         jsonString,
     };
+}
+
+function isOriginalImageObject(object: FabricNS.FabricObject): boolean {
+    if (isMaskObject(object)) return false;
+
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'image') return true;
+
+    const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
+    return typeof isType === 'function' && isType.call(object, 'image');
 }
 
 /**

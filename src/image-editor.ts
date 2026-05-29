@@ -51,7 +51,10 @@ import { loadImage as loadImageImpl, type LoadImageContext } from './image/image
 import {
     ViewportCache,
     applyCanvasDimensions,
+    computeScrollableCanvasSize,
     detectLayoutConflict,
+    measureScrollbarSize,
+    type ViewportSize,
 } from './image/layout-manager.js';
 import { TransformController, type TransformContext } from './image/transform-controller.js';
 import {
@@ -86,6 +89,15 @@ type ElementKey = keyof Required<ElementIdMap>;
 // ─── Resolved element ID map (all keys guaranteed present) ───────────────────
 
 type ResolvedElementIdMap = Record<ElementKey, string | null>;
+
+const LAYOUT_EPSILON = 0.5;
+
+interface ImageDisplayGeometry {
+    canvasWidth: number;
+    canvasHeight: number;
+    imageDisplayWidth: number;
+    imageDisplayHeight: number;
+}
 
 const INTERNAL_OPERATION_TOKEN: unique symbol = Symbol.for('ImageEditorInternalOperation') as never;
 
@@ -849,11 +861,25 @@ export class ImageEditor {
         this.canvas!.renderAll();
     }
 
+    /** @internal */
+    private _measureLayoutViewport(scrollbarSize?: {
+        width: number;
+        height: number;
+    }): ViewportSize {
+        return this._viewportCache.measure(
+            this.containerElement,
+            {
+                width: this.options.canvasWidth,
+                height: this.options.canvasHeight,
+            },
+            scrollbarSize,
+        );
+    }
+
     /**
-     * Resize the canvas to fit the image when `expandCanvasToImage` is
-     * `true`. Used by the transform pipeline's `afterTransformSnap` hook
-     * so a post-rotation/scale image that exceeds the viewport gets
-     * scrollbars.
+     * Resize the canvas to fit the transformed image bounds. Used by the
+     * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
+     * image that exceeds the viewport gets a real scroll range.
      * @internal
      */
     private _updateCanvasSizeToImageBounds(): void {
@@ -861,28 +887,117 @@ export class ImageEditor {
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
 
-        const containerW = this.containerElement
-            ? Math.ceil(this.containerElement.clientWidth || 0)
-            : 0;
-        const containerH = this.containerElement
-            ? Math.ceil(this.containerElement.clientHeight || 0)
-            : 0;
+        const scrollbarSize = measureScrollbarSize(this.containerElement?.ownerDocument ?? null);
+        const viewport = this._measureLayoutViewport(scrollbarSize);
 
-        // If image fits inside the viewport, keep the canvas viewport-sized
-        if (
-            containerW > 0 &&
-            containerH > 0 &&
-            boundingRect.width <= containerW &&
-            boundingRect.height <= containerH
-        ) {
-            this._setCanvasSizeInt(containerW, containerH);
+        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+            const canvasSize = computeScrollableCanvasSize(
+                boundingRect.width,
+                boundingRect.height,
+                viewport,
+                scrollbarSize,
+            );
+            this._setCanvasSizeInt(canvasSize.width, canvasSize.height);
+            return;
+        }
+
+        if (boundingRect.width <= viewport.width && boundingRect.height <= viewport.height) {
+            this._setCanvasSizeInt(viewport.width, viewport.height);
             return;
         }
 
         this._setCanvasSizeInt(
-            Math.max(containerW || 0, Math.floor(boundingRect.width)),
-            Math.max(containerH || 0, Math.floor(boundingRect.height)),
+            Math.max(viewport.width, Math.ceil(boundingRect.width)),
+            Math.max(viewport.height, Math.ceil(boundingRect.height)),
         );
+    }
+
+    /** @internal */
+    private _shouldNormalizeCanvasSizeAfterStateRestore(): boolean {
+        if (!this.canvas || !this.originalImage) return false;
+
+        this.originalImage.setCoords();
+        const boundingRect = this.originalImage.getBoundingRect();
+        const viewport = this._measureLayoutViewport(
+            measureScrollbarSize(this.containerElement?.ownerDocument ?? null),
+        );
+        const canvasW = Math.ceil(this.canvas.getWidth());
+        const canvasH = Math.ceil(this.canvas.getHeight());
+
+        const clipsImage =
+            boundingRect.width > canvasW + LAYOUT_EPSILON ||
+            boundingRect.height > canvasH + LAYOUT_EPSILON;
+
+        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+            const staleOverflowWidth =
+                canvasW > viewport.width + LAYOUT_EPSILON &&
+                boundingRect.width <= viewport.width + LAYOUT_EPSILON;
+            const staleOverflowHeight =
+                canvasH > viewport.height + LAYOUT_EPSILON &&
+                boundingRect.height <= viewport.height + LAYOUT_EPSILON;
+
+            return clipsImage || staleOverflowWidth || staleOverflowHeight;
+        }
+
+        if (this.options.expandCanvasToImage) {
+            const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
+            const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
+            return (
+                Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
+                Math.abs(canvasH - expectedH) > LAYOUT_EPSILON
+            );
+        }
+
+        return clipsImage;
+    }
+
+    /** @internal */
+    private _captureImageDisplayGeometry(): ImageDisplayGeometry | null {
+        if (!this.canvas || !this.originalImage) return null;
+        this.originalImage.setCoords();
+        const boundingRect = this.originalImage.getBoundingRect();
+        return {
+            canvasWidth: this.canvas.getWidth(),
+            canvasHeight: this.canvas.getHeight(),
+            imageDisplayWidth: Math.max(1, boundingRect.width),
+            imageDisplayHeight: Math.max(1, boundingRect.height),
+        };
+    }
+
+    /** @internal */
+    private _restoreMergedImageDisplayGeometry(geometry: ImageDisplayGeometry | null): void {
+        if (!geometry || !this.canvas || !this.originalImage) return;
+
+        this._setCanvasSizeInt(geometry.canvasWidth, geometry.canvasHeight);
+
+        const sourceW = Math.max(1, this.originalImage.width || geometry.imageDisplayWidth);
+        const sourceH = Math.max(1, this.originalImage.height || geometry.imageDisplayHeight);
+        const scale = Math.min(
+            geometry.imageDisplayWidth / sourceW,
+            geometry.imageDisplayHeight / sourceH,
+        );
+
+        this.originalImage.set({
+            left: 0,
+            top: 0,
+            angle: 0,
+            scaleX: scale,
+            scaleY: scale,
+            originX: 'left',
+            originY: 'top',
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hoverCursor: 'default',
+        });
+        this.originalImage.setCoords();
+        this.canvas.sendObjectToBack(this.originalImage);
+
+        this.currentScale = 1;
+        this.currentRotation = 0;
+        this.baseImageScale = scale;
+        this._lastSnapshot = this._captureSnapshot();
+        this.canvas.renderAll();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -937,7 +1052,13 @@ export class ImageEditor {
 
             afterTransformSnap: () => {
                 if (this._disposed || !this.canvas || !this.originalImage) return;
-                if (this.options.expandCanvasToImage) this._updateCanvasSizeToImageBounds();
+                if (
+                    this.options.expandCanvasToImage ||
+                    this.options.coverImageToCanvas ||
+                    this.options.fitImageToCanvas
+                ) {
+                    this._updateCanvasSizeToImageBounds();
+                }
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
@@ -972,7 +1093,7 @@ export class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed) return;
             // Disable buttons up front so the toolbar reflects the
             // pending animation while it runs.
@@ -982,10 +1103,10 @@ export class ImageEditor {
             } finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
 
     /**
@@ -1006,7 +1127,7 @@ export class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed) return;
             this._updateUI();
             try {
@@ -1014,10 +1135,10 @@ export class ImageEditor {
             } finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
 
     /**
@@ -1042,7 +1163,7 @@ export class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed) return;
             this._updateUI();
             try {
@@ -1050,10 +1171,17 @@ export class ImageEditor {
             } finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
+    }
+
+    /** @internal */
+    private _refreshUiAfterQueuedAnimation(): void {
+        if (this._disposed || !this.canvas) return;
+        this._updateInputs();
+        this._updateUI();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1121,9 +1249,16 @@ export class ImageEditor {
 
             this.isImageLoadedToCanvas = !!this.originalImage;
 
-            // Update _lastSnapshot so the NEXT saveState correctly
-            // uses this restored state as its "before" baseline.
-            this._lastSnapshot = result.jsonString;
+            if (
+                this.originalImage &&
+                (this.options.expandCanvasToImage ||
+                    this.options.coverImageToCanvas ||
+                    this.options.fitImageToCanvas) &&
+                this._shouldNormalizeCanvasSizeAfterStateRestore()
+            ) {
+                this._updateCanvasSizeToImageBounds();
+                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+            }
 
             // Re-attach mouseover/mouseout hover handlers (Fabric never
             // serializes event listeners).
@@ -1131,6 +1266,11 @@ export class ImageEditor {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
+
+            // Update _lastSnapshot so the NEXT saveState correctly
+            // uses the restored and layout-normalized state as its
+            // "before" baseline.
+            this._lastSnapshot = this._captureSnapshot();
 
             // Undo/redo callers await this method and should settle after
             // Fabric has painted the restored state.
@@ -1208,9 +1348,10 @@ export class ImageEditor {
      */
     undo(): Promise<void> {
         if (this._disposed) return Promise.resolve();
-        return this.animQueue.add(() =>
+        const job = this.animQueue.add(() =>
             this._disposed ? Promise.resolve() : this.historyManager.undo(),
         );
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
 
     /**
@@ -1220,9 +1361,10 @@ export class ImageEditor {
      */
     redo(): Promise<void> {
         if (this._disposed) return Promise.resolve();
-        return this.animQueue.add(() =>
+        const job = this.animQueue.add(() =>
             this._disposed ? Promise.resolve() : this.historyManager.redo(),
         );
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1616,8 +1758,14 @@ export class ImageEditor {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: (base64, opts) =>
-                this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
+            loadImage: async (base64, opts) => {
+                const geometry = this._captureImageDisplayGeometry();
+                await this.loadImage(
+                    base64,
+                    this._withInternalOperationOptions(operationToken, opts),
+                );
+                this._restoreMergedImageDisplayGeometry(geometry);
+            },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {

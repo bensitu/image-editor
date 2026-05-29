@@ -23,9 +23,8 @@
  *   does NOT mutate developer CSS:
  *   - it never touches `canvas.style` or `container.style`
  *     (`width`, `height`, `display`, `overflow`),
- *   - it relies on `clientWidth` / `clientHeight` for measurements,
- *     which already exclude pre-existing auto scrollbars without any
- *     `overflow` toggle.
+ *   - it reads `clientWidth` / `clientHeight` and compensates for
+ *     pre-existing auto scrollbars without any `overflow` toggle.
  */
 import type * as FabricNS from 'fabric';
 import type { ResolvedOptions } from '../core/public-types.js';
@@ -93,6 +92,9 @@ export interface ViewportSize {
     width: number;
     height: number;
 }
+/** Native scrollbar gutter size in CSS pixels. */
+export type ScrollbarSize = ViewportSize;
+export type OverflowAxis = 'horizontal' | 'vertical';
 /**
  * Hidden-container viewport cache.
  *
@@ -107,10 +109,10 @@ export interface ViewportSize {
  * again, the next `measure` call updates the cache so subsequent
  * sizing decisions reflect the new viewport.
  *
- * Measurements use `clientWidth` / `clientHeight`, which already
- * exclude space occupied by pre-existing auto scrollbars. This lets
- * the layout manager compensate for scrollbar width without mutating
- * the container's `overflow` style.
+ * Measurements compensate for pre-existing auto scrollbars by adding
+ * the scrollbar gutter back to the visible client size. This mirrors
+ * v1.4.2's viewport recovery while still preserving v2's rule that
+ * layout code never mutates the container's `overflow` style.
  *
  */
 export declare class ViewportCache {
@@ -129,7 +131,7 @@ export declare class ViewportCache {
      *                  cached measurement is available. Callers should
      *                  pass `(options.canvasWidth, options.canvasHeight)`.
      */
-    measure(container: HTMLElement | null, fallback: ViewportSize): ViewportSize;
+    measure(container: HTMLElement | null, fallback: ViewportSize, scrollbarSize?: Partial<ScrollbarSize> | null): ViewportSize;
     /**
      * Return the cached viewport size without re-measuring. Useful for
      * tests and for diagnostic logging. `null` indicates no non-zero
@@ -162,28 +164,56 @@ export interface LayoutResult {
     baseImageScale: number;
 }
 /**
+ * Measure the browser's native scrollbar gutter. Overlay-scrollbar
+ * environments legitimately return zero on one or both axes.
+ */
+export declare function measureScrollbarSize(ownerDocument?: Document | null): ScrollbarSize;
+/**
+ * Measure the full layout viewport represented by the canvas container.
+ *
+ * In `overflow: auto` containers, `clientWidth` / `clientHeight` can already
+ * be reduced by scrollbars left over from the previous canvas size. v1.4.2
+ * avoided using that reduced viewport by adding the gutter back before the
+ * next Cover/Fit calculation. v2 keeps the same recovery rule without
+ * mutating `style.overflow`.
+ */
+export declare function measureContainerViewport(container: HTMLElement | null, fallback: ViewportSize, scrollbarSize?: Partial<ScrollbarSize> | null): ViewportSize;
+/**
+ * Compute canvas dimensions for content that may overflow the visible
+ * viewport.
+ *
+ * An overflowing axis grows to the content size, while a non-overflowing
+ * axis uses the viewport space left after the perpendicular scrollbar
+ * gutter is accounted for. This keeps Cover/Fit from accidentally creating
+ * a second scrollbar solely because the first scrollbar reduced the cross
+ * axis client size.
+ */
+export declare function computeScrollableCanvasSize(contentWidth: number, contentHeight: number, viewport: ViewportSize, scrollbarSize?: Partial<ScrollbarSize> | null): ViewportSize;
+/**
  * Compute layout for the `fit` strategy.
  *
- * The canvas is set to the smaller of `(options.canvasWidth/Height)`
- * and the visible container viewport, minus one pixel per axis to
- * leave room for any sub-pixel rounding error and avoid tripping the
- * container's auto scrollbars. The image is uniformly scaled down to
- * fit, but never up (`Math.min(..., 1)`).
+ * The canvas is set to the visible container viewport, falling back to
+ * `(options.canvasWidth/Height)` only when no viewport measurement is
+ * available, minus one pixel per axis to leave room for any sub-pixel
+ * rounding error and avoid tripping the container's auto scrollbars.
+ * The image is uniformly scaled down to fit, but never up
+ * (`Math.min(..., 1)`).
  *
  */
 export declare function computeFitLayout(imageWidth: number, imageHeight: number, optionsCanvasWidth: number, optionsCanvasHeight: number, containerSize: ViewportSize): LayoutResult;
 /**
  * Compute layout for the `cover` strategy.
  *
- * The canvas is sized to the visible container viewport (with a final
- * fall-back to the configured canvas dimensions if a viewport axis is
- * zero — the {@link ViewportCache} normally prevents this from
- * happening). The image scale is `max(cw / imgW, ch / imgH)` with
- * **no** upper cap, so an image smaller than the canvas is scaled up
- * until it covers both axes.
+ * The visible viewport determines the cover target (with a final fall-back
+ * to the configured canvas dimensions if a viewport axis is zero — the
+ * {@link ViewportCache} normally prevents this from happening). Large
+ * images are scaled down until Cover fills one axis without upscaling small
+ * images. When the filled axis would need a scrollbar, the scale is
+ * recomputed against the cross-axis space left after that scrollbar appears;
+ * this preserves the Cover invariant that at least one axis stays scroll-free.
  *
  */
-export declare function computeCoverLayout(imageWidth: number, imageHeight: number, optionsCanvasWidth: number, optionsCanvasHeight: number, containerSize: ViewportSize): LayoutResult;
+export declare function computeCoverLayout(imageWidth: number, imageHeight: number, optionsCanvasWidth: number, optionsCanvasHeight: number, containerSize: ViewportSize, scrollbarSize?: Partial<ScrollbarSize> | null): LayoutResult;
 /**
  * Compute layout for the `expand` strategy.
  *

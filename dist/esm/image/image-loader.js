@@ -2,7 +2,7 @@ import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
 import { withTimeout } from '../utils/timeout.js';
-import { computeCoverLayout, computeExpandLayout, computeFitLayout, selectLayoutStrategy, applyCanvasDimensions, } from './layout-manager.js';
+import { computeCoverLayout, computeExpandLayout, computeFitLayout, selectLayoutStrategy, applyCanvasDimensions, measureScrollbarSize, } from './layout-manager.js';
 import { computeDownsampleDimensions, detectSourceMimeType, resampleImage, } from './image-resampler.js';
 export async function loadImage(ctx, imageBase64, loadOptions = {}) {
     if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
@@ -166,19 +166,20 @@ function maybeDownsample(imgEl, originalDataUrl, options) {
     return resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality).dataUrl;
 }
 function computeLayout(ctx, fimg) {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
     const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
+    const scrollbarSize = measureScrollbarSize((_d = (_c = ctx.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
     const viewport = ctx.viewportCache.measure(ctx.containerElement, {
         width: ctx.options.canvasWidth,
         height: ctx.options.canvasHeight,
-    });
+    }, scrollbarSize);
     const strategy = selectLayoutStrategy(ctx.options);
     if (strategy === 'fit') {
         return computeFitLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
     }
     if (strategy === 'cover') {
-        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport, scrollbarSize);
     }
     return computeExpandLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
 }

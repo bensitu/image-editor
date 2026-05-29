@@ -9,7 +9,7 @@ import { isMaskObject } from './core/public-types.js';
 import { applyCrop as applyCropImpl, cancelCrop as cancelCropImpl, enterCropMode as enterCropModeImpl, } from './crop/crop-controller.js';
 import { downloadImage as downloadImageImpl, exportImageBase64 as exportImageBase64Impl, exportImageFile as exportImageFileImpl, mergeMasks as mergeMasksImpl, } from './export/export-service.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
-import { ViewportCache, applyCanvasDimensions, detectLayoutConflict, } from './image/layout-manager.js';
+import { ViewportCache, applyCanvasDimensions, computeScrollableCanvasSize, detectLayoutConflict, measureScrollbarSize, } from './image/layout-manager.js';
 import { TransformController } from './image/transform-controller.js';
 import { createMask as createMaskImpl, removeAllMasks as removeAllMasksImpl, removeSelectedMask as removeSelectedMaskImpl, } from './mask/mask-factory.js';
 import { createLabelForMask, hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
@@ -18,6 +18,7 @@ import { applyMaskSelectedStyle, applyMaskUnselectedStyle, reattachMaskHoverHand
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
 import { inferImageMimeType, readFileAsDataURL, resetFileInput } from './utils/file.js';
+const LAYOUT_EPSILON = 0.5;
 const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
 const CROP_MODE_CONTROL_KEYS = [
     'scaleRate',
@@ -534,25 +535,96 @@ export class ImageEditor {
         obj.setCoords();
         this.canvas.renderAll();
     }
+    _measureLayoutViewport(scrollbarSize) {
+        return this._viewportCache.measure(this.containerElement, {
+            width: this.options.canvasWidth,
+            height: this.options.canvasHeight,
+        }, scrollbarSize);
+    }
     _updateCanvasSizeToImageBounds() {
+        var _a, _b;
         if (!this.originalImage)
             return;
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
-        const containerW = this.containerElement
-            ? Math.ceil(this.containerElement.clientWidth || 0)
-            : 0;
-        const containerH = this.containerElement
-            ? Math.ceil(this.containerElement.clientHeight || 0)
-            : 0;
-        if (containerW > 0 &&
-            containerH > 0 &&
-            boundingRect.width <= containerW &&
-            boundingRect.height <= containerH) {
-            this._setCanvasSizeInt(containerW, containerH);
+        const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
+        const viewport = this._measureLayoutViewport(scrollbarSize);
+        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+            const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
+            this._setCanvasSizeInt(canvasSize.width, canvasSize.height);
             return;
         }
-        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(boundingRect.width)), Math.max(containerH || 0, Math.floor(boundingRect.height)));
+        if (boundingRect.width <= viewport.width && boundingRect.height <= viewport.height) {
+            this._setCanvasSizeInt(viewport.width, viewport.height);
+            return;
+        }
+        this._setCanvasSizeInt(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
+    }
+    _shouldNormalizeCanvasSizeAfterStateRestore() {
+        var _a, _b;
+        if (!this.canvas || !this.originalImage)
+            return false;
+        this.originalImage.setCoords();
+        const boundingRect = this.originalImage.getBoundingRect();
+        const viewport = this._measureLayoutViewport(measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
+        const canvasW = Math.ceil(this.canvas.getWidth());
+        const canvasH = Math.ceil(this.canvas.getHeight());
+        const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
+            boundingRect.height > canvasH + LAYOUT_EPSILON;
+        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+            const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
+                boundingRect.width <= viewport.width + LAYOUT_EPSILON;
+            const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
+                boundingRect.height <= viewport.height + LAYOUT_EPSILON;
+            return clipsImage || staleOverflowWidth || staleOverflowHeight;
+        }
+        if (this.options.expandCanvasToImage) {
+            const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
+            const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
+            return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
+                Math.abs(canvasH - expectedH) > LAYOUT_EPSILON);
+        }
+        return clipsImage;
+    }
+    _captureImageDisplayGeometry() {
+        if (!this.canvas || !this.originalImage)
+            return null;
+        this.originalImage.setCoords();
+        const boundingRect = this.originalImage.getBoundingRect();
+        return {
+            canvasWidth: this.canvas.getWidth(),
+            canvasHeight: this.canvas.getHeight(),
+            imageDisplayWidth: Math.max(1, boundingRect.width),
+            imageDisplayHeight: Math.max(1, boundingRect.height),
+        };
+    }
+    _restoreMergedImageDisplayGeometry(geometry) {
+        if (!geometry || !this.canvas || !this.originalImage)
+            return;
+        this._setCanvasSizeInt(geometry.canvasWidth, geometry.canvasHeight);
+        const sourceW = Math.max(1, this.originalImage.width || geometry.imageDisplayWidth);
+        const sourceH = Math.max(1, this.originalImage.height || geometry.imageDisplayHeight);
+        const scale = Math.min(geometry.imageDisplayWidth / sourceW, geometry.imageDisplayHeight / sourceH);
+        this.originalImage.set({
+            left: 0,
+            top: 0,
+            angle: 0,
+            scaleX: scale,
+            scaleY: scale,
+            originX: 'left',
+            originY: 'top',
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hoverCursor: 'default',
+        });
+        this.originalImage.setCoords();
+        this.canvas.sendObjectToBack(this.originalImage);
+        this.currentScale = 1;
+        this.currentRotation = 0;
+        this.baseImageScale = scale;
+        this._lastSnapshot = this._captureSnapshot();
+        this.canvas.renderAll();
     }
     _buildTransformContext() {
         return {
@@ -578,8 +650,11 @@ export class ImageEditor {
             afterTransformSnap: () => {
                 if (this._disposed || !this.canvas || !this.originalImage)
                     return;
-                if (this.options.expandCanvasToImage)
+                if (this.options.expandCanvasToImage ||
+                    this.options.coverImageToCanvas ||
+                    this.options.fitImageToCanvas) {
                     this._updateCanvasSizeToImageBounds();
+                }
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
@@ -598,7 +673,7 @@ export class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed)
                 return;
             this._updateUI();
@@ -608,10 +683,10 @@ export class ImageEditor {
             finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     rotateImage(degrees) {
         if (this._disposed || !this._transformController)
@@ -623,7 +698,7 @@ export class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed)
                 return;
             this._updateUI();
@@ -633,10 +708,10 @@ export class ImageEditor {
             finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     resetImageTransform() {
         if (this._disposed || !this._transformController)
@@ -648,7 +723,7 @@ export class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed)
                 return;
             this._updateUI();
@@ -658,10 +733,16 @@ export class ImageEditor {
             finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
+    }
+    _refreshUiAfterQueuedAnimation() {
+        if (this._disposed || !this.canvas)
+            return;
+        this._updateInputs();
+        this._updateUI();
     }
     async loadFromState(jsonString) {
         if (!jsonString || !this.canvas)
@@ -697,11 +778,19 @@ export class ImageEditor {
                 this.baseImageScale = es.baseImageScale;
             }
             this.isImageLoadedToCanvas = !!this.originalImage;
-            this._lastSnapshot = result.jsonString;
+            if (this.originalImage &&
+                (this.options.expandCanvasToImage ||
+                    this.options.coverImageToCanvas ||
+                    this.options.fitImageToCanvas) &&
+                this._shouldNormalizeCanvasSizeAfterStateRestore()) {
+                this._updateCanvasSizeToImageBounds();
+                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+            }
             result.objects.filter(isMaskObject).forEach((maskObject) => {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
+            this._lastSnapshot = this._captureSnapshot();
             this.canvas.renderAll();
             this._updateInputs();
             this._updateMaskList();
@@ -748,12 +837,14 @@ export class ImageEditor {
     undo() {
         if (this._disposed)
             return Promise.resolve();
-        return this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
+        const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     redo() {
         if (this._disposed)
             return Promise.resolve();
-        return this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
+        const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     createMask(config = {}) {
         if (!this.canvas)
@@ -949,7 +1040,11 @@ export class ImageEditor {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
+            loadImage: async (base64, opts) => {
+                const geometry = this._captureImageDisplayGeometry();
+                await this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts));
+                this._restoreMergedImageDisplayGeometry(geometry);
+            },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {

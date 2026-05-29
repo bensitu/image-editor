@@ -433,9 +433,9 @@ export interface ImageFileExportOptions {
  */
 export interface ImageEditorOptions {
     // Canvas size
-    /** Initial canvas width in pixels. @default 800 */
+    /** Initial and hidden-container fallback canvas width in pixels. @default 800 */
     canvasWidth?: number;
-    /** Initial canvas height in pixels. @default 600 */
+    /** Initial and hidden-container fallback canvas height in pixels. @default 600 */
     canvasHeight?: number;
     /** Fabric canvas background color. @default 'transparent' */
     backgroundColor?: string;
@@ -452,18 +452,22 @@ export interface ImageEditorOptions {
     /** Rotation step in degrees. @default 90 */
     rotationStep?: number;
 
-    // Layout (precedence: fit > cover > expand).1–9.5
+    // Layout (precedence: fit > cover > expand).
     /**
      * Expand the canvas to fit the loaded image (no scroll required for
      * images smaller than their natural size). @default true
      */
     expandCanvasToImage?: boolean;
-    /** Scale the image down to fit inside the canvas. @default false */
+    /** Scale the image down to fit inside the visible workspace. @default false */
     fitImageToCanvas?: boolean;
-    /** Scale the image up/down so it covers the canvas. @default false */
+    /**
+     * Scale large images down to cover the visible workspace, cap at native
+     * size, and expand overflowing canvas axes so the container can scroll.
+     * @default false
+     */
     coverImageToCanvas?: boolean;
 
-    // Down-sampling.1–8.4
+    // Down-sampling.
     /** Downsample very large images on load. @default true */
     downsampleOnLoad?: boolean;
     /** Max pixel width before downsampling kicks in. @default 4000 */

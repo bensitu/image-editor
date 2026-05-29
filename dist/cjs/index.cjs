@@ -448,7 +448,7 @@ async function loadFromState(input) {
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
-    const originalImage = ((_b = objects.find((o) => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
+    const originalImage = ((_b = objects.find(isOriginalImageObject)) !== null && _b !== void 0 ? _b : null);
     return {
         editorState,
         maxMaskId,
@@ -456,6 +456,15 @@ async function loadFromState(input) {
         objects,
         jsonString,
     };
+}
+function isOriginalImageObject(object) {
+    if (isMaskObject(object))
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'image')
+        return true;
+    const isType = object.isType;
+    return typeof isType === 'function' && isType.call(object, 'image');
 }
 function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d, _e;
@@ -1857,14 +1866,14 @@ class ViewportCache {
             value: null
         });
     }
-    measure(container, fallback) {
+    measure(container, fallback, scrollbarSize) {
         var _a;
         if (!container)
             return fallback;
         const cw = Math.floor(container.clientWidth);
         const ch = Math.floor(container.clientHeight);
         if (cw > 0 && ch > 0) {
-            this.lastVisible = { width: cw, height: ch };
+            this.lastVisible = measureContainerViewport(container, fallback, scrollbarSize);
             return this.lastVisible;
         }
         return (_a = this.lastVisible) !== null && _a !== void 0 ? _a : fallback;
@@ -1876,9 +1885,116 @@ class ViewportCache {
         this.lastVisible = null;
     }
 }
+const OVERFLOW_EPSILON = 0.5;
+function normalizeOverflowValue(value) {
+    return String(value !== null && value !== void 0 ? value : '')
+        .trim()
+        .toLowerCase();
+}
+function getContainerOverflowValues(container) {
+    var _a, _b;
+    const style = container.style;
+    let computedOverflow = '';
+    let computedOverflowX = '';
+    let computedOverflowY = '';
+    const view = (_b = (_a = container.ownerDocument) === null || _a === void 0 ? void 0 : _a.defaultView) !== null && _b !== void 0 ? _b : (typeof window === 'undefined' ? null : window);
+    if (typeof (view === null || view === void 0 ? void 0 : view.getComputedStyle) === 'function') {
+        const computed = view.getComputedStyle(container);
+        computedOverflow = computed.overflow;
+        computedOverflowX = computed.overflowX;
+        computedOverflowY = computed.overflowY;
+    }
+    const x = [
+        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflow),
+        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflowX),
+        normalizeOverflowValue(computedOverflow),
+        normalizeOverflowValue(computedOverflowX),
+    ];
+    const y = [
+        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflow),
+        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflowY),
+        normalizeOverflowValue(computedOverflow),
+        normalizeOverflowValue(computedOverflowY),
+    ];
+    return { x, y, all: [...x, ...y] };
+}
+function isAutoScrollableOverflow(value) {
+    return value === 'auto' || value === 'overlay';
+}
+function measureScrollbarSize(ownerDocument) {
+    const doc = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : (typeof document === 'undefined' ? null : document);
+    if (!(doc === null || doc === void 0 ? void 0 : doc.body))
+        return { width: 0, height: 0 };
+    const probe = doc.createElement('div');
+    probe.style.position = 'absolute';
+    probe.style.left = '-9999px';
+    probe.style.top = '-9999px';
+    probe.style.width = '100px';
+    probe.style.height = '100px';
+    probe.style.overflow = 'scroll';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    doc.body.appendChild(probe);
+    const width = Math.max(0, probe.offsetWidth - probe.clientWidth);
+    const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
+    probe.remove();
+    return { width, height };
+}
+function normalizeScrollbarSize(scrollbarSize) {
+    return {
+        width: Math.max(0, Number(scrollbarSize === null || scrollbarSize === void 0 ? void 0 : scrollbarSize.width) || 0),
+        height: Math.max(0, Number(scrollbarSize === null || scrollbarSize === void 0 ? void 0 : scrollbarSize.height) || 0),
+    };
+}
+function measureContainerViewport(container, fallback, scrollbarSize) {
+    if (!container)
+        return fallback;
+    const clientWidth = Math.floor(container.clientWidth || 0);
+    const clientHeight = Math.floor(container.clientHeight || 0);
+    if (clientWidth <= 0 || clientHeight <= 0)
+        return fallback;
+    const overflow = getContainerOverflowValues(container);
+    if (overflow.all.includes('scroll')) {
+        return { width: clientWidth, height: clientHeight };
+    }
+    const scrollbar = normalizeScrollbarSize(scrollbarSize);
+    const canAutoScrollX = overflow.x.some(isAutoScrollableOverflow);
+    const canAutoScrollY = overflow.y.some(isAutoScrollableOverflow);
+    const scrollWidth = Math.ceil(container.scrollWidth || 0);
+    const scrollHeight = Math.ceil(container.scrollHeight || 0);
+    const hasHorizontalScrollbar = canAutoScrollX && scrollWidth > clientWidth + OVERFLOW_EPSILON;
+    const hasVerticalScrollbar = canAutoScrollY && scrollHeight > clientHeight + OVERFLOW_EPSILON;
+    return {
+        width: clientWidth + (hasVerticalScrollbar ? scrollbar.width : 0),
+        height: clientHeight + (hasHorizontalScrollbar ? scrollbar.height : 0),
+    };
+}
+function computeScrollableCanvasSize(contentWidth, contentHeight, viewport, scrollbarSize) {
+    const viewportW = Math.max(1, viewport.width || 1);
+    const viewportH = Math.max(1, viewport.height || 1);
+    const scrollbar = normalizeScrollbarSize(scrollbarSize);
+    let hasHorizontal = false;
+    let hasVertical = false;
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
+        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
+        const nextHorizontal = contentWidth > effectiveW + OVERFLOW_EPSILON;
+        const nextVertical = contentHeight > effectiveH + OVERFLOW_EPSILON;
+        if (nextHorizontal === hasHorizontal && nextVertical === hasVertical)
+            break;
+        hasHorizontal = nextHorizontal;
+        hasVertical = nextVertical;
+    }
+    const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
+    const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
+    return {
+        width: hasHorizontal ? Math.ceil(contentWidth) : effectiveW,
+        height: hasVertical ? Math.ceil(contentHeight) : effectiveH,
+    };
+}
 function computeFitLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
-    const cw = Math.max(1, Math.min(optionsCanvasWidth, containerSize.width) - 1);
-    const ch = Math.max(1, Math.min(optionsCanvasHeight, containerSize.height) - 1);
+    const cw = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
+    const ch = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
     const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
     return {
         canvasWidth: cw,
@@ -1889,13 +2005,35 @@ function computeFitLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCa
         baseImageScale: fitScale,
     };
 }
-function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
-    const cw = containerSize.width || optionsCanvasWidth;
-    const ch = containerSize.height || optionsCanvasHeight;
-    const coverScale = Math.max(cw / imageWidth, ch / imageHeight);
+function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize, scrollbarSize) {
+    const viewportW = containerSize.width || optionsCanvasWidth;
+    const viewportH = containerSize.height || optionsCanvasHeight;
+    const scrollbar = normalizeScrollbarSize(scrollbarSize);
+    let hasHorizontal = false;
+    let hasVertical = false;
+    let coverScale = 1;
+    let scaledW = imageWidth;
+    let scaledH = imageHeight;
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
+        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
+        coverScale = Math.min(1, Math.max(effectiveW / imageWidth, effectiveH / imageHeight));
+        scaledW = imageWidth * coverScale;
+        scaledH = imageHeight * coverScale;
+        const nextHasHorizontal = scaledW > effectiveW + OVERFLOW_EPSILON;
+        const nextHasVertical = scaledH > effectiveH + OVERFLOW_EPSILON;
+        if (nextHasHorizontal === hasHorizontal && nextHasVertical === hasVertical)
+            break;
+        hasHorizontal = nextHasHorizontal;
+        hasVertical = nextHasVertical;
+    }
+    const canvasSize = computeScrollableCanvasSize(scaledW, scaledH, {
+        width: viewportW,
+        height: viewportH,
+    }, scrollbar);
     return {
-        canvasWidth: cw,
-        canvasHeight: ch,
+        canvasWidth: canvasSize.width,
+        canvasHeight: canvasSize.height,
         imageScale: coverScale,
         imageLeft: 0,
         imageTop: 0,
@@ -2135,19 +2273,20 @@ function maybeDownsample(imgEl, originalDataUrl, options) {
     return resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality).dataUrl;
 }
 function computeLayout(ctx, fimg) {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
     const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
+    const scrollbarSize = measureScrollbarSize((_d = (_c = ctx.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
     const viewport = ctx.viewportCache.measure(ctx.containerElement, {
         width: ctx.options.canvasWidth,
         height: ctx.options.canvasHeight,
-    });
+    }, scrollbarSize);
     const strategy = selectLayoutStrategy(ctx.options);
     if (strategy === 'fit') {
         return computeFitLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
     }
     if (strategy === 'cover') {
-        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport, scrollbarSize);
     }
     return computeExpandLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
 }
@@ -2877,6 +3016,7 @@ function resetFileInput(input) {
     }
 }
 
+const LAYOUT_EPSILON = 0.5;
 const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
 const CROP_MODE_CONTROL_KEYS = [
     'scaleRate',
@@ -3393,25 +3533,96 @@ class ImageEditor {
         obj.setCoords();
         this.canvas.renderAll();
     }
+    _measureLayoutViewport(scrollbarSize) {
+        return this._viewportCache.measure(this.containerElement, {
+            width: this.options.canvasWidth,
+            height: this.options.canvasHeight,
+        }, scrollbarSize);
+    }
     _updateCanvasSizeToImageBounds() {
+        var _a, _b;
         if (!this.originalImage)
             return;
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
-        const containerW = this.containerElement
-            ? Math.ceil(this.containerElement.clientWidth || 0)
-            : 0;
-        const containerH = this.containerElement
-            ? Math.ceil(this.containerElement.clientHeight || 0)
-            : 0;
-        if (containerW > 0 &&
-            containerH > 0 &&
-            boundingRect.width <= containerW &&
-            boundingRect.height <= containerH) {
-            this._setCanvasSizeInt(containerW, containerH);
+        const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
+        const viewport = this._measureLayoutViewport(scrollbarSize);
+        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+            const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
+            this._setCanvasSizeInt(canvasSize.width, canvasSize.height);
             return;
         }
-        this._setCanvasSizeInt(Math.max(containerW || 0, Math.floor(boundingRect.width)), Math.max(containerH || 0, Math.floor(boundingRect.height)));
+        if (boundingRect.width <= viewport.width && boundingRect.height <= viewport.height) {
+            this._setCanvasSizeInt(viewport.width, viewport.height);
+            return;
+        }
+        this._setCanvasSizeInt(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
+    }
+    _shouldNormalizeCanvasSizeAfterStateRestore() {
+        var _a, _b;
+        if (!this.canvas || !this.originalImage)
+            return false;
+        this.originalImage.setCoords();
+        const boundingRect = this.originalImage.getBoundingRect();
+        const viewport = this._measureLayoutViewport(measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
+        const canvasW = Math.ceil(this.canvas.getWidth());
+        const canvasH = Math.ceil(this.canvas.getHeight());
+        const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
+            boundingRect.height > canvasH + LAYOUT_EPSILON;
+        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+            const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
+                boundingRect.width <= viewport.width + LAYOUT_EPSILON;
+            const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
+                boundingRect.height <= viewport.height + LAYOUT_EPSILON;
+            return clipsImage || staleOverflowWidth || staleOverflowHeight;
+        }
+        if (this.options.expandCanvasToImage) {
+            const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
+            const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
+            return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
+                Math.abs(canvasH - expectedH) > LAYOUT_EPSILON);
+        }
+        return clipsImage;
+    }
+    _captureImageDisplayGeometry() {
+        if (!this.canvas || !this.originalImage)
+            return null;
+        this.originalImage.setCoords();
+        const boundingRect = this.originalImage.getBoundingRect();
+        return {
+            canvasWidth: this.canvas.getWidth(),
+            canvasHeight: this.canvas.getHeight(),
+            imageDisplayWidth: Math.max(1, boundingRect.width),
+            imageDisplayHeight: Math.max(1, boundingRect.height),
+        };
+    }
+    _restoreMergedImageDisplayGeometry(geometry) {
+        if (!geometry || !this.canvas || !this.originalImage)
+            return;
+        this._setCanvasSizeInt(geometry.canvasWidth, geometry.canvasHeight);
+        const sourceW = Math.max(1, this.originalImage.width || geometry.imageDisplayWidth);
+        const sourceH = Math.max(1, this.originalImage.height || geometry.imageDisplayHeight);
+        const scale = Math.min(geometry.imageDisplayWidth / sourceW, geometry.imageDisplayHeight / sourceH);
+        this.originalImage.set({
+            left: 0,
+            top: 0,
+            angle: 0,
+            scaleX: scale,
+            scaleY: scale,
+            originX: 'left',
+            originY: 'top',
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            hoverCursor: 'default',
+        });
+        this.originalImage.setCoords();
+        this.canvas.sendObjectToBack(this.originalImage);
+        this.currentScale = 1;
+        this.currentRotation = 0;
+        this.baseImageScale = scale;
+        this._lastSnapshot = this._captureSnapshot();
+        this.canvas.renderAll();
     }
     _buildTransformContext() {
         return {
@@ -3437,8 +3648,11 @@ class ImageEditor {
             afterTransformSnap: () => {
                 if (this._disposed || !this.canvas || !this.originalImage)
                     return;
-                if (this.options.expandCanvasToImage)
+                if (this.options.expandCanvasToImage ||
+                    this.options.coverImageToCanvas ||
+                    this.options.fitImageToCanvas) {
                     this._updateCanvasSizeToImageBounds();
+                }
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
@@ -3457,7 +3671,7 @@ class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed)
                 return;
             this._updateUI();
@@ -3467,10 +3681,10 @@ class ImageEditor {
             finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     rotateImage(degrees) {
         if (this._disposed || !this._transformController)
@@ -3482,7 +3696,7 @@ class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed)
                 return;
             this._updateUI();
@@ -3492,10 +3706,10 @@ class ImageEditor {
             finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     resetImageTransform() {
         if (this._disposed || !this._transformController)
@@ -3507,7 +3721,7 @@ class ImageEditor {
             return Promise.reject(err);
         }
         const controller = this._transformController;
-        return this.animQueue.add(async () => {
+        const job = this.animQueue.add(async () => {
             if (this._disposed)
                 return;
             this._updateUI();
@@ -3517,10 +3731,16 @@ class ImageEditor {
             finally {
                 if (!this._disposed) {
                     this._updateInputs();
-                    this._updateUI();
                 }
             }
         });
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
+    }
+    _refreshUiAfterQueuedAnimation() {
+        if (this._disposed || !this.canvas)
+            return;
+        this._updateInputs();
+        this._updateUI();
     }
     async loadFromState(jsonString) {
         if (!jsonString || !this.canvas)
@@ -3556,11 +3776,19 @@ class ImageEditor {
                 this.baseImageScale = es.baseImageScale;
             }
             this.isImageLoadedToCanvas = !!this.originalImage;
-            this._lastSnapshot = result.jsonString;
+            if (this.originalImage &&
+                (this.options.expandCanvasToImage ||
+                    this.options.coverImageToCanvas ||
+                    this.options.fitImageToCanvas) &&
+                this._shouldNormalizeCanvasSizeAfterStateRestore()) {
+                this._updateCanvasSizeToImageBounds();
+                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+            }
             result.objects.filter(isMaskObject).forEach((maskObject) => {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
+            this._lastSnapshot = this._captureSnapshot();
             this.canvas.renderAll();
             this._updateInputs();
             this._updateMaskList();
@@ -3607,12 +3835,14 @@ class ImageEditor {
     undo() {
         if (this._disposed)
             return Promise.resolve();
-        return this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
+        const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     redo() {
         if (this._disposed)
             return Promise.resolve();
-        return this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
+        const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
+        return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     createMask(config = {}) {
         if (!this.canvas)
@@ -3808,7 +4038,11 @@ class ImageEditor {
             ...this._buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
+            loadImage: async (base64, opts) => {
+                const geometry = this._captureImageDisplayGeometry();
+                await this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts));
+                this._restoreMergedImageDisplayGeometry(geometry);
+            },
             saveState: () => this._captureSnapshot(),
             loadFromState: (snapshot) => this.loadFromState(snapshot),
             removeAllMasksNoHistory: () => {

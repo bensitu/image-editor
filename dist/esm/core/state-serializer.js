@@ -52,7 +52,7 @@ export async function loadFromState(input) {
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
-    const originalImage = ((_b = objects.find((o) => o.type === 'image' && !isMaskObject(o))) !== null && _b !== void 0 ? _b : null);
+    const originalImage = ((_b = objects.find(isOriginalImageObject)) !== null && _b !== void 0 ? _b : null);
     return {
         editorState,
         maxMaskId,
@@ -60,6 +60,15 @@ export async function loadFromState(input) {
         objects,
         jsonString,
     };
+}
+function isOriginalImageObject(object) {
+    if (isMaskObject(object))
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'image')
+        return true;
+    const isType = object.isType;
+    return typeof isType === 'function' && isType.call(object, 'image');
 }
 function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d, _e;

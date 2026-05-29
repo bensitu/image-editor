@@ -23,9 +23,8 @@
  *   does NOT mutate developer CSS:
  *   - it never touches `canvas.style` or `container.style`
  *     (`width`, `height`, `display`, `overflow`),
- *   - it relies on `clientWidth` / `clientHeight` for measurements,
- *     which already exclude pre-existing auto scrollbars without any
- *     `overflow` toggle.
+ *   - it reads `clientWidth` / `clientHeight` and compensates for
+ *     pre-existing auto scrollbars without any `overflow` toggle.
  */
 
 import type * as FabricNS from 'fabric';
@@ -126,6 +125,11 @@ export interface ViewportSize {
     height: number;
 }
 
+/** Native scrollbar gutter size in CSS pixels. */
+export type ScrollbarSize = ViewportSize;
+
+export type OverflowAxis = 'horizontal' | 'vertical';
+
 /**
  * Hidden-container viewport cache.
  *
@@ -140,10 +144,10 @@ export interface ViewportSize {
  * again, the next `measure` call updates the cache so subsequent
  * sizing decisions reflect the new viewport.
  *
- * Measurements use `clientWidth` / `clientHeight`, which already
- * exclude space occupied by pre-existing auto scrollbars. This lets
- * the layout manager compensate for scrollbar width without mutating
- * the container's `overflow` style.
+ * Measurements compensate for pre-existing auto scrollbars by adding
+ * the scrollbar gutter back to the visible client size. This mirrors
+ * v1.4.2's viewport recovery while still preserving v2's rule that
+ * layout code never mutates the container's `overflow` style.
  *
  */
 export class ViewportCache {
@@ -163,15 +167,16 @@ export class ViewportCache {
      *                  cached measurement is available. Callers should
      *                  pass `(options.canvasWidth, options.canvasHeight)`.
      */
-    measure(container: HTMLElement | null, fallback: ViewportSize): ViewportSize {
+    measure(
+        container: HTMLElement | null,
+        fallback: ViewportSize,
+        scrollbarSize?: Partial<ScrollbarSize> | null,
+    ): ViewportSize {
         if (!container) return fallback;
-        // `clientWidth` / `clientHeight` already exclude any visible
-        // scrollbar gutter, so no `overflow` mutation is needed
-        //.
         const cw = Math.floor(container.clientWidth);
         const ch = Math.floor(container.clientHeight);
         if (cw > 0 && ch > 0) {
-            this.lastVisible = { width: cw, height: ch };
+            this.lastVisible = measureContainerViewport(container, fallback, scrollbarSize);
             return this.lastVisible;
         }
         return this.lastVisible ?? fallback;
@@ -217,14 +222,177 @@ export interface LayoutResult {
     baseImageScale: number;
 }
 
+const OVERFLOW_EPSILON = 0.5;
+
+function normalizeOverflowValue(value: unknown): string {
+    return String(value ?? '')
+        .trim()
+        .toLowerCase();
+}
+
+function getContainerOverflowValues(container: HTMLElement): {
+    x: string[];
+    y: string[];
+    all: string[];
+} {
+    const style = container.style;
+    let computedOverflow = '';
+    let computedOverflowX = '';
+    let computedOverflowY = '';
+    const view =
+        container.ownerDocument?.defaultView ?? (typeof window === 'undefined' ? null : window);
+
+    if (typeof view?.getComputedStyle === 'function') {
+        const computed = view.getComputedStyle(container);
+        computedOverflow = computed.overflow;
+        computedOverflowX = computed.overflowX;
+        computedOverflowY = computed.overflowY;
+    }
+
+    const x = [
+        normalizeOverflowValue(style?.overflow),
+        normalizeOverflowValue(style?.overflowX),
+        normalizeOverflowValue(computedOverflow),
+        normalizeOverflowValue(computedOverflowX),
+    ];
+    const y = [
+        normalizeOverflowValue(style?.overflow),
+        normalizeOverflowValue(style?.overflowY),
+        normalizeOverflowValue(computedOverflow),
+        normalizeOverflowValue(computedOverflowY),
+    ];
+
+    return { x, y, all: [...x, ...y] };
+}
+
+function isAutoScrollableOverflow(value: string): boolean {
+    return value === 'auto' || value === 'overlay';
+}
+
+/**
+ * Measure the browser's native scrollbar gutter. Overlay-scrollbar
+ * environments legitimately return zero on one or both axes.
+ */
+export function measureScrollbarSize(ownerDocument?: Document | null): ScrollbarSize {
+    const doc = ownerDocument ?? (typeof document === 'undefined' ? null : document);
+    if (!doc?.body) return { width: 0, height: 0 };
+
+    const probe = doc.createElement('div');
+    probe.style.position = 'absolute';
+    probe.style.left = '-9999px';
+    probe.style.top = '-9999px';
+    probe.style.width = '100px';
+    probe.style.height = '100px';
+    probe.style.overflow = 'scroll';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+
+    doc.body.appendChild(probe);
+    const width = Math.max(0, probe.offsetWidth - probe.clientWidth);
+    const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
+    probe.remove();
+
+    return { width, height };
+}
+
+function normalizeScrollbarSize(scrollbarSize?: Partial<ScrollbarSize> | null): ScrollbarSize {
+    return {
+        width: Math.max(0, Number(scrollbarSize?.width) || 0),
+        height: Math.max(0, Number(scrollbarSize?.height) || 0),
+    };
+}
+
+/**
+ * Measure the full layout viewport represented by the canvas container.
+ *
+ * In `overflow: auto` containers, `clientWidth` / `clientHeight` can already
+ * be reduced by scrollbars left over from the previous canvas size. v1.4.2
+ * avoided using that reduced viewport by adding the gutter back before the
+ * next Cover/Fit calculation. v2 keeps the same recovery rule without
+ * mutating `style.overflow`.
+ */
+export function measureContainerViewport(
+    container: HTMLElement | null,
+    fallback: ViewportSize,
+    scrollbarSize?: Partial<ScrollbarSize> | null,
+): ViewportSize {
+    if (!container) return fallback;
+
+    const clientWidth = Math.floor(container.clientWidth || 0);
+    const clientHeight = Math.floor(container.clientHeight || 0);
+    if (clientWidth <= 0 || clientHeight <= 0) return fallback;
+
+    const overflow = getContainerOverflowValues(container);
+    if (overflow.all.includes('scroll')) {
+        return { width: clientWidth, height: clientHeight };
+    }
+
+    const scrollbar = normalizeScrollbarSize(scrollbarSize);
+    const canAutoScrollX = overflow.x.some(isAutoScrollableOverflow);
+    const canAutoScrollY = overflow.y.some(isAutoScrollableOverflow);
+    const scrollWidth = Math.ceil(container.scrollWidth || 0);
+    const scrollHeight = Math.ceil(container.scrollHeight || 0);
+    const hasHorizontalScrollbar = canAutoScrollX && scrollWidth > clientWidth + OVERFLOW_EPSILON;
+    const hasVerticalScrollbar = canAutoScrollY && scrollHeight > clientHeight + OVERFLOW_EPSILON;
+
+    return {
+        width: clientWidth + (hasVerticalScrollbar ? scrollbar.width : 0),
+        height: clientHeight + (hasHorizontalScrollbar ? scrollbar.height : 0),
+    };
+}
+
+/**
+ * Compute canvas dimensions for content that may overflow the visible
+ * viewport.
+ *
+ * An overflowing axis grows to the content size, while a non-overflowing
+ * axis uses the viewport space left after the perpendicular scrollbar
+ * gutter is accounted for. This keeps Cover/Fit from accidentally creating
+ * a second scrollbar solely because the first scrollbar reduced the cross
+ * axis client size.
+ */
+export function computeScrollableCanvasSize(
+    contentWidth: number,
+    contentHeight: number,
+    viewport: ViewportSize,
+    scrollbarSize?: Partial<ScrollbarSize> | null,
+): ViewportSize {
+    const viewportW = Math.max(1, viewport.width || 1);
+    const viewportH = Math.max(1, viewport.height || 1);
+    const scrollbar = normalizeScrollbarSize(scrollbarSize);
+
+    let hasHorizontal = false;
+    let hasVertical = false;
+
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
+        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
+        const nextHorizontal = contentWidth > effectiveW + OVERFLOW_EPSILON;
+        const nextVertical = contentHeight > effectiveH + OVERFLOW_EPSILON;
+
+        if (nextHorizontal === hasHorizontal && nextVertical === hasVertical) break;
+        hasHorizontal = nextHorizontal;
+        hasVertical = nextVertical;
+    }
+
+    const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
+    const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
+
+    return {
+        width: hasHorizontal ? Math.ceil(contentWidth) : effectiveW,
+        height: hasVertical ? Math.ceil(contentHeight) : effectiveH,
+    };
+}
+
 /**
  * Compute layout for the `fit` strategy.
  *
- * The canvas is set to the smaller of `(options.canvasWidth/Height)`
- * and the visible container viewport, minus one pixel per axis to
- * leave room for any sub-pixel rounding error and avoid tripping the
- * container's auto scrollbars. The image is uniformly scaled down to
- * fit, but never up (`Math.min(..., 1)`).
+ * The canvas is set to the visible container viewport, falling back to
+ * `(options.canvasWidth/Height)` only when no viewport measurement is
+ * available, minus one pixel per axis to leave room for any sub-pixel
+ * rounding error and avoid tripping the container's auto scrollbars.
+ * The image is uniformly scaled down to fit, but never up
+ * (`Math.min(..., 1)`).
  *
  */
 export function computeFitLayout(
@@ -234,8 +402,8 @@ export function computeFitLayout(
     optionsCanvasHeight: number,
     containerSize: ViewportSize,
 ): LayoutResult {
-    const cw = Math.max(1, Math.min(optionsCanvasWidth, containerSize.width) - 1);
-    const ch = Math.max(1, Math.min(optionsCanvasHeight, containerSize.height) - 1);
+    const cw = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
+    const ch = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
     const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
     return {
         canvasWidth: cw,
@@ -250,12 +418,13 @@ export function computeFitLayout(
 /**
  * Compute layout for the `cover` strategy.
  *
- * The canvas is sized to the visible container viewport (with a final
- * fall-back to the configured canvas dimensions if a viewport axis is
- * zero — the {@link ViewportCache} normally prevents this from
- * happening). The image scale is `max(cw / imgW, ch / imgH)` with
- * **no** upper cap, so an image smaller than the canvas is scaled up
- * until it covers both axes.
+ * The visible viewport determines the cover target (with a final fall-back
+ * to the configured canvas dimensions if a viewport axis is zero — the
+ * {@link ViewportCache} normally prevents this from happening). Large
+ * images are scaled down until Cover fills one axis without upscaling small
+ * images. When the filled axis would need a scrollbar, the scale is
+ * recomputed against the cross-axis space left after that scrollbar appears;
+ * this preserves the Cover invariant that at least one axis stays scroll-free.
  *
  */
 export function computeCoverLayout(
@@ -264,19 +433,45 @@ export function computeCoverLayout(
     optionsCanvasWidth: number,
     optionsCanvasHeight: number,
     containerSize: ViewportSize,
+    scrollbarSize?: Partial<ScrollbarSize> | null,
 ): LayoutResult {
-    // Canvas tracks the visible viewport, not Math.max(viewport,
-    // optionsCanvas...) — using the larger value would push the canvas
-    // wider than the container and create scrollbars with almost-zero
-    // scroll range.
-    const cw = containerSize.width || optionsCanvasWidth;
-    const ch = containerSize.height || optionsCanvasHeight;
-    // No `Math.min(..., 1)` cap: cover MUST be allowed to grow the image
-    // when it is smaller than the canvas.
-    const coverScale = Math.max(cw / imageWidth, ch / imageHeight);
+    const viewportW = containerSize.width || optionsCanvasWidth;
+    const viewportH = containerSize.height || optionsCanvasHeight;
+    const scrollbar = normalizeScrollbarSize(scrollbarSize);
+
+    let hasHorizontal = false;
+    let hasVertical = false;
+    let coverScale = 1;
+    let scaledW = imageWidth;
+    let scaledH = imageHeight;
+
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
+        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
+        coverScale = Math.min(1, Math.max(effectiveW / imageWidth, effectiveH / imageHeight));
+        scaledW = imageWidth * coverScale;
+        scaledH = imageHeight * coverScale;
+
+        const nextHasHorizontal = scaledW > effectiveW + OVERFLOW_EPSILON;
+        const nextHasVertical = scaledH > effectiveH + OVERFLOW_EPSILON;
+
+        if (nextHasHorizontal === hasHorizontal && nextHasVertical === hasVertical) break;
+        hasHorizontal = nextHasHorizontal;
+        hasVertical = nextHasVertical;
+    }
+
+    const canvasSize = computeScrollableCanvasSize(
+        scaledW,
+        scaledH,
+        {
+            width: viewportW,
+            height: viewportH,
+        },
+        scrollbar,
+    );
     return {
-        canvasWidth: cw,
-        canvasHeight: ch,
+        canvasWidth: canvasSize.width,
+        canvasHeight: canvasSize.height,
         imageScale: coverScale,
         imageLeft: 0,
         imageTop: 0,

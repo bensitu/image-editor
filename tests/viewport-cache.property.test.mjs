@@ -6,11 +6,11 @@
  *
  * Purpose:
  *   Verifies src/image/layout-manager.ts ViewportCache behavior for visible, hidden,
- *   null, and reset measurement paths. The unit reads only clientWidth and
- *   clientHeight, so plain objects are sufficient and no jsdom setup is needed.
+ *   null, reset, and pre-existing auto-scrollbar measurement paths.
  *
  * Scope:
  *   - Visible non-zero measurements are floored, returned, and cached.
+ *   - Auto-scrollbar gutters are added back before caching the viewport.
  *   - Hidden or zero-axis measurements use the cached size when present and the
  *     supplied fallback otherwise.
  *   - clear() drops the cache so subsequent hidden measurements fall back again.
@@ -41,7 +41,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { ViewportCache } = await import('../src/image/layout-manager.ts');
+const { ViewportCache, measureContainerViewport } = await import('../src/image/layout-manager.ts');
 
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
@@ -66,6 +66,37 @@ const fallbackArb = fc.record({
     width: fallbackDimArb,
     height: fallbackDimArb,
 });
+
+function makeOverflowContainer({
+    clientWidth,
+    clientHeight,
+    scrollWidth,
+    scrollHeight,
+    overflow = 'auto',
+}) {
+    return {
+        clientWidth,
+        clientHeight,
+        scrollWidth,
+        scrollHeight,
+        style: {
+            overflow: '',
+            overflowX: '',
+            overflowY: '',
+        },
+        ownerDocument: {
+            defaultView: {
+                getComputedStyle() {
+                    return {
+                        overflow,
+                        overflowX: overflow,
+                        overflowY: overflow,
+                    };
+                },
+            },
+        },
+    };
+}
 
 // A container that the cache must treat as hidden: at least one axis
 // is exactly zero. We enumerate the three hidden shapes (w=0, h=0,
@@ -119,6 +150,40 @@ test('visible measure returns floor(clientW/H) and updates the cache', () => {
         }),
         { numRuns: 100 },
     );
+});
+
+test('visible auto-scrollbar measure adds scrollbar gutters back to the viewport', () => {
+    const cache = new ViewportCache();
+    const container = makeOverflowContainer({
+        clientWidth: 945,
+        clientHeight: 505,
+        scrollWidth: 960,
+        scrollHeight: 520,
+        overflow: 'auto',
+    });
+
+    const out = cache.measure(container, { width: 800, height: 600 }, { width: 15, height: 15 });
+
+    assert.deepEqual(out, { width: 960, height: 520 });
+    assert.deepEqual(cache.peek(), out);
+});
+
+test('fixed scrollbars use the measured client viewport without auto compensation', () => {
+    const container = makeOverflowContainer({
+        clientWidth: 945,
+        clientHeight: 505,
+        scrollWidth: 960,
+        scrollHeight: 520,
+        overflow: 'scroll',
+    });
+
+    const out = measureContainerViewport(
+        container,
+        { width: 800, height: 600 },
+        { width: 15, height: 15 },
+    );
+
+    assert.deepEqual(out, { width: 945, height: 505 });
 });
 
 // ─── hidden returns cached value when one exists ─────────────

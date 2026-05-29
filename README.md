@@ -289,8 +289,8 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 
 | Option                     | Default              | Description                                                                                                                                      |
 | -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `canvasWidth`              | `800`                | Initial canvas width in pixels.                                                                                                                  |
-| `canvasHeight`             | `600`                | Initial canvas height in pixels.                                                                                                                 |
+| `canvasWidth`              | `800`                | Initial and hidden-container fallback canvas width in pixels.                                                                                    |
+| `canvasHeight`             | `600`                | Initial and hidden-container fallback canvas height in pixels.                                                                                   |
 | `backgroundColor`          | `'transparent'`      | Fabric canvas background color.                                                                                                                  |
 | `animationDuration`        | `300`                | Duration of scale and rotate animations (ms).                                                                                                    |
 | `minScale`                 | `0.1`                | Minimum scale factor.                                                                                                                            |
@@ -298,8 +298,8 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 | `scaleStep`                | `0.05`               | Scale delta per zoom step.                                                                                                                       |
 | `rotationStep`             | `90`                 | Rotation step in degrees.                                                                                                                        |
 | `expandCanvasToImage`      | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                                                                              |
-| `fitImageToCanvas`         | `false`              | Fit the image inside the current canvas (highest layout precedence).                                                                             |
-| `coverImageToCanvas`       | `false`              | Cover the canvas viewport with the image (overrides `expandCanvasToImage`).                                                                      |
+| `fitImageToCanvas`         | `false`              | Fit the image inside the visible workspace viewport (highest layout precedence).                                                                 |
+| `coverImageToCanvas`       | `false`              | Scale large images down to cover the visible workspace, cap at native size, and expand overflowing canvas axes so the container can scroll.      |
 | `downsampleOnLoad`         | `true`               | Downsample large images on load.                                                                                                                 |
 | `downsampleMaxWidth`       | `4000`               | Max width before downsampling kicks in.                                                                                                          |
 | `downsampleMaxHeight`      | `3000`               | Max height before downsampling kicks in.                                                                                                         |

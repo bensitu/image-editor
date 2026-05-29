@@ -433,6 +433,30 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
     );
 });
 
+test('loadFromState detects Fabric image objects regardless of type casing', async () => {
+    const canvas = new MockCanvas();
+    const snapshot = JSON.stringify({
+        version: '7.0.0',
+        width: 640,
+        height: 480,
+        objects: [{ type: 'Image', left: 0, top: 0, opacity: 1 }],
+        _editorState: {
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: 1,
+        },
+    });
+
+    const result = await loadFromState({
+        canvas,
+        jsonString: snapshot,
+        setCanvasSize: makeSetCanvasSize(canvas),
+    });
+
+    assert.ok(result.originalImage, 'capitalized Fabric image type must be detected');
+    assert.equal(result.originalImage.type, 'Image');
+});
+
 // ─── Sanity checks on the constants the property depends on ────────────────
 
 test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on', () => {

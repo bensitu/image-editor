@@ -6,14 +6,14 @@
  *
  * Purpose:
  *   Verifies src/image/layout-manager.ts computeCoverLayout for arbitrary image and
- *   viewport dimensions. The function is pure, so the property runs without jsdom and
- *   focuses only on canvas sizing and image scale selection.
+ *   viewport dimensions. Cover should follow the v1.4.2-derived behavior: scale
+ *   large images down until one viewport axis is filled, do not upscale small
+ *   images, and expand the canvas only on axes that need a real scroll range.
  *
  * Scope:
- *   - Canvas dimensions track visible viewport axes and fall back to configured
- *     options for zero axes.
- *   - Image scale is high enough to cover both axes and remains uniform.
- *   - The scale formula is not capped at 1, so small images can scale up.
+ *   - Canvas dimensions use visible viewport axes with configured options fallback.
+ *   - Image scale is uniform and capped at 1.
+ *   - Overflowing content axes expand to the scaled image dimension.
  *
  * Out of scope:
  *   - unrelated editor features
@@ -23,15 +23,9 @@
  * Environment:
  *   - Node.js ESM
  *   - fast-check generated cases where applicable
- *   - jsdom or DOM stubs are used where needed
- *   - Fabric/canvas behavior is mocked where needed
  *
  * Run:
  *   node --test tests/cover-sizing.property.test.mjs
- *
- * Notes:
- *   - Prefer behavior-level assertions over implementation-detail checks.
- *   - Keep this file focused on cover layout sizing math only.
  */
 
 import { register } from 'node:module';
@@ -42,36 +36,34 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { computeCoverLayout } = await import('../src/image/layout-manager.ts');
+const { computeCoverLayout, computeScrollableCanvasSize } =
+    await import('../src/image/layout-manager.ts');
 
-// ─── Arbitraries ───────────────────────────────────────────────────────────
+const OVERFLOW_EPSILON = 0.5;
 
-// Bounded positive integers mirror the dimensions a real browser
-// viewport can carry (1..2000 px). The lower bound of 1 keeps every
-// divisor in computeCoverLayout finite for image and configured canvas
-// axes. Container axes may be zero — the function falls back to the
-// configured canvas dimension on a zero axis.
+// Bounded positive integers mirror the dimensions a real browser viewport can
+// carry in ordinary usage. Container axes may be zero; the layout function then
+// falls back to the configured canvas dimension on that axis.
 const dimArb = fc.integer({ min: 1, max: 2000 });
 const containerDimArb = fc.integer({ min: 0, max: 2000 });
-
-const containerArb = fc.record({
-    width: containerDimArb,
-    height: containerDimArb,
-});
+const scrollbarDimArb = fc.integer({ min: 0, max: 80 });
 
 const inputsArb = fc.record({
     imageWidth: dimArb,
     imageHeight: dimArb,
     optsCanvasWidth: dimArb,
     optsCanvasHeight: dimArb,
-    container: containerArb,
+    container: fc.record({
+        width: containerDimArb,
+        height: containerDimArb,
+    }),
+    scrollbar: fc.record({
+        width: scrollbarDimArb,
+        height: scrollbarDimArb,
+    }),
 });
 
-// Constrained generator that guarantees the image is strictly smaller
-// than the resolved canvas on both axes. The container is non-zero on
-// both axes so it (not the configured canvas) is what `computeCover-
-// Layout` selects, which keeps the assertion easy to reason about.
-const imageStrictlySmallerArb = fc
+const smallImageArb = fc
     .record({
         imageWidth: dimArb,
         imageHeight: dimArb,
@@ -79,6 +71,10 @@ const imageStrictlySmallerArb = fc
         deltaHeight: fc.integer({ min: 1, max: 2000 }),
         optsCanvasWidth: dimArb,
         optsCanvasHeight: dimArb,
+        scrollbar: fc.record({
+            width: scrollbarDimArb,
+            height: scrollbarDimArb,
+        }),
     })
     .map((r) => ({
         imageWidth: r.imageWidth,
@@ -89,18 +85,102 @@ const imageStrictlySmallerArb = fc
             width: r.imageWidth + r.deltaWidth,
             height: r.imageHeight + r.deltaHeight,
         },
+        scrollbar: r.scrollbar,
     }));
 
-// Floating-point comparison tolerance for the cover-fill check. Each
-// `coverScale * dim` product can differ from the resolved canvas
-// dimension by ~1 ULP under IEEE-754 division rounding, so an absolute
-// slack well below a CSS pixel keeps the property meaningful without
-// failing on rounding noise.
-const FILL_TOLERANCE = 1e-9;
+function referenceCover(input) {
+    const viewportW = input.container.width || input.optsCanvasWidth;
+    const viewportH = input.container.height || input.optsCanvasHeight;
+    let hasHorizontal = false;
+    let hasVertical = false;
+    let imageScale = 1;
+    let contentW = input.imageWidth;
+    let contentH = input.imageHeight;
 
-// ─── canvas matches viewport (with options fallback) ─────────
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewportW - (hasVertical ? input.scrollbar.width : 0));
+        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? input.scrollbar.height : 0));
+        imageScale = Math.min(
+            1,
+            Math.max(effectiveW / input.imageWidth, effectiveH / input.imageHeight),
+        );
+        contentW = input.imageWidth * imageScale;
+        contentH = input.imageHeight * imageScale;
 
-test('canvas tracks the visible viewport, falling back to options on a zero axis', () => {
+        const nextHasHorizontal = contentW > effectiveW + OVERFLOW_EPSILON;
+        const nextHasVertical = contentH > effectiveH + OVERFLOW_EPSILON;
+
+        if (nextHasHorizontal === hasHorizontal && nextHasVertical === hasVertical) break;
+        hasHorizontal = nextHasHorizontal;
+        hasVertical = nextHasVertical;
+    }
+
+    const canvasSize = referenceScrollableCanvasSize(
+        contentW,
+        contentH,
+        {
+            width: viewportW,
+            height: viewportH,
+        },
+        input.scrollbar,
+    );
+    return {
+        imageScale,
+        contentW,
+        contentH,
+        canvasSize,
+        viewport: { width: viewportW, height: viewportH },
+        scrollbar: input.scrollbar,
+    };
+}
+
+function referenceScrollableCanvasSize(contentWidth, contentHeight, viewport, scrollbar = {}) {
+    const viewportW = Math.max(1, viewport.width || 1);
+    const viewportH = Math.max(1, viewport.height || 1);
+    const scrollbarW = Math.max(0, Number(scrollbar.width) || 0);
+    const scrollbarH = Math.max(0, Number(scrollbar.height) || 0);
+    let hasHorizontal = false;
+    let hasVertical = false;
+
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbarW : 0));
+        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbarH : 0));
+        const nextHorizontal = contentWidth > effectiveW + OVERFLOW_EPSILON;
+        const nextVertical = contentHeight > effectiveH + OVERFLOW_EPSILON;
+
+        if (nextHorizontal === hasHorizontal && nextVertical === hasVertical) break;
+        hasHorizontal = nextHorizontal;
+        hasVertical = nextVertical;
+    }
+
+    const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbarW : 0));
+    const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbarH : 0));
+
+    return {
+        width: hasHorizontal ? Math.ceil(contentWidth) : effectiveW,
+        height: hasVertical ? Math.ceil(contentHeight) : effectiveH,
+    };
+}
+
+function finalScrollbarState(canvasSize, viewport, scrollbar) {
+    let hasHorizontal = false;
+    let hasVertical = false;
+
+    for (let i = 0; i < 4; i += 1) {
+        const effectiveW = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
+        const effectiveH = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
+        const nextHorizontal = canvasSize.width > effectiveW + OVERFLOW_EPSILON;
+        const nextVertical = canvasSize.height > effectiveH + OVERFLOW_EPSILON;
+
+        if (nextHorizontal === hasHorizontal && nextVertical === hasVertical) break;
+        hasHorizontal = nextHorizontal;
+        hasVertical = nextVertical;
+    }
+
+    return { hasHorizontal, hasVertical };
+}
+
+test('cover layout matches the scrollbar-aware scroll-safe reference formula', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
             const out = computeCoverLayout(
@@ -109,165 +189,158 @@ test('canvas tracks the visible viewport, falling back to options on a zero axis
                 input.optsCanvasWidth,
                 input.optsCanvasHeight,
                 input.container,
+                input.scrollbar,
             );
-            const expectedW = input.container.width || input.optsCanvasWidth;
-            const expectedH = input.container.height || input.optsCanvasHeight;
-            assert.equal(
-                out.canvasWidth,
-                expectedW,
-                `canvasWidth mismatch for ${JSON.stringify({
-                    container: input.container,
-                    optsCanvasWidth: input.optsCanvasWidth,
-                })}`,
-            );
-            assert.equal(
-                out.canvasHeight,
-                expectedH,
-                `canvasHeight mismatch for ${JSON.stringify({
-                    container: input.container,
-                    optsCanvasHeight: input.optsCanvasHeight,
-                })}`,
-            );
+            const expected = referenceCover(input);
+
+            assert.equal(out.canvasWidth, expected.canvasSize.width);
+            assert.equal(out.canvasHeight, expected.canvasSize.height);
+            assert.equal(out.imageScale, expected.imageScale);
+            assert.equal(out.baseImageScale, expected.imageScale);
+            assert.equal(out.imageLeft, 0);
+            assert.equal(out.imageTop, 0);
             return true;
         }),
         { numRuns: 100 },
     );
 });
 
-// ─── image scales up when smaller than canvas ────────────────
-
-test('image strictly smaller than the canvas on both axes yields imageScale > 1', () => {
+test('cover scale is capped at 1 so small images are not upscaled', () => {
     fc.assert(
-        fc.property(imageStrictlySmallerArb, (input) => {
+        fc.property(smallImageArb, (input) => {
             const out = computeCoverLayout(
                 input.imageWidth,
                 input.imageHeight,
                 input.optsCanvasWidth,
                 input.optsCanvasHeight,
                 input.container,
-            );
-            assert.ok(
-                out.imageScale > 1,
-                `expected imageScale > 1 for ${JSON.stringify({
-                    ...input,
-                    canvasWidth: out.canvasWidth,
-                    canvasHeight: out.canvasHeight,
-                })}, got ${out.imageScale}`,
-            );
-            return true;
-        }),
-        { numRuns: 100 },
-    );
-});
-
-// ─── cover fills both axes ───────────────────────────────────
-
-test('imageScale * imgW >= canvasWidth and imageScale * imgH >= canvasHeight', () => {
-    fc.assert(
-        fc.property(inputsArb, (input) => {
-            const out = computeCoverLayout(
-                input.imageWidth,
-                input.imageHeight,
-                input.optsCanvasWidth,
-                input.optsCanvasHeight,
-                input.container,
-            );
-            const widthCovered = out.imageScale * input.imageWidth + FILL_TOLERANCE;
-            const heightCovered = out.imageScale * input.imageHeight + FILL_TOLERANCE;
-            assert.ok(
-                widthCovered >= out.canvasWidth,
-                `width not covered: scale=${out.imageScale} ` +
-                    `* imgW=${input.imageWidth} = ` +
-                    `${out.imageScale * input.imageWidth} ` +
-                    `< canvasWidth=${out.canvasWidth}`,
-            );
-            assert.ok(
-                heightCovered >= out.canvasHeight,
-                `height not covered: scale=${out.imageScale} ` +
-                    `* imgH=${input.imageHeight} = ` +
-                    `${out.imageScale * input.imageHeight} ` +
-                    `< canvasHeight=${out.canvasHeight}`,
-            );
-            return true;
-        }),
-        { numRuns: 100 },
-    );
-});
-
-// ─── aspect-preserving (uniform scale) ───────────────────────
-
-test('imageScale is a single uniform scalar, no scaleX/scaleY split', () => {
-    fc.assert(
-        fc.property(inputsArb, (input) => {
-            const out = computeCoverLayout(
-                input.imageWidth,
-                input.imageHeight,
-                input.optsCanvasWidth,
-                input.optsCanvasHeight,
-                input.container,
-            );
-            assert.equal(
-                typeof out.imageScale,
-                'number',
-                'imageScale must be a single numeric scalar',
-            );
-            assert.ok(
-                Number.isFinite(out.imageScale),
-                `imageScale must be finite, got ${out.imageScale}`,
-            );
-            assert.equal(
-                out.baseImageScale,
-                out.imageScale,
-                'baseImageScale must mirror imageScale for cover layout',
-            );
-            assert.ok(
-                !('scaleX' in out),
-                'cover layout result must not expose scaleX (would split aspect)',
-            );
-            assert.ok(
-                !('scaleY' in out),
-                'cover layout result must not expose scaleY (would split aspect)',
-            );
-            return true;
-        }),
-        { numRuns: 100 },
-    );
-});
-
-// ─── no upper cap on imageScale ──────────────────────────────
-
-test('imageScale is not capped at 1 — it grows with the canvas-to-image ratio', () => {
-    fc.assert(
-        fc.property(imageStrictlySmallerArb, (input) => {
-            const out = computeCoverLayout(
-                input.imageWidth,
-                input.imageHeight,
-                input.optsCanvasWidth,
-                input.optsCanvasHeight,
-                input.container,
-            );
-            // Independent reference: cover scale must equal
-            // `max(cw/imgW, ch/imgH)`. If the implementation introduced
-            // a `Math.min(..., 1)` cap, this equality would break for
-            // any input where the analytical maximum exceeds 1.
-            const expectedScale = Math.max(
-                out.canvasWidth / input.imageWidth,
-                out.canvasHeight / input.imageHeight,
-            );
-            assert.ok(
-                expectedScale > 1,
-                `generator invariant violated: expected scale > 1, got ${expectedScale}`,
+                input.scrollbar,
             );
             assert.equal(
                 out.imageScale,
-                expectedScale,
-                `cover scale capped or recomputed: expected ${expectedScale}, ` +
-                    `got ${out.imageScale} for ${JSON.stringify(input)}`,
+                1,
+                `small image was upscaled for ${JSON.stringify(input)}`,
             );
+            return true;
+        }),
+        { numRuns: 100 },
+    );
+});
+
+test('large cover images fill at least one safe viewport axis', () => {
+    fc.assert(
+        fc.property(inputsArb, (input) => {
+            const out = computeCoverLayout(
+                input.imageWidth,
+                input.imageHeight,
+                input.optsCanvasWidth,
+                input.optsCanvasHeight,
+                input.container,
+                input.scrollbar,
+            );
+            const expected = referenceCover(input);
+            const contentW = input.imageWidth * out.imageScale;
+            const contentH = input.imageHeight * out.imageScale;
+            const state = finalScrollbarState(
+                { width: out.canvasWidth, height: out.canvasHeight },
+                expected.viewport,
+                expected.scrollbar,
+            );
+            const effectiveW = Math.max(
+                1,
+                expected.viewport.width - (state.hasVertical ? expected.scrollbar.width : 0),
+            );
+            const effectiveH = Math.max(
+                1,
+                expected.viewport.height - (state.hasHorizontal ? expected.scrollbar.height : 0),
+            );
+
+            if (expected.imageScale < 1) {
+                assert.ok(
+                    Math.abs(contentW - effectiveW) < 1e-9 ||
+                        Math.abs(contentH - effectiveH) < 1e-9,
+                    `scaled cover image must fill one final viewport axis for ${JSON.stringify(input)}`,
+                );
+            }
+            assert.ok(out.imageScale <= 1, 'cover must not upscale above native image size');
+            return true;
+        }),
+        { numRuns: 100 },
+    );
+});
+
+test('cover layout does not require scrollbars on both axes after scrollbar gutters settle', () => {
+    fc.assert(
+        fc.property(inputsArb, (input) => {
+            const out = computeCoverLayout(
+                input.imageWidth,
+                input.imageHeight,
+                input.optsCanvasWidth,
+                input.optsCanvasHeight,
+                input.container,
+                input.scrollbar,
+            );
+            const expected = referenceCover(input);
+            const state = finalScrollbarState(
+                { width: out.canvasWidth, height: out.canvasHeight },
+                expected.viewport,
+                expected.scrollbar,
+            );
+
             assert.ok(
-                out.imageScale > 1,
-                `cover capped at 1 for ${JSON.stringify(input)}: ` + `imageScale=${out.imageScale}`,
+                !(state.hasHorizontal && state.hasVertical),
+                `cover must not create both scrollbar axes for ${JSON.stringify(input)}`,
             );
+            return true;
+        }),
+        { numRuns: 100 },
+    );
+});
+
+test('cover layout suppresses the short-axis near-scrollbar when scrollbar gutter changes the viewport', () => {
+    const out = computeCoverLayout(
+        2867,
+        1511,
+        800,
+        600,
+        { width: 960, height: 520 },
+        { width: 15, height: 15 },
+    );
+    const state = finalScrollbarState(
+        { width: out.canvasWidth, height: out.canvasHeight },
+        { width: 960, height: 520 },
+        { width: 15, height: 15 },
+    );
+
+    assert.ok(
+        !(state.hasHorizontal && state.hasVertical),
+        'cover must not leave a one-pixel short-axis scrollbar',
+    );
+});
+
+test('scrollable canvas sizing expands only axes with overflowing content', () => {
+    fc.assert(
+        fc.property(inputsArb, (input) => {
+            const expected = referenceCover(input);
+            const out = computeScrollableCanvasSize(
+                expected.contentW,
+                expected.contentH,
+                {
+                    width: input.container.width || input.optsCanvasWidth,
+                    height: input.container.height || input.optsCanvasHeight,
+                },
+                input.scrollbar,
+            );
+            const ref = referenceScrollableCanvasSize(
+                expected.contentW,
+                expected.contentH,
+                {
+                    width: input.container.width || input.optsCanvasWidth,
+                    height: input.container.height || input.optsCanvasHeight,
+                },
+                input.scrollbar,
+            );
+            assert.deepEqual(out, ref);
             return true;
         }),
         { numRuns: 100 },
