@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-05-30
+
+### Added
+
+- Persist Fabric canvas dimensions in editor history snapshots so undo and redo restore layout size after rotate, scale, crop, merge, and mask expansion workflows.
+- Add full canonical DOM binding keys for the 1.x line, using semantic names such as `imagePlaceholder`, `scalePercentageInput`, `rotateLeftDegreesInput`, `removeSelectedMaskButton`, `downloadImageButton`, and `enterCropModeButton`.
+
+### Changed
+
+- Keep deprecated DOM binding keys with `*Btn` names as explicit 1.x aliases with one-time migration warnings.
+- Update the docs demo and README examples to use canonical DOM binding keys.
+
+### Fixed
+
+- Block non-crop programmatic operations while crop mode is active while keeping `applyCrop()` and `cancelCrop()` available.
+- Harden reset, image-load rollback, Fabric state restoration, animation queue cancellation, and crop failure paths against partial state updates.
+- Clean up mask and crop event handlers on removal and disposal, restore captured canvas `maxWidth`, and tolerate missing drag-and-drop `dataTransfer` in the docs demo.
+
 ## [1.4.2] - 2026-05-28
 
 ### Added

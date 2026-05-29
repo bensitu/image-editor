@@ -96,6 +96,31 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /@deprecated Use resetImageTransform\(\) instead/);
     assert.match(declaration, /exportImageBase64/);
     assert.match(declaration, /@deprecated Use exportImageBase64\(\) instead/);
+    [
+        ['imagePlaceholder', 'imgPlaceholder'],
+        ['scalePercentageInput', 'scaleRate'],
+        ['rotateLeftDegreesInput', 'rotationLeftInput'],
+        ['rotateRightDegreesInput', 'rotationRightInput'],
+        ['rotateLeftButton', 'rotateLeftBtn'],
+        ['rotateRightButton', 'rotateRightBtn'],
+        ['createMaskButton', 'addMaskBtn'],
+        ['removeSelectedMaskButton', 'removeMaskBtn'],
+        ['removeAllMasksButton', 'removeAllMasksBtn'],
+        ['mergeMasksButton', 'mergeBtn'],
+        ['downloadImageButton', 'downloadBtn'],
+        ['zoomInButton', 'zoomInBtn'],
+        ['zoomOutButton', 'zoomOutBtn'],
+        ['resetImageTransformButton', 'resetBtn'],
+        ['undoButton', 'undoBtn'],
+        ['redoButton', 'redoBtn'],
+        ['enterCropModeButton', 'cropBtn'],
+        ['applyCropButton', 'applyCropBtn'],
+        ['cancelCropButton', 'cancelCropBtn']
+    ].forEach(([canonicalKey, deprecatedKey]) => {
+        assert.match(declaration, new RegExp(`${canonicalKey}\\\\?: string \\\\| null`));
+        assert.match(declaration, new RegExp(`@deprecated Use ${canonicalKey} instead`));
+        assert.match(declaration, new RegExp(`${deprecatedKey}\\\\?: string \\\\| null`));
+    });
     assert.match(declaration, /exportImageFile/);
     assert.match(declaration, /enterCropMode/);
     assert.match(declaration, /applyCrop/);
@@ -132,6 +157,22 @@ test('docs demo can load ImageEditor on GitHub Pages', () => {
     assert.match(script, /imageInput:\s*null/);
     assert.match(script, /uploadArea:\s*null/);
     assert.equal(/uploadArea:\s*['"]uploadArea['"]/.test(script), false);
+    assert.match(script, /imagePlaceholder:\s*['"]imagePlaceholder['"]/);
+    assert.match(script, /scalePercentageInput:\s*['"]scalePercentageInput['"]/);
+    assert.match(script, /rotateLeftDegreesInput:\s*['"]rotateLeftDegreesInput['"]/);
+    assert.match(script, /rotateRightDegreesInput:\s*['"]rotateRightDegreesInput['"]/);
+    assert.match(script, /rotateLeftButton:\s*['"]rotateLeftButton['"]/);
+    assert.match(script, /rotateRightButton:\s*['"]rotateRightButton['"]/);
+    assert.match(script, /createMaskButton:\s*null/);
+    assert.match(script, /removeSelectedMaskButton:\s*['"]removeSelectedMaskButton['"]/);
+    assert.match(script, /removeAllMasksButton:\s*['"]removeAllMasksButton['"]/);
+    assert.match(script, /mergeMasksButton:\s*['"]mergeMasksButton['"]/);
+    assert.match(script, /downloadImageButton:\s*['"]downloadImageButton['"]/);
+    assert.match(script, /enterCropModeButton:\s*['"]enterCropModeButton['"]/);
+    assert.match(script, /applyCropButton:\s*['"]applyCropButton['"]/);
+    assert.match(script, /cancelCropButton:\s*['"]cancelCropButton['"]/);
+    assert.match(script, /resetImageTransformButton:\s*['"]resetImageTransformButton['"]/);
+    assert.match(script, /dataTransfer\?\.files\?\.\[0\]/);
 });
 
 test('docs demo exposes language switching, dark mode, and compact layout controls', () => {
@@ -158,7 +199,7 @@ test('docs demo exposes language switching, dark mode, and compact layout contro
     assert.match(script, /applyLanguage\(buttonElement\.dataset\.language\)/);
     assert.match(script, /document\.documentElement\.setAttribute\('data-bs-theme', theme\)/);
     assert.match(script, /window\.matchMedia\('\(prefers-color-scheme: dark\)'\)/);
-    assert.match(script, /addMaskBtn:\s*null/);
+    assert.match(script, /createMaskButton:\s*null/);
     assert.match(script, /editor\.createMask\(getSelectedMaskConfig\(\)\)/);
     assert.match(script, /function canLoadImage\(\)/);
     assert.match(script, /function getOptionalElement\(id\)/);

@@ -81,28 +81,69 @@ declare module '@bensitu/image-editor' {
   export interface ElementIdMap {
     canvas?: string;
     canvasContainer?: string | null;
-    imgPlaceholder?: string;
-    scaleRate?: string;
-    rotationLeftInput?: string;
-    rotationRightInput?: string;
-    rotateLeftBtn?: string;
-    rotateRightBtn?: string;
-    addMaskBtn?: string;
-    removeMaskBtn?: string;
-    removeAllMasksBtn?: string;
-    mergeBtn?: string;
-    downloadBtn?: string;
+    imagePlaceholder?: string | null;
+    /** @deprecated Use imagePlaceholder instead. This alias will be removed in v2.0.0. */
+    imgPlaceholder?: string | null;
+    scalePercentageInput?: string | null;
+    /** @deprecated Use scalePercentageInput instead. This alias will be removed in v2.0.0. */
+    scaleRate?: string | null;
+    rotateLeftDegreesInput?: string | null;
+    /** @deprecated Use rotateLeftDegreesInput instead. This alias will be removed in v2.0.0. */
+    rotationLeftInput?: string | null;
+    rotateRightDegreesInput?: string | null;
+    /** @deprecated Use rotateRightDegreesInput instead. This alias will be removed in v2.0.0. */
+    rotationRightInput?: string | null;
+    rotateLeftButton?: string | null;
+    /** @deprecated Use rotateLeftButton instead. This alias will be removed in v2.0.0. */
+    rotateLeftBtn?: string | null;
+    rotateRightButton?: string | null;
+    /** @deprecated Use rotateRightButton instead. This alias will be removed in v2.0.0. */
+    rotateRightBtn?: string | null;
+    /** Create mask button. Preferred canonical key. */
+    createMaskButton?: string | null;
+    /** @deprecated Use createMaskButton instead. This alias will be removed in v2.0.0. */
+    addMaskBtn?: string | null;
+    removeSelectedMaskButton?: string | null;
+    /** @deprecated Use removeSelectedMaskButton instead. This alias will be removed in v2.0.0. */
+    removeMaskBtn?: string | null;
+    removeAllMasksButton?: string | null;
+    /** @deprecated Use removeAllMasksButton instead. This alias will be removed in v2.0.0. */
+    removeAllMasksBtn?: string | null;
+    /** Merge masks button. Preferred canonical key. */
+    mergeMasksButton?: string | null;
+    /** @deprecated Use mergeMasksButton instead. This alias will be removed in v2.0.0. */
+    mergeBtn?: string | null;
+    downloadImageButton?: string | null;
+    /** @deprecated Use downloadImageButton instead. This alias will be removed in v2.0.0. */
+    downloadBtn?: string | null;
     maskList?: string;
-    zoomInBtn?: string;
-    zoomOutBtn?: string;
-    resetBtn?: string;
-    undoBtn?: string;
-    redoBtn?: string;
+    zoomInButton?: string | null;
+    /** @deprecated Use zoomInButton instead. This alias will be removed in v2.0.0. */
+    zoomInBtn?: string | null;
+    zoomOutButton?: string | null;
+    /** @deprecated Use zoomOutButton instead. This alias will be removed in v2.0.0. */
+    zoomOutBtn?: string | null;
+    /** Reset image transform button. Preferred canonical key. */
+    resetImageTransformButton?: string | null;
+    /** @deprecated Use resetImageTransformButton instead. This alias will be removed in v2.0.0. */
+    resetBtn?: string | null;
+    undoButton?: string | null;
+    /** @deprecated Use undoButton instead. This alias will be removed in v2.0.0. */
+    undoBtn?: string | null;
+    redoButton?: string | null;
+    /** @deprecated Use redoButton instead. This alias will be removed in v2.0.0. */
+    redoBtn?: string | null;
     imageInput?: string;
     uploadArea?: string;
-    cropBtn?: string;
-    applyCropBtn?: string;
-    cancelCropBtn?: string;
+    enterCropModeButton?: string | null;
+    /** @deprecated Use enterCropModeButton instead. This alias will be removed in v2.0.0. */
+    cropBtn?: string | null;
+    applyCropButton?: string | null;
+    /** @deprecated Use applyCropButton instead. This alias will be removed in v2.0.0. */
+    applyCropBtn?: string | null;
+    cancelCropButton?: string | null;
+    /** @deprecated Use cancelCropButton instead. This alias will be removed in v2.0.0. */
+    cancelCropBtn?: string | null;
   }
 
   export interface MaskConfig {

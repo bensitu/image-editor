@@ -5,8 +5,10 @@ import {
     disposeEditor,
     fabric,
     getImageDimensionsFromDataUrl,
+    loadImageEditorModule,
     loadFixtureImage,
     makeImageDataUrl,
+    resetEditorDom,
     waitForCanvasCallbacks
 } from './helpers/fabric-environment.mjs';
 
@@ -110,15 +112,15 @@ test('init wires DOM elements and default UI state before an image is loaded', a
 
     assert.equal(editor.canvas.getWidth(), 320);
     assert.equal(editor.canvas.getHeight(), 240);
-    assert.equal(document.getElementById(ids.addMaskBtn).disabled, true);
-    assert.equal(document.getElementById(ids.cropBtn).disabled, true);
-    assert.equal(document.getElementById(ids.downloadBtn).disabled, true);
+    assert.equal(document.getElementById(ids.createMaskButton).disabled, true);
+    assert.equal(document.getElementById(ids.enterCropModeButton).disabled, true);
+    assert.equal(document.getElementById(ids.downloadImageButton).disabled, true);
 });
 
 test('placeholder visibility uses standard DOM state without Bootstrap CSS', async (t) => {
     const { editor, ids } = await createEditor();
     t.after(() => disposeEditor(editor));
-    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+    const placeholderElement = document.getElementById(ids.imagePlaceholder);
     const containerElement = document.getElementById(ids.canvasContainer);
 
     placeholderElement.className = 'd-none';
@@ -146,7 +148,7 @@ test('placeholder visibility uses standard DOM state without Bootstrap CSS', asy
 test('placeholder visibility does not hide a shared canvas parent', async (t) => {
     const { editor, ids } = await createEditor({ showPlaceholder: false });
     t.after(() => disposeEditor(editor));
-    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+    const placeholderElement = document.getElementById(ids.imagePlaceholder);
     const containerElement = document.getElementById(ids.canvasContainer);
 
     containerElement.appendChild(placeholderElement);
@@ -158,16 +160,25 @@ test('placeholder visibility does not hide a shared canvas parent', async (t) =>
     assert.equal(editor.canvas.wrapperEl.hidden, true);
 });
 
-test('disposing restores Bootstrap visibility and canvas inline sizing', async (t) => {
-    const { editor, ids } = await createEditor({ showPlaceholder: false });
-    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+test('disposing restores Bootstrap visibility and captured canvas inline sizing', async (t) => {
+    const { default: ImageEditor } = await loadImageEditorModule();
+    const ids = resetEditorDom();
+    const placeholderElement = document.getElementById(ids.imagePlaceholder);
     const containerElement = document.getElementById(ids.canvasContainer);
     const canvasElement = document.getElementById(ids.canvas);
+    canvasElement.style.maxWidth = '100%';
+    const editor = new ImageEditor({
+        canvasWidth: 320,
+        canvasHeight: 240,
+        animationDuration: 0,
+        showPlaceholder: false
+    });
+    editor.init(ids);
 
     placeholderElement.className = 'd-flex custom-placeholder';
-    canvasElement.style.maxWidth = '100%';
     editor._setPlaceholderVisible(false);
     editor._setCanvasSizeInt(123, 77);
+    canvasElement.style.maxWidth = '75%';
 
     editor.dispose();
     t.after(() => disposeEditor(editor));
@@ -264,6 +275,19 @@ test('loadImage ignores invalid input and resolves only after a valid image is o
     assert.equal(loadedCount, 1);
 });
 
+test('loadImage uses the current onImageLoaded option callback', async (t) => {
+    const calls = [];
+    const { editor } = await createEditor({
+        onImageLoaded: () => calls.push('initial')
+    });
+    t.after(() => disposeEditor(editor));
+
+    editor.options.onImageLoaded = () => calls.push('updated');
+    await loadFixtureImage(editor, { width: 80, height: 60 });
+
+    assert.deepEqual(calls, ['updated']);
+});
+
 test('loadImage marks the editor busy and blocks overlapping public operations', async (t) => {
     const { editor } = await createEditor();
     t.after(() => disposeEditor(editor));
@@ -349,7 +373,7 @@ test('loadImage rolls back canvas, placeholder, and overflow when Fabric image c
     const originalImage = editor.originalImage;
     const mask = editor.createMask({ width: 20, height: 20 });
     const containerElement = document.getElementById(ids.canvasContainer);
-    const placeholderElement = document.getElementById(ids.imgPlaceholder);
+    const placeholderElement = document.getElementById(ids.imagePlaceholder);
 
     const originalFromURL = fabric.Image.fromURL;
     fabric.Image.fromURL = (source, callback) => callback(null);
@@ -410,10 +434,10 @@ test('loadImage warns when mutually exclusive layout modes are enabled together'
 
     await editor.loadImage(makeImageDataUrl({ width: 80, height: 60 }));
 
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0].message, /Only one image layout mode should be enabled/);
-    assert.match(warnings[0].message, /fitImageToCanvas/);
-    assert.match(warnings[0].message, /coverImageToCanvas/);
+    const layoutWarnings = warnings.filter(warning => /Only one image layout mode should be enabled/.test(warning.message));
+    assert.equal(layoutWarnings.length, 1);
+    assert.match(layoutWarnings[0].message, /fitImageToCanvas/);
+    assert.match(layoutWarnings[0].message, /coverImageToCanvas/);
 });
 
 test('loadImage resets cover-canvas scroll position when replacing an image explicitly', async (t) => {
@@ -2100,6 +2124,36 @@ test('applyCrop falls back to default quality when downsampleQuality is null', a
     assert.equal(capturedQuality, 0.92);
 });
 
+test('applyCrop cancels safely when the before snapshot cannot be captured', async (t) => {
+    const errors = [];
+    const { editor } = await createEditor({
+        crop: {
+            minWidth: 40,
+            minHeight: 40
+        },
+        onError: (error, message) => errors.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 200, height: 160 });
+    editor.createMask({ left: 30, top: 35, width: 30, height: 30 });
+
+    editor.enterCropMode();
+    const originalToJSON = editor.canvas.toJSON.bind(editor.canvas);
+    editor.canvas.toJSON = () => {
+        throw new Error('forced before snapshot failure');
+    };
+    t.after(() => {
+        if (editor.canvas) editor.canvas.toJSON = originalToJSON;
+    });
+
+    await editor.applyCrop();
+
+    assert.equal(editor._cropMode, false);
+    assert.equal(editor._cropRect, null);
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+    assert.equal(errors[0].message, 'applyCrop: failed to capture rollback state');
+});
+
 test('applyCrop rolls back image and masks when crop export fails', async (t) => {
     const errors = [];
     const { editor } = await createEditor({
@@ -2327,9 +2381,9 @@ test('recoverable internal warnings are reported through callbacks', async (t) =
     editor.saveState();
     editor.canvas.toJSON = originalToJSON;
 
-    assert.equal(warnings.length, 1);
-    assert.equal(warnings[0].message, 'saveState: failed to save canvas snapshot');
-    assert.match(warnings[0].error.message, /forced snapshot failure/);
+    const snapshotWarnings = warnings.filter(warning => warning.message === 'saveState: failed to save canvas snapshot');
+    assert.equal(snapshotWarnings.length, 1);
+    assert.match(snapshotWarnings[0].error.message, /forced snapshot failure/);
 });
 
 test('saveState only normalizes masks with temporary selection styles', async (t) => {
@@ -2377,7 +2431,135 @@ test('loadFromState handles empty or image-less states safely', async (t) => {
 
     assert.equal(editor.originalImage, null);
     assert.equal(editor.isImageLoadedToCanvas, false);
-    assert.equal(document.getElementById(ids.addMaskBtn).disabled, true);
+    assert.equal(document.getElementById(ids.createMaskButton).disabled, true);
+});
+
+test('loadFromState restores serialized canvas dimensions and supports old snapshots without them', async (t) => {
+    const { editor } = await createEditor({
+        expandCanvasToImage: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 80, height: 60 });
+
+    const snapshot = JSON.parse(editor._serializeCanvasState());
+    assert.equal(snapshot.imageEditorMetadata.canvasWidth, 320);
+    assert.equal(snapshot.imageEditorMetadata.canvasHeight, 240);
+
+    editor._setCanvasSizeInt(512, 384);
+    await editor.loadFromState(snapshot);
+
+    assert.equal(editor.canvas.getWidth(), 320);
+    assert.equal(editor.canvas.getHeight(), 240);
+
+    delete snapshot.imageEditorMetadata.canvasWidth;
+    delete snapshot.imageEditorMetadata.canvasHeight;
+    editor._setCanvasSizeInt(512, 384);
+    await editor.loadFromState(snapshot);
+
+    assert.equal(editor.canvas.getWidth(), 320);
+    assert.equal(editor.canvas.getHeight(), 240);
+});
+
+test('history restores canvas dimensions across rotate undo and redo', async (t) => {
+    const { editor } = await createEditor({
+        expandCanvasToImage: false,
+        fitImageToCanvas: false,
+        coverImageToCanvas: true
+    }, {
+        containerWidth: 120,
+        containerHeight: 90
+    });
+    t.after(() => disposeEditor(editor));
+    editor._getScrollbarSize = () => ({ width: 0, height: 0 });
+    await loadFixtureImage(editor, { width: 180, height: 100 });
+
+    const before = {
+        width: editor.canvas.getWidth(),
+        height: editor.canvas.getHeight()
+    };
+
+    await editor.rotateImage(90);
+    const rotated = {
+        width: editor.canvas.getWidth(),
+        height: editor.canvas.getHeight()
+    };
+    assert.notDeepEqual(rotated, before);
+
+    await editor.undo();
+    assert.equal(editor.canvas.getWidth(), before.width);
+    assert.equal(editor.canvas.getHeight(), before.height);
+
+    await editor.redo();
+    assert.equal(editor.canvas.getWidth(), rotated.width);
+    assert.equal(editor.canvas.getHeight(), rotated.height);
+});
+
+test('history restores canvas dimensions across fit-mode scale undo and redo', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 200,
+        canvasHeight: 120,
+        expandCanvasToImage: false,
+        fitImageToCanvas: true,
+        coverImageToCanvas: false,
+        maxScale: 3
+    }, {
+        containerWidth: 200,
+        containerHeight: 120
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 400, height: 200 });
+
+    const before = {
+        width: editor.canvas.getWidth(),
+        height: editor.canvas.getHeight()
+    };
+
+    await editor.scaleImage(1.5);
+    const scaled = {
+        width: editor.canvas.getWidth(),
+        height: editor.canvas.getHeight()
+    };
+    assert.equal(scaled.width > before.width, true);
+    assert.equal(scaled.height > before.height, true);
+
+    await editor.undo();
+    assert.equal(editor.canvas.getWidth(), before.width);
+    assert.equal(editor.canvas.getHeight(), before.height);
+
+    await editor.redo();
+    assert.equal(editor.canvas.getWidth(), scaled.width);
+    assert.equal(editor.canvas.getHeight(), scaled.height);
+});
+
+test('history restores canvas dimensions when undoing a mask expansion', async (t) => {
+    const { editor } = await createEditor({
+        canvasWidth: 100,
+        canvasHeight: 80,
+        expandCanvasToImage: true
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor, { width: 80, height: 60 });
+
+    const before = {
+        width: editor.canvas.getWidth(),
+        height: editor.canvas.getHeight()
+    };
+    editor.createMask({ left: 130, top: 90, width: 30, height: 30 });
+    const expanded = {
+        width: editor.canvas.getWidth(),
+        height: editor.canvas.getHeight()
+    };
+
+    assert.equal(expanded.width > before.width, true);
+    assert.equal(expanded.height > before.height, true);
+
+    await editor.undo();
+    assert.equal(editor.canvas.getWidth(), before.width);
+    assert.equal(editor.canvas.getHeight(), before.height);
+
+    await editor.redo();
+    assert.equal(editor.canvas.getWidth(), expanded.width);
+    assert.equal(editor.canvas.getHeight(), expanded.height);
 });
 
 test('UI button bindings call editor operations', async (t) => {
@@ -2385,17 +2567,171 @@ test('UI button bindings call editor operations', async (t) => {
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
 
-    document.getElementById(ids.addMaskBtn).click();
+    document.getElementById(ids.createMaskButton).click();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
 
-    document.getElementById(ids.removeMaskBtn).click();
+    document.getElementById(ids.removeSelectedMaskButton).click();
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
 
-    document.getElementById(ids.cropBtn).click();
+    document.getElementById(ids.enterCropModeButton).click();
     assert.equal(editor._cropMode, true);
 
-    document.getElementById(ids.cancelCropBtn).click();
+    document.getElementById(ids.cancelCropButton).click();
     assert.equal(editor._cropMode, false);
+});
+
+test('deprecated DOM binding keys still bind once and report migration warnings', async (t) => {
+    const { default: ImageEditor } = await loadImageEditorModule();
+    const ids = resetEditorDom();
+    const deprecatedIdMap = {
+        canvas: ids.canvas,
+        imgPlaceholder: ids.imagePlaceholder,
+        scaleRate: ids.scalePercentageInput,
+        rotateLeftBtn: ids.rotateLeftButton,
+        rotateRightBtn: ids.rotateRightButton,
+        rotationLeftInput: ids.rotateLeftDegreesInput,
+        rotationRightInput: ids.rotateRightDegreesInput,
+        addMaskBtn: ids.createMaskButton,
+        removeMaskBtn: ids.removeSelectedMaskButton,
+        removeAllMasksBtn: ids.removeAllMasksButton,
+        mergeBtn: ids.mergeMasksButton,
+        downloadBtn: ids.downloadImageButton,
+        maskList: ids.maskList,
+        zoomInBtn: ids.zoomInButton,
+        zoomOutBtn: ids.zoomOutButton,
+        resetBtn: ids.resetImageTransformButton,
+        undoBtn: ids.undoButton,
+        redoBtn: ids.redoButton,
+        imageInput: ids.imageInput,
+        uploadArea: ids.uploadArea,
+        cropBtn: ids.enterCropModeButton,
+        applyCropBtn: ids.applyCropButton,
+        cancelCropBtn: ids.cancelCropButton
+    };
+    const warnings = [];
+    const editor = new ImageEditor({
+        canvasWidth: 320,
+        canvasHeight: 240,
+        animationDuration: 0,
+        showPlaceholder: false,
+        onWarning: (error, message) => warnings.push({ error, message })
+    });
+    editor.init(deprecatedIdMap);
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    document.getElementById(deprecatedIdMap.addMaskBtn).click();
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+
+    let mergeCalls = 0;
+    editor.mergeMasks = () => {
+        mergeCalls += 1;
+        return Promise.resolve();
+    };
+    document.getElementById(deprecatedIdMap.mergeBtn).click();
+    assert.equal(mergeCalls, 1);
+
+    let resetCalls = 0;
+    editor.resetImageTransform = () => {
+        resetCalls += 1;
+        return Promise.resolve();
+    };
+    document.getElementById(deprecatedIdMap.resetBtn).disabled = false;
+    document.getElementById(deprecatedIdMap.resetBtn).click();
+    assert.equal(resetCalls, 1);
+
+    [
+        'imgPlaceholder',
+        'scaleRate',
+        'rotationLeftInput',
+        'rotationRightInput',
+        'rotateLeftBtn',
+        'rotateRightBtn',
+        'addMaskBtn',
+        'removeMaskBtn',
+        'removeAllMasksBtn',
+        'mergeBtn',
+        'downloadBtn',
+        'zoomInBtn',
+        'zoomOutBtn',
+        'resetBtn',
+        'undoBtn',
+        'redoBtn',
+        'cropBtn',
+        'applyCropBtn',
+        'cancelCropBtn'
+    ].forEach(deprecatedKey => {
+        assert.equal(
+            warnings.filter(warning => warning.message.includes(`ElementIdMap.${deprecatedKey} is deprecated`)).length,
+            1,
+            `${deprecatedKey} should warn once`
+        );
+    });
+});
+
+test('canonical DOM binding keys take precedence over deprecated aliases', async (t) => {
+    const { default: ImageEditor } = await loadImageEditorModule();
+    const ids = resetEditorDom();
+    const canonicalIds = {
+        createMaskButton: 'canonical-create-mask',
+        mergeMasksButton: 'canonical-merge-masks',
+        resetImageTransformButton: 'canonical-reset-transform'
+    };
+    const deprecatedIds = {
+        addMaskBtn: 'deprecated-create-mask',
+        mergeBtn: 'deprecated-merge-masks',
+        resetBtn: 'deprecated-reset-transform'
+    };
+    document.body.insertAdjacentHTML('beforeend', `
+        <button id="${canonicalIds.createMaskButton}"></button>
+        <button id="${canonicalIds.mergeMasksButton}"></button>
+        <button id="${canonicalIds.resetImageTransformButton}"></button>
+        <button id="${deprecatedIds.addMaskBtn}"></button>
+        <button id="${deprecatedIds.mergeBtn}"></button>
+        <button id="${deprecatedIds.resetBtn}"></button>
+    `);
+    const warnings = [];
+    const editor = new ImageEditor({
+        canvasWidth: 320,
+        canvasHeight: 240,
+        animationDuration: 0,
+        showPlaceholder: false,
+        onWarning: (error, message) => warnings.push({ error, message })
+    });
+    editor.init({
+        ...ids,
+        ...deprecatedIds,
+        ...canonicalIds
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    document.getElementById(deprecatedIds.addMaskBtn).click();
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
+
+    document.getElementById(canonicalIds.createMaskButton).click();
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
+
+    let mergeCalls = 0;
+    editor.mergeMasks = () => {
+        mergeCalls += 1;
+        return Promise.resolve();
+    };
+    document.getElementById(canonicalIds.mergeMasksButton).click();
+    assert.equal(mergeCalls, 1);
+
+    let resetCalls = 0;
+    editor.resetImageTransform = () => {
+        resetCalls += 1;
+        return Promise.resolve();
+    };
+    document.getElementById(canonicalIds.resetImageTransformButton).disabled = false;
+    document.getElementById(canonicalIds.resetImageTransformButton).click();
+    assert.equal(resetCalls, 1);
+
+    assert.equal(warnings.some(warning => warning.message.includes('ElementIdMap.addMaskBtn is deprecated')), false);
+    assert.equal(warnings.some(warning => warning.message.includes('ElementIdMap.mergeBtn is deprecated')), false);
+    assert.equal(warnings.some(warning => warning.message.includes('ElementIdMap.resetBtn is deprecated')), false);
 });
 
 test('upload area click is disabled while crop mode is active', async (t) => {
@@ -2416,6 +2752,47 @@ test('upload area click is disabled while crop mode is active', async (t) => {
     editor.cancelCrop();
     document.getElementById(ids.uploadArea).click();
     assert.equal(inputClicks, 1);
+});
+
+test('crop mode blocks non-crop programmatic operations', async (t) => {
+    const errors = [];
+    const { editor } = await createEditor({
+        onError: (error, message) => errors.push({ error, message })
+    });
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    editor.enterCropMode();
+    assert.equal(editor.isBusy(), true);
+
+    await assert.rejects(
+        () => editor.loadImage(makeImageDataUrl({ width: 20, height: 20 })),
+        /crop mode is active/
+    );
+    await assert.rejects(
+        () => editor.scaleImage(1.2),
+        /crop mode is active/
+    );
+    await assert.rejects(
+        () => editor.rotateImage(45),
+        /crop mode is active/
+    );
+    await assert.rejects(
+        () => editor.mergeMasks(),
+        /crop mode is active/
+    );
+    await assert.rejects(
+        () => editor.exportImageBase64(),
+        /crop mode is active/
+    );
+
+    assert.equal(editor.createMask(), null);
+    assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
+    assert.equal(errors.some(entry => entry.message === 'createMask blocked'), true);
+
+    editor.cancelCrop();
+    assert.equal(editor._cropMode, false);
+    assert.equal(editor.isBusy(), false);
 });
 
 test('mask list remains clickable after canceling crop mode', async (t) => {
@@ -2484,8 +2861,8 @@ test('dispose removes file input and rotation button listeners', async (t) => {
 
     editor.dispose();
 
-    document.getElementById(ids.rotateLeftBtn).click();
-    document.getElementById(ids.rotateRightBtn).click();
+    document.getElementById(ids.rotateLeftButton).click();
+    document.getElementById(ids.rotateRightButton).click();
     input.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     assert.equal(rotateCalls, 0);
@@ -2651,7 +3028,7 @@ test('workflow cover mode merges masks, then undo and redo restore editable scal
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 1);
     assert.equal(editor.baseImageScale, baseImageScaleBeforeMerge);
     assert.equal(editor.currentScale, 1.5);
-    assert.equal(document.getElementById(ids.scaleRate).value, '150');
+    assert.equal(document.getElementById(ids.scalePercentageInput).value, '150');
     assert.ok(Math.abs(editor.originalImage.scaleX - (baseImageScaleBeforeMerge * 1.5)) < 0.01);
 
     await editor.redo();
@@ -2979,6 +3356,19 @@ test('workflow remove all masks can be undone and redone', async (t) => {
     assert.equal(editor.canvas.getObjects().filter(object => object.maskId).length, 0);
 });
 
+test('removeAllMasks clears event handler references from removed mask objects', async (t) => {
+    const { editor } = await createEditor();
+    t.after(() => disposeEditor(editor));
+    await loadFixtureImage(editor);
+
+    const mask = editor.createMask({ left: 10, top: 10, width: 20, height: 20 });
+    assert.equal(typeof mask.__imageEditorMaskHandlers.mouseover, 'function');
+
+    editor.removeAllMasks();
+
+    assert.equal(Object.prototype.hasOwnProperty.call(mask, '__imageEditorMaskHandlers'), false);
+});
+
 test('workflow toolbar zoom and rotate buttons create undoable states', async (t) => {
     const { editor, ids } = await createEditor({
         scaleStep: 0.2,
@@ -2987,12 +3377,12 @@ test('workflow toolbar zoom and rotate buttons create undoable states', async (t
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
 
-    document.getElementById(ids.zoomInBtn).click();
+    document.getElementById(ids.zoomInButton).click();
     await waitForCondition(() => !editor.isAnimating && editor.currentScale === 1.2);
     assert.equal(editor.currentScale, 1.2);
 
-    document.getElementById(ids.rotationRightInput).value = '30';
-    document.getElementById(ids.rotateRightBtn).click();
+    document.getElementById(ids.rotateRightDegreesInput).value = '30';
+    document.getElementById(ids.rotateRightButton).click();
     await waitForCondition(() => !editor.isAnimating && editor.currentRotation === 30);
     assert.equal(editor.currentRotation, 30);
 
@@ -3016,16 +3406,16 @@ test('workflow crop toolbar cancel is non-destructive and apply is undoable', as
     editor.createMask({ left: 20, top: 20, width: 20, height: 20 });
 
     const historyLength = editor.historyManager.history.length;
-    document.getElementById(ids.cropBtn).click();
+    document.getElementById(ids.enterCropModeButton).click();
     assert.equal(editor._cropMode, true);
-    document.getElementById(ids.cancelCropBtn).click();
+    document.getElementById(ids.cancelCropButton).click();
     assert.equal(editor._cropMode, false);
     assert.equal(editor.historyManager.history.length, historyLength);
 
-    document.getElementById(ids.cropBtn).click();
+    document.getElementById(ids.enterCropModeButton).click();
     editor._cropRect.set({ left: 0, top: 0, width: 70, height: 60, scaleX: 1, scaleY: 1 });
     editor._cropRect.setCoords();
-    document.getElementById(ids.applyCropBtn).click();
+    document.getElementById(ids.applyCropButton).click();
     await waitForCanvasCallbacks(150);
 
     assert.equal(editor._cropMode, false);
