@@ -115,49 +115,82 @@ Use `dist/image-editor.js` or `dist/image-editor.min.js` for browser global scri
 
 ### JavaScript Implementation
 
+The constructor options are optional. For the smallest setup, create an editor instance and bind it to a canvas element.
+
 ```javascript
-// Create instance
+const editor = new ImageEditor();
+
+editor.init({
+  canvas: "fabricCanvas"
+});
+```
+
+`canvas` is the only required DOM binding when your canvas element does not use the default ID `fabricCanvas`. All other DOM bindings are optional.
+
+#### Optional Configuration
+
+You can pass options to override the built-in defaults.
+
+```javascript
 const editor = new ImageEditor({
   canvasWidth: 800,
   canvasHeight: 600,
   backgroundColor: "#ffffff",
+  initialImageBase64: null
+});
+```
+
+These are common optional overrides, not required settings.
+
+#### Demo-style Configuration
+
+The docs demo uses an explicit configuration so the demo behavior is predictable. These options are not required for normal usage.
+
+```javascript
+const editor = new ImageEditor({
+  // Layout mode. Enable only one layout mode at a time.
+  expandCanvasToImage: false,
+  fitImageToCanvas: true,
+  coverImageToCanvas: false,
+
+  // Image loading / performance.
+  downsampleOnLoad: true,
   initialImageBase64: null,
 
-  onError: (error, message) => {
-    console.error("[ImageEditor]", message, error);
-  },
+  // Mask behavior.
+  maskRotatable: true,
+  maskLabelOnSelect: true,
+  maskLabelOffset: 5,
 
-  onWarning: (error, message) => {
-    console.warn("[ImageEditor]", message, error);
-  },
+  // UI behavior.
+  backgroundColor: "transparent",
+  showPlaceholder: true,
+  animationDuration: 100,
+
+  // Export behavior.
+  exportImageAreaByDefault: true
 });
 
-try {
-  editor.init({
-    canvas: "fabricCanvas",
-    zoomInButton: "zoomInButton",
-    zoomOutButton: "zoomOutButton",
-    rotateLeftButton: "rotateLeftButton",
-    rotateLeftDegreesInput: "rotateLeftDegreesInput",
-    rotateRightButton: "rotateRightButton",
-    rotateRightDegreesInput: "rotateRightDegreesInput",
-    createMaskButton: "createMaskButton",
-    removeSelectedMaskButton: "removeSelectedMaskButton",
-    removeAllMasksButton: "removeAllMasksButton",
-    enterCropModeButton: "enterCropModeButton",
-    applyCropButton: "applyCropButton",
-    cancelCropButton: "cancelCropButton",
-    undoButton: "undoButton",
-    redoButton: "redoButton",
-    mergeMasksButton: "mergeMasksButton",
-    resetImageTransformButton: "resetImageTransformButton",
-    downloadImageButton: "downloadImageButton",
-    imageInput: "imageInput",
-  });
-} catch (error) {
-  console.error("Failed to initialize ImageEditor:", error);
-}
+editor.init({
+  canvas: "fabricCanvas",
+  imagePlaceholder: "imagePlaceholder",
+  scalePercentageInput: "scalePercentageInput",
+  rotateLeftButton: "rotateLeftButton",
+  rotateRightButton: "rotateRightButton",
+  rotateLeftDegreesInput: "rotateLeftDegreesInput",
+  rotateRightDegreesInput: "rotateRightDegreesInput",
+  removeSelectedMaskButton: "removeSelectedMaskButton",
+  removeAllMasksButton: "removeAllMasksButton",
+  mergeMasksButton: "mergeMasksButton",
+  downloadImageButton: "downloadImageButton",
+  maskList: "maskList",
+  enterCropModeButton: "enterCropModeButton",
+  applyCropButton: "applyCropButton",
+  cancelCropButton: "cancelCropButton",
+  resetImageTransformButton: "resetImageTransformButton"
+});
 ```
+
 
 ### Loading an Image Manually
 
@@ -174,6 +207,8 @@ loadImageDataUrl("data:image/jpeg;base64,...");
 ```
 
 ## Configuration Options
+
+All options are optional. If an option is not provided, the editor uses the default value listed below.
 
 When creating the editor instance, pass an options object to override defaults.
 
