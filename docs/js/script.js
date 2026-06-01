@@ -2,6 +2,8 @@ let editor = null;
 // Demo-local busy flag covering operations the demo itself drives
 // (image loads). The editor manages its own toolbar disabled-state during
 // animations and crop sessions through the IDs passed to `init`.
+let messagePanel = null;
+let demoMessage = null;
 let demoLoading = false;
 
 const defaultLanguage = 'en';
@@ -32,10 +34,14 @@ const translations = {
         maskList: 'Mask list',
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
+        legacyDemo: 'Legacy v1 demo',
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
         maskShapePolygon: 'Polygon',
+        defaultErrorMessage: 'Image processing failed',
+        errorFileRead: 'Image file could not be read',
+        errorEditorNotInitialized: 'Editor is not initialized',
     },
     zh: {
         appSubtitle: '画布遮罩、裁剪、变换与导出演示',
@@ -62,10 +68,14 @@ const translations = {
         maskList: '遮罩列表',
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
+        legacyDemo: '旧版 v1 演示',
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
         maskShapePolygon: '多边形',
+        defaultErrorMessage: '图像处理失败',
+        errorFileRead: '无法读取图片文件',
+        errorEditorNotInitialized: '编辑器未初始化',
     },
     ja: {
         appSubtitle: 'キャンバスマスク、切り抜き、変形、書き出しデモ',
@@ -92,10 +102,14 @@ const translations = {
         maskList: 'マスクリスト',
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
+        legacyDemo: '旧 v1 デモ',
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
         maskShapePolygon: '多角形',
+        defaultErrorMessage: '画像処理に失敗しました',
+        errorFileRead: '画像ファイルを読み込めませんでした',
+        errorEditorNotInitialized: 'エディタが初期化されていません',
     },
     ko: {
         appSubtitle: '캔버스 마스크, 자르기, 변형, 내보내기 데모',
@@ -122,10 +136,14 @@ const translations = {
         maskList: '마스크 목록',
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
+        legacyDemo: '이전 v1 데모',
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
         maskShapePolygon: '다각형',
+        defaultErrorMessage: '이미지 처리에 실패했습니다',
+        errorFileRead: '이미지 파일을 읽을 수 없습니다',
+        errorEditorNotInitialized: '에디터가 초기화되지 않았습니다',
     },
     fr: {
         appSubtitle: 'Démo de masques, recadrage, transformation et export canvas',
@@ -152,10 +170,14 @@ const translations = {
         maskList: 'Liste des masques',
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
+        legacyDemo: 'Démo v1 historique',
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
         maskShapePolygon: 'Polygone',
+        defaultErrorMessage: "Échec du traitement de l'image",
+        errorFileRead: "Le fichier image n'a pas pu être lu",
+        errorEditorNotInitialized: "L'éditeur n'est pas initialisé",
     },
     es: {
         appSubtitle: 'Demo de máscaras, recorte, transformación y exportación en canvas',
@@ -182,10 +204,14 @@ const translations = {
         maskList: 'Lista de máscaras',
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
+        legacyDemo: 'Demo v1 anterior',
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
         maskShapePolygon: 'Polígono',
+        defaultErrorMessage: 'Error al procesar la imagen',
+        errorFileRead: 'No se pudo leer el archivo de imagen',
+        errorEditorNotInitialized: 'El editor no está inicializado',
     },
 };
 
@@ -207,22 +233,40 @@ function getOptionalElement(id) {
     return document.getElementById(id);
 }
 
-function getErrorMessage(error) {
-    return error && error.message ? error.message : 'Image operation failed';
+function getMessage(error) {
+    let msg = '';
+    if (typeof error === 'string') {
+        msg = error;
+    } else if (error && typeof error.message === 'string') {
+        msg = error.message;
+    }
+    return msg || getCurrentTranslations('defaultErrorMessage');
 }
 
-function showDemoError(error) {
-    const demoErrorElement = getOptionalElement('demoError');
-    if (!demoErrorElement) return;
-    demoErrorElement.textContent = getErrorMessage(error);
-    demoErrorElement.hidden = false;
+function getMessageElements() {
+    if (!messagePanel) messagePanel = document.getElementById('messagePanel');
+    if (!demoMessage) demoMessage = document.getElementById('demoMessage');
+    return { panel: messagePanel, message: demoMessage };
 }
 
-function clearDemoError() {
-    const demoErrorElement = getOptionalElement('demoError');
-    if (!demoErrorElement) return;
-    demoErrorElement.textContent = '';
-    demoErrorElement.hidden = true;
+function showMessage(error) {
+    const { panel, message } = getMessageElements();
+    if (!panel || !message) {
+        console.warn('Message panel elements not found');
+        return;
+    }
+    const text = getMessage(error);
+    message.textContent = text;
+    message.hidden = false;
+    panel.hidden = false;
+}
+
+function clearMessage() {
+    const { panel, message } = getMessageElements();
+    if (!panel || !message) return;
+    message.textContent = '';
+    message.hidden = true;
+    panel.hidden = true;
 }
 
 function getStoredValue(key) {
@@ -294,6 +338,12 @@ function applyLanguage(language) {
     setStoredValue('imageEditorDemoLanguage', nextLanguage);
 }
 
+function getCurrentTranslations(key) {
+    const lang = document.documentElement.lang || defaultLanguage;
+    const trans = translations[lang] || translations[defaultLanguage];
+    return trans[key] || translations[defaultLanguage][key] || key;
+}
+
 function applyTheme(isDarkMode, shouldPersist = true) {
     const theme = isDarkMode ? 'dark' : 'light';
     document.documentElement.setAttribute('data-bs-theme', theme);
@@ -342,9 +392,6 @@ function initEditor() {
         rotateRightButton: 'rotateRightButton',
         rotateLeftDegreesInput: 'leftValue',
         rotateRightDegreesInput: 'rightValue',
-        // The demo binds its own Create Mask button so the shape selector
-        // is honored. Setting the ID to `null` tells the editor to skip
-        // the default click binding.
         createMaskButton: null,
         removeSelectedMaskButton: 'removeSelectedMaskButton',
         removeAllMasksButton: 'removeAllMasksButton',
@@ -354,6 +401,7 @@ function initEditor() {
         enterCropModeButton: 'enterCropModeButton',
         applyCropButton: 'applyCropButton',
         cancelCropButton: 'cancelCropButton',
+        resetImageTransformButton: 'resetImageTransformButton',
         canvasContainer: null,
         imageInput: null,
         uploadArea: null,
@@ -375,7 +423,7 @@ function setOptions() {
         editor.options.fitImageToCanvas = true;
         editor.options.coverImageToCanvas = false;
         editor.options.expandCanvasToImage = false;
-    } else if (coverCanvasRadio.checked) {
+    } else if (coverCanvasRadio?.checked) {
         editor.options.fitImageToCanvas = false;
         editor.options.coverImageToCanvas = true;
         editor.options.expandCanvasToImage = false;
@@ -391,7 +439,10 @@ function isEditorReady() {
 }
 
 function isEditorBusy() {
-    return demoLoading || !!(editor && typeof editor.isBusy === 'function' && editor.isBusy());
+    if (!editor) return false;
+    if (demoLoading) return false;
+    if (typeof editor.isBusy === 'function') return editor.isBusy();
+    return !!editor.isAnimating;
 }
 
 function canLoadImage() {
@@ -400,26 +451,25 @@ function canLoadImage() {
 
 function updateDemoControls() {
     const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
-    const busy = isEditorBusy();
+    const isBusy = isEditorBusy();
     const addMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
-    const loadButtonElement = getOptionalElement('loadBtn');
+    const loadButtonElement = getOptionalElement('loadButton');
 
-    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || busy;
-    if (maskShapeSelectElement) maskShapeSelectElement.disabled = busy;
-    if (loadButtonElement) loadButtonElement.disabled = busy;
-    if (imageInputElement) imageInputElement.disabled = busy;
+    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || isBusy;
+    if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
+    if (loadButtonElement) loadButtonElement.disabled = isBusy;
+    if (imageInputElement) imageInputElement.disabled = isBusy;
     if (uploadAreaElement) {
-        uploadAreaElement.classList.toggle('disabled', busy);
-        uploadAreaElement.setAttribute('aria-disabled', busy ? 'true' : 'false');
+        uploadAreaElement.classList.toggle('disabled', isBusy);
+        uploadAreaElement.setAttribute('aria-disabled', isBusy ? 'true' : 'false');
     }
 }
 
 function scheduleDemoControlUpdate() {
     const animationDuration = Number(editor?.options?.animationDuration);
-    const settledDelay = Number.isFinite(animationDuration)
-        ? Math.max(0, animationDuration) + 50
-        : 350;
+    const settledDelay =
+        Number.isFinite(animationDuration) && animationDuration >= 0 ? animationDuration + 50 : 350;
     window.setTimeout(updateDemoControls, 0);
     window.setTimeout(updateDemoControls, settledDelay);
 }
@@ -431,8 +481,6 @@ function getSelectedMaskConfig() {
 
 function handleAddMaskButtonClick() {
     if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
-    // `createMask` is the canonical v2 entry point; it returns the new
-    // mask object or `null`. The editor handles its own animation guard.
     editor.createMask(getSelectedMaskConfig());
     updateDemoControls();
 }
@@ -440,7 +488,7 @@ function handleAddMaskButtonClick() {
 function loadFile(file) {
     if (!file || !canLoadImage()) return Promise.resolve();
 
-    clearDemoError();
+    clearMessage();
     setOptions();
     demoLoading = true;
     updateDemoControls();
@@ -450,11 +498,11 @@ function loadFile(file) {
             const imageBase64 = loadEvent.target.result;
             editor.loadImage(imageBase64).then(resolve).catch(reject);
         };
-        reader.onerror = () => reject(new Error('Image file could not be read'));
+        reader.onerror = () => reject(new Error(getCurrentTranslations('errorFileRead')));
         reader.readAsDataURL(file);
     })
         .catch(function (error) {
-            showDemoError(error);
+            showMessage(error);
             console.error(error);
         })
         .finally(function () {
@@ -466,7 +514,7 @@ function loadFile(file) {
 function handleLoadButtonClick() {
     if (!canLoadImage()) return;
 
-    clearDemoError();
+    clearMessage();
     setOptions();
     const imageBase64 = getOptionalElement('base64Input')?.value || '';
     demoLoading = true;
@@ -478,7 +526,7 @@ function handleLoadButtonClick() {
             if (base64Input) base64Input.value = '';
         })
         .catch(function (error) {
-            showDemoError(error);
+            showMessage(error);
             console.error(error);
         })
         .finally(function () {
@@ -504,7 +552,7 @@ function handleUploadAreaDrop(event) {
     uploadAreaElement?.classList.remove('dragover');
     if (!canLoadImage()) return;
 
-    loadFile(event.dataTransfer.files[0]);
+    loadFile(event.dataTransfer?.files?.[0]);
 }
 
 function handleUploadAreaDragOver(event) {
@@ -519,7 +567,7 @@ function handleUploadAreaDragLeave(event) {
     uploadAreaElement?.classList.remove('dragover');
 }
 
-const loadButtonElement = getOptionalElement('loadBtn');
+const loadButtonElement = getOptionalElement('loadButton');
 if (loadButtonElement) {
     loadButtonElement.addEventListener('click', handleLoadButtonClick);
 }
@@ -578,19 +626,27 @@ if (window.matchMedia) {
 }
 
 async function getBase64Action() {
-    if (!editor) return;
+    if (!editor) {
+        showMessage(new Error(getCurrentTranslations('errorEditorNotInitialized')));
+        return;
+    }
+    const hasLoadedImage =
+        !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
+    if (!hasLoadedImage) {
+        showMessage(new Error(getCurrentTranslations('noImageLoaded')));
+        return;
+    }
+
     try {
-        // `exportImageBase64` is the canonical v2 export entry point.
-        // It resolves to an empty string when no image is loaded, with a
-        // console warning emitted by the editor.
         const imageBase64 = await editor.exportImageBase64();
-        console.log(imageBase64);
+        showMessage(imageBase64);
     } catch (error) {
+        showMessage(error);
         console.error(error);
     }
 }
 
-const base64ButtonElement = getOptionalElement('base64Btn');
+const base64ButtonElement = getOptionalElement('base64Button');
 if (base64ButtonElement) {
     base64ButtonElement.addEventListener('click', getBase64Action);
 }

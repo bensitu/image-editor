@@ -194,7 +194,9 @@
                     <div id="demoError" class="demo-error" role="alert" hidden></div>
                 </div>
             </section>
-
+            <section id="messagePanel" class="message-panel" aria-label="Messages" hidden>
+                <div id="demoMessage" class="demo-message" role="alert" hidden></div>
+            </section>
             <section class="tool-panel" aria-label="Editor controls">
                 <div class="tool-group" role="group" aria-label="Zoom actions">
                     <button
@@ -353,14 +355,14 @@
                     </button>
                     <button
                         id="downloadImageButton"
-                        class="btn tool-button primary-action"
+                        class="btn tool-button"
                         type="button"
                         data-i18n="download"
                     >
                         Download
                     </button>
                     <button
-                        id="base64Btn"
+                        id="base64Button"
                         class="btn tool-button"
                         type="button"
                         data-i18n="consoleBase64"
