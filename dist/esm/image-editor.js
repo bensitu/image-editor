@@ -20,28 +20,30 @@ import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibil
 import { inferImageMimeType, readFileAsDataURL, resetFileInput } from './utils/file.js';
 const LAYOUT_EPSILON = 0.5;
 const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
+const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol.for('ImageEditorAllowDuringAnimationQueue');
 const CROP_MODE_CONTROL_KEYS = [
-    'scaleRate',
-    'rotationLeftInput',
-    'rotationRightInput',
-    'rotateLeftBtn',
-    'rotateRightBtn',
-    'addMaskBtn',
-    'removeMaskBtn',
-    'removeAllMasksBtn',
-    'mergeBtn',
-    'downloadBtn',
-    'zoomInBtn',
-    'zoomOutBtn',
-    'resetBtn',
-    'undoBtn',
-    'redoBtn',
+    'scalePercentageInput',
+    'rotateLeftDegreesInput',
+    'rotateRightDegreesInput',
+    'rotateLeftButton',
+    'rotateRightButton',
+    'createMaskButton',
+    'removeSelectedMaskButton',
+    'removeAllMasksButton',
+    'mergeMasksButton',
+    'downloadImageButton',
+    'zoomInButton',
+    'zoomOutButton',
+    'resetImageTransformButton',
+    'undoButton',
+    'redoButton',
     'imageInput',
-    'cropBtn',
-    'applyCropBtn',
-    'cancelCropBtn',
+    'enterCropModeButton',
+    'applyCropButton',
+    'cancelCropButton',
 ];
-const CROP_MODE_ENABLED_KEYS = ['applyCropBtn', 'cancelCropBtn'];
+const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
+const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
 export class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -214,34 +216,41 @@ export class ImageEditor {
         this.historyManager = new HistoryManager(this.options.maxHistorySize);
     }
     init(idMap = {}) {
-        if (!this._fabricLoaded)
-            return;
+        if (!this._fabricLoaded) {
+            const globalFabric = globalThis.fabric;
+            if (!globalFabric ||
+                typeof globalFabric.Canvas !== 'function') {
+                return;
+            }
+            this._fabric = globalFabric;
+            this._fabricLoaded = true;
+        }
         if (this._disposed)
             return;
         const defaults = {
-            canvas: 'fabricCanvas',
+            canvas: 'canvas',
             canvasContainer: null,
-            imgPlaceholder: 'imgPlaceholder',
-            scaleRate: 'scaleRate',
-            rotationLeftInput: 'rotationLeftInput',
-            rotationRightInput: 'rotationRightInput',
-            rotateLeftBtn: 'rotateLeftBtn',
-            rotateRightBtn: 'rotateRightBtn',
-            addMaskBtn: 'addMaskBtn',
-            removeMaskBtn: 'removeMaskBtn',
-            removeAllMasksBtn: 'removeAllMasksBtn',
-            mergeBtn: 'mergeBtn',
-            downloadBtn: 'downloadBtn',
+            imagePlaceholder: 'imagePlaceholder',
+            scalePercentageInput: 'scalePercentageInput',
+            rotateLeftDegreesInput: 'rotateLeftDegreesInput',
+            rotateRightDegreesInput: 'rotateRightDegreesInput',
+            rotateLeftButton: 'rotateLeftButton',
+            rotateRightButton: 'rotateRightButton',
+            createMaskButton: 'createMaskButton',
+            removeSelectedMaskButton: 'removeSelectedMaskButton',
+            removeAllMasksButton: 'removeAllMasksButton',
+            mergeMasksButton: 'mergeMasksButton',
+            downloadImageButton: 'downloadImageButton',
             maskList: 'maskList',
-            zoomInBtn: 'zoomInBtn',
-            zoomOutBtn: 'zoomOutBtn',
-            resetBtn: 'resetBtn',
-            undoBtn: 'undoBtn',
-            redoBtn: 'redoBtn',
+            zoomInButton: 'zoomInButton',
+            zoomOutButton: 'zoomOutButton',
+            resetImageTransformButton: 'resetImageTransformButton',
+            undoButton: 'undoButton',
+            redoButton: 'redoButton',
             imageInput: 'imageInput',
-            cropBtn: 'cropBtn',
-            applyCropBtn: 'applyCropBtn',
-            cancelCropBtn: 'cancelCropBtn',
+            enterCropModeButton: 'enterCropModeButton',
+            applyCropButton: 'applyCropButton',
+            cancelCropButton: 'cancelCropButton',
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
@@ -253,7 +262,8 @@ export class ImageEditor {
         this._updateMaskList();
         this._updateUI();
         if (this.options.initialImageBase64) {
-            void this.loadImage(this.options.initialImageBase64);
+            void this.loadImage(this.options.initialImageBase64).catch(() => {
+            });
         }
         else {
             this._updatePlaceholderStatus();
@@ -274,7 +284,7 @@ export class ImageEditor {
         else {
             this.containerElement = canvasElement.parentElement;
         }
-        const phId = this.elements.imgPlaceholder;
+        const phId = this.elements.imagePlaceholder;
         this.placeholderElement = phId ? document.getElementById(phId) : null;
         let initialW = this.options.canvasWidth;
         let initialH = this.options.canvasHeight;
@@ -322,38 +332,38 @@ export class ImageEditor {
             if (f)
                 void this._loadImageFile(f);
         });
-        this._bindIfExists('zoomInBtn', 'click', () => {
+        this._bindIfExists('zoomInButton', 'click', () => {
             void this.scaleImage(this.currentScale + this.options.scaleStep);
         });
-        this._bindIfExists('zoomOutBtn', 'click', () => {
+        this._bindIfExists('zoomOutButton', 'click', () => {
             void this.scaleImage(this.currentScale - this.options.scaleStep);
         });
-        this._bindIfExists('resetBtn', 'click', () => {
+        this._bindIfExists('resetImageTransformButton', 'click', () => {
             void this.resetImageTransform();
         });
-        this._bindIfExists('addMaskBtn', 'click', () => {
+        this._bindIfExists('createMaskButton', 'click', () => {
             this.createMask();
         });
-        this._bindIfExists('removeMaskBtn', 'click', () => {
+        this._bindIfExists('removeSelectedMaskButton', 'click', () => {
             this.removeSelectedMask();
         });
-        this._bindIfExists('removeAllMasksBtn', 'click', () => {
+        this._bindIfExists('removeAllMasksButton', 'click', () => {
             this.removeAllMasks();
         });
-        this._bindIfExists('mergeBtn', 'click', () => {
+        this._bindIfExists('mergeMasksButton', 'click', () => {
             void this.mergeMasks();
         });
-        this._bindIfExists('downloadBtn', 'click', () => {
+        this._bindIfExists('downloadImageButton', 'click', () => {
             this.downloadImage();
         });
-        this._bindIfExists('undoBtn', 'click', () => {
+        this._bindIfExists('undoButton', 'click', () => {
             this.undo();
         });
-        this._bindIfExists('redoBtn', 'click', () => {
+        this._bindIfExists('redoButton', 'click', () => {
             this.redo();
         });
-        this._bindIfExists('rotateLeftBtn', 'click', () => {
-            const inputId = this.elements.rotationLeftInput;
+        this._bindIfExists('rotateLeftButton', 'click', () => {
+            const inputId = this.elements.rotateLeftDegreesInput;
             const inputEl = inputId
                 ? document.getElementById(inputId)
                 : null;
@@ -365,8 +375,8 @@ export class ImageEditor {
             }
             void this.rotateImage(this.currentRotation - step);
         });
-        this._bindIfExists('rotateRightBtn', 'click', () => {
-            const inputId = this.elements.rotationRightInput;
+        this._bindIfExists('rotateRightButton', 'click', () => {
+            const inputId = this.elements.rotateRightDegreesInput;
             const inputEl = inputId
                 ? document.getElementById(inputId)
                 : null;
@@ -378,15 +388,15 @@ export class ImageEditor {
             }
             void this.rotateImage(this.currentRotation + step);
         });
-        this._bindIfExists('cropBtn', 'click', () => {
+        this._bindIfExists('enterCropModeButton', 'click', () => {
             this.enterCropMode();
         });
-        this._bindIfExists('applyCropBtn', 'click', () => {
+        this._bindIfExists('applyCropButton', 'click', () => {
             void this.applyCrop().catch((err) => {
                 reportError(this.options, err, 'Crop apply failed.');
             });
         });
-        this._bindIfExists('cancelCropBtn', 'click', () => {
+        this._bindIfExists('cancelCropButton', 'click', () => {
             this.cancelCrop();
         });
     }
@@ -405,12 +415,19 @@ export class ImageEditor {
             resetFileInput(inputEl);
             return;
         }
+        let dataUrl;
         try {
-            const dataUrl = await readFileAsDataURL(file);
-            await this.loadImage(dataUrl);
+            dataUrl = await readFileAsDataURL(file);
         }
         catch (err) {
             reportError(this.options, err, 'Failed to read selected image file.');
+            resetFileInput(inputEl);
+            return;
+        }
+        try {
+            await this.loadImage(dataUrl);
+        }
+        catch {
         }
         finally {
             resetFileInput(inputEl);
@@ -484,16 +501,30 @@ export class ImageEditor {
         var _a;
         return ((_a = options === null || options === void 0 ? void 0 : options[INTERNAL_OPERATION_TOKEN]) !== null && _a !== void 0 ? _a : null);
     }
+    _canRunDuringAnimationQueue(options) {
+        return !!(options === null || options === void 0 ? void 0 : options[INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]);
+    }
     _withInternalOperationOptions(token, options = {}) {
         return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
         };
     }
+    _withAnimationQueueBypass(options = {}) {
+        return {
+            ...options,
+            [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
+        };
+    }
     _assertIdleForOperation(operationName, options) {
         const token = this._getInternalOperationToken(options);
         this._guard.assertIdleForOperation(operationName, token);
-        if (this.animQueue.isBusy()) {
+        if (this._cropSession &&
+            !this._guard.isOwnOperation(token) &&
+            !CROP_SESSION_ALLOWED_OPERATIONS.has(operationName)) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while crop mode is active.`);
+        }
+        if (this.animQueue.isBusy() && !this._canRunDuringAnimationQueue(options)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
         }
     }
@@ -642,7 +673,7 @@ export class ImageEditor {
             },
             getBaseImageScale: () => this.baseImageScale,
             saveCanvasState: () => {
-                this.saveState();
+                this._saveState(this._withAnimationQueueBypass());
             },
             setSuppressSaveState: (suppress) => {
                 this._suppressSaveState = suppress;
@@ -745,9 +776,14 @@ export class ImageEditor {
         this._updateUI();
     }
     async loadFromState(jsonString) {
+        return this._loadFromState(jsonString);
+    }
+    async _loadFromState(jsonString, options) {
         if (!jsonString || !this.canvas)
             return;
         if (this._disposed)
+            return;
+        if (!this._canRunIdleOperation('loadFromState', options))
             return;
         try {
             const result = await loadFromStateImpl({
@@ -802,8 +838,13 @@ export class ImageEditor {
         }
     }
     saveState() {
+        this._saveState();
+    }
+    _saveState(options) {
         var _a;
         if (!this.canvas || this._suppressSaveState)
+            return;
+        if (!this._canRunIdleOperation('saveState', options))
             return;
         const activeObj = this.canvas.getActiveObject();
         this._hideAllMaskLabels();
@@ -818,11 +859,11 @@ export class ImageEditor {
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {
-                    await this.loadFromState(after);
+                    await this._loadFromState(after, this._withAnimationQueueBypass());
                 }
                 executedOnce = true;
             }, async () => {
-                await this.loadFromState(before);
+                await this._loadFromState(before, this._withAnimationQueueBypass());
             });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
@@ -837,11 +878,15 @@ export class ImageEditor {
     undo() {
         if (this._disposed)
             return Promise.resolve();
+        if (!this._canRunIdleOperation('undo'))
+            return Promise.resolve();
         const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
         return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     redo() {
         if (this._disposed)
+            return Promise.resolve();
+        if (!this._canRunIdleOperation('redo'))
             return Promise.resolve();
         const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
         return job.finally(() => this._refreshUiAfterQueuedAnimation());
@@ -1046,7 +1091,7 @@ export class ImageEditor {
                 this._restoreMergedImageDisplayGeometry(geometry);
             },
             saveState: () => this._captureSnapshot(),
-            loadFromState: (snapshot) => this.loadFromState(snapshot),
+            loadFromState: (snapshot) => this._loadFromState(snapshot, this._withInternalOperationOptions(operationToken, this._withAnimationQueueBypass())),
             removeAllMasksNoHistory: () => {
                 const ctx = this._buildRemoveMaskContext();
                 removeAllMasksImpl(ctx, { saveHistory: false });
@@ -1119,7 +1164,7 @@ export class ImageEditor {
                 this._cropSession = s;
             },
             saveState: () => this._captureSnapshot(),
-            loadFromState: (snapshot) => this.loadFromState(snapshot),
+            loadFromState: (snapshot) => this._loadFromState(snapshot, this._withInternalOperationOptions(operationToken, this._withAnimationQueueBypass())),
             loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
@@ -1131,7 +1176,7 @@ export class ImageEditor {
         };
     }
     _updateInputs() {
-        const scaleId = this.elements.scaleRate;
+        const scaleId = this.elements.scalePercentageInput;
         if (!scaleId)
             return;
         const scaleEl = document.getElementById(scaleId);
@@ -1164,25 +1209,25 @@ export class ImageEditor {
             });
             return;
         }
-        this._setDisabled('scaleRate', !hasImg || isBusy);
-        this._setDisabled('rotationLeftInput', !hasImg || isBusy);
-        this._setDisabled('rotationRightInput', !hasImg || isBusy);
-        this._setDisabled('zoomInBtn', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutBtn', !hasImg || isBusy || this.currentScale <= this.options.minScale);
-        this._setDisabled('rotateLeftBtn', !hasImg || isBusy);
-        this._setDisabled('rotateRightBtn', !hasImg || isBusy);
-        this._setDisabled('addMaskBtn', !hasImg || isBusy);
-        this._setDisabled('removeMaskBtn', !hasSelectedMask || isBusy);
-        this._setDisabled('removeAllMasksBtn', !hasMasks || isBusy);
-        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isBusy);
-        this._setDisabled('downloadBtn', !hasImg || isBusy);
-        this._setDisabled('resetBtn', !hasImg || isDefault || isBusy);
-        this._setDisabled('undoBtn', !hasImg || isBusy || !canUndo);
-        this._setDisabled('redoBtn', !hasImg || isBusy || !canRedo);
-        this._setDisabled('cropBtn', !hasImg || isBusy);
+        this._setDisabled('scalePercentageInput', !hasImg || isBusy);
+        this._setDisabled('rotateLeftDegreesInput', !hasImg || isBusy);
+        this._setDisabled('rotateRightDegreesInput', !hasImg || isBusy);
+        this._setDisabled('zoomInButton', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
+        this._setDisabled('zoomOutButton', !hasImg || isBusy || this.currentScale <= this.options.minScale);
+        this._setDisabled('rotateLeftButton', !hasImg || isBusy);
+        this._setDisabled('rotateRightButton', !hasImg || isBusy);
+        this._setDisabled('createMaskButton', !hasImg || isBusy);
+        this._setDisabled('removeSelectedMaskButton', !hasSelectedMask || isBusy);
+        this._setDisabled('removeAllMasksButton', !hasMasks || isBusy);
+        this._setDisabled('mergeMasksButton', !hasImg || !hasMasks || isBusy);
+        this._setDisabled('downloadImageButton', !hasImg || isBusy);
+        this._setDisabled('resetImageTransformButton', !hasImg || isDefault || isBusy);
+        this._setDisabled('undoButton', !hasImg || isBusy || !canUndo);
+        this._setDisabled('redoButton', !hasImg || isBusy || !canRedo);
+        this._setDisabled('enterCropModeButton', !hasImg || isBusy);
         this._setDisabled('imageInput', isBusy);
-        this._setDisabled('applyCropBtn', true);
-        this._setDisabled('cancelCropBtn', true);
+        this._setDisabled('applyCropButton', true);
+        this._setDisabled('cancelCropButton', true);
     }
     _setDisabled(key, disabled) {
         var _a;

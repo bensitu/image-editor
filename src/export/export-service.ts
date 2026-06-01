@@ -185,6 +185,42 @@ function resolveMultiplier(requested: unknown, fallback: number): number {
     return Number.isFinite(fb) && fb > 0 ? fb : 1;
 }
 
+function readCanvasDimension(
+    canvas: FabricNS.Canvas,
+    getterName: 'getWidth' | 'getHeight',
+    propertyName: 'width' | 'height',
+): number {
+    const canvasLike = canvas as FabricNS.Canvas & {
+        width?: number;
+        height?: number;
+        getWidth?: () => number;
+        getHeight?: () => number;
+    };
+    const getter = canvasLike[getterName];
+    const value = typeof getter === 'function' ? getter.call(canvasLike) : canvasLike[propertyName];
+    return Math.max(1, Math.ceil(Number.isFinite(value) ? Number(value) : 1));
+}
+
+function assertExportPixelBudget(
+    ctx: ExportServiceContext,
+    multiplier: number,
+    region: IntegerRegion | null,
+): void {
+    const sourceWidth = region?.width ?? readCanvasDimension(ctx.canvas, 'getWidth', 'width');
+    const sourceHeight = region?.height ?? readCanvasDimension(ctx.canvas, 'getHeight', 'height');
+    const outputWidth = Math.max(1, Math.ceil(sourceWidth * multiplier));
+    const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
+    const pixelCount = outputWidth * outputHeight;
+    const maxPixels = ctx.options.maxExportPixels;
+
+    if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
+        throw new RangeError(
+            `[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
+                `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`,
+        );
+    }
+}
+
 /**
  * Compute the export region passed to Fabric's `toDataURL`. Returns
  * `null` to mean "no region clipping — emit the full canvas", which
@@ -611,8 +647,12 @@ async function convertDataUrlToOpaqueJpeg(
  * @throws DOMException if the data URL is malformed and `atob` rejects.
  */
 function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
+    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
+    if (!match || !match[1]?.trim()) {
+        throw new Error('exportImageFile received a malformed or empty image data URL.');
+    }
     const commaAt = dataUrl.indexOf(',');
-    const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
+    const base64 = dataUrl.slice(commaAt + 1).replace(/\s/g, '');
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
         // Explicitly allocate a fresh ArrayBuffer so the resulting
@@ -747,6 +787,7 @@ export async function exportImageBase64(
         const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
         const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
         const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
+        assertExportPixelBudget(ctx, multiplier, region);
         const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
 

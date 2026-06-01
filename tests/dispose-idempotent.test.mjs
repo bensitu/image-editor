@@ -59,7 +59,7 @@ const { ImageEditor } = await import('../src/index.ts');
  * never reached after dispose can still exist on the stub without
  * affecting any assertion.
  */
-class MockFabricCanvas {
+class Mockcanvas {
     constructor(_el, opts) {
         this.opts = opts;
         this.disposed = false;
@@ -180,7 +180,7 @@ function makeFabricStub() {
         Ellipse: class FakeEllipse {},
         Polygon: class FakePolygon {},
     };
-    fabric.Canvas = class CapturingCanvas extends MockFabricCanvas {
+    fabric.Canvas = class CapturingCanvas extends Mockcanvas {
         constructor(...args) {
             super(...args);
             fabric.lastCanvas = this;
@@ -209,28 +209,28 @@ function makeFabricStub() {
 function installDom() {
     const dom = new JSDOM(
         `<!DOCTYPE html><html><body>
-            <div id="imgPlaceholder"></div>
+            <div id="imagePlaceholder"></div>
             <div id="canvasContainer">
-                <canvas id="fabricCanvas"></canvas>
+                <canvas id="canvas"></canvas>
             </div>
-            <input id="scaleRate" value="100">
-            <input id="rotationLeftInput" value="90">
-            <input id="rotationRightInput" value="90">
-            <button id="rotateLeftBtn"></button>
-            <button id="rotateRightBtn"></button>
-            <button id="addMaskBtn"></button>
-            <button id="removeMaskBtn"></button>
-            <button id="removeAllMasksBtn"></button>
-            <button id="mergeBtn"></button>
-            <button id="downloadBtn"></button>
-            <button id="zoomInBtn"></button>
-            <button id="zoomOutBtn"></button>
-            <button id="resetBtn"></button>
-            <button id="undoBtn"></button>
-            <button id="redoBtn"></button>
-            <button id="cropBtn"></button>
-            <button id="applyCropBtn"></button>
-            <button id="cancelCropBtn"></button>
+            <input id="scalePercentageInput" value="100">
+            <input id="rotateLeftDegreesInput" value="90">
+            <input id="rotateRightDegreesInput" value="90">
+            <button id="rotateLeftButton"></button>
+            <button id="rotateRightButton"></button>
+            <button id="createMaskButton"></button>
+            <button id="removeSelectedMaskButton"></button>
+            <button id="removeAllMasksButton"></button>
+            <button id="mergeMasksButton"></button>
+            <button id="downloadImageButton"></button>
+            <button id="zoomInButton"></button>
+            <button id="zoomOutButton"></button>
+            <button id="resetImageTransformButton"></button>
+            <button id="undoButton"></button>
+            <button id="redoButton"></button>
+            <button id="enterCropModeButton"></button>
+            <button id="applyCropButton"></button>
+            <button id="cancelCropButton"></button>
             <input id="imageInput" type="file">
             <div id="uploadArea"></div>
             <ul id="maskList"></ul>
@@ -322,19 +322,19 @@ test('dispose() drains the DOM bindings registry', () => {
     // in `tests/dom-bindings.property.test.mjs`, which exercises the
     // same drain on the registry primitive in isolation.
     for (const id of [
-        'addMaskBtn',
-        'zoomInBtn',
-        'zoomOutBtn',
-        'resetBtn',
-        'removeMaskBtn',
-        'removeAllMasksBtn',
-        'mergeBtn',
-        'downloadBtn',
-        'undoBtn',
-        'redoBtn',
-        'cropBtn',
-        'applyCropBtn',
-        'cancelCropBtn',
+        'createMaskButton',
+        'zoomInButton',
+        'zoomOutButton',
+        'resetImageTransformButton',
+        'removeSelectedMaskButton',
+        'removeAllMasksButton',
+        'mergeMasksButton',
+        'downloadImageButton',
+        'undoButton',
+        'redoButton',
+        'enterCropModeButton',
+        'applyCropButton',
+        'cancelCropButton',
         'uploadArea',
     ]) {
         const el = document.getElementById(id);

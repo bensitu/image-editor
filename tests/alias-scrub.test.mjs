@@ -56,6 +56,25 @@ const DEPRECATED_ALIASES = Object.freeze([
     'canvasEl',
     'containerEl',
     'placeholderEl',
+    'imgPlaceholder',
+    'scaleRate',
+    'rotationLeftInput',
+    'rotationRightInput',
+    'rotateLeftBtn',
+    'rotateRightBtn',
+    'addMaskBtn',
+    'removeMaskBtn',
+    'removeAllMasksBtn',
+    'mergeBtn',
+    'downloadBtn',
+    'zoomInBtn',
+    'zoomOutBtn',
+    'resetBtn',
+    'undoBtn',
+    'redoBtn',
+    'cropBtn',
+    'applyCropBtn',
+    'cancelCropBtn',
 ]);
 
 /**
@@ -119,7 +138,7 @@ function stripCssComments(source) {
  * Find every Deprecated_Alias occurrence in `text` using case-sensitive
  * word-boundary matching. Returns an array of `{ alias, index }` so
  * failures can name the offender precisely. Identifiers like
- * `resetBtn`, `resetTransform`, `mergeMasks`, and `addMaskBtn` are NOT
+ * `resetImageTransformButton`, `resetTransform`, `mergeMasks`, and `createMaskButton` are NOT
  * matched because the alias is followed (or preceded) by another word
  * character, so no word boundary exists.
  */

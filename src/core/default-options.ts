@@ -60,6 +60,7 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
 
     // Export
     exportMultiplier: 1,
+    maxExportPixels: 50000000,
     exportImageAreaByDefault: true,
 
     // Mask defaults
@@ -151,6 +152,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
+    'maxExportPixels',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
@@ -190,6 +192,12 @@ function normalizeQualityOption(value: unknown): number {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return DEFAULT_OPTIONS.downsampleQuality;
     return Math.max(0, Math.min(1, numeric));
+}
+
+function normalizeMaxExportPixels(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_OPTIONS.maxExportPixels;
+    return Math.max(1, Math.floor(numeric));
 }
 
 /**
@@ -233,6 +241,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
             resolved.downsampleQuality = normalizeQualityOption(value);
             continue;
         }
+        if (key === 'maxExportPixels') {
+            resolved.maxExportPixels = normalizeMaxExportPixels(value);
+            continue;
+        }
         // Type-system note: `resolved[key] = value` is sound here because
         // `KNOWN_TOP_LEVEL_KEYS` and the per-key `value` come from the same
         // `ImageEditorOptions` shape; the cast satisfies the indexed write.
@@ -246,6 +258,7 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         raw.onWarning,
     );
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
+    resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
 
     // ── Label ─────────────────────────────────────────────
     // Deep-merge `textOptions` so user keys override defaults while leaving

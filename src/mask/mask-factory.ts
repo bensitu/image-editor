@@ -86,7 +86,7 @@ import type {
 } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
-import { attachMaskHoverHandlers } from './mask-style.js';
+import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 
 /**
@@ -133,6 +133,92 @@ function isFabricObjectLike(value: unknown): value is FabricNS.FabricObject {
     return typeof candidate.set === 'function' && typeof candidate.on === 'function';
 }
 
+function warnInvalidMask(options: ResolvedOptions, reason: string): void {
+    reportWarning(options, null, `createMask skipped: ${reason}.`);
+}
+
+function isResolvableNumericInput(value: unknown): boolean {
+    if (value === undefined) return true;
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'function') return true;
+    if (typeof value === 'string' && value.endsWith('%')) {
+        return Number.isFinite(Number.parseFloat(value));
+    }
+    return false;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
+function validateFiniteField(
+    options: ResolvedOptions,
+    fieldName: string,
+    value: unknown,
+): value is number {
+    if (isFiniteNumber(value)) return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a finite number`);
+    return false;
+}
+
+function validatePositiveField(
+    options: ResolvedOptions,
+    fieldName: string,
+    value: unknown,
+): value is number {
+    if (isFiniteNumber(value) && value > 0) return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a positive number`);
+    return false;
+}
+
+function validateNonNegativeField(
+    options: ResolvedOptions,
+    fieldName: string,
+    value: unknown,
+): value is number {
+    if (isFiniteNumber(value) && value >= 0) return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a non-negative number`);
+    return false;
+}
+
+function validateNumericInputs(options: ResolvedOptions, config: MaskConfig): boolean {
+    const fields: Array<[string, unknown]> = [
+        ['width', config.width],
+        ['height', config.height],
+        ['rx', config.rx],
+        ['ry', config.ry],
+        ['radius', config.radius],
+        ['left', config.left],
+        ['top', config.top],
+    ];
+    for (const [fieldName, value] of fields) {
+        if (!isResolvableNumericInput(value)) {
+            warnInvalidMask(options, `${fieldName} is not a supported numeric value`);
+            return false;
+        }
+    }
+    return true;
+}
+
+function resolvePolygonPoints(
+    options: ResolvedOptions,
+    points: MaskConfig['points'],
+): Array<{ x: number; y: number }> | null {
+    if (!Array.isArray(points) || points.length < 3) {
+        warnInvalidMask(options, 'polygon masks require at least three points');
+        return null;
+    }
+    const resolvedPoints = points.map(coercePoint);
+    const allFinite = resolvedPoints.every(
+        (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+    );
+    if (!allFinite) {
+        warnInvalidMask(options, 'polygon points must contain finite x/y values');
+        return null;
+    }
+    return resolvedPoints;
+}
+
 /**
  * Create a mask via the resolved {@link MaskConfig} and add it to the
  * canvas.
@@ -167,6 +253,7 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
     if (!canvas) return null;
 
     const shapeType = config.shape ?? 'rect';
+    if (!validateNumericInputs(options, config)) return null;
 
     // ── Resolve config (defaults merged with the user overrides) ──────────
     const resolvedConfig: ResolvedMaskConfig = {
@@ -219,6 +306,43 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
         options,
     );
 
+    const rx =
+        config.rx !== undefined ? resolveNumeric(config.rx, 'x', 0, canvas, options) : undefined;
+    const ry =
+        config.ry !== undefined ? resolveNumeric(config.ry, 'y', 0, canvas, options) : undefined;
+    const radius =
+        shapeType === 'circle'
+            ? resolveNumeric(
+                  config.radius,
+                  'x',
+                  Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
+                  canvas,
+                  options,
+              )
+            : undefined;
+    const polygonPoints =
+        shapeType === 'polygon' ? resolvePolygonPoints(options, config.points) : null;
+
+    if (
+        !validateFiniteField(options, 'left', left) ||
+        !validateFiniteField(options, 'top', top) ||
+        !validatePositiveField(options, 'width', resolvedConfig.width) ||
+        !validatePositiveField(options, 'height', resolvedConfig.height) ||
+        !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
+        !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
+        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)
+    ) {
+        return null;
+    }
+    if (
+        (rx !== undefined && !validateNonNegativeField(options, 'rx', rx)) ||
+        (ry !== undefined && !validateNonNegativeField(options, 'ry', ry)) ||
+        (radius !== undefined && !validatePositiveField(options, 'radius', radius)) ||
+        (shapeType === 'polygon' && polygonPoints === null)
+    ) {
+        return null;
+    }
+
     // ── Expand canvas only when placement would overflow ─────────────────
     //    Never use viewport dimensions as a floor here — that would shrink a
     //    wider-than-viewport canvas (removing its scrollbar).
@@ -262,14 +386,6 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
             originX: 'left' as FabricNS.TOriginX,
             originY: 'top' as FabricNS.TOriginY,
         };
-        const rx =
-            config.rx !== undefined
-                ? resolveNumeric(config.rx, 'x', 0, canvas, options)
-                : undefined;
-        const ry =
-            config.ry !== undefined
-                ? resolveNumeric(config.ry, 'y', 0, canvas, options)
-                : undefined;
 
         switch (shapeType) {
             case 'circle':
@@ -277,13 +393,7 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
                     left,
                     top,
                     ...originProps,
-                    radius: resolveNumeric(
-                        config.radius,
-                        'x',
-                        Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
-                        canvas,
-                        options,
-                    ),
+                    radius,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
                     angle: resolvedConfig.angle ?? 0,
@@ -304,9 +414,6 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
                 });
                 break;
             case 'polygon': {
-                // Coerce both `{x,y}` object and `[x,y]` tuple inputs.
-                const points = (config.points ?? []).map(coercePoint);
-
                 // Bounding-box realignment.
                 //
                 // Fabric.js v7's `Polygon` constructor centers the
@@ -323,7 +430,7 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
                 //      rect top-left.
                 // After the shift the rendered bounding-box top-left
                 // matches the resolved `(left, top)`.
-                const polygon = new fabricModule.Polygon(points, {
+                const polygon = new fabricModule.Polygon(polygonPoints!, {
                     ...originProps,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
@@ -500,6 +607,7 @@ export function removeSelectedMask(ctx: RemoveMaskContext): void {
     const active = ctx.canvas.getActiveObject();
     if (!active || !isMaskObject(active)) return;
     ctx.removeLabelForMask(active);
+    detachMaskHoverHandlers(active);
     ctx.canvas.remove(active);
     ctx.canvas.discardActiveObject();
     ctx.updateMaskList();
@@ -539,6 +647,7 @@ export function removeAllMasks(ctx: RemoveMaskContext, options: RemoveAllMasksOp
 
     for (const maskObject of masks) {
         ctx.removeLabelForMask(maskObject);
+        detachMaskHoverHandlers(maskObject);
         ctx.canvas.remove(maskObject);
     }
     ctx.canvas.discardActiveObject();

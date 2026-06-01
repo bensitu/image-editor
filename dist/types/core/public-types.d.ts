@@ -263,7 +263,7 @@ export interface RemoveAllMasksOptions {
  * Unknown or missing element IDs are ignored safely by `ui/dom-bindings.ts`.
  */
 export interface ElementIdMap {
-    /** The `<canvas>` element. @default 'fabricCanvas' */
+    /** The `<canvas>` element. @default 'canvas' */
     canvas?: string;
     /**
      * Scrollable viewport container that wraps the canvas.
@@ -271,50 +271,50 @@ export interface ElementIdMap {
      * If omitted, `canvas.parentElement` is used.
      */
     canvasContainer?: string | null;
-    /** Empty-state placeholder element. @default 'imgPlaceholder' */
-    imgPlaceholder?: string;
-    /** Scale percentage input/display. @default 'scaleRate' */
-    scaleRate?: string;
-    /** Left-rotation step input. @default 'rotationLeftInput' */
-    rotationLeftInput?: string;
-    /** Right-rotation step input. @default 'rotationRightInput' */
-    rotationRightInput?: string;
-    /** Rotate left button. @default 'rotateLeftBtn' */
-    rotateLeftBtn?: string;
-    /** Rotate right button. @default 'rotateRightBtn' */
-    rotateRightBtn?: string;
-    /** Add mask button. @default 'addMaskBtn' */
-    addMaskBtn?: string;
-    /** Remove selected mask button. @default 'removeMaskBtn' */
-    removeMaskBtn?: string;
-    /** Remove all masks button. @default 'removeAllMasksBtn' */
-    removeAllMasksBtn?: string;
-    /** Merge masks into image button. @default 'mergeBtn' */
-    mergeBtn?: string;
-    /** Download image button. @default 'downloadBtn' */
-    downloadBtn?: string;
+    /** Empty-state placeholder element. @default 'imagePlaceholder' */
+    imagePlaceholder?: string;
+    /** Scale percentage input/display. @default 'scalePercentageInput' */
+    scalePercentageInput?: string;
+    /** Left-rotation step input. @default 'rotateLeftDegreesInput' */
+    rotateLeftDegreesInput?: string;
+    /** Right-rotation step input. @default 'rotateRightDegreesInput' */
+    rotateRightDegreesInput?: string;
+    /** Rotate left button. @default 'rotateLeftButton' */
+    rotateLeftButton?: string;
+    /** Rotate right button. @default 'rotateRightButton' */
+    rotateRightButton?: string;
+    /** Add mask button. @default 'createMaskButton' */
+    createMaskButton?: string;
+    /** Remove selected mask button. @default 'removeSelectedMaskButton' */
+    removeSelectedMaskButton?: string;
+    /** Remove all masks button. @default 'removeAllMasksButton' */
+    removeAllMasksButton?: string;
+    /** Merge masks into image button. @default 'mergeMasksButton' */
+    mergeMasksButton?: string;
+    /** Download image button. @default 'downloadImageButton' */
+    downloadImageButton?: string;
     /** Mask list container (`<ul>` or `<ol>`). @default 'maskList' */
-    maskList?: string;
-    /** Zoom in button. @default 'zoomInBtn' */
-    zoomInBtn?: string;
-    /** Zoom out button. @default 'zoomOutBtn' */
-    zoomOutBtn?: string;
-    /** Reset transform button. @default 'resetBtn' */
-    resetBtn?: string;
-    /** Undo button. @default 'undoBtn' */
-    undoBtn?: string;
-    /** Redo button. @default 'redoBtn' */
-    redoBtn?: string;
+    maskList?: string | null;
+    /** Zoom in button. @default 'zoomInButton' */
+    zoomInButton?: string;
+    /** Zoom out button. @default 'zoomOutButton' */
+    zoomOutButton?: string;
+    /** Reset transform button. @default 'resetImageTransformButton' */
+    resetImageTransformButton?: string;
+    /** Undo button. @default 'undoButton' */
+    undoButton?: string;
+    /** Redo button. @default 'redoButton' */
+    redoButton?: string;
     /** File input for image selection. @default 'imageInput' */
-    imageInput?: string;
-    /** Enter crop mode button. @default 'cropBtn' */
-    cropBtn?: string;
-    /** Apply crop button. @default 'applyCropBtn' */
-    applyCropBtn?: string;
-    /** Cancel crop button. @default 'cancelCropBtn' */
-    cancelCropBtn?: string;
+    imageInput?: string | null;
+    /** Enter crop mode button. @default 'enterCropModeButton' */
+    enterCropModeButton?: string;
+    /** Apply crop button. @default 'applyCropButton' */
+    applyCropButton?: string;
+    /** Cancel crop button. @default 'cancelCropButton' */
+    cancelCropButton?: string;
     /** Clickable upload area (delegates to imageInput). @default 'uploadArea' */
-    uploadArea?: string;
+    uploadArea?: string | null;
 }
 /**
  * Options for {@link ImageEditor.exportImageBase64}.
@@ -437,6 +437,11 @@ export interface ImageEditorOptions {
     /** Output resolution multiplier for exports. @default 1 */
     exportMultiplier?: number;
     /**
+     * Maximum output pixel count after applying the export multiplier.
+     * Invalid values fall back to the default guard. @default 50000000
+     */
+    maxExportPixels?: number | null;
+    /**
      * When `true`, {@link ImageEditor.downloadImage} clips the export to the
      * image bounding box with masks baked in. @default true
      */
@@ -490,8 +495,9 @@ export interface ImageEditorOptions {
  * Produced by `core/default-options.ts` after merging defaults with the
  * user-supplied partial options.
  */
-export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning' | 'downsampleQuality'>> {
+export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'onImageLoaded' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxExportPixels'>> {
     downsampleQuality: number;
+    maxExportPixels: number;
     label: LabelConfig;
     crop: Required<CropConfig>;
     onImageLoaded: (() => void) | null;

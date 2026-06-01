@@ -61,6 +61,14 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
     return {
         callOrder,
         toDataURLArgs,
+        width: 100,
+        height: 100,
+        getWidth() {
+            return this.width;
+        },
+        getHeight() {
+            return this.height;
+        },
         // The bake-in/restore bracket (Task 18.4) reads `getObjects()`
         // through `withMaskStyleBackup` to enumerate masks. These tests
         // exercise format/multiplier/no-image gates rather than the
@@ -92,6 +100,7 @@ function makeContext(overrides = {}) {
         defaultDownloadFileName: 'edited_image.jpg',
         downsampleQuality: 0.92,
         exportMultiplier: 1,
+        maxExportPixels: 50000000,
         exportImageAreaByDefault: true,
         ...(overrides.options ?? {}),
     };
@@ -355,6 +364,21 @@ test('exportImageBase64: resolves multiplier from options and editor defaults', 
     );
 });
 
+test('exportImageBase64: rejects oversized outputs before rendering', async () => {
+    const canvas = makeMockCanvas();
+    const ctx = makeContext({
+        canvas,
+        options: { maxExportPixels: 10000 },
+    });
+
+    await assert.rejects(
+        () => exportImageBase64(ctx, { multiplier: 2 }),
+        /maxExportPixels/,
+        'oversized export must fail with a clear maxExportPixels error',
+    );
+    assert.equal(canvas.toDataURLArgs.length, 0, 'oversized export must not render');
+});
+
 // ─── the documented contract — exportImageFile surface ─────────────────────────────
 
 test('exportImageFile: produces a File whose name matches options.fileName', async () => {
@@ -370,6 +394,16 @@ test('exportImageFile: produces a File whose name matches options.fileName', asy
     assert.equal(file.name, 'snapshot.jpg');
     assert.equal(file.type, 'image/jpeg');
     assert.ok(file.size > 0, 'File must contain decoded bytes');
+});
+
+test('exportImageFile: rejects empty image data URLs', async () => {
+    const canvas = makeMockCanvas('data:image/jpeg;base64,');
+    const ctx = makeContext({ canvas });
+
+    await assert.rejects(
+        () => exportImageFile(ctx, { fileType: 'jpeg' }),
+        /malformed or empty image data URL/,
+    );
 });
 
 test('exportImageFile: falls back to Buffer when global atob is unavailable', async () => {

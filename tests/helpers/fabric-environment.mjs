@@ -84,54 +84,54 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
     domCounter += 1;
 
     const ids = {
-        canvas: `fabricCanvas-${domCounter}`,
+        canvas: `canvas-${domCounter}`,
         canvasContainer: `canvasContainer-${domCounter}`,
-        imgPlaceholder: `imgPlaceholder-${domCounter}`,
-        scaleRate: `scaleRate-${domCounter}`,
-        rotationLeftInput: `rotationLeftInput-${domCounter}`,
-        rotationRightInput: `rotationRightInput-${domCounter}`,
-        rotateLeftBtn: `rotateLeftBtn-${domCounter}`,
-        rotateRightBtn: `rotateRightBtn-${domCounter}`,
-        addMaskBtn: `addMaskBtn-${domCounter}`,
-        removeMaskBtn: `removeMaskBtn-${domCounter}`,
-        removeAllMasksBtn: `removeAllMasksBtn-${domCounter}`,
-        mergeBtn: `mergeBtn-${domCounter}`,
-        downloadBtn: `downloadBtn-${domCounter}`,
+        imagePlaceholder: `imagePlaceholder-${domCounter}`,
+        scalePercentageInput: `scalePercentageInput-${domCounter}`,
+        rotateLeftDegreesInput: `rotateLeftDegreesInput-${domCounter}`,
+        rotateRightDegreesInput: `rotateRightDegreesInput-${domCounter}`,
+        rotateLeftButton: `rotateLeftButton-${domCounter}`,
+        rotateRightButton: `rotateRightButton-${domCounter}`,
+        createMaskButton: `createMaskButton-${domCounter}`,
+        removeSelectedMaskButton: `removeSelectedMaskButton-${domCounter}`,
+        removeAllMasksButton: `removeAllMasksButton-${domCounter}`,
+        mergeMasksButton: `mergeMasksButton-${domCounter}`,
+        downloadImageButton: `downloadImageButton-${domCounter}`,
         maskList: `maskList-${domCounter}`,
-        zoomInBtn: `zoomInBtn-${domCounter}`,
-        zoomOutBtn: `zoomOutBtn-${domCounter}`,
-        resetBtn: `resetBtn-${domCounter}`,
-        undoBtn: `undoBtn-${domCounter}`,
-        redoBtn: `redoBtn-${domCounter}`,
+        zoomInButton: `zoomInButton-${domCounter}`,
+        zoomOutButton: `zoomOutButton-${domCounter}`,
+        resetImageTransformButton: `resetImageTransformButton-${domCounter}`,
+        undoButton: `undoButton-${domCounter}`,
+        redoButton: `redoButton-${domCounter}`,
         imageInput: `imageInput-${domCounter}`,
         uploadArea: `uploadArea-${domCounter}`,
-        cropBtn: `cropBtn-${domCounter}`,
-        applyCropBtn: `applyCropBtn-${domCounter}`,
-        cancelCropBtn: `cancelCropBtn-${domCounter}`,
+        enterCropModeButton: `enterCropModeButton-${domCounter}`,
+        applyCropButton: `applyCropButton-${domCounter}`,
+        cancelCropButton: `cancelCropButton-${domCounter}`,
     };
 
     document.body.innerHTML = `
-        <div id="${ids.imgPlaceholder}" class="d-flex"></div>
+        <div id="${ids.imagePlaceholder}" class="d-flex"></div>
         <div id="${ids.uploadArea}"></div>
         <div id="${ids.canvasContainer}"><canvas id="${ids.canvas}"></canvas></div>
-        <input id="${ids.scaleRate}" value="100">
-        <input id="${ids.rotationLeftInput}" value="90">
-        <input id="${ids.rotationRightInput}" value="90">
-        <button id="${ids.rotateLeftBtn}"></button>
-        <button id="${ids.rotateRightBtn}"></button>
-        <button id="${ids.addMaskBtn}"></button>
-        <button id="${ids.removeMaskBtn}"></button>
-        <button id="${ids.removeAllMasksBtn}"></button>
-        <button id="${ids.mergeBtn}"></button>
-        <button id="${ids.downloadBtn}"></button>
-        <button id="${ids.zoomInBtn}"></button>
-        <button id="${ids.zoomOutBtn}"></button>
-        <button id="${ids.resetBtn}"></button>
-        <button id="${ids.undoBtn}"></button>
-        <button id="${ids.redoBtn}"></button>
-        <button id="${ids.cropBtn}"></button>
-        <button id="${ids.applyCropBtn}"></button>
-        <button id="${ids.cancelCropBtn}"></button>
+        <input id="${ids.scalePercentageInput}" value="100">
+        <input id="${ids.rotateLeftDegreesInput}" value="90">
+        <input id="${ids.rotateRightDegreesInput}" value="90">
+        <button id="${ids.rotateLeftButton}"></button>
+        <button id="${ids.rotateRightButton}"></button>
+        <button id="${ids.createMaskButton}"></button>
+        <button id="${ids.removeSelectedMaskButton}"></button>
+        <button id="${ids.removeAllMasksButton}"></button>
+        <button id="${ids.mergeMasksButton}"></button>
+        <button id="${ids.downloadImageButton}"></button>
+        <button id="${ids.zoomInButton}"></button>
+        <button id="${ids.zoomOutButton}"></button>
+        <button id="${ids.resetImageTransformButton}"></button>
+        <button id="${ids.undoButton}"></button>
+        <button id="${ids.redoButton}"></button>
+        <button id="${ids.enterCropModeButton}"></button>
+        <button id="${ids.applyCropButton}"></button>
+        <button id="${ids.cancelCropButton}"></button>
         <input id="${ids.imageInput}" type="file">
         <ul id="${ids.maskList}"></ul>
     `;

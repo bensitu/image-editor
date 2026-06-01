@@ -79,16 +79,16 @@ function installDom(elementIds) {
 // so exercises both "key omitted from idMap" and
 // "key in idMap but element missing from DOM" paths.
 const KEY_POOL = [
-    'zoomInBtn',
-    'zoomOutBtn',
-    'undoBtn',
-    'redoBtn',
-    'rotateLeftBtn',
-    'rotateRightBtn',
-    'addMaskBtn',
-    'removeMaskBtn',
-    'mergeBtn',
-    'downloadBtn',
+    'zoomInButton',
+    'zoomOutButton',
+    'undoButton',
+    'redoButton',
+    'rotateLeftButton',
+    'rotateRightButton',
+    'createMaskButton',
+    'removeSelectedMaskButton',
+    'mergeMasksButton',
+    'downloadImageButton',
     'unmappedKey', // resolver returns null for this one
 ];
 

@@ -335,25 +335,25 @@ function initEditor() {
         exportImageAreaByDefault: true,
     });
     editor.init({
-        canvas: 'fabricCanvas',
-        imgPlaceholder: 'imgPlaceholder',
-        scaleRate: 'scaleRate',
-        rotateLeftBtn: 'rotateLeftBtn',
-        rotateRightBtn: 'rotateRightBtn',
-        rotationLeftInput: 'leftValue',
-        rotationRightInput: 'rightValue',
+        canvas: 'canvas',
+        imagePlaceholder: 'imagePlaceholder',
+        scalePercentageInput: 'scalePercentageInput',
+        rotateLeftButton: 'rotateLeftButton',
+        rotateRightButton: 'rotateRightButton',
+        rotateLeftDegreesInput: 'leftValue',
+        rotateRightDegreesInput: 'rightValue',
         // The demo binds its own Create Mask button so the shape selector
         // is honored. Setting the ID to `null` tells the editor to skip
         // the default click binding.
-        addMaskBtn: null,
-        removeMaskBtn: 'removeMaskBtn',
-        removeAllMasksBtn: 'removeAllMasksBtn',
-        mergeBtn: 'mergeBtn',
-        downloadBtn: 'downloadBtn',
+        createMaskButton: null,
+        removeSelectedMaskButton: 'removeSelectedMaskButton',
+        removeAllMasksButton: 'removeAllMasksButton',
+        mergeMasksButton: 'mergeMasksButton',
+        downloadImageButton: 'downloadImageButton',
         maskList: 'maskList',
-        cropBtn: 'cropBtn',
-        applyCropBtn: 'applyCropBtn',
-        cancelCropBtn: 'cancelCropBtn',
+        enterCropModeButton: 'enterCropModeButton',
+        applyCropButton: 'applyCropButton',
+        cancelCropButton: 'cancelCropButton',
         canvasContainer: null,
         imageInput: null,
         uploadArea: null,
@@ -401,7 +401,7 @@ function canLoadImage() {
 function updateDemoControls() {
     const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
     const busy = isEditorBusy();
-    const addMaskButtonElement = getOptionalElement('addMaskBtn');
+    const addMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadButtonElement = getOptionalElement('loadBtn');
 
@@ -524,12 +524,12 @@ if (loadButtonElement) {
     loadButtonElement.addEventListener('click', handleLoadButtonClick);
 }
 
-const addMaskButtonElement = getOptionalElement('addMaskBtn');
+const addMaskButtonElement = getOptionalElement('createMaskButton');
 if (addMaskButtonElement) {
     addMaskButtonElement.addEventListener('click', handleAddMaskButtonClick);
 }
 
-['cropBtn', 'applyCropBtn', 'cancelCropBtn'].forEach(function (buttonId) {
+['enterCropModeButton', 'applyCropButton', 'cancelCropButton'].forEach(function (buttonId) {
     getOptionalElement(buttonId)?.addEventListener('click', scheduleDemoControlUpdate);
 });
 

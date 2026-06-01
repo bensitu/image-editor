@@ -14,7 +14,7 @@
  *   - The test uses jsdom and a minimal Fabric canvas stub because it only observes
  *     DOM disabled flags.
  *   - apply and cancel crop buttons stay enabled while the crop session is active.
- *   - scaleRate, rotation inputs, and imageInput are re-enabled after the session
+ *   - scalePercentageInput, rotation inputs, and imageInput are re-enabled after the session
  *     ends.
  *
  * Out of scope:
@@ -45,7 +45,12 @@ import { JSDOM } from 'jsdom';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
 
-const CONTROL_KEYS = ['scaleRate', 'rotationLeftInput', 'rotationRightInput', 'imageInput'];
+const CONTROL_KEYS = [
+    'scalePercentageInput',
+    'rotateLeftDegreesInput',
+    'rotateRightDegreesInput',
+    'imageInput',
+];
 
 class MockCanvas {
     constructor() {
@@ -70,28 +75,28 @@ class MockCanvas {
 function installDom() {
     const dom = new JSDOM(
         `<!DOCTYPE html><html><body>
-            <div id="imgPlaceholder"></div>
+            <div id="imagePlaceholder"></div>
             <div id="canvasContainer">
-                <canvas id="fabricCanvas"></canvas>
+                <canvas id="canvas"></canvas>
             </div>
-            <input id="scaleRate" value="100">
-            <input id="rotationLeftInput" value="90">
-            <input id="rotationRightInput" value="90">
-            <button id="rotateLeftBtn"></button>
-            <button id="rotateRightBtn"></button>
-            <button id="addMaskBtn"></button>
-            <button id="removeMaskBtn"></button>
-            <button id="removeAllMasksBtn"></button>
-            <button id="mergeBtn"></button>
-            <button id="downloadBtn"></button>
-            <button id="zoomInBtn"></button>
-            <button id="zoomOutBtn"></button>
-            <button id="resetBtn"></button>
-            <button id="undoBtn"></button>
-            <button id="redoBtn"></button>
-            <button id="cropBtn"></button>
-            <button id="applyCropBtn"></button>
-            <button id="cancelCropBtn"></button>
+            <input id="scalePercentageInput" value="100">
+            <input id="rotateLeftDegreesInput" value="90">
+            <input id="rotateRightDegreesInput" value="90">
+            <button id="rotateLeftButton"></button>
+            <button id="rotateRightButton"></button>
+            <button id="createMaskButton"></button>
+            <button id="removeSelectedMaskButton"></button>
+            <button id="removeAllMasksButton"></button>
+            <button id="mergeMasksButton"></button>
+            <button id="downloadImageButton"></button>
+            <button id="zoomInButton"></button>
+            <button id="zoomOutButton"></button>
+            <button id="resetImageTransformButton"></button>
+            <button id="undoButton"></button>
+            <button id="redoButton"></button>
+            <button id="enterCropModeButton"></button>
+            <button id="applyCropButton"></button>
+            <button id="cancelCropButton"></button>
             <input id="imageInput" type="file">
             <div id="uploadArea"></div>
             <ul id="maskList"></ul>
@@ -147,8 +152,8 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     for (const key of CONTROL_KEYS) {
         assert.equal(getControl(key).disabled, true, `${key} must be frozen in crop mode`);
     }
-    assert.equal(getControl('applyCropBtn').disabled, false);
-    assert.equal(getControl('cancelCropBtn').disabled, false);
+    assert.equal(getControl('applyCropButton').disabled, false);
+    assert.equal(getControl('cancelCropButton').disabled, false);
 
     editor._cropSession = null;
     editor._updateUI();

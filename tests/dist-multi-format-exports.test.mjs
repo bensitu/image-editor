@@ -312,6 +312,39 @@ test('CJS bundle enumerable exports cover the canonical runtime set', () => {
     }
 });
 
+test('package root CommonJS require exposes the v2 namespace shape', () => {
+    if (!distIsBuilt) return;
+
+    const require = createRequire(path.join(repoRoot, 'package.json'));
+    const packageModule = require(repoRoot);
+
+    assert.equal(
+        typeof packageModule,
+        'object',
+        'v2 CommonJS require must return a namespace object, not the constructor directly',
+    );
+    assert.equal(
+        typeof packageModule.ImageEditor,
+        'function',
+        'package root require must expose `ImageEditor` as a named export',
+    );
+    assert.equal(
+        typeof packageModule.default,
+        'function',
+        'package root require must expose `ImageEditor` as `default`',
+    );
+    assert.equal(
+        packageModule.default,
+        packageModule.ImageEditor,
+        'package root require default and named ImageEditor exports must match',
+    );
+    assert.equal(
+        typeof packageModule.isMaskObject,
+        'function',
+        'package root require must expose `isMaskObject`',
+    );
+});
+
 // ─── 3. UMD bundle exposes canonical exports ──────────
 
 test('UMD bundle installs `ImageEditor` global with canonical surface', async () => {

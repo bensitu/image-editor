@@ -41,7 +41,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
-const { createMask } = await import('../src/mask/mask-factory.ts');
+const { createMask, removeAllMasks } = await import('../src/mask/mask-factory.ts');
 const { applyMaskSelectedStyle, applyMaskUnselectedStyle } =
     await import('../src/mask/mask-style.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
@@ -74,7 +74,14 @@ function makeFabric() {
                     height: this.height ?? 50,
                 };
             };
-            this.on = function () {};
+            this.__listeners = {};
+            this.on = function (event, handler) {
+                (this.__listeners[event] ??= []).push(handler);
+            };
+            this.off = function (event, handler) {
+                const handlers = this.__listeners[event] ?? [];
+                this.__listeners[event] = handlers.filter((candidate) => candidate !== handler);
+            };
         };
 
     return {
@@ -98,7 +105,14 @@ function makeFabric() {
                     height: Math.max(...ys) - Math.min(...ys),
                 };
             };
-            this.on = function () {};
+            this.__listeners = {};
+            this.on = function (event, handler) {
+                (this.__listeners[event] ??= []).push(handler);
+            };
+            this.off = function (event, handler) {
+                const handlers = this.__listeners[event] ?? [];
+                this.__listeners[event] = handlers.filter((candidate) => candidate !== handler);
+            };
         },
     };
 }
@@ -121,6 +135,12 @@ function makeCanvas() {
         },
         add(o) {
             this.objects.push(o);
+        },
+        remove(o) {
+            this.objects = this.objects.filter((candidate) => candidate !== o);
+        },
+        getObjects() {
+            return [...this.objects];
         },
         bringObjectToFront() {},
         setActiveObject() {},
@@ -155,6 +175,7 @@ function makeContext(overrides = {}) {
         },
         updateMaskList: () => {},
         saveCanvasState: () => {},
+        removeLabelForMask: () => {},
     };
 }
 
@@ -220,6 +241,61 @@ test('invalid fabricGenerator result is rejected without canvas or history write
     assert.equal(saveCalls, 0, 'history must not be saved');
     assert.equal(warnings.length, 1, 'invalid generator must emit one warning');
     assert.match(warnings[0].message, /fabricGenerator/);
+});
+
+test('invalid mask configs are rejected without canvas, counter, list, or history writes', () => {
+    const cases = [
+        { width: 'abc' },
+        { width: -1 },
+        { left: () => Infinity },
+        { shape: 'polygon', points: [] },
+        {
+            shape: 'polygon',
+            points: [
+                [0, 0],
+                ['x', 1],
+                [2, 2],
+            ],
+        },
+        { shape: 'circle', radius: Number.NaN },
+        { fabricGenerator: () => ({}) },
+    ];
+
+    for (const config of cases) {
+        const warnings = [];
+        const ctx = makeContext({
+            options: {
+                onWarning: (error, message) => {
+                    warnings.push({ error, message });
+                },
+            },
+        });
+        let counter = 0;
+        let counterWrites = 0;
+        let listUpdates = 0;
+        let saveCalls = 0;
+        ctx.getMaskCounter = () => counter;
+        ctx.setMaskCounter = (next) => {
+            counter = next;
+            counterWrites += 1;
+        };
+        ctx.updateMaskList = () => {
+            listUpdates += 1;
+        };
+        ctx.saveCanvasState = () => {
+            saveCalls += 1;
+        };
+
+        const result = createMask(ctx, config);
+
+        assert.equal(result, null, `invalid config must be rejected: ${JSON.stringify(config)}`);
+        assert.equal(ctx.canvas.objects.length, 0, 'invalid mask must not be added');
+        assert.equal(counter, 0, 'mask counter must remain unchanged');
+        assert.equal(counterWrites, 0, 'mask counter setter must not run');
+        assert.equal(listUpdates, 0, 'mask list must not update');
+        assert.equal(saveCalls, 0, 'history must not be saved');
+        assert.equal(warnings.length, 1, 'invalid config must emit one warning');
+    }
 });
 
 test('per-shape origin is left/top for rect, circle, ellipse', () => {
@@ -375,4 +451,21 @@ test('createMask preserves custom stroke through select and unselect styling', (
     applyMaskUnselectedStyle(mask);
     assert.equal(mask.stroke, '#123456');
     assert.equal(mask.strokeWidth, 4);
+});
+
+test('removeAllMasks detaches hover handlers from removed mask objects', () => {
+    const ctx = makeContext();
+    const mask = createMask(ctx, { shape: 'rect' });
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.__listeners.mouseover.length, 1);
+    assert.equal(mask.__listeners.mouseout.length, 1);
+    assert.ok(mask.__imageEditorMaskHandlers, 'hover handler tag must be attached');
+
+    removeAllMasks(ctx, { saveHistory: false });
+
+    assert.equal(ctx.canvas.objects.length, 0, 'mask must be removed from the canvas');
+    assert.equal(mask.__listeners.mouseover.length, 0, 'mouseover handler must be detached');
+    assert.equal(mask.__listeners.mouseout.length, 0, 'mouseout handler must be detached');
+    assert.equal(mask.__imageEditorMaskHandlers, undefined, 'hover handler tag must be cleared');
 });

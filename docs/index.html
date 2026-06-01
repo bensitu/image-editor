@@ -199,7 +199,7 @@
                 <div class="tool-group" role="group" aria-label="Zoom actions">
                     <button
                         class="btn tool-button icon-button"
-                        id="zoomOutBtn"
+                        id="zoomOutButton"
                         type="button"
                         title="Zoom Out"
                         aria-label="Zoom Out"
@@ -207,12 +207,17 @@
                         -
                     </button>
                     <div class="scale-readout">
-                        <input id="scaleRate" value="100" readonly aria-label="Scale percent" />
+                        <input
+                            id="scalePercentageInput"
+                            value="100"
+                            readonly
+                            aria-label="Scale percent"
+                        />
                         <span>%</span>
                     </div>
                     <button
                         class="btn tool-button icon-button"
-                        id="zoomInBtn"
+                        id="zoomInButton"
                         type="button"
                         title="Zoom In"
                         aria-label="Zoom In"
@@ -224,7 +229,7 @@
                 <div class="tool-group" role="group" aria-label="Rotation actions">
                     <button
                         class="btn tool-button icon-button"
-                        id="rotateLeftBtn"
+                        id="rotateLeftButton"
                         type="button"
                         title="Rotate Left"
                         aria-label="Rotate Left"
@@ -240,7 +245,7 @@
                     />
                     <button
                         class="btn tool-button icon-button"
-                        id="rotateRightBtn"
+                        id="rotateRightButton"
                         type="button"
                         title="Rotate Right"
                         aria-label="Rotate Right"
@@ -259,16 +264,16 @@
                 <div class="tool-group" role="group" aria-label="History actions">
                     <button
                         class="btn tool-button"
-                        id="resetBtn"
+                        id="resetImageTransformButton"
                         type="button"
                         data-i18n="resetTransform"
                     >
                         Reset
                     </button>
-                    <button id="undoBtn" class="btn tool-button" type="button" data-i18n="undo">
+                    <button id="undoButton" class="btn tool-button" type="button" data-i18n="undo">
                         Undo
                     </button>
-                    <button id="redoBtn" class="btn tool-button" type="button" data-i18n="redo">
+                    <button id="redoButton" class="btn tool-button" type="button" data-i18n="redo">
                         Redo
                     </button>
                 </div>
@@ -286,7 +291,7 @@
                     </select>
                     <button
                         class="btn tool-button"
-                        id="addMaskBtn"
+                        id="createMaskButton"
                         type="button"
                         data-i18n="createMask"
                     >
@@ -294,7 +299,7 @@
                     </button>
                     <button
                         class="btn tool-button"
-                        id="removeMaskBtn"
+                        id="removeSelectedMaskButton"
                         type="button"
                         data-i18n="removeMask"
                     >
@@ -302,7 +307,7 @@
                     </button>
                     <button
                         class="btn tool-button"
-                        id="removeAllMasksBtn"
+                        id="removeAllMasksButton"
                         type="button"
                         data-i18n="removeAllMasks"
                     >
@@ -311,11 +316,16 @@
                 </div>
 
                 <div class="tool-group" role="group" aria-label="Crop actions">
-                    <button id="cropBtn" class="btn tool-button" type="button" data-i18n="crop">
+                    <button
+                        id="enterCropModeButton"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="crop"
+                    >
                         Crop
                     </button>
                     <button
-                        id="applyCropBtn"
+                        id="applyCropButton"
                         class="btn tool-button"
                         type="button"
                         data-i18n="apply"
@@ -323,7 +333,7 @@
                         Apply
                     </button>
                     <button
-                        id="cancelCropBtn"
+                        id="cancelCropButton"
                         class="btn tool-button"
                         type="button"
                         data-i18n="cancel"
@@ -334,7 +344,7 @@
 
                 <div class="tool-group" role="group" aria-label="Export actions">
                     <button
-                        id="mergeBtn"
+                        id="mergeMasksButton"
                         class="btn tool-button"
                         type="button"
                         data-i18n="mergeMasks"
@@ -342,7 +352,7 @@
                         Merge
                     </button>
                     <button
-                        id="downloadBtn"
+                        id="downloadImageButton"
                         class="btn tool-button primary-action"
                         type="button"
                         data-i18n="download"
@@ -363,21 +373,21 @@
             <section class="workspace-grid" aria-label="Canvas workspace">
                 <div id="canvasWrapper" class="canvas-shell">
                     <figure
-                        id="imgPlaceholder"
+                        id="imagePlaceholder"
                         class="placeholder-panel flex-column justify-content-center align-items-center"
                         draggable="false"
                     >
                         <img
-                            class="imgPlaceholderIcon"
+                            class="imagePlaceholderIcon"
                             src="assets/no-images-gray.svg"
                             alt="No images"
                         />
-                        <figcaption class="imgPlaceholderText" data-i18n="noImageLoaded">
+                        <figcaption class="imagePlaceholderText" data-i18n="noImageLoaded">
                             No image loaded
                         </figcaption>
                     </figure>
                     <figure id="imageContainer" class="imageContainer transparent">
-                        <canvas id="fabricCanvas" aria-label="Editable Image"
+                        <canvas id="canvas" aria-label="Editable Image"
                             >Editable Image(your browser does not support canvas)</canvas
                         >
                         <figcaption id="canvasCaption" class="visually-hidden">

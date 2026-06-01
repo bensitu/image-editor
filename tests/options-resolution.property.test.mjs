@@ -67,6 +67,7 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
+    'maxExportPixels',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
@@ -132,6 +133,7 @@ function topLevelScalarOverridesArb() {
                 noNaN: true,
                 noDefaultInfinity: true,
             }),
+            maxExportPixels: fc.integer({ min: 1, max: 100000000 }),
             exportImageAreaByDefault: fc.boolean(),
             defaultMaskWidth: fc.integer({ min: 0, max: 1000 }),
             defaultMaskHeight: fc.integer({ min: 0, max: 1000 }),
@@ -511,6 +513,7 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         assert.equal(resolved.onError, null);
         assert.equal(resolved.onWarning, null);
         assert.equal(resolved.maxHistorySize, 50);
+        assert.equal(resolved.maxExportPixels, 50000000);
     }
 });
 
@@ -519,4 +522,11 @@ test('maxHistorySize is normalized to a positive integer', () => {
     assert.equal(resolveOptions({ maxHistorySize: 0 }).maxHistorySize, 1);
     assert.equal(resolveOptions({ maxHistorySize: -10 }).maxHistorySize, 1);
     assert.equal(resolveOptions({ maxHistorySize: Number.NaN }).maxHistorySize, 50);
+});
+
+test('maxExportPixels is normalized to a positive integer', () => {
+    assert.equal(resolveOptions({ maxExportPixels: 123.9 }).maxExportPixels, 123);
+    assert.equal(resolveOptions({ maxExportPixels: null }).maxExportPixels, 50000000);
+    assert.equal(resolveOptions({ maxExportPixels: -10 }).maxExportPixels, 50000000);
+    assert.equal(resolveOptions({ maxExportPixels: Number.NaN }).maxExportPixels, 50000000);
 });

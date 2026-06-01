@@ -354,10 +354,10 @@ test('enterCropMode clamps crop rectangle movement and scaling inside image boun
     cropRect.scaleY = 100;
     movingHandler();
 
-    assert.equal(cropRect.left, 10, 'left edge must clamp to the padded image inset');
-    assert.equal(cropRect.top, 10, 'top edge must clamp to the padded image inset');
-    assert.ok(cropRect.width * cropRect.scaleX <= 580, 'scaled width must fit bounds');
-    assert.ok(cropRect.height * cropRect.scaleY <= 380, 'scaled height must fit bounds');
+    assert.equal(cropRect.left, 0, 'left edge must clamp to the image content bound');
+    assert.equal(cropRect.top, 0, 'top edge must clamp to the image content bound');
+    assert.ok(cropRect.width * cropRect.scaleX <= 600, 'scaled width must fit bounds');
+    assert.ok(cropRect.height * cropRect.scaleY <= 400, 'scaled height must fit bounds');
 
     cropRect.left = 10000;
     cropRect.top = 10000;
@@ -365,8 +365,51 @@ test('enterCropMode clamps crop rectangle movement and scaling inside image boun
     cropRect.scaleY = 1;
     movingHandler();
 
-    assert.equal(cropRect.left, 540, 'right edge must clamp inside the padded image inset');
-    assert.equal(cropRect.top, 340, 'bottom edge must clamp inside the padded image inset');
+    assert.equal(cropRect.left, 550, 'right edge must clamp inside the image content bound');
+    assert.equal(cropRect.top, 350, 'bottom edge must clamp inside the image content bound');
+});
+
+test('applyCrop can export the full image content bounds', async () => {
+    const { ctx, canvas, sessionRef } = makeContext();
+    enterCropMode(ctx);
+
+    const cropRect = sessionRef.current.cropRect;
+    cropRect.set({
+        left: 0,
+        top: 0,
+        width: 600,
+        height: 400,
+        scaleX: 1,
+        scaleY: 1,
+    });
+
+    await applyCrop(ctx);
+
+    assert.deepEqual(
+        {
+            left: canvas.toDataURLCalls[0].left,
+            top: canvas.toDataURLCalls[0].top,
+            width: canvas.toDataURLCalls[0].width,
+            height: canvas.toDataURLCalls[0].height,
+        },
+        { left: 0, top: 0, width: 600, height: 400 },
+        'full-image crop must use the image content bounds without stroke inset',
+    );
+});
+
+test('applyCrop rejects a rotated crop rectangle when crop rotation is disabled', async () => {
+    const { ctx, historyManager, sessionRef } = makeContext();
+    enterCropMode(ctx);
+
+    sessionRef.current.cropRect.angle = 15;
+
+    await assert.rejects(
+        () => applyCrop(ctx),
+        CropApplyError,
+        'rotated crop rect must reject when allowRotationOfCropRect is false',
+    );
+    assert.equal(historyManager.history.length, 0, 'rejected rotated crop must not push history');
+    assert.equal(sessionRef.current, null, 'rejected rotated crop must clear the crop session');
 });
 
 test('enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect, exactly one history entry on success, undo restores the pre-crop snapshot, session cleared and crop-rect handlers detached after completion', async () => {

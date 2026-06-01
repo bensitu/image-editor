@@ -114,28 +114,28 @@ resolve to `undefined`.
 ### HTML
 
 ```html
-<canvas id="fabricCanvas"></canvas>
+<canvas id="canvas"></canvas>
 
-<button id="zoomInBtn">Zoom In</button>
-<button id="zoomOutBtn">Zoom Out</button>
-<button id="rotateLeftBtn">Rotate Left</button>
-<input id="rotationLeftInput" type="number" value="90" />
-<button id="rotateRightBtn">Rotate Right</button>
-<input id="rotationRightInput" type="number" value="90" />
+<button id="zoomInButton">Zoom In</button>
+<button id="zoomOutButton">Zoom Out</button>
+<button id="rotateLeftButton">Rotate Left</button>
+<input id="rotateLeftDegreesInput" type="number" value="90" />
+<button id="rotateRightButton">Rotate Right</button>
+<input id="rotateRightDegreesInput" type="number" value="90" />
 
-<button id="addMaskBtn">Add Mask</button>
-<button id="removeMaskBtn">Remove Mask</button>
-<button id="removeAllMasksBtn">Remove All Masks</button>
+<button id="createMaskButton">Add Mask</button>
+<button id="removeSelectedMaskButton">Remove Mask</button>
+<button id="removeAllMasksButton">Remove All Masks</button>
 
-<button id="cropBtn">Crop</button>
-<button id="applyCropBtn">Apply Crop</button>
-<button id="cancelCropBtn">Cancel Crop</button>
+<button id="enterCropModeButton">Crop</button>
+<button id="applyCropButton">Apply Crop</button>
+<button id="cancelCropButton">Cancel Crop</button>
 
-<button id="mergeBtn">Merge</button>
-<button id="downloadBtn">Download</button>
-<button id="undoBtn">Undo</button>
-<button id="redoBtn">Redo</button>
-<button id="resetBtn">Reset</button>
+<button id="mergeMasksButton">Merge</button>
+<button id="downloadImageButton">Download</button>
+<button id="undoButton">Undo</button>
+<button id="redoButton">Redo</button>
+<button id="resetImageTransformButton">Reset</button>
 
 <input id="imageInput" type="file" accept="image/*" />
 <ul id="maskList"></ul>
@@ -155,24 +155,24 @@ const editor = new ImageEditor(fabric, {
 } satisfies ImageEditorOptions);
 
 editor.init({
-    canvas: 'fabricCanvas',
-    zoomInBtn: 'zoomInBtn',
-    zoomOutBtn: 'zoomOutBtn',
-    rotateLeftBtn: 'rotateLeftBtn',
-    rotationLeftInput: 'rotationLeftInput',
-    rotateRightBtn: 'rotateRightBtn',
-    rotationRightInput: 'rotationRightInput',
-    addMaskBtn: 'addMaskBtn',
-    removeMaskBtn: 'removeMaskBtn',
-    removeAllMasksBtn: 'removeAllMasksBtn',
-    cropBtn: 'cropBtn',
-    applyCropBtn: 'applyCropBtn',
-    cancelCropBtn: 'cancelCropBtn',
-    mergeBtn: 'mergeBtn',
-    downloadBtn: 'downloadBtn',
-    undoBtn: 'undoBtn',
-    redoBtn: 'redoBtn',
-    resetBtn: 'resetBtn',
+    canvas: 'canvas',
+    zoomInButton: 'zoomInButton',
+    zoomOutButton: 'zoomOutButton',
+    rotateLeftButton: 'rotateLeftButton',
+    rotateLeftDegreesInput: 'rotateLeftDegreesInput',
+    rotateRightButton: 'rotateRightButton',
+    rotateRightDegreesInput: 'rotateRightDegreesInput',
+    createMaskButton: 'createMaskButton',
+    removeSelectedMaskButton: 'removeSelectedMaskButton',
+    removeAllMasksButton: 'removeAllMasksButton',
+    enterCropModeButton: 'enterCropModeButton',
+    applyCropButton: 'applyCropButton',
+    cancelCropButton: 'cancelCropButton',
+    mergeMasksButton: 'mergeMasksButton',
+    downloadImageButton: 'downloadImageButton',
+    undoButton: 'undoButton',
+    redoButton: 'redoButton',
+    resetImageTransformButton: 'resetImageTransformButton',
     imageInput: 'imageInput',
     maskList: 'maskList',
 });
@@ -195,6 +195,10 @@ const { ImageEditor } = require('@bensitu/image-editor');
 
 const editor = new ImageEditor(fabric, { canvasWidth: 800, canvasHeight: 600 });
 ```
+
+In v2, `require('@bensitu/image-editor')` returns a namespace object with
+`ImageEditor`, `default`, and `isMaskObject`; it does not return the
+constructor directly.
 
 ## Public API
 
@@ -287,43 +291,44 @@ Pass an `ImageEditorOptions` object as the second constructor argument
 (or as the only argument when using the UMD global form). Unknown keys are
 ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 
-| Option                     | Default              | Description                                                                                                                                      |
-| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `canvasWidth`              | `800`                | Initial and hidden-container fallback canvas width in pixels.                                                                                    |
-| `canvasHeight`             | `600`                | Initial and hidden-container fallback canvas height in pixels.                                                                                   |
-| `backgroundColor`          | `'transparent'`      | Fabric canvas background color.                                                                                                                  |
-| `animationDuration`        | `300`                | Duration of scale and rotate animations (ms).                                                                                                    |
-| `minScale`                 | `0.1`                | Minimum scale factor.                                                                                                                            |
-| `maxScale`                 | `5.0`                | Maximum scale factor.                                                                                                                            |
-| `scaleStep`                | `0.05`               | Scale delta per zoom step.                                                                                                                       |
-| `rotationStep`             | `90`                 | Rotation step in degrees.                                                                                                                        |
-| `expandCanvasToImage`      | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                                                                              |
-| `fitImageToCanvas`         | `false`              | Fit the image inside the visible workspace viewport (highest layout precedence).                                                                 |
-| `coverImageToCanvas`       | `false`              | Scale large images down to cover the visible workspace, cap at native size, and expand overflowing canvas axes so the container can scroll.      |
-| `downsampleOnLoad`         | `true`               | Downsample large images on load.                                                                                                                 |
-| `downsampleMaxWidth`       | `4000`               | Max width before downsampling kicks in.                                                                                                          |
-| `downsampleMaxHeight`      | `3000`               | Max height before downsampling kicks in.                                                                                                         |
-| `downsampleQuality`        | `0.92`               | Lossy quality used when downsampling and exporting.                                                                                              |
-| `preserveSourceFormat`     | `true`               | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                  |
-| `downsampleMimeType`       | `null`               | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                 |
-| `imageLoadTimeoutMs`       | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                   |
-| `exportMultiplier`         | `1`                  | Output resolution multiplier.                                                                                                                    |
-| `exportImageAreaByDefault` | `true`               | Clip exports to the image bounding box and bake in masks by default.                                                                             |
-| `defaultMaskWidth`         | `50`                 | Default mask width.                                                                                                                              |
-| `defaultMaskHeight`        | `80`                 | Default mask height.                                                                                                                             |
-| `maskRotatable`            | `false`              | Allow masks to be rotated by the user.                                                                                                           |
-| `maskLabelOnSelect`        | `true`               | Show a label above a selected mask.                                                                                                              |
-| `maskLabelOffset`          | `3`                  | Pixel offset of the label from the mask's top-left corner.                                                                                       |
-| `maskName`                 | `'mask'`             | Prefix used for auto-generated mask names.                                                                                                       |
-| `groupSelection`           | `false`              | Allow Fabric multi-object group selection on the canvas.                                                                                         |
-| `showPlaceholder`          | `true`               | Show a placeholder element while no image is loaded.                                                                                             |
-| `initialImageBase64`       | `null`               | Base64 data URL auto-loaded after construction.                                                                                                  |
-| `defaultDownloadFileName`  | `'edited_image.jpg'` | Default file name used by `downloadImage()`.                                                                                                     |
-| `onImageLoaded`            | `null`               | Called once after a successful `loadImage`. Errors are caught and logged.                                                                        |
-| `onError`                  | `null`               | Called as `(error, message)` when the editor reports an error.                                                                                   |
-| `onWarning`                | `null`               | Called as `(error, message)` when the editor reports a recoverable warning.                                                                      |
-| `label`                    | see source           | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                     |
-| `crop`                     | see source           | `CropConfig` (`minWidth`, `minHeight`, `padding`, `hideMasksDuringCrop`, `preserveMasksAfterCrop` (default `false`), `allowRotationOfCropRect`). |
+| Option                     | Default              | Description                                                                                                                                                                                                                                                              |
+| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `canvasWidth`              | `800`                | Initial and hidden-container fallback canvas width in pixels.                                                                                                                                                                                                            |
+| `canvasHeight`             | `600`                | Initial and hidden-container fallback canvas height in pixels.                                                                                                                                                                                                           |
+| `backgroundColor`          | `'transparent'`      | Fabric canvas background color.                                                                                                                                                                                                                                          |
+| `animationDuration`        | `300`                | Duration of scale and rotate animations (ms).                                                                                                                                                                                                                            |
+| `minScale`                 | `0.1`                | Minimum scale factor.                                                                                                                                                                                                                                                    |
+| `maxScale`                 | `5.0`                | Maximum scale factor.                                                                                                                                                                                                                                                    |
+| `scaleStep`                | `0.05`               | Scale delta per zoom step.                                                                                                                                                                                                                                               |
+| `rotationStep`             | `90`                 | Rotation step in degrees.                                                                                                                                                                                                                                                |
+| `expandCanvasToImage`      | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                                                                                                                                                                                                      |
+| `fitImageToCanvas`         | `false`              | Fit the image inside the visible workspace viewport (highest layout precedence).                                                                                                                                                                                         |
+| `coverImageToCanvas`       | `false`              | Scale large images down to cover the visible workspace, cap at native size, and expand overflowing canvas axes so the container can scroll.                                                                                                                              |
+| `downsampleOnLoad`         | `true`               | Downsample large images on load.                                                                                                                                                                                                                                         |
+| `downsampleMaxWidth`       | `4000`               | Max width before downsampling kicks in.                                                                                                                                                                                                                                  |
+| `downsampleMaxHeight`      | `3000`               | Max height before downsampling kicks in.                                                                                                                                                                                                                                 |
+| `downsampleQuality`        | `0.92`               | Lossy quality used when downsampling and exporting.                                                                                                                                                                                                                      |
+| `preserveSourceFormat`     | `true`               | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                                                                                                                                          |
+| `downsampleMimeType`       | `null`               | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                                                                                                                                         |
+| `imageLoadTimeoutMs`       | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                           |
+| `exportMultiplier`         | `1`                  | Output resolution multiplier.                                                                                                                                                                                                                                            |
+| `maxExportPixels`          | `50000000`           | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                               |
+| `exportImageAreaByDefault` | `true`               | Clip exports to the image bounding box and bake in masks by default.                                                                                                                                                                                                     |
+| `defaultMaskWidth`         | `50`                 | Default mask width.                                                                                                                                                                                                                                                      |
+| `defaultMaskHeight`        | `80`                 | Default mask height.                                                                                                                                                                                                                                                     |
+| `maskRotatable`            | `false`              | Allow masks to be rotated by the user.                                                                                                                                                                                                                                   |
+| `maskLabelOnSelect`        | `true`               | Show a label above a selected mask.                                                                                                                                                                                                                                      |
+| `maskLabelOffset`          | `3`                  | Pixel offset of the label from the mask's top-left corner.                                                                                                                                                                                                               |
+| `maskName`                 | `'mask'`             | Prefix used for auto-generated mask names.                                                                                                                                                                                                                               |
+| `groupSelection`           | `false`              | Allow Fabric multi-object group selection on the canvas.                                                                                                                                                                                                                 |
+| `showPlaceholder`          | `true`               | Show a placeholder element while no image is loaded.                                                                                                                                                                                                                     |
+| `initialImageBase64`       | `null`               | Base64 data URL auto-loaded after construction.                                                                                                                                                                                                                          |
+| `defaultDownloadFileName`  | `'edited_image.jpg'` | Default file name used by `downloadImage()`.                                                                                                                                                                                                                             |
+| `onImageLoaded`            | `null`               | Called once after a successful `loadImage`. Errors are caught and logged.                                                                                                                                                                                                |
+| `onError`                  | `null`               | Called as `(error, message)` when the editor reports an error.                                                                                                                                                                                                           |
+| `onWarning`                | `null`               | Called as `(error, message)` when the editor reports a recoverable warning.                                                                                                                                                                                              |
+| `label`                    | see source           | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                                                                                                                                             |
+| `crop`                     | see source           | `CropConfig` (`minWidth`, `minHeight`, `padding`, `hideMasksDuringCrop`, `preserveMasksAfterCrop` (default `false`), `allowRotationOfCropRect`). Rotated crop rectangles are disabled by default; when enabled, export uses the rotated rectangle's axis-aligned bounds. |
 
 ## Example workflow
 

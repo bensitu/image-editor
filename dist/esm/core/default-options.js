@@ -19,6 +19,7 @@ export const DEFAULT_OPTIONS = {
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
     exportMultiplier: 1,
+    maxExportPixels: 50000000,
     exportImageAreaByDefault: true,
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
@@ -79,6 +80,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
+    'maxExportPixels',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
@@ -113,6 +115,12 @@ function normalizeQualityOption(value) {
         return DEFAULT_OPTIONS.downsampleQuality;
     return Math.max(0, Math.min(1, numeric));
 }
+function normalizeMaxExportPixels(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return DEFAULT_OPTIONS.maxExportPixels;
+    return Math.max(1, Math.floor(numeric));
+}
 export function resolveOptions(input) {
     var _a, _b, _c, _d, _e, _f;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -131,12 +139,17 @@ export function resolveOptions(input) {
             resolved.downsampleQuality = normalizeQualityOption(value);
             continue;
         }
+        if (key === 'maxExportPixels') {
+            resolved.maxExportPixels = normalizeMaxExportPixels(value);
+            continue;
+        }
         resolved[key] = value;
     }
     resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
     resolved.onError = normalizeCallback(raw.onError);
     resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
+    resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
     const userLabel = raw.label && typeof raw.label === 'object' ? raw.label : {};
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,

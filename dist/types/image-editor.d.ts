@@ -71,7 +71,7 @@ export declare class ImageEditor {
      *
      * @example
      * ```ts
-     * editor.init({ canvas: 'myCanvas', downloadBtn: 'dlBtn'});
+     * editor.init({ canvas: 'myCanvas', downloadImageButton: 'dlBtn'});
      * ```
      */
     init(idMap?: ElementIdMap): void;

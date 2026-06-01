@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-05-31
+## [2.0.0] - 2026-06-05
 
 This release is a behavior-preserving migration of the v1 image editor onto
 a TypeScript and Fabric.js v7 foundation, published in multiple module
@@ -25,6 +25,9 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
 - Add `fabric@^7` as a peer dependency. Consumers pass the Fabric module
   to the editor explicitly through the constructor, with a
   `globalThis.fabric` fallback for UMD usage.
+- Add `maxExportPixels` as a public export-size guard. Invalid values fall
+  back to the default budget, and oversized multiplier exports reject before
+  rendering.
 
 ### Changed
 
@@ -39,6 +42,9 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
 - Change `crop.preserveMasksAfterCrop` to default to `false`. v1
   defaulted to `true`; callers that relied on the old default must now
   pass `crop: { preserveMasksAfterCrop: true }` explicitly.
+- Change the CommonJS root entry to return the v2 namespace object
+  (`{ ImageEditor, default, isMaskObject }`) instead of returning the
+  constructor function directly.
 
 ### Removed
 
@@ -53,10 +59,72 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
   - `canvasEl`, `containerEl`, `placeholderEl` public DOM fields →
     removed; DOM references are now private to the editor and are not
     part of the public surface.
+- Remove deprecated v1 DOM binding keys from the v2 `ElementIdMap`,
+  runtime defaults, demo, and declarations:
+  - `imgPlaceholder` → `imagePlaceholder`
+  - `scaleRate` → `scalePercentageInput`
+  - `rotationLeftInput` → `rotateLeftDegreesInput`
+  - `rotationRightInput` → `rotateRightDegreesInput`
+  - `rotateLeftBtn` → `rotateLeftButton`
+  - `rotateRightBtn` → `rotateRightButton`
+  - `addMaskBtn` → `createMaskButton`
+  - `removeMaskBtn` → `removeSelectedMaskButton`
+  - `removeAllMasksBtn` → `removeAllMasksButton`
+  - `mergeBtn` → `mergeMasksButton`
+  - `downloadBtn` → `downloadImageButton`
+  - `zoomInBtn` → `zoomInButton`
+  - `zoomOutBtn` → `zoomOutButton`
+  - `resetBtn` → `resetImageTransformButton`
+  - `undoBtn` → `undoButton`
+  - `redoBtn` → `redoButton`
+  - `cropBtn` → `enterCropModeButton`
+  - `applyCropBtn` → `applyCropButton`
+  - `cancelCropBtn` → `cancelCropButton`
 - Remove root-level exports of internal helpers such as `AnimationQueue`,
   `Command`, `HistoryManager`, subsystem controllers, services, managers,
   and utility modules. The package root exports only `ImageEditor`
   (default and named), `isMaskObject`, and the documented public types.
+
+## [1.5.1] - 2026-06-02
+
+### Added
+
+- Add a CommonJS package entry so `require('@bensitu/image-editor')` returns the editor constructor while preserving namespace aliases.
+- Add regression coverage for v1 DOM binding aliases, optional upload-area bindings, package entry shapes, async initial image failures, busy-state guards, Fit/Cover scroll behavior, merge edge rendering, and crop bounds.
+- Add `maxExportPixels` to the TypeScript options surface for export-size safety.
+
+### Changed
+
+- Preserve deprecated v1 DOM binding keys until v2.0.0 while giving canonical keys precedence and warning once per deprecated key per editor instance.
+- Treat `uploadArea` as a canonical optional binding with a `null` default, matching runtime behavior and TypeScript declarations.
+
+### Fixed
+
+- Prevent `initialImageBase64` load failures from producing unhandled promise rejections; failures are reported once through `onError`.
+- Guard `undo()`, `redo()`, `loadFromState()`, and external `saveState()` calls while crop, load, animation, or another external operation owns the editor.
+- Preserve image display bounds across mask merge and undo flows so Fit/Cover images do not shrink unexpectedly.
+- Avoid one-pixel right or bottom edge artifacts when merging masks over scaled images.
+- Prevent Fit/Cover mask creation and merge operations from adding phantom cross-axis scrollbars when the image still fits the visible canvas.
+- Allow the crop rectangle to expand to the full image content bounds while keeping moved or resized crop rectangles clamped inside the image.
+- Re-check Fabric availability during `init()`, reject unsupported rotated crop rectangles unless enabled, validate mask creation inputs, cap export pixel counts, normalize layout-mode precedence, and roll back failed load overflow changes.
+
+## [1.5.0] - 2026-05-30
+
+### Added
+
+- Persist Fabric canvas dimensions in editor history snapshots so undo and redo restore layout size after rotate, scale, crop, merge, and mask expansion workflows.
+- Add full canonical DOM binding keys for the 1.x line, using semantic names such as `imagePlaceholder`, `scalePercentageInput`, `rotateLeftDegreesInput`, `removeSelectedMaskButton`, `downloadImageButton`, and `enterCropModeButton`.
+
+### Changed
+
+- Keep deprecated DOM binding keys with `*Btn` names as explicit 1.x aliases with one-time migration warnings.
+- Update the docs demo and README examples to use canonical DOM binding keys.
+
+### Fixed
+
+- Block non-crop programmatic operations while crop mode is active while keeping `applyCrop()` and `cancelCrop()` available.
+- Harden reset, image-load rollback, Fabric state restoration, animation queue cancellation, and crop failure paths against partial state updates.
+- Clean up mask and crop event handlers on removal and disposal, restore captured canvas `maxWidth`, and tolerate missing drag-and-drop `dataTransfer` in the docs demo.
 
 ## [1.4.2] - 2026-05-28
 

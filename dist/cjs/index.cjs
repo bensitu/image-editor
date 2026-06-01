@@ -113,6 +113,7 @@ const DEFAULT_OPTIONS = {
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
     exportMultiplier: 1,
+    maxExportPixels: 50000000,
     exportImageAreaByDefault: true,
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
@@ -171,6 +172,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
+    'maxExportPixels',
     'exportImageAreaByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
@@ -205,6 +207,12 @@ function normalizeQualityOption(value) {
         return DEFAULT_OPTIONS.downsampleQuality;
     return Math.max(0, Math.min(1, numeric));
 }
+function normalizeMaxExportPixels(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return DEFAULT_OPTIONS.maxExportPixels;
+    return Math.max(1, Math.floor(numeric));
+}
 function resolveOptions(input) {
     var _a, _b, _c, _d, _e, _f;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -223,12 +231,17 @@ function resolveOptions(input) {
             resolved.downsampleQuality = normalizeQualityOption(value);
             continue;
         }
+        if (key === 'maxExportPixels') {
+            resolved.maxExportPixels = normalizeMaxExportPixels(value);
+            continue;
+        }
         resolved[key] = value;
     }
     resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
     resolved.onError = normalizeCallback(raw.onError);
     resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
+    resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
     const userLabel = raw.label && typeof raw.label === 'object' ? raw.label : {};
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,
@@ -858,6 +871,18 @@ function reattachMaskHoverHandlers(mask) {
         tagged.set(patch);
     attachMaskHoverHandlers(tagged);
 }
+function detachMaskHoverHandlers(mask) {
+    const tagged = mask;
+    if (!tagged.__imageEditorMaskHandlers)
+        return;
+    try {
+        tagged.off('mouseover', tagged.__imageEditorMaskHandlers.mouseover);
+        tagged.off('mouseout', tagged.__imageEditorMaskHandlers.mouseout);
+    }
+    catch {
+    }
+    delete tagged.__imageEditorMaskHandlers;
+}
 function captureMaskStyleBackup(mask) {
     var _a, _b, _c, _d, _e, _f;
     return {
@@ -975,6 +1000,19 @@ function clampQuality$1(quality) {
     if (!Number.isFinite(num))
         return CROPPED_EXPORT_QUALITY_FALLBACK;
     return Math.max(0, Math.min(1, num));
+}
+function getCropRectContentBounds(cropRect) {
+    const angle = Number(cropRect.angle) || 0;
+    const normalizedAngle = Math.abs(angle % 360);
+    if (normalizedAngle > 0.01 && Math.abs(normalizedAngle - 360) > 0.01) {
+        return getObjectBBox(cropRect);
+    }
+    return {
+        left: Number(cropRect.left) || 0,
+        top: Number(cropRect.top) || 0,
+        width: Math.max(0, (Number(cropRect.width) || 0) * Math.abs(Number(cropRect.scaleX) || 1)),
+        height: Math.max(0, (Number(cropRect.height) || 0) * Math.abs(Number(cropRect.scaleY) || 1)),
+    };
 }
 function removeCropRect(ctx, session) {
     for (const targetHandlers of session.handlers) {
@@ -1109,10 +1147,12 @@ function enterCropMode(ctx) {
     const padding = Number.isFinite(Number(options.crop.padding))
         ? Number(options.crop.padding)
         : CROP_DEFAULT_PADDING;
-    const rectLeft = Math.max(0, Math.floor(imageBounds.left + padding));
-    const rectTop = Math.max(0, Math.floor(imageBounds.top + padding));
-    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width - padding * 2));
-    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height - padding * 2));
+    const boundsLeft = Math.max(0, Math.floor(imageBounds.left));
+    const boundsTop = Math.max(0, Math.floor(imageBounds.top));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
+    const rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
+    const rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
     const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
     const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
@@ -1183,10 +1223,10 @@ function enterCropMode(ctx) {
             const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
             const scaledWidth = cropWidth * nextScaleX;
             const scaledHeight = cropHeight * nextScaleY;
-            const maxLeft = Math.max(rectLeft, rectLeft + maxCropWidth - scaledWidth);
-            const maxTop = Math.max(rectTop, rectTop + maxCropHeight - scaledHeight);
-            const nextLeft = Math.min(maxLeft, Math.max(rectLeft, Number(cropRect.left) || rectLeft));
-            const nextTop = Math.min(maxTop, Math.max(rectTop, Number(cropRect.top) || rectTop));
+            const maxLeft = Math.max(boundsLeft, boundsLeft + maxCropWidth - scaledWidth);
+            const maxTop = Math.max(boundsTop, boundsTop + maxCropHeight - scaledHeight);
+            const nextLeft = Math.min(maxLeft, Math.max(boundsLeft, Number(cropRect.left) || boundsLeft));
+            const nextTop = Math.min(maxTop, Math.max(boundsTop, Number(cropRect.top) || boundsTop));
             cropRect.set({
                 left: nextLeft,
                 top: nextTop,
@@ -1246,7 +1286,11 @@ async function applyCrop(ctx) {
     const preserveMasks = !!ctx.options.crop.preserveMasksAfterCrop;
     try {
         cropRect.setCoords();
-        const rectBounds = cropRect.getBoundingRect();
+        const cropAngle = Number(cropRect.angle) || 0;
+        if (!ctx.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
+            throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
+        }
+        const rectBounds = getCropRectContentBounds(cropRect);
         const cropRegion = getClampedCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight(), { includePartialPixels: false });
         const preservedRecords = preserveMasks
             ? capturePreservedMasks(canvas, cropRegion)
@@ -1345,6 +1389,25 @@ function resolveMultiplier(requested, fallback) {
         return num;
     const fb = Number(fallback);
     return Number.isFinite(fb) && fb > 0 ? fb : 1;
+}
+function readCanvasDimension(canvas, getterName, propertyName) {
+    const canvasLike = canvas;
+    const getter = canvasLike[getterName];
+    const value = typeof getter === 'function' ? getter.call(canvasLike) : canvasLike[propertyName];
+    return Math.max(1, Math.ceil(Number.isFinite(value) ? Number(value) : 1));
+}
+function assertExportPixelBudget(ctx, multiplier, region) {
+    var _a, _b;
+    const sourceWidth = (_a = region === null || region === void 0 ? void 0 : region.width) !== null && _a !== void 0 ? _a : readCanvasDimension(ctx.canvas, 'getWidth', 'width');
+    const sourceHeight = (_b = region === null || region === void 0 ? void 0 : region.height) !== null && _b !== void 0 ? _b : readCanvasDimension(ctx.canvas, 'getHeight', 'height');
+    const outputWidth = Math.max(1, Math.ceil(sourceWidth * multiplier));
+    const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
+    const pixelCount = outputWidth * outputHeight;
+    const maxPixels = ctx.options.maxExportPixels;
+    if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
+        throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
+            `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`);
+    }
 }
 function computeExportRegion(ctx, exportImageArea) {
     if (!exportImageArea)
@@ -1630,8 +1693,13 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
     return off.toDataURL('image/jpeg', quality);
 }
 function dataUrlToBytes(dataUrl) {
+    var _a;
+    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
+    if (!match || !((_a = match[1]) === null || _a === void 0 ? void 0 : _a.trim())) {
+        throw new Error('exportImageFile received a malformed or empty image data URL.');
+    }
     const commaAt = dataUrl.indexOf(',');
-    const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
+    const base64 = dataUrl.slice(commaAt + 1).replace(/\s/g, '');
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
         const buffer = new ArrayBuffer(binary.length);
@@ -1690,6 +1758,7 @@ async function exportImageBase64(ctx, options) {
         const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
         const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
         const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
+        assertExportPixelBudget(ctx, multiplier, region);
         const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
         let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region));
@@ -2532,12 +2601,81 @@ function isFabricObjectLike(value) {
     const candidate = value;
     return typeof candidate.set === 'function' && typeof candidate.on === 'function';
 }
+function warnInvalidMask(options, reason) {
+    reportWarning(options, null, `createMask skipped: ${reason}.`);
+}
+function isResolvableNumericInput(value) {
+    if (value === undefined)
+        return true;
+    if (typeof value === 'number')
+        return Number.isFinite(value);
+    if (typeof value === 'function')
+        return true;
+    if (typeof value === 'string' && value.endsWith('%')) {
+        return Number.isFinite(Number.parseFloat(value));
+    }
+    return false;
+}
+function isFiniteNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+function validateFiniteField(options, fieldName, value) {
+    if (isFiniteNumber(value))
+        return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a finite number`);
+    return false;
+}
+function validatePositiveField(options, fieldName, value) {
+    if (isFiniteNumber(value) && value > 0)
+        return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a positive number`);
+    return false;
+}
+function validateNonNegativeField(options, fieldName, value) {
+    if (isFiniteNumber(value) && value >= 0)
+        return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a non-negative number`);
+    return false;
+}
+function validateNumericInputs(options, config) {
+    const fields = [
+        ['width', config.width],
+        ['height', config.height],
+        ['rx', config.rx],
+        ['ry', config.ry],
+        ['radius', config.radius],
+        ['left', config.left],
+        ['top', config.top],
+    ];
+    for (const [fieldName, value] of fields) {
+        if (!isResolvableNumericInput(value)) {
+            warnInvalidMask(options, `${fieldName} is not a supported numeric value`);
+            return false;
+        }
+    }
+    return true;
+}
+function resolvePolygonPoints(options, points) {
+    if (!Array.isArray(points) || points.length < 3) {
+        warnInvalidMask(options, 'polygon masks require at least three points');
+        return null;
+    }
+    const resolvedPoints = points.map(coercePoint);
+    const allFinite = resolvedPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+    if (!allFinite) {
+        warnInvalidMask(options, 'polygon points must contain finite x/y values');
+        return null;
+    }
+    return resolvedPoints;
+}
 function createMask(ctx, config = {}) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s;
     const { canvas, options, fabric: fabricModule } = ctx;
     if (!canvas)
         return null;
     const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
+    if (!validateNumericInputs(options, config))
+        return null;
     const resolvedConfig = {
         shape: shapeType,
         width: options.defaultMaskWidth,
@@ -2569,6 +2707,27 @@ function createMask(ctx, config = {}) {
     }
     resolvedConfig.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
     resolvedConfig.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
+    const rx = config.rx !== undefined ? resolveNumeric(config.rx, 'x', 0, canvas, options) : undefined;
+    const ry = config.ry !== undefined ? resolveNumeric(config.ry, 'y', 0, canvas, options) : undefined;
+    const radius = shapeType === 'circle'
+        ? resolveNumeric(config.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options)
+        : undefined;
+    const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, config.points) : null;
+    if (!validateFiniteField(options, 'left', left) ||
+        !validateFiniteField(options, 'top', top) ||
+        !validatePositiveField(options, 'width', resolvedConfig.width) ||
+        !validatePositiveField(options, 'height', resolvedConfig.height) ||
+        !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
+        !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
+        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)) {
+        return null;
+    }
+    if ((rx !== undefined && !validateNonNegativeField(options, 'rx', rx)) ||
+        (ry !== undefined && !validateNonNegativeField(options, 'ry', ry)) ||
+        (radius !== undefined && !validatePositiveField(options, 'radius', radius)) ||
+        (shapeType === 'polygon' && polygonPoints === null)) {
+        return null;
+    }
     if (options.expandCanvasToImage) {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
@@ -2597,19 +2756,13 @@ function createMask(ctx, config = {}) {
             originX: 'left',
             originY: 'top',
         };
-        const rx = config.rx !== undefined
-            ? resolveNumeric(config.rx, 'x', 0, canvas, options)
-            : undefined;
-        const ry = config.ry !== undefined
-            ? resolveNumeric(config.ry, 'y', 0, canvas, options)
-            : undefined;
         switch (shapeType) {
             case 'circle':
                 mask = new fabricModule.Circle({
                     left,
                     top,
                     ...originProps,
-                    radius: resolveNumeric(config.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options),
+                    radius,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
                     angle: (_g = resolvedConfig.angle) !== null && _g !== void 0 ? _g : 0,
@@ -2630,12 +2783,11 @@ function createMask(ctx, config = {}) {
                 });
                 break;
             case 'polygon': {
-                const points = ((_j = config.points) !== null && _j !== void 0 ? _j : []).map(coercePoint);
-                const polygon = new fabricModule.Polygon(points, {
+                const polygon = new fabricModule.Polygon(polygonPoints, {
                     ...originProps,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
-                    angle: (_k = resolvedConfig.angle) !== null && _k !== void 0 ? _k : 0,
+                    angle: (_j = resolvedConfig.angle) !== null && _j !== void 0 ? _j : 0,
                     ...resolvedConfig.styles,
                 });
                 polygon.setCoords();
@@ -2643,8 +2795,8 @@ function createMask(ctx, config = {}) {
                 const deltaX = left - boundingRect.left;
                 const deltaY = top - boundingRect.top;
                 polygon.set({
-                    left: ((_l = polygon.left) !== null && _l !== void 0 ? _l : 0) + deltaX,
-                    top: ((_m = polygon.top) !== null && _m !== void 0 ? _m : 0) + deltaY,
+                    left: ((_k = polygon.left) !== null && _k !== void 0 ? _k : 0) + deltaX,
+                    top: ((_l = polygon.top) !== null && _l !== void 0 ? _l : 0) + deltaY,
                 });
                 polygon.setCoords();
                 mask = polygon;
@@ -2660,7 +2812,7 @@ function createMask(ctx, config = {}) {
                     height: resolvedConfig.height,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
-                    angle: (_o = resolvedConfig.angle) !== null && _o !== void 0 ? _o : 0,
+                    angle: (_m = resolvedConfig.angle) !== null && _m !== void 0 ? _m : 0,
                     ...(rx !== undefined ? { rx } : {}),
                     ...(ry !== undefined ? { ry } : {}),
                     ...resolvedConfig.styles,
@@ -2674,10 +2826,10 @@ function createMask(ctx, config = {}) {
         'transparentCorners' in config ? !!config.transparentCorners : false;
     maskObject.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
     maskObject.lockRotation = !options.maskRotatable;
-    maskObject.borderColor = (_p = config.borderColor) !== null && _p !== void 0 ? _p : 'red';
-    maskObject.cornerColor = (_q = config.cornerColor) !== null && _q !== void 0 ? _q : 'black';
-    maskObject.cornerSize = (_r = config.cornerSize) !== null && _r !== void 0 ? _r : 8;
-    const styles = ((_s = resolvedConfig.styles) !== null && _s !== void 0 ? _s : {});
+    maskObject.borderColor = (_o = config.borderColor) !== null && _o !== void 0 ? _o : 'red';
+    maskObject.cornerColor = (_p = config.cornerColor) !== null && _p !== void 0 ? _p : 'black';
+    maskObject.cornerSize = (_q = config.cornerSize) !== null && _q !== void 0 ? _q : 8;
+    const styles = ((_r = resolvedConfig.styles) !== null && _r !== void 0 ? _r : {});
     if ('stroke' in styles) {
         maskObject.stroke = styles.stroke;
     }
@@ -2710,7 +2862,7 @@ function createMask(ctx, config = {}) {
     }
     canvas.renderAll();
     ctx.saveCanvasState();
-    (_t = resolvedConfig.onCreate) === null || _t === void 0 ? void 0 : _t.call(resolvedConfig, maskObject, canvas);
+    (_s = resolvedConfig.onCreate) === null || _s === void 0 ? void 0 : _s.call(resolvedConfig, maskObject, canvas);
     return maskObject;
 }
 function removeSelectedMask(ctx) {
@@ -2718,6 +2870,7 @@ function removeSelectedMask(ctx) {
     if (!active || !isMaskObject(active))
         return;
     ctx.removeLabelForMask(active);
+    detachMaskHoverHandlers(active);
     ctx.canvas.remove(active);
     ctx.canvas.discardActiveObject();
     ctx.updateMaskList();
@@ -2730,6 +2883,7 @@ function removeAllMasks(ctx, options = {}) {
         return;
     for (const maskObject of masks) {
         ctx.removeLabelForMask(maskObject);
+        detachMaskHoverHandlers(maskObject);
         ctx.canvas.remove(maskObject);
     }
     ctx.canvas.discardActiveObject();
@@ -3018,28 +3172,30 @@ function resetFileInput(input) {
 
 const LAYOUT_EPSILON = 0.5;
 const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
+const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol.for('ImageEditorAllowDuringAnimationQueue');
 const CROP_MODE_CONTROL_KEYS = [
-    'scaleRate',
-    'rotationLeftInput',
-    'rotationRightInput',
-    'rotateLeftBtn',
-    'rotateRightBtn',
-    'addMaskBtn',
-    'removeMaskBtn',
-    'removeAllMasksBtn',
-    'mergeBtn',
-    'downloadBtn',
-    'zoomInBtn',
-    'zoomOutBtn',
-    'resetBtn',
-    'undoBtn',
-    'redoBtn',
+    'scalePercentageInput',
+    'rotateLeftDegreesInput',
+    'rotateRightDegreesInput',
+    'rotateLeftButton',
+    'rotateRightButton',
+    'createMaskButton',
+    'removeSelectedMaskButton',
+    'removeAllMasksButton',
+    'mergeMasksButton',
+    'downloadImageButton',
+    'zoomInButton',
+    'zoomOutButton',
+    'resetImageTransformButton',
+    'undoButton',
+    'redoButton',
     'imageInput',
-    'cropBtn',
-    'applyCropBtn',
-    'cancelCropBtn',
+    'enterCropModeButton',
+    'applyCropButton',
+    'cancelCropButton',
 ];
-const CROP_MODE_ENABLED_KEYS = ['applyCropBtn', 'cancelCropBtn'];
+const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
+const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -3212,34 +3368,41 @@ class ImageEditor {
         this.historyManager = new HistoryManager(this.options.maxHistorySize);
     }
     init(idMap = {}) {
-        if (!this._fabricLoaded)
-            return;
+        if (!this._fabricLoaded) {
+            const globalFabric = globalThis.fabric;
+            if (!globalFabric ||
+                typeof globalFabric.Canvas !== 'function') {
+                return;
+            }
+            this._fabric = globalFabric;
+            this._fabricLoaded = true;
+        }
         if (this._disposed)
             return;
         const defaults = {
-            canvas: 'fabricCanvas',
+            canvas: 'canvas',
             canvasContainer: null,
-            imgPlaceholder: 'imgPlaceholder',
-            scaleRate: 'scaleRate',
-            rotationLeftInput: 'rotationLeftInput',
-            rotationRightInput: 'rotationRightInput',
-            rotateLeftBtn: 'rotateLeftBtn',
-            rotateRightBtn: 'rotateRightBtn',
-            addMaskBtn: 'addMaskBtn',
-            removeMaskBtn: 'removeMaskBtn',
-            removeAllMasksBtn: 'removeAllMasksBtn',
-            mergeBtn: 'mergeBtn',
-            downloadBtn: 'downloadBtn',
+            imagePlaceholder: 'imagePlaceholder',
+            scalePercentageInput: 'scalePercentageInput',
+            rotateLeftDegreesInput: 'rotateLeftDegreesInput',
+            rotateRightDegreesInput: 'rotateRightDegreesInput',
+            rotateLeftButton: 'rotateLeftButton',
+            rotateRightButton: 'rotateRightButton',
+            createMaskButton: 'createMaskButton',
+            removeSelectedMaskButton: 'removeSelectedMaskButton',
+            removeAllMasksButton: 'removeAllMasksButton',
+            mergeMasksButton: 'mergeMasksButton',
+            downloadImageButton: 'downloadImageButton',
             maskList: 'maskList',
-            zoomInBtn: 'zoomInBtn',
-            zoomOutBtn: 'zoomOutBtn',
-            resetBtn: 'resetBtn',
-            undoBtn: 'undoBtn',
-            redoBtn: 'redoBtn',
+            zoomInButton: 'zoomInButton',
+            zoomOutButton: 'zoomOutButton',
+            resetImageTransformButton: 'resetImageTransformButton',
+            undoButton: 'undoButton',
+            redoButton: 'redoButton',
             imageInput: 'imageInput',
-            cropBtn: 'cropBtn',
-            applyCropBtn: 'applyCropBtn',
-            cancelCropBtn: 'cancelCropBtn',
+            enterCropModeButton: 'enterCropModeButton',
+            applyCropButton: 'applyCropButton',
+            cancelCropButton: 'cancelCropButton',
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
@@ -3251,7 +3414,8 @@ class ImageEditor {
         this._updateMaskList();
         this._updateUI();
         if (this.options.initialImageBase64) {
-            void this.loadImage(this.options.initialImageBase64);
+            void this.loadImage(this.options.initialImageBase64).catch(() => {
+            });
         }
         else {
             this._updatePlaceholderStatus();
@@ -3272,7 +3436,7 @@ class ImageEditor {
         else {
             this.containerElement = canvasElement.parentElement;
         }
-        const phId = this.elements.imgPlaceholder;
+        const phId = this.elements.imagePlaceholder;
         this.placeholderElement = phId ? document.getElementById(phId) : null;
         let initialW = this.options.canvasWidth;
         let initialH = this.options.canvasHeight;
@@ -3320,38 +3484,38 @@ class ImageEditor {
             if (f)
                 void this._loadImageFile(f);
         });
-        this._bindIfExists('zoomInBtn', 'click', () => {
+        this._bindIfExists('zoomInButton', 'click', () => {
             void this.scaleImage(this.currentScale + this.options.scaleStep);
         });
-        this._bindIfExists('zoomOutBtn', 'click', () => {
+        this._bindIfExists('zoomOutButton', 'click', () => {
             void this.scaleImage(this.currentScale - this.options.scaleStep);
         });
-        this._bindIfExists('resetBtn', 'click', () => {
+        this._bindIfExists('resetImageTransformButton', 'click', () => {
             void this.resetImageTransform();
         });
-        this._bindIfExists('addMaskBtn', 'click', () => {
+        this._bindIfExists('createMaskButton', 'click', () => {
             this.createMask();
         });
-        this._bindIfExists('removeMaskBtn', 'click', () => {
+        this._bindIfExists('removeSelectedMaskButton', 'click', () => {
             this.removeSelectedMask();
         });
-        this._bindIfExists('removeAllMasksBtn', 'click', () => {
+        this._bindIfExists('removeAllMasksButton', 'click', () => {
             this.removeAllMasks();
         });
-        this._bindIfExists('mergeBtn', 'click', () => {
+        this._bindIfExists('mergeMasksButton', 'click', () => {
             void this.mergeMasks();
         });
-        this._bindIfExists('downloadBtn', 'click', () => {
+        this._bindIfExists('downloadImageButton', 'click', () => {
             this.downloadImage();
         });
-        this._bindIfExists('undoBtn', 'click', () => {
+        this._bindIfExists('undoButton', 'click', () => {
             this.undo();
         });
-        this._bindIfExists('redoBtn', 'click', () => {
+        this._bindIfExists('redoButton', 'click', () => {
             this.redo();
         });
-        this._bindIfExists('rotateLeftBtn', 'click', () => {
-            const inputId = this.elements.rotationLeftInput;
+        this._bindIfExists('rotateLeftButton', 'click', () => {
+            const inputId = this.elements.rotateLeftDegreesInput;
             const inputEl = inputId
                 ? document.getElementById(inputId)
                 : null;
@@ -3363,8 +3527,8 @@ class ImageEditor {
             }
             void this.rotateImage(this.currentRotation - step);
         });
-        this._bindIfExists('rotateRightBtn', 'click', () => {
-            const inputId = this.elements.rotationRightInput;
+        this._bindIfExists('rotateRightButton', 'click', () => {
+            const inputId = this.elements.rotateRightDegreesInput;
             const inputEl = inputId
                 ? document.getElementById(inputId)
                 : null;
@@ -3376,15 +3540,15 @@ class ImageEditor {
             }
             void this.rotateImage(this.currentRotation + step);
         });
-        this._bindIfExists('cropBtn', 'click', () => {
+        this._bindIfExists('enterCropModeButton', 'click', () => {
             this.enterCropMode();
         });
-        this._bindIfExists('applyCropBtn', 'click', () => {
+        this._bindIfExists('applyCropButton', 'click', () => {
             void this.applyCrop().catch((err) => {
                 reportError(this.options, err, 'Crop apply failed.');
             });
         });
-        this._bindIfExists('cancelCropBtn', 'click', () => {
+        this._bindIfExists('cancelCropButton', 'click', () => {
             this.cancelCrop();
         });
     }
@@ -3403,12 +3567,19 @@ class ImageEditor {
             resetFileInput(inputEl);
             return;
         }
+        let dataUrl;
         try {
-            const dataUrl = await readFileAsDataURL(file);
-            await this.loadImage(dataUrl);
+            dataUrl = await readFileAsDataURL(file);
         }
         catch (err) {
             reportError(this.options, err, 'Failed to read selected image file.');
+            resetFileInput(inputEl);
+            return;
+        }
+        try {
+            await this.loadImage(dataUrl);
+        }
+        catch {
         }
         finally {
             resetFileInput(inputEl);
@@ -3482,16 +3653,30 @@ class ImageEditor {
         var _a;
         return ((_a = options === null || options === void 0 ? void 0 : options[INTERNAL_OPERATION_TOKEN]) !== null && _a !== void 0 ? _a : null);
     }
+    _canRunDuringAnimationQueue(options) {
+        return !!(options === null || options === void 0 ? void 0 : options[INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]);
+    }
     _withInternalOperationOptions(token, options = {}) {
         return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
         };
     }
+    _withAnimationQueueBypass(options = {}) {
+        return {
+            ...options,
+            [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
+        };
+    }
     _assertIdleForOperation(operationName, options) {
         const token = this._getInternalOperationToken(options);
         this._guard.assertIdleForOperation(operationName, token);
-        if (this.animQueue.isBusy()) {
+        if (this._cropSession &&
+            !this._guard.isOwnOperation(token) &&
+            !CROP_SESSION_ALLOWED_OPERATIONS.has(operationName)) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while crop mode is active.`);
+        }
+        if (this.animQueue.isBusy() && !this._canRunDuringAnimationQueue(options)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
         }
     }
@@ -3640,7 +3825,7 @@ class ImageEditor {
             },
             getBaseImageScale: () => this.baseImageScale,
             saveCanvasState: () => {
-                this.saveState();
+                this._saveState(this._withAnimationQueueBypass());
             },
             setSuppressSaveState: (suppress) => {
                 this._suppressSaveState = suppress;
@@ -3743,9 +3928,14 @@ class ImageEditor {
         this._updateUI();
     }
     async loadFromState(jsonString) {
+        return this._loadFromState(jsonString);
+    }
+    async _loadFromState(jsonString, options) {
         if (!jsonString || !this.canvas)
             return;
         if (this._disposed)
+            return;
+        if (!this._canRunIdleOperation('loadFromState', options))
             return;
         try {
             const result = await loadFromState({
@@ -3800,8 +3990,13 @@ class ImageEditor {
         }
     }
     saveState() {
+        this._saveState();
+    }
+    _saveState(options) {
         var _a;
         if (!this.canvas || this._suppressSaveState)
+            return;
+        if (!this._canRunIdleOperation('saveState', options))
             return;
         const activeObj = this.canvas.getActiveObject();
         this._hideAllMaskLabels();
@@ -3816,11 +4011,11 @@ class ImageEditor {
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {
-                    await this.loadFromState(after);
+                    await this._loadFromState(after, this._withAnimationQueueBypass());
                 }
                 executedOnce = true;
             }, async () => {
-                await this.loadFromState(before);
+                await this._loadFromState(before, this._withAnimationQueueBypass());
             });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
@@ -3835,11 +4030,15 @@ class ImageEditor {
     undo() {
         if (this._disposed)
             return Promise.resolve();
+        if (!this._canRunIdleOperation('undo'))
+            return Promise.resolve();
         const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.undo());
         return job.finally(() => this._refreshUiAfterQueuedAnimation());
     }
     redo() {
         if (this._disposed)
+            return Promise.resolve();
+        if (!this._canRunIdleOperation('redo'))
             return Promise.resolve();
         const job = this.animQueue.add(() => this._disposed ? Promise.resolve() : this.historyManager.redo());
         return job.finally(() => this._refreshUiAfterQueuedAnimation());
@@ -4044,7 +4243,7 @@ class ImageEditor {
                 this._restoreMergedImageDisplayGeometry(geometry);
             },
             saveState: () => this._captureSnapshot(),
-            loadFromState: (snapshot) => this.loadFromState(snapshot),
+            loadFromState: (snapshot) => this._loadFromState(snapshot, this._withInternalOperationOptions(operationToken, this._withAnimationQueueBypass())),
             removeAllMasksNoHistory: () => {
                 const ctx = this._buildRemoveMaskContext();
                 removeAllMasks(ctx, { saveHistory: false });
@@ -4117,7 +4316,7 @@ class ImageEditor {
                 this._cropSession = s;
             },
             saveState: () => this._captureSnapshot(),
-            loadFromState: (snapshot) => this.loadFromState(snapshot),
+            loadFromState: (snapshot) => this._loadFromState(snapshot, this._withInternalOperationOptions(operationToken, this._withAnimationQueueBypass())),
             loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
@@ -4129,7 +4328,7 @@ class ImageEditor {
         };
     }
     _updateInputs() {
-        const scaleId = this.elements.scaleRate;
+        const scaleId = this.elements.scalePercentageInput;
         if (!scaleId)
             return;
         const scaleEl = document.getElementById(scaleId);
@@ -4162,25 +4361,25 @@ class ImageEditor {
             });
             return;
         }
-        this._setDisabled('scaleRate', !hasImg || isBusy);
-        this._setDisabled('rotationLeftInput', !hasImg || isBusy);
-        this._setDisabled('rotationRightInput', !hasImg || isBusy);
-        this._setDisabled('zoomInBtn', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutBtn', !hasImg || isBusy || this.currentScale <= this.options.minScale);
-        this._setDisabled('rotateLeftBtn', !hasImg || isBusy);
-        this._setDisabled('rotateRightBtn', !hasImg || isBusy);
-        this._setDisabled('addMaskBtn', !hasImg || isBusy);
-        this._setDisabled('removeMaskBtn', !hasSelectedMask || isBusy);
-        this._setDisabled('removeAllMasksBtn', !hasMasks || isBusy);
-        this._setDisabled('mergeBtn', !hasImg || !hasMasks || isBusy);
-        this._setDisabled('downloadBtn', !hasImg || isBusy);
-        this._setDisabled('resetBtn', !hasImg || isDefault || isBusy);
-        this._setDisabled('undoBtn', !hasImg || isBusy || !canUndo);
-        this._setDisabled('redoBtn', !hasImg || isBusy || !canRedo);
-        this._setDisabled('cropBtn', !hasImg || isBusy);
+        this._setDisabled('scalePercentageInput', !hasImg || isBusy);
+        this._setDisabled('rotateLeftDegreesInput', !hasImg || isBusy);
+        this._setDisabled('rotateRightDegreesInput', !hasImg || isBusy);
+        this._setDisabled('zoomInButton', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
+        this._setDisabled('zoomOutButton', !hasImg || isBusy || this.currentScale <= this.options.minScale);
+        this._setDisabled('rotateLeftButton', !hasImg || isBusy);
+        this._setDisabled('rotateRightButton', !hasImg || isBusy);
+        this._setDisabled('createMaskButton', !hasImg || isBusy);
+        this._setDisabled('removeSelectedMaskButton', !hasSelectedMask || isBusy);
+        this._setDisabled('removeAllMasksButton', !hasMasks || isBusy);
+        this._setDisabled('mergeMasksButton', !hasImg || !hasMasks || isBusy);
+        this._setDisabled('downloadImageButton', !hasImg || isBusy);
+        this._setDisabled('resetImageTransformButton', !hasImg || isDefault || isBusy);
+        this._setDisabled('undoButton', !hasImg || isBusy || !canUndo);
+        this._setDisabled('redoButton', !hasImg || isBusy || !canRedo);
+        this._setDisabled('enterCropModeButton', !hasImg || isBusy);
         this._setDisabled('imageInput', isBusy);
-        this._setDisabled('applyCropBtn', true);
-        this._setDisabled('cancelCropBtn', true);
+        this._setDisabled('applyCropButton', true);
+        this._setDisabled('cancelCropButton', true);
     }
     _setDisabled(key, disabled) {
         var _a;

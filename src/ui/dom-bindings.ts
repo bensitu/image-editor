@@ -67,7 +67,7 @@ interface BindingEntry {
  *   (key) => this.elements[key],
  *    => this.guard.isDisposed,
  *);
- * bindings.bindIfExists('zoomInBtn', 'click',   => this.scaleImage(s + step));
+ * bindings.bindIfExists('zoomInButton', 'click',   => this.scaleImage(s + step));
  * //..
  * bindings.removeAll; // called from dispose
  * ```

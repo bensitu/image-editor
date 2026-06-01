@@ -11,6 +11,25 @@ function resolveMultiplier(requested, fallback) {
     const fb = Number(fallback);
     return Number.isFinite(fb) && fb > 0 ? fb : 1;
 }
+function readCanvasDimension(canvas, getterName, propertyName) {
+    const canvasLike = canvas;
+    const getter = canvasLike[getterName];
+    const value = typeof getter === 'function' ? getter.call(canvasLike) : canvasLike[propertyName];
+    return Math.max(1, Math.ceil(Number.isFinite(value) ? Number(value) : 1));
+}
+function assertExportPixelBudget(ctx, multiplier, region) {
+    var _a, _b;
+    const sourceWidth = (_a = region === null || region === void 0 ? void 0 : region.width) !== null && _a !== void 0 ? _a : readCanvasDimension(ctx.canvas, 'getWidth', 'width');
+    const sourceHeight = (_b = region === null || region === void 0 ? void 0 : region.height) !== null && _b !== void 0 ? _b : readCanvasDimension(ctx.canvas, 'getHeight', 'height');
+    const outputWidth = Math.max(1, Math.ceil(sourceWidth * multiplier));
+    const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
+    const pixelCount = outputWidth * outputHeight;
+    const maxPixels = ctx.options.maxExportPixels;
+    if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
+        throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
+            `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`);
+    }
+}
 function computeExportRegion(ctx, exportImageArea) {
     if (!exportImageArea)
         return { region: null, partialEdges: null };
@@ -295,8 +314,13 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
     return off.toDataURL('image/jpeg', quality);
 }
 function dataUrlToBytes(dataUrl) {
+    var _a;
+    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
+    if (!match || !((_a = match[1]) === null || _a === void 0 ? void 0 : _a.trim())) {
+        throw new Error('exportImageFile received a malformed or empty image data URL.');
+    }
     const commaAt = dataUrl.indexOf(',');
-    const base64 = commaAt >= 0 ? dataUrl.slice(commaAt + 1) : dataUrl;
+    const base64 = dataUrl.slice(commaAt + 1).replace(/\s/g, '');
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
         const buffer = new ArrayBuffer(binary.length);
@@ -355,6 +379,7 @@ export async function exportImageBase64(ctx, options) {
         const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
         const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
         const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
+        assertExportPixelBudget(ctx, multiplier, region);
         const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
         let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region));

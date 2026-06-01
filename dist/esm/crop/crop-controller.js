@@ -16,6 +16,19 @@ function clampQuality(quality) {
         return CROPPED_EXPORT_QUALITY_FALLBACK;
     return Math.max(0, Math.min(1, num));
 }
+function getCropRectContentBounds(cropRect) {
+    const angle = Number(cropRect.angle) || 0;
+    const normalizedAngle = Math.abs(angle % 360);
+    if (normalizedAngle > 0.01 && Math.abs(normalizedAngle - 360) > 0.01) {
+        return getObjectBBox(cropRect);
+    }
+    return {
+        left: Number(cropRect.left) || 0,
+        top: Number(cropRect.top) || 0,
+        width: Math.max(0, (Number(cropRect.width) || 0) * Math.abs(Number(cropRect.scaleX) || 1)),
+        height: Math.max(0, (Number(cropRect.height) || 0) * Math.abs(Number(cropRect.scaleY) || 1)),
+    };
+}
 function removeCropRect(ctx, session) {
     for (const targetHandlers of session.handlers) {
         for (const rec of targetHandlers.handlers) {
@@ -149,10 +162,12 @@ export function enterCropMode(ctx) {
     const padding = Number.isFinite(Number(options.crop.padding))
         ? Number(options.crop.padding)
         : CROP_DEFAULT_PADDING;
-    const rectLeft = Math.max(0, Math.floor(imageBounds.left + padding));
-    const rectTop = Math.max(0, Math.floor(imageBounds.top + padding));
-    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width - padding * 2));
-    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height - padding * 2));
+    const boundsLeft = Math.max(0, Math.floor(imageBounds.left));
+    const boundsTop = Math.max(0, Math.floor(imageBounds.top));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
+    const rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
+    const rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
     const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
     const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
@@ -223,10 +238,10 @@ export function enterCropMode(ctx) {
             const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
             const scaledWidth = cropWidth * nextScaleX;
             const scaledHeight = cropHeight * nextScaleY;
-            const maxLeft = Math.max(rectLeft, rectLeft + maxCropWidth - scaledWidth);
-            const maxTop = Math.max(rectTop, rectTop + maxCropHeight - scaledHeight);
-            const nextLeft = Math.min(maxLeft, Math.max(rectLeft, Number(cropRect.left) || rectLeft));
-            const nextTop = Math.min(maxTop, Math.max(rectTop, Number(cropRect.top) || rectTop));
+            const maxLeft = Math.max(boundsLeft, boundsLeft + maxCropWidth - scaledWidth);
+            const maxTop = Math.max(boundsTop, boundsTop + maxCropHeight - scaledHeight);
+            const nextLeft = Math.min(maxLeft, Math.max(boundsLeft, Number(cropRect.left) || boundsLeft));
+            const nextTop = Math.min(maxTop, Math.max(boundsTop, Number(cropRect.top) || boundsTop));
             cropRect.set({
                 left: nextLeft,
                 top: nextTop,
@@ -286,7 +301,11 @@ export async function applyCrop(ctx) {
     const preserveMasks = !!ctx.options.crop.preserveMasksAfterCrop;
     try {
         cropRect.setCoords();
-        const rectBounds = cropRect.getBoundingRect();
+        const cropAngle = Number(cropRect.angle) || 0;
+        if (!ctx.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
+            throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
+        }
+        const rectBounds = getCropRectContentBounds(cropRect);
         const cropRegion = getClampedCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight(), { includePartialPixels: false });
         const preservedRecords = preserveMasks
             ? capturePreservedMasks(canvas, cropRegion)

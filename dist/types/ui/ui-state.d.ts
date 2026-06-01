@@ -64,7 +64,7 @@ export type ElementIdResolver = (key: ElementKey) => string | null | undefined;
  *   browser provides "for free" on real `<button>` elements.
  *
  * The element is typed as `HTMLButtonElement` because every key in the
- * documented toolbar set (`zoomInBtn`, `applyCropBtn`, …) resolves to a
+ * documented toolbar set (`zoomInButton`, `applyCropButton`, …) resolves to a
  * `<button>`. A non-button host element will still receive the `disabled`
  * assignment via the IDL slot but will not visually reflect it; that is
  * the integrator's responsibility per the public `idMap` contract.

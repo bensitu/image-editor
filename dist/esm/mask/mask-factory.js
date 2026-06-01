@@ -1,6 +1,6 @@
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
-import { attachMaskHoverHandlers } from './mask-style.js';
+import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 function isFabricObjectLike(value) {
     if (!value || typeof value !== 'object')
@@ -8,12 +8,81 @@ function isFabricObjectLike(value) {
     const candidate = value;
     return typeof candidate.set === 'function' && typeof candidate.on === 'function';
 }
+function warnInvalidMask(options, reason) {
+    reportWarning(options, null, `createMask skipped: ${reason}.`);
+}
+function isResolvableNumericInput(value) {
+    if (value === undefined)
+        return true;
+    if (typeof value === 'number')
+        return Number.isFinite(value);
+    if (typeof value === 'function')
+        return true;
+    if (typeof value === 'string' && value.endsWith('%')) {
+        return Number.isFinite(Number.parseFloat(value));
+    }
+    return false;
+}
+function isFiniteNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+function validateFiniteField(options, fieldName, value) {
+    if (isFiniteNumber(value))
+        return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a finite number`);
+    return false;
+}
+function validatePositiveField(options, fieldName, value) {
+    if (isFiniteNumber(value) && value > 0)
+        return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a positive number`);
+    return false;
+}
+function validateNonNegativeField(options, fieldName, value) {
+    if (isFiniteNumber(value) && value >= 0)
+        return true;
+    warnInvalidMask(options, `${fieldName} must resolve to a non-negative number`);
+    return false;
+}
+function validateNumericInputs(options, config) {
+    const fields = [
+        ['width', config.width],
+        ['height', config.height],
+        ['rx', config.rx],
+        ['ry', config.ry],
+        ['radius', config.radius],
+        ['left', config.left],
+        ['top', config.top],
+    ];
+    for (const [fieldName, value] of fields) {
+        if (!isResolvableNumericInput(value)) {
+            warnInvalidMask(options, `${fieldName} is not a supported numeric value`);
+            return false;
+        }
+    }
+    return true;
+}
+function resolvePolygonPoints(options, points) {
+    if (!Array.isArray(points) || points.length < 3) {
+        warnInvalidMask(options, 'polygon masks require at least three points');
+        return null;
+    }
+    const resolvedPoints = points.map(coercePoint);
+    const allFinite = resolvedPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+    if (!allFinite) {
+        warnInvalidMask(options, 'polygon points must contain finite x/y values');
+        return null;
+    }
+    return resolvedPoints;
+}
 export function createMask(ctx, config = {}) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s;
     const { canvas, options, fabric: fabricModule } = ctx;
     if (!canvas)
         return null;
     const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
+    if (!validateNumericInputs(options, config))
+        return null;
     const resolvedConfig = {
         shape: shapeType,
         width: options.defaultMaskWidth,
@@ -45,6 +114,27 @@ export function createMask(ctx, config = {}) {
     }
     resolvedConfig.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
     resolvedConfig.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
+    const rx = config.rx !== undefined ? resolveNumeric(config.rx, 'x', 0, canvas, options) : undefined;
+    const ry = config.ry !== undefined ? resolveNumeric(config.ry, 'y', 0, canvas, options) : undefined;
+    const radius = shapeType === 'circle'
+        ? resolveNumeric(config.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options)
+        : undefined;
+    const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, config.points) : null;
+    if (!validateFiniteField(options, 'left', left) ||
+        !validateFiniteField(options, 'top', top) ||
+        !validatePositiveField(options, 'width', resolvedConfig.width) ||
+        !validatePositiveField(options, 'height', resolvedConfig.height) ||
+        !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
+        !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
+        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)) {
+        return null;
+    }
+    if ((rx !== undefined && !validateNonNegativeField(options, 'rx', rx)) ||
+        (ry !== undefined && !validateNonNegativeField(options, 'ry', ry)) ||
+        (radius !== undefined && !validatePositiveField(options, 'radius', radius)) ||
+        (shapeType === 'polygon' && polygonPoints === null)) {
+        return null;
+    }
     if (options.expandCanvasToImage) {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
@@ -73,19 +163,13 @@ export function createMask(ctx, config = {}) {
             originX: 'left',
             originY: 'top',
         };
-        const rx = config.rx !== undefined
-            ? resolveNumeric(config.rx, 'x', 0, canvas, options)
-            : undefined;
-        const ry = config.ry !== undefined
-            ? resolveNumeric(config.ry, 'y', 0, canvas, options)
-            : undefined;
         switch (shapeType) {
             case 'circle':
                 mask = new fabricModule.Circle({
                     left,
                     top,
                     ...originProps,
-                    radius: resolveNumeric(config.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options),
+                    radius,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
                     angle: (_g = resolvedConfig.angle) !== null && _g !== void 0 ? _g : 0,
@@ -106,12 +190,11 @@ export function createMask(ctx, config = {}) {
                 });
                 break;
             case 'polygon': {
-                const points = ((_j = config.points) !== null && _j !== void 0 ? _j : []).map(coercePoint);
-                const polygon = new fabricModule.Polygon(points, {
+                const polygon = new fabricModule.Polygon(polygonPoints, {
                     ...originProps,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
-                    angle: (_k = resolvedConfig.angle) !== null && _k !== void 0 ? _k : 0,
+                    angle: (_j = resolvedConfig.angle) !== null && _j !== void 0 ? _j : 0,
                     ...resolvedConfig.styles,
                 });
                 polygon.setCoords();
@@ -119,8 +202,8 @@ export function createMask(ctx, config = {}) {
                 const deltaX = left - boundingRect.left;
                 const deltaY = top - boundingRect.top;
                 polygon.set({
-                    left: ((_l = polygon.left) !== null && _l !== void 0 ? _l : 0) + deltaX,
-                    top: ((_m = polygon.top) !== null && _m !== void 0 ? _m : 0) + deltaY,
+                    left: ((_k = polygon.left) !== null && _k !== void 0 ? _k : 0) + deltaX,
+                    top: ((_l = polygon.top) !== null && _l !== void 0 ? _l : 0) + deltaY,
                 });
                 polygon.setCoords();
                 mask = polygon;
@@ -136,7 +219,7 @@ export function createMask(ctx, config = {}) {
                     height: resolvedConfig.height,
                     fill: resolvedConfig.color,
                     opacity: resolvedConfig.alpha,
-                    angle: (_o = resolvedConfig.angle) !== null && _o !== void 0 ? _o : 0,
+                    angle: (_m = resolvedConfig.angle) !== null && _m !== void 0 ? _m : 0,
                     ...(rx !== undefined ? { rx } : {}),
                     ...(ry !== undefined ? { ry } : {}),
                     ...resolvedConfig.styles,
@@ -150,10 +233,10 @@ export function createMask(ctx, config = {}) {
         'transparentCorners' in config ? !!config.transparentCorners : false;
     maskObject.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
     maskObject.lockRotation = !options.maskRotatable;
-    maskObject.borderColor = (_p = config.borderColor) !== null && _p !== void 0 ? _p : 'red';
-    maskObject.cornerColor = (_q = config.cornerColor) !== null && _q !== void 0 ? _q : 'black';
-    maskObject.cornerSize = (_r = config.cornerSize) !== null && _r !== void 0 ? _r : 8;
-    const styles = ((_s = resolvedConfig.styles) !== null && _s !== void 0 ? _s : {});
+    maskObject.borderColor = (_o = config.borderColor) !== null && _o !== void 0 ? _o : 'red';
+    maskObject.cornerColor = (_p = config.cornerColor) !== null && _p !== void 0 ? _p : 'black';
+    maskObject.cornerSize = (_q = config.cornerSize) !== null && _q !== void 0 ? _q : 8;
+    const styles = ((_r = resolvedConfig.styles) !== null && _r !== void 0 ? _r : {});
     if ('stroke' in styles) {
         maskObject.stroke = styles.stroke;
     }
@@ -186,7 +269,7 @@ export function createMask(ctx, config = {}) {
     }
     canvas.renderAll();
     ctx.saveCanvasState();
-    (_t = resolvedConfig.onCreate) === null || _t === void 0 ? void 0 : _t.call(resolvedConfig, maskObject, canvas);
+    (_s = resolvedConfig.onCreate) === null || _s === void 0 ? void 0 : _s.call(resolvedConfig, maskObject, canvas);
     return maskObject;
 }
 export function removeSelectedMask(ctx) {
@@ -194,6 +277,7 @@ export function removeSelectedMask(ctx) {
     if (!active || !isMaskObject(active))
         return;
     ctx.removeLabelForMask(active);
+    detachMaskHoverHandlers(active);
     ctx.canvas.remove(active);
     ctx.canvas.discardActiveObject();
     ctx.updateMaskList();
@@ -206,6 +290,7 @@ export function removeAllMasks(ctx, options = {}) {
         return;
     for (const maskObject of masks) {
         ctx.removeLabelForMask(maskObject);
+        detachMaskHoverHandlers(maskObject);
         ctx.canvas.remove(maskObject);
     }
     ctx.canvas.discardActiveObject();

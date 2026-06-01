@@ -38,46 +38,46 @@ import { JSDOM } from 'jsdom';
 const { ImageEditor } = await import('../src/image-editor.ts');
 
 const ENABLED_WHEN_IMAGE_LOADED = [
-    'scaleRate',
-    'rotationLeftInput',
-    'rotationRightInput',
-    'zoomInBtn',
-    'zoomOutBtn',
-    'rotateLeftBtn',
-    'rotateRightBtn',
-    'addMaskBtn',
-    'downloadBtn',
-    'cropBtn',
+    'scalePercentageInput',
+    'rotateLeftDegreesInput',
+    'rotateRightDegreesInput',
+    'zoomInButton',
+    'zoomOutButton',
+    'rotateLeftButton',
+    'rotateRightButton',
+    'createMaskButton',
+    'downloadImageButton',
+    'enterCropModeButton',
     'imageInput',
 ];
 
-const ENABLED_AFTER_TRANSFORM = [...ENABLED_WHEN_IMAGE_LOADED, 'resetBtn'];
+const ENABLED_AFTER_TRANSFORM = [...ENABLED_WHEN_IMAGE_LOADED, 'resetImageTransformButton'];
 
 function installDom({ containerWidth = 800, containerHeight = 600 } = {}) {
     const dom = new JSDOM(
         `<!DOCTYPE html><html><body>
             <div id="canvasContainer">
-                <canvas id="fabricCanvas"></canvas>
+                <canvas id="canvas"></canvas>
             </div>
-            <div id="imgPlaceholder"></div>
-            <input id="scaleRate" value="100">
-            <input id="rotationLeftInput" value="90">
-            <input id="rotationRightInput" value="90">
-            <button id="rotateLeftBtn"></button>
-            <button id="rotateRightBtn"></button>
-            <button id="addMaskBtn"></button>
-            <button id="removeMaskBtn"></button>
-            <button id="removeAllMasksBtn"></button>
-            <button id="mergeBtn"></button>
-            <button id="downloadBtn"></button>
-            <button id="zoomInBtn"></button>
-            <button id="zoomOutBtn"></button>
-            <button id="resetBtn"></button>
-            <button id="undoBtn"></button>
-            <button id="redoBtn"></button>
-            <button id="cropBtn"></button>
-            <button id="applyCropBtn"></button>
-            <button id="cancelCropBtn"></button>
+            <div id="imagePlaceholder"></div>
+            <input id="scalePercentageInput" value="100">
+            <input id="rotateLeftDegreesInput" value="90">
+            <input id="rotateRightDegreesInput" value="90">
+            <button id="rotateLeftButton"></button>
+            <button id="rotateRightButton"></button>
+            <button id="createMaskButton"></button>
+            <button id="removeSelectedMaskButton"></button>
+            <button id="removeAllMasksButton"></button>
+            <button id="mergeMasksButton"></button>
+            <button id="downloadImageButton"></button>
+            <button id="zoomInButton"></button>
+            <button id="zoomOutButton"></button>
+            <button id="resetImageTransformButton"></button>
+            <button id="undoButton"></button>
+            <button id="redoButton"></button>
+            <button id="enterCropModeButton"></button>
+            <button id="applyCropButton"></button>
+            <button id="cancelCropButton"></button>
             <input id="imageInput" type="file">
             <div id="uploadArea"></div>
             <ul id="maskList"></ul>
@@ -326,7 +326,7 @@ test('scaleImage re-enables transform toolbar controls after the queue settles',
     await editor.scaleImage(1.05);
 
     assertControlsEnabled('after scale', ENABLED_AFTER_TRANSFORM);
-    assert.equal(control('scaleRate').value, '105');
+    assert.equal(control('scalePercentageInput').value, '105');
 });
 
 test('rotateImage re-enables transform toolbar controls after the queue settles', async () => {
@@ -336,7 +336,7 @@ test('rotateImage re-enables transform toolbar controls after the queue settles'
     await editor.rotateImage(90);
 
     assertControlsEnabled('after rotate', ENABLED_AFTER_TRANSFORM);
-    assert.equal(control('scaleRate').value, '100');
+    assert.equal(control('scalePercentageInput').value, '100');
 });
 
 test('undo after rotate restores the canvas size for the restored image bounds', async () => {
@@ -395,6 +395,67 @@ test('loadFromState normalizes stale cover canvas dimensions without shrinking v
 
     assert.equal(canvas.width, 960);
     assert.equal(canvas.height, 520);
+});
+
+test('history and state APIs are guarded while crop mode owns the canvas', async () => {
+    const editor = makeEditor();
+    editor.currentRotation = 45;
+    const snapshot = editor._captureSnapshot();
+    editor.currentRotation = 90;
+    editor._cropSession = {};
+
+    editor.saveState();
+    await editor.loadFromState(snapshot);
+    await editor.undo();
+    await editor.redo();
+
+    assert.equal(
+        editor.currentRotation,
+        90,
+        'external loadFromState must no-op while crop mode is active',
+    );
+    assert.equal(
+        editor.historyManager.history.length,
+        0,
+        'external saveState must not push history while crop mode is active',
+    );
+
+    editor._cropSession = null;
+});
+
+test('history and state APIs are guarded while another operation is active', async () => {
+    const editor = makeEditor();
+    editor.currentRotation = 45;
+    const snapshot = editor._captureSnapshot();
+    editor.currentRotation = 90;
+
+    const token = editor._guard.beginBusyOperation('exportImageBase64');
+    try {
+        editor.saveState();
+        await editor.loadFromState(snapshot);
+        await editor.undo();
+        await editor.redo();
+        const base64 = await editor.exportImageBase64();
+        await assert.rejects(
+            () => editor.exportImageFile(),
+            /exportImageBase64 is running/,
+            'exportImageFile must reject while another export operation is active',
+        );
+
+        assert.equal(base64, '', 'exportImageBase64 must no-op while busy');
+        assert.equal(
+            editor.currentRotation,
+            90,
+            'external loadFromState must no-op while another operation is active',
+        );
+        assert.equal(
+            editor.historyManager.history.length,
+            0,
+            'external saveState must not push history while another operation is active',
+        );
+    } finally {
+        editor._guard.endBusyOperation(token);
+    }
 });
 
 test('merge load preserves the pre-merge displayed image geometry as the new baseline', async () => {
