@@ -1,15 +1,16 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "description": "Lightweight canvas-based image editor",
-    "main": "./dist/image-editor.js",
+    "main": "./dist/image-editor.cjs",
     "module": "./dist/image-editor.esm.mjs",
     "types": "./image-editor.d.ts",
     "exports": {
         ".": {
             "types": "./image-editor.d.ts",
             "import": "./dist/image-editor.esm.mjs",
-            "default": "./dist/image-editor.js"
+            "require": "./dist/image-editor.cjs",
+            "default": "./dist/image-editor.esm.mjs"
         }
     },
     "scripts": {

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-06-02
+
+### Added
+
+- Add a CommonJS package entry so `require('@bensitu/image-editor')` returns the editor constructor while preserving namespace aliases.
+- Add regression coverage for v1 DOM binding aliases, optional upload-area bindings, package entry shapes, async initial image failures, busy-state guards, Fit/Cover scroll behavior, merge edge rendering, and crop bounds.
+- Add `maxExportPixels` to the TypeScript options surface for export-size safety.
+
+### Changed
+
+- Preserve deprecated v1 DOM binding keys until v2.0.0 while giving canonical keys precedence and warning once per deprecated key per editor instance.
+- Treat `uploadArea` as a canonical optional binding with a `null` default, matching runtime behavior and TypeScript declarations.
+
+### Fixed
+
+- Prevent `initialImageBase64` load failures from producing unhandled promise rejections; failures are reported once through `onError`.
+- Guard `undo()`, `redo()`, `loadFromState()`, and external `saveState()` calls while crop, load, animation, or another external operation owns the editor.
+- Preserve image display bounds across mask merge and undo flows so Fit/Cover images do not shrink unexpectedly.
+- Avoid one-pixel right or bottom edge artifacts when merging masks over scaled images.
+- Prevent Fit/Cover mask creation and merge operations from adding phantom cross-axis scrollbars when the image still fits the visible canvas.
+- Allow the crop rectangle to expand to the full image content bounds while keeping moved or resized crop rectangles clamped inside the image.
+- Re-check Fabric availability during `init()`, reject unsupported rotated crop rectangles unless enabled, validate mask creation inputs, cap export pixel counts, normalize layout-mode precedence, and roll back failed load overflow changes.
+
 ## [1.5.0] - 2026-05-30
 
 ### Added

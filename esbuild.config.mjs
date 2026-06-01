@@ -37,6 +37,16 @@ const builds = [
     minify: true
   },
   {
+    entryPoints: ['src/esm.js'],
+    format: 'cjs',
+    external: ['fabric'],
+    outfile: 'dist/image-editor.cjs',
+    footer: {
+      js: 'if (module.exports && module.exports.default) module.exports = Object.assign(module.exports.default, module.exports);'
+    },
+    minify: false
+  },
+  {
     entryPoints: ['src/browser.js'],
     format: 'iife',
     outfile: 'dist/image-editor.js',

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
+import { fabric, installFabricDom, resetEditorDom } from './helpers/fabric-environment.mjs';
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
@@ -13,6 +14,7 @@ test('package metadata points to generated files', () => {
         packageJson.types,
         packageJson.exports['.'].types,
         packageJson.exports['.'].import,
+        packageJson.exports['.'].require,
         packageJson.exports['.'].default
     ];
 
@@ -35,7 +37,9 @@ test('dist contains compressed and uncompressed browser and ESM builds', () => {
         'dist/image-editor.esm.mjs',
         'dist/image-editor.esm.mjs.map',
         'dist/image-editor.esm.min.mjs',
-        'dist/image-editor.esm.min.mjs.map'
+        'dist/image-editor.esm.min.mjs.map',
+        'dist/image-editor.cjs',
+        'dist/image-editor.cjs.map'
     ];
 
     for (const fileName of expectedFiles) {
@@ -51,11 +55,49 @@ test('package ESM import exposes default and named ImageEditor exports', async (
     assert.equal(module.default, module.ImageEditor);
 });
 
+test('package CommonJS require exposes a callable constructor with namespace aliases', () => {
+    const ImageEditor = require('@bensitu/image-editor');
+
+    assert.equal(typeof ImageEditor, 'function');
+    assert.equal(typeof ImageEditor.default, 'function');
+    assert.equal(typeof ImageEditor.ImageEditor, 'function');
+    assert.equal(ImageEditor.default, ImageEditor);
+    assert.equal(ImageEditor.ImageEditor, ImageEditor);
+});
+
 test('browser build exposes ImageEditor as a global for script usage', () => {
     delete globalThis.ImageEditor;
     require('../dist/image-editor.js');
 
     assert.equal(typeof globalThis.ImageEditor, 'function');
+});
+
+test('browser global build can initialize when Fabric becomes available after construction', () => {
+    installFabricDom();
+    delete globalThis.ImageEditor;
+    delete globalThis.fabric;
+    delete require.cache[require.resolve('../dist/image-editor.js')];
+    require('../dist/image-editor.js');
+
+    const ids = resetEditorDom();
+    const errors = [];
+    const editor = new globalThis.ImageEditor({
+        canvasWidth: 120,
+        canvasHeight: 80,
+        showPlaceholder: false,
+        onError: (error, message) => errors.push({ error, message })
+    });
+
+    globalThis.fabric = fabric;
+    editor.init(ids);
+
+    assert.equal(editor._fabricLoaded, true);
+    assert.equal(typeof editor.canvas?.getWidth, 'function');
+    assert.equal(editor.canvas.getWidth(), 120);
+
+    editor.dispose();
+    delete globalThis.fabric;
+    assert.equal(errors.some(entry => /fabric\.js is not loaded/.test(entry.message)), true);
 });
 
 test('type declarations match the public package API', () => {
@@ -126,6 +168,7 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /applyCrop/);
     assert.match(declaration, /export interface LoadImageOptions/);
     assert.match(declaration, /imageLoadTimeoutMs\?: number/);
+    assert.match(declaration, /maxExportPixels\?: number/);
     assert.match(declaration, /preserveSourceFormat\?: boolean/);
     assert.match(declaration, /downsampleMimeType\?:/);
     assert.match(declaration, /export interface FabricCanvas/);
@@ -138,6 +181,9 @@ test('type declarations match the public package API', () => {
     assert.match(declaration, /undo\(\): Promise<void>;/);
     assert.match(declaration, /redo\(\): Promise<void>;/);
     assert.match(declaration, /loadFromState\(serializedState: string \| object\): Promise<void>;/);
+    assert.match(declaration, /maskList\?: string \| null/);
+    assert.match(declaration, /imageInput\?: string \| null/);
+    assert.match(declaration, /uploadArea\?: string \| null/);
 
     for (const api of removedApis) {
         assert.equal(api.pattern.test(declaration), false, `${api.name} should not be declared`);

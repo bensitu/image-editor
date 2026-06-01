@@ -55,6 +55,7 @@ declare module '@bensitu/image-editor' {
     imageLoadTimeoutMs?: number;
 
     exportMultiplier?: number;
+    maxExportPixels?: number;
     exportImageAreaByDefault?: boolean;
 
     defaultMaskWidth?: number;
@@ -116,7 +117,7 @@ declare module '@bensitu/image-editor' {
     downloadImageButton?: string | null;
     /** @deprecated Use downloadImageButton instead. This alias will be removed in v2.0.0. */
     downloadBtn?: string | null;
-    maskList?: string;
+    maskList?: string | null;
     zoomInButton?: string | null;
     /** @deprecated Use zoomInButton instead. This alias will be removed in v2.0.0. */
     zoomInBtn?: string | null;
@@ -133,8 +134,8 @@ declare module '@bensitu/image-editor' {
     redoButton?: string | null;
     /** @deprecated Use redoButton instead. This alias will be removed in v2.0.0. */
     redoBtn?: string | null;
-    imageInput?: string;
-    uploadArea?: string;
+    imageInput?: string | null;
+    uploadArea?: string | null;
     enterCropModeButton?: string | null;
     /** @deprecated Use enterCropModeButton instead. This alias will be removed in v2.0.0. */
     cropBtn?: string | null;

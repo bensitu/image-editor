@@ -5,7 +5,7 @@ import fabricModule from "fabric";
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.5.0
+ * @version 1.5.1
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -77,6 +77,7 @@ var ImageEditor = class {
       downsampleMimeType: null,
       imageLoadTimeoutMs: 3e4,
       exportMultiplier: 1,
+      maxExportPixels: 5e7,
       exportImageAreaByDefault: true,
       defaultMaskWidth: 50,
       defaultMaskHeight: 80,
@@ -146,6 +147,8 @@ var ImageEditor = class {
     this._activeAnimationRejectors = /* @__PURE__ */ new Set();
     this._disposed = false;
     this._initialized = false;
+    this._deprecatedElementKeyWarnings = /* @__PURE__ */ new Set();
+    this._cropRotationWarningEmitted = false;
     this.onImageLoaded = typeof this.options.onImageLoaded === "function" ? this.options.onImageLoaded : null;
     this.animationQueue = new AnimationQueue();
     this.historyManager = new HistoryManager(this.maxHistorySize);
@@ -210,7 +213,13 @@ var ImageEditor = class {
    * });
    */
   init(idMap = {}) {
-    if (!this._fabricLoaded) return;
+    if (!this._fabricLoaded) {
+      this._fabricLoaded = !!ensureFabric();
+      if (!this._fabricLoaded) {
+        this._reportError("fabric.js is not loaded. Please include fabric.js first. Initialization will be aborted.");
+        return;
+      }
+    }
     if (this._initialized || this.canvas) this.dispose();
     this._disposed = false;
     this._initialized = true;
@@ -225,7 +234,6 @@ var ImageEditor = class {
     this._containerOriginalOverflow = null;
     this._lastContainerViewportSize = null;
     this._canvasElementOriginalStyle = null;
-    this._deprecatedElementKeyWarnings = /* @__PURE__ */ new Set();
     const defaults = {
       canvas: "fabricCanvas",
       canvasContainer: null,
@@ -264,6 +272,7 @@ var ImageEditor = class {
       redoButton: "redoButton",
       redoBtn: null,
       imageInput: "imageInput",
+      uploadArea: null,
       enterCropModeButton: "enterCropModeButton",
       cropBtn: null,
       applyCropButton: "applyCropButton",
@@ -279,7 +288,7 @@ var ImageEditor = class {
     this._updateMaskList();
     this._updateUI();
     if (this.options.initialImageBase64) {
-      this.loadImage(this.options.initialImageBase64);
+      this.loadImage(this.options.initialImageBase64).catch((error) => this._reportError("initialImageBase64 could not be loaded", error));
     } else {
       this._updatePlaceholderStatus();
     }
@@ -480,13 +489,14 @@ var ImageEditor = class {
     if (!this.containerElement || !this.containerElement.style) return;
     this._captureContainerOverflowState();
     const shouldPreserveScroll = options.preserveScroll === true;
-    if (this.options.coverImageToCanvas) {
+    const layoutMode = this._getImageLayoutMode();
+    if (layoutMode === "cover") {
       this.containerElement.style.overflow = "scroll";
       if (!shouldPreserveScroll) {
         this.containerElement.scrollLeft = 0;
         this.containerElement.scrollTop = 0;
       }
-    } else if (this.options.fitImageToCanvas) {
+    } else if (layoutMode === "fit") {
       this.containerElement.style.overflow = "auto";
       if (!shouldPreserveScroll) {
         this.containerElement.scrollLeft = 0;
@@ -637,6 +647,12 @@ var ImageEditor = class {
       `Only one image layout mode should be enabled. Active modes: ${activeModes.join(", ")}.`
     );
   }
+  _getImageLayoutMode() {
+    if (this.options.fitImageToCanvas) return "fit";
+    if (this.options.coverImageToCanvas) return "cover";
+    if (this.options.expandCanvasToImage) return "expand";
+    return "contain";
+  }
   /**
    * Loads a base64 data URL into the Fabric canvas as the base image.
    *
@@ -650,12 +666,16 @@ var ImageEditor = class {
     if (!this._fabricLoaded) return;
     if (!this.canvas || this._disposed) return;
     if (!imageBase64 || typeof imageBase64 !== "string" || !imageBase64.startsWith("data:image/")) return;
+    options = options || {};
     this._assertIdleForOperation("loadImage", options);
-    this._isLoading = true;
-    this._updateUI();
-    this._warnOnImageLayoutOptionConflict();
-    const transaction = this._captureLoadImageTransaction();
+    const isNestedOperation = this._isOwnInternalOperation(options);
+    const operationToken = isNestedOperation ? this._getInternalOperationToken(options) : this._beginBusyOperation("loadImage");
+    let transaction = null;
     try {
+      this._isLoading = true;
+      this._updateUI();
+      this._warnOnImageLayoutOptionConflict();
+      transaction = this._captureLoadImageTransaction();
       const imageElement = await this._createImageElement(imageBase64);
       if (this._disposed || !this.canvas) throw new Error("Editor was disposed while loading image");
       let loadSource = imageBase64;
@@ -695,7 +715,8 @@ var ImageEditor = class {
       const viewport = this._getContainerViewportSize();
       const minWidth = viewport.width;
       const minHeight = viewport.height;
-      if (this.options.fitImageToCanvas) {
+      const layoutMode = this._getImageLayoutMode();
+      if (layoutMode === "fit") {
         const canvasWidth = Math.max(1, minWidth - 1);
         const canvasHeight = Math.max(1, minHeight - 1);
         this._setCanvasSizeInt(canvasWidth, canvasHeight);
@@ -703,13 +724,13 @@ var ImageEditor = class {
         fabricImage.set({ left: 0, top: 0 });
         fabricImage.scale(fitScale);
         this.baseImageScale = fabricImage.scaleX || 1;
-      } else if (this.options.coverImageToCanvas) {
+      } else if (layoutMode === "cover") {
         const layout = this._calculateCoverCanvasLayout(imageWidth, imageHeight);
         this._setCanvasSizeInt(layout.canvasWidth, layout.canvasHeight);
         fabricImage.set({ left: 0, top: 0 });
         fabricImage.scale(layout.scale);
         this.baseImageScale = fabricImage.scaleX || 1;
-      } else if (this.options.expandCanvasToImage) {
+      } else if (layoutMode === "expand") {
         const canvasWidth = Math.max(minWidth, Math.floor(imageWidth));
         const canvasHeight = Math.max(minHeight, Math.floor(imageHeight));
         this._setCanvasSizeInt(canvasWidth, canvasHeight);
@@ -740,10 +761,14 @@ var ImageEditor = class {
       this._lastSnapshot = this._captureCanvasStateOrThrow("loadImage");
       this._notifyImageLoaded();
     } catch (error) {
-      await this._rollbackLoadImageTransaction(transaction);
+      await this._rollbackLoadImageTransaction(
+        transaction,
+        this._withInternalOperationOptions(operationToken)
+      );
       throw error;
     } finally {
       this._isLoading = false;
+      if (!isNestedOperation) this._endBusyOperation(operationToken);
       if (!this._disposed && this.canvas) this._updateUI();
     }
   }
@@ -856,13 +881,13 @@ var ImageEditor = class {
       canvasVisibility: this._captureElementVisibility(this._getCanvasVisibilityElement())
     };
   }
-  async _rollbackLoadImageTransaction(transaction) {
+  async _rollbackLoadImageTransaction(transaction, options = {}) {
     if (!transaction || !this.canvas || this._disposed) return;
     let didRestoreCanvasState = false;
     let didFailCanvasRestore = false;
     try {
       if (transaction.canvasState) {
-        await this.loadFromState(transaction.canvasState);
+        await this.loadFromState(transaction.canvasState, options);
         didRestoreCanvasState = true;
       }
     } catch (error) {
@@ -1112,9 +1137,9 @@ var ImageEditor = class {
   }
   _getScrollableCanvasSize(contentWidth, contentHeight, viewport = this._getContainerViewportSize()) {
     if (this._hasFixedContainerScrollbars()) {
-      const safetyMargin = this._getScrollSafetyMargin();
-      const safeWidth = Math.max(1, viewport.width - safetyMargin);
-      const safeHeight = Math.max(1, viewport.height - safetyMargin);
+      const safetyMargin2 = this._getScrollSafetyMargin();
+      const safeWidth = Math.max(1, viewport.width - safetyMargin2);
+      const safeHeight = Math.max(1, viewport.height - safetyMargin2);
       return {
         width: contentWidth > viewport.width + 0.5 ? this._ceilCanvasDimension(contentWidth) : safeWidth,
         height: contentHeight > viewport.height + 0.5 ? this._ceilCanvasDimension(contentHeight) : safeHeight,
@@ -1140,9 +1165,17 @@ var ImageEditor = class {
     }
     effectiveWidth = Math.max(1, viewport.width - (hasVertical ? scrollbar.width : 0));
     effectiveHeight = Math.max(1, viewport.height - (hasHorizontal ? scrollbar.height : 0));
+    const safetyMargin = this._getScrollSafetyMargin();
+    const layoutMode = this._getImageLayoutMode();
+    const shouldReserveNoScrollbarMargin = layoutMode === "fit" || layoutMode === "cover";
+    const getNonOverflowAxisSize = (contentSize, effectiveSize, hasOppositeScrollbar) => {
+      const margin = hasOppositeScrollbar ? safetyMargin : shouldReserveNoScrollbarMargin ? 1 : 0;
+      const safeEffectiveSize = Math.max(1, effectiveSize - margin);
+      return contentSize <= safeEffectiveSize + 0.5 ? safeEffectiveSize : effectiveSize;
+    };
     return {
-      width: hasHorizontal ? this._ceilCanvasDimension(contentWidth) : effectiveWidth,
-      height: hasVertical ? this._ceilCanvasDimension(contentHeight) : effectiveHeight,
+      width: hasHorizontal ? this._ceilCanvasDimension(contentWidth) : getNonOverflowAxisSize(contentWidth, effectiveWidth, hasVertical),
+      height: hasVertical ? this._ceilCanvasDimension(contentHeight) : getNonOverflowAxisSize(contentHeight, effectiveHeight, hasHorizontal),
       viewportWidth: effectiveWidth,
       viewportHeight: effectiveHeight,
       hasHorizontal,
@@ -1264,6 +1297,45 @@ var ImageEditor = class {
       });
     }
   }
+  _getSerializableStateObjects() {
+    if (!this.canvas) return [];
+    return this.canvas.getObjects().filter((object) => !object.isCropRect && !object.maskLabel);
+  }
+  _restoreHighPrecisionSerializedGeometry(serializedObjects) {
+    if (!Array.isArray(serializedObjects)) return;
+    const fabricObjects = this._getSerializableStateObjects();
+    const numericProperties = [
+      "left",
+      "top",
+      "width",
+      "height",
+      "scaleX",
+      "scaleY",
+      "angle",
+      "skewX",
+      "skewY",
+      "cropX",
+      "cropY",
+      "radius",
+      "rx",
+      "ry",
+      "strokeWidth"
+    ];
+    serializedObjects.forEach((serializedObject, index) => {
+      const fabricObject = fabricObjects[index];
+      if (!serializedObject || !fabricObject) return;
+      numericProperties.forEach((property) => {
+        const numericValue = Number(fabricObject[property]);
+        if (Number.isFinite(numericValue)) serializedObject[property] = numericValue;
+      });
+      if (Array.isArray(serializedObject.points) && Array.isArray(fabricObject.points)) {
+        serializedObject.points = fabricObject.points.map((point) => ({
+          x: Number.isFinite(Number(point && point.x)) ? Number(point.x) : 0,
+          y: Number.isFinite(Number(point && point.y)) ? Number(point.y) : 0
+        }));
+      }
+    });
+  }
   _restoreMaskControls(mask) {
     if (!mask) return;
     const cornerSize = Number(mask.cornerSize);
@@ -1309,6 +1381,7 @@ var ImageEditor = class {
       const jsonObject = this.canvas.toJSON(this._getStateProperties());
       if (Array.isArray(jsonObject.objects)) {
         jsonObject.objects = jsonObject.objects.filter((object) => !object.isCropRect && !object.maskLabel);
+        this._restoreHighPrecisionSerializedGeometry(jsonObject.objects);
       }
       jsonObject.imageEditorMetadata = this._serializeEditorMetadata();
       return JSON.stringify(jsonObject);
@@ -1383,6 +1456,12 @@ var ImageEditor = class {
     if (!Number.isFinite(numericValue)) return false;
     return Math.abs(numericValue - Math.round(numericValue)) > 0.01;
   }
+  _hasScaledImageEdge(axis) {
+    if (!this.originalImage) return false;
+    const scale = Number(axis === "y" ? this.originalImage.scaleY : this.originalImage.scaleX);
+    if (!Number.isFinite(scale)) return false;
+    return Math.abs(scale - 1) > 0.01;
+  }
   _getPartialExportEdges(bounds) {
     if (!bounds) return null;
     const angle = Math.abs((Number(this.originalImage && this.originalImage.angle) || 0) % 90);
@@ -1391,8 +1470,8 @@ var ImageEditor = class {
     return {
       left: this._hasFractionalCanvasEdge(bounds.left),
       top: this._hasFractionalCanvasEdge(bounds.top),
-      right: this._hasFractionalCanvasEdge((Number(bounds.left) || 0) + (Number(bounds.width) || 0)),
-      bottom: this._hasFractionalCanvasEdge((Number(bounds.top) || 0) + (Number(bounds.height) || 0))
+      right: this._hasFractionalCanvasEdge((Number(bounds.left) || 0) + (Number(bounds.width) || 0)) || this._hasScaledImageEdge("x"),
+      bottom: this._hasFractionalCanvasEdge((Number(bounds.top) || 0) + (Number(bounds.height) || 0)) || this._hasScaledImageEdge("y")
     };
   }
   async _sealPartialTransparentEdges(dataUrl, edges) {
@@ -1452,7 +1531,8 @@ var ImageEditor = class {
    * @private
    */
   async _exportCanvasRegionToDataURL({ sourceX, sourceY, sourceWidth, sourceHeight, multiplier = 1, quality = 0.92, format = "jpeg", sealPartialEdges = null }) {
-    const safeMultiplier = Math.max(1, Number(multiplier) || 1);
+    const safeMultiplier = this._getSafeExportMultiplier(multiplier);
+    this._assertExportPixelBudget(sourceWidth, sourceHeight, safeMultiplier);
     const safeFormat = this._normalizeImageFormat(format);
     const exportFormat = safeFormat === "jpeg" ? "png" : safeFormat;
     let regionDataUrl = this.canvas.toDataURL({
@@ -1467,6 +1547,25 @@ var ImageEditor = class {
     regionDataUrl = await this._sealPartialTransparentEdges(regionDataUrl, sealPartialEdges);
     if (safeFormat !== "jpeg") return regionDataUrl;
     return this._convertDataUrlToOpaqueJpeg(regionDataUrl, quality);
+  }
+  _getSafeExportMultiplier(multiplier) {
+    const numericMultiplier = Number(multiplier);
+    if (!Number.isFinite(numericMultiplier) || numericMultiplier <= 0) {
+      throw new Error("Export multiplier must be a finite positive number");
+    }
+    return Math.max(1, numericMultiplier);
+  }
+  _assertExportPixelBudget(sourceWidth, sourceHeight, safeMultiplier) {
+    const width = Math.max(1, Math.ceil(Number(sourceWidth) || 1));
+    const height = Math.max(1, Math.ceil(Number(sourceHeight) || 1));
+    const outputWidth = Math.ceil(width * safeMultiplier);
+    const outputHeight = Math.ceil(height * safeMultiplier);
+    const outputPixels = outputWidth * outputHeight;
+    const configuredMaxPixels = Number(this.options.maxExportPixels);
+    const maxPixels = Number.isFinite(configuredMaxPixels) && configuredMaxPixels > 0 ? Math.floor(configuredMaxPixels) : 5e7;
+    if (outputPixels > maxPixels) {
+      throw new Error(`Export would create ${outputPixels} pixels, exceeding the configured maxExportPixels limit of ${maxPixels}`);
+    }
   }
   async _convertDataUrlToOpaqueJpeg(dataUrl, quality = 0.92) {
     const imageElement = await this._createImageElement(dataUrl);
@@ -1512,6 +1611,7 @@ var ImageEditor = class {
   }
   _decodeBase64Payload(base64Payload) {
     const payload = String(base64Payload || "");
+    if (!payload) throw new Error("Data URL base64 payload is empty");
     if (typeof atob === "function") {
       return Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
     }
@@ -1519,6 +1619,13 @@ var ImageEditor = class {
       return new Uint8Array(Buffer.from(payload, "base64"));
     }
     throw new Error("Base64 decoding is unavailable");
+  }
+  _decodeDataUrlPayload(dataUrl) {
+    const match = String(dataUrl || "").match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/i);
+    if (!match || !match[2]) {
+      throw new Error("Export produced an invalid or empty base64 data URL");
+    }
+    return this._decodeBase64Payload(match[2]);
   }
   /** 
    * Gets the top-left corner coordinates of the given object.
@@ -1629,13 +1736,42 @@ var ImageEditor = class {
       const currentHeight = this.canvas.getHeight();
       let requiredWidth = currentWidth;
       let requiredHeight = currentHeight;
-      fabricObjects.forEach((fabricObject) => {
+      const layoutMode = this._getImageLayoutMode();
+      const usesScrollableFitBounds = layoutMode === "fit" || layoutMode === "cover";
+      let contentWidth = 0;
+      let contentHeight = 0;
+      const includeObjectBounds = (fabricObject, objectPadding = 0) => {
         if (!fabricObject) return;
         if (typeof fabricObject.setCoords === "function") fabricObject.setCoords();
         const boundingRect = fabricObject.getBoundingRect(true, true);
-        requiredWidth = Math.max(requiredWidth, Math.ceil(boundingRect.left + boundingRect.width + padding));
-        requiredHeight = Math.max(requiredHeight, Math.ceil(boundingRect.top + boundingRect.height + padding));
+        const right = Math.ceil(boundingRect.left + boundingRect.width + objectPadding);
+        const bottom = Math.ceil(boundingRect.top + boundingRect.height + objectPadding);
+        contentWidth = Math.max(contentWidth, right);
+        contentHeight = Math.max(contentHeight, bottom);
+        return { right, bottom };
+      };
+      fabricObjects.forEach((fabricObject) => {
+        const bounds = includeObjectBounds(fabricObject, padding);
+        if (!bounds) return;
+        requiredWidth = Math.max(requiredWidth, bounds.right);
+        requiredHeight = Math.max(requiredHeight, bounds.bottom);
       });
+      if (usesScrollableFitBounds) {
+        if (this.originalImage) includeObjectBounds(this.originalImage, 0);
+        this.canvas.getObjects().forEach((object) => {
+          if (object && object.maskId) includeObjectBounds(object, padding);
+        });
+        const contentSize = this._getScrollableCanvasSize(
+          Math.max(1, contentWidth),
+          Math.max(1, contentHeight)
+        );
+        const newWidth2 = contentSize.hasHorizontal ? Math.max(currentWidth, contentSize.width) : contentSize.width;
+        const newHeight2 = contentSize.hasVertical ? Math.max(currentHeight, contentSize.height) : contentSize.height;
+        if (newWidth2 !== currentWidth || newHeight2 !== currentHeight) {
+          this._setCanvasSizeInt(newWidth2, newHeight2);
+        }
+        return;
+      }
       let minWidth = 0;
       let minHeight = 0;
       if (this.containerElement) {
@@ -1653,16 +1789,60 @@ var ImageEditor = class {
       this._reportWarning("expandCanvasToFitObjects: failed to expand canvas", error);
     }
   }
-  /**
-   * Expands the canvas so one object remains visible after an edit.
-   *
-   * @param {fabric.Object} fabricObject - Object whose bounds should fit inside the canvas.
-   * @param {number} [padding=10] - Extra canvas space after the object edge.
-   * @returns {void}
-   * @private
-   */
-  _expandCanvasToFitObject(fabricObject, padding = 10) {
-    this._expandCanvasToFitObjects([fabricObject], padding);
+  _captureImageDisplayBounds() {
+    if (!this.originalImage || !this.canvas) return null;
+    this.originalImage.setCoords();
+    const bounds = this.originalImage.getBoundingRect(true, true);
+    const width = Number(bounds && bounds.width);
+    const height = Number(bounds && bounds.height);
+    if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return null;
+    return {
+      left: Number.isFinite(Number(bounds.left)) ? Number(bounds.left) : 0,
+      top: Number.isFinite(Number(bounds.top)) ? Number(bounds.top) : 0,
+      width,
+      height
+    };
+  }
+  _restoreImageDisplayBounds(displayBounds) {
+    if (!displayBounds || !this.originalImage || !this.canvas) return;
+    const imageWidth = Number(this.originalImage.width);
+    const imageHeight = Number(this.originalImage.height);
+    if (!Number.isFinite(imageWidth) || imageWidth <= 0 || !Number.isFinite(imageHeight) || imageHeight <= 0) return;
+    const scaleX = Number(displayBounds.width) / imageWidth;
+    const scaleY = Number(displayBounds.height) / imageHeight;
+    if (!Number.isFinite(scaleX) || scaleX <= 0 || !Number.isFinite(scaleY) || scaleY <= 0) return;
+    const left = Number(displayBounds.left) || 0;
+    const top = Number(displayBounds.top) || 0;
+    const requiredCanvasWidth = Math.max(1, Math.ceil(left + Number(displayBounds.width)));
+    const requiredCanvasHeight = Math.max(1, Math.ceil(top + Number(displayBounds.height)));
+    const currentCanvasWidth = Math.max(1, Math.round(Number(this.canvas.getWidth()) || 1));
+    const currentCanvasHeight = Math.max(1, Math.round(Number(this.canvas.getHeight()) || 1));
+    const layoutMode = this._getImageLayoutMode();
+    if (layoutMode === "fit" || layoutMode === "cover") {
+      const contentSize = this._getScrollableCanvasSize(requiredCanvasWidth, requiredCanvasHeight);
+      if (contentSize.width !== currentCanvasWidth || contentSize.height !== currentCanvasHeight) {
+        this._setCanvasSizeInt(contentSize.width, contentSize.height);
+      }
+    } else if (requiredCanvasWidth > currentCanvasWidth || requiredCanvasHeight > currentCanvasHeight) {
+      this._setCanvasSizeInt(
+        Math.max(currentCanvasWidth, requiredCanvasWidth),
+        Math.max(currentCanvasHeight, requiredCanvasHeight)
+      );
+    }
+    this.originalImage.set({
+      originX: "left",
+      originY: "top",
+      left,
+      top,
+      scaleX,
+      scaleY
+    });
+    this.originalImage.setCoords();
+    this.baseImageScale = scaleX;
+    this.currentScale = 1;
+    this.currentRotation = Number(this.originalImage.angle) || 0;
+    this._updateInputs();
+    this.canvas.renderAll();
   }
   /** 
    * Scales the original image by a given factor, with animation.
@@ -1677,7 +1857,14 @@ var ImageEditor = class {
     } catch (error) {
       return Promise.reject(error);
     }
-    return this.animationQueue.add(() => this._scaleImageImpl(factor, options)).finally(() => {
+    return this.animationQueue.add(async () => {
+      const operationToken = this._beginBusyOperation("scaleImage");
+      try {
+        await this._scaleImageImpl(factor, this._withInternalOperationOptions(operationToken, options));
+      } finally {
+        this._endBusyOperation(operationToken);
+      }
+    }).finally(() => {
       if (!this._disposed && this.canvas) this._updateUI();
     });
   }
@@ -1720,7 +1907,7 @@ var ImageEditor = class {
     if (this._cropMode && !this._isCropModeAllowedOperation(operationName) && !isOwnInternalOperation) {
       throw new Error(`${operationName} cannot run while crop mode is active`);
     }
-    if (this.isAnimating || this.animationQueue && this.animationQueue.isBusy()) {
+    if ((this.isAnimating || this.animationQueue && this.animationQueue.isBusy()) && !isOwnInternalOperation) {
       throw new Error(`${operationName} cannot run while an animation is running`);
     }
     if (this._isLoading && !isOwnInternalOperation) {
@@ -1833,7 +2020,7 @@ var ImageEditor = class {
         if (object.maskId) this._syncMaskLabel(object);
       });
       this._updateInputs();
-      if (saveHistory) this.saveState();
+      if (saveHistory) this.saveState(options);
     } finally {
       if (didStartAnimation) {
         this.isAnimating = false;
@@ -1855,7 +2042,14 @@ var ImageEditor = class {
     } catch (error) {
       return Promise.reject(error);
     }
-    return this.animationQueue.add(() => this._rotateImageImpl(degrees, options)).finally(() => {
+    return this.animationQueue.add(async () => {
+      const operationToken = this._beginBusyOperation("rotateImage");
+      try {
+        await this._rotateImageImpl(degrees, this._withInternalOperationOptions(operationToken, options));
+      } finally {
+        this._endBusyOperation(operationToken);
+      }
+    }).finally(() => {
       if (!this._disposed && this.canvas) this._updateUI();
     });
   }
@@ -1898,7 +2092,7 @@ var ImageEditor = class {
         if (object.maskId) this._syncMaskLabel(object);
       });
       this._updateInputs();
-      if (saveHistory) this.saveState();
+      if (saveHistory) this.saveState(options);
       didCompleteRotation = true;
     } finally {
       if (!didCompleteRotation && !this._disposed && image) {
@@ -1925,19 +2119,22 @@ var ImageEditor = class {
       return Promise.reject(error);
     }
     return this.animationQueue.add(async () => {
+      const operationToken = this._beginBusyOperation("resetImageTransform");
       const before = this._lastSnapshot || this._captureCanvasStateOrThrow("resetImageTransform");
       try {
-        await this._scaleImageImpl(1, { saveHistory: false });
-        await this._rotateImageImpl(0, { saveHistory: false });
+        await this._scaleImageImpl(1, this._withInternalOperationOptions(operationToken, { saveHistory: false }));
+        await this._rotateImageImpl(0, this._withInternalOperationOptions(operationToken, { saveHistory: false }));
         const after = this._captureCanvasStateOrThrow("resetImageTransform");
         this._pushStateTransition(before, after);
       } catch (error) {
         try {
-          await this.loadFromState(before);
+          await this.loadFromState(before, this._withInternalOperationOptions(operationToken));
         } catch (restoreError) {
           this._reportError("resetImageTransform rollback failed", restoreError);
         }
         throw error;
+      } finally {
+        this._endBusyOperation(operationToken);
       }
     }).finally(() => {
       if (!this._disposed && this.canvas) this._updateUI();
@@ -1962,8 +2159,13 @@ var ImageEditor = class {
    * @returns {Promise<void>} Resolves after Fabric has loaded the state and UI state has been refreshed.
    * @public
    */
-  loadFromState(serializedState) {
+  loadFromState(serializedState, options = {}) {
     if (!serializedState || !this.canvas || this._disposed) return Promise.resolve();
+    try {
+      this._assertIdleForOperation("loadFromState", options);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     if (this._cropMode || this._cropRect) {
       this._removeCropRect();
       this._restoreCropObjectState();
@@ -2120,22 +2322,29 @@ var ImageEditor = class {
    * @returns {void}
    * @public
    */
-  saveState() {
+  saveState(options = {}) {
     if (!this.canvas) return;
+    try {
+      this._assertIdleForOperation("saveState", options);
+    } catch (error) {
+      this._reportError("saveState blocked", error);
+      this._updateUI();
+      return;
+    }
     try {
       const after = this._captureCanvasStateOrThrow("saveState");
       const before = this._lastSnapshot || after;
       if (after === before) return;
       let executedOnce = false;
       const command = new Command(
-        () => {
+        (commandOptions = {}) => {
           if (executedOnce) {
-            return this.loadFromState(after);
+            return this.loadFromState(after, commandOptions);
           }
           executedOnce = true;
           return void 0;
         },
-        () => this.loadFromState(before)
+        (commandOptions = {}) => this.loadFromState(before, commandOptions)
       );
       this.historyManager.execute(command);
       this._lastSnapshot = after;
@@ -2164,8 +2373,8 @@ var ImageEditor = class {
     if (before === after) return;
     if (!this.historyManager) this.historyManager = new HistoryManager(this.maxHistorySize || 50);
     const command = new Command(
-      () => this.loadFromState(after),
-      () => this.loadFromState(before)
+      (commandOptions = {}) => this.loadFromState(after, commandOptions),
+      (commandOptions = {}) => this.loadFromState(before, commandOptions)
     );
     this.historyManager.push(command);
     this._lastSnapshot = after;
@@ -2178,8 +2387,16 @@ var ImageEditor = class {
    * @public
    */
   undo() {
-    return this.historyManager.undo().then(() => {
+    try {
+      this._assertIdleForOperation("undo");
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const operationToken = this._beginBusyOperation("undo");
+    return this.historyManager.undo(this._withInternalOperationOptions(operationToken)).then(() => {
       this._updateUI();
+    }).finally(() => {
+      this._endBusyOperation(operationToken);
     }).catch((error) => {
       this._reportError("undo failed", error);
       throw error;
@@ -2192,8 +2409,16 @@ var ImageEditor = class {
    * @public
    */
   redo() {
-    return this.historyManager.redo().then(() => {
+    try {
+      this._assertIdleForOperation("redo");
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const operationToken = this._beginBusyOperation("redo");
+    return this.historyManager.redo(this._withInternalOperationOptions(operationToken)).then(() => {
       this._updateUI();
+    }).finally(() => {
+      this._endBusyOperation(operationToken);
     }).catch((error) => {
       this._reportError("redo failed", error);
       throw error;
@@ -2309,18 +2534,43 @@ var ImageEditor = class {
       }
       return value != null ? value : fallback;
     };
-    if (maskConfig.left === void 0 && this._lastMask) {
-      const previousMask = this._lastMask;
-      if (typeof previousMask.setCoords === "function") previousMask.setCoords();
-      const previousBounds = typeof previousMask.getBoundingRect === "function" ? previousMask.getBoundingRect(true, true) : { left: previousMask.left || firstOffset, top: previousMask.top || firstOffset, width: previousMask.width || 0 };
-      left = Math.round(previousBounds.left + previousBounds.width + maskConfig.gap);
-      top = Math.round(previousBounds.top ?? firstOffset);
-    } else {
-      left = resolveValue(maskConfig.left, firstOffset, "width");
-      top = resolveValue(maskConfig.top, firstOffset, "height");
+    const rejectInvalidMask = (message, error = null) => {
+      this._reportWarning(`createMask: ${message}`, error);
+      return null;
+    };
+    const resolveNumber = (value, fallback, axis, fieldName, constraints = {}) => {
+      const resolvedValue = resolveValue(value, fallback, axis);
+      const numericValue = Number(resolvedValue);
+      if (!Number.isFinite(numericValue)) {
+        throw new Error(`${fieldName} must be a finite number`);
+      }
+      if (constraints.positive && numericValue <= 0) {
+        throw new Error(`${fieldName} must be greater than 0`);
+      }
+      if (constraints.nonNegative && numericValue < 0) {
+        throw new Error(`${fieldName} must be 0 or greater`);
+      }
+      return numericValue;
+    };
+    try {
+      maskConfig.gap = resolveNumber(maskConfig.gap, 5, "width", "gap", { nonNegative: true });
+      maskConfig.width = resolveNumber(maskConfig.width, this.options.defaultMaskWidth, "width", "width", { positive: true });
+      maskConfig.height = resolveNumber(maskConfig.height, this.options.defaultMaskHeight, "height", "height", { positive: true });
+      maskConfig.angle = resolveNumber(maskConfig.angle, 0, "width", "angle");
+      maskConfig.alpha = Math.max(0, Math.min(1, resolveNumber(maskConfig.alpha, 0.5, "width", "alpha")));
+      if (maskConfig.left === void 0 && this._lastMask) {
+        const previousMask = this._lastMask;
+        if (typeof previousMask.setCoords === "function") previousMask.setCoords();
+        const previousBounds = typeof previousMask.getBoundingRect === "function" ? previousMask.getBoundingRect(true, true) : { left: previousMask.left || firstOffset, top: previousMask.top || firstOffset, width: previousMask.width || 0 };
+        left = Math.round(previousBounds.left + previousBounds.width + maskConfig.gap);
+        top = Math.round(previousBounds.top ?? firstOffset);
+      } else {
+        left = resolveNumber(maskConfig.left, firstOffset, "width", "left");
+        top = resolveNumber(maskConfig.top, firstOffset, "height", "top");
+      }
+    } catch (error) {
+      return rejectInvalidMask("invalid numeric configuration", error);
     }
-    maskConfig.width = resolveValue(maskConfig.width, this.options.defaultMaskWidth, "width");
-    maskConfig.height = resolveValue(maskConfig.height, this.options.defaultMaskHeight, "height");
     maskConfig.left = left;
     maskConfig.top = top;
     let mask;
@@ -2329,10 +2579,15 @@ var ImageEditor = class {
     } else {
       switch (shapeType) {
         case "circle":
+          try {
+            maskConfig.radius = resolveNumber(maskConfig.radius, Math.min(maskConfig.width, maskConfig.height) / 2, "min", "radius", { positive: true });
+          } catch (error) {
+            return rejectInvalidMask("invalid circle radius", error);
+          }
           mask = new fabric.Circle({
             left,
             top,
-            radius: resolveValue(maskConfig.radius, Math.min(maskConfig.width, maskConfig.height) / 2, "min"),
+            radius: maskConfig.radius,
             fill: maskConfig.color,
             opacity: maskConfig.alpha,
             angle: maskConfig.angle,
@@ -2340,11 +2595,17 @@ var ImageEditor = class {
           });
           break;
         case "ellipse":
+          try {
+            maskConfig.rx = resolveNumber(maskConfig.rx, maskConfig.width / 2, "width", "rx", { positive: true });
+            maskConfig.ry = resolveNumber(maskConfig.ry, maskConfig.height / 2, "height", "ry", { positive: true });
+          } catch (error) {
+            return rejectInvalidMask("invalid ellipse radius", error);
+          }
           mask = new fabric.Ellipse({
             left,
             top,
-            rx: resolveValue(maskConfig.rx, maskConfig.width / 2, "width"),
-            ry: resolveValue(maskConfig.ry, maskConfig.height / 2, "height"),
+            rx: maskConfig.rx,
+            ry: maskConfig.ry,
             fill: maskConfig.color,
             opacity: maskConfig.alpha,
             angle: maskConfig.angle,
@@ -2353,8 +2614,20 @@ var ImageEditor = class {
           break;
         case "polygon": {
           let polygonPoints = maskConfig.points || [];
-          if (Array.isArray(polygonPoints) && polygonPoints.length) {
-            polygonPoints = polygonPoints.map((point) => Array.isArray(point) ? { x: Number(point[0]), y: Number(point[1]) } : { x: Number(point.x), y: Number(point.y) });
+          if (!Array.isArray(polygonPoints) || polygonPoints.length < 3) {
+            return rejectInvalidMask("polygon masks require at least three points");
+          }
+          try {
+            polygonPoints = polygonPoints.map((point) => {
+              const x = Number(Array.isArray(point) ? point[0] : point.x);
+              const y = Number(Array.isArray(point) ? point[1] : point.y);
+              if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                throw new Error("polygon point coordinates must be finite numbers");
+              }
+              return { x, y };
+            });
+          } catch (error) {
+            return rejectInvalidMask("invalid polygon points", error);
           }
           mask = new fabric.Polygon(polygonPoints, {
             left,
@@ -2368,11 +2641,17 @@ var ImageEditor = class {
         }
         case "rect":
         default:
+          try {
+            if (maskConfig.rx != null) maskConfig.rx = resolveNumber(maskConfig.rx, 0, "width", "rx", { nonNegative: true });
+            if (maskConfig.ry != null) maskConfig.ry = resolveNumber(maskConfig.ry, 0, "height", "ry", { nonNegative: true });
+          } catch (error) {
+            return rejectInvalidMask("invalid rectangle corner radius", error);
+          }
           mask = new fabric.Rect({
             left,
             top,
-            width: resolveValue(maskConfig.width, this.options.defaultMaskWidth, "width"),
-            height: resolveValue(maskConfig.height, this.options.defaultMaskHeight, "height"),
+            width: maskConfig.width,
+            height: maskConfig.height,
             fill: maskConfig.color,
             opacity: maskConfig.alpha,
             angle: maskConfig.angle,
@@ -2410,10 +2689,10 @@ var ImageEditor = class {
       originalStrokeWidth: Number.isFinite(Number(mask.strokeWidth)) ? Number(mask.strokeWidth) : 1
     });
     this._rebindMaskEvents(mask);
-    this._expandCanvasToFitObject(mask);
+    this._expandCanvasToFitObjects([mask]);
     this._lastMaskInitialLeft = left;
     this._lastMaskInitialTop = top;
-    this._lastMaskInitialWidth = resolveValue(maskConfig.width, this.options.defaultMaskWidth, "width");
+    this._lastMaskInitialWidth = maskConfig.width;
     const maskId = ++this.maskCounter;
     mask.set({
       maskId,
@@ -2841,6 +3120,7 @@ var ImageEditor = class {
     this._assertIdleForOperation("mergeMasks");
     const masks = this.canvas.getObjects().filter((object) => object.maskId);
     if (!masks.length) return;
+    const beforeImageDisplayBounds = this._captureImageDisplayBounds();
     const beforeJson = this._serializeCanvasState();
     const operationToken = this._beginBusyOperation("mergeMasks");
     this.canvas.discardActiveObject();
@@ -2859,12 +3139,13 @@ var ImageEditor = class {
         preserveScroll: true,
         resetMaskCounter: false
       }));
+      this._restoreImageDisplayBounds(beforeImageDisplayBounds);
       const afterJson = this._serializeCanvasState();
       this._pushStateTransition(beforeJson, afterJson);
     } catch (error) {
       this._reportError("merge error", error);
       try {
-        await this.loadFromState(beforeJson);
+        await this.loadFromState(beforeJson, this._withInternalOperationOptions(operationToken));
       } catch (restoreError) {
         this._reportError("mergeMasks rollback failed", restoreError);
       }
@@ -2921,23 +3202,64 @@ var ImageEditor = class {
    */
   async exportImageBase64(options = {}) {
     if (!this.originalImage) throw new Error("No image loaded");
+    options = options || {};
     this._assertIdleForOperation("exportImageBase64", options);
+    const isNestedOperation = this._isOwnInternalOperation(options);
+    const operationToken = isNestedOperation ? this._getInternalOperationToken(options) : this._beginBusyOperation("exportImageBase64");
     const exportImageArea = typeof options.exportImageArea === "boolean" ? options.exportImageArea : this.options.exportImageAreaByDefault;
     const multiplier = options.multiplier || this.options.exportMultiplier || 1;
     const quality = this._normalizeQuality(options.quality ?? this.options.downsampleQuality);
     const format = this._normalizeImageFormat(options.fileType || options.format);
-    if (!exportImageArea) {
-      const masks2 = this.canvas.getObjects().filter((object) => object.maskId || object.maskLabel);
-      const editableMasks = this.canvas.getObjects().filter((object) => object.maskId);
-      const maskVisibilityBackups = masks2.map((mask) => ({ object: mask, visible: mask.visible }));
-      const maskStyleBackups2 = this._captureMaskExportBackups(editableMasks);
-      const labelBackups2 = this._captureMaskLabelBackups(editableMasks);
-      const activeObjectBackup2 = this._captureActiveObjectBackup();
+    try {
+      if (!exportImageArea) {
+        const masks2 = this.canvas.getObjects().filter((object) => object.maskId || object.maskLabel);
+        const editableMasks = this.canvas.getObjects().filter((object) => object.maskId);
+        const maskVisibilityBackups = masks2.map((mask) => ({ object: mask, visible: mask.visible }));
+        const maskStyleBackups2 = this._captureMaskExportBackups(editableMasks);
+        const labelBackups2 = this._captureMaskLabelBackups(editableMasks);
+        const activeObjectBackup2 = this._captureActiveObjectBackup();
+        try {
+          masks2.forEach((mask) => {
+            mask.set({ visible: false });
+          });
+          this.canvas.discardActiveObject();
+          this.canvas.renderAll();
+          this.originalImage.setCoords();
+          const imageBounds = this.originalImage.getBoundingRect(true, true);
+          const exportRegion = this._getClampedCanvasRegion(imageBounds);
+          return await this._exportCanvasRegionToDataURL({
+            ...exportRegion,
+            multiplier,
+            quality,
+            format,
+            sealPartialEdges: this._getPartialExportEdges(imageBounds)
+          });
+        } finally {
+          maskVisibilityBackups.forEach((backup) => {
+            try {
+              backup.object.set({ visible: backup.visible });
+            } catch (error) {
+              void error;
+            }
+          });
+          this._restoreMaskExportBackups(maskStyleBackups2);
+          this._restoreMaskLabelBackups(labelBackups2);
+          this._restoreActiveObjectBackup(activeObjectBackup2);
+          this.canvas.renderAll();
+        }
+      }
+      const masks = this.canvas.getObjects().filter((object) => object.maskId);
+      const maskStyleBackups = this._captureMaskExportBackups(masks);
+      const labelBackups = this._captureMaskLabelBackups(masks);
+      const activeObjectBackup = this._captureActiveObjectBackup();
       try {
-        masks2.forEach((mask) => {
-          mask.set({ visible: false });
-        });
+        masks.forEach((mask) => this._removeLabelForMask(mask));
         this.canvas.discardActiveObject();
+        this.canvas.renderAll();
+        masks.forEach((mask) => {
+          mask.set({ opacity: 1, fill: "#000000", strokeWidth: 0, stroke: null, selectable: false });
+          mask.setCoords();
+        });
         this.canvas.renderAll();
         this.originalImage.setCoords();
         const imageBounds = this.originalImage.getBoundingRect(true, true);
@@ -2950,47 +3272,13 @@ var ImageEditor = class {
           sealPartialEdges: this._getPartialExportEdges(imageBounds)
         });
       } finally {
-        maskVisibilityBackups.forEach((backup) => {
-          try {
-            backup.object.set({ visible: backup.visible });
-          } catch (error) {
-            void error;
-          }
-        });
-        this._restoreMaskExportBackups(maskStyleBackups2);
-        this._restoreMaskLabelBackups(labelBackups2);
-        this._restoreActiveObjectBackup(activeObjectBackup2);
+        this._restoreMaskExportBackups(maskStyleBackups);
+        this._restoreMaskLabelBackups(labelBackups);
+        this._restoreActiveObjectBackup(activeObjectBackup);
         this.canvas.renderAll();
       }
-    }
-    const masks = this.canvas.getObjects().filter((object) => object.maskId);
-    const maskStyleBackups = this._captureMaskExportBackups(masks);
-    const labelBackups = this._captureMaskLabelBackups(masks);
-    const activeObjectBackup = this._captureActiveObjectBackup();
-    try {
-      masks.forEach((mask) => this._removeLabelForMask(mask));
-      this.canvas.discardActiveObject();
-      this.canvas.renderAll();
-      masks.forEach((mask) => {
-        mask.set({ opacity: 1, fill: "#000000", strokeWidth: 0, stroke: null, selectable: false });
-        mask.setCoords();
-      });
-      this.canvas.renderAll();
-      this.originalImage.setCoords();
-      const imageBounds = this.originalImage.getBoundingRect(true, true);
-      const exportRegion = this._getClampedCanvasRegion(imageBounds);
-      return await this._exportCanvasRegionToDataURL({
-        ...exportRegion,
-        multiplier,
-        quality,
-        format,
-        sealPartialEdges: this._getPartialExportEdges(imageBounds)
-      });
     } finally {
-      this._restoreMaskExportBackups(maskStyleBackups);
-      this._restoreMaskLabelBackups(labelBackups);
-      this._restoreActiveObjectBackup(activeObjectBackup);
-      this.canvas.renderAll();
+      if (!isNestedOperation) this._endBusyOperation(operationToken);
     }
   }
   /**
@@ -3023,7 +3311,10 @@ var ImageEditor = class {
    */
   async exportImageFile(options = {}) {
     if (!this.originalImage) throw new Error("No image loaded");
-    this._assertIdleForOperation("exportImageFile");
+    options = options || {};
+    this._assertIdleForOperation("exportImageFile", options);
+    const isNestedOperation = this._isOwnInternalOperation(options);
+    const operationToken = isNestedOperation ? this._getInternalOperationToken(options) : this._beginBusyOperation("exportImageFile");
     const {
       mergeMask = true,
       fileType = "jpeg",
@@ -3033,48 +3324,52 @@ var ImageEditor = class {
     } = options;
     const safeFileType = this._normalizeImageFormat(fileType);
     const normalizedQuality = this._normalizeQuality(quality);
-    let imageBase64;
-    if (mergeMask) {
-      imageBase64 = await this.exportImageBase64({
-        exportImageArea: true,
-        multiplier,
-        quality: normalizedQuality,
-        fileType: safeFileType
-      });
-    } else {
-      imageBase64 = await this.exportImageBase64({
-        exportImageArea: false,
-        multiplier,
-        quality: normalizedQuality,
-        fileType: safeFileType
-      });
+    try {
+      let imageBase64;
+      if (mergeMask) {
+        imageBase64 = await this.exportImageBase64(this._withInternalOperationOptions(operationToken, {
+          exportImageArea: true,
+          multiplier,
+          quality: normalizedQuality,
+          fileType: safeFileType
+        }));
+      } else {
+        imageBase64 = await this.exportImageBase64(this._withInternalOperationOptions(operationToken, {
+          exportImageArea: false,
+          multiplier,
+          quality: normalizedQuality,
+          fileType: safeFileType
+        }));
+      }
+      let imageDataUrl = imageBase64;
+      if (!imageDataUrl.startsWith(`data:image/${safeFileType}`)) {
+        imageDataUrl = await new Promise((resolve, reject) => {
+          const imageElement = new window.Image();
+          imageElement.crossOrigin = "Anonymous";
+          imageElement.onload = () => {
+            try {
+              const offscreenCanvas = document.createElement("canvas");
+              offscreenCanvas.width = imageElement.width;
+              offscreenCanvas.height = imageElement.height;
+              const context = offscreenCanvas.getContext("2d");
+              if (!context) throw new Error("Unable to create 2D canvas context for export conversion");
+              context.drawImage(imageElement, 0, 0);
+              const convertedDataUrl = offscreenCanvas.toDataURL(`image/${safeFileType}`, normalizedQuality);
+              resolve(convertedDataUrl);
+            } catch (error) {
+              reject(error);
+            }
+          };
+          imageElement.onerror = reject;
+          imageElement.src = imageBase64;
+        });
+      }
+      const bytes = this._decodeDataUrlPayload(imageDataUrl);
+      const mime = `image/${safeFileType}`;
+      return new File([bytes], fileName, { type: mime });
+    } finally {
+      if (!isNestedOperation) this._endBusyOperation(operationToken);
     }
-    let imageDataUrl = imageBase64;
-    if (!imageDataUrl.startsWith(`data:image/${safeFileType}`)) {
-      imageDataUrl = await new Promise((resolve, reject) => {
-        const imageElement = new window.Image();
-        imageElement.crossOrigin = "Anonymous";
-        imageElement.onload = () => {
-          try {
-            const offscreenCanvas = document.createElement("canvas");
-            offscreenCanvas.width = imageElement.width;
-            offscreenCanvas.height = imageElement.height;
-            const context = offscreenCanvas.getContext("2d");
-            if (!context) throw new Error("Unable to create 2D canvas context for export conversion");
-            context.drawImage(imageElement, 0, 0);
-            const convertedDataUrl = offscreenCanvas.toDataURL(`image/${safeFileType}`, normalizedQuality);
-            resolve(convertedDataUrl);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        imageElement.onerror = reject;
-        imageElement.src = imageBase64;
-      });
-    }
-    const bytes = this._decodeBase64Payload(imageDataUrl.split(",")[1]);
-    const mime = `image/${safeFileType}`;
-    return new File([bytes], fileName, { type: mime });
   }
   _clearMaskPlacementMemory() {
     this._lastMask = null;
@@ -3082,7 +3377,7 @@ var ImageEditor = class {
     this._lastMaskInitialTop = null;
     this._lastMaskInitialWidth = null;
   }
-  async _restoreStateAfterCropFailure(beforeJson, message, error) {
+  async _restoreStateAfterCropFailure(beforeJson, message, error, options = {}) {
     this._reportError(message, error);
     if (this._cropRect && this.canvas) this._removeCropRect();
     this._cropRect = null;
@@ -3093,7 +3388,7 @@ var ImageEditor = class {
     this._prevSelectionSetting = void 0;
     if (beforeJson) {
       try {
-        await this.loadFromState(beforeJson);
+        await this.loadFromState(beforeJson, options);
       } catch (restoreError) {
         this._reportError("applyCrop: rollback failed", restoreError);
       }
@@ -3139,6 +3434,17 @@ var ImageEditor = class {
     this._cropRect = null;
     this._cropHandlers = [];
   }
+  _getCropRectContentBounds(cropRect) {
+    if (!cropRect) return { left: 0, top: 0, width: 1, height: 1 };
+    const width = Math.max(1, (Number(cropRect.width) || 1) * Math.abs(Number(cropRect.scaleX) || 1));
+    const height = Math.max(1, (Number(cropRect.height) || 1) * Math.abs(Number(cropRect.scaleY) || 1));
+    return {
+      left: Number(cropRect.left) || 0,
+      top: Number(cropRect.top) || 0,
+      width,
+      height
+    };
+  }
   /**
    * Enters crop mode by creating a resizable crop rectangle above the base image.
    *
@@ -3162,14 +3468,19 @@ var ImageEditor = class {
     const padding = this.options.crop && this.options.crop.padding ? this.options.crop.padding : 10;
     const left = Math.max(0, Math.floor(imageBounds.left + padding));
     const top = Math.max(0, Math.floor(imageBounds.top + padding));
-    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width - padding * 2));
-    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height - padding * 2));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
     const configuredMinWidth = Math.max(1, Number(this.options.crop.minWidth) || 50);
     const configuredMinHeight = Math.max(1, Number(this.options.crop.minHeight) || 50);
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
     const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
     const width = minCropWidth;
     const height = minCropHeight;
+    const requestedCropRotation = !!(this.options.crop && this.options.crop.allowRotationOfCropRect);
+    if (requestedCropRotation && !this._cropRotationWarningEmitted) {
+      this._cropRotationWarningEmitted = true;
+      this._reportWarning("crop.allowRotationOfCropRect is disabled in v1.x because rotated crop export is not supported");
+    }
     const cropRect = new fabric.Rect({
       left,
       top,
@@ -3181,8 +3492,8 @@ var ImageEditor = class {
       strokeWidth: 1,
       strokeUniform: true,
       selectable: true,
-      hasRotatingPoint: !!(this.options.crop && this.options.crop.allowRotationOfCropRect),
-      lockRotation: !(this.options.crop && this.options.crop.allowRotationOfCropRect),
+      hasRotatingPoint: false,
+      lockRotation: true,
       cornerSize: 8,
       objectCaching: false,
       originX: "left",
@@ -3219,7 +3530,7 @@ var ImageEditor = class {
         const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
         cropRect.set({ scaleX: nextScaleX, scaleY: nextScaleY });
         cropRect.setCoords();
-        const cropBounds = cropRect.getBoundingRect(true, true);
+        const cropBounds = this._getCropRectContentBounds(cropRect);
         const imageLeft = Number(imageBounds.left) || 0;
         const imageTop = Number(imageBounds.top) || 0;
         const imageRight = imageLeft + (Number(imageBounds.width) || 0);
@@ -3293,94 +3604,100 @@ var ImageEditor = class {
   async applyCrop() {
     if (!this.canvas || !this._cropMode || !this._cropRect) return;
     this._assertIdleForOperation("applyCrop");
-    this._cropRect.setCoords();
-    const rectBounds = this._cropRect.getBoundingRect(true, true);
-    const cropRegion = this._getClampedCanvasRegion(rectBounds, { includePartialPixels: false });
-    const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
-    this._restoreCropObjectState();
-    let beforeJson;
+    const operationToken = this._beginBusyOperation("applyCrop");
+    const internalOptions = this._withInternalOperationOptions(operationToken);
     try {
-      beforeJson = this._serializeCanvasState();
-    } catch (error) {
-      this._reportError("applyCrop: failed to capture rollback state", error);
-      beforeJson = null;
-    }
-    if (!beforeJson) {
-      this.cancelCrop();
-      return;
-    }
-    const preservedMasks = [];
-    try {
-      const masks = this.canvas.getObjects().filter((object) => object.maskId);
-      if (masks && masks.length) {
-        masks.forEach((mask) => {
-          mask.setCoords();
-          const maskBounds = mask.getBoundingRect(true, true);
-          const intersectsCrop = maskBounds.left < cropRegion.sourceX + cropRegion.sourceWidth && maskBounds.left + maskBounds.width > cropRegion.sourceX && maskBounds.top < cropRegion.sourceY + cropRegion.sourceHeight && maskBounds.top + maskBounds.height > cropRegion.sourceY;
-          this._removeLabelForMask(mask);
-          this._cleanupMaskEvents(mask);
-          this.canvas.remove(mask);
-          if (shouldPreserveMasks && intersectsCrop) {
-            this._translateObjectByCanvasOffset(mask, -cropRegion.sourceX, -cropRegion.sourceY);
-            mask.set({ visible: true });
-            preservedMasks.push(mask);
-          }
-        });
-        this._clearMaskPlacementMemory();
-        this.canvas.discardActiveObject();
-        this.canvas.renderAll();
+      this._cropRect.setCoords();
+      const rectBounds = this._getCropRectContentBounds(this._cropRect);
+      const cropRegion = this._getClampedCanvasRegion(rectBounds, { includePartialPixels: false });
+      const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
+      this._restoreCropObjectState();
+      let beforeJson;
+      try {
+        beforeJson = this._serializeCanvasState();
+      } catch (error) {
+        this._reportError("applyCrop: failed to capture rollback state", error);
+        beforeJson = null;
       }
-    } catch (error) {
-      await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: failed to prepare masks", error);
-      return;
-    }
-    this._removeCropRect();
-    this._cropMode = false;
-    this.canvas.selection = !!this._prevSelectionSetting;
-    this._prevSelectionSetting = void 0;
-    let croppedBase64;
-    try {
-      croppedBase64 = await this._exportCanvasRegionToDataURL({
-        ...cropRegion,
-        multiplier: 1,
-        quality: this._normalizeQuality(this.options.downsampleQuality),
-        format: "jpeg"
-      });
-    } catch (error) {
-      await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: failed to create cropped image", error);
-      return;
-    }
-    try {
-      await this.loadImage(croppedBase64, { resetMaskCounter: false });
-      if (preservedMasks.length) {
-        preservedMasks.forEach((mask) => {
-          this._rebindMaskEvents(mask);
-          this.canvas.add(mask);
-          this.canvas.bringToFront(mask);
-        });
-        this._lastMask = preservedMasks[preservedMasks.length - 1];
-        this.maskCounter = preservedMasks.reduce((max, mask) => Math.max(max, mask.maskId || 0), this.maskCounter);
-        this._updateMaskList();
-        this.canvas.renderAll();
+      if (!beforeJson) {
+        this.cancelCrop();
+        return;
       }
-    } catch (error) {
-      await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: loadImage(croppedBase64) failed", error);
-      return;
+      const preservedMasks = [];
+      try {
+        const masks = this.canvas.getObjects().filter((object) => object.maskId);
+        if (masks && masks.length) {
+          masks.forEach((mask) => {
+            mask.setCoords();
+            const maskBounds = mask.getBoundingRect(true, true);
+            const intersectsCrop = maskBounds.left < cropRegion.sourceX + cropRegion.sourceWidth && maskBounds.left + maskBounds.width > cropRegion.sourceX && maskBounds.top < cropRegion.sourceY + cropRegion.sourceHeight && maskBounds.top + maskBounds.height > cropRegion.sourceY;
+            this._removeLabelForMask(mask);
+            this._cleanupMaskEvents(mask);
+            this.canvas.remove(mask);
+            if (shouldPreserveMasks && intersectsCrop) {
+              this._translateObjectByCanvasOffset(mask, -cropRegion.sourceX, -cropRegion.sourceY);
+              mask.set({ visible: true });
+              preservedMasks.push(mask);
+            }
+          });
+          this._clearMaskPlacementMemory();
+          this.canvas.discardActiveObject();
+          this.canvas.renderAll();
+        }
+      } catch (error) {
+        await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: failed to prepare masks", error, internalOptions);
+        return;
+      }
+      this._removeCropRect();
+      this._cropMode = false;
+      this.canvas.selection = !!this._prevSelectionSetting;
+      this._prevSelectionSetting = void 0;
+      let croppedBase64;
+      try {
+        croppedBase64 = await this._exportCanvasRegionToDataURL({
+          ...cropRegion,
+          multiplier: 1,
+          quality: this._normalizeQuality(this.options.downsampleQuality),
+          format: "jpeg"
+        });
+      } catch (error) {
+        await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: failed to create cropped image", error, internalOptions);
+        return;
+      }
+      try {
+        await this.loadImage(croppedBase64, this._withInternalOperationOptions(operationToken, { resetMaskCounter: false }));
+        if (preservedMasks.length) {
+          preservedMasks.forEach((mask) => {
+            this._rebindMaskEvents(mask);
+            this.canvas.add(mask);
+            this.canvas.bringToFront(mask);
+          });
+          this._lastMask = preservedMasks[preservedMasks.length - 1];
+          this.maskCounter = preservedMasks.reduce((max, mask) => Math.max(max, mask.maskId || 0), this.maskCounter);
+          this._updateMaskList();
+          this.canvas.renderAll();
+        }
+      } catch (error) {
+        await this._restoreStateAfterCropFailure(beforeJson, "applyCrop: loadImage(croppedBase64) failed", error, internalOptions);
+        return;
+      }
+      let afterJson;
+      try {
+        afterJson = preservedMasks.length ? this._serializeCanvasState() : this._lastSnapshot;
+      } catch (error) {
+        this._reportWarning("applyCrop: failed to serialize after state", error);
+        afterJson = null;
+      }
+      try {
+        this._pushStateTransition(beforeJson, afterJson);
+      } catch (error) {
+        this._reportWarning("applyCrop: failed to push history command", error);
+      }
+      this._updateUI();
+      this.canvas.renderAll();
+    } finally {
+      this._endBusyOperation(operationToken);
     }
-    let afterJson;
-    try {
-      afterJson = preservedMasks.length ? this._serializeCanvasState() : this._lastSnapshot;
-    } catch (error) {
-      this._reportWarning("applyCrop: failed to serialize after state", error);
-      afterJson = null;
-    }
-    try {
-      this._pushStateTransition(beforeJson, afterJson);
-    } catch (error) {
-      this._reportWarning("applyCrop: failed to push history command", error);
-    }
-    this._updateUI();
-    this.canvas.renderAll();
   }
   /* ---------- Misc / UI ---------- */
   /**
@@ -3800,11 +4117,11 @@ var HistoryManager = class {
    *
    * @returns {Promise<void>} Resolves after the undo task completes.
    */
-  undo() {
+  undo(options = {}) {
     return this.enqueue(async () => {
       if (this.currentIndex >= 0) {
         const index = this.currentIndex;
-        await this.history[index].undo();
+        await this.history[index].undo(options);
         this.currentIndex = index - 1;
       }
     });
@@ -3814,11 +4131,11 @@ var HistoryManager = class {
    *
    * @returns {Promise<void>} Resolves after the redo task completes.
    */
-  redo() {
+  redo(options = {}) {
     return this.enqueue(async () => {
       if (this.currentIndex < this.history.length - 1) {
         const index = this.currentIndex + 1;
-        await this.history[index].execute();
+        await this.history[index].execute(options);
         this.currentIndex = index;
       }
     });
