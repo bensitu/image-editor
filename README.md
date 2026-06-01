@@ -21,7 +21,7 @@ ImageEditor offers:
 - Large-image downsampling to reduce browser memory pressure
 - Centralized error and warning callbacks
 
-**Note:** This library requires **fabric.js v5.x** to be loaded before creating or initializing the editor.
+**Note:** This library uses **fabric.js v5.x**. Bundler and CommonJS entries load Fabric through the peer dependency. Browser global usage needs `window.fabric` available by the time `init()` runs; constructing the editor before Fabric is available is tolerated as long as Fabric is registered before initialization.
 
 ## Demo
 
@@ -59,6 +59,14 @@ yarn add @bensitu/image-editor fabric
 import ImageEditor, {
   ImageEditor as NamedImageEditor,
 } from "@bensitu/image-editor";
+```
+
+### CommonJS usage
+
+```javascript
+const ImageEditor = require("@bensitu/image-editor");
+
+const editor = new ImageEditor();
 ```
 
 ### Browser global usage
@@ -179,6 +187,7 @@ editor.init({
   rotateRightButton: "rotateRightButton",
   rotateLeftDegreesInput: "rotateLeftDegreesInput",
   rotateRightDegreesInput: "rotateRightDegreesInput",
+  createMaskButton: null,
   removeSelectedMaskButton: "removeSelectedMaskButton",
   removeAllMasksButton: "removeAllMasksButton",
   mergeMasksButton: "mergeMasksButton",
@@ -187,9 +196,14 @@ editor.init({
   enterCropModeButton: "enterCropModeButton",
   applyCropButton: "applyCropButton",
   cancelCropButton: "cancelCropButton",
-  resetImageTransformButton: "resetImageTransformButton"
+  resetImageTransformButton: "resetImageTransformButton",
+  canvasContainer: null,
+  imageInput: null,
+  uploadArea: null
 });
 ```
+
+The demo binds `createMaskButton`, `imageInput`, and `uploadArea` itself, so it passes `null` for those built-in bindings. Regular integrations can omit those keys to use the default IDs, or pass `null` to disable any optional binding.
 
 
 ### Loading an Image Manually
@@ -233,6 +247,7 @@ When creating the editor instance, pass an options object to override defaults.
 | `downsampleMimeType`          | `null`                    | Optional output MIME type for downsampled images. Supported values include `jpeg`, `jpg`, `png`, `webp`, `image/jpeg`, `image/png`, and `image/webp`. |
 | `imageLoadTimeoutMs`          | `30000`                   | Timeout for image decode/load operations.                                                                                                             |
 | `exportMultiplier`            | `1`                       | Default scale multiplier for export.                                                                                                                  |
+| `maxExportPixels`             | `50000000`                | Maximum output pixel count allowed per export after applying the multiplier.                                                                           |
 | `exportImageAreaByDefault`    | `true`                    | Export only the image area by default instead of the full canvas.                                                                                     |
 | `defaultMaskWidth`            | `50`                      | Default mask width in pixels.                                                                                                                         |
 | `defaultMaskHeight`           | `80`                      | Default mask height in pixels.                                                                                                                        |
@@ -245,16 +260,21 @@ When creating the editor instance, pass an options object to override defaults.
 | `showPlaceholder`             | `true`                    | Show a placeholder when no image is loaded.                                                                                                           |
 | `initialImageBase64`          | `null`                    | Base64 data URL to auto-load during initialization.                                                                                                   |
 | `defaultDownloadFileName`     | `edited_image.jpg`        | Default file name for downloads.                                                                                                                      |
+| `crop.minWidth`               | `100`                     | Minimum crop rectangle width, clamped to the current image bounds.                                                                                    |
+| `crop.minHeight`              | `100`                     | Minimum crop rectangle height, clamped to the current image bounds.                                                                                   |
+| `crop.padding`                | `10`                      | Initial inset from the image bounds when entering crop mode.                                                                                          |
+| `crop.hideMasksDuringCrop`    | `true`                    | Hide editable masks while crop mode is active.                                                                                                        |
 | `crop.preserveMasksAfterCrop` | `false`                   | Keep masks that intersect the crop area, shifted into the cropped canvas. Merge masks first if they should be baked into the image pixels.            |
+| `crop.allowRotationOfCropRect` | `false`                  | Reserved for future rotated crop support. In v1.x, crop rectangles stay axis-aligned; setting this to `true` reports a warning and rotation remains disabled. |
 | `onImageLoaded`               | `null`                    | Callback invoked after an image finishes loading.                                                                                                     |
 | `onError`                     | `null`                    | Callback invoked for recoverable internal errors.                                                                                                     |
 | `onWarning`                   | `null`                    | Callback invoked for recoverable internal warnings.                                                                                                   |
 
-`expandCanvasToImage`, `fitImageToCanvas`, and `coverImageToCanvas` are mutually exclusive layout modes. If more than one is enabled, the editor reports a warning and uses the first active mode in its existing load order.
+`expandCanvasToImage`, `fitImageToCanvas`, and `coverImageToCanvas` are mutually exclusive layout modes. If more than one is enabled, the editor reports a warning and uses this precedence: `fitImageToCanvas`, then `coverImageToCanvas`, then `expandCanvasToImage`.
 
 ## DOM Binding Keys
 
-`init(idMap)` binds editor behavior to DOM elements by ID. All keys are optional.
+`init(idMap)` binds editor behavior to DOM elements by ID. All keys are optional when the default IDs are present. Optional bindings can also be set to `null` to disable the built-in listener for that element.
 
 | Key                         | Description                                                    |
 | --------------------------- | -------------------------------------------------------------- |
@@ -347,6 +367,8 @@ Deprecated method aliases are still available for compatibility and will be remo
 ## Mask Configuration
 
 `createMask(config)` accepts an optional configuration object.
+
+Invalid mask configuration, such as non-finite numeric values, non-positive dimensions/radii, malformed polygon points, or custom generators that do not return a Fabric object, is rejected with a warning and returns `null` without mutating the canvas or history.
 
 | Option             | Description                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------ |
@@ -449,6 +471,14 @@ try {
 }
 ```
 
+Exports are limited by `maxExportPixels`. Increase that option only when the host page can tolerate the memory cost of larger canvas exports.
+
+```javascript
+const editor = new ImageEditor({
+  maxExportPixels: 80000000,
+});
+```
+
 ## Error Handling
 
 Some ImageEditor API methods may throw synchronously or reject their returned Promise when the operation cannot be completed.
@@ -499,12 +529,12 @@ function showEditorMessage(message) {
 
 Common failure cases include:
 
-- fabric.js is not loaded before creating or initializing the editor.
+- fabric.js is not available when `init()` or another canvas operation needs it.
 - The configured canvas element cannot be found.
 - The image data URL is invalid, unsupported, too large, or times out while loading.
 - Another operation is already running, such as image loading, animation, crop, undo, redo, merge, or export.
 - The editor has been disposed before the operation completes.
-- The browser cannot create a canvas export because of platform, memory, or security restrictions.
+- The requested export exceeds `maxExportPixels`, uses an invalid multiplier, or the browser cannot create a canvas export because of platform, memory, or security restrictions.
 - A custom `fabricGenerator`, label callback, or external event handler throws an error.
 
 ## Example Workflow
@@ -564,7 +594,7 @@ IE11 and old mobile Safari are not supported by the distributed build. If you ne
 
 ## Dependencies
 
-- **fabric.js v5.x** — Must be loaded before ImageEditor.
+- **fabric.js v5.x** — Required peer dependency. Browser global usage needs `window.fabric` available before `init()`.
 
 ## License
 
