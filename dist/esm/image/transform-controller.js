@@ -26,8 +26,8 @@ export class TransformController {
             img.setPositionByOrigin(topLeft, 'left', 'top');
             img.setCoords();
         }
-        catch (err) {
-            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', err);
+        catch (error) {
+            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
         }
         try {
             await this.ctx.guard.runAnimation(() => animateProps(img, { scaleX: targetAbs, scaleY: targetAbs }, {
@@ -35,8 +35,8 @@ export class TransformController {
                 onChange: () => this.ctx.canvas.requestRenderAll(),
             }, this.ctx.guard));
         }
-        catch (err) {
-            console.warn('[ImageEditor] scaleImage animation error', err);
+        catch (error) {
+            console.warn('[ImageEditor] scaleImage animation error', error);
             return;
         }
         if (this.ctx.guard.isDisposed())
@@ -64,8 +64,8 @@ export class TransformController {
             img.setPositionByOrigin(centre, 'center', 'center');
             img.setCoords();
         }
-        catch (err) {
-            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', err);
+        catch (error) {
+            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
         }
         let animationFailed = false;
         try {
@@ -74,9 +74,9 @@ export class TransformController {
                 onChange: () => this.ctx.canvas.requestRenderAll(),
             }, this.ctx.guard));
         }
-        catch (err) {
+        catch (error) {
             animationFailed = true;
-            console.warn('[ImageEditor] rotateImage animation error', err);
+            console.warn('[ImageEditor] rotateImage animation error', error);
         }
         finally {
             if (this.ctx.guard.isDisposed()) {
@@ -97,8 +97,8 @@ export class TransformController {
             img.setPositionByOrigin(newTopLeft, 'left', 'top');
             img.setCoords();
         }
-        catch (err) {
-            console.warn('[ImageEditor] rotateImage: origin post-restore failed', err);
+        catch (error) {
+            console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
         }
         this.ctx.saveCanvasState();
     }

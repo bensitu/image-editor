@@ -16,6 +16,9 @@
  * - Every snapshot SHALL embed an `_editorState`
  *   object containing `currentScale`, `currentRotation`, and
  *   `baseImageScale` so undo/redo can fully restore editor metadata.
+ *   When a single mask is active, `_editorState.activeMaskId` records
+ *   that mask so the facade can rebuild the transient label/list
+ *   selection after `loadFromState`.
  * - Falsy style values such as `strokeWidth: 0`
  *   or `hasControls: false` reach the snapshot unchanged because Fabric's
  *   `toJSON` preserves them and this module performs no defaulting on
@@ -41,6 +44,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import type { MaskObject } from './public-types.js';
 import { isMaskObject } from './public-types.js';
 
 // ─── Snapshot wire format ────────────────────────────────────────────────────
@@ -72,6 +76,22 @@ export interface CanvasJSONObject {
     originalStroke?: unknown;
     /** Stroke width captured before transient hover or selection styling. */
     originalStrokeWidth?: number;
+    /** Fabric control visibility flag. */
+    hasControls?: boolean;
+    /** Fabric selection flag. */
+    selectable?: boolean;
+    /** Fabric uniform stroke scaling flag. */
+    strokeUniform?: boolean;
+    /** Fabric rotation lock flag. */
+    lockRotation?: boolean;
+    /** Fabric transparent corner control flag. */
+    transparentCorners?: boolean;
+    /** Fabric selection border color. */
+    borderColor?: string;
+    /** Fabric corner control color. */
+    cornerColor?: string;
+    /** Fabric corner control size. */
+    cornerSize?: number;
     /** Marks the transient crop rectangle; filtered before history push. */
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
@@ -92,6 +112,8 @@ export interface EditorStateMeta {
     currentRotation: number;
     /** Base scale chosen by the layout manager when the image was loaded. */
     baseImageScale: number;
+    /** Mask selected when the snapshot was captured, if any. */
+    activeMaskId?: number;
 }
 
 /**
@@ -129,7 +151,77 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'originalAlpha',
     'originalStroke',
     'originalStrokeWidth',
+    'hasControls',
+    'selectable',
+    'strokeUniform',
+    'lockRotation',
+    'transparentCorners',
+    'borderColor',
+    'cornerColor',
+    'cornerSize',
 ] as const;
+
+/**
+ * Fabric v7 does not consistently honor `propertiesToInclude` for
+ * non-standard object fields across all builds. History cannot depend on
+ * that behavior because mask identity and hover/selection style metadata are
+ * editor-owned fields. After Fabric produces the base JSON payload, copy the
+ * custom fields from the live object at the same canvas index into the JSON
+ * object before session-only filtering runs.
+ */
+function copySnapshotCustomPropsFromCanvas(
+    canvasObjects: FabricNS.FabricObject[],
+    jsonObjects: CanvasJSONObject[] | undefined,
+): void {
+    if (!Array.isArray(jsonObjects)) return;
+
+    for (let index = 0; index < jsonObjects.length; index += 1) {
+        const liveObject = canvasObjects[index] as
+            | (Partial<MaskObject> & {
+                  isCropRect?: boolean;
+                  maskLabel?: boolean;
+              })
+            | undefined;
+        const jsonObject = jsonObjects[index];
+        if (!liveObject || !jsonObject) continue;
+
+        if (typeof liveObject.maskId === 'number') jsonObject.maskId = liveObject.maskId;
+        if (typeof liveObject.maskName === 'string') jsonObject.maskName = liveObject.maskName;
+        if (typeof liveObject.originalAlpha === 'number') {
+            jsonObject.originalAlpha = liveObject.originalAlpha;
+        }
+        if ('originalStroke' in liveObject) jsonObject.originalStroke = liveObject.originalStroke;
+        if (typeof liveObject.originalStrokeWidth === 'number') {
+            jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
+        }
+        if (typeof liveObject.hasControls === 'boolean') {
+            jsonObject.hasControls = liveObject.hasControls;
+        }
+        if (typeof liveObject.selectable === 'boolean') {
+            jsonObject.selectable = liveObject.selectable;
+        }
+        if (typeof liveObject.strokeUniform === 'boolean') {
+            jsonObject.strokeUniform = liveObject.strokeUniform;
+        }
+        if (typeof liveObject.lockRotation === 'boolean') {
+            jsonObject.lockRotation = liveObject.lockRotation;
+        }
+        if (typeof liveObject.transparentCorners === 'boolean') {
+            jsonObject.transparentCorners = liveObject.transparentCorners;
+        }
+        if (typeof liveObject.borderColor === 'string') {
+            jsonObject.borderColor = liveObject.borderColor;
+        }
+        if (typeof liveObject.cornerColor === 'string') {
+            jsonObject.cornerColor = liveObject.cornerColor;
+        }
+        if (typeof liveObject.cornerSize === 'number') {
+            jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (liveObject.isCropRect === true) jsonObject.isCropRect = true;
+        if (liveObject.maskLabel === true) jsonObject.maskLabel = true;
+    }
+}
 
 // ─── saveState ──────────────────────────────────────────────────────────────
 
@@ -140,6 +232,8 @@ export const SNAPSHOT_CUSTOM_KEYS = [
 export interface SaveStateInput {
     /** Fabric canvas to serialize. */
     canvas: FabricNS.Canvas;
+    /** Active mask id supplied by the facade when Fabric active state is unavailable. */
+    activeMaskId?: number | null;
     /** Current image zoom factor (mirrored into `_editorState.currentScale`). */
     currentScale: number;
     /** Current image rotation in degrees (mirrored into `_editorState.currentRotation`). */
@@ -181,6 +275,15 @@ export interface SaveStateInput {
  */
 export function saveState(input: SaveStateInput): string {
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
+    const activeObject = (
+        canvas as { getActiveObject?: () => FabricNS.FabricObject | null }
+    ).getActiveObject?.();
+    const activeMaskId =
+        activeObject && isMaskObject(activeObject)
+            ? activeObject.maskId
+            : typeof input.activeMaskId === 'number'
+              ? input.activeMaskId
+              : null;
 
     // 1. discard ActiveSelection before serializing.
     canvas.discardActiveObject();
@@ -193,6 +296,8 @@ export function saveState(input: SaveStateInput): string {
             toJSON(propertiesToInclude: readonly string[]): CanvasJSON;
         }
     ).toJSON(SNAPSHOT_CUSTOM_KEYS) as CanvasJSON;
+
+    copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
 
     // 3. drop session-only objects (crop
     //    rectangle, mask labels) before the snapshot enters history.
@@ -208,6 +313,7 @@ export function saveState(input: SaveStateInput): string {
         currentRotation,
         baseImageScale,
     };
+    if (activeMaskId !== null) jsonObj._editorState.activeMaskId = activeMaskId;
 
     // 5. emit the JSON string used by loadFromState.
     return JSON.stringify(jsonObj);
@@ -376,6 +482,9 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
                           : 1,
               }
             : null;
+    if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
+        editorState.activeMaskId = json._editorState.activeMaskId;
+    }
 
     // 5b. `maskCounter` is the maximum restored
     //     `maskId`, or `0` if no masks survived the filter.
@@ -466,6 +575,14 @@ function restoreMaskPropsFromJSON(
             originalAlpha?: number;
             originalStroke?: unknown;
             originalStrokeWidth?: number;
+            hasControls?: boolean;
+            selectable?: boolean;
+            strokeUniform?: boolean;
+            lockRotation?: boolean;
+            transparentCorners?: boolean;
+            borderColor?: string;
+            cornerColor?: string;
+            cornerSize?: number;
             opacity?: number;
         };
         maskObject.maskId = jObj.maskId;
@@ -479,6 +596,30 @@ function restoreMaskPropsFromJSON(
         }
         if (typeof jObj.originalStrokeWidth === 'number') {
             maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
+        if (typeof jObj.hasControls === 'boolean') {
+            maskObject.hasControls = jObj.hasControls;
+        }
+        if (typeof jObj.selectable === 'boolean') {
+            maskObject.selectable = jObj.selectable;
+        }
+        if (typeof jObj.strokeUniform === 'boolean') {
+            maskObject.strokeUniform = jObj.strokeUniform;
+        }
+        if (typeof jObj.lockRotation === 'boolean') {
+            maskObject.lockRotation = jObj.lockRotation;
+        }
+        if (typeof jObj.transparentCorners === 'boolean') {
+            maskObject.transparentCorners = jObj.transparentCorners;
+        }
+        if (typeof jObj.borderColor === 'string') {
+            maskObject.borderColor = jObj.borderColor;
+        }
+        if (typeof jObj.cornerColor === 'string') {
+            maskObject.cornerColor = jObj.cornerColor;
+        }
+        if (typeof jObj.cornerSize === 'number') {
+            maskObject.cornerSize = jObj.cornerSize;
         }
     }
 

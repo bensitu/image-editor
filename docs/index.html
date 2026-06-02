@@ -20,7 +20,7 @@
                         'data-bs-theme',
                         storedTheme || systemTheme,
                     );
-                } catch (error) {
+                } catch {
                     document.documentElement.setAttribute('data-bs-theme', 'light');
                 }
             })();
@@ -183,7 +183,7 @@
                             data-i18n-placeholder="base64Placeholder"
                         ></textarea>
                         <button
-                            id="loadBtn"
+                            id="loadImageButton"
                             class="btn btn-primary"
                             type="button"
                             data-i18n="loadImage"
@@ -239,7 +239,7 @@
                         &#10226;
                     </button>
                     <input
-                        id="leftValue"
+                        id="rotateLeftDegreesInput"
                         class="tool-input"
                         value="90"
                         type="number"
@@ -255,7 +255,7 @@
                         &#10227;
                     </button>
                     <input
-                        id="rightValue"
+                        id="rotateRightDegreesInput"
                         class="tool-input"
                         value="90"
                         type="number"

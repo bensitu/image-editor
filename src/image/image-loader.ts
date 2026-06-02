@@ -435,8 +435,8 @@ export async function loadImage(
                 if (bundle.containerScrollLeft !== null) {
                     ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
-            } catch (err) {
-                console.warn('[ImageEditor] preserveScroll restore failed', err);
+            } catch (error) {
+                console.warn('[ImageEditor] preserveScroll restore failed', error);
             }
         }
 
@@ -451,15 +451,15 @@ export async function loadImage(
         // the success branch so a failure between snapshot capture and
         // commit (which routes through `replayRollback` below) skips it
         // entirely.
-        const cb = ctx.options.onImageLoaded;
-        if (typeof cb === 'function') {
+        const imageLoadedCallback = ctx.options.onImageLoaded;
+        if (typeof imageLoadedCallback === 'function') {
             try {
-                cb();
-            } catch (err) {
-                console.error('[ImageEditor] onImageLoaded callback threw', err);
+                imageLoadedCallback();
+            } catch (error) {
+                console.error('[ImageEditor] onImageLoaded callback threw', error);
             }
         }
-    } catch (err) {
+    } catch (error) {
         // replay the bundle and reject with the
         // original error. Failures inside the rollback itself are
         // logged but do NOT mask the original error.
@@ -473,10 +473,10 @@ export async function loadImage(
         // observable from inside `onError` matches the pre-call state
         // (atomic rewind).
         const errorMessage =
-            err instanceof Error ? `loadImage failed: ${err.message}` : 'loadImage failed';
-        reportError(ctx.options, err, errorMessage);
+            error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
+        reportError(ctx.options, error, errorMessage);
 
-        throw err;
+        throw error;
     }
 }
 
@@ -681,8 +681,8 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
     if (ctx.containerElement && bundle.containerOverflow !== null) {
         try {
             ctx.containerElement.style.overflow = bundle.containerOverflow;
-        } catch (err) {
-            console.warn('[ImageEditor] rollback: overflow restore failed', err);
+        } catch (rollbackError) {
+            console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
         }
     }
 
@@ -697,8 +697,8 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
             }
         ).loadFromJSON(JSON.parse(bundle.canvasJson));
         ctx.canvas.renderAll();
-    } catch (err) {
-        console.warn('[ImageEditor] rollback: loadFromJSON failed', err);
+    } catch (rollbackError) {
+        console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
 
     // 3. Restore editor scalar state. Done after the canvas restore so
@@ -724,8 +724,8 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
             if (bundle.containerScrollLeft !== null) {
                 ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
-        } catch (err) {
-            console.warn('[ImageEditor] rollback: scroll restore failed', err);
+        } catch (rollbackError) {
+            console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
         }
     }
 

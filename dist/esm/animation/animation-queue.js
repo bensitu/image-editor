@@ -58,8 +58,8 @@ export class AnimationQueue {
             await entry.fn();
             entry.resolve();
         }
-        catch (err) {
-            entry.reject(err);
+        catch (error) {
+            entry.reject(error);
         }
         void this._process();
     }

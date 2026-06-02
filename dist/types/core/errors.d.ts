@@ -4,15 +4,15 @@
  * downsample, merge, crop, export).
  *
  * All errors that may surface to consumers extend {@link Error} directly so
- * callers can discriminate via `instanceof` or `err.name` checks. The
+ * callers can discriminate via `instanceof` or `error.name` checks. The
  * hierarchy is intentionally flat — there is no shared `ImageEditorError`
  * base class — to keep `name`/message contracts independent per pipeline
  * and to keep name/message contracts independent per pipeline.
  *
  * These classes are internal to the package and are NOT re-exported from
  * `src/index.ts`. Consumers see them via promise rejections from public
- * methods (e.g. `loadImage.catch(err =>...)`) and should branch on
- * `err.name` or `instanceof` for fine-grained handling.
+ * methods (e.g. `loadImage.catch(error =>...)`) and should branch on
+ * `error.name` or `instanceof` for fine-grained handling.
  */
 /**
  * Raised by `fabric/fabric-adapter.ts` when neither constructor argument

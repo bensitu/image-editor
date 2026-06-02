@@ -468,23 +468,23 @@ export class ImageEditor {
             this.containerElement = canvasElement.parentElement;
         }
 
-        const phId = this.elements.imagePlaceholder;
-        this.placeholderElement = phId ? document.getElementById(phId) : null;
+        const placeholderId = this.elements.imagePlaceholder;
+        this.placeholderElement = placeholderId ? document.getElementById(placeholderId) : null;
 
-        let initialW = this.options.canvasWidth;
-        let initialH = this.options.canvasHeight;
+        let initialWidth = this.options.canvasWidth;
+        let initialHeight = this.options.canvasHeight;
         if (this.containerElement) {
-            const cw = Math.floor(this.containerElement.clientWidth);
-            const ch = Math.floor(this.containerElement.clientHeight);
-            if (cw > 0 && ch > 0) {
-                initialW = cw;
-                initialH = ch;
+            const containerWidth = Math.floor(this.containerElement.clientWidth);
+            const containerHeight = Math.floor(this.containerElement.clientHeight);
+            if (containerWidth > 0 && containerHeight > 0) {
+                initialWidth = containerWidth;
+                initialHeight = containerHeight;
             }
         }
 
         this.canvas = new this._fabric.Canvas(canvasElement, {
-            width: initialW,
-            height: initialH,
+            width: initialWidth,
+            height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
@@ -501,10 +501,15 @@ export class ImageEditor {
         const onObjectEvent = (e: { target?: FabricNS.FabricObject }) => {
             if (e.target && isMaskObject(e.target)) this._syncMaskLabel(e.target);
         };
+        const onObjectModified = (e: { target?: FabricNS.FabricObject }) => {
+            if (!e.target || !isMaskObject(e.target)) return;
+            this._syncMaskLabel(e.target);
+            this.saveState();
+        };
         this.canvas.on('object:moving', onObjectEvent);
         this.canvas.on('object:scaling', onObjectEvent);
         this.canvas.on('object:rotating', onObjectEvent);
-        this.canvas.on('object:modified', onObjectEvent);
+        this.canvas.on('object:modified', onObjectModified);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -519,8 +524,8 @@ export class ImageEditor {
         });
 
         this._bindIfExists('imageInput', 'change', (e) => {
-            const f = (e.target as HTMLInputElement).files?.[0];
-            if (f) void this._loadImageFile(f);
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (file) void this._loadImageFile(file);
         });
 
         this._bindIfExists('zoomInButton', 'click', () => {
@@ -564,8 +569,8 @@ export class ImageEditor {
                 : null;
             let step = this.options.rotationStep;
             if (inputEl) {
-                const p = parseFloat(inputEl.value);
-                if (!isNaN(p)) step = p;
+                const parsedStep = parseFloat(inputEl.value);
+                if (!isNaN(parsedStep)) step = parsedStep;
             }
             void this.rotateImage(this.currentRotation - step);
         });
@@ -576,8 +581,8 @@ export class ImageEditor {
                 : null;
             let step = this.options.rotationStep;
             if (inputEl) {
-                const p = parseFloat(inputEl.value);
-                if (!isNaN(p)) step = p;
+                const parsedStep = parseFloat(inputEl.value);
+                if (!isNaN(parsedStep)) step = parsedStep;
             }
             void this.rotateImage(this.currentRotation + step);
         });
@@ -586,8 +591,8 @@ export class ImageEditor {
             this.enterCropMode();
         });
         this._bindIfExists('applyCropButton', 'click', () => {
-            void this.applyCrop().catch((err) => {
-                reportError(this.options, err, 'Crop apply failed.');
+            void this.applyCrop().catch((error) => {
+                reportError(this.options, error, 'Crop apply failed.');
             });
         });
         this._bindIfExists('cancelCropButton', 'click', () => {
@@ -639,8 +644,8 @@ export class ImageEditor {
         let dataUrl: string;
         try {
             dataUrl = await readFileAsDataURL(file);
-        } catch (err) {
-            reportError(this.options, err, 'Failed to read selected image file.');
+        } catch (error) {
+            reportError(this.options, error, 'Failed to read selected image file.');
             resetFileInput(inputEl);
             return;
         }
@@ -1133,8 +1138,8 @@ export class ImageEditor {
         if (this._disposed || !this._transformController) return Promise.resolve();
         try {
             this._assertCanQueueAnimation('scaleImage');
-        } catch (err) {
-            return Promise.reject(err);
+        } catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -1167,8 +1172,8 @@ export class ImageEditor {
         if (this._disposed || !this._transformController) return Promise.resolve();
         try {
             this._assertCanQueueAnimation('rotateImage');
-        } catch (err) {
-            return Promise.reject(err);
+        } catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -1203,8 +1208,8 @@ export class ImageEditor {
         if (this._disposed || !this._transformController) return Promise.resolve();
         try {
             this._assertCanQueueAnimation('resetImageTransform');
-        } catch (err) {
-            return Promise.reject(err);
+        } catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -1315,7 +1320,13 @@ export class ImageEditor {
 
             // Re-attach mouseover/mouseout hover handlers (Fabric never
             // serializes event listeners).
-            result.objects.filter(isMaskObject).forEach((maskObject) => {
+            const restoredMasks = result.objects.filter(isMaskObject);
+            this._lastMask = restoredMasks.reduce<MaskObject | null>(
+                (lastMask, maskObject) =>
+                    !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask,
+                null,
+            );
+            restoredMasks.forEach((maskObject) => {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
@@ -1331,12 +1342,23 @@ export class ImageEditor {
             this._updateInputs();
             this._updateMaskList();
             this._updateUI();
-        } catch (err) {
-            reportError(this.options, err, 'Failed to restore canvas state.');
+
+            const activeMaskId = es?.activeMaskId;
+            if (typeof activeMaskId === 'number') {
+                const activeMask = restoredMasks.find(
+                    (maskObject) => maskObject.maskId === activeMaskId,
+                );
+                if (activeMask) {
+                    this.canvas.setActiveObject(activeMask);
+                    this._onSelectionChanged([activeMask]);
+                }
+            }
+        } catch (error) {
+            reportError(this.options, error, 'Failed to restore canvas state.');
             // Propagate so `Command.undo`/`Command.execute` reject and
             // `HistoryManager` leaves `currentIndex` untouched on a
             // failed restore.
-            throw err;
+            throw error;
         }
     }
 
@@ -1353,11 +1375,13 @@ export class ImageEditor {
         if (!this.canvas || this._suppressSaveState) return;
         if (!this._canRunIdleOperation('saveState', options)) return;
         const activeObj = this.canvas.getActiveObject();
+        const activeMask = this._activeMaskForSnapshot();
         this._hideAllMaskLabels();
 
         try {
             const after = saveStateImpl({
                 canvas: this.canvas,
+                activeMaskId: activeMask?.maskId ?? null,
                 currentScale: this.currentScale,
                 currentRotation: this.currentRotation,
                 baseImageScale: this.baseImageScale,
@@ -1385,10 +1409,15 @@ export class ImageEditor {
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
 
-            if (activeObj && isMaskObject(activeObj)) this._showLabelForMask(activeObj);
+            const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+            if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
+                this.canvas.setActiveObject(maskToRestore);
+                this._showLabelForMask(maskToRestore);
+                this._updateMaskListSelection(maskToRestore);
+            }
             this._updateUI();
-        } catch (err) {
-            reportWarning(this.options, err, 'Failed to capture canvas snapshot.');
+        } catch (error) {
+            reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
         }
     }
 
@@ -1856,13 +1885,28 @@ export class ImageEditor {
      */
     private _captureSnapshot(): string {
         if (!this.canvas) return '';
+        const activeMask = this._activeMaskForSnapshot();
         this._hideAllMaskLabels();
         return saveStateImpl({
             canvas: this.canvas,
+            activeMaskId: activeMask?.maskId ?? null,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
             baseImageScale: this.baseImageScale,
         });
+    }
+
+    /** @internal */
+    private _activeMaskForSnapshot(): MaskObject | null {
+        if (!this.canvas) return null;
+        const activeObject = this.canvas.getActiveObject();
+        if (activeObject && isMaskObject(activeObject)) return activeObject;
+        return (
+            this.canvas
+                .getObjects()
+                .find((object): object is MaskObject => isMaskObject(object) && !!object.__label) ??
+            null
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════

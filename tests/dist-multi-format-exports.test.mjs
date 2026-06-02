@@ -104,9 +104,9 @@ async function pathExists(absolutePath) {
     try {
         await fs.stat(absolutePath);
         return true;
-    } catch (err) {
-        if (err && err.code === 'ENOENT') return false;
-        throw err;
+    } catch (error) {
+        if (error && error.code === 'ENOENT') return false;
+        throw error;
     }
 }
 

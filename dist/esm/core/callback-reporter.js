@@ -1,20 +1,20 @@
 export function reportWarning(options, error, message) {
-    const cb = options.onWarning;
-    if (typeof cb !== 'function')
+    const warningCallback = options.onWarning;
+    if (typeof warningCallback !== 'function')
         return;
     try {
-        cb(error, message);
+        warningCallback(error, message);
     }
     catch (callbackError) {
         console.warn('[ImageEditor] onWarning callback threw', callbackError);
     }
 }
 export function reportError(options, error, message) {
-    const cb = options.onError;
-    if (typeof cb !== 'function')
+    const errorCallback = options.onError;
+    if (typeof errorCallback !== 'function')
         return;
     try {
-        cb(error, message);
+        errorCallback(error, message);
     }
     catch (callbackError) {
         console.error('[ImageEditor] onError callback threw', callbackError);

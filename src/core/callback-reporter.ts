@@ -75,8 +75,8 @@ export type ErrorCallbackHost = Pick<ResolvedOptions, 'onError'>;
  * ```ts
  * try {
  *   await tryDownsample(...);
- *} catch (err) {
- *   reportWarning(this.options, err, 'Downsample fell back to source format.');
+ *} catch (error) {
+ *   reportWarning(this.options, error, 'Downsample fell back to source format.');
  *   // continue with the un-downsampled image — no rethrow
  *}
  * ```
@@ -94,14 +94,14 @@ export type ErrorCallbackHost = Pick<ResolvedOptions, 'onError'>;
  *   callback argument.
  */
 export function reportWarning(options: WarningCallbackHost, error: unknown, message: string): void {
-    const cb = options.onWarning;
+    const warningCallback = options.onWarning;
     // The default-options resolver coerces non-functions to `null`, but we
     // re-check at the call site so this helper is safe to call even if a
     // pipeline module is invoked outside the orchestrator's normal lifecycle.
-    if (typeof cb !== 'function') return;
+    if (typeof warningCallback !== 'function') return;
 
     try {
-        cb(error, message);
+        warningCallback(error, message);
     } catch (callbackError) {
         // catch and log without changing editor state.
         // We do NOT rethrow the callback's error: doing so would convert a
@@ -131,9 +131,9 @@ export function reportWarning(options: WarningCallbackHost, error: unknown, mess
  * ```ts
  * try {
  *   await loadFabricImage(dataUrl);
- *} catch (err) {
- *   reportError(this.options, err, `Image load failed: ${describe(err)}`);
- *   throw err; // original error is preserved on the consumer's promise
+ *} catch (error) {
+ *   reportError(this.options, error, `Image load failed: ${describe(error)}`);
+ *   throw error; // original error is preserved on the consumer's promise
  *}
  * ```
  *
@@ -148,11 +148,11 @@ export function reportWarning(options: WarningCallbackHost, error: unknown, mess
  *   callback argument.
  */
 export function reportError(options: ErrorCallbackHost, error: unknown, message: string): void {
-    const cb = options.onError;
-    if (typeof cb !== 'function') return;
+    const errorCallback = options.onError;
+    if (typeof errorCallback !== 'function') return;
 
     try {
-        cb(error, message);
+        errorCallback(error, message);
     } catch (callbackError) {
         // catch and log without masking the original
         // editor error. The original `error` is intentionally NOT included

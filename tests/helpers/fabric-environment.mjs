@@ -168,8 +168,8 @@ export function disposeEditor(editor) {
     if (editor) {
         try {
             editor.dispose();
-        } catch (error) {
-            void error;
+        } catch {
+            // Ignore cleanup failures in test teardown.
         }
     }
     document.body.innerHTML = '';

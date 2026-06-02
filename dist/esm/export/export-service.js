@@ -456,9 +456,9 @@ export async function mergeMasks(ctx) {
         .filter((o) => 'maskId' in o && typeof o.maskId === 'number');
     if (masks.length === 0)
         return;
+    const beforeSnapshot = ctx.saveState();
     ctx.canvas.discardActiveObject();
     ctx.canvas.renderAll();
-    const beforeSnapshot = ctx.saveState();
     const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
     const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
     try {
@@ -482,25 +482,25 @@ export async function mergeMasks(ctx) {
                     ctx.containerElement.scrollLeft = preScrollLeft;
                 }
             }
-            catch (scrollErr) {
-                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollErr);
+            catch (scrollError) {
+                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollError);
             }
         }
         if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
             ctx.historyManager.push(new Command(() => ctx.loadFromState(afterSnapshot), () => ctx.loadFromState(beforeSnapshot)));
         }
     }
-    catch (err) {
+    catch (error) {
         try {
             await ctx.loadFromState(beforeSnapshot);
         }
-        catch (rollbackErr) {
-            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackErr);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
         }
-        if (err instanceof MergeMasksError)
-            throw err;
-        const message = err instanceof Error ? `mergeMasks failed: ${err.message}` : 'mergeMasks failed';
-        throw new MergeMasksError(message, err);
+        if (error instanceof MergeMasksError)
+            throw error;
+        const message = error instanceof Error ? `mergeMasks failed: ${error.message}` : 'mergeMasks failed';
+        throw new MergeMasksError(message, error);
     }
 }
 //# sourceMappingURL=export-service.js.map

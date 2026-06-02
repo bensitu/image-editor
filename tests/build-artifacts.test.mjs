@@ -75,9 +75,9 @@ async function distDirectoryExists() {
     try {
         const stat = await fs.stat(distRoot);
         return stat.isDirectory();
-    } catch (err) {
-        if (err && err.code === 'ENOENT') return false;
-        throw err;
+    } catch (error) {
+        if (error && error.code === 'ENOENT') return false;
+        throw error;
     }
 }
 

@@ -335,19 +335,19 @@ export async function applyCrop(ctx) {
             ctx.historyManager.push(new Command(() => ctx.loadFromState(afterJson), () => ctx.loadFromState(beforeJson)));
         }
     }
-    catch (err) {
+    catch (error) {
         teardownSession(ctx, session);
         ctx.setCropSession(null);
         try {
             await ctx.loadFromState(beforeJson);
         }
-        catch (rollbackErr) {
-            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackErr);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
         }
-        if (err instanceof CropApplyError)
-            throw err;
-        const message = err instanceof Error ? `applyCrop failed: ${err.message}` : 'applyCrop failed';
-        throw new CropApplyError(message, err);
+        if (error instanceof CropApplyError)
+            throw error;
+        const message = error instanceof Error ? `applyCrop failed: ${error.message}` : 'applyCrop failed';
+        throw new CropApplyError(message, error);
     }
 }
 //# sourceMappingURL=crop-controller.js.map

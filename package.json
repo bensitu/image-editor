@@ -47,7 +47,7 @@
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --fix",
         "package:check": "publint",
-        "test": "node --test tests/**/*.test.mjs",
+        "test": "node --import ./tests/helpers/register-ts-loader.mjs --test tests/**/*.test.mjs",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
         "ci": "npm run check && npm run build && npm run package:check"

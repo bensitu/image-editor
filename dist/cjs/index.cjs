@@ -62,30 +62,30 @@ class AnimationQueue {
             await entry.fn();
             entry.resolve();
         }
-        catch (err) {
-            entry.reject(err);
+        catch (error) {
+            entry.reject(error);
         }
         void this._process();
     }
 }
 
 function reportWarning(options, error, message) {
-    const cb = options.onWarning;
-    if (typeof cb !== 'function')
+    const warningCallback = options.onWarning;
+    if (typeof warningCallback !== 'function')
         return;
     try {
-        cb(error, message);
+        warningCallback(error, message);
     }
     catch (callbackError) {
         console.warn('[ImageEditor] onWarning callback threw', callbackError);
     }
 }
 function reportError(options, error, message) {
-    const cb = options.onError;
-    if (typeof cb !== 'function')
+    const errorCallback = options.onError;
+    if (typeof errorCallback !== 'function')
         return;
     try {
-        cb(error, message);
+        errorCallback(error, message);
     }
     catch (callbackError) {
         console.error('[ImageEditor] onError callback threw', callbackError);
@@ -416,11 +416,77 @@ const SNAPSHOT_CUSTOM_KEYS = [
     'originalAlpha',
     'originalStroke',
     'originalStrokeWidth',
+    'hasControls',
+    'selectable',
+    'strokeUniform',
+    'lockRotation',
+    'transparentCorners',
+    'borderColor',
+    'cornerColor',
+    'cornerSize',
 ];
+function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
+    if (!Array.isArray(jsonObjects))
+        return;
+    for (let index = 0; index < jsonObjects.length; index += 1) {
+        const liveObject = canvasObjects[index];
+        const jsonObject = jsonObjects[index];
+        if (!liveObject || !jsonObject)
+            continue;
+        if (typeof liveObject.maskId === 'number')
+            jsonObject.maskId = liveObject.maskId;
+        if (typeof liveObject.maskName === 'string')
+            jsonObject.maskName = liveObject.maskName;
+        if (typeof liveObject.originalAlpha === 'number') {
+            jsonObject.originalAlpha = liveObject.originalAlpha;
+        }
+        if ('originalStroke' in liveObject)
+            jsonObject.originalStroke = liveObject.originalStroke;
+        if (typeof liveObject.originalStrokeWidth === 'number') {
+            jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
+        }
+        if (typeof liveObject.hasControls === 'boolean') {
+            jsonObject.hasControls = liveObject.hasControls;
+        }
+        if (typeof liveObject.selectable === 'boolean') {
+            jsonObject.selectable = liveObject.selectable;
+        }
+        if (typeof liveObject.strokeUniform === 'boolean') {
+            jsonObject.strokeUniform = liveObject.strokeUniform;
+        }
+        if (typeof liveObject.lockRotation === 'boolean') {
+            jsonObject.lockRotation = liveObject.lockRotation;
+        }
+        if (typeof liveObject.transparentCorners === 'boolean') {
+            jsonObject.transparentCorners = liveObject.transparentCorners;
+        }
+        if (typeof liveObject.borderColor === 'string') {
+            jsonObject.borderColor = liveObject.borderColor;
+        }
+        if (typeof liveObject.cornerColor === 'string') {
+            jsonObject.cornerColor = liveObject.cornerColor;
+        }
+        if (typeof liveObject.cornerSize === 'number') {
+            jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (liveObject.isCropRect === true)
+            jsonObject.isCropRect = true;
+        if (liveObject.maskLabel === true)
+            jsonObject.maskLabel = true;
+    }
+}
 function saveState(input) {
+    var _a, _b;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
+    const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
+    const activeMaskId = activeObject && isMaskObject(activeObject)
+        ? activeObject.maskId
+        : typeof input.activeMaskId === 'number'
+            ? input.activeMaskId
+            : null;
     canvas.discardActiveObject();
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
+    copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {
         jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true);
     }
@@ -429,6 +495,8 @@ function saveState(input) {
         currentRotation,
         baseImageScale,
     };
+    if (activeMaskId !== null)
+        jsonObj._editorState.activeMaskId = activeMaskId;
     return JSON.stringify(jsonObj);
 }
 async function loadFromState(input) {
@@ -458,6 +526,9 @@ async function loadFromState(input) {
                 : 1,
         }
         : null;
+    if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
+        editorState.activeMaskId = json._editorState.activeMaskId;
+    }
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
@@ -512,6 +583,30 @@ function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
         }
         if (typeof jObj.originalStrokeWidth === 'number') {
             maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
+        if (typeof jObj.hasControls === 'boolean') {
+            maskObject.hasControls = jObj.hasControls;
+        }
+        if (typeof jObj.selectable === 'boolean') {
+            maskObject.selectable = jObj.selectable;
+        }
+        if (typeof jObj.strokeUniform === 'boolean') {
+            maskObject.strokeUniform = jObj.strokeUniform;
+        }
+        if (typeof jObj.lockRotation === 'boolean') {
+            maskObject.lockRotation = jObj.lockRotation;
+        }
+        if (typeof jObj.transparentCorners === 'boolean') {
+            maskObject.transparentCorners = jObj.transparentCorners;
+        }
+        if (typeof jObj.borderColor === 'string') {
+            maskObject.borderColor = jObj.borderColor;
+        }
+        if (typeof jObj.cornerColor === 'string') {
+            maskObject.cornerColor = jObj.cornerColor;
+        }
+        if (typeof jObj.cornerSize === 'number') {
+            maskObject.cornerSize = jObj.cornerSize;
         }
     }
     jsonObjs.forEach((jObj, idx) => {
@@ -1320,19 +1415,19 @@ async function applyCrop(ctx) {
             ctx.historyManager.push(new Command(() => ctx.loadFromState(afterJson), () => ctx.loadFromState(beforeJson)));
         }
     }
-    catch (err) {
+    catch (error) {
         teardownSession(ctx, session);
         ctx.setCropSession(null);
         try {
             await ctx.loadFromState(beforeJson);
         }
-        catch (rollbackErr) {
-            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackErr);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
         }
-        if (err instanceof CropApplyError)
-            throw err;
-        const message = err instanceof Error ? `applyCrop failed: ${err.message}` : 'applyCrop failed';
-        throw new CropApplyError(message, err);
+        if (error instanceof CropApplyError)
+            throw error;
+        const message = error instanceof Error ? `applyCrop failed: ${error.message}` : 'applyCrop failed';
+        throw new CropApplyError(message, error);
     }
 }
 
@@ -1835,9 +1930,9 @@ async function mergeMasks(ctx) {
         .filter((o) => 'maskId' in o && typeof o.maskId === 'number');
     if (masks.length === 0)
         return;
+    const beforeSnapshot = ctx.saveState();
     ctx.canvas.discardActiveObject();
     ctx.canvas.renderAll();
-    const beforeSnapshot = ctx.saveState();
     const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
     const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
     try {
@@ -1861,25 +1956,25 @@ async function mergeMasks(ctx) {
                     ctx.containerElement.scrollLeft = preScrollLeft;
                 }
             }
-            catch (scrollErr) {
-                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollErr);
+            catch (scrollError) {
+                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollError);
             }
         }
         if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
             ctx.historyManager.push(new Command(() => ctx.loadFromState(afterSnapshot), () => ctx.loadFromState(beforeSnapshot)));
         }
     }
-    catch (err) {
+    catch (error) {
         try {
             await ctx.loadFromState(beforeSnapshot);
         }
-        catch (rollbackErr) {
-            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackErr);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
         }
-        if (err instanceof MergeMasksError)
-            throw err;
-        const message = err instanceof Error ? `mergeMasks failed: ${err.message}` : 'mergeMasks failed';
-        throw new MergeMasksError(message, err);
+        if (error instanceof MergeMasksError)
+            throw error;
+        const message = error instanceof Error ? `mergeMasks failed: ${error.message}` : 'mergeMasks failed';
+        throw new MergeMasksError(message, error);
     }
 }
 
@@ -1939,9 +2034,9 @@ class ViewportCache {
         var _a;
         if (!container)
             return fallback;
-        const cw = Math.floor(container.clientWidth);
-        const ch = Math.floor(container.clientHeight);
-        if (cw > 0 && ch > 0) {
+        const containerWidth = Math.floor(container.clientWidth);
+        const containerHeight = Math.floor(container.clientHeight);
+        if (containerWidth > 0 && containerHeight > 0) {
             this.lastVisible = measureContainerViewport(container, fallback, scrollbarSize);
             return this.lastVisible;
         }
@@ -2062,12 +2157,12 @@ function computeScrollableCanvasSize(contentWidth, contentHeight, viewport, scro
     };
 }
 function computeFitLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
-    const cw = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
-    const ch = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
-    const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
+    const canvasWidth = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
+    const canvasHeight = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
+    const fitScale = Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight, 1);
     return {
-        canvasWidth: cw,
-        canvasHeight: ch,
+        canvasWidth,
+        canvasHeight,
         imageScale: fitScale,
         imageLeft: 0,
         imageTop: 0,
@@ -2110,11 +2205,11 @@ function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, options
     };
 }
 function computeExpandLayout(imageWidth, imageHeight, _optionsCanvasWidth, _optionsCanvasHeight, containerSize) {
-    const cw = Math.max(containerSize.width, Math.floor(imageWidth));
-    const ch = Math.max(containerSize.height, Math.floor(imageHeight));
+    const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
+    const canvasHeight = Math.max(containerSize.height, Math.floor(imageHeight));
     return {
-        canvasWidth: cw,
-        canvasHeight: ch,
+        canvasWidth,
+        canvasHeight,
         imageScale: 1,
         imageLeft: 0,
         imageTop: 0,
@@ -2122,9 +2217,9 @@ function computeExpandLayout(imageWidth, imageHeight, _optionsCanvasWidth, _opti
     };
 }
 function applyCanvasDimensions(canvas, width, height, containerElement) {
-    const iw = Math.max(1, Math.round(Number(width) || 1));
-    const ih = Math.max(1, Math.round(Number(height) || 1));
-    canvas.setDimensions({ width: iw, height: ih });
+    const integerWidth = Math.max(1, Math.round(Number(width) || 1));
+    const integerHeight = Math.max(1, Math.round(Number(height) || 1));
+    canvas.setDimensions({ width: integerWidth, height: integerHeight });
     forceReflow(containerElement);
 }
 
@@ -2252,25 +2347,25 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
                     ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             }
-            catch (err) {
-                console.warn('[ImageEditor] preserveScroll restore failed', err);
+            catch (error) {
+                console.warn('[ImageEditor] preserveScroll restore failed', error);
             }
         }
-        const cb = ctx.options.onImageLoaded;
-        if (typeof cb === 'function') {
+        const imageLoadedCallback = ctx.options.onImageLoaded;
+        if (typeof imageLoadedCallback === 'function') {
             try {
-                cb();
+                imageLoadedCallback();
             }
-            catch (err) {
-                console.error('[ImageEditor] onImageLoaded callback threw', err);
+            catch (error) {
+                console.error('[ImageEditor] onImageLoaded callback threw', error);
             }
         }
     }
-    catch (err) {
+    catch (error) {
         await replayRollback(ctx, bundle);
-        const errorMessage = err instanceof Error ? `loadImage failed: ${err.message}` : 'loadImage failed';
-        reportError(ctx.options, err, errorMessage);
-        throw err;
+        const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
+        reportError(ctx.options, error, errorMessage);
+        throw error;
     }
 }
 function startImageDecode(dataUrl) {
@@ -2369,16 +2464,16 @@ async function replayRollback(ctx, bundle) {
         try {
             ctx.containerElement.style.overflow = bundle.containerOverflow;
         }
-        catch (err) {
-            console.warn('[ImageEditor] rollback: overflow restore failed', err);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
         }
     }
     try {
         await ctx.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
         ctx.canvas.renderAll();
     }
-    catch (err) {
-        console.warn('[ImageEditor] rollback: loadFromJSON failed', err);
+    catch (rollbackError) {
+        console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
     ctx.setOriginalImage(bundle.originalImage);
     ctx.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
@@ -2396,8 +2491,8 @@ async function replayRollback(ctx, bundle) {
                 ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         }
-        catch (err) {
-            console.warn('[ImageEditor] rollback: scroll restore failed', err);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
         }
     }
     if (bundle.placeholderHidden !== null) {
@@ -2428,8 +2523,8 @@ function animateProps(obj, props, options, guard) {
                 },
             });
         }
-        catch (err) {
-            reject(err);
+        catch (error) {
+            reject(error);
         }
     });
 }
@@ -2469,8 +2564,8 @@ class TransformController {
             img.setPositionByOrigin(topLeft, 'left', 'top');
             img.setCoords();
         }
-        catch (err) {
-            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', err);
+        catch (error) {
+            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
         }
         try {
             await this.ctx.guard.runAnimation(() => animateProps(img, { scaleX: targetAbs, scaleY: targetAbs }, {
@@ -2478,8 +2573,8 @@ class TransformController {
                 onChange: () => this.ctx.canvas.requestRenderAll(),
             }, this.ctx.guard));
         }
-        catch (err) {
-            console.warn('[ImageEditor] scaleImage animation error', err);
+        catch (error) {
+            console.warn('[ImageEditor] scaleImage animation error', error);
             return;
         }
         if (this.ctx.guard.isDisposed())
@@ -2507,8 +2602,8 @@ class TransformController {
             img.setPositionByOrigin(centre, 'center', 'center');
             img.setCoords();
         }
-        catch (err) {
-            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', err);
+        catch (error) {
+            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
         }
         let animationFailed = false;
         try {
@@ -2517,9 +2612,9 @@ class TransformController {
                 onChange: () => this.ctx.canvas.requestRenderAll(),
             }, this.ctx.guard));
         }
-        catch (err) {
+        catch (error) {
             animationFailed = true;
-            console.warn('[ImageEditor] rotateImage animation error', err);
+            console.warn('[ImageEditor] rotateImage animation error', error);
         }
         finally {
             if (this.ctx.guard.isDisposed()) {
@@ -2540,8 +2635,8 @@ class TransformController {
             img.setPositionByOrigin(newTopLeft, 'left', 'top');
             img.setCoords();
         }
-        catch (err) {
-            console.warn('[ImageEditor] rotateImage: origin post-restore failed', err);
+        catch (error) {
+            console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
         }
         this.ctx.saveCanvasState();
     }
@@ -3436,21 +3531,21 @@ class ImageEditor {
         else {
             this.containerElement = canvasElement.parentElement;
         }
-        const phId = this.elements.imagePlaceholder;
-        this.placeholderElement = phId ? document.getElementById(phId) : null;
-        let initialW = this.options.canvasWidth;
-        let initialH = this.options.canvasHeight;
+        const placeholderId = this.elements.imagePlaceholder;
+        this.placeholderElement = placeholderId ? document.getElementById(placeholderId) : null;
+        let initialWidth = this.options.canvasWidth;
+        let initialHeight = this.options.canvasHeight;
         if (this.containerElement) {
-            const cw = Math.floor(this.containerElement.clientWidth);
-            const ch = Math.floor(this.containerElement.clientHeight);
-            if (cw > 0 && ch > 0) {
-                initialW = cw;
-                initialH = ch;
+            const containerWidth = Math.floor(this.containerElement.clientWidth);
+            const containerHeight = Math.floor(this.containerElement.clientHeight);
+            if (containerWidth > 0 && containerHeight > 0) {
+                initialWidth = containerWidth;
+                initialHeight = containerHeight;
             }
         }
         this.canvas = new this._fabric.Canvas(canvasElement, {
-            width: initialW,
-            height: initialH,
+            width: initialWidth,
+            height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
@@ -3466,10 +3561,16 @@ class ImageEditor {
             if (e.target && isMaskObject(e.target))
                 this._syncMaskLabel(e.target);
         };
+        const onObjectModified = (e) => {
+            if (!e.target || !isMaskObject(e.target))
+                return;
+            this._syncMaskLabel(e.target);
+            this.saveState();
+        };
         this.canvas.on('object:moving', onObjectEvent);
         this.canvas.on('object:scaling', onObjectEvent);
         this.canvas.on('object:rotating', onObjectEvent);
-        this.canvas.on('object:modified', onObjectEvent);
+        this.canvas.on('object:modified', onObjectModified);
     }
     _bindEvents() {
         this._bindIfExists('uploadArea', 'click', () => {
@@ -3480,9 +3581,9 @@ class ImageEditor {
         });
         this._bindIfExists('imageInput', 'change', (e) => {
             var _a;
-            const f = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
-            if (f)
-                void this._loadImageFile(f);
+            const file = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
+            if (file)
+                void this._loadImageFile(file);
         });
         this._bindIfExists('zoomInButton', 'click', () => {
             void this.scaleImage(this.currentScale + this.options.scaleStep);
@@ -3521,9 +3622,9 @@ class ImageEditor {
                 : null;
             let step = this.options.rotationStep;
             if (inputEl) {
-                const p = parseFloat(inputEl.value);
-                if (!isNaN(p))
-                    step = p;
+                const parsedStep = parseFloat(inputEl.value);
+                if (!isNaN(parsedStep))
+                    step = parsedStep;
             }
             void this.rotateImage(this.currentRotation - step);
         });
@@ -3534,9 +3635,9 @@ class ImageEditor {
                 : null;
             let step = this.options.rotationStep;
             if (inputEl) {
-                const p = parseFloat(inputEl.value);
-                if (!isNaN(p))
-                    step = p;
+                const parsedStep = parseFloat(inputEl.value);
+                if (!isNaN(parsedStep))
+                    step = parsedStep;
             }
             void this.rotateImage(this.currentRotation + step);
         });
@@ -3544,8 +3645,8 @@ class ImageEditor {
             this.enterCropMode();
         });
         this._bindIfExists('applyCropButton', 'click', () => {
-            void this.applyCrop().catch((err) => {
-                reportError(this.options, err, 'Crop apply failed.');
+            void this.applyCrop().catch((error) => {
+                reportError(this.options, error, 'Crop apply failed.');
             });
         });
         this._bindIfExists('cancelCropButton', 'click', () => {
@@ -3571,8 +3672,8 @@ class ImageEditor {
         try {
             dataUrl = await readFileAsDataURL(file);
         }
-        catch (err) {
-            reportError(this.options, err, 'Failed to read selected image file.');
+        catch (error) {
+            reportError(this.options, error, 'Failed to read selected image file.');
             resetFileInput(inputEl);
             return;
         }
@@ -3852,8 +3953,8 @@ class ImageEditor {
         try {
             this._assertCanQueueAnimation('scaleImage');
         }
-        catch (err) {
-            return Promise.reject(err);
+        catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -3877,8 +3978,8 @@ class ImageEditor {
         try {
             this._assertCanQueueAnimation('rotateImage');
         }
-        catch (err) {
-            return Promise.reject(err);
+        catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -3902,8 +4003,8 @@ class ImageEditor {
         try {
             this._assertCanQueueAnimation('resetImageTransform');
         }
-        catch (err) {
-            return Promise.reject(err);
+        catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -3974,7 +4075,9 @@ class ImageEditor {
                 this._updateCanvasSizeToImageBounds();
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
-            result.objects.filter(isMaskObject).forEach((maskObject) => {
+            const restoredMasks = result.objects.filter(isMaskObject);
+            this._lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
+            restoredMasks.forEach((maskObject) => {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
@@ -3983,31 +4086,41 @@ class ImageEditor {
             this._updateInputs();
             this._updateMaskList();
             this._updateUI();
+            const activeMaskId = es === null || es === void 0 ? void 0 : es.activeMaskId;
+            if (typeof activeMaskId === 'number') {
+                const activeMask = restoredMasks.find((maskObject) => maskObject.maskId === activeMaskId);
+                if (activeMask) {
+                    this.canvas.setActiveObject(activeMask);
+                    this._onSelectionChanged([activeMask]);
+                }
+            }
         }
-        catch (err) {
-            reportError(this.options, err, 'Failed to restore canvas state.');
-            throw err;
+        catch (error) {
+            reportError(this.options, error, 'Failed to restore canvas state.');
+            throw error;
         }
     }
     saveState() {
         this._saveState();
     }
     _saveState(options) {
-        var _a;
+        var _a, _b;
         if (!this.canvas || this._suppressSaveState)
             return;
         if (!this._canRunIdleOperation('saveState', options))
             return;
         const activeObj = this.canvas.getActiveObject();
+        const activeMask = this._activeMaskForSnapshot();
         this._hideAllMaskLabels();
         try {
             const after = saveState({
                 canvas: this.canvas,
+                activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
                 currentScale: this.currentScale,
                 currentRotation: this.currentRotation,
                 baseImageScale: this.baseImageScale,
             });
-            const before = (_a = this._lastSnapshot) !== null && _a !== void 0 ? _a : after;
+            const before = (_b = this._lastSnapshot) !== null && _b !== void 0 ? _b : after;
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {
@@ -4019,12 +4132,16 @@ class ImageEditor {
             });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
-            if (activeObj && isMaskObject(activeObj))
-                this._showLabelForMask(activeObj);
+            const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+            if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
+                this.canvas.setActiveObject(maskToRestore);
+                this._showLabelForMask(maskToRestore);
+                this._updateMaskListSelection(maskToRestore);
+            }
             this._updateUI();
         }
-        catch (err) {
-            reportWarning(this.options, err, 'Failed to capture canvas snapshot.');
+        catch (error) {
+            reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
         }
     }
     undo() {
@@ -4251,15 +4368,29 @@ class ImageEditor {
         };
     }
     _captureSnapshot() {
+        var _a;
         if (!this.canvas)
             return '';
+        const activeMask = this._activeMaskForSnapshot();
         this._hideAllMaskLabels();
         return saveState({
             canvas: this.canvas,
+            activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
             baseImageScale: this.baseImageScale,
         });
+    }
+    _activeMaskForSnapshot() {
+        var _a;
+        if (!this.canvas)
+            return null;
+        const activeObject = this.canvas.getActiveObject();
+        if (activeObject && isMaskObject(activeObject))
+            return activeObject;
+        return ((_a = this.canvas
+            .getObjects()
+            .find((object) => isMaskObject(object) && !!object.__label)) !== null && _a !== void 0 ? _a : null);
     }
     enterCropMode() {
         if (!this.canvas || !this.originalImage)

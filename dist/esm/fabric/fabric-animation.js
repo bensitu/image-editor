@@ -21,8 +21,8 @@ export function animateProps(obj, props, options, guard) {
                 },
             });
         }
-        catch (err) {
-            reject(err);
+        catch (error) {
+            reject(error);
         }
     });
 }

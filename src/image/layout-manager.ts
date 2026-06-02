@@ -173,9 +173,9 @@ export class ViewportCache {
         scrollbarSize?: Partial<ScrollbarSize> | null,
     ): ViewportSize {
         if (!container) return fallback;
-        const cw = Math.floor(container.clientWidth);
-        const ch = Math.floor(container.clientHeight);
-        if (cw > 0 && ch > 0) {
+        const containerWidth = Math.floor(container.clientWidth);
+        const containerHeight = Math.floor(container.clientHeight);
+        if (containerWidth > 0 && containerHeight > 0) {
             this.lastVisible = measureContainerViewport(container, fallback, scrollbarSize);
             return this.lastVisible;
         }
@@ -402,12 +402,12 @@ export function computeFitLayout(
     optionsCanvasHeight: number,
     containerSize: ViewportSize,
 ): LayoutResult {
-    const cw = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
-    const ch = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
-    const fitScale = Math.min(cw / imageWidth, ch / imageHeight, 1);
+    const canvasWidth = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
+    const canvasHeight = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
+    const fitScale = Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight, 1);
     return {
-        canvasWidth: cw,
-        canvasHeight: ch,
+        canvasWidth,
+        canvasHeight,
         imageScale: fitScale,
         imageLeft: 0,
         imageTop: 0,
@@ -494,11 +494,11 @@ export function computeExpandLayout(
     _optionsCanvasHeight: number,
     containerSize: ViewportSize,
 ): LayoutResult {
-    const cw = Math.max(containerSize.width, Math.floor(imageWidth));
-    const ch = Math.max(containerSize.height, Math.floor(imageHeight));
+    const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
+    const canvasHeight = Math.max(containerSize.height, Math.floor(imageHeight));
     return {
-        canvasWidth: cw,
-        canvasHeight: ch,
+        canvasWidth,
+        canvasHeight,
         imageScale: 1,
         imageLeft: 0,
         imageTop: 0,
@@ -543,8 +543,8 @@ export function applyCanvasDimensions(
     height: number,
     containerElement: HTMLElement | null,
 ): void {
-    const iw = Math.max(1, Math.round(Number(width) || 1));
-    const ih = Math.max(1, Math.round(Number(height) || 1));
-    canvas.setDimensions({ width: iw, height: ih });
+    const integerWidth = Math.max(1, Math.round(Number(width) || 1));
+    const integerHeight = Math.max(1, Math.round(Number(height) || 1));
+    canvas.setDimensions({ width: integerWidth, height: integerHeight });
     forceReflow(containerElement);
 }

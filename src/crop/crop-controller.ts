@@ -1150,7 +1150,7 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
                 ),
             );
         }
-    } catch (err) {
+    } catch (error) {
         // restore the pre-crop snapshot, drop the
         // session, and reject with `CropApplyError`. A failure inside
         // the rollback itself is logged but does NOT mask the original
@@ -1160,13 +1160,13 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
 
         try {
             await ctx.loadFromState(beforeJson);
-        } catch (rollbackErr) {
-            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackErr);
+        } catch (rollbackError) {
+            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
         }
 
-        if (err instanceof CropApplyError) throw err;
+        if (error instanceof CropApplyError) throw error;
         const message =
-            err instanceof Error ? `applyCrop failed: ${err.message}` : 'applyCrop failed';
-        throw new CropApplyError(message, err);
+            error instanceof Error ? `applyCrop failed: ${error.message}` : 'applyCrop failed';
+        throw new CropApplyError(message, error);
     }
 }

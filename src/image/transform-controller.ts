@@ -263,8 +263,8 @@ export class TransformController {
             img.set({ originX: 'left', originY: 'top' });
             img.setPositionByOrigin(topLeft, 'left', 'top');
             img.setCoords();
-        } catch (err) {
-            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', err);
+        } catch (error) {
+            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
         }
 
         try {
@@ -281,8 +281,8 @@ export class TransformController {
                     this.ctx.guard,
                 ),
             );
-        } catch (err) {
-            console.warn('[ImageEditor] scaleImage animation error', err);
+        } catch (error) {
+            console.warn('[ImageEditor] scaleImage animation error', error);
             return;
         }
 
@@ -355,8 +355,8 @@ export class TransformController {
             img.set({ originX: 'center', originY: 'center' });
             img.setPositionByOrigin(centre, 'center', 'center');
             img.setCoords();
-        } catch (err) {
-            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', err);
+        } catch (error) {
+            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
         }
 
         let animationFailed = false;
@@ -372,9 +372,9 @@ export class TransformController {
                     this.ctx.guard,
                 ),
             );
-        } catch (err) {
+        } catch (error) {
             animationFailed = true;
-            console.warn('[ImageEditor] rotateImage animation error', err);
+            console.warn('[ImageEditor] rotateImage animation error', error);
         } finally {
             // when dispose interrupts the rotation
             // animation, the post-animation origin restore below is
@@ -403,8 +403,8 @@ export class TransformController {
             img.set({ originX: 'left', originY: 'top' });
             img.setPositionByOrigin(newTopLeft, 'left', 'top');
             img.setCoords();
-        } catch (err) {
-            console.warn('[ImageEditor] rotateImage: origin post-restore failed', err);
+        } catch (error) {
+            console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
         }
 
         // record a snapshot so the new rotation is undoable.

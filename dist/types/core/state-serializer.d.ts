@@ -16,6 +16,9 @@
  * - Every snapshot SHALL embed an `_editorState`
  *   object containing `currentScale`, `currentRotation`, and
  *   `baseImageScale` so undo/redo can fully restore editor metadata.
+ *   When a single mask is active, `_editorState.activeMaskId` records
+ *   that mask so the facade can rebuild the transient label/list
+ *   selection after `loadFromState`.
  * - Falsy style values such as `strokeWidth: 0`
  *   or `hasControls: false` reach the snapshot unchanged because Fabric's
  *   `toJSON` preserves them and this module performs no defaulting on
@@ -66,6 +69,22 @@ export interface CanvasJSONObject {
     originalStroke?: unknown;
     /** Stroke width captured before transient hover or selection styling. */
     originalStrokeWidth?: number;
+    /** Fabric control visibility flag. */
+    hasControls?: boolean;
+    /** Fabric selection flag. */
+    selectable?: boolean;
+    /** Fabric uniform stroke scaling flag. */
+    strokeUniform?: boolean;
+    /** Fabric rotation lock flag. */
+    lockRotation?: boolean;
+    /** Fabric transparent corner control flag. */
+    transparentCorners?: boolean;
+    /** Fabric selection border color. */
+    borderColor?: string;
+    /** Fabric corner control color. */
+    cornerColor?: string;
+    /** Fabric corner control size. */
+    cornerSize?: number;
     /** Marks the transient crop rectangle; filtered before history push. */
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
@@ -85,6 +104,8 @@ export interface EditorStateMeta {
     currentRotation: number;
     /** Base scale chosen by the layout manager when the image was loaded. */
     baseImageScale: number;
+    /** Mask selected when the snapshot was captured, if any. */
+    activeMaskId?: number;
 }
 /**
  * Full snapshot envelope. Standard Fabric `toJSON` keys plus the editor
@@ -112,7 +133,7 @@ export interface CanvasJSON {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.
@@ -120,6 +141,8 @@ export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskName", "isCr
 export interface SaveStateInput {
     /** Fabric canvas to serialize. */
     canvas: FabricNS.Canvas;
+    /** Active mask id supplied by the facade when Fabric active state is unavailable. */
+    activeMaskId?: number | null;
     /** Current image zoom factor (mirrored into `_editorState.currentScale`). */
     currentScale: number;
     /** Current image rotation in degrees (mirrored into `_editorState.currentRotation`). */

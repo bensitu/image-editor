@@ -7,11 +7,77 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'originalAlpha',
     'originalStroke',
     'originalStrokeWidth',
+    'hasControls',
+    'selectable',
+    'strokeUniform',
+    'lockRotation',
+    'transparentCorners',
+    'borderColor',
+    'cornerColor',
+    'cornerSize',
 ];
+function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
+    if (!Array.isArray(jsonObjects))
+        return;
+    for (let index = 0; index < jsonObjects.length; index += 1) {
+        const liveObject = canvasObjects[index];
+        const jsonObject = jsonObjects[index];
+        if (!liveObject || !jsonObject)
+            continue;
+        if (typeof liveObject.maskId === 'number')
+            jsonObject.maskId = liveObject.maskId;
+        if (typeof liveObject.maskName === 'string')
+            jsonObject.maskName = liveObject.maskName;
+        if (typeof liveObject.originalAlpha === 'number') {
+            jsonObject.originalAlpha = liveObject.originalAlpha;
+        }
+        if ('originalStroke' in liveObject)
+            jsonObject.originalStroke = liveObject.originalStroke;
+        if (typeof liveObject.originalStrokeWidth === 'number') {
+            jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
+        }
+        if (typeof liveObject.hasControls === 'boolean') {
+            jsonObject.hasControls = liveObject.hasControls;
+        }
+        if (typeof liveObject.selectable === 'boolean') {
+            jsonObject.selectable = liveObject.selectable;
+        }
+        if (typeof liveObject.strokeUniform === 'boolean') {
+            jsonObject.strokeUniform = liveObject.strokeUniform;
+        }
+        if (typeof liveObject.lockRotation === 'boolean') {
+            jsonObject.lockRotation = liveObject.lockRotation;
+        }
+        if (typeof liveObject.transparentCorners === 'boolean') {
+            jsonObject.transparentCorners = liveObject.transparentCorners;
+        }
+        if (typeof liveObject.borderColor === 'string') {
+            jsonObject.borderColor = liveObject.borderColor;
+        }
+        if (typeof liveObject.cornerColor === 'string') {
+            jsonObject.cornerColor = liveObject.cornerColor;
+        }
+        if (typeof liveObject.cornerSize === 'number') {
+            jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (liveObject.isCropRect === true)
+            jsonObject.isCropRect = true;
+        if (liveObject.maskLabel === true)
+            jsonObject.maskLabel = true;
+    }
+}
 export function saveState(input) {
+    var _a, _b;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
+    const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
+    const activeMaskId = activeObject && isMaskObject(activeObject)
+        ? activeObject.maskId
+        : typeof input.activeMaskId === 'number'
+            ? input.activeMaskId
+            : null;
     canvas.discardActiveObject();
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
+    copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {
         jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true);
     }
@@ -20,6 +86,8 @@ export function saveState(input) {
         currentRotation,
         baseImageScale,
     };
+    if (activeMaskId !== null)
+        jsonObj._editorState.activeMaskId = activeMaskId;
     return JSON.stringify(jsonObj);
 }
 export async function loadFromState(input) {
@@ -49,6 +117,9 @@ export async function loadFromState(input) {
                 : 1,
         }
         : null;
+    if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
+        editorState.activeMaskId = json._editorState.activeMaskId;
+    }
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
@@ -103,6 +174,30 @@ function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
         }
         if (typeof jObj.originalStrokeWidth === 'number') {
             maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
+        if (typeof jObj.hasControls === 'boolean') {
+            maskObject.hasControls = jObj.hasControls;
+        }
+        if (typeof jObj.selectable === 'boolean') {
+            maskObject.selectable = jObj.selectable;
+        }
+        if (typeof jObj.strokeUniform === 'boolean') {
+            maskObject.strokeUniform = jObj.strokeUniform;
+        }
+        if (typeof jObj.lockRotation === 'boolean') {
+            maskObject.lockRotation = jObj.lockRotation;
+        }
+        if (typeof jObj.transparentCorners === 'boolean') {
+            maskObject.transparentCorners = jObj.transparentCorners;
+        }
+        if (typeof jObj.borderColor === 'string') {
+            maskObject.borderColor = jObj.borderColor;
+        }
+        if (typeof jObj.cornerColor === 'string') {
+            maskObject.cornerColor = jObj.cornerColor;
+        }
+        if (typeof jObj.cornerSize === 'number') {
+            maskObject.cornerSize = jObj.cornerSize;
         }
     }
     jsonObjs.forEach((jObj, idx) => {

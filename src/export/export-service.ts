@@ -1007,13 +1007,13 @@ export interface MergeMasksContext extends ExportServiceContext {
  * 1. **No-op gates** — return without mutating anything when no image
  *    is loaded or when the canvas carries no mask objects (matches
  *    legacy's `if (!this.originalImage) return; … if (!masks.length) return;`).
- * 2. **Discard ActiveSelection** — drop any active
- *    selection wrapper before computing the merged bitmap.
- * 3. **Capture pre-merge snapshot** — call
+ * 2. **Capture pre-merge snapshot** — call
  *    `ctx.saveState` so the snapshot is suitable for
  *    `ctx.loadFromState(...)`. The snapshot is the one source of
  *    truth for both the merge command's `undo` and
  *    the rollback path.
+ * 3. **Discard ActiveSelection** — drop any active
+ *    selection wrapper before computing the merged bitmap.
  * 4. **Capture container scroll** — read `scrollTop` / `scrollLeft`
  *    from the editor container so the success path can restore them
  *    after the inner `loadImage` runs.
@@ -1073,19 +1073,21 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         );
     if (masks.length === 0) return;
 
-    // 2. drop any active selection BEFORE computing
-    //    the merged bitmap. `discardActiveObject` is a no-op when no
-    //    selection is active. `exportImageBase64` also discards on its
-    //    own entry; the duplicate call is harmless and keeps this
-    //    function readable as a self-contained pipeline.
-    ctx.canvas.discardActiveObject();
-    ctx.canvas.renderAll();
-
-    // 3. capture a snapshot suitable for
+    // 2. capture a snapshot suitable for
     //    `loadFromState`. The snapshot is the single source of truth
     //    for both the rollback path and the merge
-    //    command's `undo`.
+    //    command's `undo`. Capture before the explicit discard below
+    //    so the serializer can record the active mask id and the facade
+    //    can rebuild the transient label/list selection on undo.
     const beforeSnapshot = ctx.saveState();
+
+    // 3. drop any active selection BEFORE computing
+    //    the merged bitmap. `discardActiveObject` is a no-op when no
+    //    selection is active. `ctx.saveState` already discarded once;
+    //    the duplicate call is harmless and keeps this function
+    //    readable as a self-contained pipeline.
+    ctx.canvas.discardActiveObject();
+    ctx.canvas.renderAll();
 
     // 4. Capture pre-merge container scroll. Read
     //    BEFORE any mutation so the values reflect the user's pre-merge
@@ -1141,8 +1143,8 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
                 if (preScrollLeft !== null) {
                     ctx.containerElement.scrollLeft = preScrollLeft;
                 }
-            } catch (scrollErr) {
-                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollErr);
+            } catch (scrollError) {
+                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollError);
             }
         }
 
@@ -1159,21 +1161,21 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
                 ),
             );
         }
-    } catch (err) {
+    } catch (error) {
         // restore the pre-merge snapshot and
         // reject with `MergeMasksError`. A failure inside the rollback
         // itself is logged but does NOT mask the original error.
         try {
             await ctx.loadFromState(beforeSnapshot);
-        } catch (rollbackErr) {
-            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackErr);
+        } catch (rollbackError) {
+            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
         }
         // If the inner step already raised a `MergeMasksError`, keep
         // it; otherwise wrap so the public surface always reports a
         // consistent error type.
-        if (err instanceof MergeMasksError) throw err;
+        if (error instanceof MergeMasksError) throw error;
         const message =
-            err instanceof Error ? `mergeMasks failed: ${err.message}` : 'mergeMasks failed';
-        throw new MergeMasksError(message, err);
+            error instanceof Error ? `mergeMasks failed: ${error.message}` : 'mergeMasks failed';
+        throw new MergeMasksError(message, error);
     }
 }

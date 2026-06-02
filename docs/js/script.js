@@ -390,8 +390,8 @@ function initEditor() {
         scalePercentageInput: 'scalePercentageInput',
         rotateLeftButton: 'rotateLeftButton',
         rotateRightButton: 'rotateRightButton',
-        rotateLeftDegreesInput: 'leftValue',
-        rotateRightDegreesInput: 'rightValue',
+        rotateLeftDegreesInput: 'rotateLeftDegreesInput',
+        rotateRightDegreesInput: 'rotateRightDegreesInput',
         createMaskButton: null,
         removeSelectedMaskButton: 'removeSelectedMaskButton',
         removeAllMasksButton: 'removeAllMasksButton',
@@ -452,13 +452,13 @@ function canLoadImage() {
 function updateDemoControls() {
     const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
     const isBusy = isEditorBusy();
-    const addMaskButtonElement = getOptionalElement('createMaskButton');
+    const createMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
-    const loadButtonElement = getOptionalElement('loadButton');
+    const loadImageButtonElement = getOptionalElement('loadImageButton');
 
-    if (addMaskButtonElement) addMaskButtonElement.disabled = !hasLoadedImage || isBusy;
+    if (createMaskButtonElement) createMaskButtonElement.disabled = !hasLoadedImage || isBusy;
     if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
-    if (loadButtonElement) loadButtonElement.disabled = isBusy;
+    if (loadImageButtonElement) loadImageButtonElement.disabled = isBusy;
     if (imageInputElement) imageInputElement.disabled = isBusy;
     if (uploadAreaElement) {
         uploadAreaElement.classList.toggle('disabled', isBusy);
@@ -479,7 +479,7 @@ function getSelectedMaskConfig() {
     return { ...(maskShapeConfigs[selectedShape] || maskShapeConfigs.rect) };
 }
 
-function handleAddMaskButtonClick() {
+function handleCreateMaskButtonClick() {
     if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
     editor.createMask(getSelectedMaskConfig());
     updateDemoControls();
@@ -567,14 +567,14 @@ function handleUploadAreaDragLeave(event) {
     uploadAreaElement?.classList.remove('dragover');
 }
 
-const loadButtonElement = getOptionalElement('loadButton');
-if (loadButtonElement) {
-    loadButtonElement.addEventListener('click', handleLoadButtonClick);
+const loadImageButtonElement = getOptionalElement('loadImageButton');
+if (loadImageButtonElement) {
+    loadImageButtonElement.addEventListener('click', handleLoadButtonClick);
 }
 
-const addMaskButtonElement = getOptionalElement('createMaskButton');
-if (addMaskButtonElement) {
-    addMaskButtonElement.addEventListener('click', handleAddMaskButtonClick);
+const createMaskButtonElement = getOptionalElement('createMaskButton');
+if (createMaskButtonElement) {
+    createMaskButtonElement.addEventListener('click', handleCreateMaskButtonClick);
 }
 
 ['enterCropModeButton', 'applyCropButton', 'cancelCropButton'].forEach(function (buttonId) {

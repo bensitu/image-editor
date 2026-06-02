@@ -143,12 +143,12 @@ export function animateProps<T extends FabricNS.FabricObject>(
                     if (++completed >= propCount) resolve();
                 },
             });
-        } catch (err) {
+        } catch (error) {
             // `obj.animate` is not documented to throw synchronously, but
             // a corrupted Fabric prototype or a bad property name could
             // throw. Reject so the queue moves on instead of waiting on
             // a callback that will never fire.
-            reject(err);
+            reject(error);
         }
     });
 }

@@ -278,13 +278,13 @@ export interface MergeMasksContext extends ExportServiceContext {
  * 1. **No-op gates** — return without mutating anything when no image
  *    is loaded or when the canvas carries no mask objects (matches
  *    legacy's `if (!this.originalImage) return; … if (!masks.length) return;`).
- * 2. **Discard ActiveSelection** — drop any active
- *    selection wrapper before computing the merged bitmap.
- * 3. **Capture pre-merge snapshot** — call
+ * 2. **Capture pre-merge snapshot** — call
  *    `ctx.saveState` so the snapshot is suitable for
  *    `ctx.loadFromState(...)`. The snapshot is the one source of
  *    truth for both the merge command's `undo` and
  *    the rollback path.
+ * 3. **Discard ActiveSelection** — drop any active
+ *    selection wrapper before computing the merged bitmap.
  * 4. **Capture container scroll** — read `scrollTop` / `scrollLeft`
  *    from the editor container so the success path can restore them
  *    after the inner `loadImage` runs.

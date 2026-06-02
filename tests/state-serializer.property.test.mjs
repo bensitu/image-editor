@@ -73,6 +73,7 @@ class MockCanvas {
         this.objects = [];
         this.width = 0;
         this.height = 0;
+        this.activeObject = null;
     }
 
     discardActiveObject() {
@@ -85,6 +86,14 @@ class MockCanvas {
 
     getObjects() {
         return this.objects;
+    }
+
+    getActiveObject() {
+        return this.activeObject;
+    }
+
+    setActiveObject(obj) {
+        this.activeObject = obj;
     }
 
     toJSON(propertiesToInclude) {
@@ -457,6 +466,97 @@ test('loadFromState detects Fabric image objects regardless of type casing', asy
     assert.equal(result.originalImage.type, 'Image');
 });
 
+test('saveState copies mask custom metadata when Fabric omits propertiesToInclude', async () => {
+    const canvas = new MockCanvas();
+    canvas.width = 320;
+    canvas.height = 240;
+    const mask = {
+        type: 'rect',
+        left: 10,
+        top: 12,
+        opacity: 0.5,
+        fill: 'rgba(10,20,30,0.4)',
+        stroke: '#123456',
+        strokeWidth: 4,
+        maskId: 7,
+        maskName: 'mask7',
+        originalAlpha: 0.5,
+        originalStroke: '#123456',
+        originalStrokeWidth: 4,
+        hasControls: true,
+        selectable: true,
+        strokeUniform: true,
+        lockRotation: true,
+        transparentCorners: false,
+        borderColor: 'red',
+        cornerColor: 'black',
+        cornerSize: 8,
+    };
+    canvas.add(mask);
+    canvas.setActiveObject(mask);
+    canvas.toJSON = function toJSONWithoutCustomProps() {
+        return {
+            version: '7.0.0',
+            width: this.width,
+            height: this.height,
+            objects: this.objects.map((object) => ({
+                type: object.type,
+                left: object.left,
+                top: object.top,
+                opacity: object.opacity,
+                fill: object.fill,
+                stroke: object.stroke,
+                strokeWidth: object.strokeWidth,
+            })),
+        };
+    };
+
+    const snapshot = saveState({
+        canvas,
+        currentScale: 1,
+        currentRotation: 0,
+        baseImageScale: 1,
+    });
+    const json = JSON.parse(snapshot);
+
+    assert.equal(json.objects[0].maskId, 7);
+    assert.equal(json.objects[0].maskName, 'mask7');
+    assert.equal(json.objects[0].originalAlpha, 0.5);
+    assert.equal(json.objects[0].originalStroke, '#123456');
+    assert.equal(json.objects[0].originalStrokeWidth, 4);
+    assert.equal(json.objects[0].hasControls, true);
+    assert.equal(json.objects[0].selectable, true);
+    assert.equal(json.objects[0].strokeUniform, true);
+    assert.equal(json.objects[0].lockRotation, true);
+    assert.equal(json.objects[0].transparentCorners, false);
+    assert.equal(json.objects[0].borderColor, 'red');
+    assert.equal(json.objects[0].cornerColor, 'black');
+    assert.equal(json.objects[0].cornerSize, 8);
+    assert.equal(json._editorState.activeMaskId, 7);
+
+    const restoredCanvas = new MockCanvas();
+    const result = await loadFromState({
+        canvas: restoredCanvas,
+        jsonString: snapshot,
+        setCanvasSize: makeSetCanvasSize(restoredCanvas),
+    });
+
+    assert.equal(result.editorState.activeMaskId, 7);
+    assert.equal(result.maxMaskId, 7);
+    assert.equal(result.objects[0].maskId, 7);
+    assert.equal(result.objects[0].maskName, 'mask7');
+    assert.equal(result.objects[0].originalStroke, '#123456');
+    assert.equal(result.objects[0].originalStrokeWidth, 4);
+    assert.equal(result.objects[0].hasControls, true);
+    assert.equal(result.objects[0].selectable, true);
+    assert.equal(result.objects[0].strokeUniform, true);
+    assert.equal(result.objects[0].lockRotation, true);
+    assert.equal(result.objects[0].transparentCorners, false);
+    assert.equal(result.objects[0].borderColor, 'red');
+    assert.equal(result.objects[0].cornerColor, 'black');
+    assert.equal(result.objects[0].cornerSize, 8);
+});
+
 // ─── Sanity checks on the constants the property depends on ────────────────
 
 test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on', () => {
@@ -471,6 +571,14 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
         'originalAlpha',
         'originalStroke',
         'originalStrokeWidth',
+        'hasControls',
+        'selectable',
+        'strokeUniform',
+        'lockRotation',
+        'transparentCorners',
+        'borderColor',
+        'cornerColor',
+        'cornerSize',
     ]) {
         assert.ok(SNAPSHOT_CUSTOM_KEYS.includes(k), `SNAPSHOT_CUSTOM_KEYS must include '${k}'`);
     }

@@ -1,9 +1,12 @@
-// ESM resolve hook that allows `import { X } from '../foo.js'` to resolve
-// to `../foo.ts` when the `.ts` file exists and the `.js` does not. This
-// mirrors TypeScript's source-relative resolution under the published
-// `"moduleResolution": "bundler"` setting and lets property tests run
-// against `.ts` source directly under Node's native type-stripping (Node
-// 24+) without invoking the build pipeline.
+// ESM hook that lets property tests run against `.ts` source directly
+// without invoking the build pipeline. It handles two cases:
+//   - `import { X } from '../foo.js'` resolves to `../foo.ts` when the
+//     source file exists and the built `.js` sibling does not.
+//   - `.ts` modules are transpiled on load for Node versions that do not
+//     natively strip TypeScript syntax.
+//
+// This mirrors TypeScript's source-relative resolution under the published
+// `"moduleResolution": "bundler"` setting.
 //
 // The hook is intentionally narrow:
 //   - Only relative specifiers (starting with `.`) are remapped.
@@ -14,7 +17,20 @@
 //     message.
 
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
+
+const compilerOptions = {
+    target: ts.ScriptTarget.ES2019,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    esModuleInterop: true,
+    isolatedModules: true,
+    sourceMap: false,
+    importHelpers: false,
+    removeComments: false,
+};
 
 export function resolve(specifier, context, nextResolve) {
     if ((specifier.startsWith('./') || specifier.startsWith('../')) && specifier.endsWith('.js')) {
@@ -31,4 +47,23 @@ export function resolve(specifier, context, nextResolve) {
         }
     }
     return nextResolve(specifier, context);
+}
+
+export async function load(url, context, nextLoad) {
+    if (url.startsWith('file:') && url.endsWith('.ts')) {
+        const fileName = fileURLToPath(url);
+        const source = await readFile(fileName, 'utf8');
+        const output = ts.transpileModule(source, {
+            compilerOptions,
+            fileName,
+        });
+
+        return {
+            format: 'module',
+            shortCircuit: true,
+            source: output.outputText,
+        };
+    }
+
+    return nextLoad(url, context);
 }

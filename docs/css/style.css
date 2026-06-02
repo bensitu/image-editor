@@ -333,7 +333,7 @@ input[type='number']::-webkit-inner-spin-button {
     color: var(--muted);
 }
 
-#loadBtn {
+#loadImageButton {
     align-self: stretch;
     min-width: 84px;
     border-color: var(--accent);
@@ -341,7 +341,7 @@ input[type='number']::-webkit-inner-spin-button {
     font-weight: 700;
 }
 
-#loadBtn:hover {
+#loadImageButton:hover {
     border-color: var(--accent-strong);
     background: var(--accent-strong);
 }
@@ -637,7 +637,7 @@ canvas {
         grid-template-columns: 1fr;
     }
 
-    #loadBtn {
+    #loadImageButton {
         min-height: 38px;
     }
 

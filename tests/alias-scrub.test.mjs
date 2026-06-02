@@ -12,6 +12,8 @@
  *
  * Scope:
  *   - The public declarations bundle must not expose removed alias names.
+ *   - Runtime source, demo HTML/JS, and generated declarations must not
+ *     contain removed v1 DOM binding keys.
  *   - README and docs are scanned as published user-facing surfaces.
  *   - Changelog mentions are allowed only in the release section that documents the
  *     removals.
@@ -46,7 +48,7 @@ const repoRoot = path.resolve(__dirname, '..');
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 /**
- * The Deprecated_Alias set the scrub flags across the publishable surface.
+ * Deprecated aliases flagged across the publishable surface.
  */
 const DEPRECATED_ALIASES = Object.freeze([
     'reset',
@@ -78,7 +80,34 @@ const DEPRECATED_ALIASES = Object.freeze([
 ]);
 
 /**
- * Test files that may legitimately reference Deprecated_Alias names.
+ * Removed v1 DOM binding keys. These are scanned as raw text in runtime
+ * source, demo HTML/JS, and generated declarations because v2 must expose
+ * canonical DOM names only.
+ */
+const DEPRECATED_DOM_KEYS = Object.freeze([
+    'imgPlaceholder',
+    'scaleRate',
+    'rotationLeftInput',
+    'rotationRightInput',
+    'rotateLeftBtn',
+    'rotateRightBtn',
+    'addMaskBtn',
+    'removeMaskBtn',
+    'removeAllMasksBtn',
+    'mergeBtn',
+    'downloadBtn',
+    'zoomInBtn',
+    'zoomOutBtn',
+    'resetBtn',
+    'undoBtn',
+    'redoBtn',
+    'cropBtn',
+    'applyCropBtn',
+    'cancelCropBtn',
+]);
+
+/**
+ * Test files that may legitimately reference deprecated alias names.
  *
  * The allowlist covers the scrub itself, which holds the alias names as
  * data so it can search for them in other files.
@@ -88,7 +117,7 @@ const DEPRECATED_ALIASES = Object.freeze([
 const TEST_FILE_ALLOWLIST = new Set(['alias-scrub.test.mjs']);
 
 /**
- * Markdown section heading that is allowed to reference Deprecated_Alias
+ * Markdown section heading that is allowed to reference deprecated alias
  * names in backtick-wrapped code spans. Release notes MUST list every
  * removed alias and its canonical replacement.
  */
@@ -135,16 +164,16 @@ function stripCssComments(source) {
 }
 
 /**
- * Find every Deprecated_Alias occurrence in `text` using case-sensitive
+ * Find every deprecated alias occurrence in `text` using case-sensitive
  * word-boundary matching. Returns an array of `{ alias, index }` so
  * failures can name the offender precisely. Identifiers like
  * `resetImageTransformButton`, `resetTransform`, `mergeMasks`, and `createMaskButton` are NOT
  * matched because the alias is followed (or preceded) by another word
  * character, so no word boundary exists.
  */
-function findAliases(text) {
+function findTerms(text, terms) {
     const found = [];
-    for (const alias of DEPRECATED_ALIASES) {
+    for (const alias of terms) {
         const re = new RegExp(`\\b${alias}\\b`, 'g');
         let match;
         while ((match = re.exec(text)) !== null) {
@@ -152,6 +181,14 @@ function findAliases(text) {
         }
     }
     return found;
+}
+
+function findAliases(text) {
+    return findTerms(text, DEPRECATED_ALIASES);
+}
+
+function findDomKeys(text) {
+    return findTerms(text, DEPRECATED_DOM_KEYS);
 }
 
 /**
@@ -211,9 +248,9 @@ async function listFiles(dir, predicate) {
     let entries;
     try {
         entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch (err) {
-        if (err && err.code === 'ENOENT') return [];
-        throw err;
+    } catch (error) {
+        if (error && error.code === 'ENOENT') return [];
+        throw error;
     }
     const out = [];
     for (const entry of entries) {
@@ -228,46 +265,92 @@ async function listFiles(dir, predicate) {
     return out;
 }
 
-// ─── 1. dist/types/index.d.ts ────────────────────────────
+// ─── 1. dist/types declarations ──────────────────────────
 
-for (const declarationFile of ['index.d.ts', 'index.d.cts']) {
-    test(`\`dist/types/${declarationFile}\` declares no Deprecated_Alias when present`, async () => {
-        const filePath = path.join(repoRoot, 'dist', 'types', declarationFile);
-        let source;
-        try {
-            source = await fs.readFile(filePath, 'utf8');
-        } catch (err) {
-            if (err && err.code === 'ENOENT') return; // clean-tree skip
-            throw err;
-        }
+test('`dist/types` declarations expose no deprecated aliases when present', async () => {
+    const declarationFiles = await listFiles(
+        path.join(repoRoot, 'dist', 'types'),
+        (name) => name.endsWith('.d.ts') || name.endsWith('.d.cts'),
+    );
+    for (const filePath of declarationFiles) {
+        const source = await fs.readFile(filePath, 'utf8');
         const stripped = stripJsCommentsAndStrings(source);
         const found = findAliases(stripped);
         assert.deepEqual(
             found.map((f) => f.alias),
             [],
-            `dist/types/${declarationFile} must not declare or reference any Deprecated_Alias ` +
+            `${path.relative(repoRoot, filePath)} must not declare or reference any ` +
+                `deprecated alias ` +
                 `. Offending hits: ${JSON.stringify(found)}`,
         );
-    });
-}
+    }
+});
+
+test('v2 runtime source, demo docs, and declarations contain no removed v1 DOM keys', async () => {
+    const groups = [
+        {
+            label: 'src/**/*.ts',
+            dir: path.join(repoRoot, 'src'),
+            predicate: (name) => name.endsWith('.ts'),
+        },
+        {
+            label: 'docs/**/*.html',
+            dir: path.join(repoRoot, 'docs'),
+            predicate: (name) => name.endsWith('.html'),
+        },
+        {
+            label: 'docs/**/*.js',
+            dir: path.join(repoRoot, 'docs'),
+            predicate: (name) => name.endsWith('.js'),
+        },
+        {
+            label: 'dist/types declarations',
+            dir: path.join(repoRoot, 'dist', 'types'),
+            predicate: (name) => name.endsWith('.d.ts') || name.endsWith('.d.cts'),
+        },
+    ];
+
+    const offenders = [];
+    for (const group of groups) {
+        const files = await listFiles(group.dir, group.predicate);
+        for (const filePath of files) {
+            const source = await fs.readFile(filePath, 'utf8');
+            const found = findDomKeys(source);
+            for (const hit of found) {
+                offenders.push({
+                    surface: group.label,
+                    file: path.relative(repoRoot, filePath),
+                    key: hit.alias,
+                });
+            }
+        }
+    }
+
+    assert.deepEqual(
+        offenders,
+        [],
+        `Removed v1 DOM binding keys must not appear in v2 runtime source, ` +
+            `demo HTML/JS, or generated declarations. Offenders: ${JSON.stringify(offenders)}`,
+    );
+});
 
 // ─── 2. README.md ───────────────────────────────────────
 
-test('`README.md` contains no Deprecated_Alias inside any code span', async () => {
+test('`README.md` contains no deprecated alias inside any code span', async () => {
     const source = await fs.readFile(path.join(repoRoot, 'README.md'), 'utf8');
     const codeText = extractMarkdownCodeSpans(source);
     const found = findAliases(codeText);
     assert.deepEqual(
         found.map((f) => f.alias),
         [],
-        `README.md must not reference any Deprecated_Alias as a code identifier ` +
+        `README.md must not reference any deprecated alias as a code identifier ` +
             `. Offending hits: ${JSON.stringify(found)}`,
     );
 });
 
 // ─── 3. docs/ ───────────────────────────────────────────
 
-test('`docs/*.html` contains no Deprecated_Alias identifier', async () => {
+test('`docs/*.html` contains no deprecated alias identifier', async () => {
     const htmlFiles = await listFiles(path.join(repoRoot, 'docs'), (name) =>
         name.endsWith('.html'),
     );
@@ -279,13 +362,13 @@ test('`docs/*.html` contains no Deprecated_Alias identifier', async () => {
             found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-                `Deprecated_Alias identifier. ` +
+                `deprecated alias identifier. ` +
                 `Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
 
-test('`docs/css/*.css` contains no Deprecated_Alias identifier', async () => {
+test('`docs/css/*.css` contains no deprecated alias identifier', async () => {
     const cssFiles = await listFiles(path.join(repoRoot, 'docs'), (name) => name.endsWith('.css'));
     for (const filePath of cssFiles) {
         const source = await fs.readFile(filePath, 'utf8');
@@ -295,13 +378,13 @@ test('`docs/css/*.css` contains no Deprecated_Alias identifier', async () => {
             found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-                `Deprecated_Alias identifier. ` +
+                `deprecated alias identifier. ` +
                 `Offending hits: ${JSON.stringify(found)}`,
         );
     }
 });
 
-test('`docs/js/*.js` contains no Deprecated_Alias identifier', async () => {
+test('`docs/js/*.js` contains no deprecated alias identifier', async () => {
     const jsFiles = await listFiles(path.join(repoRoot, 'docs'), (name) => name.endsWith('.js'));
     for (const filePath of jsFiles) {
         const source = await fs.readFile(filePath, 'utf8');
@@ -311,7 +394,7 @@ test('`docs/js/*.js` contains no Deprecated_Alias identifier', async () => {
             found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-                `Deprecated_Alias identifier. ` +
+                `deprecated alias identifier. ` +
                 `Offending hits: ${JSON.stringify(found)}`,
         );
     }
@@ -319,7 +402,7 @@ test('`docs/js/*.js` contains no Deprecated_Alias identifier', async () => {
 
 // ─── 4. tests/ ───────────────────────────────────────────
 
-test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias identifier', async () => {
+test('`tests/**/*.test.mjs` outside the allowlist contains no deprecated alias identifier', async () => {
     const testFiles = await listFiles(
         path.join(repoRoot, 'tests'),
         (name) => name.endsWith('.test.mjs') || name.endsWith('.mjs'),
@@ -334,7 +417,7 @@ test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias i
             found.map((f) => f.alias),
             [],
             `${path.relative(repoRoot, filePath)} must not reference any ` +
-                `Deprecated_Alias identifier outside the documented allowlist ` +
+                `deprecated alias identifier outside the documented allowlist ` +
                 `. Offending hits: ${JSON.stringify(found)}`,
         );
     }
@@ -342,7 +425,7 @@ test('`tests/**/*.test.mjs` outside the allowlist contains no Deprecated_Alias i
 
 // ─── 5. CHANGELOG.md ────────────────────────────────────
 
-test('`CHANGELOG.md` confines Deprecated_Alias mentions to the `## [2.0.0]` section', async () => {
+test('`CHANGELOG.md` confines deprecated alias mentions to the `## [2.0.0]` section', async () => {
     const source = await fs.readFile(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
     const sections = splitMarkdownByH2(source);
     const offenders = [];
@@ -357,13 +440,13 @@ test('`CHANGELOG.md` confines Deprecated_Alias mentions to the `## [2.0.0]` sect
     assert.deepEqual(
         offenders,
         [],
-        `CHANGELOG.md may only reference Deprecated_Alias identifiers in the ` +
+        `CHANGELOG.md may only reference deprecated alias identifiers in the ` +
             `\`## ${CHANGELOG_ALLOWED_SECTION}\` section. ` +
             `Offending sections: ${JSON.stringify(offenders)}`,
     );
 });
 
-test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias', async () => {
+test('`CHANGELOG.md` `## [2.0.0]` section lists every removed deprecated alias', async () => {
     // Release notes intentionally list every removed alias with its canonical
     // replacement.
     // This test pairs with the scope-restriction test above: confirming
@@ -380,7 +463,7 @@ test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias',
     assert.ok(
         allowedBody !== null,
         `CHANGELOG.md must contain a \`## ${CHANGELOG_ALLOWED_SECTION}\` ` +
-            `section listing the removed Deprecated_Aliases`,
+            `section listing the removed deprecated aliases`,
     );
     const codeText = extractMarkdownCodeSpans(allowedBody);
     const missing = DEPRECATED_ALIASES.filter((alias) => {
@@ -391,14 +474,14 @@ test('`CHANGELOG.md` `## [2.0.0]` section lists every removed Deprecated_Alias',
         missing,
         [],
         `CHANGELOG.md \`## ${CHANGELOG_ALLOWED_SECTION}\` section must list ` +
-            `every removed Deprecated_Alias in a code span. ` +
+            `every removed deprecated alias in a code span. ` +
             `Missing: ${JSON.stringify(missing)}`,
     );
 });
 
 // ─── 6. package.json ────────────────────────────────────
 
-test('`package.json` contains no Deprecated_Alias identifier', async () => {
+test('`package.json` contains no deprecated alias identifier', async () => {
     // package.json is JSON, so there are no comments or string literals
     // to strip — every quoted value is meaningful as part of the
     // published package shape (script names, keywords, exports paths,
@@ -409,7 +492,7 @@ test('`package.json` contains no Deprecated_Alias identifier', async () => {
     assert.deepEqual(
         found.map((f) => f.alias),
         [],
-        `package.json must not reference any Deprecated_Alias identifier ` +
+        `package.json must not reference any deprecated alias identifier ` +
             `. Offending hits: ${JSON.stringify(found)}`,
     );
 });

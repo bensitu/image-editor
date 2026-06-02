@@ -58,7 +58,7 @@ export type ElementIdResolver = (key: ElementKey) => string | null | undefined;
  *
  * - If `resolveElementId(key)` returns a falsy value, the helper returns
  *   without touching the DOM (the integrator chose not to wire that
- *   control;.4).
+ *   control).
  * - If `document.getElementById(id)` returns `null`, the helper returns
  *   without throwing. A missing node is a partial-DOM scenario, not a
  *   fatal error.

@@ -284,21 +284,21 @@ export class ImageEditor {
         else {
             this.containerElement = canvasElement.parentElement;
         }
-        const phId = this.elements.imagePlaceholder;
-        this.placeholderElement = phId ? document.getElementById(phId) : null;
-        let initialW = this.options.canvasWidth;
-        let initialH = this.options.canvasHeight;
+        const placeholderId = this.elements.imagePlaceholder;
+        this.placeholderElement = placeholderId ? document.getElementById(placeholderId) : null;
+        let initialWidth = this.options.canvasWidth;
+        let initialHeight = this.options.canvasHeight;
         if (this.containerElement) {
-            const cw = Math.floor(this.containerElement.clientWidth);
-            const ch = Math.floor(this.containerElement.clientHeight);
-            if (cw > 0 && ch > 0) {
-                initialW = cw;
-                initialH = ch;
+            const containerWidth = Math.floor(this.containerElement.clientWidth);
+            const containerHeight = Math.floor(this.containerElement.clientHeight);
+            if (containerWidth > 0 && containerHeight > 0) {
+                initialWidth = containerWidth;
+                initialHeight = containerHeight;
             }
         }
         this.canvas = new this._fabric.Canvas(canvasElement, {
-            width: initialW,
-            height: initialH,
+            width: initialWidth,
+            height: initialHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
@@ -314,10 +314,16 @@ export class ImageEditor {
             if (e.target && isMaskObject(e.target))
                 this._syncMaskLabel(e.target);
         };
+        const onObjectModified = (e) => {
+            if (!e.target || !isMaskObject(e.target))
+                return;
+            this._syncMaskLabel(e.target);
+            this.saveState();
+        };
         this.canvas.on('object:moving', onObjectEvent);
         this.canvas.on('object:scaling', onObjectEvent);
         this.canvas.on('object:rotating', onObjectEvent);
-        this.canvas.on('object:modified', onObjectEvent);
+        this.canvas.on('object:modified', onObjectModified);
     }
     _bindEvents() {
         this._bindIfExists('uploadArea', 'click', () => {
@@ -328,9 +334,9 @@ export class ImageEditor {
         });
         this._bindIfExists('imageInput', 'change', (e) => {
             var _a;
-            const f = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
-            if (f)
-                void this._loadImageFile(f);
+            const file = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
+            if (file)
+                void this._loadImageFile(file);
         });
         this._bindIfExists('zoomInButton', 'click', () => {
             void this.scaleImage(this.currentScale + this.options.scaleStep);
@@ -369,9 +375,9 @@ export class ImageEditor {
                 : null;
             let step = this.options.rotationStep;
             if (inputEl) {
-                const p = parseFloat(inputEl.value);
-                if (!isNaN(p))
-                    step = p;
+                const parsedStep = parseFloat(inputEl.value);
+                if (!isNaN(parsedStep))
+                    step = parsedStep;
             }
             void this.rotateImage(this.currentRotation - step);
         });
@@ -382,9 +388,9 @@ export class ImageEditor {
                 : null;
             let step = this.options.rotationStep;
             if (inputEl) {
-                const p = parseFloat(inputEl.value);
-                if (!isNaN(p))
-                    step = p;
+                const parsedStep = parseFloat(inputEl.value);
+                if (!isNaN(parsedStep))
+                    step = parsedStep;
             }
             void this.rotateImage(this.currentRotation + step);
         });
@@ -392,8 +398,8 @@ export class ImageEditor {
             this.enterCropMode();
         });
         this._bindIfExists('applyCropButton', 'click', () => {
-            void this.applyCrop().catch((err) => {
-                reportError(this.options, err, 'Crop apply failed.');
+            void this.applyCrop().catch((error) => {
+                reportError(this.options, error, 'Crop apply failed.');
             });
         });
         this._bindIfExists('cancelCropButton', 'click', () => {
@@ -419,8 +425,8 @@ export class ImageEditor {
         try {
             dataUrl = await readFileAsDataURL(file);
         }
-        catch (err) {
-            reportError(this.options, err, 'Failed to read selected image file.');
+        catch (error) {
+            reportError(this.options, error, 'Failed to read selected image file.');
             resetFileInput(inputEl);
             return;
         }
@@ -700,8 +706,8 @@ export class ImageEditor {
         try {
             this._assertCanQueueAnimation('scaleImage');
         }
-        catch (err) {
-            return Promise.reject(err);
+        catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -725,8 +731,8 @@ export class ImageEditor {
         try {
             this._assertCanQueueAnimation('rotateImage');
         }
-        catch (err) {
-            return Promise.reject(err);
+        catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -750,8 +756,8 @@ export class ImageEditor {
         try {
             this._assertCanQueueAnimation('resetImageTransform');
         }
-        catch (err) {
-            return Promise.reject(err);
+        catch (error) {
+            return Promise.reject(error);
         }
         const controller = this._transformController;
         const job = this.animQueue.add(async () => {
@@ -822,7 +828,9 @@ export class ImageEditor {
                 this._updateCanvasSizeToImageBounds();
                 this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
-            result.objects.filter(isMaskObject).forEach((maskObject) => {
+            const restoredMasks = result.objects.filter(isMaskObject);
+            this._lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
+            restoredMasks.forEach((maskObject) => {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
@@ -831,31 +839,41 @@ export class ImageEditor {
             this._updateInputs();
             this._updateMaskList();
             this._updateUI();
+            const activeMaskId = es === null || es === void 0 ? void 0 : es.activeMaskId;
+            if (typeof activeMaskId === 'number') {
+                const activeMask = restoredMasks.find((maskObject) => maskObject.maskId === activeMaskId);
+                if (activeMask) {
+                    this.canvas.setActiveObject(activeMask);
+                    this._onSelectionChanged([activeMask]);
+                }
+            }
         }
-        catch (err) {
-            reportError(this.options, err, 'Failed to restore canvas state.');
-            throw err;
+        catch (error) {
+            reportError(this.options, error, 'Failed to restore canvas state.');
+            throw error;
         }
     }
     saveState() {
         this._saveState();
     }
     _saveState(options) {
-        var _a;
+        var _a, _b;
         if (!this.canvas || this._suppressSaveState)
             return;
         if (!this._canRunIdleOperation('saveState', options))
             return;
         const activeObj = this.canvas.getActiveObject();
+        const activeMask = this._activeMaskForSnapshot();
         this._hideAllMaskLabels();
         try {
             const after = saveStateImpl({
                 canvas: this.canvas,
+                activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
                 currentScale: this.currentScale,
                 currentRotation: this.currentRotation,
                 baseImageScale: this.baseImageScale,
             });
-            const before = (_a = this._lastSnapshot) !== null && _a !== void 0 ? _a : after;
+            const before = (_b = this._lastSnapshot) !== null && _b !== void 0 ? _b : after;
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {
@@ -867,12 +885,16 @@ export class ImageEditor {
             });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
-            if (activeObj && isMaskObject(activeObj))
-                this._showLabelForMask(activeObj);
+            const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+            if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
+                this.canvas.setActiveObject(maskToRestore);
+                this._showLabelForMask(maskToRestore);
+                this._updateMaskListSelection(maskToRestore);
+            }
             this._updateUI();
         }
-        catch (err) {
-            reportWarning(this.options, err, 'Failed to capture canvas snapshot.');
+        catch (error) {
+            reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
         }
     }
     undo() {
@@ -1099,15 +1121,29 @@ export class ImageEditor {
         };
     }
     _captureSnapshot() {
+        var _a;
         if (!this.canvas)
             return '';
+        const activeMask = this._activeMaskForSnapshot();
         this._hideAllMaskLabels();
         return saveStateImpl({
             canvas: this.canvas,
+            activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
             baseImageScale: this.baseImageScale,
         });
+    }
+    _activeMaskForSnapshot() {
+        var _a;
+        if (!this.canvas)
+            return null;
+        const activeObject = this.canvas.getActiveObject();
+        if (activeObject && isMaskObject(activeObject))
+            return activeObject;
+        return ((_a = this.canvas
+            .getObjects()
+            .find((object) => isMaskObject(object) && !!object.__label)) !== null && _a !== void 0 ? _a : null);
     }
     enterCropMode() {
         if (!this.canvas || !this.originalImage)

@@ -76,25 +76,25 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
                     ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             }
-            catch (err) {
-                console.warn('[ImageEditor] preserveScroll restore failed', err);
+            catch (error) {
+                console.warn('[ImageEditor] preserveScroll restore failed', error);
             }
         }
-        const cb = ctx.options.onImageLoaded;
-        if (typeof cb === 'function') {
+        const imageLoadedCallback = ctx.options.onImageLoaded;
+        if (typeof imageLoadedCallback === 'function') {
             try {
-                cb();
+                imageLoadedCallback();
             }
-            catch (err) {
-                console.error('[ImageEditor] onImageLoaded callback threw', err);
+            catch (error) {
+                console.error('[ImageEditor] onImageLoaded callback threw', error);
             }
         }
     }
-    catch (err) {
+    catch (error) {
         await replayRollback(ctx, bundle);
-        const errorMessage = err instanceof Error ? `loadImage failed: ${err.message}` : 'loadImage failed';
-        reportError(ctx.options, err, errorMessage);
-        throw err;
+        const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
+        reportError(ctx.options, error, errorMessage);
+        throw error;
     }
 }
 function startImageDecode(dataUrl) {
@@ -193,16 +193,16 @@ async function replayRollback(ctx, bundle) {
         try {
             ctx.containerElement.style.overflow = bundle.containerOverflow;
         }
-        catch (err) {
-            console.warn('[ImageEditor] rollback: overflow restore failed', err);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
         }
     }
     try {
         await ctx.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
         ctx.canvas.renderAll();
     }
-    catch (err) {
-        console.warn('[ImageEditor] rollback: loadFromJSON failed', err);
+    catch (rollbackError) {
+        console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
     ctx.setOriginalImage(bundle.originalImage);
     ctx.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
@@ -220,8 +220,8 @@ async function replayRollback(ctx, bundle) {
                 ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         }
-        catch (err) {
-            console.warn('[ImageEditor] rollback: scroll restore failed', err);
+        catch (rollbackError) {
+            console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
         }
     }
     if (bundle.placeholderHidden !== null) {

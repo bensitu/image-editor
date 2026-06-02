@@ -326,47 +326,47 @@ export interface ElementIdMap {
      */
     canvasContainer?: string | null;
     /** Empty-state placeholder element. @default 'imagePlaceholder' */
-    imagePlaceholder?: string;
+    imagePlaceholder?: string | null;
     /** Scale percentage input/display. @default 'scalePercentageInput' */
-    scalePercentageInput?: string;
+    scalePercentageInput?: string | null;
     /** Left-rotation step input. @default 'rotateLeftDegreesInput' */
-    rotateLeftDegreesInput?: string;
+    rotateLeftDegreesInput?: string | null;
     /** Right-rotation step input. @default 'rotateRightDegreesInput' */
-    rotateRightDegreesInput?: string;
+    rotateRightDegreesInput?: string | null;
     /** Rotate left button. @default 'rotateLeftButton' */
-    rotateLeftButton?: string;
+    rotateLeftButton?: string | null;
     /** Rotate right button. @default 'rotateRightButton' */
-    rotateRightButton?: string;
+    rotateRightButton?: string | null;
     /** Add mask button. @default 'createMaskButton' */
-    createMaskButton?: string;
+    createMaskButton?: string | null;
     /** Remove selected mask button. @default 'removeSelectedMaskButton' */
-    removeSelectedMaskButton?: string;
+    removeSelectedMaskButton?: string | null;
     /** Remove all masks button. @default 'removeAllMasksButton' */
-    removeAllMasksButton?: string;
+    removeAllMasksButton?: string | null;
     /** Merge masks into image button. @default 'mergeMasksButton' */
-    mergeMasksButton?: string;
+    mergeMasksButton?: string | null;
     /** Download image button. @default 'downloadImageButton' */
-    downloadImageButton?: string;
+    downloadImageButton?: string | null;
     /** Mask list container (`<ul>` or `<ol>`). @default 'maskList' */
     maskList?: string | null;
     /** Zoom in button. @default 'zoomInButton' */
-    zoomInButton?: string;
+    zoomInButton?: string | null;
     /** Zoom out button. @default 'zoomOutButton' */
-    zoomOutButton?: string;
+    zoomOutButton?: string | null;
     /** Reset transform button. @default 'resetImageTransformButton' */
-    resetImageTransformButton?: string;
+    resetImageTransformButton?: string | null;
     /** Undo button. @default 'undoButton' */
-    undoButton?: string;
+    undoButton?: string | null;
     /** Redo button. @default 'redoButton' */
-    redoButton?: string;
+    redoButton?: string | null;
     /** File input for image selection. @default 'imageInput' */
     imageInput?: string | null;
     /** Enter crop mode button. @default 'enterCropModeButton' */
-    enterCropModeButton?: string;
+    enterCropModeButton?: string | null;
     /** Apply crop button. @default 'applyCropButton' */
-    applyCropButton?: string;
+    applyCropButton?: string | null;
     /** Cancel crop button. @default 'cancelCropButton' */
-    cancelCropButton?: string;
+    cancelCropButton?: string | null;
     /** Clickable upload area (delegates to imageInput). @default 'uploadArea' */
     uploadArea?: string | null;
 }
@@ -549,7 +549,7 @@ export interface ImageEditorOptions {
     /** Default filename used by {@link ImageEditor.downloadImage}. @default 'edited_image.jpg' */
     defaultDownloadFileName?: string;
 
-    // Callbacks.1–5.5
+    // Callbacks
     /** Called after an image is successfully loaded onto the canvas. */
     onImageLoaded?: () => void;
     /**
