@@ -79,7 +79,7 @@ function isActiveSelectionObject(object) {
             isType.call(object, 'activeselection')));
 }
 export function saveState(input) {
-    var _a, _b;
+    var _a, _b, _c;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
     const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
     const activeMaskId = activeObject && isMaskObject(activeObject)
@@ -99,6 +99,7 @@ export function saveState(input) {
         currentScale,
         currentRotation,
         baseImageScale,
+        currentImageMimeType: (_c = input.currentImageMimeType) !== null && _c !== void 0 ? _c : null,
     };
     if (activeMaskId !== null)
         jsonObj._editorState.activeMaskId = activeMaskId;
@@ -133,6 +134,13 @@ export async function loadFromState(input) {
         : null;
     if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
         editorState.activeMaskId = json._editorState.activeMaskId;
+    }
+    if (editorState && json._editorState && 'currentImageMimeType' in json._editorState) {
+        const mimeType = json._editorState.currentImageMimeType;
+        editorState.currentImageMimeType =
+            mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
+                ? mimeType
+                : null;
     }
     const maxMaskId = objects
         .filter(isMaskObject)

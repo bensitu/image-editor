@@ -14,11 +14,17 @@ const MIME_TABLE = Object.freeze({
 });
 export function normalizeImageFormat(input) {
     var _a;
-    const key = String(input || 'jpeg').toLowerCase();
+    return (_a = tryNormalizeImageFormat(input)) !== null && _a !== void 0 ? _a : 'jpeg';
+}
+export function tryNormalizeImageFormat(input) {
+    var _a;
+    if (!input)
+        return null;
+    const key = String(input).toLowerCase();
     if (Object.prototype.hasOwnProperty.call(FORMAT_ALIAS_TABLE, key)) {
-        return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : 'jpeg';
+        return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : null;
     }
-    return 'jpeg';
+    return null;
 }
 export function mimeTypeFor(format) {
     return MIME_TABLE[format];

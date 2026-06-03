@@ -68,7 +68,8 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
-    'exportImageAreaByDefault',
+    'exportAreaByDefault',
+    'mergeMaskByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
     'maskRotatable',
@@ -81,7 +82,18 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'defaultDownloadFileName',
 ];
 
-const CALLBACK_KEYS = ['onImageLoaded', 'onError', 'onWarning'];
+const CALLBACK_KEYS = [
+    'onImageLoadStart',
+    'onImageLoaded',
+    'onImageCleared',
+    'onImageChanged',
+    'onBusyChange',
+    'onEditorDisposed',
+    'onMasksChanged',
+    'onSelectionChange',
+    'onError',
+    'onWarning',
+];
 
 const ALL_TOP_LEVEL_KEYS = [...TOP_LEVEL_SCALAR_KEYS, ...CALLBACK_KEYS, 'label', 'crop'];
 
@@ -96,6 +108,8 @@ const CROP_KEYS = [
     'hideMasksDuringCrop',
     'preserveMasksAfterCrop',
     'allowRotationOfCropRect',
+    'exportFileType',
+    'exportQuality',
 ];
 
 const UNKNOWN_KEY_PREFIX = '__fc_unknown_';
@@ -134,7 +148,8 @@ function topLevelScalarOverridesArb() {
                 noDefaultInfinity: true,
             }),
             maxExportPixels: fc.integer({ min: 1, max: 100000000 }),
-            exportImageAreaByDefault: fc.boolean(),
+            exportAreaByDefault: fc.constantFrom('image', 'canvas'),
+            mergeMaskByDefault: fc.boolean(),
             defaultMaskWidth: fc.integer({ min: 0, max: 1000 }),
             defaultMaskHeight: fc.integer({ min: 0, max: 1000 }),
             maskRotatable: fc.boolean(),
@@ -175,6 +190,13 @@ function callbacksArb() {
     return fc.record(
         {
             onImageLoaded: callbackArb('onImageLoaded'),
+            onImageLoadStart: callbackArb('onImageLoadStart'),
+            onImageCleared: callbackArb('onImageCleared'),
+            onImageChanged: callbackArb('onImageChanged'),
+            onBusyChange: callbackArb('onBusyChange'),
+            onEditorDisposed: callbackArb('onEditorDisposed'),
+            onMasksChanged: callbackArb('onMasksChanged'),
+            onSelectionChange: callbackArb('onSelectionChange'),
             onError: callbackArb('onError'),
             onWarning: callbackArb('onWarning'),
         },
@@ -233,6 +255,20 @@ function cropArb() {
             hideMasksDuringCrop: fc.boolean(),
             preserveMasksAfterCrop: fc.boolean(),
             allowRotationOfCropRect: fc.boolean(),
+            exportFileType: fc.constantFrom(
+                'source',
+                'png',
+                'jpeg',
+                'jpg',
+                'webp',
+                'image/png',
+                'image/jpeg',
+                'image/webp',
+            ),
+            exportQuality: fc.option(
+                fc.double({ min: 0, max: 1, noNaN: true, noDefaultInfinity: true }),
+                { nil: undefined },
+            ),
         },
         { requiredKeys: [] },
     );
@@ -509,9 +545,9 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         assert.equal(Object.isFrozen(resolved.label), true);
         assert.equal(Object.isFrozen(resolved.label.textOptions), true);
         assert.equal(Object.isFrozen(resolved.crop), true);
-        assert.equal(resolved.onImageLoaded, null);
-        assert.equal(resolved.onError, null);
-        assert.equal(resolved.onWarning, null);
+        for (const callbackKey of CALLBACK_KEYS) {
+            assert.equal(resolved[callbackKey], null);
+        }
         assert.equal(resolved.maxHistorySize, 50);
         assert.equal(resolved.maxExportPixels, 50000000);
     }

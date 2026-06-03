@@ -104,14 +104,25 @@ const MIME_TABLE: Readonly<Record<NormalizedImageFormat, ImageMimeType>> = Objec
  *
  */
 export function normalizeImageFormat(input?: string | null): NormalizedImageFormat {
+    return tryNormalizeImageFormat(input) ?? 'jpeg';
+}
+
+/**
+ * Collapse a public file type or MIME alias to a normalized format token.
+ * Returns `null` for omitted or unknown input so call sites with a different
+ * fallback policy can decide explicitly.
+ *
+ * Pure function — no DOM access, safe to call from property tests.
+ */
+export function tryNormalizeImageFormat(input?: string | null): NormalizedImageFormat | null {
     // Match legacy's `String(format || 'jpeg').toLowerCase` — falsy input
-    // (including `null`, `undefined`, and `''`) collapses to `'jpeg'` before
-    // the table lookup.
-    const key = String(input || 'jpeg').toLowerCase();
+    // falls through to the caller's fallback policy.
+    if (!input) return null;
+    const key = String(input).toLowerCase();
     if (Object.prototype.hasOwnProperty.call(FORMAT_ALIAS_TABLE, key)) {
-        return FORMAT_ALIAS_TABLE[key] ?? 'jpeg';
+        return FORMAT_ALIAS_TABLE[key] ?? null;
     }
-    return 'jpeg';
+    return null;
 }
 
 /**

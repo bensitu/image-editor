@@ -101,7 +101,8 @@ function makeContext(overrides = {}) {
         downsampleQuality: 0.92,
         exportMultiplier: 1,
         maxExportPixels: 50000000,
-        exportImageAreaByDefault: true,
+        exportAreaByDefault: 'image',
+        mergeMaskByDefault: true,
         ...(overrides.options ?? {}),
     };
     return {
@@ -111,6 +112,64 @@ function makeContext(overrides = {}) {
         isImageLoaded: overrides.isImageLoaded ?? (() => true),
         getOriginalImage: overrides.getOriginalImage ?? (() => null),
     };
+}
+
+function makeFakeOriginalImage(rect = { left: 10, top: 20, width: 30, height: 40 }) {
+    return {
+        angle: 0,
+        setCoords() {},
+        getBoundingRect() {
+            return { ...rect };
+        },
+    };
+}
+
+function makeMask() {
+    return {
+        type: 'rect',
+        maskId: 1,
+        opacity: 0.5,
+        fill: '#ff0000',
+        stroke: '#00ff00',
+        strokeWidth: 2,
+        selectable: true,
+        lockRotation: false,
+        visible: true,
+        set(patch) {
+            Object.assign(this, patch);
+            return this;
+        },
+        setCoords() {
+            return this;
+        },
+    };
+}
+
+function makeCanvasWithMask({ expectedMaskVisible, expectedBaked }) {
+    const mask = makeMask();
+    const canvas = {
+        ...makeMockCanvas('data:image/jpeg;base64,' + Buffer.from('export').toString('base64')),
+        objects: [mask],
+        getObjects() {
+            return this.objects.slice();
+        },
+        toDataURL(options) {
+            if (expectedMaskVisible !== undefined) {
+                assert.equal(mask.visible, expectedMaskVisible, 'mask visibility during render');
+            }
+            if (expectedBaked) {
+                assert.equal(mask.opacity, 1);
+                assert.equal(mask.fill, '#000');
+                assert.equal(mask.strokeWidth, 0);
+                assert.equal(mask.stroke, null);
+                assert.equal(mask.selectable, false);
+            }
+            this.callOrder.push('toDataURL');
+            this.toDataURLArgs.push(options);
+            return 'data:image/jpeg;base64,' + Buffer.from('export').toString('base64');
+        },
+    };
+    return { canvas, mask };
 }
 
 /** Replace `console.warn` for the duration of `fn` and return captured calls. */
@@ -379,6 +438,57 @@ test('exportImageBase64: rejects oversized outputs before rendering', async () =
     assert.equal(canvas.toDataURLArgs.length, 0, 'oversized export must not render');
 });
 
+test('exportImageBase64: exportArea and mergeMask are independent', async () => {
+    const cases = [
+        {
+            options: { exportArea: 'image', mergeMask: true, fileType: 'png' },
+            hasRegion: true,
+            expectedMaskVisible: true,
+            expectedBaked: true,
+        },
+        {
+            options: { exportArea: 'image', mergeMask: false, fileType: 'png' },
+            hasRegion: true,
+            expectedMaskVisible: false,
+            expectedBaked: false,
+        },
+        {
+            options: { exportArea: 'canvas', mergeMask: true, fileType: 'png' },
+            hasRegion: false,
+            expectedMaskVisible: true,
+            expectedBaked: true,
+        },
+        {
+            options: { exportArea: 'canvas', mergeMask: false, fileType: 'png' },
+            hasRegion: false,
+            expectedMaskVisible: false,
+            expectedBaked: false,
+        },
+    ];
+
+    for (const testCase of cases) {
+        const { canvas, mask } = makeCanvasWithMask(testCase);
+        const ctx = makeContext({
+            canvas,
+            getOriginalImage: () => makeFakeOriginalImage(),
+        });
+
+        await exportImageBase64(ctx, testCase.options);
+
+        const args = canvas.toDataURLArgs[0];
+        assert.equal('left' in args, testCase.hasRegion);
+        assert.equal('top' in args, testCase.hasRegion);
+        assert.equal('width' in args, testCase.hasRegion);
+        assert.equal('height' in args, testCase.hasRegion);
+        assert.equal(mask.visible, true, 'mask visibility must be restored');
+        assert.equal(mask.opacity, 0.5, 'mask opacity must be restored');
+        assert.equal(mask.fill, '#ff0000', 'mask fill must be restored');
+        assert.equal(mask.stroke, '#00ff00', 'mask stroke must be restored');
+        assert.equal(mask.strokeWidth, 2, 'mask strokeWidth must be restored');
+        assert.equal(mask.selectable, true, 'mask selectable must be restored');
+    }
+});
+
 // ─── the documented contract — exportImageFile surface ─────────────────────────────
 
 test('exportImageFile: produces a File whose name matches options.fileName', async () => {
@@ -440,4 +550,27 @@ test('exportImageFile: discards ActiveSelection before toDataURL', async () => {
     const firstRender = canvas.callOrder.indexOf('toDataURL');
     assert.notEqual(firstDiscard, -1);
     assert.ok(firstDiscard < firstRender);
+});
+
+test('exportImageFile: forwards exportArea and mergeMask independently', async () => {
+    const { canvas, mask } = makeCanvasWithMask({
+        expectedMaskVisible: false,
+        expectedBaked: false,
+    });
+    const ctx = makeContext({
+        canvas,
+        getOriginalImage: () => makeFakeOriginalImage(),
+    });
+
+    const file = await exportImageFile(ctx, {
+        exportArea: 'canvas',
+        mergeMask: false,
+        fileType: 'jpeg',
+        fileName: 'canvas.jpg',
+    });
+
+    assert.equal(file.name, 'canvas.jpg');
+    assert.equal(file.type, 'image/jpeg');
+    assert.equal('left' in canvas.toDataURLArgs[0], false);
+    assert.equal(mask.visible, true, 'mask visibility must be restored after File export');
 });

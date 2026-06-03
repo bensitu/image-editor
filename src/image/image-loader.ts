@@ -96,7 +96,12 @@
 
 import type * as FabricNS from 'fabric';
 
-import type { FabricModule, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import type {
+    FabricModule,
+    ImageMimeType,
+    LoadImageOptions,
+    ResolvedOptions,
+} from '../core/public-types.js';
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
@@ -159,6 +164,8 @@ export interface RollbackBundle {
     currentRotation: number;
     /** Base scale chosen by the previous load, restored on rollback. */
     baseImageScale: number;
+    /** MIME type of the image committed before the load started. */
+    currentImageMimeType: ImageMimeType | null;
 }
 
 // ─── Load context ────────────────────────────────────────────────────────────
@@ -227,6 +234,11 @@ export interface LoadImageContext {
     getBaseImageScale(): number;
     /** Writes `baseImageScale`. */
     setBaseImageScale(n: number): void;
+
+    /** Reads the MIME type of the currently committed image. */
+    getCurrentImageMimeType(): ImageMimeType | null;
+    /** Writes the MIME type of the currently committed image. */
+    setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
 
     /**
      * Toggle placeholder/canvas-container visibility via
@@ -329,6 +341,7 @@ export async function loadImage(
         currentScale: ctx.getCurrentScale(),
         currentRotation: ctx.getCurrentRotation(),
         baseImageScale: ctx.getBaseImageScale(),
+        currentImageMimeType: ctx.getCurrentImageMimeType(),
     };
 
     try {
@@ -361,7 +374,7 @@ export async function loadImage(
         //    timeout. Cross-origin is requested so canvases stay
         //    untainted for export.
         const fimg = await withTimeout(
-            ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' }),
+            ctx.fabric.FabricImage.fromURL(loadSrc.dataUrl, { crossOrigin: 'anonymous' }),
             ctx.options.imageLoadTimeoutMs,
             'FabricImage.fromURL',
         );
@@ -402,6 +415,7 @@ export async function loadImage(
         ctx.setCurrentRotation(0);
         ctx.setMaskCounter(0);
         ctx.setIsImageLoadedToCanvas(true);
+        ctx.setCurrentImageMimeType(loadSrc.mimeType);
 
         ctx.canvas.renderAll();
 
@@ -415,6 +429,7 @@ export async function loadImage(
                 currentScale: 1,
                 currentRotation: 0,
                 baseImageScale: layout.baseImageScale,
+                currentImageMimeType: loadSrc.mimeType,
             }),
         );
 
@@ -440,25 +455,9 @@ export async function loadImage(
             }
         }
 
-        // invoke `onImageLoaded` exactly once
-        // after every editor scalar (`originalImage`, `currentScale`,
-        // `currentRotation`, `baseImageScale`, `maskCounter`,
-        // `_lastSnapshot`) has been committed and the optional
-        // `preserveScroll` restore has run. A thrown callback is caught
-        // and logged so a defective integrator callback cannot mutate
-        // editor state. The callback is intentionally
-        // NOT fired on the rollback path; this invocation lives inside
-        // the success branch so a failure between snapshot capture and
-        // commit (which routes through `replayRollback` below) skips it
-        // entirely.
-        const imageLoadedCallback = ctx.options.onImageLoaded;
-        if (typeof imageLoadedCallback === 'function') {
-            try {
-                imageLoadedCallback();
-            } catch (error) {
-                console.error('[ImageEditor] onImageLoaded callback threw', error);
-            }
-        }
+        // Public lifecycle callbacks are emitted by the facade after this
+        // transactional commit returns, so the loader remains focused on
+        // mutation and rollback only.
     } catch (error) {
         // replay the bundle and reject with the
         // original error. Failures inside the rollback itself are
@@ -557,6 +556,12 @@ function isPositiveFinite(value: number): boolean {
     return Number.isFinite(value) && value > 0;
 }
 
+function toSupportedImageMimeType(mimeType: string | null): ImageMimeType | null {
+    return mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
+        ? mimeType
+        : null;
+}
+
 /**
  * Run the resampler when the source image exceeds the configured bounds
  * and downsampling is enabled. Returns the (possibly rewritten) data URL
@@ -569,8 +574,11 @@ function maybeDownsample(
     imgEl: HTMLImageElement,
     originalDataUrl: string,
     options: ResolvedOptions,
-): string {
-    if (!options.downsampleOnLoad) return originalDataUrl;
+): { dataUrl: string; mimeType: ImageMimeType | null } {
+    const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
+    if (!options.downsampleOnLoad) {
+        return { dataUrl: originalDataUrl, mimeType: originalMimeType };
+    }
 
     if (
         !isPositiveFinite(options.downsampleMaxWidth) ||
@@ -581,7 +589,7 @@ function maybeDownsample(
             null,
             'loadImage skipped downsampling because downsample bounds are invalid.',
         );
-        return originalDataUrl;
+        return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
 
     const dims = computeDownsampleDimensions(
@@ -590,10 +598,10 @@ function maybeDownsample(
         options.downsampleMaxWidth,
         options.downsampleMaxHeight,
     );
-    if (!dims.needsResize) return originalDataUrl;
+    if (!dims.needsResize) return { dataUrl: originalDataUrl, mimeType: originalMimeType };
 
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    return resampleImage(
+    const result = resampleImage(
         imgEl,
         options.downsampleMaxWidth,
         options.downsampleMaxHeight,
@@ -601,7 +609,12 @@ function maybeDownsample(
         options.preserveSourceFormat,
         options.downsampleMimeType,
         options.downsampleQuality,
-    ).dataUrl;
+    );
+    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(result.dataUrl));
+    return {
+        dataUrl: result.dataUrl,
+        mimeType: actualMimeType ?? result.mimeType,
+    };
 }
 
 /**
@@ -711,6 +724,7 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
     ctx.setCurrentScale(bundle.currentScale);
     ctx.setCurrentRotation(bundle.currentRotation);
     ctx.setBaseImageScale(bundle.baseImageScale);
+    ctx.setCurrentImageMimeType(bundle.currentImageMimeType);
 
     // 4. Restore container scroll. After `loadFromJSON` Fabric may have
     //    resized the canvas, which itself can mutate scroll metrics on

@@ -127,9 +127,11 @@ import type {
     CropHandler,
     CropPrevEvented,
     FabricModule,
+    ImageMimeType,
     LoadImageOptions,
     MaskBackup,
     MaskObject,
+    NormalizedImageFormat,
     ResolvedOptions,
 } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
@@ -141,6 +143,11 @@ import {
     restoreMaskStyleBackup,
 } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox } from '../utils/canvas-region.js';
+import {
+    clampQuality as clampExportQuality,
+    mimeTypeFor,
+    tryNormalizeImageFormat,
+} from '../export/export-format.js';
 
 // ─── Crop session state ──────────────────────────────────────────────────────
 
@@ -231,6 +238,12 @@ export interface CropControllerContext {
      */
     getOriginalImage(): FabricNS.FabricImage | null;
 
+    /**
+     * MIME type of the currently committed image, used by source-preserving
+     * crop export.
+     */
+    getCurrentImageMimeType?(): ImageMimeType | null;
+
     /** Reads the live crop session, or `null`. */
     getCropSession(): CropSession | null;
     /** Writes the live crop session pointer (or clears it with `null`). */
@@ -298,11 +311,14 @@ const CROP_RECT_DASH: [number, number] = [6, 4];
 const CROP_RECT_CORNER_SIZE = 8;
 /** Default padding inset when `options.crop.padding` is missing. */
 const CROP_DEFAULT_PADDING = 10;
-/** Cropped image export format — matches legacy (`jpeg`). */
-const CROPPED_EXPORT_FORMAT = 'jpeg';
-/** Floor for the cropped JPEG export quality if `downsampleQuality` is
- *  missing or non-finite. Matches legacy's `0.92`. */
+/** Floor for lossy crop export quality if all configured values are invalid. */
 const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
+
+interface ResolvedCropExportFormat {
+    format: NormalizedImageFormat;
+    mimeType: ImageMimeType;
+    quality?: number;
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -313,10 +329,43 @@ const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
  *
  * @internal
  */
-function clampQuality(quality: unknown): number {
-    const num = Number(quality);
-    if (!Number.isFinite(num)) return CROPPED_EXPORT_QUALITY_FALLBACK;
-    return Math.max(0, Math.min(1, num));
+function imageMimeToFormat(mimeType: ImageMimeType | null): NormalizedImageFormat | null {
+    if (mimeType === 'image/jpeg') return 'jpeg';
+    if (mimeType === 'image/png') return 'png';
+    if (mimeType === 'image/webp') return 'webp';
+    return null;
+}
+
+function resolveLossyCropQuality(cropExportQuality: unknown, downsampleQuality: unknown): number {
+    const cropQuality = Number(cropExportQuality);
+    if (Number.isFinite(cropQuality)) {
+        return clampExportQuality(cropQuality, CROPPED_EXPORT_QUALITY_FALLBACK);
+    }
+    const fallbackQuality = Number(downsampleQuality);
+    if (Number.isFinite(fallbackQuality)) {
+        return clampExportQuality(fallbackQuality, CROPPED_EXPORT_QUALITY_FALLBACK);
+    }
+    return CROPPED_EXPORT_QUALITY_FALLBACK;
+}
+
+function resolveCropExportFormat(input: {
+    cropExportFileType: unknown;
+    currentImageMimeType: ImageMimeType | null;
+    cropExportQuality: unknown;
+    downsampleQuality: unknown;
+}): ResolvedCropExportFormat {
+    const requested = input.cropExportFileType;
+    const format =
+        requested === undefined || requested === null || requested === 'source'
+            ? (imageMimeToFormat(input.currentImageMimeType) ?? 'png')
+            : (tryNormalizeImageFormat(String(requested)) ?? 'png');
+    const mimeType = mimeTypeFor(format);
+    if (format === 'png') return { format, mimeType };
+    return {
+        format,
+        mimeType,
+        quality: resolveLossyCropQuality(input.cropExportQuality, input.downsampleQuality),
+    };
 }
 
 function getCropRectContentBounds(cropRect: FabricNS.Rect): {
@@ -1094,19 +1143,26 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         // 5. Restore `canvas.selection` to its pre-crop value.
         canvas.selection = !!session.prevSelection;
 
-        // 6. Export the crop region. Mirrors legacy's
-        //    `_exportCanvasRegionToDataURL` — `canvas.toDataURL` with the
-        //    integer region as `left` / `top` / `width` / `height`.
-        const quality = clampQuality(ctx.options.downsampleQuality);
+        // 6. Export the crop region. The intermediate format defaults to
+        //    source-preserving with a lossless PNG fallback for unknown
+        //    sources.
+        const cropFormat = resolveCropExportFormat({
+            cropExportFileType: ctx.options.crop.exportFileType,
+            currentImageMimeType: ctx.getCurrentImageMimeType?.() ?? null,
+            cropExportQuality: ctx.options.crop.exportQuality,
+            downsampleQuality: ctx.options.downsampleQuality,
+        });
         const exportOptions: Record<string, unknown> = {
-            format: CROPPED_EXPORT_FORMAT,
-            quality,
+            format: cropFormat.format,
             multiplier: 1,
             left: cropRegion.left,
             top: cropRegion.top,
             width: cropRegion.width,
             height: cropRegion.height,
         };
+        if (cropFormat.quality !== undefined) {
+            exportOptions.quality = cropFormat.quality;
+        }
         const croppedBase64 = canvas.toDataURL(
             exportOptions as Parameters<typeof canvas.toDataURL>[0],
         );

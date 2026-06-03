@@ -3,18 +3,47 @@ import { isMaskObject } from '../core/public-types.js';
 import { Command } from '../history/history-manager.js';
 import { applyCropHideMaskStyle, attachMaskHoverHandlers, captureMaskStyleBackup, restoreMaskStyleBackup, } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox } from '../utils/canvas-region.js';
+import { clampQuality as clampExportQuality, mimeTypeFor, tryNormalizeImageFormat, } from '../export/export-format.js';
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
 const CROP_RECT_STROKE = '#00aaff';
 const CROP_RECT_DASH = [6, 4];
 const CROP_RECT_CORNER_SIZE = 8;
 const CROP_DEFAULT_PADDING = 10;
-const CROPPED_EXPORT_FORMAT = 'jpeg';
 const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
-function clampQuality(quality) {
-    const num = Number(quality);
-    if (!Number.isFinite(num))
-        return CROPPED_EXPORT_QUALITY_FALLBACK;
-    return Math.max(0, Math.min(1, num));
+function imageMimeToFormat(mimeType) {
+    if (mimeType === 'image/jpeg')
+        return 'jpeg';
+    if (mimeType === 'image/png')
+        return 'png';
+    if (mimeType === 'image/webp')
+        return 'webp';
+    return null;
+}
+function resolveLossyCropQuality(cropExportQuality, downsampleQuality) {
+    const cropQuality = Number(cropExportQuality);
+    if (Number.isFinite(cropQuality)) {
+        return clampExportQuality(cropQuality, CROPPED_EXPORT_QUALITY_FALLBACK);
+    }
+    const fallbackQuality = Number(downsampleQuality);
+    if (Number.isFinite(fallbackQuality)) {
+        return clampExportQuality(fallbackQuality, CROPPED_EXPORT_QUALITY_FALLBACK);
+    }
+    return CROPPED_EXPORT_QUALITY_FALLBACK;
+}
+function resolveCropExportFormat(input) {
+    var _a, _b;
+    const requested = input.cropExportFileType;
+    const format = requested === undefined || requested === null || requested === 'source'
+        ? ((_a = imageMimeToFormat(input.currentImageMimeType)) !== null && _a !== void 0 ? _a : 'png')
+        : ((_b = tryNormalizeImageFormat(String(requested))) !== null && _b !== void 0 ? _b : 'png');
+    const mimeType = mimeTypeFor(format);
+    if (format === 'png')
+        return { format, mimeType };
+    return {
+        format,
+        mimeType,
+        quality: resolveLossyCropQuality(input.cropExportQuality, input.downsampleQuality),
+    };
 }
 function getCropRectContentBounds(cropRect) {
     const angle = Number(cropRect.angle) || 0;
@@ -291,6 +320,7 @@ export function cancelCrop(ctx) {
     }
 }
 export async function applyCrop(ctx) {
+    var _a, _b;
     const session = ctx.getCropSession();
     if (!session || !session.cropRect)
         return;
@@ -313,16 +343,23 @@ export async function applyCrop(ctx) {
         restoreCropObjectState(session);
         removeCropRect(ctx, session);
         canvas.selection = !!session.prevSelection;
-        const quality = clampQuality(ctx.options.downsampleQuality);
+        const cropFormat = resolveCropExportFormat({
+            cropExportFileType: ctx.options.crop.exportFileType,
+            currentImageMimeType: (_b = (_a = ctx.getCurrentImageMimeType) === null || _a === void 0 ? void 0 : _a.call(ctx)) !== null && _b !== void 0 ? _b : null,
+            cropExportQuality: ctx.options.crop.exportQuality,
+            downsampleQuality: ctx.options.downsampleQuality,
+        });
         const exportOptions = {
-            format: CROPPED_EXPORT_FORMAT,
-            quality,
+            format: cropFormat.format,
             multiplier: 1,
             left: cropRegion.left,
             top: cropRegion.top,
             width: cropRegion.width,
             height: cropRegion.height,
         };
+        if (cropFormat.quality !== undefined) {
+            exportOptions.quality = cropFormat.quality;
+        }
         const croppedBase64 = canvas.toDataURL(exportOptions);
         await ctx.loadImage(croppedBase64);
         if (preservedRecords.length > 0) {

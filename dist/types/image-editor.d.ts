@@ -290,7 +290,7 @@ export declare class ImageEditor {
      *
      * Delegates to {@link exportImageBase64} in `export/export-service.ts`,
      * which discards any active selection, runs the bake-in/restore
-     * bracket for `exportImageArea === true` exports, and emits a single
+     * bracket for image-area exports, and emits a single
      * `canvas.toDataURL` call with the floored image-bounding-box region
      * after temporarily baking masks into the export when requested.
      *

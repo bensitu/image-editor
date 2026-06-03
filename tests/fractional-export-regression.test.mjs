@@ -75,7 +75,8 @@ test('mergeMasks preserves the right edge when image width lands on a partial pi
 
     await editor.mergeMasks();
     const exportedAfterMerge = await editor.exportImageBase64({
-        exportImageArea: true,
+        exportArea: 'image',
+        mergeMask: true,
         fileType: 'png',
         multiplier: 1,
     });
@@ -114,7 +115,8 @@ test('mergeMasks preserves the bottom edge when image height lands on a partial 
 
     await editor.mergeMasks();
     const exportedAfterMerge = await editor.exportImageBase64({
-        exportImageArea: true,
+        exportArea: 'image',
+        mergeMask: true,
         fileType: 'png',
         multiplier: 1,
     });
@@ -150,7 +152,8 @@ test('JPEG export composites partial transparent edges without introducing black
     assert.equal(imageBounds.height, 59.5);
 
     const exported = await editor.exportImageBase64({
-        exportImageArea: true,
+        exportArea: 'image',
+        mergeMask: true,
         fileType: 'jpeg',
         multiplier: 1,
         quality: 0.92,
@@ -173,7 +176,7 @@ test('facade blocks mutating operations while a load is active', async (t) => {
     editor._guard.beginLoading();
     try {
         assert.equal(editor.createMask({ width: 20, height: 20 }), null);
-        assert.equal(await editor.exportImageBase64({ exportImageArea: true }), '');
+        assert.equal(await editor.exportImageBase64({ exportArea: 'image' }), '');
         await assert.rejects(() => editor.scaleImage(1.1), /image is loading/);
     } finally {
         editor._guard.endLoading();

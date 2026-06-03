@@ -103,7 +103,8 @@ function makeContext(canvas, image) {
             defaultDownloadFileName: 'edited_image.jpg',
             downsampleQuality: 0.92,
             exportMultiplier: 1,
-            exportImageAreaByDefault: true,
+            exportAreaByDefault: 'image',
+            mergeMaskByDefault: true,
         },
         fabric: {},
         isImageLoaded: () => true,
@@ -164,7 +165,11 @@ test('exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.t
             const image = makeFakeImage(rect);
             const ctx = makeContext(canvas, image);
 
-            await exportImageBase64(ctx, { exportImageArea: true, fileType: 'png' });
+            await exportImageBase64(ctx, {
+                exportArea: 'image',
+                mergeMask: true,
+                fileType: 'png',
+            });
 
             // Exactly one render call — the data URL came straight
             // from `canvas.toDataURL`.
@@ -269,7 +274,11 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
                 const image = makeFakeImage(rect);
                 const ctx = makeContext(canvas, image);
 
-                await exportImageBase64(ctx, { exportImageArea: true, fileType: 'png' });
+                await exportImageBase64(ctx, {
+                    exportArea: 'image',
+                    mergeMask: true,
+                    fileType: 'png',
+                });
 
                 // the documented contract — no intermediate `<canvas>` is
                 // allocated while computing the region export.

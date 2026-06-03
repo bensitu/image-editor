@@ -11,6 +11,20 @@ function resolveMultiplier(requested, fallback) {
     const fb = Number(fallback);
     return Number.isFinite(fb) && fb > 0 ? fb : 1;
 }
+function resolveExportArea(requested, fallback) {
+    if (requested === 'canvas' || requested === 'image')
+        return requested;
+    return fallback === 'canvas' ? 'canvas' : 'image';
+}
+function resolveExportOptions(ctx, options) {
+    const opts = options !== null && options !== void 0 ? options : {};
+    return {
+        exportArea: resolveExportArea(opts.exportArea, ctx.options.exportAreaByDefault),
+        mergeMask: typeof opts.mergeMask === 'boolean' ? opts.mergeMask : ctx.options.mergeMaskByDefault,
+        multiplier: resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier),
+        format: resolveExportFormat(opts, ctx.options.downsampleQuality),
+    };
+}
 function readCanvasDimension(canvas, getterName, propertyName) {
     const canvasLike = canvas;
     const getter = canvasLike[getterName];
@@ -30,8 +44,8 @@ function assertExportPixelBudget(ctx, multiplier, region) {
             `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`);
     }
 }
-function computeExportRegion(ctx, exportImageArea) {
-    if (!exportImageArea)
+function computeExportRegion(ctx, exportArea) {
+    if (exportArea === 'canvas')
         return { region: null, partialEdges: null };
     const originalImage = ctx.getOriginalImage();
     if (!originalImage)
@@ -47,10 +61,47 @@ function computeExportRegion(ctx, exportImageArea) {
         partialEdges: getPartialExportEdges(bounds, Number(originalImage.angle) || 0),
     };
 }
-async function bakeMasksForExport(ctx, exportImageArea, fn) {
-    if (!exportImageArea)
-        return fn();
+async function withMaskExportState(ctx, mergeMask, fn) {
+    if (!mergeMask)
+        return withMasksHidden(ctx, fn);
     return withMaskStyleBackup({ canvas: ctx.canvas, options: ctx.options }, applyExportBakeInStyle, fn);
+}
+async function withMasksHidden(ctx, fn) {
+    const backups = getCanvasObjects(ctx.canvas)
+        .filter(isMaskObject)
+        .map((mask) => ({
+        mask,
+        visible: mask.visible,
+    }));
+    for (const backup of backups) {
+        try {
+            if (typeof backup.mask.set === 'function') {
+                backup.mask.set({ visible: false });
+            }
+            else {
+                backup.mask.visible = false;
+            }
+        }
+        catch {
+        }
+    }
+    try {
+        return await fn();
+    }
+    finally {
+        for (const backup of backups) {
+            try {
+                if (typeof backup.mask.set === 'function') {
+                    backup.mask.set({ visible: backup.visible });
+                }
+                else {
+                    backup.mask.visible = backup.visible;
+                }
+            }
+            catch {
+            }
+        }
+    }
 }
 function getCanvasObjects(canvas) {
     try {
@@ -368,25 +419,20 @@ export async function exportImageBase64(ctx, options) {
         warnNoImageLoaded('exportImageBase64');
         return '';
     }
-    const opts = options !== null && options !== void 0 ? options : {};
-    const exportImageArea = typeof opts.exportImageArea === 'boolean'
-        ? opts.exportImageArea
-        : ctx.options.exportImageAreaByDefault;
     const activeObject = captureActiveObject(ctx.canvas);
     const labelBackups = captureMaskLabelBackups(ctx.canvas);
     try {
         ctx.canvas.discardActiveObject();
-        const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
-        const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
-        const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
-        assertExportPixelBudget(ctx, multiplier, region);
-        const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
-        const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
-        let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region));
+        const resolved = resolveExportOptions(ctx, options);
+        const { region, partialEdges } = computeExportRegion(ctx, resolved.exportArea);
+        assertExportPixelBudget(ctx, resolved.multiplier, region);
+        const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
+        const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
+        let dataUrl = await withMaskExportState(ctx, resolved.mergeMask, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, resolved.multiplier, region));
         if (region) {
             dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
-            if (resolved.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, ctx.options.backgroundColor, resolved.quality);
+            if (resolved.format.format === 'jpeg') {
+                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, ctx.options.backgroundColor, resolved.format.quality);
             }
         }
         return dataUrl;
@@ -404,11 +450,11 @@ export async function exportImageFile(ctx, options) {
         throw new ExportNotReadyError('exportImageFile');
     }
     const opts = options !== null && options !== void 0 ? options : {};
-    const mergeMask = opts.mergeMask !== false;
     const fileName = (_a = opts.fileName) !== null && _a !== void 0 ? _a : ctx.options.defaultDownloadFileName;
     const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
     const base64 = await exportImageBase64(ctx, {
-        exportImageArea: mergeMask,
+        exportArea: opts.exportArea,
+        mergeMask: opts.mergeMask,
         multiplier: opts.multiplier,
         quality: opts.quality,
         fileType: opts.fileType,
@@ -427,7 +473,8 @@ export function downloadImage(ctx, fileName) {
     }
     const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : ctx.options.defaultDownloadFileName;
     void exportImageBase64(ctx, {
-        exportImageArea: ctx.options.exportImageAreaByDefault,
+        exportArea: ctx.options.exportAreaByDefault,
+        mergeMask: ctx.options.mergeMaskByDefault,
         multiplier: ctx.options.exportMultiplier,
     })
         .then((dataUrl) => {
@@ -463,7 +510,8 @@ export async function mergeMasks(ctx) {
     const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
     try {
         const merged = await exportImageBase64(ctx, {
-            exportImageArea: true,
+            exportArea: 'image',
+            mergeMask: true,
             multiplier: ctx.options.exportMultiplier,
             fileType: 'png',
         });

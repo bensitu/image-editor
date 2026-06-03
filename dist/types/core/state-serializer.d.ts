@@ -42,6 +42,7 @@
  * intentionally NOT re-exported from `src/index.ts`.
  */
 import type * as FabricNS from 'fabric';
+import type { ImageMimeType } from './public-types.js';
 /**
  * Per-object payload inside a {@link CanvasJSON} snapshot. Mirrors the
  * Pretty_Printer wire format used by the canvas serializer.
@@ -104,6 +105,8 @@ export interface EditorStateMeta {
     currentRotation: number;
     /** Base scale chosen by the layout manager when the image was loaded. */
     baseImageScale: number;
+    /** MIME type of the currently committed image, when known. */
+    currentImageMimeType?: ImageMimeType | null;
     /** Mask selected when the snapshot was captured, if any. */
     activeMaskId?: number;
 }
@@ -149,6 +152,8 @@ export interface SaveStateInput {
     currentRotation: number;
     /** Base scale chosen at load time (mirrored into `_editorState.baseImageScale`). */
     baseImageScale: number;
+    /** MIME type of the current image, persisted for source-preserving crop. */
+    currentImageMimeType?: ImageMimeType | null;
 }
 /**
  * Serialize the current canvas into the snapshot string consumed by

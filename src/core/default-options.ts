@@ -12,8 +12,10 @@
 
 import type {
     CropConfig,
+    ExportArea,
     ImageEditorOptions,
     LabelConfig,
+    ResolvedCropConfig,
     ResolvedOptions,
 } from './public-types.js';
 
@@ -61,7 +63,8 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
     // Export
     exportMultiplier: 1,
     maxExportPixels: 50000000,
-    exportImageAreaByDefault: true,
+    exportAreaByDefault: 'image',
+    mergeMaskByDefault: true,
 
     // Mask defaults
     defaultMaskWidth: 50,
@@ -81,7 +84,14 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
 
     // Callbacks.  Defaults are `null`; non-function
     // user values are coerced to `null` in `resolveOptions`.
+    onImageLoadStart: null,
     onImageLoaded: null,
+    onImageCleared: null,
+    onImageChanged: null,
+    onBusyChange: null,
+    onEditorDisposed: null,
+    onMasksChanged: null,
+    onSelectionChange: null,
     onError: null,
     onWarning: null,
 };
@@ -116,13 +126,15 @@ export const DEFAULT_LABEL: LabelConfig = {
 /**
  * Default {@link CropConfig}.
  */
-export const DEFAULT_CROP: Required<CropConfig> = {
+export const DEFAULT_CROP: ResolvedCropConfig = {
     minWidth: 100,
     minHeight: 100,
     padding: 10,
     hideMasksDuringCrop: true,
     preserveMasksAfterCrop: false,
     allowRotationOfCropRect: false,
+    exportFileType: 'source',
+    exportQuality: undefined,
 };
 
 // ─── Resolver ────────────────────────────────────────────────────────────────
@@ -153,7 +165,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
-    'exportImageAreaByDefault',
+    'exportAreaByDefault',
+    'mergeMaskByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
     'maskRotatable',
@@ -164,7 +177,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'showPlaceholder',
     'initialImageBase64',
     'defaultDownloadFileName',
+    'onImageLoadStart',
     'onImageLoaded',
+    'onImageCleared',
+    'onImageChanged',
+    'onBusyChange',
+    'onEditorDisposed',
+    'onMasksChanged',
+    'onSelectionChange',
     'onError',
     'onWarning',
     'label',
@@ -200,6 +220,10 @@ function normalizeMaxExportPixels(value: unknown): number {
     return Math.max(1, Math.floor(numeric));
 }
 
+function normalizeExportArea(value: unknown): ExportArea {
+    return value === 'canvas' || value === 'image' ? value : DEFAULT_OPTIONS.exportAreaByDefault;
+}
+
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.
@@ -211,8 +235,8 @@ function normalizeMaxExportPixels(value: unknown): number {
  *    so user keys override defaults and unspecified keys remain.
  *  - `crop.*` is shallow-merged with {@link DEFAULT_CROP} so each field falls
  *    back to its documented default when unspecified.
- *  - `onImageLoaded`, `onError`, and `onWarning` are normalized: function
- *    values are kept, anything else becomes `null`.
+ *  - Callback values are normalized: function values are kept, anything
+ *    else becomes `null`.
  *  - Unknown top-level keys are silently dropped.
  *  - The returned `label` and `crop` references are frozen so that mutating
  *    `input.label`, `input.label.textOptions`, or `input.crop` after the call
@@ -233,7 +257,20 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         // `label` and `crop` are handled separately below.
         if (key === 'label' || key === 'crop') continue;
         // Callbacks are normalized after this loop.
-        if (key === 'onImageLoaded' || key === 'onError' || key === 'onWarning') continue;
+        if (
+            key === 'onImageLoadStart' ||
+            key === 'onImageLoaded' ||
+            key === 'onImageCleared' ||
+            key === 'onImageChanged' ||
+            key === 'onBusyChange' ||
+            key === 'onEditorDisposed' ||
+            key === 'onMasksChanged' ||
+            key === 'onSelectionChange' ||
+            key === 'onError' ||
+            key === 'onWarning'
+        ) {
+            continue;
+        }
 
         const value = raw[key];
         if (value === undefined) continue;
@@ -245,6 +282,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
             resolved.maxExportPixels = normalizeMaxExportPixels(value);
             continue;
         }
+        if (key === 'exportAreaByDefault') {
+            resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
         // Type-system note: `resolved[key] = value` is sound here because
         // `KNOWN_TOP_LEVEL_KEYS` and the per-key `value` come from the same
         // `ImageEditorOptions` shape; the cast satisfies the indexed write.
@@ -252,7 +293,30 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     }
 
     // ── Callbacks ───────────────────────────────────
-    resolved.onImageLoaded = normalizeCallback<() => void>(raw.onImageLoaded);
+    resolved.onImageLoadStart = normalizeCallback<
+        NonNullable<ImageEditorOptions['onImageLoadStart']>
+    >(raw.onImageLoadStart);
+    resolved.onImageLoaded = normalizeCallback<NonNullable<ImageEditorOptions['onImageLoaded']>>(
+        raw.onImageLoaded,
+    );
+    resolved.onImageCleared = normalizeCallback<NonNullable<ImageEditorOptions['onImageCleared']>>(
+        raw.onImageCleared,
+    );
+    resolved.onImageChanged = normalizeCallback<NonNullable<ImageEditorOptions['onImageChanged']>>(
+        raw.onImageChanged,
+    );
+    resolved.onBusyChange = normalizeCallback<NonNullable<ImageEditorOptions['onBusyChange']>>(
+        raw.onBusyChange,
+    );
+    resolved.onEditorDisposed = normalizeCallback<
+        NonNullable<ImageEditorOptions['onEditorDisposed']>
+    >(raw.onEditorDisposed);
+    resolved.onMasksChanged = normalizeCallback<NonNullable<ImageEditorOptions['onMasksChanged']>>(
+        raw.onMasksChanged,
+    );
+    resolved.onSelectionChange = normalizeCallback<
+        NonNullable<ImageEditorOptions['onSelectionChange']>
+    >(raw.onSelectionChange);
     resolved.onError = normalizeCallback<(error: unknown, message: string) => void>(raw.onError);
     resolved.onWarning = normalizeCallback<(error: unknown, message: string) => void>(
         raw.onWarning,
@@ -289,7 +353,7 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
 
     // ── Crop ──────────────────────────────────────────────
     const userCrop: CropConfig = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
-    const crop: Required<CropConfig> = {
+    const crop: ResolvedCropConfig = {
         minWidth: userCrop.minWidth ?? DEFAULT_CROP.minWidth,
         minHeight: userCrop.minHeight ?? DEFAULT_CROP.minHeight,
         padding: userCrop.padding ?? DEFAULT_CROP.padding,
@@ -298,6 +362,8 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
             userCrop.preserveMasksAfterCrop ?? DEFAULT_CROP.preserveMasksAfterCrop,
         allowRotationOfCropRect:
             userCrop.allowRotationOfCropRect ?? DEFAULT_CROP.allowRotationOfCropRect,
+        exportFileType: userCrop.exportFileType ?? DEFAULT_CROP.exportFileType,
+        exportQuality: userCrop.exportQuality,
     };
     Object.freeze(crop);
 

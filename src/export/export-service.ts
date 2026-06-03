@@ -36,14 +36,14 @@
  *
  *   Each path emits a single `console.warn` naming the missing image so
  *   the consumer's logs identify which export attempt was skipped.
- * - When `exportImageArea` resolves
- *   to `true` and a valid `originalImage` exists, the export region is
+ * - When `exportArea` resolves
+ *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
  *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
  *   No intermediate `<canvas>` element is created (27.2), and sub-pixel
  *   width/height values are floored to integer pixels (27.3) through
  *   the {@link floorRegion} helper.
- * - When `exportImageArea` is
+ * - When `mergeMask` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
  *   mutator forces the bake-in style (`opacity: 1, fill: '#000',
@@ -95,6 +95,7 @@ import type * as FabricNS from 'fabric';
 import { isMaskObject } from '../core/public-types.js';
 import type {
     Base64ExportOptions,
+    ExportArea,
     FabricModule,
     ImageFileExportOptions,
     LoadImageOptions,
@@ -126,6 +127,18 @@ type CanvasWithSelection = FabricNS.Canvas & {
     setActiveObject?: (object: FabricNS.FabricObject) => FabricNS.Canvas;
 };
 
+interface ResolvedExportOptions {
+    exportArea: ExportArea;
+    mergeMask: boolean;
+    multiplier: number;
+    format: ResolvedExportFormat;
+}
+
+type MaskVisibilityBackup = {
+    readonly mask: MaskObject;
+    readonly visible: unknown;
+};
+
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 /**
@@ -146,7 +159,7 @@ export interface ExportServiceContext {
     readonly canvas: FabricNS.Canvas;
     /** Resolved editor options — supplies `defaultDownloadFileName`,
      *  `downsampleQuality`, `exportMultiplier`, and
-     *  `exportImageAreaByDefault`. */
+     *  `exportAreaByDefault`. */
     readonly options: ResolvedOptions;
 
     /**
@@ -159,7 +172,7 @@ export interface ExportServiceContext {
     /**
      * The currently committed `originalImage`, or `null` when no image is
      * loaded. {@link computeExportRegion} reads it through this callback
-     * to derive the floored bounding box for `exportImageArea === true`
+     * to derive the floored bounding box for image-area
      * exports. When the image has been disposed or
      * never loaded the seam falls through to a full-canvas export.
      */
@@ -183,6 +196,25 @@ function resolveMultiplier(requested: unknown, fallback: number): number {
     if (Number.isFinite(num) && num > 0) return num;
     const fb = Number(fallback);
     return Number.isFinite(fb) && fb > 0 ? fb : 1;
+}
+
+function resolveExportArea(requested: unknown, fallback: ExportArea): ExportArea {
+    if (requested === 'canvas' || requested === 'image') return requested;
+    return fallback === 'canvas' ? 'canvas' : 'image';
+}
+
+function resolveExportOptions(
+    ctx: ExportServiceContext,
+    options?: Base64ExportOptions | ImageFileExportOptions | null,
+): ResolvedExportOptions {
+    const opts = options ?? {};
+    return {
+        exportArea: resolveExportArea(opts.exportArea, ctx.options.exportAreaByDefault),
+        mergeMask:
+            typeof opts.mergeMask === 'boolean' ? opts.mergeMask : ctx.options.mergeMaskByDefault,
+        multiplier: resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier),
+        format: resolveExportFormat(opts, ctx.options.downsampleQuality),
+    };
 }
 
 function readCanvasDimension(
@@ -229,10 +261,10 @@ function assertExportPixelBudget(
  *
  * Region semantics:
  *
- * - When `exportImageArea` is `false`, the full canvas is exported
+ * - When `exportArea` is `'canvas'`, the full canvas is exported
  *   regardless of whether an `originalImage` is present (the masks
  *   stencil is what the consumer asked for).
- * - When `exportImageArea` is `true` and `ctx.getOriginalImage`
+ * - When `exportArea` is `'image'` and `ctx.getOriginalImage`
  *   returns a valid image, the image's absolute bounding rect is read
  *   through {@link getObjectBBox} (which calls `setCoords` so a
  *   freshly mutated image returns fresh coordinates) and discretized
@@ -241,15 +273,15 @@ function assertExportPixelBudget(
  *   intermediate `<canvas>`, and the floor on
  *   `width`/`height` prevents the 1-pixel JPEG edge artifact called
  *   out by the integer-region floor.
- * - When `exportImageArea` is `true` but no `originalImage` is
+ * - When `exportArea` is `'image'` but no `originalImage` is
  *   committed (a defensive case the `isImageLoaded` gate above
  *   normally rules out), fall through to a full-canvas export so the
  *   `toDataURL` call still emits a valid frame instead of throwing on
  *   a `null` bounding rect.
  *
  * @param ctx              Export context for `originalImage` access.
- * @param exportImageArea  Resolved `exportImageArea` flag (caller
- *                         default already applied by the entry point).
+ * @param exportArea       Resolved export-area value (caller default already
+ *                         applied by the entry point).
  * @returns                `null` for full-canvas exports; otherwise an
  *                         {@link IntegerRegion} suitable for
  *                         `canvas.toDataURL({ left, top, width, height})`.
@@ -259,11 +291,8 @@ interface ExportRegionInfo {
     partialEdges: PartialExportEdges | null;
 }
 
-function computeExportRegion(
-    ctx: ExportServiceContext,
-    exportImageArea: boolean,
-): ExportRegionInfo {
-    if (!exportImageArea) return { region: null, partialEdges: null };
+function computeExportRegion(ctx: ExportServiceContext, exportArea: ExportArea): ExportRegionInfo {
+    if (exportArea === 'canvas') return { region: null, partialEdges: null };
     const originalImage = ctx.getOriginalImage();
     if (!originalImage) return { region: null, partialEdges: null };
     const bounds = getObjectBBox(originalImage);
@@ -290,11 +319,10 @@ function computeExportRegion(
  * export-only bake-in style, runs `fn`, and restores the captured live
  * styles inside a `finally` block — even if `fn` rejected.
  *
- * Bake-in is only applied when `exportImageArea === true`, matching legacy's
+ * Bake-in is applied when `mergeMask === true`, matching the merge path's
  * mergeMask path where the rendered raster needs solid black masks so
  * the masked-out regions are flattened into the JPEG/PNG output. When
- * `exportImageArea === false` the canvas is rendered with mask styles
- * untouched, so there is nothing to back up and `fn` runs directly.
+ * When `mergeMask === false`, masks are hidden for the render and restored.
  *
  * For each mask the bake-in mutator forces:
  *
@@ -311,9 +339,8 @@ function computeExportRegion(
  *
  * @param ctx              Export context — supplies the live canvas to
  *                         the canonical backup helper.
- * @param exportImageArea  Resolved `exportImageArea` flag. `true`
- *                         triggers the bake-in; `false` is a thin
- *                         pass-through.
+ * @param mergeMask        Resolved mask compositing flag. `true` triggers
+ *                         bake-in; `false` hides masks during render.
  * @param fn               The async data-URL rendering step. Already
  *                         knows the resolved format/quality/multiplier
  *                         and the export region, and calls
@@ -321,17 +348,54 @@ function computeExportRegion(
  * @returns                Whatever `fn` resolves to.
  *
  */
-async function bakeMasksForExport<T>(
+async function withMaskExportState<T>(
     ctx: ExportServiceContext,
-    exportImageArea: boolean,
+    mergeMask: boolean,
     fn: () => Promise<T>,
 ): Promise<T> {
-    if (!exportImageArea) return fn();
+    if (!mergeMask) return withMasksHidden(ctx, fn);
     return withMaskStyleBackup(
         { canvas: ctx.canvas, options: ctx.options },
         applyExportBakeInStyle,
         fn,
     );
+}
+
+async function withMasksHidden<T>(ctx: ExportServiceContext, fn: () => Promise<T>): Promise<T> {
+    const backups: MaskVisibilityBackup[] = getCanvasObjects(ctx.canvas)
+        .filter(isMaskObject)
+        .map((mask) => ({
+            mask,
+            visible: (mask as { visible?: unknown }).visible,
+        }));
+
+    for (const backup of backups) {
+        try {
+            if (typeof backup.mask.set === 'function') {
+                backup.mask.set({ visible: false });
+            } else {
+                (backup.mask as { visible?: unknown }).visible = false;
+            }
+        } catch {
+            /* ignore — export restoration remains best-effort */
+        }
+    }
+
+    try {
+        return await fn();
+    } finally {
+        for (const backup of backups) {
+            try {
+                if (typeof backup.mask.set === 'function') {
+                    backup.mask.set({ visible: backup.visible });
+                } else {
+                    (backup.mask as { visible?: unknown }).visible = backup.visible;
+                }
+            } catch {
+                /* ignore — do not mask the export result */
+            }
+        }
+    }
 }
 
 function getCanvasObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[] {
@@ -454,7 +518,7 @@ function applyExportBakeInStyle(mask: MaskObject): void {
  * `canvas.toDataURL` directly — there is no intermediate `<canvas>`.
  *
  * The `region` argument is `null` for full-canvas exports and an
- * {@link IntegerRegion} when `exportImageArea === true` (Contracts
+ * {@link IntegerRegion} for image-area exports (Contracts
  * 27.1, 27.3).
  */
 function renderCanvasToDataURL(
@@ -744,12 +808,12 @@ function warnNoImageLoaded(operation: string): void {
  * 4. **Resolve multiplier** — `options.multiplier || exportMultiplier || 1`.
  * 5. **Compute region** — see {@link computeExportRegion}. Returns
  *    `null` for full-canvas exports and a floored {@link IntegerRegion}
- *    when `exportImageArea` is `true` and an `originalImage` is
+ *    when `exportArea` is `'image'` and an `originalImage` is
  *    committed.
- * 6. **Render** through {@link bakeMasksForExport} so mask styles are
+ * 6. **Render** through {@link withMaskExportState} so mask styles are
  *    captured, the export bake-in (`opacity: 1, fill: '#000',
  *    strokeWidth: 0, stroke: null, selectable: false`) is applied for
- *    `exportImageArea === true` exports, and the live styles are
+ *    `mergeMask === true` exports, and the live styles are
  *    restored in a `finally` block whether the render resolved or
  *    threw. The inner step is a single
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
@@ -771,12 +835,6 @@ export async function exportImageBase64(
         return '';
     }
 
-    const opts = options ?? {};
-    const exportImageArea =
-        typeof opts.exportImageArea === 'boolean'
-            ? opts.exportImageArea
-            : ctx.options.exportImageAreaByDefault;
-
     const activeObject = captureActiveObject(ctx.canvas);
     const labelBackups = captureMaskLabelBackups(ctx.canvas);
     try {
@@ -784,23 +842,29 @@ export async function exportImageBase64(
         // the finally block so export does not perturb the editor UI.
         ctx.canvas.discardActiveObject();
 
-        const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
-        const multiplier = resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier);
-        const { region, partialEdges } = computeExportRegion(ctx, exportImageArea);
-        assertExportPixelBudget(ctx, multiplier, region);
-        const renderFormat = region && resolved.format === 'jpeg' ? 'png' : resolved.format;
-        const renderQuality = renderFormat === 'png' ? undefined : resolved.quality;
+        const resolved = resolveExportOptions(ctx, options);
+        const { region, partialEdges } = computeExportRegion(ctx, resolved.exportArea);
+        assertExportPixelBudget(ctx, resolved.multiplier, region);
+        const renderFormat =
+            region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
+        const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
 
-        let dataUrl = await bakeMasksForExport(ctx, exportImageArea, async () =>
-            renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, multiplier, region),
+        let dataUrl = await withMaskExportState(ctx, resolved.mergeMask, async () =>
+            renderCanvasToDataURL(
+                ctx.canvas,
+                renderFormat,
+                renderQuality,
+                resolved.multiplier,
+                region,
+            ),
         );
         if (region) {
             dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
-            if (resolved.format === 'jpeg') {
+            if (resolved.format.format === 'jpeg') {
                 dataUrl = await convertDataUrlToOpaqueJpeg(
                     dataUrl,
                     ctx.options.backgroundColor,
-                    resolved.quality,
+                    resolved.format.quality,
                 );
             }
         }
@@ -841,15 +905,15 @@ export async function exportImageFile(
     }
 
     const opts = options ?? {};
-    const mergeMask = opts.mergeMask !== false;
     const fileName = opts.fileName ?? ctx.options.defaultDownloadFileName;
     const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
 
     // Reuse `exportImageBase64` so format/quality/multiplier resolution,
     // ActiveSelection discard, and the bake-in/restore bracket are all
-    // defined once. `mergeMask` maps to legacy's `exportImageArea` flag.
+    // defined once.
     const base64 = await exportImageBase64(ctx, {
-        exportImageArea: mergeMask,
+        exportArea: opts.exportArea,
+        mergeMask: opts.mergeMask,
         multiplier: opts.multiplier,
         quality: opts.quality,
         fileType: opts.fileType,
@@ -905,7 +969,8 @@ export function downloadImage(ctx: ExportServiceContext, fileName?: string): voi
     // anchor is appended to `document.body` because some browsers
     // (notably Firefox) ignore programmatic clicks on detached nodes.
     void exportImageBase64(ctx, {
-        exportImageArea: ctx.options.exportImageAreaByDefault,
+        exportArea: ctx.options.exportAreaByDefault,
+        mergeMask: ctx.options.mergeMaskByDefault,
         multiplier: ctx.options.exportMultiplier,
     })
         .then((dataUrl) => {
@@ -1018,7 +1083,7 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    from the editor container so the success path can restore them
  *    after the inner `loadImage` runs.
  * 5. **Render the merged bitmap** — delegate to
- *    {@link exportImageBase64} with `exportImageArea: true` and
+ *    {@link exportImageBase64} with `exportArea: 'image'` and
  *    `multiplier: options.exportMultiplier`. The bake-in/restore
  *    bracket inside `exportImageBase64` ensures every live mask style
  *    is captured before the export-only style is applied and restored
@@ -1099,7 +1164,8 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         // 5. Render the merged bitmap. `exportImageBase64` runs the
         //    bake-in/restore bracket internally.
         const merged = await exportImageBase64(ctx, {
-            exportImageArea: true,
+            exportArea: 'image',
+            mergeMask: true,
             multiplier: ctx.options.exportMultiplier,
             fileType: 'png',
         });

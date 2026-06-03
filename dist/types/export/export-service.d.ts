@@ -36,14 +36,14 @@
  *
  *   Each path emits a single `console.warn` naming the missing image so
  *   the consumer's logs identify which export attempt was skipped.
- * - When `exportImageArea` resolves
- *   to `true` and a valid `originalImage` exists, the export region is
+ * - When `exportArea` resolves
+ *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
  *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
  *   No intermediate `<canvas>` element is created (27.2), and sub-pixel
  *   width/height values are floored to integer pixels (27.3) through
  *   the {@link floorRegion} helper.
- * - When `exportImageArea` is
+ * - When `mergeMask` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
  *   mutator forces the bake-in style (`opacity: 1, fill: '#000',
@@ -110,7 +110,7 @@ export interface ExportServiceContext {
     readonly canvas: FabricNS.Canvas;
     /** Resolved editor options — supplies `defaultDownloadFileName`,
      *  `downsampleQuality`, `exportMultiplier`, and
-     *  `exportImageAreaByDefault`. */
+     *  `exportAreaByDefault`. */
     readonly options: ResolvedOptions;
     /**
      * Predicate matching `ImageEditor.isImageLoaded`. Returns `true`
@@ -121,7 +121,7 @@ export interface ExportServiceContext {
     /**
      * The currently committed `originalImage`, or `null` when no image is
      * loaded. {@link computeExportRegion} reads it through this callback
-     * to derive the floored bounding box for `exportImageArea === true`
+     * to derive the floored bounding box for image-area
      * exports. When the image has been disposed or
      * never loaded the seam falls through to a full-canvas export.
      */
@@ -144,12 +144,12 @@ export interface ExportServiceContext {
  * 4. **Resolve multiplier** — `options.multiplier || exportMultiplier || 1`.
  * 5. **Compute region** — see {@link computeExportRegion}. Returns
  *    `null` for full-canvas exports and a floored {@link IntegerRegion}
- *    when `exportImageArea` is `true` and an `originalImage` is
+ *    when `exportArea` is `'image'` and an `originalImage` is
  *    committed.
- * 6. **Render** through {@link bakeMasksForExport} so mask styles are
+ * 6. **Render** through {@link withMaskExportState} so mask styles are
  *    captured, the export bake-in (`opacity: 1, fill: '#000',
  *    strokeWidth: 0, stroke: null, selectable: false`) is applied for
- *    `exportImageArea === true` exports, and the live styles are
+ *    `mergeMask === true` exports, and the live styles are
  *    restored in a `finally` block whether the render resolved or
  *    threw. The inner step is a single
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
@@ -289,7 +289,7 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    from the editor container so the success path can restore them
  *    after the inner `loadImage` runs.
  * 5. **Render the merged bitmap** — delegate to
- *    {@link exportImageBase64} with `exportImageArea: true` and
+ *    {@link exportImageBase64} with `exportArea: 'image'` and
  *    `multiplier: options.exportMultiplier`. The bake-in/restore
  *    bracket inside `exportImageBase64` ensures every live mask style
  *    is captured before the export-only style is applied and restored

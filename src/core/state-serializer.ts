@@ -44,7 +44,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import type { MaskObject } from './public-types.js';
+import type { ImageMimeType, MaskObject } from './public-types.js';
 import { isMaskObject } from './public-types.js';
 
 // ─── Snapshot wire format ────────────────────────────────────────────────────
@@ -112,6 +112,8 @@ export interface EditorStateMeta {
     currentRotation: number;
     /** Base scale chosen by the layout manager when the image was loaded. */
     baseImageScale: number;
+    /** MIME type of the currently committed image, when known. */
+    currentImageMimeType?: ImageMimeType | null;
     /** Mask selected when the snapshot was captured, if any. */
     activeMaskId?: number;
 }
@@ -255,6 +257,8 @@ export interface SaveStateInput {
     currentRotation: number;
     /** Base scale chosen at load time (mirrored into `_editorState.baseImageScale`). */
     baseImageScale: number;
+    /** MIME type of the current image, persisted for source-preserving crop. */
+    currentImageMimeType?: ImageMimeType | null;
 }
 
 /**
@@ -332,6 +336,7 @@ export function saveState(input: SaveStateInput): string {
         currentScale,
         currentRotation,
         baseImageScale,
+        currentImageMimeType: input.currentImageMimeType ?? null,
     };
     if (activeMaskId !== null) jsonObj._editorState.activeMaskId = activeMaskId;
 
@@ -504,6 +509,13 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
             : null;
     if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
         editorState.activeMaskId = json._editorState.activeMaskId;
+    }
+    if (editorState && json._editorState && 'currentImageMimeType' in json._editorState) {
+        const mimeType = json._editorState.currentImageMimeType;
+        editorState.currentImageMimeType =
+            mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
+                ? mimeType
+                : null;
     }
 
     // 5b. `maskCounter` is the maximum restored

@@ -25,6 +25,7 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
         currentScale: ctx.getCurrentScale(),
         currentRotation: ctx.getCurrentRotation(),
         baseImageScale: ctx.getBaseImageScale(),
+        currentImageMimeType: ctx.getCurrentImageMimeType(),
     };
     try {
         ctx.setPlaceholderVisible(false);
@@ -38,7 +39,7 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
             throw error;
         }
         const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
-        const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
+        const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc.dataUrl, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
         ctx.canvas.discardActiveObject();
         ctx.canvas.clear();
         ctx.canvas.backgroundColor = ctx.options.backgroundColor;
@@ -60,12 +61,14 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
         ctx.setCurrentRotation(0);
         ctx.setMaskCounter(0);
         ctx.setIsImageLoadedToCanvas(true);
+        ctx.setCurrentImageMimeType(loadSrc.mimeType);
         ctx.canvas.renderAll();
         ctx.setLastSnapshot(saveState({
             canvas: ctx.canvas,
             currentScale: 1,
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
+            currentImageMimeType: loadSrc.mimeType,
         }));
         if (loadOptions.preserveScroll === true && ctx.containerElement) {
             try {
@@ -78,15 +81,6 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
             }
             catch (error) {
                 console.warn('[ImageEditor] preserveScroll restore failed', error);
-            }
-        }
-        const imageLoadedCallback = ctx.options.onImageLoaded;
-        if (typeof imageLoadedCallback === 'function') {
-            try {
-                imageLoadedCallback();
-            }
-            catch (error) {
-                console.error('[ImageEditor] onImageLoaded callback threw', error);
             }
         }
     }
@@ -151,19 +145,31 @@ function hasNaturalImageDimensions(img) {
 function isPositiveFinite(value) {
     return Number.isFinite(value) && value > 0;
 }
+function toSupportedImageMimeType(mimeType) {
+    return mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
+        ? mimeType
+        : null;
+}
 function maybeDownsample(imgEl, originalDataUrl, options) {
-    if (!options.downsampleOnLoad)
-        return originalDataUrl;
+    const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
+    if (!options.downsampleOnLoad) {
+        return { dataUrl: originalDataUrl, mimeType: originalMimeType };
+    }
     if (!isPositiveFinite(options.downsampleMaxWidth) ||
         !isPositiveFinite(options.downsampleMaxHeight)) {
         reportWarning(options, null, 'loadImage skipped downsampling because downsample bounds are invalid.');
-        return originalDataUrl;
+        return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
     const dims = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
     if (!dims.needsResize)
-        return originalDataUrl;
+        return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    return resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality).dataUrl;
+    const result = resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
+    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(result.dataUrl));
+    return {
+        dataUrl: result.dataUrl,
+        mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : result.mimeType,
+    };
 }
 function computeLayout(ctx, fimg) {
     var _a, _b, _c, _d;
@@ -211,6 +217,7 @@ async function replayRollback(ctx, bundle) {
     ctx.setCurrentScale(bundle.currentScale);
     ctx.setCurrentRotation(bundle.currentRotation);
     ctx.setBaseImageScale(bundle.baseImageScale);
+    ctx.setCurrentImageMimeType(bundle.currentImageMimeType);
     if (ctx.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {

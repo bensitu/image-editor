@@ -35,6 +35,7 @@ export type {
     // Sub-configs
     LabelConfig,
     CropConfig,
+    CropExportFileType,
     // loadImage / removeAllMasks options
     LoadImageOptions,
     RemoveAllMasksOptions,
@@ -48,8 +49,15 @@ export type {
     ImageFileType,
     NormalizedImageFormat,
     // Export options
+    ExportArea,
     Base64ExportOptions,
     ImageFileExportOptions,
+    // Lifecycle callbacks
+    ImageInfo,
+    ImageEditorState,
+    ImageEditorSelection,
+    ImageEditorCallbackContext,
+    ImageEditorOperation,
     // DOM wiring
     ElementIdMap,
     // Fabric module type (for explicit injection)

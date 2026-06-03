@@ -128,7 +128,8 @@ function makeContext(canvas, originalImage) {
             defaultDownloadFileName: 'edited_image.jpg',
             downsampleQuality: 0.92,
             exportMultiplier: 1,
-            exportImageAreaByDefault: true,
+            exportAreaByDefault: 'image',
+            mergeMaskByDefault: true,
         },
         fabric: {},
         isImageLoaded: () => true,
@@ -214,7 +215,7 @@ const maskListArb = fc
 
 // ─── — successful export restores live styles ─────────────────
 
-test('after a successful exportImageBase64({exportImageArea:true}), every mask style equals the pre-export value', async () => {
+test("after a successful exportImageBase64({exportArea:'image', mergeMask:true}), every mask style equals the pre-export value", async () => {
     await fc.assert(
         fc.asyncProperty(maskListArb, async (masks) => {
             const pre = snapshotMaskStyles(masks);
@@ -231,7 +232,11 @@ test('after a successful exportImageBase64({exportImageArea:true}), every mask s
             });
             const ctx = makeContext(canvas, makeFakeImage());
 
-            await exportImageBase64(ctx, { exportImageArea: true, fileType: 'png' });
+            await exportImageBase64(ctx, {
+                exportArea: 'image',
+                mergeMask: true,
+                fileType: 'png',
+            });
 
             // Sanity — `toDataURL` ran exactly once.
             assert.equal(
@@ -305,10 +310,11 @@ test('when canvas.toDataURL throws, exportImageBase64 still restores every mask 
             const ctx = makeContext(canvas, makeFakeImage());
 
             // The export must reject — the inner render step threw and
-            // bakeMasksForExport propagates failures after the finally
+            // withMaskExportState propagates failures after the finally
             // restore has run.
             const rejection = await exportImageBase64(ctx, {
-                exportImageArea: true,
+                exportArea: 'image',
+                mergeMask: true,
             }).then(
                 (value) => ({ kind: 'resolved', value }),
                 (error) => ({ kind: 'rejected', error }),

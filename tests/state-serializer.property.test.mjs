@@ -148,6 +148,9 @@ const editorStateArb = fc.record({
     currentScale: fc.integer({ min: 1, max: 500 }).map((n) => n / 100),
     currentRotation: fc.integer({ min: -360, max: 360 }),
     baseImageScale: fc.integer({ min: 1, max: 200 }).map((n) => n / 100),
+    currentImageMimeType: fc.option(fc.constantFrom('image/png', 'image/jpeg', 'image/webp'), {
+        nil: null,
+    }),
 });
 
 const shapeTypeArb = fc.constantFrom('rect', 'circle', 'ellipse', 'polygon');
@@ -319,6 +322,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
                 currentScale: scenario.editorState.currentScale,
                 currentRotation: scenario.editorState.currentRotation,
                 baseImageScale: scenario.editorState.baseImageScale,
+                currentImageMimeType: scenario.editorState.currentImageMimeType,
             });
 
             // The Pretty_Printer SHALL embed _editorState and
@@ -432,6 +436,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
                 currentScale: result.editorState.currentScale,
                 currentRotation: result.editorState.currentRotation,
                 baseImageScale: result.editorState.baseImageScale,
+                currentImageMimeType: result.editorState.currentImageMimeType,
             });
 
             // the documented contract: the round-trip property — s1 and s2 are
@@ -453,6 +458,7 @@ test('loadFromState detects Fabric image objects regardless of type casing', asy
             currentScale: 1,
             currentRotation: 0,
             baseImageScale: 1,
+            currentImageMimeType: 'image/png',
         },
     });
 
@@ -516,6 +522,7 @@ test('saveState copies mask custom metadata when Fabric omits propertiesToInclud
         currentScale: 1,
         currentRotation: 0,
         baseImageScale: 1,
+        currentImageMimeType: 'image/jpeg',
     });
     const json = JSON.parse(snapshot);
 
@@ -615,6 +622,7 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
             currentScale: 1,
             currentRotation: 0,
             baseImageScale: 1,
+            currentImageMimeType: 'image/png',
         },
     };
 

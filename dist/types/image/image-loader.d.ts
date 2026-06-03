@@ -94,7 +94,7 @@
  * load helpers. It is NOT re-exported from `src/index.ts`.
  */
 import type * as FabricNS from 'fabric';
-import type { FabricModule, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import type { FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
 import { type ViewportCache } from './layout-manager.js';
 /**
  * Snapshot of every field the loader is about to mutate, captured before
@@ -136,6 +136,8 @@ export interface RollbackBundle {
     currentRotation: number;
     /** Base scale chosen by the previous load, restored on rollback. */
     baseImageScale: number;
+    /** MIME type of the image committed before the load started. */
+    currentImageMimeType: ImageMimeType | null;
 }
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
@@ -194,6 +196,10 @@ export interface LoadImageContext {
     getBaseImageScale(): number;
     /** Writes `baseImageScale`. */
     setBaseImageScale(n: number): void;
+    /** Reads the MIME type of the currently committed image. */
+    getCurrentImageMimeType(): ImageMimeType | null;
+    /** Writes the MIME type of the currently committed image. */
+    setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
     /**
      * Toggle placeholder/canvas-container visibility via
      * `ui/visibility-state.ts`. `show === false` means "an image is now on

@@ -120,7 +120,7 @@
  *
  */
 import type * as FabricNS from 'fabric';
-import type { FabricModule, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import type { FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';
 /**
  * Dependency bundle passed by the `ImageEditor` facade into every crop
@@ -160,6 +160,11 @@ export interface CropControllerContext {
      * from the image bounding box.
      */
     getOriginalImage(): FabricNS.FabricImage | null;
+    /**
+     * MIME type of the currently committed image, used by source-preserving
+     * crop export.
+     */
+    getCurrentImageMimeType?(): ImageMimeType | null;
     /** Reads the live crop session, or `null`. */
     getCropSession(): CropSession | null;
     /** Writes the live crop session pointer (or clears it with `null`). */

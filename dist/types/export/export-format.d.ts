@@ -68,6 +68,14 @@ export interface ResolvedExportFormat {
  */
 export declare function normalizeImageFormat(input?: string | null): NormalizedImageFormat;
 /**
+ * Collapse a public file type or MIME alias to a normalized format token.
+ * Returns `null` for omitted or unknown input so call sites with a different
+ * fallback policy can decide explicitly.
+ *
+ * Pure function — no DOM access, safe to call from property tests.
+ */
+export declare function tryNormalizeImageFormat(input?: string | null): NormalizedImageFormat | null;
+/**
  * Derive the `image/...` MIME type for a normalized format token.
  *
  * Pure function — no DOM access, safe to call from property tests.

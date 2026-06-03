@@ -20,7 +20,8 @@ export const DEFAULT_OPTIONS = {
     maxHistorySize: 50,
     exportMultiplier: 1,
     maxExportPixels: 50000000,
-    exportImageAreaByDefault: true,
+    exportAreaByDefault: 'image',
+    mergeMaskByDefault: true,
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
     maskRotatable: false,
@@ -31,7 +32,14 @@ export const DEFAULT_OPTIONS = {
     showPlaceholder: true,
     initialImageBase64: null,
     defaultDownloadFileName: 'edited_image.jpg',
+    onImageLoadStart: null,
     onImageLoaded: null,
+    onImageCleared: null,
+    onImageChanged: null,
+    onBusyChange: null,
+    onEditorDisposed: null,
+    onMasksChanged: null,
+    onSelectionChange: null,
     onError: null,
     onWarning: null,
 };
@@ -58,6 +66,8 @@ export const DEFAULT_CROP = {
     hideMasksDuringCrop: true,
     preserveMasksAfterCrop: false,
     allowRotationOfCropRect: false,
+    exportFileType: 'source',
+    exportQuality: undefined,
 };
 const KNOWN_TOP_LEVEL_KEYS = new Set([
     'canvasWidth',
@@ -81,7 +91,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
-    'exportImageAreaByDefault',
+    'exportAreaByDefault',
+    'mergeMaskByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
     'maskRotatable',
@@ -92,7 +103,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'showPlaceholder',
     'initialImageBase64',
     'defaultDownloadFileName',
+    'onImageLoadStart',
     'onImageLoaded',
+    'onImageCleared',
+    'onImageChanged',
+    'onBusyChange',
+    'onEditorDisposed',
+    'onMasksChanged',
+    'onSelectionChange',
     'onError',
     'onWarning',
     'label',
@@ -121,8 +139,11 @@ function normalizeMaxExportPixels(value) {
         return DEFAULT_OPTIONS.maxExportPixels;
     return Math.max(1, Math.floor(numeric));
 }
+function normalizeExportArea(value) {
+    return value === 'canvas' || value === 'image' ? value : DEFAULT_OPTIONS.exportAreaByDefault;
+}
 export function resolveOptions(input) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -130,8 +151,18 @@ export function resolveOptions(input) {
             continue;
         if (key === 'label' || key === 'crop')
             continue;
-        if (key === 'onImageLoaded' || key === 'onError' || key === 'onWarning')
+        if (key === 'onImageLoadStart' ||
+            key === 'onImageLoaded' ||
+            key === 'onImageCleared' ||
+            key === 'onImageChanged' ||
+            key === 'onBusyChange' ||
+            key === 'onEditorDisposed' ||
+            key === 'onMasksChanged' ||
+            key === 'onSelectionChange' ||
+            key === 'onError' ||
+            key === 'onWarning') {
             continue;
+        }
         const value = raw[key];
         if (value === undefined)
             continue;
@@ -143,9 +174,20 @@ export function resolveOptions(input) {
             resolved.maxExportPixels = normalizeMaxExportPixels(value);
             continue;
         }
+        if (key === 'exportAreaByDefault') {
+            resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
         resolved[key] = value;
     }
+    resolved.onImageLoadStart = normalizeCallback(raw.onImageLoadStart);
     resolved.onImageLoaded = normalizeCallback(raw.onImageLoaded);
+    resolved.onImageCleared = normalizeCallback(raw.onImageCleared);
+    resolved.onImageChanged = normalizeCallback(raw.onImageChanged);
+    resolved.onBusyChange = normalizeCallback(raw.onBusyChange);
+    resolved.onEditorDisposed = normalizeCallback(raw.onEditorDisposed);
+    resolved.onMasksChanged = normalizeCallback(raw.onMasksChanged);
+    resolved.onSelectionChange = normalizeCallback(raw.onSelectionChange);
     resolved.onError = normalizeCallback(raw.onError);
     resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
@@ -174,6 +216,8 @@ export function resolveOptions(input) {
         hideMasksDuringCrop: (_d = userCrop.hideMasksDuringCrop) !== null && _d !== void 0 ? _d : DEFAULT_CROP.hideMasksDuringCrop,
         preserveMasksAfterCrop: (_e = userCrop.preserveMasksAfterCrop) !== null && _e !== void 0 ? _e : DEFAULT_CROP.preserveMasksAfterCrop,
         allowRotationOfCropRect: (_f = userCrop.allowRotationOfCropRect) !== null && _f !== void 0 ? _f : DEFAULT_CROP.allowRotationOfCropRect,
+        exportFileType: (_g = userCrop.exportFileType) !== null && _g !== void 0 ? _g : DEFAULT_CROP.exportFileType,
+        exportQuality: userCrop.exportQuality,
     };
     Object.freeze(crop);
     return {

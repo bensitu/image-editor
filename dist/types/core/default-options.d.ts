@@ -9,7 +9,7 @@
  * function or `null`, unknown top-level keys are ignored, and returned nested
  * config objects are frozen.
  */
-import type { CropConfig, ImageEditorOptions, LabelConfig, ResolvedOptions } from './public-types.js';
+import type { ImageEditorOptions, LabelConfig, ResolvedCropConfig, ResolvedOptions } from './public-types.js';
 /**
  * Documented defaults for every top-level option except the nested
  * {@link LabelConfig} and {@link CropConfig} configs, which are owned by
@@ -29,7 +29,7 @@ export declare const DEFAULT_LABEL: LabelConfig;
 /**
  * Default {@link CropConfig}.
  */
-export declare const DEFAULT_CROP: Required<CropConfig>;
+export declare const DEFAULT_CROP: ResolvedCropConfig;
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.
@@ -41,8 +41,8 @@ export declare const DEFAULT_CROP: Required<CropConfig>;
  *    so user keys override defaults and unspecified keys remain.
  *  - `crop.*` is shallow-merged with {@link DEFAULT_CROP} so each field falls
  *    back to its documented default when unspecified.
- *  - `onImageLoaded`, `onError`, and `onWarning` are normalized: function
- *    values are kept, anything else becomes `null`.
+ *  - Callback values are normalized: function values are kept, anything
+ *    else becomes `null`.
  *  - Unknown top-level keys are silently dropped.
  *  - The returned `label` and `crop` references are frozen so that mutating
  *    `input.label`, `input.label.textOptions`, or `input.crop` after the call

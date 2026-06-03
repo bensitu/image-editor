@@ -294,6 +294,10 @@ function makeStateHolder(initial) {
         setBaseImageScale: (v) => {
             state.baseImageScale = v;
         },
+        getCurrentImageMimeType: () => state.currentImageMimeType,
+        setCurrentImageMimeType: (v) => {
+            state.currentImageMimeType = v;
+        },
         setPlaceholderVisible: (show) => {
             placeholderShows.push(show);
         },
@@ -301,11 +305,10 @@ function makeStateHolder(initial) {
 }
 
 /**
- * Build a fully-wired `LoadImageContext` plus a counter for
- * `onImageLoaded` invocations. The context object has the exact
+ * Build a fully-wired `LoadImageContext`. The context object has the exact
  * interface that `loadImage` consumes; nothing extra.
  */
-function makeContext({ failFromUrl = false, onImageLoaded } = {}) {
+function makeContext({ failFromUrl = false } = {}) {
     const document = installDom();
     const canvas = new MockCanvas(800, 600);
     const containerElement = document.createElement('div');
@@ -321,6 +324,7 @@ function makeContext({ failFromUrl = false, onImageLoaded } = {}) {
         currentScale: 1.5, // non-default so the success path update is observable
         currentRotation: 45,
         baseImageScale: 0.8,
+        currentImageMimeType: 'image/webp',
     };
     const holder = makeStateHolder(initial);
 
@@ -330,7 +334,6 @@ function makeContext({ failFromUrl = false, onImageLoaded } = {}) {
         downsampleOnLoad: false, // skip the resampler; tested elsewhere
         imageLoadTimeoutMs: 5000,
         backgroundColor: 'transparent',
-        onImageLoaded: typeof onImageLoaded === 'function' ? onImageLoaded : undefined,
     });
 
     const ctx = {
@@ -391,11 +394,6 @@ test('non-data:image strings cause zero mutation', async () => {
                 containerElement.scrollLeft = 7;
                 containerElement.style.overflow = 'auto';
 
-                let onImageLoadedCalls = 0;
-                ctx.options.onImageLoaded = () => {
-                    onImageLoadedCalls++;
-                };
-
                 const callsBefore = canvas.calls.length;
                 await loadImage(
                     ctx,
@@ -416,11 +414,6 @@ test('non-data:image strings cause zero mutation', async () => {
                     [],
                     'the documented contract: non-data:image input must not toggle placeholder visibility',
                 );
-                assert.equal(
-                    onImageLoadedCalls,
-                    0,
-                    'the documented contract: non-data:image input must not fire onImageLoaded',
-                );
                 assert.deepEqual(
                     {
                         originalImage: holder.state.originalImage,
@@ -430,6 +423,7 @@ test('non-data:image strings cause zero mutation', async () => {
                         currentScale: holder.state.currentScale,
                         currentRotation: holder.state.currentRotation,
                         baseImageScale: holder.state.baseImageScale,
+                        currentImageMimeType: holder.state.currentImageMimeType,
                     },
                     initial,
                     'the documented contract: non-data:image input must leave editor scalar state unchanged',
@@ -482,21 +476,21 @@ test('success commits the new-image state', async () => {
                 holder.state.originalImage !== null,
                 'the documented contract: success must commit originalImage',
             );
+            assert.equal(
+                holder.state.currentImageMimeType,
+                'image/png',
+                'the documented contract: success must track the committed data URL MIME',
+            );
         }),
         { numRuns: 30 },
     );
 });
 
-test('success fires onImageLoaded exactly once', async () => {
+test('success persists current image MIME in the fresh snapshot', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {
             installImageStub('success');
-            let onImageLoadedCalls = 0;
-            const { ctx } = makeContext({
-                onImageLoaded: () => {
-                    onImageLoadedCalls++;
-                },
-            });
+            const { ctx, holder } = makeContext();
 
             await loadImage(
                 ctx,
@@ -504,11 +498,8 @@ test('success fires onImageLoaded exactly once', async () => {
                 preserveScroll === undefined ? undefined : { preserveScroll },
             );
 
-            assert.equal(
-                onImageLoadedCalls,
-                1,
-                'the documented contract: onImageLoaded must fire exactly once on success',
-            );
+            const snapshot = JSON.parse(holder.state.lastSnapshot);
+            assert.equal(snapshot._editorState.currentImageMimeType, 'image/png');
         }),
         { numRuns: 30 },
     );
@@ -547,6 +538,7 @@ test('failure restores editor scalar state', async () => {
                     currentScale: holder.state.currentScale,
                     currentRotation: holder.state.currentRotation,
                     baseImageScale: holder.state.baseImageScale,
+                    currentImageMimeType: holder.state.currentImageMimeType,
                 },
                 initial,
                 'the documented contract: rollback must restore every editor scalar to its pre-call value',
@@ -556,17 +548,11 @@ test('failure restores editor scalar state', async () => {
     );
 });
 
-test('failure does NOT fire onImageLoaded', async () => {
+test('failure restores current image MIME', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {
             installImageStub('success');
-            let onImageLoadedCalls = 0;
-            const { ctx } = makeContext({
-                failFromUrl: true,
-                onImageLoaded: () => {
-                    onImageLoadedCalls++;
-                },
-            });
+            const { ctx, holder, initial } = makeContext({ failFromUrl: true });
 
             await assert.rejects(() =>
                 loadImage(
@@ -576,11 +562,7 @@ test('failure does NOT fire onImageLoaded', async () => {
                 ),
             );
 
-            assert.equal(
-                onImageLoadedCalls,
-                0,
-                'the documented contract: onImageLoaded must not fire on rollback',
-            );
+            assert.equal(holder.state.currentImageMimeType, initial.currentImageMimeType);
         }),
         { numRuns: 30 },
     );
@@ -601,6 +583,7 @@ test('completed zero-dimension image load rejects and rolls back', async () => {
             currentScale: holder.state.currentScale,
             currentRotation: holder.state.currentRotation,
             baseImageScale: holder.state.baseImageScale,
+            currentImageMimeType: holder.state.currentImageMimeType,
         },
         initial,
         'zero-dimension decode failure must restore every editor scalar',
