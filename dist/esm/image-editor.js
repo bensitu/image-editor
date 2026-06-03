@@ -874,6 +874,16 @@ export class ImageEditor {
                 baseImageScale: this.baseImageScale,
             });
             const before = (_b = this._lastSnapshot) !== null && _b !== void 0 ? _b : after;
+            if (after === before) {
+                const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+                if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
+                    this.canvas.setActiveObject(maskToRestore);
+                    this._showLabelForMask(maskToRestore);
+                    this._updateMaskListSelection(maskToRestore);
+                }
+                this._updateUI();
+                return;
+            }
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {

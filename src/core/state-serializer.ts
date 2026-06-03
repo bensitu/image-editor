@@ -223,6 +223,21 @@ function copySnapshotCustomPropsFromCanvas(
     }
 }
 
+function isActiveSelectionObject(object: FabricNS.FabricObject | null | undefined): boolean {
+    if (!object) return false;
+
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection') return true;
+
+    const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
+    return (
+        typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection'))
+    );
+}
+
 // ─── saveState ──────────────────────────────────────────────────────────────
 
 /**
@@ -266,8 +281,9 @@ export interface SaveStateInput {
  * payload.
  *
  * The function is pure with respect to the canvas object set — it does
- * not add or remove canvas objects. Discarding the active selection is
- * a no-op when no `ActiveSelection` is present.
+ * not add or remove canvas objects. It only discards Fabric's multi-object
+ * `ActiveSelection` wrapper and preserves ordinary single-object selection
+ * state.
  *
  * @param input The canvas plus the three transform fields to embed.
  * @returns The JSON snapshot string ready for the history stack.
@@ -285,8 +301,12 @@ export function saveState(input: SaveStateInput): string {
               ? input.activeMaskId
               : null;
 
-    // 1. discard ActiveSelection before serializing.
-    canvas.discardActiveObject();
+    // 1. discard ActiveSelection before serializing, while preserving ordinary
+    // single-object selection state so mask control styles do not churn during
+    // history capture.
+    if (isActiveSelectionObject(activeObject)) {
+        canvas.discardActiveObject();
+    }
 
     // 2. serialize with the custom keys so mask
     //    metadata, the crop marker, and the label marker round-trip onto

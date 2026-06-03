@@ -475,6 +475,18 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
             jsonObject.maskLabel = true;
     }
 }
+function isActiveSelectionObject(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection')));
+}
 function saveState(input) {
     var _a, _b;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
@@ -484,7 +496,9 @@ function saveState(input) {
         : typeof input.activeMaskId === 'number'
             ? input.activeMaskId
             : null;
-    canvas.discardActiveObject();
+    if (isActiveSelectionObject(activeObject)) {
+        canvas.discardActiveObject();
+    }
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {
@@ -4121,6 +4135,16 @@ class ImageEditor {
                 baseImageScale: this.baseImageScale,
             });
             const before = (_b = this._lastSnapshot) !== null && _b !== void 0 ? _b : after;
+            if (after === before) {
+                const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+                if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
+                    this.canvas.setActiveObject(maskToRestore);
+                    this._showLabelForMask(maskToRestore);
+                    this._updateMaskListSelection(maskToRestore);
+                }
+                this._updateUI();
+                return;
+            }
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {

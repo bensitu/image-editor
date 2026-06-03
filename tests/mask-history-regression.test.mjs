@@ -95,6 +95,31 @@ test('undo after a mask control transform restores the previous mask geometry', 
     assert.equal(restoredMask.angle ?? 0, original.angle);
 });
 
+test('duplicate mask modified events do not add a no-op undo step', async (t) => {
+    const { editor } = await createSourceEditor();
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 120, height: 80 });
+    const mask = editor.createMask({
+        left: 10,
+        top: 12,
+        width: 30,
+        height: 20,
+    });
+    assert.ok(mask, 'sanity: mask must be created');
+
+    mask.set({ scaleX: 1.75, scaleY: 1.5 });
+    mask.setCoords();
+    editor.canvas.fire('object:modified', { target: mask });
+    editor.canvas.fire('object:modified', { target: mask });
+
+    await editor.undo();
+
+    const restoredMask = editor.canvas.getObjects().filter(isMask)[0];
+    assert.equal(restoredMask.scaleX ?? 1, 1);
+    assert.equal(restoredMask.scaleY ?? 1, 1);
+});
+
 test('creating a mask after merge undo places it next to the restored last mask', async (t) => {
     const { editor } = await createSourceEditor();
     t.after(() => disposeEditor(editor));

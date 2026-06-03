@@ -11,7 +11,10 @@
  *   keeps the direct serializer contract small and focused.
  *
  * Scope:
- *   - MockCanvas records discardActiveObject() before toJSON() payload creation.
+ *   - MockCanvas records discardActiveObject() before toJSON() payload creation
+ *     only when the active object is a Fabric ActiveSelection.
+ *   - Single active masks stay selected during snapshot serialization so control
+ *     border styles do not churn after a mask transform.
  *   - The property checks arbitrary active-selection object lists without requiring a
  *     live Fabric canvas.
  *   - Source imports use the shared TypeScript resolver hook, so no build step is
@@ -59,18 +62,24 @@ const { saveState } = await import('../src/core/state-serializer.ts');
  *   discardActiveObject, getObjects)
  */
 class MockCanvas {
-    constructor() {
+    constructor(activeObject = null) {
         this.discardCalls = 0;
         this.toJSONCalls = 0;
         this.callOrder = [];
         this.objects = [];
         this.width = 0;
         this.height = 0;
+        this.activeObject = activeObject;
+    }
+
+    getActiveObject() {
+        return this.activeObject;
     }
 
     discardActiveObject() {
         this.discardCalls++;
         this.callOrder.push('discardActiveObject');
+        this.activeObject = null;
         return this;
     }
 
@@ -155,7 +164,7 @@ const scenarioArb = fc.record({
 test('saveState discards ActiveSelection before serializing', () => {
     fc.assert(
         fc.property(scenarioArb, (scenario) => {
-            const canvas = new MockCanvas();
+            const canvas = new MockCanvas({ type: 'activeselection' });
             canvas.width = scenario.dims.width;
             canvas.height = scenario.dims.height;
             for (const o of scenario.objects) {
@@ -176,13 +185,11 @@ test('saveState discards ActiveSelection before serializing', () => {
             });
 
             // the documented contract: `saveState()` SHALL discard any active Fabric
-            // `ActiveSelection` before serializing. The serializer
-            // calls `discardActiveObject` unconditionally — the
-            // discard is a no-op when no `ActiveSelection` is present,
-            // so the call must happen for every input.
-            assert.ok(
-                canvas.discardCalls >= 1,
-                'the documented contract: saveState must invoke canvas.discardActiveObject() at least once',
+            // `ActiveSelection` before serializing.
+            assert.equal(
+                canvas.discardCalls,
+                1,
+                'the documented contract: saveState must invoke canvas.discardActiveObject() for ActiveSelection',
             );
 
             // Strengthen the documented contract: the discard SHALL happen BEFORE
@@ -213,4 +220,36 @@ test('saveState discards ActiveSelection before serializing', () => {
         }),
         { numRuns: 100 },
     );
+});
+
+test('saveState preserves a single active mask while serializing', () => {
+    const activeMask = {
+        type: 'rect',
+        left: 10,
+        top: 20,
+        opacity: 0.5,
+        maskId: 7,
+        maskName: 'mask7',
+    };
+    const canvas = new MockCanvas(activeMask);
+    canvas.width = 320;
+    canvas.height = 240;
+    canvas.add(activeMask);
+
+    const snapshot = saveState({
+        canvas,
+        currentScale: 1,
+        currentRotation: 0,
+        baseImageScale: 1,
+    });
+
+    assert.equal(
+        canvas.discardCalls,
+        0,
+        'single active masks must not be discarded during saveState',
+    );
+    assert.equal(canvas.callOrder[0], 'toJSON', 'snapshot serialization should start directly');
+
+    const json = JSON.parse(snapshot);
+    assert.equal(json._editorState.activeMaskId, 7, 'active mask identity should be preserved');
 });

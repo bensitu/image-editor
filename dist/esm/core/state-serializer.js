@@ -66,6 +66,18 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
             jsonObject.maskLabel = true;
     }
 }
+function isActiveSelectionObject(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection')));
+}
 export function saveState(input) {
     var _a, _b;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
@@ -75,7 +87,9 @@ export function saveState(input) {
         : typeof input.activeMaskId === 'number'
             ? input.activeMaskId
             : null;
-    canvas.discardActiveObject();
+    if (isActiveSelectionObject(activeObject)) {
+        canvas.discardActiveObject();
+    }
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {

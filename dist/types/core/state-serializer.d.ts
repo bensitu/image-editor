@@ -174,8 +174,9 @@ export interface SaveStateInput {
  * payload.
  *
  * The function is pure with respect to the canvas object set — it does
- * not add or remove canvas objects. Discarding the active selection is
- * a no-op when no `ActiveSelection` is present.
+ * not add or remove canvas objects. It only discards Fabric's multi-object
+ * `ActiveSelection` wrapper and preserves ordinary single-object selection
+ * state.
  *
  * @param input The canvas plus the three transform fields to embed.
  * @returns The JSON snapshot string ready for the history stack.

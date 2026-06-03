@@ -1387,6 +1387,16 @@ export class ImageEditor {
                 baseImageScale: this.baseImageScale,
             });
             const before = this._lastSnapshot ?? after;
+            if (after === before) {
+                const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+                if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
+                    this.canvas.setActiveObject(maskToRestore);
+                    this._showLabelForMask(maskToRestore);
+                    this._updateMaskListSelection(maskToRestore);
+                }
+                this._updateUI();
+                return;
+            }
             let executedOnce = false;
 
             // HistoryManager.execute() always invokes command.execute()

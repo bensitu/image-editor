@@ -1,3 +1,36 @@
+/**
+ * @file merge-undo-restore.test.mjs
+ *
+ * Type:
+ *   Integration regression test
+ *
+ * Purpose:
+ *   Verifies that undoing a successful mask merge restores the editor-owned
+ *   mask state that Fabric snapshots alone do not reliably preserve. The suite
+ *   runs through the ImageEditor facade with the real Fabric environment so it
+ *   can observe restored mask metadata, transient labels, hover handlers, active
+ *   selection, and the DOM mask list.
+ *
+ * Scope:
+ *   - Undo after merge restores mask custom metadata and visual style fields.
+ *   - Undo rebuilds the selected mask label and reattaches mask hover handlers.
+ *   - Undo restores the mask list item and active selection across expand, fit,
+ *     and cover layout modes.
+ *
+ * Out of scope:
+ *   - merged bitmap pixel quality
+ *   - unrelated crop and export behavior
+ *   - browser pointer event synthesis
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - jsdom
+ *   - Fabric.js with node-canvas
+ *
+ * Run:
+ *   node --import ./tests/helpers/register-ts-loader.mjs --test tests/merge-undo-restore.test.mjs
+ */
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
