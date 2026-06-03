@@ -181,6 +181,7 @@ const editor = new ImageEditor({
 
 editor.init({
   canvas: "fabricCanvas",
+  canvasContainer: null,
   imagePlaceholder: "imagePlaceholder",
   scalePercentageInput: "scalePercentageInput",
   rotateLeftButton: "rotateLeftButton",
@@ -197,7 +198,6 @@ editor.init({
   applyCropButton: "applyCropButton",
   cancelCropButton: "cancelCropButton",
   resetImageTransformButton: "resetImageTransformButton",
-  canvasContainer: null,
   imageInput: null,
   uploadArea: null
 });
@@ -334,6 +334,7 @@ The following DOM binding keys remain supported in `1.x` for compatibility, but 
 | Method                            | Returns                 | Description                                                                                                           |
 | --------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `init(idMap)`                     | `void`                  | Bind the editor to DOM elements. Pass IDs in an object.                                                               |
+| `dispose()`                       | `void`                  | Cleans up and disposes of the canvas and related references.                                                          |
 | `loadImage(imageBase64, options)` | `Promise<void>`         | Load an image from a base64 data URL. Resolves after the Fabric image is on the canvas.                               |
 | `isImageLoaded()`                 | `boolean`               | Return whether a valid image is loaded on the canvas.                                                                 |
 | `isBusy()`                        | `boolean`               | Return whether the editor is loading, animating, cropping, or running another compound operation.                     |
