@@ -5,7 +5,7 @@ import fabricModule from "fabric";
 /**
  * @file image-editor.js
  * @module image-editor
- * @version 1.5.1
+ * @version 1.5.2
  * @author Ben Situ
  * @license MIT
  * @description Lightweight canvas-based image editor with masking/transform/export support.
@@ -78,6 +78,7 @@ var ImageEditor = class {
       imageLoadTimeoutMs: 3e4,
       exportMultiplier: 1,
       maxExportPixels: 5e7,
+      maxHistorySize: 50,
       exportImageAreaByDefault: true,
       defaultMaskWidth: 50,
       defaultMaskHeight: 80,
@@ -106,6 +107,7 @@ var ImageEditor = class {
         ...userCrop
       }
     };
+    this._normalizeOptions();
     this._fabricLoaded = !!ensureFabric();
     if (!this._fabricLoaded) {
       this._reportError("fabric.js is not loaded. Please include fabric.js first. Initialization will be aborted.");
@@ -125,16 +127,18 @@ var ImageEditor = class {
     this._activeOperationToken = null;
     this.elements = {};
     this.isImageLoadedToCanvas = false;
-    this.maxHistorySize = 50;
+    this.maxHistorySize = this.options.maxHistorySize;
     this._handlersByElementKey = {};
     this._elementCache = {};
     this._elementOriginalPointerEvents = /* @__PURE__ */ new Map();
+    this._elementOriginalDisabledState = /* @__PURE__ */ new Map();
     this._lastMask = null;
     this._lastMaskInitialLeft = null;
     this._lastMaskInitialTop = null;
     this._lastMaskInitialWidth = null;
     this._lastSnapshot = null;
     this._cropMode = false;
+    this._isApplyingCrop = false;
     this._cropRect = null;
     this._cropHandlers = [];
     this._cropPrevEvented = null;
@@ -231,6 +235,8 @@ var ImageEditor = class {
     this._activeOperationName = null;
     this._activeOperationToken = null;
     this._elementOriginalPointerEvents = /* @__PURE__ */ new Map();
+    this._elementOriginalDisabledState = /* @__PURE__ */ new Map();
+    this._isApplyingCrop = false;
     this._containerOriginalOverflow = null;
     this._lastContainerViewportSize = null;
     this._canvasElementOriginalStyle = null;
@@ -350,6 +356,54 @@ var ImageEditor = class {
       `ElementIdMap.${deprecatedKey} is deprecated. Use ${canonicalKey} instead. This alias will be removed in v2.0.0.`
     );
   }
+  _normalizeFiniteNumber(value, fallback) {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : fallback;
+  }
+  _normalizePositiveNumber(value, fallback) {
+    const numericValue = this._normalizeFiniteNumber(value, fallback);
+    return numericValue > 0 ? numericValue : fallback;
+  }
+  _normalizeNonNegativeNumber(value, fallback) {
+    const numericValue = this._normalizeFiniteNumber(value, fallback);
+    return numericValue >= 0 ? numericValue : fallback;
+  }
+  _normalizePositiveInteger(value, fallback) {
+    const numericValue = this._normalizePositiveNumber(value, fallback);
+    return Math.max(1, Math.floor(numericValue));
+  }
+  _normalizeOptions() {
+    const options = this.options || {};
+    options.canvasWidth = this._normalizePositiveNumber(options.canvasWidth, 800);
+    options.canvasHeight = this._normalizePositiveNumber(options.canvasHeight, 600);
+    options.animationDuration = this._normalizeNonNegativeNumber(options.animationDuration, 300);
+    const minScale = this._normalizePositiveNumber(options.minScale, 0.1);
+    const maxScale = this._normalizePositiveNumber(options.maxScale, 5);
+    if (minScale > maxScale) {
+      options.minScale = 0.1;
+      options.maxScale = 5;
+    } else {
+      options.minScale = minScale;
+      options.maxScale = maxScale;
+    }
+    options.scaleStep = this._normalizePositiveNumber(options.scaleStep, 0.05);
+    options.rotationStep = this._normalizeFiniteNumber(options.rotationStep, 90);
+    options.downsampleMaxWidth = this._normalizePositiveNumber(options.downsampleMaxWidth, 4e3);
+    options.downsampleMaxHeight = this._normalizePositiveNumber(options.downsampleMaxHeight, 3e3);
+    options.downsampleQuality = options.downsampleQuality == null ? 0.92 : Math.max(0, Math.min(1, this._normalizeFiniteNumber(options.downsampleQuality, 0.92)));
+    options.imageLoadTimeoutMs = this._normalizePositiveNumber(options.imageLoadTimeoutMs, 3e4);
+    options.exportMultiplier = this._normalizePositiveNumber(options.exportMultiplier, 1);
+    options.maxExportPixels = this._normalizePositiveInteger(options.maxExportPixels, 5e7);
+    options.maxHistorySize = this._normalizePositiveInteger(options.maxHistorySize, 50);
+    options.defaultMaskWidth = this._normalizePositiveNumber(options.defaultMaskWidth, 50);
+    options.defaultMaskHeight = this._normalizePositiveNumber(options.defaultMaskHeight, 80);
+    options.maskLabelOffset = this._normalizeNonNegativeNumber(options.maskLabelOffset, 3);
+    if (options.crop) {
+      options.crop.minWidth = this._normalizePositiveNumber(options.crop.minWidth, 100);
+      options.crop.minHeight = this._normalizePositiveNumber(options.crop.minHeight, 100);
+      options.crop.padding = this._normalizeNonNegativeNumber(options.crop.padding, 10);
+    }
+  }
   _reportError(message, error = null) {
     const handler = this.options && this.options.onError;
     if (typeof handler !== "function") return;
@@ -366,10 +420,18 @@ var ImageEditor = class {
     } catch {
     }
   }
+  _emitSafeCallback(callback, message) {
+    if (typeof callback !== "function") return;
+    try {
+      callback();
+    } catch (error) {
+      this._reportWarning(message, error);
+    }
+  }
   _notifyImageLoaded() {
     const optionsCallback = this.options && this.options.onImageLoaded;
     const callback = typeof optionsCallback === "function" ? optionsCallback : this.onImageLoaded;
-    if (typeof callback === "function") callback();
+    this._emitSafeCallback(callback, "onImageLoaded callback failed");
   }
   /**
    * Initializes the Fabric canvas, viewport elements, and selection event handlers.
@@ -608,7 +670,6 @@ var ImageEditor = class {
   _loadImageFile(file) {
     if (!this._isSupportedImageFile(file)) {
       const error = new Error("Selected file is not a supported image");
-      this._reportError("Selected file is not a supported image", error);
       return Promise.reject(error);
     }
     return new Promise((resolve, reject) => {
@@ -671,6 +732,7 @@ var ImageEditor = class {
     const isNestedOperation = this._isOwnInternalOperation(options);
     const operationToken = isNestedOperation ? this._getInternalOperationToken(options) : this._beginBusyOperation("loadImage");
     let transaction = null;
+    let shouldNotifyImageLoaded;
     try {
       this._isLoading = true;
       this._updateUI();
@@ -759,7 +821,7 @@ var ImageEditor = class {
       this._updateUI();
       this.canvas.renderAll();
       this._lastSnapshot = this._captureCanvasStateOrThrow("loadImage");
-      this._notifyImageLoaded();
+      shouldNotifyImageLoaded = true;
     } catch (error) {
       await this._rollbackLoadImageTransaction(
         transaction,
@@ -770,6 +832,9 @@ var ImageEditor = class {
       this._isLoading = false;
       if (!isNestedOperation) this._endBusyOperation(operationToken);
       if (!this._disposed && this.canvas) this._updateUI();
+    }
+    if (shouldNotifyImageLoaded && !this._disposed && this.canvas) {
+      this._notifyImageLoaded();
     }
   }
   /**
@@ -787,7 +852,7 @@ var ImageEditor = class {
    * @public
    */
   isBusy() {
-    return !!(this.isAnimating || this._cropMode || this._isLoading || this._activeOperationToken || this.animationQueue && this.animationQueue.isBusy());
+    return !!(this.isAnimating || this._cropMode || this._isApplyingCrop || this._isLoading || this._activeOperationToken || this.animationQueue && this.animationQueue.isBusy());
   }
   /**
    * Creates an HTMLImageElement from a given data URL.
@@ -1584,7 +1649,23 @@ var ImageEditor = class {
   _getJpegBackgroundColor() {
     const backgroundColor = String(this.options.backgroundColor || "").trim();
     if (!backgroundColor || this._isTransparentCssColor(backgroundColor)) return "#ffffff";
-    return backgroundColor;
+    return this._isValidCanvasFillStyle(backgroundColor) ? backgroundColor : "#ffffff";
+  }
+  _isValidCanvasFillStyle(color) {
+    try {
+      if (typeof document === "undefined" || !document.createElement) return false;
+      const validationCanvas = document.createElement("canvas");
+      const context = validationCanvas.getContext && validationCanvas.getContext("2d");
+      if (!context) return false;
+      context.fillStyle = "#010203";
+      context.fillStyle = color;
+      if (context.fillStyle !== "#010203") return true;
+      context.fillStyle = "#040506";
+      context.fillStyle = color;
+      return context.fillStyle !== "#040506";
+    } catch {
+      return false;
+    }
   }
   _isTransparentCssColor(color) {
     const normalizedColor = String(color || "").trim().toLowerCase();
@@ -1994,10 +2075,12 @@ var ImageEditor = class {
   async _scaleImageImpl(factor, options = {}) {
     if (!this.originalImage || this._disposed) return;
     if (this.isAnimating) return;
+    const numericFactor = Number(factor);
+    if (!Number.isFinite(numericFactor)) return;
     const saveHistory = options.saveHistory !== false;
     let didStartAnimation = false;
     try {
-      factor = Math.max(this.options.minScale, Math.min(this.options.maxScale, factor));
+      factor = Math.max(this.options.minScale, Math.min(this.options.maxScale, numericFactor));
       this.currentScale = factor;
       this.isAnimating = true;
       didStartAnimation = true;
@@ -2063,7 +2146,8 @@ var ImageEditor = class {
   async _rotateImageImpl(degrees, options = {}) {
     if (!this.originalImage || this._disposed) return;
     if (this.isAnimating) return;
-    if (isNaN(degrees)) return;
+    const numericDegrees = Number(degrees);
+    if (!Number.isFinite(numericDegrees)) return;
     const saveHistory = options.saveHistory !== false;
     const image = this.originalImage;
     const previousOriginX = image.originX || "left";
@@ -2072,6 +2156,7 @@ var ImageEditor = class {
     let didStartAnimation = false;
     let didCompleteRotation = false;
     try {
+      degrees = numericDegrees;
       this.currentRotation = degrees;
       this.isAnimating = true;
       didStartAnimation = true;
@@ -2575,7 +2660,11 @@ var ImageEditor = class {
     maskConfig.top = top;
     let mask;
     if (typeof maskConfig.fabricGenerator === "function") {
-      mask = maskConfig.fabricGenerator(maskConfig, this.canvas, this.options);
+      try {
+        mask = maskConfig.fabricGenerator(maskConfig, this.canvas, this.options);
+      } catch (error) {
+        return rejectInvalidMask("fabricGenerator failed", error);
+      }
     } else {
       switch (shapeType) {
         case "circle":
@@ -2628,6 +2717,17 @@ var ImageEditor = class {
             });
           } catch (error) {
             return rejectInvalidMask("invalid polygon points", error);
+          }
+          const uniquePointKeys = new Set(polygonPoints.map((point) => `${point.x}:${point.y}`));
+          if (uniquePointKeys.size !== polygonPoints.length) {
+            return rejectInvalidMask("polygon points must not contain duplicates");
+          }
+          const doubleArea = polygonPoints.reduce((area, point, index) => {
+            const nextPoint = polygonPoints[(index + 1) % polygonPoints.length];
+            return area + point.x * nextPoint.y - nextPoint.x * point.y;
+          }, 0);
+          if (Math.abs(doubleArea) < 1e-6) {
+            return rejectInvalidMask("polygon masks must have a non-zero area");
           }
           mask = new fabric.Polygon(polygonPoints, {
             left,
@@ -2707,7 +2807,12 @@ var ImageEditor = class {
     this._updateUI();
     this.canvas.renderAll();
     this.saveState();
-    if (typeof maskConfig.onCreate === "function") maskConfig.onCreate(mask, this.canvas);
+    if (typeof maskConfig.onCreate === "function") {
+      this._emitSafeCallback(
+        () => maskConfig.onCreate(mask, this.canvas),
+        "createMask onCreate callback failed"
+      );
+    }
     return mask;
   }
   /**
@@ -2911,8 +3016,15 @@ var ImageEditor = class {
     this._removeLabelForMask(mask);
     let textObject = null;
     if (this.options.label && typeof this.options.label.create === "function") {
-      textObject = this.options.label.create(mask, fabric);
-      if (!textObject || typeof textObject.set !== "function") {
+      let didLabelCreateThrow = false;
+      try {
+        textObject = this.options.label.create(mask, fabric);
+      } catch (error) {
+        didLabelCreateThrow = true;
+        this._reportWarning("label.create() failed; using the default label", error);
+        textObject = null;
+      }
+      if (!didLabelCreateThrow && (!textObject || typeof textObject.set !== "function")) {
         this._reportWarning("label.create() returned an invalid Fabric object; using the default label");
         textObject = null;
       }
@@ -2933,7 +3045,12 @@ var ImageEditor = class {
       };
       if (this.options.label) {
         if (typeof this.options.label.getText === "function") {
-          labelText = this.options.label.getText(mask, this._getMaskCreationIndex(mask));
+          try {
+            labelText = this.options.label.getText(mask, this._getMaskCreationIndex(mask));
+          } catch (error) {
+            this._reportWarning("label.getText() failed; using the mask name", error);
+            labelText = mask.maskName;
+          }
         }
         if (this.options.label.textOptions) {
           Object.assign(textOptions, this.options.label.textOptions);
@@ -3445,6 +3562,38 @@ var ImageEditor = class {
       height
     };
   }
+  _getCropRectRawBounds(cropRect) {
+    if (!cropRect) return { left: NaN, top: NaN, width: NaN, height: NaN };
+    return {
+      left: Number(cropRect.left),
+      top: Number(cropRect.top),
+      width: Number(cropRect.width) * Math.abs(Number(cropRect.scaleX)),
+      height: Number(cropRect.height) * Math.abs(Number(cropRect.scaleY))
+    };
+  }
+  _isValidCropRegion(cropBounds, imageBounds) {
+    if (!cropBounds || !imageBounds) return false;
+    const left = Number(cropBounds.left);
+    const top = Number(cropBounds.top);
+    const width = Number(cropBounds.width);
+    const height = Number(cropBounds.height);
+    const imageLeft = Number(imageBounds.left);
+    const imageTop = Number(imageBounds.top);
+    const imageWidth = Number(imageBounds.width);
+    const imageHeight = Number(imageBounds.height);
+    if (![left, top, width, height, imageLeft, imageTop, imageWidth, imageHeight].every(Number.isFinite)) return false;
+    if (width <= 0 || height <= 0 || imageWidth <= 0 || imageHeight <= 0) return false;
+    const right = left + width;
+    const bottom = top + height;
+    const imageRight = imageLeft + imageWidth;
+    const imageBottom = imageTop + imageHeight;
+    const overlapsImage = left < imageRight && right > imageLeft && top < imageBottom && bottom > imageTop;
+    if (!overlapsImage) return false;
+    const canvasWidth = this.canvas ? Number(this.canvas.getWidth()) : NaN;
+    const canvasHeight = this.canvas ? Number(this.canvas.getHeight()) : NaN;
+    if (!Number.isFinite(canvasWidth) || !Number.isFinite(canvasHeight) || canvasWidth <= 0 || canvasHeight <= 0) return false;
+    return left < canvasWidth && right > 0 && top < canvasHeight && bottom > 0;
+  }
   /**
    * Enters crop mode by creating a resizable crop rectangle above the base image.
    *
@@ -3456,6 +3605,10 @@ var ImageEditor = class {
    */
   enterCropMode() {
     if (!this.canvas || !this.originalImage || this._cropMode) return;
+    if (this._isApplyingCrop) {
+      this._reportWarning("enterCropMode ignored because a crop is already being applied");
+      return;
+    }
     if (!this._canMutateNow("enterCropMode")) return;
     if (!this.isImageLoaded()) return;
     this._removeCropRect();
@@ -3580,6 +3733,10 @@ var ImageEditor = class {
    * @public
    */
   cancelCrop() {
+    if (this._isApplyingCrop) {
+      this._reportWarning("cancelCrop ignored because a crop is already being applied");
+      return;
+    }
     if (!this.canvas || !this._cropMode) return;
     this._removeCropRect();
     this._restoreCropObjectState();
@@ -3603,11 +3760,23 @@ var ImageEditor = class {
    */
   async applyCrop() {
     if (!this.canvas || !this._cropMode || !this._cropRect) return;
+    if (this._isApplyingCrop) {
+      this._reportWarning("applyCrop ignored because a crop is already being applied");
+      return;
+    }
     this._assertIdleForOperation("applyCrop");
+    this._isApplyingCrop = true;
     const operationToken = this._beginBusyOperation("applyCrop");
     const internalOptions = this._withInternalOperationOptions(operationToken);
     try {
       this._cropRect.setCoords();
+      this.originalImage.setCoords();
+      const imageBounds = this.originalImage.getBoundingRect(true, true);
+      const rawCropBounds = this._getCropRectRawBounds(this._cropRect);
+      if (!this._isValidCropRegion(rawCropBounds, imageBounds)) {
+        this._reportWarning("applyCrop: crop region is invalid");
+        return;
+      }
       const rectBounds = this._getCropRectContentBounds(this._cropRect);
       const cropRegion = this._getClampedCanvasRegion(rectBounds, { includePartialPixels: false });
       const shouldPreserveMasks = !!(this.options.crop && this.options.crop.preserveMasksAfterCrop);
@@ -3620,7 +3789,13 @@ var ImageEditor = class {
         beforeJson = null;
       }
       if (!beforeJson) {
-        this.cancelCrop();
+        this._removeCropRect();
+        this._cropMode = false;
+        this.canvas.selection = !!this._prevSelectionSetting;
+        this._prevSelectionSetting = void 0;
+        this.canvas.discardActiveObject();
+        this._updateUI();
+        this.canvas.renderAll();
         return;
       }
       const preservedMasks = [];
@@ -3696,6 +3871,7 @@ var ImageEditor = class {
       this._updateUI();
       this.canvas.renderAll();
     } finally {
+      this._isApplyingCrop = false;
       this._endBusyOperation(operationToken);
     }
   }
@@ -3727,9 +3903,11 @@ var ImageEditor = class {
     const isInCropMode = !!this._cropMode;
     const isBusy = this.isBusy();
     if (isInCropMode) {
+      const cropInteractionKeys = /* @__PURE__ */ new Set(["canvas", "canvasContainer", "imagePlaceholder", "imgPlaceholder"]);
       for (const key of Object.keys(this.elements || {})) {
         const element = this._getElement(key);
         if (!element) continue;
+        if (cropInteractionKeys.has(key)) continue;
         if (key === "applyCropButton" || key === "cancelCropButton" || key === "applyCropBtn" || key === "cancelCropBtn") {
           this._setDisabled(key, false);
         } else {
@@ -3767,9 +3945,44 @@ var ImageEditor = class {
    * @param {boolean} disabled - If true, disables the element; otherwise enables.
    * @private
    */
+  _rememberElementDisabledState(key, element) {
+    if (!element) return;
+    if (!this._elementOriginalDisabledState) this._elementOriginalDisabledState = /* @__PURE__ */ new Map();
+    if (this._elementOriginalDisabledState.has(key)) return;
+    this._elementOriginalDisabledState.set(key, {
+      element,
+      hasDisabledProperty: "disabled" in element,
+      disabled: "disabled" in element ? !!element.disabled : void 0,
+      ariaDisabled: element.getAttribute ? element.getAttribute("aria-disabled") : null,
+      pointerEvents: element.style ? element.style.pointerEvents || "" : ""
+    });
+  }
+  _restoreElementDisabledStates() {
+    if (!this._elementOriginalDisabledState) return;
+    for (const state of this._elementOriginalDisabledState.values()) {
+      const element = state && state.element;
+      if (!element) continue;
+      try {
+        if (state.hasDisabledProperty && "disabled" in element) {
+          element.disabled = !!state.disabled;
+        }
+        if (element.getAttribute && element.setAttribute && element.removeAttribute) {
+          if (state.ariaDisabled === null) {
+            element.removeAttribute("aria-disabled");
+          } else {
+            element.setAttribute("aria-disabled", state.ariaDisabled);
+          }
+        }
+        if (element.style) element.style.pointerEvents = state.pointerEvents || "";
+      } catch (error) {
+        void error;
+      }
+    }
+  }
   _setDisabled(key, disabled) {
     const element = this._getElement(key);
     if (!element) return;
+    this._rememberElementDisabledState(key, element);
     if ("disabled" in element) {
       element.disabled = !!disabled;
       return;
@@ -3796,7 +4009,6 @@ var ImageEditor = class {
    * @private
    */
   _updatePlaceholderStatus() {
-    if (!this.options.showPlaceholder) return;
     this._setPlaceholderVisible(!this.originalImage);
   }
   /**
@@ -3806,10 +4018,11 @@ var ImageEditor = class {
    * @private
    */
   _setPlaceholderVisible(show) {
-    if (this.placeholderElement) this._setElementVisible(this.placeholderElement, show);
+    const shouldShowPlaceholder = !!show && this.options.showPlaceholder !== false;
+    if (this.placeholderElement) this._setElementVisible(this.placeholderElement, shouldShowPlaceholder);
     const canvasVisibilityElement = this._getCanvasVisibilityElement();
     if (canvasVisibilityElement && canvasVisibilityElement !== this.placeholderElement) {
-      this._setElementVisible(canvasVisibilityElement, !show);
+      this._setElementVisible(canvasVisibilityElement, !shouldShowPlaceholder);
     }
   }
   _getCanvasVisibilityElement() {
@@ -3888,6 +4101,12 @@ var ImageEditor = class {
       void error;
     }
     if (this._cropRect) this._removeCropRect();
+    this._isApplyingCrop = false;
+    try {
+      this._restoreElementDisabledStates();
+    } catch (error) {
+      void error;
+    }
     if (this.containerElement && this._containerOriginalOverflow) {
       try {
         this._restoreContainerOverflowState();
@@ -3935,6 +4154,7 @@ var ImageEditor = class {
     this._handlersByElementKey = {};
     this._elementCache = {};
     this._elementOriginalPointerEvents = /* @__PURE__ */ new Map();
+    this._elementOriginalDisabledState = /* @__PURE__ */ new Map();
     this._clearMaskPlacementMemory();
     this.originalImage = null;
     this.baseImageScale = 1;
@@ -3943,6 +4163,7 @@ var ImageEditor = class {
     this.isAnimating = false;
     this._isLoading = false;
     this._cropMode = false;
+    this._isApplyingCrop = false;
     this._cropRect = null;
     this._cropHandlers = [];
     this._cropPrevEvented = null;
@@ -4045,9 +4266,10 @@ var HistoryManager = class {
    * @param {number} [maxSize=50] - Maximum number of commands to keep in history.
    */
   constructor(maxSize = 50) {
+    const numericMaxSize = Number(maxSize);
     this.history = [];
     this.currentIndex = -1;
-    this.maxSize = maxSize;
+    this.maxSize = Number.isFinite(numericMaxSize) && numericMaxSize > 0 ? Math.floor(numericMaxSize) : 50;
     this.pending = Promise.resolve();
   }
   /**

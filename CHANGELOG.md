@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-06-04
+
+### Added
+
+- Add `maxHistorySize` as a configurable undo/redo history bound for large image sessions.
+- Add regression coverage for crop apply locking, safe user callbacks, transform input validation, DOM disable restoration, placeholder suppression, and low-risk runtime hardening paths.
+
+### Fixed
+
+- Prevent `cancelCrop()` and crop reentry from mutating crop state while `applyCrop()` is in progress.
+- Keep successful image loads and mask creation committed when observer callbacks throw, reporting callback failures through warnings instead.
+- Fall back safely when label callbacks throw, reject non-finite transform inputs, and validate crop regions before export.
+- Keep canvas interaction available in crop mode, restore disabled/aria-disabled/pointer-events state on dispose, and consistently honor `showPlaceholder: false`.
+- Normalize invalid numeric runtime options, bound history size, report unsupported file selections once, validate JPEG background colors, reject degenerate polygon masks, and isolate throwing custom mask generators.
+
 ## [1.5.1] - 2026-06-02
 
 ### Added

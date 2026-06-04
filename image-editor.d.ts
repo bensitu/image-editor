@@ -56,6 +56,8 @@ declare module '@bensitu/image-editor' {
 
     exportMultiplier?: number;
     maxExportPixels?: number;
+    /** Maximum undo/redo history entries to keep. Large base64 images can make each snapshot expensive. */
+    maxHistorySize?: number;
     exportImageAreaByDefault?: boolean;
 
     defaultMaskWidth?: number;

@@ -19,6 +19,7 @@ ImageEditor offers:
 - Merge, download, base64 export, and `File` export helpers
 - Optional DOM/UI binding for common editor controls
 - Large-image downsampling to reduce browser memory pressure
+- Configurable history bounds for large image sessions
 - Centralized error and warning callbacks
 
 **Note:** This library uses **fabric.js v5.x**. Bundler and CommonJS entries load Fabric through the peer dependency. Browser global usage needs `window.fabric` available by the time `init()` runs; constructing the editor before Fabric is available is tolerated as long as Fabric is registered before initialization.
@@ -248,6 +249,7 @@ When creating the editor instance, pass an options object to override defaults.
 | `imageLoadTimeoutMs`          | `30000`                   | Timeout for image decode/load operations.                                                                                                             |
 | `exportMultiplier`            | `1`                       | Default scale multiplier for export.                                                                                                                  |
 | `maxExportPixels`             | `50000000`                | Maximum output pixel count allowed per export after applying the multiplier.                                                                           |
+| `maxHistorySize`              | `50`                      | Maximum undo/redo history entries to retain. Large base64 source images can make each history snapshot expensive.                                     |
 | `exportImageAreaByDefault`    | `true`                    | Export only the image area by default instead of the full canvas.                                                                                     |
 | `defaultMaskWidth`            | `50`                      | Default mask width in pixels.                                                                                                                         |
 | `defaultMaskHeight`           | `80`                      | Default mask height in pixels.                                                                                                                        |
@@ -257,7 +259,9 @@ When creating the editor instance, pass an options object to override defaults.
 | `maskName`                    | `mask`                    | Prefix for mask names and labels.                                                                                                                     |
 | `groupSelection`              | `false`                   | Whether Fabric can select multiple masks as an active selection.                                                                                      |
 | `label.getText`               | `(mask) => mask.maskName` | Callback for custom label text. The second argument is the mask's stable zero-based creation index (`mask.maskId - 1`).                               |
-| `showPlaceholder`             | `true`                    | Show a placeholder when no image is loaded.                                                                                                           |
+| `label.create`                | `undefined`               | Optional callback that returns a custom Fabric label object for the selected mask. Invalid or throwing callbacks fall back to the default label.       |
+| `label.textOptions`           | see defaults              | Fabric text options merged into the default label when `label.create` is not used or falls back.                                                       |
+| `showPlaceholder`             | `true`                    | Show a placeholder when no image is loaded. When `false`, internal load, rollback, and status paths keep the placeholder hidden.                       |
 | `initialImageBase64`          | `null`                    | Base64 data URL to auto-load during initialization.                                                                                                   |
 | `defaultDownloadFileName`     | `edited_image.jpg`        | Default file name for downloads.                                                                                                                      |
 | `crop.minWidth`               | `100`                     | Minimum crop rectangle width, clamped to the current image bounds.                                                                                    |
@@ -266,11 +270,13 @@ When creating the editor instance, pass an options object to override defaults.
 | `crop.hideMasksDuringCrop`    | `true`                    | Hide editable masks while crop mode is active.                                                                                                        |
 | `crop.preserveMasksAfterCrop` | `false`                   | Keep masks that intersect the crop area, shifted into the cropped canvas. Merge masks first if they should be baked into the image pixels.            |
 | `crop.allowRotationOfCropRect` | `false`                  | Reserved for future rotated crop support. In v1.x, crop rectangles stay axis-aligned; setting this to `true` reports a warning and rotation remains disabled. |
-| `onImageLoaded`               | `null`                    | Callback invoked after an image finishes loading.                                                                                                     |
+| `onImageLoaded`               | `null`                    | Callback invoked after an image load is committed. Callback errors are reported as warnings and do not roll back the loaded image.                    |
 | `onError`                     | `null`                    | Callback invoked for recoverable internal errors.                                                                                                     |
 | `onWarning`                   | `null`                    | Callback invoked for recoverable internal warnings.                                                                                                   |
 
 `expandCanvasToImage`, `fitImageToCanvas`, and `coverImageToCanvas` are mutually exclusive layout modes. If more than one is enabled, the editor reports a warning and uses this precedence: `fitImageToCanvas`, then `coverImageToCanvas`, then `expandCanvasToImage`.
+
+Numeric runtime options are normalized during construction. Non-finite or invalid dimensions, scale limits, export limits, crop sizes, label offsets, and history sizes fall back to safe defaults. `animationDuration: 0` and `downsampleQuality: 0` remain valid.
 
 ## DOM Binding Keys
 
@@ -334,12 +340,12 @@ The following DOM binding keys remain supported in `1.x` for compatibility, but 
 | Method                            | Returns                 | Description                                                                                                           |
 | --------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `init(idMap)`                     | `void`                  | Bind the editor to DOM elements. Pass IDs in an object.                                                               |
-| `dispose()`                       | `void`                  | Cleans up and disposes of the canvas and related references.                                                          |
+| `dispose()`                       | `void`                  | Cleans up the canvas, listeners, crop state, animations, and captured DOM visibility/disabled/pointer-events state.   |
 | `loadImage(imageBase64, options)` | `Promise<void>`         | Load an image from a base64 data URL. Resolves after the Fabric image is on the canvas.                               |
 | `isImageLoaded()`                 | `boolean`               | Return whether a valid image is loaded on the canvas.                                                                 |
-| `isBusy()`                        | `boolean`               | Return whether the editor is loading, animating, cropping, or running another compound operation.                     |
-| `scaleImage(factor)`              | `Promise<void>`         | Scale the image to the given factor relative to the base scale.                                                       |
-| `rotateImage(degrees)`            | `Promise<void>`         | Rotate the image to the given angle in degrees.                                                                       |
+| `isBusy()`                        | `boolean`               | Return whether the editor is loading, animating, cropping, applying crop, or running another compound operation.      |
+| `scaleImage(factor)`              | `Promise<void>`         | Scale the image to the given finite factor relative to the base scale. Non-finite values are ignored.                 |
+| `rotateImage(degrees)`            | `Promise<void>`         | Rotate the image to the given finite angle in degrees. Non-finite values are ignored.                                 |
 | `resetImageTransform()`           | `Promise<void>`         | Reset scale to `1` and rotation to `0`.                                                                               |
 | `undo()`                          | `Promise<void>`         | Undo the last state change. Resolves after the canvas state is restored.                                              |
 | `redo()`                          | `Promise<void>`         | Redo the next state change. Resolves after the canvas state is restored.                                              |
@@ -347,8 +353,8 @@ The following DOM binding keys remain supported in `1.x` for compatibility, but 
 | `removeSelectedMask()`            | `void`                  | Remove the currently selected mask or selected masks.                                                                 |
 | `removeAllMasks(options)`         | `void`                  | Remove all masks from the canvas.                                                                                     |
 | `enterCropMode()`                 | `void`                  | Create a resizable/movable selection rectangle on top of the image.                                                   |
-| `cancelCrop()`                    | `void`                  | Cancel crop mode and remove the temporary selection rectangle.                                                        |
-| `applyCrop()`                     | `Promise<void>`         | Apply the current crop rectangle to the canvas.                                                                       |
+| `cancelCrop()`                    | `void`                  | Cancel crop mode and remove the temporary selection rectangle. No-ops while `applyCrop()` is already running.         |
+| `applyCrop()`                     | `Promise<void>`         | Apply the current valid crop rectangle to the canvas. Invalid crop regions warn and keep crop mode active.            |
 | `mergeMasks()`                    | `Promise<void>`         | Merge masks into the base image on the canvas.                                                                        |
 | `downloadImage(fileName)`         | `void`                  | Download the edited image as a file.                                                                                  |
 | `exportImageBase64(options)`      | `Promise<string>`       | Export an image data URL. `fileType` can be `jpeg`, `jpg`, `png`, `webp`, or a supported image MIME type.             |
@@ -369,7 +375,7 @@ Deprecated method aliases are still available for compatibility and will be remo
 
 `createMask(config)` accepts an optional configuration object.
 
-Invalid mask configuration, such as non-finite numeric values, non-positive dimensions/radii, malformed polygon points, or custom generators that do not return a Fabric object, is rejected with a warning and returns `null` without mutating the canvas or history.
+Invalid mask configuration, such as non-finite numeric values, non-positive dimensions/radii, duplicate or zero-area polygon points, malformed polygon points, throwing custom generators, or custom generators that do not return a Fabric object, is rejected with a warning and returns `null` without mutating the canvas or history.
 
 | Option             | Description                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------ |
@@ -387,6 +393,10 @@ Invalid mask configuration, such as non-finite numeric values, non-positive dime
 | `styles`           | Additional Fabric style properties, such as `stroke`, `strokeWidth`, or `strokeDashArray`. |
 | `fabricGenerator`  | Factory callback for creating a custom Fabric object.                                      |
 | `onCreate`         | Callback invoked after the mask is added to the canvas.                                    |
+
+`fabricGenerator` runs before the mask is committed. If it throws or returns an invalid object, `createMask()` reports a warning and returns `null`. `onCreate` runs after the mask and history entry are committed; if it throws, the mask remains on the canvas and the error is reported as a warning.
+
+Label callbacks are also isolated. If `label.create` throws or returns an invalid object, the editor uses the default Fabric text label. If `label.getText` throws, the editor uses `mask.maskName`.
 
 Example:
 
@@ -407,6 +417,10 @@ const mask = editor.createMask({
 By default, applying crop removes unmerged masks.
 
 This is intentional: an unmerged mask is still an editable overlay object, not part of the image pixels. When `crop.preserveMasksAfterCrop` is `false`, applying crop discards unmerged masks instead of trying to keep or partially crop those overlay objects.
+
+`applyCrop()` owns a short crop-apply lock while it exports the selected region and reloads the cropped image. Calls to `cancelCrop()` or `enterCropMode()` during that pending apply are ignored and reported as warnings so crop state cannot be mutated mid-apply. The crop region is validated before export; invalid or out-of-bounds regions do not silently produce a 1x1 image.
+
+While crop mode is active, the built-in DOM binding disables editor operation controls but keeps the canvas, canvas container, and placeholder interaction available so the crop rectangle and scrollable viewport remain usable. The apply/cancel crop buttons stay enabled.
 
 Choose the workflow based on the result you want:
 
@@ -480,6 +494,16 @@ const editor = new ImageEditor({
 });
 ```
 
+JPEG exports cannot preserve transparency. Transparent, zero-alpha, empty, or invalid `backgroundColor` values are flattened against white; valid opaque CSS colors are preserved.
+
+Undo/redo history is limited by `maxHistorySize`. The default is `50`; lower it for workflows that load large base64 images and perform many edits.
+
+```javascript
+const editor = new ImageEditor({
+  maxHistorySize: 20,
+});
+```
+
 ## Error Handling
 
 Some ImageEditor API methods may throw synchronously or reject their returned Promise when the operation cannot be completed.
@@ -532,11 +556,11 @@ Common failure cases include:
 
 - fabric.js is not available when `init()` or another canvas operation needs it.
 - The configured canvas element cannot be found.
-- The image data URL is invalid, unsupported, too large, or times out while loading.
+- The image data URL or selected file is invalid, unsupported, too large, or times out while loading.
 - Another operation is already running, such as image loading, animation, crop, undo, redo, merge, or export.
 - The editor has been disposed before the operation completes.
 - The requested export exceeds `maxExportPixels`, uses an invalid multiplier, or the browser cannot create a canvas export because of platform, memory, or security restrictions.
-- A custom `fabricGenerator`, label callback, or external event handler throws an error.
+- A custom callback such as `onImageLoaded`, `onCreate`, `fabricGenerator`, `label.create`, or `label.getText` throws. These are isolated where possible and reported through `onWarning` without rolling back already committed successful work.
 
 ## Example Workflow
 
