@@ -46,7 +46,7 @@ import assert from 'node:assert/strict';
 
 const { exportImageBase64, exportImageFile, downloadImage } =
     await import('../src/export/export-service.ts');
-const { ExportNotReadyError } = await import('../src/core/errors.ts');
+const { ExportError, ExportNotReadyError } = await import('../src/core/errors.ts');
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
 
@@ -103,6 +103,7 @@ function makeContext(overrides = {}) {
         maxExportPixels: 50000000,
         exportAreaByDefault: 'image',
         mergeMaskByDefault: true,
+        backgroundColor: 'transparent',
         ...(overrides.options ?? {}),
     };
     return {
@@ -196,6 +197,86 @@ async function suppressErrors(fn) {
         console.error = original;
     }
     return errors;
+}
+
+async function withFakeCanvasDom(fn) {
+    const previousDocument = globalThis.document;
+    const previousImage = globalThis.Image;
+    const fills = [];
+
+    class FakeImage {
+        constructor() {
+            this.naturalWidth = 2;
+            this.naturalHeight = 2;
+            this.width = 2;
+            this.height = 2;
+            this.listeners = {};
+        }
+        addEventListener(event, handler) {
+            this.listeners[event] = handler;
+        }
+        removeEventListener(event) {
+            delete this.listeners[event];
+        }
+        set src(_value) {
+            queueMicrotask(() => this.listeners.load?.());
+        }
+    }
+
+    function createContext() {
+        let fillStyle = '#000000';
+        return {
+            get fillStyle() {
+                return fillStyle;
+            },
+            set fillStyle(value) {
+                const raw = String(value).toLowerCase();
+                const accepted = new Set(['#000001', '#000002', '#ffffff', '#ff0000']);
+                if (accepted.has(raw)) fillStyle = raw;
+            },
+            fillRect() {
+                fills.push(fillStyle);
+            },
+            drawImage() {},
+            getImageData() {
+                return { data: new Uint8ClampedArray(2 * 2 * 4) };
+            },
+            putImageData() {},
+        };
+    }
+
+    globalThis.Image = FakeImage;
+    globalThis.document = {
+        createElement(tag) {
+            assert.equal(String(tag).toLowerCase(), 'canvas');
+            return {
+                width: 0,
+                height: 0,
+                getContext(type) {
+                    assert.equal(type, '2d');
+                    return createContext();
+                },
+                toDataURL(type) {
+                    return `data:${type};base64,${Buffer.from('jpeg').toString('base64')}`;
+                },
+            };
+        },
+    };
+
+    try {
+        await fn(fills);
+    } finally {
+        if (previousDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = previousDocument;
+        }
+        if (previousImage === undefined) {
+            delete globalThis.Image;
+        } else {
+            globalThis.Image = previousImage;
+        }
+    }
 }
 
 // ─── the documented contract — no-image gates ──────────────────────────────────────
@@ -438,6 +519,58 @@ test('exportImageBase64: rejects oversized outputs before rendering', async () =
     assert.equal(canvas.toDataURLArgs.length, 0, 'oversized export must not render');
 });
 
+test('exportImageBase64: rejects empty image export regions before rendering', async () => {
+    const canvas = makeMockCanvas();
+    const ctx = makeContext({
+        canvas,
+        getOriginalImage: () =>
+            makeFakeOriginalImage({ left: 200, top: 200, width: 20, height: 20 }),
+    });
+
+    await assert.rejects(
+        () => exportImageBase64(ctx, { exportArea: 'image', fileType: 'png' }),
+        ExportError,
+    );
+    assert.equal(canvas.toDataURLArgs.length, 0, 'invalid region must not render');
+});
+
+test('exportImageBase64: JPEG background falls back for transparent and invalid colors', async () => {
+    for (const backgroundColor of ['transparent', 'rgb(0 0 0 / 0%)', '#ZZZZZZ']) {
+        await withFakeCanvasDom(async (fills) => {
+            const canvas = makeMockCanvas(
+                'data:image/png;base64,' + Buffer.from('png').toString('base64'),
+            );
+            const ctx = makeContext({
+                canvas,
+                options: { backgroundColor },
+                getOriginalImage: () => makeFakeOriginalImage(),
+            });
+
+            const result = await exportImageBase64(ctx, { exportArea: 'image', fileType: 'jpeg' });
+
+            assert.match(result, /^data:image\/jpeg;base64,/);
+            assert.equal(fills.at(-1), '#ffffff');
+        });
+    }
+});
+
+test('exportImageBase64: JPEG background keeps valid canvas colors', async () => {
+    await withFakeCanvasDom(async (fills) => {
+        const canvas = makeMockCanvas(
+            'data:image/png;base64,' + Buffer.from('png').toString('base64'),
+        );
+        const ctx = makeContext({
+            canvas,
+            options: { backgroundColor: '#ff0000' },
+            getOriginalImage: () => makeFakeOriginalImage(),
+        });
+
+        await exportImageBase64(ctx, { exportArea: 'image', fileType: 'jpeg' });
+
+        assert.equal(fills.at(-1), '#ff0000');
+    });
+});
+
 test('exportImageBase64: exportArea and mergeMask are independent', async () => {
     const cases = [
         {
@@ -512,8 +645,32 @@ test('exportImageFile: rejects empty image data URLs', async () => {
 
     await assert.rejects(
         () => exportImageFile(ctx, { fileType: 'jpeg' }),
-        /malformed or empty image data URL/,
+        (error) =>
+            error instanceof ExportError &&
+            /decode rendered data URL/.test(error.message) &&
+            /malformed or empty/.test(String(error.originalError?.message ?? '')),
     );
+});
+
+test('exportImageFile: wraps atob decode failures in ExportError', async () => {
+    const originalAtob = globalThis.atob;
+    try {
+        globalThis.atob = () => {
+            throw new DOMException('bad base64', 'InvalidCharacterError');
+        };
+        const canvas = makeMockCanvas('data:image/jpeg;base64,AAAA');
+        const ctx = makeContext({ canvas });
+
+        await assert.rejects(
+            () => exportImageFile(ctx, { fileType: 'jpeg' }),
+            (error) =>
+                error instanceof ExportError &&
+                error.originalError instanceof DOMException &&
+                error.originalError.name === 'InvalidCharacterError',
+        );
+    } finally {
+        globalThis.atob = originalAtob;
+    }
 });
 
 test('exportImageFile: falls back to Buffer when global atob is unavailable', async () => {
@@ -573,4 +730,27 @@ test('exportImageFile: forwards exportArea and mergeMask independently', async (
     assert.equal(file.type, 'image/jpeg');
     assert.equal('left' in canvas.toDataURLArgs[0], false);
     assert.equal(mask.visible, true, 'mask visibility must be restored after File export');
+});
+
+test('downloadImage reports asynchronous export failures through onError', async () => {
+    const errors = [];
+    const canvas = makeMockCanvas();
+    canvas.toDataURL = () => {
+        throw new Error('render failed');
+    };
+    const ctx = makeContext({
+        canvas,
+        options: {
+            onError: (error, message) => errors.push({ error, message }),
+        },
+    });
+
+    await suppressErrors(async () => {
+        downloadImage(ctx, 'pic.jpg');
+        await new Promise((resolve) => setImmediate(resolve));
+    });
+
+    assert.equal(errors.length, 1);
+    assert.match(errors[0].message, /downloadImage failed/);
+    assert.match(String(errors[0].error?.message ?? ''), /render failed/);
 });

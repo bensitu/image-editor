@@ -29,7 +29,7 @@
  *
  * - {@link captureMaskStyleBackup} captures the prior
  *   live values for `opacity`, `fill`, `stroke`, `strokeWidth`, `selectable`,
- *   and `lockRotation` BEFORE any export-only mutation runs. The backup
+ *   `evented`, and `lockRotation` BEFORE any export-only mutation runs. The backup
  *   shape matches {@link MaskBackup} in `core/public-types.ts`.
  *
  * - {@link withMaskStyleBackup} runs the supplied
@@ -48,8 +48,8 @@
  *   first.
  *
  * - {@link restoreMaskStyleBackup} restores
- *   `opacity`, `fill`, `strokeWidth`, `stroke`, `selectable`, and
- *   `lockRotation` from the captured {@link MaskBackup}, matching the current
+ *   `opacity`, `fill`, `strokeWidth`, `stroke`, `selectable`, `evented`,
+ *   and `lockRotation` from the captured {@link MaskBackup}, matching the current
  *   documented `MaskBackup` interface.
  *
  * - **Mirrors legacy hover behavior** — {@link attachMaskHoverHandlers} and
@@ -231,6 +231,8 @@ export declare function detachMaskHoverHandlers(mask: MaskObject): void;
  * - `stroke` — export bake-in forces `null`.
  * - `selectable` — both paths force `false` so the mask is not draggable
  *   while the operation is in progress.
+ * - `evented` — the crop session forces `false` while the crop rectangle is
+ *   the only interactive object.
  * - `lockRotation` — the crop session captures this because some integrators
  *   set `maskRotatable: true` and the rotation lock is part of the
  *   per-mask state.

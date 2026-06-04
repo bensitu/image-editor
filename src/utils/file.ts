@@ -22,6 +22,9 @@
  * Supported image extensions and the MIME type each one resolves to.
  *
  * Supported file extensions: `png`, `jpg`/`jpeg`, `webp`, `gif`, `bmp`.
+ * GIF and BMP are accepted as static raster input for canvas editing. GIF
+ * animation and GIF/BMP source-format preservation are not retained; exports
+ * are emitted through the editor's JPEG, PNG, or WebP export options.
  *
  * Keys are lowercase extensions without the leading `.`.
  */

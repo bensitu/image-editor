@@ -10,6 +10,8 @@ export class TransformController {
         this.ctx = ctx;
     }
     async scaleImage(factor) {
+        if (!Number.isFinite(factor))
+            return;
         const img = this.ctx.getOriginalImage();
         if (!img)
             return;
@@ -48,7 +50,7 @@ export class TransformController {
         this.ctx.saveCanvasState();
     }
     async rotateImage(degrees) {
-        if (Number.isNaN(degrees))
+        if (!Number.isFinite(degrees))
             return;
         const img = this.ctx.getOriginalImage();
         if (!img)

@@ -381,3 +381,59 @@ test('label text uses options.label.getText(mask, mask.maskId - 1)', () => {
         { numRuns: 100 },
     );
 });
+
+test('label.getText errors fall back to the mask name and report a warning', () => {
+    installDom();
+    const mask = makeMask(3, 'mask3');
+    const canvas = makeCanvas([mask]);
+    const fabric = makeFabric();
+    const callbackError = new Error('label text failed');
+    const warnings = [];
+    const options = resolveOptions({
+        maskLabelOnSelect: true,
+        onWarning: (error, message) => {
+            warnings.push({ error, message });
+        },
+        label: {
+            getText: () => {
+                throw callbackError;
+            },
+        },
+    });
+
+    createLabelForMask({ fabric, canvas, options }, mask);
+
+    assert.ok(mask.__label, 'fallback label must be created');
+    assert.equal(mask.__label.text, 'mask3');
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].error, callbackError);
+    assert.match(warnings[0].message, /label\.getText/);
+});
+
+test('label.create errors fall back to the default label and report a warning', () => {
+    installDom();
+    const mask = makeMask(4, 'mask4');
+    const canvas = makeCanvas([mask]);
+    const fabric = makeFabric();
+    const callbackError = new Error('label create failed');
+    const warnings = [];
+    const options = resolveOptions({
+        maskLabelOnSelect: true,
+        onWarning: (error, message) => {
+            warnings.push({ error, message });
+        },
+        label: {
+            create: () => {
+                throw callbackError;
+            },
+        },
+    });
+
+    createLabelForMask({ fabric, canvas, options }, mask);
+
+    assert.ok(mask.__label, 'fallback label must be created');
+    assert.equal(mask.__label.text, 'mask4');
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].error, callbackError);
+    assert.match(warnings[0].message, /label\.create/);
+});

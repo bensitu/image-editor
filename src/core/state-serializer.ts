@@ -9,7 +9,7 @@
  *
  * - `saveState` SHALL serialize the canvas via
  *   `canvas.toJSON([...customKeys])` including the custom keys
- *   `maskId`, `maskName`, `isCropRect`, `maskLabel`, and `originalAlpha`.
+ *   `maskId`, `maskUid`, `maskName`, `isCropRect`, `maskLabel`, and `originalAlpha`.
  *   Crop rectangles (`isCropRect === true`) and mask labels
  *   (`maskLabel === true`) are filtered out before the snapshot is
  *   pushed to history — they are session-only objects.
@@ -68,6 +68,8 @@ export interface CanvasJSONObject {
     top?: number;
     /** Stable mask identifier. */
     maskId?: number;
+    /** Stable internal mask identifier used for deterministic restore. */
+    maskUid?: string;
     /** Mask family name passed through `MaskConfig.name`. */
     maskName?: string;
     /** Pre-crop alpha cached so `cancelCrop` can restore it. */
@@ -147,6 +149,7 @@ export interface CanvasJSON {
  */
 export const SNAPSHOT_CUSTOM_KEYS = [
     'maskId',
+    'maskUid',
     'maskName',
     'isCropRect',
     'maskLabel',
@@ -188,6 +191,7 @@ function copySnapshotCustomPropsFromCanvas(
         if (!liveObject || !jsonObject) continue;
 
         if (typeof liveObject.maskId === 'number') jsonObject.maskId = liveObject.maskId;
+        if (typeof liveObject.maskUid === 'string') jsonObject.maskUid = liveObject.maskUid;
         if (typeof liveObject.maskName === 'string') jsonObject.maskName = liveObject.maskName;
         if (typeof liveObject.originalAlpha === 'number') {
             jsonObject.originalAlpha = liveObject.originalAlpha;
@@ -429,8 +433,8 @@ export interface LoadFromStateResult {
  *    even if the fabric build skips that step.
  * 3. Await `canvas.loadFromJSON(json)` (Fabric v7 returns a Promise here,
  * 4. Run {@link restoreMaskPropsFromJSON} to position-match each JSON
- *    mask object against the freshly-loaded canvas objects by
- *    `(type, left, top)` and unconditionally re-apply the mask metadata
+ *    mask object against the freshly-loaded canvas objects by `maskUid`
+ *    first, then by legacy `(type, left, top)`, and unconditionally re-apply the mask metadata
  *    (`maskId`, `maskName`, `originalAlpha`). Label-text objects are
  *    re-flagged via a parallel index-based pass. This is required because
  *    Fabric v7's `_setOptions` is inconsistent across point releases for
@@ -550,10 +554,11 @@ function isOriginalImageObject(object: FabricNS.FabricObject): boolean {
 }
 
 /**
- * Position-based mask metadata restorer. Iterates the JSON object list
- * and finds each entry's counterpart in the freshly-loaded canvas
- * objects by `(type, left, top)`, then unconditionally overrides
- * `maskId`, `maskName`, `originalAlpha`, and `maskLabel`.
+ * Mask metadata restorer. Iterates the JSON object list and finds each
+ * entry's counterpart in the freshly-loaded canvas objects by stable
+ * `maskUid` first, then by legacy `(type, left, top)`, then
+ * unconditionally overrides `maskId`, `maskUid`, `maskName`,
+ * `originalAlpha`, and `maskLabel`.
  *
  * **Why position-based instead of index-based?** Fabric v7 does not
  * guarantee that `canvas.getObjects` returns objects in the same order
@@ -580,7 +585,7 @@ function restoreMaskPropsFromJSON(
     canvasObjs: FabricNS.FabricObject[],
     jsonObjs: CanvasJSONObject[],
 ): void {
-    // ── Pass 1: masks — match by type + left + top ───────────────────────
+    // ── Pass 1: masks — match by maskUid, then legacy type + left + top ─
     const consumedCanvasIndexes = new Set<number>();
 
     for (const jObj of jsonObjs) {
@@ -589,12 +594,22 @@ function restoreMaskPropsFromJSON(
         const jType = String(jObj.type ?? '');
         const jLeft = Number(jObj.left ?? 0);
         const jTop = Number(jObj.top ?? 0);
+        const jUid = typeof jObj.maskUid === 'string' ? jObj.maskUid : null;
 
-        const matchIndex = canvasObjs.findIndex((o, index) => {
-            if (consumedCanvasIndexes.has(index)) return false;
-            if (jType && o.type !== jType) return false;
-            return Math.abs((o.left ?? 0) - jLeft) < 0.5 && Math.abs((o.top ?? 0) - jTop) < 0.5;
-        });
+        let matchIndex = -1;
+        if (jUid) {
+            matchIndex = canvasObjs.findIndex((o, index) => {
+                if (consumedCanvasIndexes.has(index)) return false;
+                return (o as { maskUid?: unknown }).maskUid === jUid;
+            });
+        }
+        if (matchIndex < 0) {
+            matchIndex = canvasObjs.findIndex((o, index) => {
+                if (consumedCanvasIndexes.has(index)) return false;
+                if (jType && o.type !== jType) return false;
+                return Math.abs((o.left ?? 0) - jLeft) < 0.5 && Math.abs((o.top ?? 0) - jTop) < 0.5;
+            });
+        }
         if (matchIndex < 0) continue;
         consumedCanvasIndexes.add(matchIndex);
         const match = canvasObjs[matchIndex];
@@ -603,6 +618,7 @@ function restoreMaskPropsFromJSON(
         // have applied custom keys consistently across 7.x builds.
         const maskObject = match as FabricNS.FabricObject & {
             maskId?: number;
+            maskUid?: string;
             maskName?: string;
             originalAlpha?: number;
             originalStroke?: unknown;
@@ -618,6 +634,9 @@ function restoreMaskPropsFromJSON(
             opacity?: number;
         };
         maskObject.maskId = jObj.maskId;
+        if (typeof jObj.maskUid === 'string') {
+            maskObject.maskUid = jObj.maskUid;
+        }
         maskObject.maskName = String(jObj.maskName ?? '');
         maskObject.originalAlpha =
             typeof jObj.originalAlpha === 'number'

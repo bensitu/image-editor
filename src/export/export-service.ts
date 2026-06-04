@@ -93,6 +93,7 @@
 import type * as FabricNS from 'fabric';
 
 import { isMaskObject } from '../core/public-types.js';
+import { reportError } from '../core/callback-reporter.js';
 import type {
     Base64ExportOptions,
     ExportArea,
@@ -103,13 +104,14 @@ import type {
     NormalizedImageFormat,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { ExportNotReadyError, MergeMasksError } from '../core/errors.js';
+import { ExportError, ExportNotReadyError, MergeMasksError } from '../core/errors.js';
 import { Command, type HistoryManager } from '../history/history-manager.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import {
     getClampedCanvasRegion,
     getObjectBBox,
     getPartialExportEdges,
+    hasMeaningfulCanvasRegion,
     type IntegerRegion,
     type PartialExportEdges,
 } from '../utils/canvas-region.js';
@@ -306,6 +308,9 @@ function computeExportRegion(ctx: ExportServiceContext, exportArea: ExportArea):
         typeof canvasLike.getWidth === 'function' ? canvasLike.getWidth() : canvasLike.width;
     const canvasHeight =
         typeof canvasLike.getHeight === 'function' ? canvasLike.getHeight() : canvasLike.height;
+    if (!hasMeaningfulCanvasRegion(bounds, canvasWidth, canvasHeight)) {
+        throw new ExportError('exportImageBase64 failed: image export region is empty.');
+    }
     return {
         region: getClampedCanvasRegion(bounds, canvasWidth, canvasHeight, {
             includePartialPixels: true,
@@ -645,9 +650,39 @@ async function sealPartialTransparentEdges(
 }
 
 function getJpegBackgroundColor(backgroundColor: unknown): string {
+    return resolveCanvasFillStyle(backgroundColor);
+}
+
+function resolveCanvasFillStyle(backgroundColor: unknown, fallback = '#ffffff'): string {
     const value = String(backgroundColor ?? '').trim();
     if (!value || isTransparentCssColor(value)) return '#ffffff';
-    return value;
+    const ctx = createColorValidationContext();
+    if (!ctx) return fallback;
+
+    ctx.fillStyle = '#000001';
+    const firstSentinel = ctx.fillStyle;
+    ctx.fillStyle = value;
+    const firstResolved = ctx.fillStyle;
+    if (firstResolved !== firstSentinel) return firstResolved;
+
+    ctx.fillStyle = '#000002';
+    const secondSentinel = ctx.fillStyle;
+    ctx.fillStyle = value;
+    const secondResolved = ctx.fillStyle;
+    if (secondResolved !== secondSentinel) return secondResolved;
+
+    return fallback;
+}
+
+function createColorValidationContext(): CanvasRenderingContext2D | null {
+    try {
+        if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+            return null;
+        }
+        return document.createElement('canvas').getContext('2d');
+    } catch {
+        return null;
+    }
 }
 
 function isTransparentCssColor(value: string): boolean {
@@ -664,7 +699,7 @@ function isTransparentCssColor(value: string): boolean {
     const commaAlpha = normalized.match(/^(?:rgba|hsla)\((.*),\s*([^,/)]+)\)$/i);
     if (commaAlpha && isZeroCssAlpha(commaAlpha[2]!)) return true;
 
-    const slashAlpha = normalized.match(/^(?:rgb|rgba|hsl|hsla)\([^/]+\/\s*([^)]+)\)$/i);
+    const slashAlpha = normalized.match(/^[a-z][a-z0-9-]*\([^/]+\/\s*([^)]+)\)$/i);
     if (slashAlpha && isZeroCssAlpha(slashAlpha[1]!)) return true;
 
     return false;
@@ -929,7 +964,12 @@ export async function exportImageFile(
     }
 
     const finalDataUrl = await reencodeDataUrlAs(base64, resolved, ctx.options.backgroundColor);
-    const bytes = dataUrlToBytes(finalDataUrl);
+    let bytes: Uint8Array<ArrayBuffer>;
+    try {
+        bytes = dataUrlToBytes(finalDataUrl);
+    } catch (error) {
+        throw new ExportError('exportImageFile failed to decode rendered data URL.', error);
+    }
     return new File([bytes], fileName, { type: resolved.mimeType });
 }
 
@@ -986,6 +1026,7 @@ export function downloadImage(ctx: ExportServiceContext, fileName?: string): voi
             }
         })
         .catch((error: unknown) => {
+            reportError(ctx.options, error, 'downloadImage failed.');
             console.error('[ImageEditor] downloadImage failed', error);
         });
 }

@@ -135,7 +135,7 @@ export declare class ImageEditor {
      * Animates the image to the given rotation angle.
      *
      * Routed through the {@link animQueue}.
-     * `NaN` is a documented no-op; the controller
+     * Non-finite input is a documented no-op; the controller
      * short-circuits without modifying canvas state.
      *
      * @param degrees Target rotation angle in degrees.

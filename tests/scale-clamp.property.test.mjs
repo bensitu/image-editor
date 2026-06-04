@@ -364,3 +364,30 @@ test('factor === minScale and factor === maxScale clamp to themselves', async ()
         { numRuns: 30 },
     );
 });
+
+test('scaleImage ignores non-finite factors without mutating state or history', async () => {
+    for (const factor of [Number.NaN, Infinity, -Infinity]) {
+        const { ctx, image, saveCalls } = makeTransformCtx({ minScale: 0.1, maxScale: 5 });
+        const controller = new TransformController(ctx);
+
+        await controller.scaleImage(factor);
+
+        assert.equal(ctx.getCurrentScale(), 1);
+        assert.equal(image.scaleX, 1);
+        assert.equal(image.scaleY, 1);
+        assert.equal(saveCalls.length, 0);
+    }
+});
+
+test('rotateImage ignores non-finite degrees without mutating state or history', async () => {
+    for (const degrees of [Number.NaN, Infinity, -Infinity]) {
+        const { ctx, image, saveCalls } = makeTransformCtx({ minScale: 0.1, maxScale: 5 });
+        const controller = new TransformController(ctx);
+
+        await controller.rotateImage(degrees);
+
+        assert.equal(ctx.getCurrentRotation(), 0);
+        assert.equal(image.angle, 0);
+        assert.equal(saveCalls.length, 0);
+    }
+});

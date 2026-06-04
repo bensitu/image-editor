@@ -346,6 +346,41 @@ test('dispose() drains the DOM bindings registry', () => {
     }
 });
 
+test('dispose() restores DOM disabled and pointer-event state changed by the editor', () => {
+    const { document } = installDom();
+    const imageInput = document.getElementById('imageInput');
+    const customCreateMaskControl = document.createElement('div');
+    customCreateMaskControl.id = 'customCreateMaskControl';
+    customCreateMaskControl.setAttribute('aria-disabled', 'mixed');
+    customCreateMaskControl.style.pointerEvents = 'auto';
+    document.body.append(customCreateMaskControl);
+
+    assert.ok(imageInput, 'sanity: #imageInput must exist in JSDOM');
+    imageInput.disabled = true;
+
+    const fabric = makeFabricStub();
+    const editor = new ImageEditor(fabric, {
+        animationDuration: 0,
+        showPlaceholder: false,
+    });
+    editor.init({ createMaskButton: customCreateMaskControl.id });
+
+    assert.equal(imageInput.disabled, false, 'init should re-enable idle image input');
+    assert.equal(
+        customCreateMaskControl.getAttribute('aria-disabled'),
+        'true',
+        'init should mark the custom control disabled while no image is loaded',
+    );
+    assert.equal(customCreateMaskControl.style.pointerEvents, 'none');
+
+    editor.dispose();
+    editor.dispose();
+
+    assert.equal(imageInput.disabled, true, 'dispose must restore prior disabled state');
+    assert.equal(customCreateMaskControl.getAttribute('aria-disabled'), 'mixed');
+    assert.equal(customCreateMaskControl.style.pointerEvents, 'auto');
+});
+
 test('dispose() tears down the live Fabric canvas exactly once', () => {
     installDom();
     const { editor, canvasStub } = makeEditor();

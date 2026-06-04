@@ -1,8 +1,8 @@
 import { CropApplyError } from '../core/errors.js';
 import { isMaskObject } from '../core/public-types.js';
 import { Command } from '../history/history-manager.js';
-import { applyCropHideMaskStyle, attachMaskHoverHandlers, captureMaskStyleBackup, restoreMaskStyleBackup, } from '../mask/mask-style.js';
-import { getClampedCanvasRegion, getObjectBBox } from '../utils/canvas-region.js';
+import { applyCropHideMaskStyle, captureMaskStyleBackup, reattachMaskHoverHandlers, restoreMaskStyleBackup, } from '../mask/mask-style.js';
+import { getClampedCanvasRegion, getObjectBBox, hasMeaningfulCanvasRegion, } from '../utils/canvas-region.js';
 import { clampQuality as clampExportQuality, mimeTypeFor, tryNormalizeImageFormat, } from '../export/export-format.js';
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
 const CROP_RECT_STROKE = '#00aaff';
@@ -111,14 +111,17 @@ function maskIntersectsRegion(mask, region) {
         bbox.top < region.top + region.height &&
         bbox.top + bbox.height > region.top);
 }
-function capturePreservedMasks(canvas, cropRegion) {
+function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
+    var _a;
     const records = [];
+    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.obj, backup]));
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
         try {
             mask.setCoords();
             const intersects = maskIntersectsRegion(mask, cropRegion);
             if (intersects) {
+                const styleBackup = (_a = styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
                 records.push({
                     mask,
                     left: Number(mask.left) || 0,
@@ -126,6 +129,7 @@ function capturePreservedMasks(canvas, cropRegion) {
                     angle: Number(mask.angle) || 0,
                     scaleX: Number(mask.scaleX) || 1,
                     scaleY: Number(mask.scaleY) || 1,
+                    styleBackup,
                 });
             }
             canvas.remove(mask);
@@ -143,6 +147,7 @@ function reapplyPreservedMasks(ctx, cropRegion, records) {
     let maxRestoredId = 0;
     for (const record of records) {
         try {
+            restoreMaskStyleBackup(record.styleBackup);
             record.mask.set({
                 left: record.left - cropRegion.left,
                 top: record.top - cropRegion.top,
@@ -154,7 +159,7 @@ function reapplyPreservedMasks(ctx, cropRegion, records) {
             record.mask.setCoords();
             canvas.add(record.mask);
             canvas.bringObjectToFront(record.mask);
-            attachMaskHoverHandlers(record.mask);
+            reattachMaskHoverHandlers(record.mask);
             const id = Number(record.mask.maskId);
             if (Number.isFinite(id) && id > maxRestoredId)
                 maxRestoredId = id;
@@ -336,9 +341,12 @@ export async function applyCrop(ctx) {
             throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
         }
         const rectBounds = getCropRectContentBounds(cropRect);
+        if (!hasMeaningfulCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight())) {
+            throw new CropApplyError('applyCrop failed: crop region is empty or outside the canvas.');
+        }
         const cropRegion = getClampedCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight(), { includePartialPixels: false });
         const preservedRecords = preserveMasks
-            ? capturePreservedMasks(canvas, cropRegion)
+            ? capturePreservedMasks(canvas, cropRegion, session.maskBackups)
             : [];
         restoreCropObjectState(session);
         removeCropRect(ctx, session);

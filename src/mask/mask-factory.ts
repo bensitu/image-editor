@@ -89,6 +89,14 @@ import { reportWarning } from '../core/callback-reporter.js';
 import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 
+const POLYGON_AREA_EPSILON = 1e-6;
+let nextMaskUid = 0;
+
+function createMaskUid(maskId: number): string {
+    nextMaskUid += 1;
+    return `mask-${maskId}-${nextMaskUid}`;
+}
+
 /**
  * State and orchestration callbacks the mask factory needs from the
  * `ImageEditor` orchestrator.
@@ -216,7 +224,21 @@ function resolvePolygonPoints(
         warnInvalidMask(options, 'polygon points must contain finite x/y values');
         return null;
     }
+    if (polygonArea(resolvedPoints) <= POLYGON_AREA_EPSILON) {
+        warnInvalidMask(options, 'polygon points must describe a non-zero area');
+        return null;
+    }
     return resolvedPoints;
+}
+
+function polygonArea(points: Array<{ x: number; y: number }>): number {
+    let area = 0;
+    for (let index = 0; index < points.length; index += 1) {
+        const current = points[index]!;
+        const next = points[(index + 1) % points.length]!;
+        area += current.x * next.y - next.x * current.y;
+    }
+    return Math.abs(area) / 2;
 }
 
 /**
@@ -473,6 +495,7 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
     //    `undefined` falls back to the documented default.
     const maskObject = mask as MaskObject;
     maskObject.selectable = 'selectable' in config ? !!config.selectable : true;
+    maskObject.evented = 'evented' in config ? !!config.evented : true;
     maskObject.hasControls = 'hasControls' in config ? !!config.hasControls : true;
     maskObject.transparentCorners =
         'transparentCorners' in config ? !!config.transparentCorners : false;
@@ -509,6 +532,7 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
     const nextId = ctx.getMaskCounter() + 1;
     ctx.setMaskCounter(nextId);
     maskObject.maskId = nextId;
+    maskObject.maskUid = createMaskUid(nextId);
     maskObject.maskName = `${options.maskName}${nextId}`;
 
     ctx.setLastMask(maskObject);
@@ -531,7 +555,13 @@ export function createMask(ctx: CreateMaskContext, config: MaskConfig = {}): Mas
     canvas.renderAll();
     ctx.saveCanvasState();
 
-    resolvedConfig.onCreate?.(maskObject, canvas);
+    if (typeof resolvedConfig.onCreate === 'function') {
+        try {
+            resolvedConfig.onCreate(maskObject, canvas);
+        } catch (error) {
+            reportWarning(options, error, 'createMask onCreate callback threw.');
+        }
+    }
 
     return maskObject;
 }

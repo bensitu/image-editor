@@ -119,6 +119,30 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
+function normalizePositiveInteger(value, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return fallback;
+    return Math.max(1, Math.floor(numeric));
+}
+function normalizePositiveFiniteNumber(value, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return fallback;
+    return numeric;
+}
+function normalizeNonNegativeFiniteNumber(value, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0)
+        return fallback;
+    return numeric;
+}
+function normalizeFiniteNumber(value, fallback) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return fallback;
+    return numeric;
+}
 function normalizeMaxHistorySize(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric))
@@ -142,8 +166,16 @@ function normalizeMaxExportPixels(value) {
 function normalizeExportArea(value) {
     return value === 'canvas' || value === 'image' ? value : DEFAULT_OPTIONS.exportAreaByDefault;
 }
+function normalizeOptionalQuality(value) {
+    if (value === undefined || value === null)
+        return undefined;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return undefined;
+    return Math.max(0, Math.min(1, numeric));
+}
 export function resolveOptions(input) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -178,6 +210,62 @@ export function resolveOptions(input) {
             resolved.exportAreaByDefault = normalizeExportArea(value);
             continue;
         }
+        if (key === 'canvasWidth') {
+            resolved.canvasWidth = normalizePositiveInteger(value, DEFAULT_OPTIONS.canvasWidth);
+            continue;
+        }
+        if (key === 'canvasHeight') {
+            resolved.canvasHeight = normalizePositiveInteger(value, DEFAULT_OPTIONS.canvasHeight);
+            continue;
+        }
+        if (key === 'animationDuration') {
+            resolved.animationDuration = normalizeNonNegativeFiniteNumber(value, DEFAULT_OPTIONS.animationDuration);
+            continue;
+        }
+        if (key === 'minScale') {
+            resolved.minScale = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.minScale);
+            continue;
+        }
+        if (key === 'maxScale') {
+            resolved.maxScale = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.maxScale);
+            continue;
+        }
+        if (key === 'scaleStep') {
+            resolved.scaleStep = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.scaleStep);
+            continue;
+        }
+        if (key === 'rotationStep') {
+            resolved.rotationStep = normalizeFiniteNumber(value, DEFAULT_OPTIONS.rotationStep);
+            continue;
+        }
+        if (key === 'downsampleMaxWidth') {
+            resolved.downsampleMaxWidth = normalizePositiveInteger(value, DEFAULT_OPTIONS.downsampleMaxWidth);
+            continue;
+        }
+        if (key === 'downsampleMaxHeight') {
+            resolved.downsampleMaxHeight = normalizePositiveInteger(value, DEFAULT_OPTIONS.downsampleMaxHeight);
+            continue;
+        }
+        if (key === 'imageLoadTimeoutMs') {
+            resolved.imageLoadTimeoutMs = normalizePositiveInteger(value, DEFAULT_OPTIONS.imageLoadTimeoutMs);
+            continue;
+        }
+        if (key === 'exportMultiplier') {
+            resolved.exportMultiplier = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.exportMultiplier);
+            continue;
+        }
+        if (key === 'defaultMaskWidth') {
+            resolved.defaultMaskWidth = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.defaultMaskWidth);
+            continue;
+        }
+        if (key === 'defaultMaskHeight') {
+            resolved.defaultMaskHeight = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.defaultMaskHeight);
+            continue;
+        }
+        if (key === 'maskLabelOffset') {
+            resolved.maskLabelOffset = normalizeNonNegativeFiniteNumber(value, DEFAULT_OPTIONS.maskLabelOffset);
+            continue;
+        }
         resolved[key] = value;
     }
     resolved.onImageLoadStart = normalizeCallback(raw.onImageLoadStart);
@@ -192,6 +280,11 @@ export function resolveOptions(input) {
     resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
     resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
+    if (resolved.minScale > resolved.maxScale) {
+        const minScale = resolved.minScale;
+        resolved.minScale = resolved.maxScale;
+        resolved.maxScale = minScale;
+    }
     const userLabel = raw.label && typeof raw.label === 'object' ? raw.label : {};
     const mergedTextOptions = {
         ...DEFAULT_LABEL_TEXT_OPTIONS,
@@ -210,14 +303,14 @@ export function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop = {
-        minWidth: (_a = userCrop.minWidth) !== null && _a !== void 0 ? _a : DEFAULT_CROP.minWidth,
-        minHeight: (_b = userCrop.minHeight) !== null && _b !== void 0 ? _b : DEFAULT_CROP.minHeight,
-        padding: (_c = userCrop.padding) !== null && _c !== void 0 ? _c : DEFAULT_CROP.padding,
-        hideMasksDuringCrop: (_d = userCrop.hideMasksDuringCrop) !== null && _d !== void 0 ? _d : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_e = userCrop.preserveMasksAfterCrop) !== null && _e !== void 0 ? _e : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_f = userCrop.allowRotationOfCropRect) !== null && _f !== void 0 ? _f : DEFAULT_CROP.allowRotationOfCropRect,
-        exportFileType: (_g = userCrop.exportFileType) !== null && _g !== void 0 ? _g : DEFAULT_CROP.exportFileType,
-        exportQuality: userCrop.exportQuality,
+        minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
+        minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
+        padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),
+        hideMasksDuringCrop: (_a = userCrop.hideMasksDuringCrop) !== null && _a !== void 0 ? _a : DEFAULT_CROP.hideMasksDuringCrop,
+        preserveMasksAfterCrop: (_b = userCrop.preserveMasksAfterCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect: (_c = userCrop.allowRotationOfCropRect) !== null && _c !== void 0 ? _c : DEFAULT_CROP.allowRotationOfCropRect,
+        exportFileType: (_d = userCrop.exportFileType) !== null && _d !== void 0 ? _d : DEFAULT_CROP.exportFileType,
+        exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
     return {

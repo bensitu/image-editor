@@ -1,3 +1,32 @@
+export function hasMeaningfulCanvasRegion(rect, canvasWidth, canvasHeight) {
+    const left = Number(rect.left);
+    const top = Number(rect.top);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (!Number.isFinite(left) ||
+        !Number.isFinite(top) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        width <= 0 ||
+        height <= 0) {
+        return false;
+    }
+    const right = left + width;
+    const bottom = top + height;
+    if (!Number.isFinite(right) || !Number.isFinite(bottom))
+        return false;
+    const safeCanvasWidth = Number(canvasWidth);
+    const safeCanvasHeight = Number(canvasHeight);
+    if (!Number.isFinite(safeCanvasWidth) ||
+        !Number.isFinite(safeCanvasHeight) ||
+        safeCanvasWidth <= 0 ||
+        safeCanvasHeight <= 0) {
+        return true;
+    }
+    const overlapWidth = Math.min(right, safeCanvasWidth) - Math.max(left, 0);
+    const overlapHeight = Math.min(bottom, safeCanvasHeight) - Math.max(top, 0);
+    return overlapWidth > 0 && overlapHeight > 0;
+}
 export function getClampedCanvasRegion(rect, canvasWidth, canvasHeight, options = {}) {
     const safeLeft = Number.isFinite(rect.left) ? rect.left : 0;
     const safeTop = Number.isFinite(rect.top) ? rect.top : 0;

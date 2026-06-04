@@ -125,4 +125,17 @@ export declare class ExportNotReadyError extends Error {
     readonly operation: string;
     constructor(operation?: string);
 }
+/**
+ * Raised by export helpers when an image is loaded but the export pipeline
+ * cannot produce a valid output, for example because the computed image
+ * region is empty or the rendered data URL cannot be decoded into bytes.
+ *
+ * Surfaces to consumer as: rejection of the relevant export promise.
+ */
+export declare class ExportError extends Error {
+    readonly name = "ExportError";
+    /** Original error thrown during the export pipeline. */
+    readonly originalError: unknown;
+    constructor(message?: string, originalError?: unknown);
+}
 //# sourceMappingURL=errors.d.ts.map

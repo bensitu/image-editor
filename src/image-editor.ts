@@ -179,6 +179,11 @@ export class ImageEditor {
     /** @internal */ private containerElement: HTMLElement | null = null;
     /** @internal */ private placeholderElement: HTMLElement | null = null;
     /** @internal */ private elements: ResolvedElementIdMap = {} as ResolvedElementIdMap;
+    /** @internal */ private readonly _elementOriginalDisabled = new Map<ElementKey, boolean>();
+    /** @internal */ private readonly _elementOriginalAriaDisabled = new Map<
+        ElementKey,
+        string | null
+    >();
     /** @internal */ private readonly _elementOriginalPointerEvents = new Map<ElementKey, string>();
 
     // ── Image state ─────────────────────────────────────────────────────────
@@ -775,7 +780,11 @@ export class ImageEditor {
             // restores the placeholder using the same standard-DOM-state
             // transition as every other code path.
             setPlaceholderVisible: (show) => {
-                setPlaceholderVisibleImpl(this.placeholderElement, this.containerElement, show);
+                setPlaceholderVisibleImpl(
+                    this.placeholderElement,
+                    this.containerElement,
+                    this.options.showPlaceholder ? show : false,
+                );
             },
         };
 
@@ -788,13 +797,13 @@ export class ImageEditor {
         }
 
         // ── Facade-only post-commit bookkeeping ─────────────────────────
-        // The loader owns canvas state, transform scalars, _lastSnapshot,
-        // and the onImageLoaded callback. Everything below is facade-
-        // specific UI / mask-placement memo state that the loader has no
-        // visibility into. The block runs only when the load committed —
-        // a thrown error short-circuits it via the `throw` above, which
-        // matches the loader's "no observable change on rollback"
-        // contract.
+        // The loader owns canvas state, transform scalars, and
+        // _lastSnapshot. Everything below is facade-specific UI,
+        // lifecycle-callback, and mask-placement memo state that the
+        // loader has no visibility into. The block runs only when the
+        // load committed — a thrown error short-circuits it via the
+        // `throw` above, which matches the loader's "no observable
+        // change on rollback" contract.
         this._lastMask = null;
 
         this._updateInputs();
@@ -1345,6 +1354,7 @@ export class ImageEditor {
      */
     scaleImage(factor: number): Promise<void> {
         if (this._disposed || !this._transformController) return Promise.resolve();
+        if (!Number.isFinite(factor)) return Promise.resolve();
         try {
             this._assertCanQueueAnimation('scaleImage');
         } catch (error) {
@@ -1377,7 +1387,7 @@ export class ImageEditor {
      * Animates the image to the given rotation angle.
      *
      * Routed through the {@link animQueue}.
-     * `NaN` is a documented no-op; the controller
+     * Non-finite input is a documented no-op; the controller
      * short-circuits without modifying canvas state.
      *
      * @param degrees Target rotation angle in degrees.
@@ -1385,6 +1395,7 @@ export class ImageEditor {
      */
     rotateImage(degrees: number): Promise<void> {
         if (this._disposed || !this._transformController) return Promise.resolve();
+        if (!Number.isFinite(degrees)) return Promise.resolve();
         try {
             this._assertCanQueueAnimation('rotateImage');
         } catch (error) {
@@ -1640,13 +1651,6 @@ export class ImageEditor {
             });
             const before = this._lastSnapshot ?? after;
             if (after === before) {
-                const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-                if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
-                    this.canvas.setActiveObject(maskToRestore);
-                    this._showLabelForMask(maskToRestore);
-                    this._updateMaskListSelection(maskToRestore);
-                }
-                this._updateUI();
                 return;
             }
             let executedOnce = false;
@@ -1670,17 +1674,25 @@ export class ImageEditor {
 
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
-
-            const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-            if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
-                this.canvas.setActiveObject(maskToRestore);
-                this._showLabelForMask(maskToRestore);
-                this._updateMaskListSelection(maskToRestore);
-            }
-            this._updateUI();
         } catch (error) {
             reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
+        } finally {
+            this._restoreActiveMaskAfterSnapshot(activeObj, activeMask);
+            this._updateUI();
         }
+    }
+
+    /** @internal */
+    private _restoreActiveMaskAfterSnapshot(
+        activeObj: FabricNS.FabricObject | null | undefined,
+        activeMask: MaskObject | null,
+    ): void {
+        if (!this.canvas) return;
+        const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+        if (!maskToRestore || !this.canvas.getObjects().includes(maskToRestore)) return;
+        this.canvas.setActiveObject(maskToRestore);
+        this._showLabelForMask(maskToRestore);
+        this._updateMaskListSelection(maskToRestore);
     }
 
     /**
@@ -2426,12 +2438,7 @@ export class ImageEditor {
 
         if (inCrop) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                const id = this.elements[key];
-                if (!id) return;
-                const el = document.getElementById(id);
-                if (!el || !('disabled' in el)) return;
-                (el as HTMLButtonElement | HTMLInputElement).disabled =
-                    isBusy || !CROP_MODE_ENABLED_KEYS.includes(key);
+                this._setDisabled(key, isBusy || !CROP_MODE_ENABLED_KEYS.includes(key));
             });
             return;
         }
@@ -2468,30 +2475,76 @@ export class ImageEditor {
         const id = this.elements[key];
         if (!id) return;
         const el = document.getElementById(id);
+        if (!el) return;
+        this._recordElementOriginalState(key, el);
         if (el && 'disabled' in el) {
             (el as HTMLButtonElement | HTMLInputElement).disabled = disabled;
             return;
-        }
-        if (!el) return;
-        if (!this._elementOriginalPointerEvents.has(key)) {
-            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
         }
         if (disabled) {
             el.setAttribute('aria-disabled', 'true');
             el.style.pointerEvents = 'none';
         } else {
-            el.removeAttribute('aria-disabled');
+            const originalAria = this._elementOriginalAriaDisabled.get(key);
+            if (originalAria === null || originalAria === undefined) {
+                el.removeAttribute('aria-disabled');
+            } else {
+                el.setAttribute('aria-disabled', originalAria);
+            }
             el.style.pointerEvents = this._elementOriginalPointerEvents.get(key) ?? '';
         }
     }
 
     /** @internal */
+    private _recordElementOriginalState(key: ElementKey, el: HTMLElement): void {
+        if (!this._elementOriginalAriaDisabled.has(key)) {
+            this._elementOriginalAriaDisabled.set(key, el.getAttribute('aria-disabled'));
+        }
+        if (!this._elementOriginalPointerEvents.has(key)) {
+            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        }
+        if ('disabled' in el && !this._elementOriginalDisabled.has(key)) {
+            this._elementOriginalDisabled.set(
+                key,
+                !!(el as HTMLButtonElement | HTMLInputElement).disabled,
+            );
+        }
+    }
+
+    /** @internal */
+    private _restoreElementOriginalStates(): void {
+        for (const key of Object.keys(this.elements) as ElementKey[]) {
+            const id = this.elements[key];
+            if (!id) continue;
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if ('disabled' in el && this._elementOriginalDisabled.has(key)) {
+                (el as HTMLButtonElement | HTMLInputElement).disabled =
+                    this._elementOriginalDisabled.get(key) ?? false;
+            }
+            if (this._elementOriginalAriaDisabled.has(key)) {
+                const originalAria = this._elementOriginalAriaDisabled.get(key);
+                if (originalAria === null || originalAria === undefined) {
+                    el.removeAttribute('aria-disabled');
+                } else {
+                    el.setAttribute('aria-disabled', originalAria);
+                }
+            }
+            if (this._elementOriginalPointerEvents.has(key)) {
+                el.style.pointerEvents = this._elementOriginalPointerEvents.get(key) ?? '';
+            }
+        }
+        this._elementOriginalDisabled.clear();
+        this._elementOriginalAriaDisabled.clear();
+        this._elementOriginalPointerEvents.clear();
+    }
+
+    /** @internal */
     private _updatePlaceholderStatus(): void {
-        if (!this.options.showPlaceholder) return;
         setPlaceholderVisibleImpl(
             this.placeholderElement,
             this.containerElement,
-            !this.originalImage,
+            this.options.showPlaceholder ? !this.originalImage : false,
         );
     }
 
@@ -2549,6 +2602,7 @@ export class ImageEditor {
         // (4) Detach every recorded DOM listener. The registry handles
         //     missing/already-detached elements internally.
         this._bindings?.removeAll();
+        this._restoreElementOriginalStates();
 
         if (this._cropSession && this.canvas) {
             // (5) Drop the crop session if one was open. The crop

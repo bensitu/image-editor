@@ -234,6 +234,7 @@ const scenarioArb = fc
         const masks = blueprints.map((b, i) => ({
             ...b,
             maskId: maskIdPool[i],
+            maskUid: `uid-${maskIdPool[i]}`,
         }));
         return {
             dims,
@@ -404,11 +405,16 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
                         o.type === sourceMask.type &&
                         Math.abs((o.left ?? 0) - sourceMask.left) < 0.5 &&
                         Math.abs((o.top ?? 0) - sourceMask.top) < 0.5 &&
-                        o.maskId === sourceMask.maskId,
+                        o.maskUid === sourceMask.maskUid,
                 );
                 assert.ok(
                     restored,
                     `the documented contract: mask id=${sourceMask.maskId} must survive round-trip`,
+                );
+                assert.equal(
+                    restored.maskId,
+                    sourceMask.maskId,
+                    'the documented contract: maskId must round-trip exactly',
                 );
                 assert.equal(
                     restored.maskName,
@@ -485,6 +491,7 @@ test('saveState copies mask custom metadata when Fabric omits propertiesToInclud
         stroke: '#123456',
         strokeWidth: 4,
         maskId: 7,
+        maskUid: 'uid-7',
         maskName: 'mask7',
         originalAlpha: 0.5,
         originalStroke: '#123456',
@@ -527,6 +534,7 @@ test('saveState copies mask custom metadata when Fabric omits propertiesToInclud
     const json = JSON.parse(snapshot);
 
     assert.equal(json.objects[0].maskId, 7);
+    assert.equal(json.objects[0].maskUid, 'uid-7');
     assert.equal(json.objects[0].maskName, 'mask7');
     assert.equal(json.objects[0].originalAlpha, 0.5);
     assert.equal(json.objects[0].originalStroke, '#123456');
@@ -551,6 +559,7 @@ test('saveState copies mask custom metadata when Fabric omits propertiesToInclud
     assert.equal(result.editorState.activeMaskId, 7);
     assert.equal(result.maxMaskId, 7);
     assert.equal(result.objects[0].maskId, 7);
+    assert.equal(result.objects[0].maskUid, 'uid-7');
     assert.equal(result.objects[0].maskName, 'mask7');
     assert.equal(result.objects[0].originalStroke, '#123456');
     assert.equal(result.objects[0].originalStrokeWidth, 4);
@@ -572,6 +581,7 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
     // the round-trip assertions above stop being meaningful.
     for (const k of [
         'maskId',
+        'maskUid',
         'maskName',
         'isCropRect',
         'maskLabel',
@@ -602,6 +612,7 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
                 left: 20,
                 top: 30,
                 maskId: 101,
+                maskUid: 'uid-101',
                 maskName: 'mask101',
                 originalAlpha: 0.4,
                 originalStroke: '#123456',
@@ -612,6 +623,7 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
                 left: 20,
                 top: 30,
                 maskId: 102,
+                maskUid: 'uid-102',
                 maskName: 'mask102',
                 originalAlpha: 0.8,
                 originalStroke: '#abcdef',
@@ -628,12 +640,13 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
 
     const canvas = new MockCanvas();
     canvas.loadFromJSON = async function loadFromJSON(json) {
-        this.objects = json.objects.map((o) => ({
+        this.objects = json.objects.toReversed().map((o) => ({
             type: o.type,
             left: o.left,
             top: o.top,
             opacity: o.opacity ?? 1,
-            maskId: 102,
+            maskUid: o.maskUid,
+            maskId: 999,
             maskName: 'stale',
             originalAlpha: 0.1,
         }));
@@ -650,11 +663,13 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
     assert.deepEqual(restoredIds, [101, 102]);
     assert.equal(new Set(restoredIds).size, 2);
     assert.equal(result.maxMaskId, 102);
-    assert.deepEqual(
-        result.objects.map((o) => [o.maskName, o.originalStroke, o.originalStrokeWidth]),
-        [
-            ['mask101', '#123456', 4],
-            ['mask102', '#abcdef', 6],
-        ],
-    );
+    const byUid = new Map(result.objects.map((object) => [object.maskUid, object]));
+    assert.equal(byUid.get('uid-101').maskId, 101);
+    assert.equal(byUid.get('uid-101').maskName, 'mask101');
+    assert.equal(byUid.get('uid-101').originalStroke, '#123456');
+    assert.equal(byUid.get('uid-101').originalStrokeWidth, 4);
+    assert.equal(byUid.get('uid-102').maskId, 102);
+    assert.equal(byUid.get('uid-102').maskName, 'mask102');
+    assert.equal(byUid.get('uid-102').originalStroke, '#abcdef');
+    assert.equal(byUid.get('uid-102').originalStrokeWidth, 6);
 });

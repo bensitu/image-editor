@@ -9,7 +9,7 @@
  *
  * - `saveState` SHALL serialize the canvas via
  *   `canvas.toJSON([...customKeys])` including the custom keys
- *   `maskId`, `maskName`, `isCropRect`, `maskLabel`, and `originalAlpha`.
+ *   `maskId`, `maskUid`, `maskName`, `isCropRect`, `maskLabel`, and `originalAlpha`.
  *   Crop rectangles (`isCropRect === true`) and mask labels
  *   (`maskLabel === true`) are filtered out before the snapshot is
  *   pushed to history — they are session-only objects.
@@ -62,6 +62,8 @@ export interface CanvasJSONObject {
     top?: number;
     /** Stable mask identifier. */
     maskId?: number;
+    /** Stable internal mask identifier used for deterministic restore. */
+    maskUid?: string;
     /** Mask family name passed through `MaskConfig.name`. */
     maskName?: string;
     /** Pre-crop alpha cached so `cancelCrop` can restore it. */
@@ -136,7 +138,7 @@ export interface CanvasJSON {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.
@@ -269,8 +271,8 @@ export interface LoadFromStateResult {
  *    even if the fabric build skips that step.
  * 3. Await `canvas.loadFromJSON(json)` (Fabric v7 returns a Promise here,
  * 4. Run {@link restoreMaskPropsFromJSON} to position-match each JSON
- *    mask object against the freshly-loaded canvas objects by
- *    `(type, left, top)` and unconditionally re-apply the mask metadata
+ *    mask object against the freshly-loaded canvas objects by `maskUid`
+ *    first, then by legacy `(type, left, top)`, and unconditionally re-apply the mask metadata
  *    (`maskId`, `maskName`, `originalAlpha`). Label-text objects are
  *    re-flagged via a parallel index-based pass. This is required because
  *    Fabric v7's `_setOptions` is inconsistent across point releases for

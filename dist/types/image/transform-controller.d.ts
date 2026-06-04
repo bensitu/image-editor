@@ -18,9 +18,9 @@
  *   The animation tweens around the visual centroid by temporarily
  *   switching the image origin to `'center'/'center'`; the original
  *   `'left'/'top'` origin is restored after the animation settles.
- * - `rotateImage(NaN)` returns a resolved
- *   promise without modifying canvas state. The guard is the very first
- *   check so no rollback bundle is needed.
+ * - `scaleImage()` and `rotateImage()` return resolved promises for
+ *   non-finite inputs without modifying canvas state. The guards are the
+ *   first checks so no rollback bundle is needed.
  * - `resetImageTransform` records exactly
  *   one history entry covering the full reset. Per-operation
  *   `saveCanvasState` calls inside the chained `scaleImage(1)` and
@@ -170,7 +170,7 @@ export interface TransformContext {
  * entry on the orchestrator's animation queue and returns a Promise that
  * resolves once the Fabric animation has settled and `saveCanvasState`
  * has been called (or the operation no-opped because of dispose, an
- * already-running animation, or `NaN` rotation).
+ * already-running animation, or non-finite input).
  *
  * Lifetime is one-per-editor — a fresh controller is constructed inside
  * the `ImageEditor` constructor and lives until `dispose` runs. The
@@ -221,11 +221,11 @@ export declare class TransformController {
     scaleImage(factor: number): Promise<void>;
     /**
      * Animate the image rotation to `degrees`. Returns a resolved promise
-     * without modifying canvas state when `degrees` is `NaN`.
+     * without modifying canvas state when `degrees` is not finite.
      *
      * Steps:
      *
-     * 1. Bail (resolved) on `NaN`, missing image, in-flight animation,
+     * 1. Bail (resolved) on non-finite input, missing image, in-flight animation,
      *    or disposed editor.
      * 2. Update `currentRotation` BEFORE the animation begins so toolbar
      *    inputs reflect the requested value during the tween.
@@ -252,7 +252,7 @@ export declare class TransformController {
      * best-effort cleanup so it cannot mask the original animation
      * error.
      *
-     * @param degrees Target rotation angle in degrees. `NaN` is a no-op.
+     * @param degrees Target rotation angle in degrees. Non-finite values are no-ops.
      * @returns Promise that resolves once the animation has settled and
      *          history has been recorded, or immediately when the call
      *          short-circuits due to one of the bail conditions.

@@ -44,8 +44,14 @@ import assert from 'node:assert/strict';
 const { inferImageMimeType, readFileAsDataURL } = await import('../src/utils/file.ts');
 
 test('inferImageMimeType accepts supported browser MIME types', () => {
-    const file = new File(['x'], 'photo.png', { type: 'image/png' });
-    assert.equal(inferImageMimeType(file), 'image/png');
+    for (const [name, type] of [
+        ['photo.png', 'image/png'],
+        ['photo.gif', 'image/gif'],
+        ['photo.bmp', 'image/bmp'],
+    ]) {
+        const file = new File(['x'], name, { type });
+        assert.equal(inferImageMimeType(file), type);
+    }
 });
 
 test('inferImageMimeType rejects unsupported image MIME types', () => {
@@ -54,8 +60,14 @@ test('inferImageMimeType rejects unsupported image MIME types', () => {
 });
 
 test('inferImageMimeType falls back to supported file extensions when MIME is empty', () => {
-    const file = new File(['x'], 'photo.webp', { type: '' });
-    assert.equal(inferImageMimeType(file), 'image/webp');
+    for (const [name, type] of [
+        ['photo.webp', 'image/webp'],
+        ['photo.gif', 'image/gif'],
+        ['photo.bmp', 'image/bmp'],
+    ]) {
+        const file = new File(['x'], name, { type: '' });
+        assert.equal(inferImageMimeType(file), type);
+    }
 });
 
 test('readFileAsDataURL rejects when FileReader aborts', async () => {

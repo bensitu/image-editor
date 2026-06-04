@@ -138,11 +138,15 @@ import { isMaskObject } from '../core/public-types.js';
 import { Command, type HistoryManager } from '../history/history-manager.js';
 import {
     applyCropHideMaskStyle,
-    attachMaskHoverHandlers,
     captureMaskStyleBackup,
+    reattachMaskHoverHandlers,
     restoreMaskStyleBackup,
 } from '../mask/mask-style.js';
-import { getClampedCanvasRegion, getObjectBBox } from '../utils/canvas-region.js';
+import {
+    getClampedCanvasRegion,
+    getObjectBBox,
+    hasMeaningfulCanvasRegion,
+} from '../utils/canvas-region.js';
 import {
     clampQuality as clampExportQuality,
     mimeTypeFor,
@@ -536,6 +540,8 @@ function teardownSession(ctx: CropControllerContext, session: CropSession): void
  *   -cropRegion.sourceY)`.
  * - `angle`, `scaleX`, `scaleY` — preserved verbatim across the crop so
  *   the visible mask shape does not change size or orientation.
+ * - `styleBackup` — the pre-crop visual and event state, restored before
+ *   the geometry shift so crop-mode hide styles never leak after apply.
  *
  * @internal
  */
@@ -546,6 +552,7 @@ interface PreservedMaskRecord {
     angle: number;
     scaleX: number;
     scaleY: number;
+    styleBackup: MaskBackup;
 }
 
 /**
@@ -603,8 +610,10 @@ function maskIntersectsRegion(
 function capturePreservedMasks(
     canvas: FabricNS.Canvas,
     cropRegion: { left: number; top: number; width: number; height: number },
+    maskBackups: MaskBackup[] = [],
 ): PreservedMaskRecord[] {
     const records: PreservedMaskRecord[] = [];
+    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.obj, backup]));
 
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
@@ -613,6 +622,7 @@ function capturePreservedMasks(
             const intersects = maskIntersectsRegion(mask, cropRegion);
 
             if (intersects) {
+                const styleBackup = styleBackupByMask.get(mask) ?? captureMaskStyleBackup(mask);
                 records.push({
                     mask,
                     // capture pre-crop
@@ -625,6 +635,7 @@ function capturePreservedMasks(
                     angle: Number(mask.angle) || 0,
                     scaleX: Number(mask.scaleX) || 1,
                     scaleY: Number(mask.scaleY) || 1,
+                    styleBackup,
                 });
             }
 
@@ -681,6 +692,12 @@ function reapplyPreservedMasks(
             // position relative to the new image bbox matches the
             // pre-crop position relative to the old image bbox.
             //
+            // Restore the pre-crop style first so crop-mode opacity,
+            // evented, and selectable changes do not leak into the
+            // post-crop canvas.
+            restoreMaskStyleBackup(record.styleBackup);
+
+            //
             // restore `angle`, `scaleX`, `scaleY`
             // verbatim and force `visible: true` (matches legacy's
             // `mask.set({ visible: true})` after the offset).
@@ -700,7 +717,7 @@ function reapplyPreservedMasks(
             // Re-bind hover handlers so the post-crop mask responds the
             // same way as a freshly-created one (matches legacy's
             // `_rebindMaskEvents` after the remove/re-add round-trip).
-            attachMaskHoverHandlers(record.mask);
+            reattachMaskHoverHandlers(record.mask);
 
             const id = Number(record.mask.maskId);
             if (Number.isFinite(id) && id > maxRestoredId) maxRestoredId = id;
@@ -1104,6 +1121,11 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
             throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
         }
         const rectBounds = getCropRectContentBounds(cropRect);
+        if (!hasMeaningfulCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight())) {
+            throw new CropApplyError(
+                'applyCrop failed: crop region is empty or outside the canvas.',
+            );
+        }
         const cropRegion = getClampedCanvasRegion(
             rectBounds,
             canvas.getWidth(),
@@ -1129,7 +1151,7 @@ export async function applyCrop(ctx: CropControllerContext): Promise<void> {
         //     removed from the canvas without a record so they do not
         //     reappear after the load.
         const preservedRecords: PreservedMaskRecord[] = preserveMasks
-            ? capturePreservedMasks(canvas, cropRegion)
+            ? capturePreservedMasks(canvas, cropRegion, session.maskBackups)
             : [];
 
         // 4. Tear down session in place. Restoring per-object evented and

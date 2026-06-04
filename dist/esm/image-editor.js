@@ -96,6 +96,18 @@ export class ImageEditor {
             writable: true,
             value: {}
         });
+        Object.defineProperty(this, "_elementOriginalDisabled", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "_elementOriginalAriaDisabled", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
         Object.defineProperty(this, "_elementOriginalPointerEvents", {
             enumerable: true,
             configurable: true,
@@ -521,7 +533,7 @@ export class ImageEditor {
                 this.currentImageMimeType = v;
             },
             setPlaceholderVisible: (show) => {
-                setPlaceholderVisibleImpl(this.placeholderElement, this.containerElement, show);
+                setPlaceholderVisibleImpl(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? show : false);
             },
         };
         try {
@@ -880,6 +892,8 @@ export class ImageEditor {
     scaleImage(factor) {
         if (this._disposed || !this._transformController)
             return Promise.resolve();
+        if (!Number.isFinite(factor))
+            return Promise.resolve();
         try {
             this._assertCanQueueAnimation('scaleImage');
         }
@@ -911,6 +925,8 @@ export class ImageEditor {
     }
     rotateImage(degrees) {
         if (this._disposed || !this._transformController)
+            return Promise.resolve();
+        if (!Number.isFinite(degrees))
             return Promise.resolve();
         try {
             this._assertCanQueueAnimation('rotateImage');
@@ -1097,13 +1113,6 @@ export class ImageEditor {
             });
             const before = (_b = this._lastSnapshot) !== null && _b !== void 0 ? _b : after;
             if (after === before) {
-                const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-                if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
-                    this.canvas.setActiveObject(maskToRestore);
-                    this._showLabelForMask(maskToRestore);
-                    this._updateMaskListSelection(maskToRestore);
-                }
-                this._updateUI();
                 return;
             }
             let executedOnce = false;
@@ -1117,17 +1126,24 @@ export class ImageEditor {
             });
             this.historyManager.execute(cmd);
             this._lastSnapshot = after;
-            const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-            if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
-                this.canvas.setActiveObject(maskToRestore);
-                this._showLabelForMask(maskToRestore);
-                this._updateMaskListSelection(maskToRestore);
-            }
-            this._updateUI();
         }
         catch (error) {
             reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
         }
+        finally {
+            this._restoreActiveMaskAfterSnapshot(activeObj, activeMask);
+            this._updateUI();
+        }
+    }
+    _restoreActiveMaskAfterSnapshot(activeObj, activeMask) {
+        if (!this.canvas)
+            return;
+        const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
+        if (!maskToRestore || !this.canvas.getObjects().includes(maskToRestore))
+            return;
+        this.canvas.setActiveObject(maskToRestore);
+        this._showLabelForMask(maskToRestore);
+        this._updateMaskListSelection(maskToRestore);
     }
     undo() {
         if (this._disposed)
@@ -1565,14 +1581,7 @@ export class ImageEditor {
         const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
         if (inCrop) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                const id = this.elements[key];
-                if (!id)
-                    return;
-                const el = document.getElementById(id);
-                if (!el || !('disabled' in el))
-                    return;
-                el.disabled =
-                    isBusy || !CROP_MODE_ENABLED_KEYS.includes(key);
+                this._setDisabled(key, isBusy || !CROP_MODE_ENABLED_KEYS.includes(key));
             });
             return;
         }
@@ -1602,28 +1611,71 @@ export class ImageEditor {
         if (!id)
             return;
         const el = document.getElementById(id);
+        if (!el)
+            return;
+        this._recordElementOriginalState(key, el);
         if (el && 'disabled' in el) {
             el.disabled = disabled;
             return;
-        }
-        if (!el)
-            return;
-        if (!this._elementOriginalPointerEvents.has(key)) {
-            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
         }
         if (disabled) {
             el.setAttribute('aria-disabled', 'true');
             el.style.pointerEvents = 'none';
         }
         else {
-            el.removeAttribute('aria-disabled');
+            const originalAria = this._elementOriginalAriaDisabled.get(key);
+            if (originalAria === null || originalAria === undefined) {
+                el.removeAttribute('aria-disabled');
+            }
+            else {
+                el.setAttribute('aria-disabled', originalAria);
+            }
             el.style.pointerEvents = (_a = this._elementOriginalPointerEvents.get(key)) !== null && _a !== void 0 ? _a : '';
         }
     }
+    _recordElementOriginalState(key, el) {
+        if (!this._elementOriginalAriaDisabled.has(key)) {
+            this._elementOriginalAriaDisabled.set(key, el.getAttribute('aria-disabled'));
+        }
+        if (!this._elementOriginalPointerEvents.has(key)) {
+            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        }
+        if ('disabled' in el && !this._elementOriginalDisabled.has(key)) {
+            this._elementOriginalDisabled.set(key, !!el.disabled);
+        }
+    }
+    _restoreElementOriginalStates() {
+        var _a, _b;
+        for (const key of Object.keys(this.elements)) {
+            const id = this.elements[key];
+            if (!id)
+                continue;
+            const el = document.getElementById(id);
+            if (!el)
+                continue;
+            if ('disabled' in el && this._elementOriginalDisabled.has(key)) {
+                el.disabled =
+                    (_a = this._elementOriginalDisabled.get(key)) !== null && _a !== void 0 ? _a : false;
+            }
+            if (this._elementOriginalAriaDisabled.has(key)) {
+                const originalAria = this._elementOriginalAriaDisabled.get(key);
+                if (originalAria === null || originalAria === undefined) {
+                    el.removeAttribute('aria-disabled');
+                }
+                else {
+                    el.setAttribute('aria-disabled', originalAria);
+                }
+            }
+            if (this._elementOriginalPointerEvents.has(key)) {
+                el.style.pointerEvents = (_b = this._elementOriginalPointerEvents.get(key)) !== null && _b !== void 0 ? _b : '';
+            }
+        }
+        this._elementOriginalDisabled.clear();
+        this._elementOriginalAriaDisabled.clear();
+        this._elementOriginalPointerEvents.clear();
+    }
     _updatePlaceholderStatus() {
-        if (!this.options.showPlaceholder)
-            return;
-        setPlaceholderVisibleImpl(this.placeholderElement, this.containerElement, !this.originalImage);
+        setPlaceholderVisibleImpl(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? !this.originalImage : false);
     }
     dispose() {
         var _a;
@@ -1635,6 +1687,7 @@ export class ImageEditor {
         this._guard.markDisposed();
         this.animQueue.clear();
         (_a = this._bindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+        this._restoreElementOriginalStates();
         if (this._cropSession && this.canvas) {
             try {
                 const ctx = this._buildCropControllerContext();

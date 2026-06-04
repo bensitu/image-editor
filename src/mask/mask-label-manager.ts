@@ -56,6 +56,7 @@
 import type * as FabricNS from 'fabric';
 import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 
 /**
  * State the label helpers read from the `ImageEditor` orchestrator.
@@ -150,7 +151,12 @@ export function createLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObjec
 
     // ── 1) Optional user-supplied factory ─────────────────────────────────
     if (typeof options.label.create === 'function') {
-        textObj = options.label.create(mask, fb);
+        try {
+            textObj = options.label.create(mask, fb);
+        } catch (error) {
+            reportWarning(options, error, 'label.create callback threw.');
+            textObj = null;
+        }
     }
 
     // ── 2) Default builder ────────────────────────────────────────────────
@@ -159,10 +165,15 @@ export function createLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObjec
         // index is the stable creation index, not the
         // live list position. legacy passed `this.maskCounter` here.
         const indexForGetText = mask.maskId - 1;
-        const txt =
-            typeof options.label.getText === 'function'
-                ? options.label.getText(mask, indexForGetText)
-                : mask.maskName;
+        let txt = mask.maskName;
+        if (typeof options.label.getText === 'function') {
+            try {
+                txt = options.label.getText(mask, indexForGetText);
+            } catch (error) {
+                reportWarning(options, error, 'label.getText callback threw.');
+                txt = mask.maskName;
+            }
+        }
 
         // the label is positioned by its top-left corner,
         // so `originX: 'left'` and `originY: 'top'` MUST be set. The

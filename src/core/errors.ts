@@ -194,3 +194,23 @@ export class ExportNotReadyError extends Error {
         fixPrototype(this, ExportNotReadyError);
     }
 }
+
+/**
+ * Raised by export helpers when an image is loaded but the export pipeline
+ * cannot produce a valid output, for example because the computed image
+ * region is empty or the rendered data URL cannot be decoded into bytes.
+ *
+ * Surfaces to consumer as: rejection of the relevant export promise.
+ */
+export class ExportError extends Error {
+    public override readonly name = 'ExportError';
+
+    /** Original error thrown during the export pipeline. */
+    public readonly originalError: unknown;
+
+    constructor(message = 'Failed to export image.', originalError: unknown = null) {
+        super(message);
+        this.originalError = originalError;
+        fixPrototype(this, ExportError);
+    }
+}

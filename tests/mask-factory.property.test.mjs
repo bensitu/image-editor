@@ -253,6 +253,22 @@ test('invalid mask configs are rejected without canvas, counter, list, or histor
             shape: 'polygon',
             points: [
                 [0, 0],
+                [10, 10],
+                [20, 20],
+            ],
+        },
+        {
+            shape: 'polygon',
+            points: [
+                [5, 5],
+                [5, 5],
+                [5, 5],
+            ],
+        },
+        {
+            shape: 'polygon',
+            points: [
+                [0, 0],
                 ['x', 1],
                 [2, 2],
             ],
@@ -382,6 +398,53 @@ test('explicit false on hasControls/selectable is preserved', () => {
         }),
         { numRuns: 30 },
     );
+});
+
+test('evented option is applied with documented defaults', () => {
+    for (const expected of [undefined, true, false]) {
+        const ctx = makeContext();
+        const config = { shape: 'rect' };
+        if (expected !== undefined) config.evented = expected;
+
+        const mask = createMask(ctx, config);
+
+        assert.ok(mask, 'mask must be created');
+        assert.equal(
+            mask.evented,
+            expected === undefined ? true : expected,
+            `evented=${expected} must resolve to the documented runtime value`,
+        );
+    }
+});
+
+test('throwing onCreate callback is isolated after committed mask creation', () => {
+    const callbackError = new Error('onCreate failed');
+    const warnings = [];
+    const ctx = makeContext({
+        options: {
+            onWarning: (error, message) => {
+                warnings.push({ error, message });
+            },
+        },
+    });
+    let saveCalls = 0;
+    ctx.saveCanvasState = () => {
+        saveCalls += 1;
+    };
+
+    const mask = createMask(ctx, {
+        shape: 'rect',
+        onCreate: () => {
+            throw callbackError;
+        },
+    });
+
+    assert.ok(mask, 'mask must still be returned');
+    assert.equal(ctx.canvas.objects.includes(mask), true, 'mask must remain on the canvas');
+    assert.equal(saveCalls, 1, 'history save must still happen before onCreate');
+    assert.equal(warnings.length, 1, 'throwing onCreate must report one warning');
+    assert.equal(warnings[0].error, callbackError);
+    assert.match(warnings[0].message, /onCreate/);
 });
 
 test('transparentCorners and strokeUniform falsy values preserved with documented defaults', () => {

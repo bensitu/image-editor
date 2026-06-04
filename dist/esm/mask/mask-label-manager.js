@@ -1,4 +1,5 @@
 import { isMaskObject } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 export function removeLabelForMask(ctx, mask) {
     if (!ctx.canvas || !mask.__label)
         return;
@@ -23,13 +24,26 @@ export function createLabelForMask(ctx, mask) {
     removeLabelForMask(ctx, mask);
     let textObj = null;
     if (typeof options.label.create === 'function') {
-        textObj = options.label.create(mask, fb);
+        try {
+            textObj = options.label.create(mask, fb);
+        }
+        catch (error) {
+            reportWarning(options, error, 'label.create callback threw.');
+            textObj = null;
+        }
     }
     if (!textObj) {
         const indexForGetText = mask.maskId - 1;
-        const txt = typeof options.label.getText === 'function'
-            ? options.label.getText(mask, indexForGetText)
-            : mask.maskName;
+        let txt = mask.maskName;
+        if (typeof options.label.getText === 'function') {
+            try {
+                txt = options.label.getText(mask, indexForGetText);
+            }
+            catch (error) {
+                reportWarning(options, error, 'label.getText callback threw.');
+                txt = mask.maskName;
+            }
+        }
         const textOptions = {
             left: 0,
             top: 0,

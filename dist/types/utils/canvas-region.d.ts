@@ -86,6 +86,12 @@ export interface PartialExportEdges {
     right: boolean;
     bottom: boolean;
 }
+export declare function hasMeaningfulCanvasRegion(rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}, canvasWidth?: number, canvasHeight?: number): boolean;
 /**
  * Convert a floating-point rectangle into an {@link IntegerRegion}.
  *

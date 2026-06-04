@@ -94,7 +94,7 @@ export function detachMaskHoverHandlers(mask) {
     delete tagged.__imageEditorMaskHandlers;
 }
 export function captureMaskStyleBackup(mask) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g;
     return {
         obj: mask,
         opacity: (_a = mask.opacity) !== null && _a !== void 0 ? _a : 1,
@@ -102,7 +102,8 @@ export function captureMaskStyleBackup(mask) {
         strokeWidth: (_c = mask.strokeWidth) !== null && _c !== void 0 ? _c : 0,
         stroke: ((_d = mask.stroke) !== null && _d !== void 0 ? _d : null),
         selectable: (_e = mask.selectable) !== null && _e !== void 0 ? _e : true,
-        lockRotation: (_f = mask.lockRotation) !== null && _f !== void 0 ? _f : false,
+        evented: (_f = mask.evented) !== null && _f !== void 0 ? _f : true,
+        lockRotation: (_g = mask.lockRotation) !== null && _g !== void 0 ? _g : false,
     };
 }
 export function restoreMaskStyleBackup(backup) {
@@ -113,6 +114,7 @@ export function restoreMaskStyleBackup(backup) {
             strokeWidth: backup.strokeWidth,
             stroke: backup.stroke,
             selectable: backup.selectable,
+            evented: backup.evented,
             lockRotation: backup.lockRotation,
         });
         if (typeof backup.obj.setCoords === 'function') {

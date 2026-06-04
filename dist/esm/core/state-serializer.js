@@ -1,6 +1,7 @@
 import { isMaskObject } from './public-types.js';
 export const SNAPSHOT_CUSTOM_KEYS = [
     'maskId',
+    'maskUid',
     'maskName',
     'isCropRect',
     'maskLabel',
@@ -26,6 +27,8 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
             continue;
         if (typeof liveObject.maskId === 'number')
             jsonObject.maskId = liveObject.maskId;
+        if (typeof liveObject.maskUid === 'string')
+            jsonObject.maskUid = liveObject.maskUid;
         if (typeof liveObject.maskName === 'string')
             jsonObject.maskName = liveObject.maskName;
         if (typeof liveObject.originalAlpha === 'number') {
@@ -172,20 +175,34 @@ function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
         const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
         const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
         const jTop = Number((_c = jObj.top) !== null && _c !== void 0 ? _c : 0);
-        const matchIndex = canvasObjs.findIndex((o, index) => {
-            var _a, _b;
-            if (consumedCanvasIndexes.has(index))
-                return false;
-            if (jType && o.type !== jType)
-                return false;
-            return Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 && Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5;
-        });
+        const jUid = typeof jObj.maskUid === 'string' ? jObj.maskUid : null;
+        let matchIndex = -1;
+        if (jUid) {
+            matchIndex = canvasObjs.findIndex((o, index) => {
+                if (consumedCanvasIndexes.has(index))
+                    return false;
+                return o.maskUid === jUid;
+            });
+        }
+        if (matchIndex < 0) {
+            matchIndex = canvasObjs.findIndex((o, index) => {
+                var _a, _b;
+                if (consumedCanvasIndexes.has(index))
+                    return false;
+                if (jType && o.type !== jType)
+                    return false;
+                return Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 && Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5;
+            });
+        }
         if (matchIndex < 0)
             continue;
         consumedCanvasIndexes.add(matchIndex);
         const match = canvasObjs[matchIndex];
         const maskObject = match;
         maskObject.maskId = jObj.maskId;
+        if (typeof jObj.maskUid === 'string') {
+            maskObject.maskUid = jObj.maskUid;
+        }
         maskObject.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
         maskObject.originalAlpha =
             typeof jObj.originalAlpha === 'number'

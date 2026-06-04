@@ -83,6 +83,8 @@ export type CropExportFileType = ImageFileType | 'source';
 export interface MaskObject extends FabricNS.FabricObject {
     /** Unique numeric identifier assigned at creation time. */
     maskId: number;
+    /** Stable internal identifier used to restore overlapping masks deterministically. */
+    maskUid?: string;
     /** Human-readable label shown in the mask list (`maskName` option + id). */
     maskName: string;
     /** Original opacity stored to support hover highlight / restore. */
@@ -574,7 +576,7 @@ export interface ImageEditorOptions {
     maxScale?: number;
     /** Scale delta per zoom step. @default 0.05 */
     scaleStep?: number;
-    /** Rotation step in degrees. @default 90 */
+    /** Rotation step in degrees. Non-finite values fall back to the default. @default 90 */
     rotationStep?: number;
 
     // Layout (precedence: fit > cover > expand).
@@ -624,8 +626,10 @@ export interface ImageEditorOptions {
     imageLoadTimeoutMs?: number;
     /**
      * Maximum number of undo/redo snapshots retained in memory.
-     * Each entry stores a full serialized canvas snapshot, so lower this
-     * for large images or memory-constrained hosts.
+     * Each entry stores a full serialized canvas snapshot. When the loaded
+     * image is represented as a data URL, that data can be duplicated in
+     * every retained snapshot, so lower this for large images or
+     * memory-constrained hosts.
      * Values are normalized to a positive integer. @default 50
      */
     maxHistorySize?: number;
@@ -803,5 +807,6 @@ export interface MaskBackup {
     strokeWidth: number;
     stroke: FabricNS.TFiller | string | null;
     selectable: boolean;
+    evented: boolean;
     lockRotation: boolean;
 }

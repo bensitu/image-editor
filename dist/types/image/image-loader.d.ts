@@ -80,14 +80,12 @@
  * success path leaves the container scroll untouched, so legacy's documented
  * scroll/viewport behavior for the selected layout mode prevails.
  *
- * `onImageLoaded` is invoked from inside
- * this module exactly once on the success path, AFTER every editor scalar
- * (`originalImage`, `currentScale`, `currentRotation`, `baseImageScale`,
- * `maskCounter`, `_lastSnapshot`) and the optional `preserveScroll`
- * restore have completed. Thrown callback errors are caught and logged,
- * never propagated and never used to mutate editor state. The rollback
- * path skips the callback entirely (failed loads do
- * not fire the callback).
+ * The loader does not invoke public success callbacks. It owns
+ * transactional mutation and rollback; the `ImageEditor` facade emits
+ * `onImageLoaded`, `onImageChanged`, `onMasksChanged`, and related lifecycle
+ * callbacks after this function returns from a committed load. The rollback
+ * path still reports load failures through `onError` after replaying the
+ * rollback bundle.
  *
  * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is the canonical owner of the transactional
@@ -151,9 +149,9 @@ export interface RollbackBundle {
  * - providing a `setPlaceholderVisible` callback that delegates to
  *   `ui/visibility-state.ts`.
  *
- * The loader itself is responsible for invoking `onImageLoaded` from
- * `ctx.options.onImageLoaded` on the success path. The
- * facade does not need to fire it again.
+ * The facade is also responsible for public success lifecycle callbacks after
+ * this transactional helper returns. The loader only reports failed loads
+ * through `onError` after rollback.
  */
 export interface LoadImageContext {
     /** The Fabric module providing `FabricImage.fromURL`. */
@@ -249,12 +247,9 @@ export interface LoadImageContext {
  * untouched and legacy's documented scroll/viewport behavior for the selected
  * layout mode applies.
  *
- * `onImageLoaded` is invoked exactly once at
- * the very end of the success path, after every editor scalar has been
- * committed and after the optional `preserveScroll` restore. Callback
- * exceptions are caught and logged so a defective integrator callback
- * cannot mutate or roll back editor state. The rollback path
- * intentionally does NOT invoke the callback.
+ * Public success lifecycle callbacks are emitted by the facade after this
+ * helper returns from a committed load. Keeping them outside the loader keeps
+ * transactional mutation/rollback separate from facade-level event ordering.
  *
  * @param ctx          Editor dependency bundle.
  * @param imageBase64  Base64 data URL to load (`data:image/...;base64...`).

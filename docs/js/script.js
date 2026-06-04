@@ -15,7 +15,7 @@ const translations = {
         coverMode: 'Cover',
         expandMode: 'Expand',
         dropImage: 'Drop image here',
-        selectImageHint: 'or click to select JPG, PNG, or WEBP',
+        selectImageHint: 'or click to select JPG, PNG, WEBP, GIF, or BMP',
         base64Input: 'Base64 input',
         base64Placeholder: 'Paste data:image/jpeg;base64,...',
         loadImage: 'Load',
@@ -31,6 +31,8 @@ const translations = {
         mergeMasks: 'Merge',
         download: 'Download',
         consoleBase64: 'Console Base64',
+        copyBase64: 'Copy',
+        copiedBase64: 'Copied',
         maskList: 'Mask list',
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
@@ -49,7 +51,7 @@ const translations = {
         coverMode: '覆盖',
         expandMode: '扩展',
         dropImage: '拖放图片到这里',
-        selectImageHint: '或点击选择 JPG、PNG 或 WEBP',
+        selectImageHint: '或点击选择 JPG、PNG、WEBP、GIF 或 BMP',
         base64Input: 'Base64 输入',
         base64Placeholder: '粘贴 data:image/jpeg;base64,...',
         loadImage: '加载',
@@ -65,6 +67,8 @@ const translations = {
         mergeMasks: '合并',
         download: '下载',
         consoleBase64: '输出 Base64',
+        copyBase64: '复制',
+        copiedBase64: '已复制',
         maskList: '遮罩列表',
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
@@ -83,7 +87,7 @@ const translations = {
         coverMode: 'カバー',
         expandMode: '拡張',
         dropImage: '画像をここにドロップ',
-        selectImageHint: 'またはクリックして JPG、PNG、WEBP を選択',
+        selectImageHint: 'またはクリックして JPG、PNG、WEBP、GIF、BMP を選択',
         base64Input: 'Base64 入力',
         base64Placeholder: 'data:image/jpeg;base64,... を貼り付け',
         loadImage: '読み込み',
@@ -99,6 +103,8 @@ const translations = {
         mergeMasks: '結合',
         download: 'ダウンロード',
         consoleBase64: 'Base64 出力',
+        copyBase64: 'コピー',
+        copiedBase64: 'コピー済み',
         maskList: 'マスクリスト',
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
@@ -117,7 +123,7 @@ const translations = {
         coverMode: '채우기',
         expandMode: '확장',
         dropImage: '여기에 이미지 놓기',
-        selectImageHint: '또는 클릭하여 JPG, PNG, WEBP 선택',
+        selectImageHint: '또는 클릭하여 JPG, PNG, WEBP, GIF, BMP 선택',
         base64Input: 'Base64 입력',
         base64Placeholder: 'data:image/jpeg;base64,... 붙여넣기',
         loadImage: '불러오기',
@@ -133,6 +139,8 @@ const translations = {
         mergeMasks: '병합',
         download: '다운로드',
         consoleBase64: 'Base64 출력',
+        copyBase64: '복사',
+        copiedBase64: '복사됨',
         maskList: '마스크 목록',
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
@@ -151,7 +159,7 @@ const translations = {
         coverMode: 'Couvrir',
         expandMode: 'Étendre',
         dropImage: 'Déposez une image ici',
-        selectImageHint: 'ou cliquez pour choisir JPG, PNG ou WEBP',
+        selectImageHint: 'ou cliquez pour choisir JPG, PNG, WEBP, GIF ou BMP',
         base64Input: 'Entrée Base64',
         base64Placeholder: 'Collez data:image/jpeg;base64,...',
         loadImage: 'Charger',
@@ -167,6 +175,8 @@ const translations = {
         mergeMasks: 'Fusionner',
         download: 'Télécharger',
         consoleBase64: 'Afficher Base64',
+        copyBase64: 'Copier',
+        copiedBase64: 'Copié',
         maskList: 'Liste des masques',
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
@@ -185,7 +195,7 @@ const translations = {
         coverMode: 'Cubrir',
         expandMode: 'Expandir',
         dropImage: 'Suelta una imagen aquí',
-        selectImageHint: 'o haz clic para elegir JPG, PNG o WEBP',
+        selectImageHint: 'o haz clic para elegir JPG, PNG, WEBP, GIF o BMP',
         base64Input: 'Entrada Base64',
         base64Placeholder: 'Pega data:image/jpeg;base64,...',
         loadImage: 'Cargar',
@@ -201,6 +211,8 @@ const translations = {
         mergeMasks: 'Fusionar',
         download: 'Descargar',
         consoleBase64: 'Mostrar Base64',
+        copyBase64: 'Copiar',
+        copiedBase64: 'Copiado',
         maskList: 'Lista de máscaras',
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
@@ -249,14 +261,22 @@ function getMessageElements() {
     return { panel: messagePanel, message: demoMessage };
 }
 
+function clearMessageActions(panel) {
+    panel.querySelectorAll('[data-demo-message-action]').forEach(function (element) {
+        element.remove();
+    });
+}
+
 function showMessage(error) {
     const { panel, message } = getMessageElements();
     if (!panel || !message) {
         console.warn('Message panel elements not found');
         return;
     }
+    clearMessageActions(panel);
     const text = getMessage(error);
     message.textContent = text;
+    message.classList.remove('is-success');
     message.hidden = false;
     panel.hidden = false;
 }
@@ -264,9 +284,79 @@ function showMessage(error) {
 function clearMessage() {
     const { panel, message } = getMessageElements();
     if (!panel || !message) return;
+    clearMessageActions(panel);
     message.textContent = '';
+    message.classList.remove('is-success');
     message.hidden = true;
     panel.hidden = true;
+}
+
+function estimateDataUrlBytes(dataUrl) {
+    const base64 = String(dataUrl).split(',', 2)[1] || '';
+    const clean = base64.replace(/\s/g, '');
+    const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+}
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function summarizeDataUrl(dataUrl) {
+    const value = String(dataUrl || '');
+    const mimeMatch = /^data:([^;]+);base64,/i.exec(value);
+    const mimeType = mimeMatch?.[1] || 'image/*';
+    const preview = value.length > 42 ? `${value.slice(0, 42)}...` : value;
+    return `Exported image: ${mimeType}, ${formatBytes(estimateDataUrlBytes(value))}, Base64: ${preview}`;
+}
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.append(textarea);
+    textarea.select();
+    const copied = document.execCommand && document.execCommand('copy');
+    textarea.remove();
+    if (!copied) throw new Error('Clipboard copy failed');
+}
+
+function showBase64Summary(dataUrl) {
+    const { panel, message } = getMessageElements();
+    if (!panel || !message) {
+        console.warn('Message panel elements not found');
+        return;
+    }
+
+    clearMessageActions(panel);
+    message.textContent = summarizeDataUrl(dataUrl);
+    message.classList.add('is-success');
+    message.hidden = false;
+    panel.hidden = false;
+
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'btn btn-sm btn-outline-secondary demo-copy-button';
+    copyButton.dataset.demoMessageAction = 'copyBase64';
+    copyButton.textContent = getCurrentTranslations('copyBase64');
+    copyButton.addEventListener('click', async function () {
+        try {
+            await copyTextToClipboard(dataUrl);
+            copyButton.textContent = getCurrentTranslations('copiedBase64');
+        } catch (error) {
+            showMessage(error);
+        }
+    });
+    panel.append(copyButton);
 }
 
 function getStoredValue(key) {
@@ -382,7 +472,10 @@ function initEditor() {
         animationDuration: 100,
         maskLabelOffset: 5,
         showPlaceholder: true,
-        exportImageAreaByDefault: true,
+        exportAreaByDefault: 'image',
+        onImageChanged: updateDemoControls,
+        onBusyChange: updateDemoControls,
+        onMasksChanged: updateDemoControls,
     });
     editor.init({
         canvas: 'canvas',
@@ -464,14 +557,6 @@ function updateDemoControls() {
         uploadAreaElement.classList.toggle('disabled', isBusy);
         uploadAreaElement.setAttribute('aria-disabled', isBusy ? 'true' : 'false');
     }
-}
-
-function scheduleDemoControlUpdate() {
-    const animationDuration = Number(editor?.options?.animationDuration);
-    const settledDelay =
-        Number.isFinite(animationDuration) && animationDuration >= 0 ? animationDuration + 50 : 350;
-    window.setTimeout(updateDemoControls, 0);
-    window.setTimeout(updateDemoControls, settledDelay);
 }
 
 function getSelectedMaskConfig() {
@@ -577,10 +662,6 @@ if (createMaskButtonElement) {
     createMaskButtonElement.addEventListener('click', handleCreateMaskButtonClick);
 }
 
-['enterCropModeButton', 'applyCropButton', 'cancelCropButton'].forEach(function (buttonId) {
-    getOptionalElement(buttonId)?.addEventListener('click', scheduleDemoControlUpdate);
-});
-
 const imageInputElement = getOptionalElement('imageInput');
 if (imageInputElement) {
     imageInputElement.addEventListener('change', handleImageInputChange);
@@ -639,7 +720,7 @@ async function getBase64Action() {
 
     try {
         const imageBase64 = await editor.exportImageBase64();
-        showMessage(imageBase64);
+        showBase64Summary(imageBase64);
     } catch (error) {
         showMessage(error);
         console.error(error);

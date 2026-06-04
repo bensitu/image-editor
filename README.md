@@ -234,12 +234,17 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 preserving the container's scroll position across both successful loads and
 rollback paths.
 
+File-input helpers accept JPG, PNG, WebP, GIF, and BMP files. GIF and BMP are
+decoded as static raster input for canvas editing; GIF animation and BMP/GIF
+source-format preservation are not retained. Export output remains controlled by
+the JPEG, PNG, or WebP export options.
+
 ### Transforms
 
 | Method                  | Description                                                                                         |
 | ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Animated. Returns `Promise<void>`.           |
-| `rotateImage(degrees)`  | Rotate to `degrees`. `NaN` resolves immediately without changing canvas state. Animated.            |
+| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Non-finite values are no-ops. Animated.      |
+| `rotateImage(degrees)`  | Rotate to `degrees`. Non-finite values resolve without changing canvas state. Animated.             |
 | `resetImageTransform()` | Animate to scale 1 and rotation 0. Records exactly one history entry covering the entire transform. |
 
 ### Masks
@@ -328,6 +333,7 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 | `imageLoadTimeoutMs`      | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                                 |
 | `exportMultiplier`        | `1`                  | Output resolution multiplier.                                                                                                                                                                                                                                                  |
 | `maxExportPixels`         | `50000000`           | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                                     |
+| `maxHistorySize`          | `50`                 | Maximum undo-history entries. Snapshots may include full image data URLs, so large images can duplicate memory across history entries. Lower this for memory-constrained pages.                                                                                                |
 | `exportAreaByDefault`     | `'image'`            | Default export region for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                         |
 | `mergeMaskByDefault`      | `true`               | Default mask compositing behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                             |
 | `defaultMaskWidth`        | `50`                 | Default mask width.                                                                                                                                                                                                                                                            |

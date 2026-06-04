@@ -48,6 +48,7 @@ const { enterCropMode, applyCrop } = await import('../src/crop/crop-controller.t
 const { resolveOptions } = await import('../src/core/default-options.ts');
 const { HistoryManager } = await import('../src/history/history-manager.ts');
 const { floorRegion, clampRegionToCanvas } = await import('../src/utils/canvas-region.ts');
+const { attachMaskHoverHandlers } = await import('../src/mask/mask-style.ts');
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
 
@@ -218,12 +219,30 @@ function makeOriginalImage({ imageAngle, bboxLeft, bboxTop, bboxW, bboxH }) {
  * preserve / restore round trip so the documented contract can be asserted
  * verbatim on the post-crop value.
  */
-function makeMockMask({ maskId, left, top, width, height, angle, scaleX, scaleY }) {
+function makeMockMask({
+    maskId,
+    left,
+    top,
+    width,
+    height,
+    angle,
+    scaleX,
+    scaleY,
+    opacity = 0.5,
+    fill = 'rgba(0,0,0,0.5)',
+    stroke = '#ccc',
+    strokeWidth = 1,
+    selectable = true,
+    evented = true,
+    lockRotation = false,
+}) {
     const mask = {
         type: 'rect',
         maskId,
         maskName: `mask${maskId}`,
-        originalAlpha: 0.5,
+        originalAlpha: opacity,
+        originalStroke: stroke,
+        originalStrokeWidth: strokeWidth,
         // Live transform fields — the captured pre-crop snapshot reads
         // these and the post-crop reapply mutates them.
         left,
@@ -233,7 +252,15 @@ function makeMockMask({ maskId, left, top, width, height, angle, scaleX, scaleY 
         angle,
         scaleX,
         scaleY,
-        opacity: 0.5,
+        opacity,
+        fill,
+        stroke,
+        strokeWidth,
+        selectable,
+        evented,
+        lockRotation,
+        visible: true,
+        __listeners: {},
         // The axis-aligned bounding rect uses the scaled dimensions.
         // We deliberately ignore `angle` here because the legacy
         // `intersectsCrop` filter operates on axis-aligned bboxes,
@@ -251,8 +278,13 @@ function makeMockMask({ maskId, left, top, width, height, angle, scaleX, scaleY 
             Object.assign(this, patch);
             return this;
         },
-        on() {},
-        off() {},
+        on(event, handler) {
+            (this.__listeners[event] ??= []).push(handler);
+        },
+        off(event, handler) {
+            const handlers = this.__listeners[event] ?? [];
+            this.__listeners[event] = handlers.filter((candidate) => candidate !== handler);
+        },
     };
     return mask;
 }
@@ -286,6 +318,7 @@ function makeContext({
     canvasWidth = 800,
     canvasHeight = 600,
     preserveMasksAfterCrop = true,
+    hideMasksDuringCrop = false,
 }) {
     const canvas = new MockCanvas({ width: canvasWidth, height: canvasHeight });
     for (const mask of masks) canvas._objects.push(mask);
@@ -331,7 +364,7 @@ function makeContext({
             minWidth: 10,
             minHeight: 10,
             padding: 5,
-            hideMasksDuringCrop: false,
+            hideMasksDuringCrop,
             preserveMasksAfterCrop,
             allowRotationOfCropRect: false,
         },
@@ -409,6 +442,17 @@ function snapshotMaskTransform(mask) {
             height: mask.height * mask.scaleY,
         },
     };
+}
+
+function setCropRectBounds(session, cropBounds) {
+    session.cropRect.set({
+        left: cropBounds.left,
+        top: cropBounds.top,
+        width: cropBounds.width,
+        height: cropBounds.height,
+        scaleX: 1,
+        scaleY: 1,
+    });
 }
 
 // ─── Arbitraries ────────────────────────────────────────────────────────────
@@ -721,4 +765,115 @@ test('applyCrop with preserveMasksAfterCrop=true drops every mask whose pre-crop
         ),
         { numRuns: 100 },
     );
+});
+
+test('applyCrop with preserveMasksAfterCrop=true restores styles hidden by hideMasksDuringCrop', async () => {
+    const mask = makeMockMask({
+        maskId: 1,
+        left: 40,
+        top: 50,
+        width: 30,
+        height: 20,
+        angle: 15,
+        scaleX: 1.2,
+        scaleY: 0.8,
+        opacity: 0.65,
+        fill: 'rgba(10,20,30,0.4)',
+        stroke: '#123456',
+        strokeWidth: 4,
+        selectable: true,
+        evented: true,
+        lockRotation: true,
+    });
+    const { ctx, canvas, sessionRef } = makeContext({
+        masks: [mask],
+        imageAngle: 0,
+        bboxLeft: 0,
+        bboxTop: 0,
+        bboxW: 300,
+        bboxH: 200,
+        preserveMasksAfterCrop: true,
+        hideMasksDuringCrop: true,
+    });
+
+    enterCropMode(ctx);
+    const session = sessionRef.current;
+    assert.notEqual(session, null);
+    assert.equal(mask.opacity, 0, 'sanity: crop mode hides the mask before apply');
+    assert.equal(mask.evented, false, 'sanity: crop mode disables mask events before apply');
+
+    setCropRectBounds(session, { left: 10, top: 20, width: 120, height: 120 });
+
+    await applyCrop(ctx);
+
+    assert.ok(canvas.getObjects().includes(mask), 'intersecting mask must be re-added');
+    assert.equal(mask.left, 30);
+    assert.equal(mask.top, 30);
+    assert.equal(mask.opacity, 0.65);
+    assert.equal(mask.fill, 'rgba(10,20,30,0.4)');
+    assert.equal(mask.stroke, '#123456');
+    assert.equal(mask.strokeWidth, 4);
+    assert.equal(mask.selectable, true);
+    assert.equal(mask.evented, true);
+    assert.equal(mask.lockRotation, true);
+    assert.equal(mask.visible, true);
+});
+
+test('applyCrop with preserveMasksAfterCrop=true does not duplicate mask hover handlers across repeated crops', async () => {
+    const mask = makeMockMask({
+        maskId: 1,
+        left: 40,
+        top: 50,
+        width: 30,
+        height: 20,
+        angle: 0,
+        scaleX: 1,
+        scaleY: 1,
+    });
+    attachMaskHoverHandlers(mask);
+
+    const { ctx, sessionRef } = makeContext({
+        masks: [mask],
+        imageAngle: 0,
+        bboxLeft: 0,
+        bboxTop: 0,
+        bboxW: 300,
+        bboxH: 200,
+        preserveMasksAfterCrop: true,
+    });
+
+    for (const cropBounds of [
+        { left: 10, top: 20, width: 120, height: 120 },
+        { left: 0, top: 0, width: 200, height: 200 },
+    ]) {
+        enterCropMode(ctx);
+        const session = sessionRef.current;
+        assert.notEqual(session, null);
+        setCropRectBounds(session, cropBounds);
+        await applyCrop(ctx);
+    }
+
+    assert.equal(mask.__listeners.mouseover.length, 1);
+    assert.equal(mask.__listeners.mouseout.length, 1);
+    assert.ok(mask.__imageEditorMaskHandlers, 'hover handler tag must remain valid');
+});
+
+test('applyCrop rejects an empty crop region instead of exporting a silent 1x1 image', async () => {
+    const { ctx, sessionRef } = makeContext({
+        masks: [],
+        imageAngle: 0,
+        bboxLeft: 0,
+        bboxTop: 0,
+        bboxW: 300,
+        bboxH: 200,
+        preserveMasksAfterCrop: true,
+    });
+
+    enterCropMode(ctx);
+    const session = sessionRef.current;
+    assert.notEqual(session, null);
+    setCropRectBounds(session, { left: 900, top: 900, width: 20, height: 20 });
+
+    await assert.rejects(() => applyCrop(ctx), /crop region is empty/);
+    assert.equal(sessionRef.current, null, 'failed apply must close the torn-down session');
 });

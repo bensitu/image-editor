@@ -134,4 +134,23 @@ export class ExportNotReadyError extends Error {
         fixPrototype(this, ExportNotReadyError);
     }
 }
+export class ExportError extends Error {
+    constructor(message = 'Failed to export image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ExportError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, ExportError);
+    }
+}
 //# sourceMappingURL=errors.js.map

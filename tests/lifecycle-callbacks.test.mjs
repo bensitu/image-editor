@@ -168,6 +168,32 @@ test('onBusyChange emits only boolean transitions', async (t) => {
     }
 });
 
+test('showPlaceholder=false keeps the placeholder hidden across init, load, and rollback', async (t) => {
+    const { editor, ids } = createSourceEditor({ showPlaceholder: false });
+    t.after(() => disposeEditor(editor));
+
+    const placeholder = document.getElementById(ids.imagePlaceholder);
+    const container = document.getElementById(ids.canvasContainer);
+
+    assert.equal(placeholder.hidden, true, 'init must hide the placeholder when disabled');
+    assert.equal(placeholder.getAttribute('aria-hidden'), 'true');
+    assert.equal(container.hidden, false, 'canvas container must remain visible');
+
+    await editor.loadImage(makeImageDataUrl({ width: 32, height: 24 }));
+
+    assert.equal(placeholder.hidden, true, 'successful load must not show the placeholder');
+    assert.equal(container.hidden, false);
+
+    placeholder.hidden = false;
+    placeholder.setAttribute('aria-hidden', 'false');
+
+    await assert.rejects(() => editor.loadImage('data:image/png;base64,not-image-data'));
+
+    assert.equal(placeholder.hidden, true, 'failed load rollback must not re-show the placeholder');
+    assert.equal(placeholder.getAttribute('aria-hidden'), 'true');
+    assert.equal(container.hidden, false);
+});
+
 test('dispose emits image cleared before disposed and remains idempotent', async () => {
     const events = [];
     const { editor } = createSourceEditor({
@@ -225,4 +251,72 @@ test('throwing lifecycle callbacks are logged and do not reject successful opera
     assert.equal(errors.length, 1);
     assert.match(String(errors[0][0]), /onImageLoaded/);
     assert.equal(errors[0][1], callbackError);
+});
+
+test('throwing MaskConfig.onCreate does not suppress mask or image change callbacks', async (t) => {
+    const events = [];
+    const warnings = [];
+    const callbackError = new Error('mask onCreate failed');
+    const { editor } = createSourceEditor({
+        onMasksChanged: (masks, context) => events.push(['masks', context.operation, masks.length]),
+        onImageChanged: (_state, context) => events.push(['image', context.operation]),
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor);
+    const imageEventsBeforeMask = events.filter((event) => event[0] === 'image').length;
+
+    const mask = editor.createMask({
+        width: 20,
+        height: 20,
+        onCreate: () => {
+            throw callbackError;
+        },
+    });
+
+    assert.ok(mask, 'mask must still be returned');
+    assert.ok(events.some((event) => event[0] === 'masks' && event[2] === 1));
+    assert.ok(
+        events.filter((event) => event[0] === 'image').length > imageEventsBeforeMask,
+        'createMask must still emit onImageChanged',
+    );
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].error, callbackError);
+    assert.match(warnings[0].message, /onCreate/);
+});
+
+test('saveState restores the selected mask label when snapshot capture fails', async (t) => {
+    const warnings = [];
+    const { editor } = createSourceEditor({
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor);
+    const mask = editor.createMask({ width: 20, height: 20 });
+    assert.ok(mask?.__label, 'sanity: selected mask must have a visible label before save');
+    const historyLengthBefore = editor.historyManager.history.length;
+    const originalToJSON = editor.canvas.toJSON;
+    const snapshotError = new Error('snapshot failed');
+    editor.canvas.toJSON = () => {
+        throw snapshotError;
+    };
+
+    try {
+        editor.saveState();
+    } finally {
+        editor.canvas.toJSON = originalToJSON;
+    }
+
+    assert.ok(mask.__label, 'selected mask label must be restored after failed saveState');
+    assert.equal(editor.canvas.getObjects().includes(mask.__label), true);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].error, snapshotError);
+    assert.match(warnings[0].message, /capture canvas snapshot/);
+    assert.equal(
+        editor.historyManager.history.length,
+        historyLengthBefore,
+        'failed snapshot must not add a history entry',
+    );
 });

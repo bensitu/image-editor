@@ -150,8 +150,8 @@ function topLevelScalarOverridesArb() {
             maxExportPixels: fc.integer({ min: 1, max: 100000000 }),
             exportAreaByDefault: fc.constantFrom('image', 'canvas'),
             mergeMaskByDefault: fc.boolean(),
-            defaultMaskWidth: fc.integer({ min: 0, max: 1000 }),
-            defaultMaskHeight: fc.integer({ min: 0, max: 1000 }),
+            defaultMaskWidth: fc.integer({ min: 1, max: 1000 }),
+            defaultMaskHeight: fc.integer({ min: 1, max: 1000 }),
             maskRotatable: fc.boolean(),
             maskLabelOnSelect: fc.boolean(),
             maskLabelOffset: fc.integer({ min: 0, max: 100 }),
@@ -565,4 +565,60 @@ test('maxExportPixels is normalized to a positive integer', () => {
     assert.equal(resolveOptions({ maxExportPixels: null }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: -10 }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: Number.NaN }).maxExportPixels, 50000000);
+});
+
+test('invalid numeric options fall back to finite defaults', () => {
+    const resolved = resolveOptions({
+        canvasWidth: Number.NaN,
+        canvasHeight: Infinity,
+        animationDuration: -1,
+        minScale: Number.NaN,
+        maxScale: Infinity,
+        scaleStep: 0,
+        rotationStep: Number.NaN,
+        downsampleMaxWidth: -100,
+        downsampleMaxHeight: Number.NaN,
+        imageLoadTimeoutMs: 0,
+        exportMultiplier: -2,
+        defaultMaskWidth: 0,
+        defaultMaskHeight: -5,
+        maskLabelOffset: -1,
+        crop: {
+            minWidth: Number.NaN,
+            minHeight: Infinity,
+            padding: -1,
+            exportQuality: Infinity,
+        },
+    });
+
+    assert.equal(resolved.canvasWidth, DEFAULT_OPTIONS.canvasWidth);
+    assert.equal(resolved.canvasHeight, DEFAULT_OPTIONS.canvasHeight);
+    assert.equal(resolved.animationDuration, DEFAULT_OPTIONS.animationDuration);
+    assert.equal(resolved.minScale, DEFAULT_OPTIONS.minScale);
+    assert.equal(resolved.maxScale, DEFAULT_OPTIONS.maxScale);
+    assert.equal(resolved.scaleStep, DEFAULT_OPTIONS.scaleStep);
+    assert.equal(resolved.rotationStep, DEFAULT_OPTIONS.rotationStep);
+    assert.equal(resolved.downsampleMaxWidth, DEFAULT_OPTIONS.downsampleMaxWidth);
+    assert.equal(resolved.downsampleMaxHeight, DEFAULT_OPTIONS.downsampleMaxHeight);
+    assert.equal(resolved.imageLoadTimeoutMs, DEFAULT_OPTIONS.imageLoadTimeoutMs);
+    assert.equal(resolved.exportMultiplier, DEFAULT_OPTIONS.exportMultiplier);
+    assert.equal(resolved.defaultMaskWidth, DEFAULT_OPTIONS.defaultMaskWidth);
+    assert.equal(resolved.defaultMaskHeight, DEFAULT_OPTIONS.defaultMaskHeight);
+    assert.equal(resolved.maskLabelOffset, DEFAULT_OPTIONS.maskLabelOffset);
+    assert.equal(resolved.crop.minWidth, DEFAULT_CROP.minWidth);
+    assert.equal(resolved.crop.minHeight, DEFAULT_CROP.minHeight);
+    assert.equal(resolved.crop.padding, DEFAULT_CROP.padding);
+    assert.equal(resolved.crop.exportQuality, undefined);
+});
+
+test('numeric option edge cases normalize deterministically', () => {
+    const zeroDuration = resolveOptions({ animationDuration: 0 });
+    assert.equal(zeroDuration.animationDuration, 0, 'animationDuration=0 remains valid');
+
+    const swappedScales = resolveOptions({ minScale: 5, maxScale: 1 });
+    assert.equal(swappedScales.minScale, 1);
+    assert.equal(swappedScales.maxScale, 5);
+
+    const clampedCropQuality = resolveOptions({ crop: { exportQuality: 2 } });
+    assert.equal(clampedCropQuality.crop.exportQuality, 1);
 });

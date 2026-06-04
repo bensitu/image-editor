@@ -43,7 +43,10 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
 const { exportImageBase64 } = await import('../src/export/export-service.ts');
-const { getClampedCanvasRegion, getObjectBBox } = await import('../src/utils/canvas-region.ts');
+const { getClampedCanvasRegion, getObjectBBox, hasMeaningfulCanvasRegion } =
+    await import('../src/utils/canvas-region.ts');
+
+const MOCK_CANVAS_SIZE = 10000;
 
 // ─── Test doubles ───────────────────────────────────────────────────────────
 
@@ -58,10 +61,10 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
     return {
         toDataURLArgs,
         getWidth() {
-            return 10000;
+            return MOCK_CANVAS_SIZE;
         },
         getHeight() {
-            return 10000;
+            return MOCK_CANVAS_SIZE;
         },
         getObjects() {
             return [];
@@ -116,7 +119,9 @@ function makeContext(canvas, image) {
 
 /**
  * Sub-pixel bounding rect. Bounds are chosen to cover three branches
- * of `floorRegion`:
+ * of `floorRegion`, then filtered to meaningful overlap with the mock
+ * canvas because public export now rejects logically empty image regions
+ * instead of silently converting them to 1x1 output:
  *
  *   - `left`/`top` may be negative (clamped to `0`).
  *   - `left`/`top` may land on a half-pixel (floored down).
@@ -129,32 +134,34 @@ function makeContext(canvas, image) {
  * exercised by direct-helper unit coverage and is not the subject of
  * this property.
  */
-const subPixelRectArb = fc.record({
-    left: fc.double({
-        min: -100,
-        max: 5000,
-        noNaN: true,
-        noDefaultInfinity: true,
-    }),
-    top: fc.double({
-        min: -100,
-        max: 5000,
-        noNaN: true,
-        noDefaultInfinity: true,
-    }),
-    width: fc.double({
-        min: Math.fround(0.001),
-        max: 5000,
-        noNaN: true,
-        noDefaultInfinity: true,
-    }),
-    height: fc.double({
-        min: Math.fround(0.001),
-        max: 5000,
-        noNaN: true,
-        noDefaultInfinity: true,
-    }),
-});
+const subPixelRectArb = fc
+    .record({
+        left: fc.double({
+            min: -100,
+            max: 5000,
+            noNaN: true,
+            noDefaultInfinity: true,
+        }),
+        top: fc.double({
+            min: -100,
+            max: 5000,
+            noNaN: true,
+            noDefaultInfinity: true,
+        }),
+        width: fc.double({
+            min: Math.fround(0.001),
+            max: 5000,
+            noNaN: true,
+            noDefaultInfinity: true,
+        }),
+        height: fc.double({
+            min: Math.fround(0.001),
+            max: 5000,
+            noNaN: true,
+            noDefaultInfinity: true,
+        }),
+    })
+    .filter((rect) => hasMeaningfulCanvasRegion(rect, MOCK_CANVAS_SIZE, MOCK_CANVAS_SIZE));
 
 // ─── — floored region forwarded to canvas.toDataURL ──────────
 
