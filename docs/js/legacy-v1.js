@@ -45,6 +45,7 @@ const translations = {
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
         legacyDemo: 'Legacy v1 demo',
+        usingLegacyDemo: 'Using v1',
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
@@ -82,6 +83,7 @@ const translations = {
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
         legacyDemo: '旧版 v1 演示',
+        usingLegacyDemo: '正在使用 v1',
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
@@ -119,6 +121,7 @@ const translations = {
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
         legacyDemo: '旧 v1 デモ',
+        usingLegacyDemo: 'v1 使用中',
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
@@ -156,6 +159,7 @@ const translations = {
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
         legacyDemo: '이전 v1 데모',
+        usingLegacyDemo: 'v1 사용 중',
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
@@ -193,6 +197,7 @@ const translations = {
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
         legacyDemo: 'Démo v1 historique',
+        usingLegacyDemo: 'Version v1 active',
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
@@ -230,6 +235,7 @@ const translations = {
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
         legacyDemo: 'Demo v1 anterior',
+        usingLegacyDemo: 'Usando v1',
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
@@ -261,12 +267,54 @@ function getOptionalElement(id) {
     return document.getElementById(id);
 }
 
-function getGlobalFabricModule() {
-    return window.fabric || null;
-}
-
 function getImageEditorConstructor(imageEditorGlobal = window.ImageEditor) {
     return (imageEditorGlobal && imageEditorGlobal.ImageEditor) || imageEditorGlobal || null;
+}
+
+function resetCanvasDom() {
+    const imageContainerElement = getOptionalElement('imageContainer');
+    let canvasElement = getOptionalElement('canvas');
+    const canvasCaptionElement = getOptionalElement('canvasCaption');
+    if (imageContainerElement) {
+        if (!canvasElement) {
+            canvasElement = document.createElement('canvas');
+            canvasElement.id = 'canvas';
+            imageContainerElement.insertBefore(canvasElement, canvasCaptionElement || null);
+        }
+
+        const canvasParent = canvasElement.parentElement;
+        if (canvasParent && canvasParent !== imageContainerElement) {
+            imageContainerElement.insertBefore(canvasElement, canvasCaptionElement || null);
+            canvasParent.remove();
+        }
+
+        Array.from(imageContainerElement.children).forEach(function (childElement) {
+            if (childElement !== canvasElement && childElement !== canvasCaptionElement) {
+                childElement.remove();
+            }
+        });
+
+        canvasElement.className = '';
+        canvasElement.removeAttribute('data-fabric');
+        canvasElement.removeAttribute('style');
+        canvasElement.width = 300;
+        canvasElement.height = 150;
+    }
+
+    const maskListElement = getOptionalElement('maskList');
+    if (maskListElement) maskListElement.innerHTML = '';
+}
+
+function disposeEditorInstance() {
+    if (editor && typeof editor.dispose === 'function') {
+        try {
+            editor.dispose();
+        } catch (error) {
+            console.warn('Editor dispose failed', error);
+        }
+    }
+    editor = null;
+    resetCanvasDom();
 }
 
 function getSelectedLayoutMode() {
@@ -302,7 +350,7 @@ function createEditorOptions() {
         animationDuration: 100,
         maskLabelOffset: 5,
         showPlaceholder: true,
-        exportAreaByDefault: 'image',
+        exportImageAreaByDefault: true,
         // Lifecycle callbacks are a convenient way for host pages to sync
         // their own controls with editor state without reaching into internals.
         onImageChanged: updateDemoControls,
@@ -312,8 +360,6 @@ function createEditorOptions() {
 }
 
 function createEditorInstance(ImageEditorCtor, options) {
-    const fabricModule = getGlobalFabricModule();
-    if (fabricModule) return new ImageEditorCtor(fabricModule, options);
     return new ImageEditorCtor(options);
 }
 
@@ -622,9 +668,13 @@ function setOptions() {
     const layoutMode = getSelectedLayoutMode();
 
     // `setLayoutMode` is the public API for changing how the NEXT image load
-    // is placed in v2.
+    // is placed in v2. v1 has no equivalent setter, so this legacy page
+    // recreates the editor with the selected constructor options before loading.
     if (typeof editor.setLayoutMode === 'function') {
         editor.setLayoutMode(layoutMode);
+    } else {
+        disposeEditorInstance();
+        initEditor();
     }
 }
 
