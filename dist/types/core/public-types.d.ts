@@ -16,7 +16,9 @@ import type * as FabricNS from 'fabric';
  * Used when consumers need to type the value they pass into
  * `new ImageEditor(fabric, options)`.
  */
-export type FabricModule = typeof FabricNS;
+export type FabricModule = Omit<typeof FabricNS, 'default'> & {
+    default?: unknown;
+};
 /**
  * Mutually exclusive image layout mode used by {@link ImageEditor.setLayoutMode}.
  *

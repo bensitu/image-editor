@@ -13,8 +13,12 @@
  * @example
  * ```ts
  * import * as fabric from 'fabric';
- * import { ImageEditor} from 'image-editor';
- * import type { ImageEditorOptions, MaskConfig, MaskObject} from 'image-editor';
+ * import { ImageEditor } from '@bensitu/image-editor';
+ * import type {
+ *     ImageEditorOptions,
+ *     MaskConfig,
+ *     MaskObject,
+ * } from '@bensitu/image-editor';
  * ```
  *
  * @module

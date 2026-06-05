@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-06-05
+## [2.0.0] - 2026-06-06
 
 This release is a behavior-preserving migration of the v1 image editor onto
 a TypeScript and Fabric.js v7 foundation, published in multiple module
 formats from a single source tree. On-screen behavior is carried forward
-from v1.4.2 — sizing, scroll, overflow, rollback, mask metadata, history
+from v1.5.2 — sizing, scroll, overflow, rollback, mask metadata, history
 snapshots, export framing, crop session lifecycle, and dispose ordering
 all match v1. The only intentional default change is
 `crop.preserveMasksAfterCrop` (see Changed). The public API is canonical
@@ -25,6 +25,9 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
 - Add `fabric@^7` as a peer dependency. Consumers pass the Fabric module
   to the editor explicitly through the constructor, with a
   `globalThis.fabric` fallback for UMD usage.
+- Add `setLayoutMode('fit' | 'cover' | 'expand')` as the public way to
+  select the layout strategy for future image loads without exposing
+  internal options.
 - Add `maxExportPixels` as a public export-size guard. Invalid values fall
   back to the default budget, and oversized multiplier exports reject before
   rendering.
@@ -84,6 +87,37 @@ to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.
   `Command`, `HistoryManager`, subsystem controllers, services, managers,
   and utility modules. The package root exports only `ImageEditor`
   (default and named), `isMaskObject`, and the documented public types.
+
+### Security
+
+- Upgrade `@rollup/plugin-terser` to `^1.0.0` so the development build chain
+  resolves `serialize-javascript@7.0.5`, clearing the high-severity npm audit
+  finding from the release verification pass.
+
+### Fixed
+
+- Replace the `setLayoutMode` test's private `editor.options` assertions with
+  black-box load/export behavior checks.
+- Loosen the public `FabricModule` type so `new ImageEditor(fabric, options)`
+  type-checks with the standard `import * as fabric from 'fabric'` namespace
+  form.
+- Allow integration tests to pass from a clean tree before `dist/` has been
+  built, while still failing when a partial `dist/` directory is present.
+
+## [1.5.2] - 2026-06-04
+
+### Added
+
+- Add `maxHistorySize` as a configurable undo/redo history bound for large image sessions.
+- Add regression coverage for crop apply locking, safe user callbacks, transform input validation, DOM disable restoration, placeholder suppression, and low-risk runtime hardening paths.
+
+### Fixed
+
+- Prevent `cancelCrop()` and crop reentry from mutating crop state while `applyCrop()` is in progress.
+- Keep successful image loads and mask creation committed when observer callbacks throw, reporting callback failures through warnings instead.
+- Fall back safely when label callbacks throw, reject non-finite transform inputs, and validate crop regions before export.
+- Keep canvas interaction available in crop mode, restore disabled/aria-disabled/pointer-events state on dispose, and consistently honor `showPlaceholder: false`.
+- Normalize invalid numeric runtime options, bound history size, report unsupported file selections once, validate JPEG background colors, reject degenerate polygon masks, and isolate throwing custom mask generators.
 
 ## [1.5.1] - 2026-06-02
 

@@ -9,9 +9,38 @@ let editor = null;
 let messagePanel = null;
 let demoMessage = null;
 let demoLoading = false;
+let currentBase64SummaryDataUrl = '';
+let activeDemoVersion = 'modern-v2';
 
 const defaultLanguage = 'en';
 const supportedLanguages = ['en', 'zh', 'ja', 'ko', 'fr', 'es'];
+const modernDemoVersion = 'modern-v2';
+const legacyDemoVersion = 'legacy-v1';
+const minimumVersionOverlayMs = 500;
+const demoVersionConfigs = {
+    [modernDemoVersion]: {
+        fabricGlobal: null,
+        fabricSources: () => ['https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'],
+        imageEditorGlobal: null,
+        imageEditorSources: () =>
+            window.location.hostname.endsWith('github.io')
+                ? [
+                      'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
+                  ]
+                : [
+                      '../dist/umd/image-editor.umd.js',
+                      'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
+                  ],
+    },
+    [legacyDemoVersion]: {
+        fabricGlobal: null,
+        fabricSources: () => ['https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js'],
+        imageEditorGlobal: null,
+        imageEditorSources: () => [
+            'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@1.5.2/dist/image-editor.min.js',
+        ],
+    },
+};
 
 // UI-only copy. These translations are not part of the image-editor API; they
 // keep the demo localized while the API examples below remain language-neutral.
@@ -44,11 +73,15 @@ const translations = {
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
         legacyDemo: 'Legacy v1 demo',
+        usingLegacyDemo: 'Using v1',
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
         maskShapePolygon: 'Polygon',
+        exportedImageSummary: 'Exported image: {mimeType}, {size}, Base64: {preview}',
+        switchingDemoVersion: 'Loading demo version',
         defaultErrorMessage: 'Image processing failed',
+        errorDemoVersionLoad: 'Demo version could not be loaded',
         errorFileRead: 'Image file could not be read',
         errorEditorNotInitialized: 'Editor is not initialized',
     },
@@ -80,11 +113,15 @@ const translations = {
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
         legacyDemo: '旧版 v1 演示',
+        usingLegacyDemo: '正在使用 v1',
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
         maskShapePolygon: '多边形',
+        exportedImageSummary: '已导出图片：{mimeType}，{size}，Base64：{preview}',
+        switchingDemoVersion: '正在加载演示版本',
         defaultErrorMessage: '图像处理失败',
+        errorDemoVersionLoad: '无法加载演示版本',
         errorFileRead: '无法读取图片文件',
         errorEditorNotInitialized: '编辑器未初始化',
     },
@@ -116,11 +153,15 @@ const translations = {
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
         legacyDemo: '旧 v1 デモ',
+        usingLegacyDemo: 'v1 使用中',
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
         maskShapePolygon: '多角形',
+        exportedImageSummary: '書き出した画像: {mimeType}, {size}, Base64: {preview}',
+        switchingDemoVersion: 'デモバージョンを読み込み中',
         defaultErrorMessage: '画像処理に失敗しました',
+        errorDemoVersionLoad: 'デモバージョンを読み込めませんでした',
         errorFileRead: '画像ファイルを読み込めませんでした',
         errorEditorNotInitialized: 'エディタが初期化されていません',
     },
@@ -152,11 +193,15 @@ const translations = {
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
         legacyDemo: '이전 v1 데모',
+        usingLegacyDemo: 'v1 사용 중',
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
         maskShapePolygon: '다각형',
+        exportedImageSummary: '내보낸 이미지: {mimeType}, {size}, Base64: {preview}',
+        switchingDemoVersion: '데모 버전 불러오는 중',
         defaultErrorMessage: '이미지 처리에 실패했습니다',
+        errorDemoVersionLoad: '데모 버전을 불러올 수 없습니다',
         errorFileRead: '이미지 파일을 읽을 수 없습니다',
         errorEditorNotInitialized: '에디터가 초기화되지 않았습니다',
     },
@@ -188,11 +233,15 @@ const translations = {
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
         legacyDemo: 'Démo v1 historique',
+        usingLegacyDemo: 'Version v1 active',
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
         maskShapePolygon: 'Polygone',
+        exportedImageSummary: 'Image exportée : {mimeType}, {size}, Base64 : {preview}',
+        switchingDemoVersion: 'Chargement de la version de démo',
         defaultErrorMessage: "Échec du traitement de l'image",
+        errorDemoVersionLoad: "La version de démo n'a pas pu être chargée",
         errorFileRead: "Le fichier image n'a pas pu être lu",
         errorEditorNotInitialized: "L'éditeur n'est pas initialisé",
     },
@@ -224,11 +273,15 @@ const translations = {
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
         legacyDemo: 'Demo v1 anterior',
+        usingLegacyDemo: 'Usando v1',
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
         maskShapePolygon: 'Polígono',
+        exportedImageSummary: 'Imagen exportada: {mimeType}, {size}, Base64: {preview}',
+        switchingDemoVersion: 'Cargando versión de demo',
         defaultErrorMessage: 'Error al procesar la imagen',
+        errorDemoVersionLoad: 'No se pudo cargar la versión de demo',
         errorFileRead: 'No se pudo leer el archivo de imagen',
         errorEditorNotInitialized: 'El editor no está inicializado',
     },
@@ -252,6 +305,275 @@ const maskShapeConfigs = {
 
 function getOptionalElement(id) {
     return document.getElementById(id);
+}
+
+function getGlobalFabricModule() {
+    return window.fabric || null;
+}
+
+function setGlobalFabricModule(fabricModule) {
+    if (fabricModule) {
+        window.fabric = fabricModule;
+        return;
+    }
+
+    try {
+        delete window.fabric;
+    } catch {
+        window.fabric = undefined;
+    }
+}
+
+function delay(ms) {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, Math.max(0, ms));
+    });
+}
+
+function setVersionLoadingOverlayVisible(isVisible) {
+    const overlayElement = getOptionalElement('versionLoadingOverlay');
+    if (!overlayElement) return;
+
+    overlayElement.hidden = !isVisible;
+    overlayElement.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+}
+
+async function runWithVersionLoadingOverlay(operation) {
+    const startedAt = window.performance.now();
+    setVersionLoadingOverlayVisible(true);
+
+    try {
+        return await operation();
+    } finally {
+        const elapsed = window.performance.now() - startedAt;
+        if (elapsed < minimumVersionOverlayMs) {
+            await delay(minimumVersionOverlayMs - elapsed);
+        }
+        setVersionLoadingOverlayVisible(false);
+    }
+}
+
+function getImageEditorConstructor(imageEditorGlobal = window.ImageEditor) {
+    return (imageEditorGlobal && imageEditorGlobal.ImageEditor) || imageEditorGlobal || null;
+}
+
+function rememberCurrentDemoRuntime(versionKey) {
+    const config = demoVersionConfigs[versionKey];
+    if (!config) return;
+    if (!config.fabricGlobal) config.fabricGlobal = getGlobalFabricModule();
+    if (!config.imageEditorGlobal) config.imageEditorGlobal = window.ImageEditor || null;
+}
+
+function applyDemoRuntime(versionKey) {
+    const config = demoVersionConfigs[versionKey];
+    if (!config) return;
+    setGlobalFabricModule(config.fabricGlobal);
+    if (config.imageEditorGlobal) window.ImageEditor = config.imageEditorGlobal;
+}
+
+function loadExternalScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve(src);
+        script.onerror = () => reject(new Error(`Script failed to load: ${src}`));
+        document.body.append(script);
+    });
+}
+
+async function loadFirstAvailableScript(sources) {
+    let lastError = null;
+    for (const src of sources) {
+        try {
+            return await loadExternalScript(src);
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error('Script source list is empty');
+}
+
+async function ensureDemoRuntime(versionKey) {
+    const config = demoVersionConfigs[versionKey];
+    if (!config) throw new Error(`Unknown demo version: ${versionKey}`);
+
+    if (config.fabricGlobal && config.imageEditorGlobal) {
+        applyDemoRuntime(versionKey);
+        return;
+    }
+
+    const previousImageEditorGlobal = window.ImageEditor || null;
+    const previousFabricGlobal = getGlobalFabricModule();
+
+    try {
+        if (!config.fabricGlobal) {
+            await loadFirstAvailableScript(config.fabricSources());
+            config.fabricGlobal = getGlobalFabricModule();
+        }
+        if (!config.fabricGlobal) {
+            throw new Error(`Fabric module was not registered for ${versionKey}`);
+        }
+
+        setGlobalFabricModule(config.fabricGlobal);
+
+        if (!config.imageEditorGlobal) {
+            await loadFirstAvailableScript(config.imageEditorSources());
+            config.imageEditorGlobal = window.ImageEditor || null;
+        }
+        if (!getImageEditorConstructor(config.imageEditorGlobal)) {
+            throw new Error(`ImageEditor constructor was not registered for ${versionKey}`);
+        }
+
+        applyDemoRuntime(versionKey);
+    } catch (error) {
+        window.ImageEditor = previousImageEditorGlobal;
+        setGlobalFabricModule(previousFabricGlobal);
+        throw error;
+    }
+}
+
+function updateDemoVersionToggle() {
+    const legacyDemoToggleElement = getOptionalElement('legacyDemoToggle');
+    if (!legacyDemoToggleElement) return;
+
+    const isUsingLegacy = activeDemoVersion === legacyDemoVersion;
+    legacyDemoToggleElement.textContent = getCurrentTranslations(
+        isUsingLegacy ? 'usingLegacyDemo' : 'legacyDemo',
+    );
+    legacyDemoToggleElement.dataset.demoTarget = isUsingLegacy
+        ? modernDemoVersion
+        : legacyDemoVersion;
+    legacyDemoToggleElement.setAttribute('aria-pressed', isUsingLegacy ? 'true' : 'false');
+}
+
+function resetCanvasDom() {
+    const imageContainerElement = getOptionalElement('imageContainer');
+    const canvasElement = getOptionalElement('canvas');
+    const canvasCaptionElement = getOptionalElement('canvasCaption');
+    if (imageContainerElement && canvasElement) {
+        const canvasParent = canvasElement.parentElement;
+        if (canvasParent && canvasParent !== imageContainerElement) {
+            imageContainerElement.insertBefore(canvasElement, canvasCaptionElement || null);
+            canvasParent.remove();
+        }
+
+        Array.from(imageContainerElement.children).forEach(function (childElement) {
+            if (childElement !== canvasElement && childElement !== canvasCaptionElement) {
+                childElement.remove();
+            }
+        });
+
+        canvasElement.className = '';
+        canvasElement.removeAttribute('data-fabric');
+        canvasElement.removeAttribute('style');
+        canvasElement.width = 300;
+        canvasElement.height = 150;
+    }
+
+    const maskListElement = getOptionalElement('maskList');
+    if (maskListElement) maskListElement.innerHTML = '';
+}
+
+function disposeEditorInstance() {
+    if (editor && typeof editor.dispose === 'function') {
+        try {
+            editor.dispose();
+        } catch (error) {
+            console.warn('Editor dispose failed', error);
+        }
+    }
+    editor = null;
+    resetCanvasDom();
+}
+
+function getSelectedLayoutMode() {
+    const coverCanvasRadio = getOptionalElement('coverCanvas');
+    const expandCanvasRadio = getOptionalElement('expandCanvas');
+
+    if (coverCanvasRadio?.checked) return 'cover';
+    if (expandCanvasRadio?.checked) return 'expand';
+    return 'fit';
+}
+
+function getSelectedLayoutOptions() {
+    const layoutMode = getSelectedLayoutMode();
+    return {
+        expandCanvasToImage: layoutMode === 'expand',
+        fitImageToCanvas: layoutMode === 'fit',
+        coverImageToCanvas: layoutMode === 'cover',
+    };
+}
+
+function createEditorOptions() {
+    return {
+        backgroundColor: 'transparent',
+        ...getSelectedLayoutOptions(),
+        // Downsampling protects memory usage when users drop very large
+        // source images into the demo.
+        downsampleOnLoad: true,
+        initialImageBase64: null,
+        // Masks stay rotatable in this demo so the mask and crop examples
+        // exercise the richer Fabric object surface.
+        maskRotatable: true,
+        maskLabelOnSelect: true,
+        animationDuration: 100,
+        maskLabelOffset: 5,
+        showPlaceholder: true,
+        // v2 uses `exportAreaByDefault`; v1 uses `exportImageAreaByDefault`.
+        exportAreaByDefault: 'image',
+        exportImageAreaByDefault: true,
+        // Lifecycle callbacks are a convenient way for host pages to sync
+        // their own controls with editor state without reaching into internals.
+        onImageChanged: updateDemoControls,
+        onBusyChange: updateDemoControls,
+        onMasksChanged: updateDemoControls,
+    };
+}
+
+function createEditorInstance(ImageEditorCtor, options) {
+    if (activeDemoVersion === modernDemoVersion) {
+        const fabricModule = getGlobalFabricModule();
+        if (fabricModule) return new ImageEditorCtor(fabricModule, options);
+    }
+
+    return new ImageEditorCtor(options);
+}
+
+async function switchDemoVersion(nextVersion) {
+    if (nextVersion === activeDemoVersion || isEditorBusy()) return;
+
+    const previousVersion = activeDemoVersion;
+    const legacyDemoToggleElement = getOptionalElement('legacyDemoToggle');
+    if (legacyDemoToggleElement) legacyDemoToggleElement.disabled = true;
+
+    try {
+        await runWithVersionLoadingOverlay(async function () {
+            await ensureDemoRuntime(nextVersion);
+            disposeEditorInstance();
+            activeDemoVersion = nextVersion;
+            initEditor();
+            clearMessage();
+            updateDemoControls();
+        });
+    } catch (error) {
+        activeDemoVersion = previousVersion;
+        applyDemoRuntime(previousVersion);
+        if (!editor) initEditor();
+        const messagePrefix = getCurrentTranslations('errorDemoVersionLoad');
+        showMessage(error instanceof Error ? `${messagePrefix}: ${error.message}` : messagePrefix);
+        console.error(error);
+    } finally {
+        if (legacyDemoToggleElement) legacyDemoToggleElement.disabled = false;
+        updateDemoVersionToggle();
+    }
+}
+
+async function handleLegacyDemoToggleClick() {
+    await switchDemoVersion(
+        activeDemoVersion === legacyDemoVersion ? modernDemoVersion : legacyDemoVersion,
+    );
 }
 
 function getMessage(error) {
@@ -282,6 +604,7 @@ function showMessage(error) {
         console.warn('Message panel elements not found');
         return;
     }
+    currentBase64SummaryDataUrl = '';
     clearMessageActions(panel);
     const text = getMessage(error);
     message.textContent = text;
@@ -293,6 +616,7 @@ function showMessage(error) {
 function clearMessage() {
     const { panel, message } = getMessageElements();
     if (!panel || !message) return;
+    currentBase64SummaryDataUrl = '';
     clearMessageActions(panel);
     message.textContent = '';
     message.classList.remove('is-success');
@@ -316,12 +640,22 @@ function formatBytes(bytes) {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function formatTranslation(template, values) {
+    return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, function (_match, key) {
+        return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : `{${key}}`;
+    });
+}
+
 function summarizeDataUrl(dataUrl) {
     const value = String(dataUrl || '');
     const mimeMatch = /^data:([^;]+);base64,/i.exec(value);
     const mimeType = mimeMatch?.[1] || 'image/*';
     const preview = value.length > 42 ? `${value.slice(0, 42)}...` : value;
-    return `Exported image: ${mimeType}, ${formatBytes(estimateDataUrlBytes(value))}, Base64: ${preview}`;
+    return formatTranslation(getCurrentTranslations('exportedImageSummary'), {
+        mimeType,
+        preview,
+        size: formatBytes(estimateDataUrlBytes(value)),
+    });
 }
 
 async function copyTextToClipboard(text) {
@@ -351,6 +685,7 @@ function showBase64Summary(dataUrl) {
         return;
     }
 
+    currentBase64SummaryDataUrl = dataUrl;
     clearMessageActions(panel);
     message.textContent = summarizeDataUrl(dataUrl);
     message.classList.add('is-success');
@@ -361,10 +696,12 @@ function showBase64Summary(dataUrl) {
     copyButton.type = 'button';
     copyButton.className = 'btn btn-sm btn-outline-secondary demo-copy-button';
     copyButton.dataset.demoMessageAction = 'copyBase64';
+    copyButton.dataset.demoCopyState = 'copy';
     copyButton.textContent = getCurrentTranslations('copyBase64');
     copyButton.addEventListener('click', async function () {
         try {
             await copyTextToClipboard(dataUrl);
+            copyButton.dataset.demoCopyState = 'copied';
             copyButton.textContent = getCurrentTranslations('copiedBase64');
         } catch (error) {
             showMessage(error);
@@ -429,6 +766,13 @@ function applyLanguage(language) {
         }
     });
 
+    document.querySelectorAll('[data-i18n-aria-label]').forEach(function (element) {
+        const translationKey = element.dataset.i18nAriaLabel;
+        if (languageTranslations[translationKey]) {
+            element.setAttribute('aria-label', languageTranslations[translationKey]);
+        }
+    });
+
     const darkModeToggleElement = getOptionalElement('darkModeToggle');
     if (darkModeToggleElement) {
         darkModeToggleElement.setAttribute('aria-label', languageTranslations.darkMode);
@@ -441,6 +785,7 @@ function applyLanguage(language) {
         buttonElement.classList.toggle('active', buttonElement.dataset.language === nextLanguage);
     });
 
+    updateDynamicLocalizedText();
     setStoredValue('imageEditorDemoLanguage', nextLanguage);
 }
 
@@ -458,15 +803,37 @@ function applyTheme(isDarkMode, shouldPersist = true) {
     }
 }
 
+function updateDynamicLocalizedText() {
+    updateDemoVersionToggle();
+
+    const { panel, message } = getMessageElements();
+    if (
+        currentBase64SummaryDataUrl &&
+        message &&
+        !message.hidden &&
+        message.classList.contains('is-success')
+    ) {
+        message.textContent = summarizeDataUrl(currentBase64SummaryDataUrl);
+    }
+
+    const copyButton = panel?.querySelector('[data-demo-message-action="copyBase64"]');
+    if (copyButton) {
+        copyButton.textContent =
+            copyButton.dataset.demoCopyState === 'copied'
+                ? getCurrentTranslations('copiedBase64')
+                : getCurrentTranslations('copyBase64');
+    }
+}
+
 function initEditor() {
+    rememberCurrentDemoRuntime(activeDemoVersion);
+    applyDemoRuntime(activeDemoVersion);
+
     // The UMD bundle exposes the constructor on `globalThis.ImageEditor`
     // (Rollup `name: 'ImageEditor'`, `exports: 'named'`). Depending on the
     // host environment, the global may be the bare constructor or a
     // namespace object that re-exports it as `.ImageEditor`.
-    const ImageEditorCtor =
-        (window.ImageEditor && window.ImageEditor.ImageEditor) ||
-        window.ImageEditor ||
-        (typeof ImageEditor !== 'undefined' ? ImageEditor : null);
+    const ImageEditorCtor = getImageEditorConstructor();
     if (!ImageEditorCtor) {
         console.error(
             'ImageEditor constructor not found. Make sure the UMD bundle is loaded before this script.',
@@ -479,33 +846,7 @@ function initEditor() {
     //
     // In ESM applications the equivalent is:
     // `new ImageEditor(fabric, { ...options })`.
-    editor = new ImageEditorCtor({
-        backgroundColor: 'transparent',
-        // Layout options define the initial load behavior. The radio buttons
-        // below switch future loads via `editor.setLayoutMode(mode)`.
-        expandCanvasToImage: false,
-        fitImageToCanvas: true,
-        coverImageToCanvas: false,
-        // Downsampling protects memory usage when users drop very large
-        // source images into the demo.
-        downsampleOnLoad: true,
-        initialImageBase64: null,
-        // Masks stay rotatable in this demo so the mask and crop examples
-        // exercise the richer Fabric object surface.
-        maskRotatable: true,
-        maskLabelOnSelect: true,
-        animationDuration: 100,
-        maskLabelOffset: 5,
-        showPlaceholder: true,
-        // Export defaults apply when the demo calls `exportImageBase64()`
-        // without per-call options.
-        exportAreaByDefault: 'image',
-        // Lifecycle callbacks are a convenient way for host pages to sync
-        // their own controls with editor state without reaching into internals.
-        onImageChanged: updateDemoControls,
-        onBusyChange: updateDemoControls,
-        onMasksChanged: updateDemoControls,
-    });
+    editor = createEditorInstance(ImageEditorCtor, createEditorOptions());
 
     // `init` wires optional DOM affordances by ID. Passing `null` disables a
     // built-in binding so the host page can provide its own control, as this
@@ -532,6 +873,7 @@ function initEditor() {
         imageInput: null,
         uploadArea: null,
     });
+    updateDemoVersionToggle();
 }
 
 if (document.readyState === 'loading') {
@@ -542,19 +884,16 @@ if (document.readyState === 'loading') {
 
 function setOptions() {
     if (!editor) return;
-    const fitImageRadio = getOptionalElement('fitImage');
-    const coverCanvasRadio = getOptionalElement('coverCanvas');
-    const expandCanvasRadio = getOptionalElement('expandCanvas');
+    const layoutMode = getSelectedLayoutMode();
 
     // `setLayoutMode` is the public API for changing how the NEXT image load
-    // is placed. It intentionally does not re-layout an already loaded image;
-    // users can call it immediately before `loadImage`.
-    if (fitImageRadio?.checked || (!coverCanvasRadio?.checked && !expandCanvasRadio?.checked)) {
-        editor.setLayoutMode('fit');
-    } else if (coverCanvasRadio?.checked) {
-        editor.setLayoutMode('cover');
-    } else {
-        editor.setLayoutMode('expand');
+    // is placed in v2. v1 has no equivalent setter, so the demo recreates the
+    // v1 editor with the selected constructor options before loading.
+    if (typeof editor.setLayoutMode === 'function') {
+        editor.setLayoutMode(layoutMode);
+    } else if (activeDemoVersion === legacyDemoVersion) {
+        disposeEditorInstance();
+        initEditor();
     }
 }
 
@@ -726,6 +1065,11 @@ if (uploadAreaElement) {
     uploadAreaElement.addEventListener('drop', handleUploadAreaDrop);
     uploadAreaElement.addEventListener('dragover', handleUploadAreaDragOver);
     uploadAreaElement.addEventListener('dragleave', handleUploadAreaDragLeave);
+}
+
+const legacyDemoToggleElement = getOptionalElement('legacyDemoToggle');
+if (legacyDemoToggleElement) {
+    legacyDemoToggleElement.addEventListener('click', handleLegacyDemoToggleClick);
 }
 
 document.querySelectorAll('.language-button').forEach(function (buttonElement) {

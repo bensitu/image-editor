@@ -153,17 +153,17 @@ const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
  * ## Quick start (ESM)
  * ```ts
  * import * as fabric from 'fabric';
- * import { ImageEditor} from 'image-editor';
+ * import { ImageEditor } from '@bensitu/image-editor';
  *
- * const editor = new ImageEditor(fabric, { canvasWidth: 1024, canvasHeight: 768});
- * editor.init({ canvas: 'myCanvas'});
+ * const editor = new ImageEditor(fabric, { canvasWidth: 1024, canvasHeight: 768 });
+ * editor.init({ canvas: 'myCanvas' });
  * ```
  *
  * ## Quick start (CDN / `<script>` tag)
  * ```ts
  * // Assumes window.fabric is populated by a Fabric.js CDN script
- * const editor = new ImageEditor({ canvasWidth: 1024});
- * editor.init;
+ * const editor = new ImageEditor({ canvasWidth: 1024 });
+ * editor.init();
  * ```
  */
 export class ImageEditor {

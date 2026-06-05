@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as fabricModule from 'fabric';
 import { JSDOM } from 'jsdom';
 import { Image as CanvasImage } from 'canvas';
@@ -11,6 +14,19 @@ export const fabric = {
 };
 
 let domCounter = 0;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..', '..');
+const distRoot = path.join(repoRoot, 'dist');
+
+async function pathExists(filePath) {
+    try {
+        await fs.access(filePath);
+        return true;
+    } catch (error) {
+        if (error?.code === 'ENOENT') return false;
+        throw error;
+    }
+}
 
 function defineGlobal(name, value) {
     Object.defineProperty(globalThis, name, {
@@ -76,6 +92,9 @@ export function installFabricDom() {
 
 export async function loadImageEditorModule() {
     installFabricDom();
+    if (!(await pathExists(distRoot))) {
+        return import('../../src/index.ts');
+    }
     return import('../../dist/esm/index.js');
 }
 

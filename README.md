@@ -42,6 +42,10 @@ with a stable public surface.
 - **Fabric.js**: peer dependency `^7.0.0` (must be installed by the consumer)
 - **Browsers**: modern evergreen (Chrome, Firefox, Safari, Edge). The library
   uses ES2022 features and the Fabric v7 promise-based API.
+- **TypeScript**: strict consumers that compile dependencies with
+  `skipLibCheck: false` should include the ES2022 library in `tsconfig.json`.
+  Fabric v7.4 declarations also reference `jsdom` types, so install
+  `@types/jsdom` when your project type-checks Fabric's declaration files.
 
 ## Installation
 
@@ -403,6 +407,24 @@ build:umd` in order, emitting:
 - `dist/umd/image-editor.umd.js`
 
 `npm test` runs the Node-based unit and property tests under `tests/`.
+
+For the full local release gate, run:
+
+```bash
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run package:check
+npm audit --audit-level=high
+npm pack --dry-run
+```
+
+`npm run ci` combines format, lint, typecheck, tests, build, and package
+linting. The test suite also supports a clean checkout where `dist/` has not
+been built yet; integration helpers use source modules until build artifacts
+exist, while partial `dist/` trees still fail the artifact checks.
 
 ## Browser support
 

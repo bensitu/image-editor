@@ -1,12 +1,13 @@
 /**
  * Resolves user-supplied {@link ImageEditorOptions} into the
- * frozen {@link ResolvedOptions} object used at runtime.
+ * runtime {@link ResolvedOptions} object used by the editor.
  *
  * Behavior is defined by the documented option-resolution rules: every
  * required option falls back to a default, nested `label.textOptions` and
  * `crop` values merge with their defaults, callback values normalize to a
- * function or `null`, unknown top-level keys are ignored, and returned nested
- * config objects are frozen.
+ * function or `null`, unknown top-level keys are ignored, top-level scalar
+ * values remain internally mutable for controlled updates such as
+ * `setLayoutMode()`, and returned nested config objects are frozen.
  *
  * @module
  */
