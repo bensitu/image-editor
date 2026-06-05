@@ -1,3 +1,7 @@
+// Demo wiring for the browser/UMD build. This file intentionally shows the
+// public ImageEditor API calls a host page would use: construct the editor,
+// call `init` with DOM IDs, choose a layout mode, load images, create masks,
+// crop/merge/export, and react to lifecycle callbacks.
 let editor = null;
 // Demo-local busy flag covering operations the demo itself drives
 // (image loads). The editor manages its own toolbar disabled-state during
@@ -8,6 +12,9 @@ let demoLoading = false;
 
 const defaultLanguage = 'en';
 const supportedLanguages = ['en', 'zh', 'ja', 'ko', 'fr', 'es'];
+
+// UI-only copy. These translations are not part of the image-editor API; they
+// keep the demo localized while the API examples below remain language-neutral.
 const translations = {
     en: {
         appSubtitle: 'Canvas mask, crop, transform, and export demo',
@@ -227,6 +234,8 @@ const translations = {
     },
 };
 
+// MaskConfig presets passed directly to `editor.createMask(config)`. Consumers
+// can use the same shape names and geometry fields in their own controls.
 const maskShapeConfigs = {
     rect: { shape: 'rect' },
     circle: { shape: 'circle' },
@@ -292,6 +301,9 @@ function clearMessage() {
 }
 
 function estimateDataUrlBytes(dataUrl) {
+    // `exportImageBase64()` returns a data URL, not raw bytes. This estimate
+    // strips the metadata prefix and accounts for Base64 padding so the demo
+    // can display an approximate output size without decoding the image.
     const base64 = String(dataUrl).split(',', 2)[1] || '';
     const clean = base64.replace(/\s/g, '');
     const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
@@ -313,6 +325,8 @@ function summarizeDataUrl(dataUrl) {
 }
 
 async function copyTextToClipboard(text) {
+    // Prefer the modern async clipboard API, with a textarea fallback for
+    // browsers or local file contexts where `navigator.clipboard` is absent.
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(text);
         return;
@@ -376,6 +390,8 @@ function setStoredValue(key, value) {
 }
 
 function getInitialLanguage() {
+    // Persisting language/theme is demo state only. The editor itself remains
+    // stateless with respect to localization and host-page preferences.
     const storedLanguage = getStoredValue('imageEditorDemoLanguage');
     if (supportedLanguages.includes(storedLanguage)) return storedLanguage;
 
@@ -460,23 +476,40 @@ function initEditor() {
 
     // UMD form: when `globalThis.fabric` is present (loaded via the
     // documented `<script>` tag) the constructor reads it automatically.
+    //
+    // In ESM applications the equivalent is:
+    // `new ImageEditor(fabric, { ...options })`.
     editor = new ImageEditorCtor({
         backgroundColor: 'transparent',
+        // Layout options define the initial load behavior. The radio buttons
+        // below switch future loads via `editor.setLayoutMode(mode)`.
         expandCanvasToImage: false,
         fitImageToCanvas: true,
         coverImageToCanvas: false,
+        // Downsampling protects memory usage when users drop very large
+        // source images into the demo.
         downsampleOnLoad: true,
         initialImageBase64: null,
+        // Masks stay rotatable in this demo so the mask and crop examples
+        // exercise the richer Fabric object surface.
         maskRotatable: true,
         maskLabelOnSelect: true,
         animationDuration: 100,
         maskLabelOffset: 5,
         showPlaceholder: true,
+        // Export defaults apply when the demo calls `exportImageBase64()`
+        // without per-call options.
         exportAreaByDefault: 'image',
+        // Lifecycle callbacks are a convenient way for host pages to sync
+        // their own controls with editor state without reaching into internals.
         onImageChanged: updateDemoControls,
         onBusyChange: updateDemoControls,
         onMasksChanged: updateDemoControls,
     });
+
+    // `init` wires optional DOM affordances by ID. Passing `null` disables a
+    // built-in binding so the host page can provide its own control, as this
+    // demo does for create-mask and file-upload interactions.
     editor.init({
         canvas: 'canvas',
         imagePlaceholder: 'imagePlaceholder',
@@ -512,6 +545,10 @@ function setOptions() {
     const fitImageRadio = getOptionalElement('fitImage');
     const coverCanvasRadio = getOptionalElement('coverCanvas');
     const expandCanvasRadio = getOptionalElement('expandCanvas');
+
+    // `setLayoutMode` is the public API for changing how the NEXT image load
+    // is placed. It intentionally does not re-layout an already loaded image;
+    // users can call it immediately before `loadImage`.
     if (fitImageRadio?.checked || (!coverCanvasRadio?.checked && !expandCanvasRadio?.checked)) {
         editor.setLayoutMode('fit');
     } else if (coverCanvasRadio?.checked) {
@@ -537,6 +574,9 @@ function canLoadImage() {
 }
 
 function updateDemoControls() {
+    // The editor owns controls passed to `init`, but this demo also has
+    // host-page controls (`load`, shape select, upload area) that need to
+    // follow the same busy/loaded state.
     const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
     const isBusy = isEditorBusy();
     const createMaskButtonElement = getOptionalElement('createMaskButton');
@@ -554,12 +594,16 @@ function updateDemoControls() {
 }
 
 function getSelectedMaskConfig() {
+    // This object is passed directly to `createMask`. The editor applies
+    // defaults for omitted dimensions/style fields.
     const selectedShape = getOptionalElement('maskShapeSelect')?.value || 'rect';
     return { ...(maskShapeConfigs[selectedShape] || maskShapeConfigs.rect) };
 }
 
 function handleCreateMaskButtonClick() {
     if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
+    // `createMask` returns the created object, but the demo only needs the
+    // editor's callbacks/UI refresh to reflect the new mask.
     editor.createMask(getSelectedMaskConfig());
     updateDemoControls();
 }
@@ -590,6 +634,9 @@ async function loadFile(file) {
 
     try {
         const imageBase64 = await readFileAsDataUrl(file);
+        // `loadImage` accepts data URLs. File objects are converted by the
+        // host page; the editor then handles decode, downsample, layout, and
+        // transactional rollback internally.
         await editor.loadImage(imageBase64);
     } catch (error) {
         showMessage(error);
@@ -608,6 +655,8 @@ function handleLoadButtonClick() {
     const imageBase64 = getOptionalElement('base64Input')?.value || '';
     demoLoading = true;
     updateDemoControls();
+    // Paste-based loading follows the same public `loadImage(dataUrl)` path
+    // as file/drop loading.
     editor
         .loadImage(imageBase64)
         .then(function () {
@@ -723,6 +772,9 @@ async function getBase64Action() {
     }
 
     try {
+        // With no per-call options, `exportImageBase64` uses the constructor
+        // defaults above (`exportAreaByDefault`, `mergeMaskByDefault`,
+        // output format, multiplier, and quality).
         const imageBase64 = await editor.exportImageBase64();
         showBase64Summary(imageBase64);
     } catch (error) {
