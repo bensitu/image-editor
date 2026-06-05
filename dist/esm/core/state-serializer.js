@@ -121,7 +121,7 @@ export async function loadFromState(input) {
     }
     await canvas.loadFromJSON(json);
     const objects = canvas.getObjects();
-    restoreMaskPropsFromJSON(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
+    restoreMaskPropsFromJson(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -166,7 +166,7 @@ function isOriginalImageObject(object) {
     const isType = object.isType;
     return typeof isType === 'function' && isType.call(object, 'image');
 }
-function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
+function restoreMaskPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d, _e;
     const consumedCanvasIndexes = new Set();
     for (const jObj of jsonObjs) {
@@ -239,10 +239,10 @@ function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
             maskObject.cornerSize = jObj.cornerSize;
         }
     }
-    jsonObjs.forEach((jObj, idx) => {
+    jsonObjs.forEach((jObj, index) => {
         if (jObj.maskLabel !== true)
             return;
-        const canvasObj = canvasObjs[idx];
+        const canvasObj = canvasObjs[index];
         if (canvasObj) {
             canvasObj.maskLabel = true;
         }

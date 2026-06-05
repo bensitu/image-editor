@@ -1,6 +1,4 @@
 /**
- * @file callback-reporter.test.mjs
- *
  * Type:
  *   Unit test
  *

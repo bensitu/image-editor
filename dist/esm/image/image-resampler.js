@@ -36,18 +36,20 @@ export function detectSourceMimeType(dataUrl) {
     const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
     return match ? match[1].toLowerCase() : null;
 }
-export function resampleImage(imgEl, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
-    const { width, height } = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, maxWidth, maxHeight);
+export function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
+    const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const oc = document.createElement('canvas');
-    oc.width = width;
-    oc.height = height;
-    const ctx = oc.getContext('2d');
-    if (!ctx) {
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const context = offscreenCanvas.getContext('2d');
+    if (!context) {
         throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
     }
-    ctx.drawImage(imgEl, 0, 0, imgEl.naturalWidth, imgEl.naturalHeight, 0, 0, width, height);
-    const dataUrl = mimeType === 'image/png' ? oc.toDataURL(mimeType) : oc.toDataURL(mimeType, quality);
+    context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, width, height);
+    const dataUrl = mimeType === 'image/png'
+        ? offscreenCanvas.toDataURL(mimeType)
+        : offscreenCanvas.toDataURL(mimeType, quality);
     return { dataUrl, width, height, mimeType };
 }
 //# sourceMappingURL=image-resampler.js.map

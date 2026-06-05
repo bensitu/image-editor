@@ -1,4 +1,4 @@
-export function animateProps(obj, props, options, guard) {
+export function animateProps(object, props, options, guard) {
     return new Promise((resolve, reject) => {
         const propCount = Object.keys(props).length;
         if (propCount === 0) {
@@ -7,7 +7,7 @@ export function animateProps(obj, props, options, guard) {
         }
         let completed = 0;
         try {
-            obj.animate(props, {
+            object.animate(props, {
                 duration: options.duration,
                 onChange: () => {
                     var _a;
@@ -26,10 +26,10 @@ export function animateProps(obj, props, options, guard) {
         }
     });
 }
-export function restoreOrigin(obj, originX, originY) {
+export function restoreOrigin(object, originX, originY) {
     try {
-        obj.set({ originX, originY });
-        obj.setCoords();
+        object.set({ originX, originY });
+        object.setCoords();
     }
     catch {
     }

@@ -1,30 +1,29 @@
 /**
- * @file image/layout-manager.ts
- * @module image/layout-manager
- * @description
- *   Pure layout helpers and a small viewport cache used by the
- *   `image-loader` pipeline. The layout manager owns three concerns
- *   used by the image-load pipeline:
+ * Pure layout helpers and a small viewport cache used by the
+ * `image-loader` pipeline. The layout manager owns three concerns
+ * used by the image-load pipeline:
  *
- *   1. Selecting exactly one layout strategy per load using the
- *      precedence `fit > cover > expand`.
- *   2. Computing canvas dimensions and image scale for the selected
- *      strategy.
- *   3. Measuring the visible container viewport with a hidden-tab cache
- *      and a final fall-back to `options.canvasWidth/canvasHeight`.
+ * 1. Selecting exactly one layout strategy per load using the
+ *    precedence `fit > cover > expand`.
+ * 2. Computing canvas dimensions and image scale for the selected
+ *    strategy.
+ * 3. Measuring the visible container viewport with a hidden-tab cache
+ *    and a final fall-back to `options.canvasWidth/canvasHeight`.
  *
- *   The module also exposes a single sizing primitive,
- *   `applyCanvasDimensions`, which is the only place in the editor
- *   that calls `Canvas.setDimensions`. It rounds to integer pixels
- *   and forces a synchronous reflow on the container so that auto
- *   scrollbars settle before the next paint.
+ * The module also exposes a single sizing primitive,
+ * `applyCanvasDimensions`, which is the only place in the editor
+ * that calls `Canvas.setDimensions`. It rounds to integer pixels
+ * and forces a synchronous reflow on the container so that auto
+ * scrollbars settle before the next paint.
  *
- *   The layout manager intentionally
- *   does NOT mutate developer CSS:
- *   - it never touches `canvas.style` or `container.style`
- *     (`width`, `height`, `display`, `overflow`),
- *   - it reads `clientWidth` / `clientHeight` and compensates for
- *     pre-existing auto scrollbars without any `overflow` toggle.
+ * The layout manager intentionally
+ * does NOT mutate developer CSS:
+ * - it never touches `canvas.style` or `container.style`
+ *   (`width`, `height`, `display`, `overflow`),
+ * - it reads `clientWidth` / `clientHeight` and compensates for
+ *   pre-existing auto scrollbars without any `overflow` toggle.
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -77,7 +76,7 @@ export function selectLayoutStrategy(options: LayoutFlags): LayoutStrategy {
  * real conflict because both rescale the image to the canvas viewport
  * but with different aspect-ratio strategies. `expandCanvasToImage`
  * defaults to `true`, so combining it with one of the other two is
- * normal usage (the user opts into a per-load override) and is not
+ * normal usage (the user providedOptions into a per-load override) and is not
  * flagged.
  *
  * The selected strategy still follows the precedence in
@@ -161,9 +160,9 @@ export class ViewportCache {
      * `null` containers (no element attached) yield the fallback
      * directly; the cache is left untouched.
      *
-     * @param container The scrollable wrapper around the canvas, or
+     * @param container - The scrollable wrapper around the canvas, or
      *                  `null` if no container has been resolved.
-     * @param fallback  The size to use when no live measurement and no
+     * @param fallback - The size to use when no live measurement and no
      *                  cached measurement is available. Callers should
      *                  pass `(options.canvasWidth, options.canvasHeight)`.
      */
@@ -490,8 +489,8 @@ export function computeCoverLayout(
 export function computeExpandLayout(
     imageWidth: number,
     imageHeight: number,
-    _optionsCanvasWidth: number,
-    _optionsCanvasHeight: number,
+    optionsCanvasWidth: number,
+    optionsCanvasHeight: number,
     containerSize: ViewportSize,
 ): LayoutResult {
     const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
@@ -530,10 +529,10 @@ export function computeExpandLayout(
  * and rounded to integer pixels. Non-finite or non-numeric inputs
  * collapse to `1` rather than crashing the editor.
  *
- * @param canvas      The Fabric canvas to resize. Required.
- * @param width       Target pixel width. Clamped to `>= 1` and rounded.
- * @param height      Target pixel height. Clamped to `>= 1` and rounded.
- * @param containerElement The wrapper element to reflow. May be `null`
+ * @param canvas - The Fabric canvas to resize. Required.
+ * @param width - Target pixel width. Clamped to `>= 1` and rounded.
+ * @param height - Target pixel height. Clamped to `>= 1` and rounded.
+ * @param containerElement - The wrapper element to reflow. May be `null`
  *                         when no container has been resolved; in that
  *                         case the reflow is skipped without error.
  */

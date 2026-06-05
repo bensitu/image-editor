@@ -1,6 +1,4 @@
 /**
- * @file merge-masks.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -95,7 +93,7 @@ function makeMockCanvas(initialMasks, stubDataUrl) {
             return objects;
         },
         /** Drain the mask list — used by `removeAllMasksNoHistory`. */
-        _setObjects(next) {
+        setObjects(next) {
             objects = next;
         },
         discardActiveObject() {
@@ -162,9 +160,8 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
     };
 
     // `loadFromState` records every restore the merge performs. Used by
-    // the failure path to verify the rollback step
-    // and by the `undo` / `execute` callback assertions (Contract
-    // 29.4).
+    // the failure path to verify rollback and by the `undo` / `execute`
+    // callback assertions.
     const loadFromStateCalls = [];
     const loadFromState = async (snapshot) => {
         loadFromStateCalls.push(snapshot);
@@ -186,7 +183,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
     const removeAllMasksCalls = [];
     const removeAllMasksNoHistory = () => {
         removeAllMasksCalls.push(canvas.callOrder.length);
-        canvas._setObjects([]);
+        canvas.setObjects([]);
     };
 
     const ctx = {
@@ -315,7 +312,8 @@ test('successful merge — pre-merge snapshot captured before any mutation, exac
                 );
 
                 // The inner transactional load is invoked exactly once
-                // with `preserveScroll: true` (canonical 29.5 hint).
+                // with `preserveScroll: true` so merge success preserves
+                // the caller's scroll position.
                 assert.equal(loadImageCalls.length, 1);
                 assert.equal(
                     loadImageCalls[0].options?.preserveScroll,

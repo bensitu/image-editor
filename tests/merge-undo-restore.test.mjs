@@ -1,6 +1,4 @@
 /**
- * @file merge-undo-restore.test.mjs
- *
  * Type:
  *   Integration regression test
  *
@@ -92,7 +90,7 @@ test('merge undo restores mask metadata, label, and mask list in every layout mo
             });
             assert.ok(createdMask, 'sanity: mask must be created before merge');
             assert.ok(
-                createdMask.__label,
+                createdMask.labelObject,
                 'sanity: selected mask label must be visible before merge',
             );
 
@@ -126,15 +124,15 @@ test('merge undo restores mask metadata, label, and mask list in every layout mo
             assert.equal(restoredMask.cornerColor, createdMask.cornerColor);
             assert.equal(restoredMask.cornerSize, createdMask.cornerSize);
             assert.equal(
-                restoredMask.__imageEditorMaskHandlers?.mouseover instanceof Function,
+                restoredMask.imageEditorMaskHandlers?.mouseover instanceof Function,
                 true,
                 'undo must reattach mask hover handlers',
             );
 
             const activeMask = editor.canvas.getActiveObject();
             assert.equal(activeMask?.maskId, createdMask.maskId, 'undo must reselect the mask');
-            assert.ok(restoredMask.__label, 'undo must rebuild the selected mask label');
-            assert.equal(restoredMask.__label.maskLabel, true);
+            assert.ok(restoredMask.labelObject, 'undo must rebuild the selected mask label');
+            assert.equal(restoredMask.labelObject.maskLabel, true);
 
             const listItems = [...document.getElementById(ids.maskList).querySelectorAll('li')];
             assert.equal(listItems.length, 1, 'undo must restore the mask list item');

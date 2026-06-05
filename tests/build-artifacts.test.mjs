@@ -1,6 +1,4 @@
 /**
- * @file build-artifacts.test.mjs
- *
  * Type:
  *   Smoke test
  *

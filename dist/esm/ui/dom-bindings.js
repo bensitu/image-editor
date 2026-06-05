@@ -25,15 +25,15 @@ export class DomBindings {
         const id = this.resolveElementId(key);
         if (!id)
             return false;
-        const el = document.getElementById(id);
-        if (!el)
+        const element = document.getElementById(id);
+        if (!element)
             return false;
         const wrapped = (event) => {
             if (this.isDisposed())
                 return;
             handler(event);
         };
-        el.addEventListener(eventType, wrapped);
+        element.addEventListener(eventType, wrapped);
         this.registry.push({ elementKey: key, eventType, handler: wrapped });
         return true;
     }
@@ -42,11 +42,11 @@ export class DomBindings {
             const id = this.resolveElementId(entry.elementKey);
             if (!id)
                 continue;
-            const el = document.getElementById(id);
-            if (!el)
+            const element = document.getElementById(id);
+            if (!element)
                 continue;
             try {
-                el.removeEventListener(entry.eventType, entry.handler);
+                element.removeEventListener(entry.eventType, entry.handler);
             }
             catch {
             }

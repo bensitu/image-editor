@@ -94,9 +94,9 @@ function polygonArea(points) {
     }
     return Math.abs(area) / 2;
 }
-export function createMask(ctx, config = {}) {
+export function createMask(context, config = {}) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
-    const { canvas, options, fabric: fabricModule } = ctx;
+    const { canvas, options, fabric: fabricModule } = context;
     if (!canvas)
         return null;
     const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
@@ -118,7 +118,7 @@ export function createMask(ctx, config = {}) {
     const firstOffset = 10;
     let left;
     let top;
-    const previousMask = ctx.getLastMask();
+    const previousMask = context.getLastMask();
     if (config.left === undefined && previousMask) {
         const previousRight = ((_b = previousMask.left) !== null && _b !== void 0 ? _b : 0) +
             (typeof previousMask.getScaledWidth === 'function'
@@ -160,8 +160,8 @@ export function createMask(ctx, config = {}) {
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            if (ctx.expandCanvasIfNeeded) {
-                ctx.expandCanvasIfNeeded(nextWidth, nextHeight);
+            if (context.expandCanvasIfNeeded) {
+                context.expandCanvasIfNeeded(nextWidth, nextHeight);
             }
             else {
                 canvas.setDimensions({ width: nextWidth, height: nextHeight });
@@ -276,20 +276,20 @@ export function createMask(ctx, config = {}) {
     maskObject.originalStroke = maskObject.stroke;
     maskObject.originalStrokeWidth = maskObject.strokeWidth;
     attachMaskHoverHandlers(maskObject);
-    const nextId = ctx.getMaskCounter() + 1;
-    ctx.setMaskCounter(nextId);
+    const nextId = context.getMaskCounter() + 1;
+    context.setMaskCounter(nextId);
     maskObject.maskId = nextId;
     maskObject.maskUid = createMaskUid(nextId);
     maskObject.maskName = `${options.maskName}${nextId}`;
-    ctx.setLastMask(maskObject);
+    context.setLastMask(maskObject);
     canvas.add(maskObject);
     canvas.bringObjectToFront(maskObject);
-    ctx.updateMaskList();
+    context.updateMaskList();
     if (resolvedConfig.selectable !== false) {
         canvas.setActiveObject(maskObject);
     }
     canvas.renderAll();
-    ctx.saveCanvasState();
+    context.saveCanvasState();
     if (typeof resolvedConfig.onCreate === 'function') {
         try {
             resolvedConfig.onCreate(maskObject, canvas);
@@ -300,33 +300,33 @@ export function createMask(ctx, config = {}) {
     }
     return maskObject;
 }
-export function removeSelectedMask(ctx) {
-    const active = ctx.canvas.getActiveObject();
+export function removeSelectedMask(context) {
+    const active = context.canvas.getActiveObject();
     if (!active || !isMaskObject(active))
         return;
-    ctx.removeLabelForMask(active);
+    context.removeLabelForMask(active);
     detachMaskHoverHandlers(active);
-    ctx.canvas.remove(active);
-    ctx.canvas.discardActiveObject();
-    ctx.updateMaskList();
-    ctx.canvas.renderAll();
-    ctx.saveCanvasState();
+    context.canvas.remove(active);
+    context.canvas.discardActiveObject();
+    context.updateMaskList();
+    context.canvas.renderAll();
+    context.saveCanvasState();
 }
-export function removeAllMasks(ctx, options = {}) {
-    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+export function removeAllMasks(context, options = {}) {
+    const masks = context.canvas.getObjects().filter(isMaskObject);
     if (masks.length === 0)
         return;
     for (const maskObject of masks) {
-        ctx.removeLabelForMask(maskObject);
+        context.removeLabelForMask(maskObject);
         detachMaskHoverHandlers(maskObject);
-        ctx.canvas.remove(maskObject);
+        context.canvas.remove(maskObject);
     }
-    ctx.canvas.discardActiveObject();
-    ctx.setLastMask(null);
-    ctx.updateMaskList();
-    ctx.canvas.renderAll();
+    context.canvas.discardActiveObject();
+    context.setLastMask(null);
+    context.updateMaskList();
+    context.canvas.renderAll();
     if (options.saveHistory !== false) {
-        ctx.saveCanvasState();
+        context.saveCanvasState();
     }
 }
 //# sourceMappingURL=mask-factory.js.map

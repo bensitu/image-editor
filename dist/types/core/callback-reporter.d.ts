@@ -1,8 +1,7 @@
 /**
- * @file core/callback-reporter.ts
- * @description Helpers that route editor warnings and errors through the
- *              public `onWarning` and `onError` callbacks declared on
- *              {@link ImageEditorOptions}.
+ * Helpers that route editor warnings and errors through the
+ * public `onWarning` and `onError` callbacks declared on
+ * {@link ImageEditorOptions}.
  *
  * ## Owned contracts
  *
@@ -39,6 +38,8 @@
  * The module is intentionally NOT re-exported from `src/index.ts`
  * (only `ImageEditor`, `isMaskObject`, and the
  * documented public types are root-exported).
+ *
+ * @module
  */
 import type { ResolvedOptions } from './public-types.js';
 /**
@@ -71,22 +72,19 @@ export type ErrorCallbackHost = Pick<ResolvedOptions, 'onError'>;
  * ```ts
  * try {
  *   await tryDownsample(...);
- *} catch (error) {
+ * } catch (error) {
  *   reportWarning(this.options, error, 'Downsample fell back to source format.');
  *   // continue with the un-downsampled image — no rethrow
- *}
+ * }
  * ```
  *
- * @param options
- *   Object exposing the resolved `onWarning` callback. May be
+ * @param options - Object exposing the resolved `onWarning` callback. May be
  *   {@link ResolvedOptions} directly or any structural sub-type
  *   ({@link WarningCallbackHost}).
- * @param error
- *   The original error value. Forwarded as the first callback argument.
+ * @param error - The original error value. Forwarded as the first callback argument.
  *   Accepts `unknown` because rejected promises and thrown values are not
  *   guaranteed to be `Error` instances.
- * @param message
- *   Human-readable description of what happened. Forwarded as the second
+ * @param message - Human-readable description of what happened. Forwarded as the second
  *   callback argument.
  */
 export declare function reportWarning(options: WarningCallbackHost, error: unknown, message: string): void;
@@ -110,20 +108,17 @@ export declare function reportWarning(options: WarningCallbackHost, error: unkno
  * ```ts
  * try {
  *   await loadFabricImage(dataUrl);
- *} catch (error) {
+ * } catch (error) {
  *   reportError(this.options, error, `Image load failed: ${describe(error)}`);
  *   throw error; // original error is preserved on the consumer's promise
- *}
+ * }
  * ```
  *
- * @param options
- *   Object exposing the resolved `onError` callback. May be
+ * @param options - Object exposing the resolved `onError` callback. May be
  *   {@link ResolvedOptions} directly or any structural sub-type
  *   ({@link ErrorCallbackHost}).
- * @param error
- *   The original error value. Forwarded as the first callback argument.
- * @param message
- *   Human-readable description of what happened. Forwarded as the second
+ * @param error - The original error value. Forwarded as the first callback argument.
+ * @param message - Human-readable description of what happened. Forwarded as the second
  *   callback argument.
  */
 export declare function reportError(options: ErrorCallbackHost, error: unknown, message: string): void;

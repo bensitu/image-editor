@@ -1,6 +1,4 @@
 /**
- * @file expand-sizing.property.test.mjs
- *
  * Type:
  *   Property test
  *

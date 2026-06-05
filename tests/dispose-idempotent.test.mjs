@@ -1,6 +1,4 @@
 /**
- * @file dispose-idempotent.test.mjs
- *
  * Type:
  *   Facade integration test
  *
@@ -110,13 +108,13 @@ class Mockcanvas {
         if (i >= 0) this.objects.splice(i, 1);
     }
     discardActiveObject() {
-        this._active = null;
+        this.activeObject = null;
     }
     getActiveObject() {
-        return this._active ?? null;
+        return this.activeObject ?? null;
     }
     setActiveObject(o) {
-        this._active = o;
+        this.activeObject = o;
     }
     bringObjectToFront() {}
     sendObjectToBack() {}
@@ -146,7 +144,7 @@ class Mockcanvas {
 /**
  * Build a Fabric module stub. The adapter's `looksLikeFabricModule`
  * test only checks for a `Canvas` function property; everything else
- * is consumed via `this._fabric.<X>` from the facade, so we expose
+ * is consumed via `this.fabricModule.<X>` from the facade, so we expose
  * only the constructors that the init / dispose / no-op-paths reach.
  *
  * `FabricImage` is needed by `isImageLoaded()` (instance check) and
@@ -200,7 +198,7 @@ function makeFabricStub() {
  *
  * The id-map mirrors `defaults` inside `init(idMap)` so every key the
  * facade tries to resolve maps to a real element. Buttons that the
- * editor binds via `_bindIfExists` therefore land in the bindings
+ * editor binds via `bindElementIfExists` therefore land in the bindings
  * registry; the post-dispose dispatch test relies on this so the
  * "click after dispose must not invoke the handler" assertion is
  * actually testing the disposed-aware shim and not just a missing
@@ -276,9 +274,9 @@ test('dispose() called twice does not throw', () => {
     const { editor, canvasStub } = makeEditor();
 
     // First call sequences the documented teardown:
-    //   1. `_disposed = true`
+    //   1. `isDisposed = true`
     //   2. `animQueue.clear()`
-    //   3. `_bindings.removeAll()`
+    //   3. `domBindings.removeAll()`
     //   4. `canvas.dispose()`
     // The second call MUST be a pure no-op.
     assert.doesNotThrow(() => editor.dispose(), 'first dispose must not throw');
@@ -313,14 +311,14 @@ test('dispose() drains the DOM bindings registry', () => {
     editor.dispose();
 
     // After dispose, the bindings registry has been drained via
-    // `_bindings.removeAll()` AND every wrapped handler is gated by
+    // `domBindings.removeAll()` AND every wrapped handler is gated by
     // the disposed-aware shim (`isDisposed()` returns `true`). The
     // observable contract is "no canvas-touching side effect, no
     // exception" — we walk every button the facade binds in
-    // `_bindEvents` and confirm dispatching a click is silent. This
-    // is the orchestrator-level counterpart of / 29.4
-    // in `tests/dom-bindings.property.test.mjs`, which exercises the
-    // same drain on the registry primitive in isolation.
+    // `bindDomEvents` and confirm dispatching a click is silent. This
+    // is the facade-level counterpart to
+    // `tests/dom-bindings.property.test.mjs`, which exercises the same
+    // drain on the registry primitive in isolation.
     for (const id of [
         'createMaskButton',
         'zoomInButton',
@@ -481,7 +479,7 @@ test('post-dispose async public methods resolve safely without touching the canv
 
     // ── loadImage ────────────────────────────
     // After dispose `loadImage` falls through the
-    // `!this._fabricLoaded || !this.canvas` early return and resolves
+    // `!this.isFabricLoaded || !this.canvas` early return and resolves
     // with `undefined` without touching the loader pipeline.
     await assert.doesNotReject(
         editor.loadImage('data:image/png;base64,AAAA'),
@@ -540,7 +538,7 @@ test('post-dispose async public methods resolve safely without touching the canv
 
     // ── applyCrop ─────────────────────────────────
     // No crop session exists post-dispose, so the facade's
-    // `!this._cropSession` gate triggers a resolved-promise no-op.
+    // `!this.cropSession` gate triggers a resolved-promise no-op.
     await assert.doesNotReject(
         editor.applyCrop(),
         'post-dispose applyCrop must resolve without throwing',
@@ -617,8 +615,8 @@ test('animations enqueued before dispose settle after dispose', async () => {
 test('post-dispose calls before any init() are also safe', () => {
     // Edge case: a consumer constructs an editor and then disposes
     // without ever calling `init()`. The facade's dispose path must
-    // tolerate the never-initialized state — `_bindings`, `canvas`,
-    // and `_transformController` are all `null`. None of the cleanup
+    // tolerate the never-initialized state — `domBindings`, `canvas`,
+    // and `transformController` are all `null`. None of the cleanup
     // steps may throw on null references.
     installDom();
     const fabric = makeFabricStub();

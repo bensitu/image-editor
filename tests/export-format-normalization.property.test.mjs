@@ -1,6 +1,4 @@
 /**
- * @file export-format-normalization.property.test.mjs
- *
  * Type:
  *   Property test
  *

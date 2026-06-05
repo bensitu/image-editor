@@ -1,6 +1,5 @@
 /**
- * @file core/default-options.ts
- * @description Resolves user-supplied {@link ImageEditorOptions} into the
+ * Resolves user-supplied {@link ImageEditorOptions} into the
  * frozen {@link ResolvedOptions} object used at runtime.
  *
  * Behavior is defined by the documented option-resolution rules: every
@@ -8,6 +7,8 @@
  * `crop` values merge with their defaults, callback values normalize to a
  * function or `null`, unknown top-level keys are ignored, and returned nested
  * config objects are frozen.
+ *
+ * @module
  */
 import type { ImageEditorOptions, LabelConfig, ResolvedCropConfig, ResolvedOptions } from './public-types.js';
 /**
@@ -48,7 +49,7 @@ export declare const DEFAULT_CROP: ResolvedCropConfig;
  *    `input.label`, `input.label.textOptions`, or `input.crop` after the call
  *    cannot affect the live editor.
  *
- * @param input Optional partial options object. Defaults to `{}`.
+ * @param input - Optional partial options object. Defaults to `{}`.
  */
 export declare function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptions;
 //# sourceMappingURL=default-options.d.ts.map

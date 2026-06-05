@@ -34,6 +34,44 @@ export default tseslint.config(
         files: ['**/*.ts'],
         rules: {
             'no-undef': 'off',
+            '@typescript-eslint/naming-convention': [
+                'error',
+                {
+                    selector: 'typeLike',
+                    format: ['PascalCase'],
+                },
+                {
+                    selector: 'typeParameter',
+                    format: ['PascalCase'],
+                },
+                {
+                    selector: 'enumMember',
+                    format: ['PascalCase'],
+                },
+                {
+                    selector: 'function',
+                    format: ['camelCase'],
+                },
+                {
+                    selector: 'method',
+                    format: ['camelCase'],
+                },
+                {
+                    selector: 'parameter',
+                    format: ['camelCase'],
+                    leadingUnderscore: 'forbid',
+                },
+                {
+                    selector: 'variable',
+                    format: ['camelCase', 'PascalCase', 'UPPER_CASE'],
+                },
+                {
+                    selector: 'memberLike',
+                    modifiers: ['private', 'protected'],
+                    format: ['camelCase'],
+                    leadingUnderscore: 'forbid',
+                },
+            ],
         },
     },
 );

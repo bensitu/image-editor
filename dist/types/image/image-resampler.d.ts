@@ -1,25 +1,26 @@
 /**
- * @file image-resampler.ts
- * @description Aspect-preserving downsampling and alpha-aware MIME selection
+ * Aspect-preserving downsampling and alpha-aware MIME selection
  * for oversized source images loaded by `image/image-loader.ts`.
  *
  * The resampler is a pure helper module: it does not know about the editor,
  * the canvas, or the rollback bundle. It exposes three small, individually
  * testable building blocks plus one orchestrating function:
  *
- *   - {@link computeDownsampleDimensions} — pure aspect-ratio math used by
- *     property tests for the resampler size contract.
- *   - {@link selectDownsampleMimeType}   — pure MIME-resolution table used by
- *     property tests for the alpha-preserving fallback path.
- *   - {@link detectSourceMimeType}       — extracts the MIME prefix from a
- *     base64 data URL.
- *   - {@link resampleImage}              — composes the above with a real
- *     `<canvas>` to produce the downsampled data URL. Throws
- *     {@link DownsampleError} when the offscreen canvas fails to obtain a
- *     2D context so the loader can replay its rollback
- *     bundle transactionally.
+ * - {@link computeDownsampleDimensions} — pure aspect-ratio math used by
+ *   property tests for the resampler size contract.
+ * - {@link selectDownsampleMimeType}   — pure MIME-resolution table used by
+ *   property tests for the alpha-preserving fallback path.
+ * - {@link detectSourceMimeType}       — extracts the MIME prefix from a
+ *   base64 data URL.
+ * - {@link resampleImage}              — composes the above with a real
+ *   `<canvas>` to produce the downsampled data URL. Throws
+ *   {@link DownsampleError} when the offscreen canvas fails to obtain a
+ *   2D context so the loader can replay its rollback
+ *   bundle transactionally.
  *
  * This module is internal — it is NOT re-exported from `src/index.ts`.
+ *
+ * @module
  */
 import type { ImageMimeType } from '../core/public-types.js';
 /**
@@ -49,10 +50,10 @@ export interface ResampleResult {
  *
  * Pure function — no DOM access, safe to call from property tests.
  *
- * @param srcWidth  Source pixel width (must be > 0 for meaningful output).
- * @param srcHeight Source pixel height (must be > 0 for meaningful output).
- * @param maxWidth  Maximum allowed output width in pixels.
- * @param maxHeight Maximum allowed output height in pixels.
+ * @param srcWidth - Source pixel width (must be > 0 for meaningful output).
+ * @param srcHeight - Source pixel height (must be > 0 for meaningful output).
+ * @param maxWidth - Maximum allowed output width in pixels.
+ * @param maxHeight - Maximum allowed output height in pixels.
  * @returns `{ width, height, needsResize}` where `needsResize` is `true`
  *          only when at least one source axis exceeded its bound.
  *
@@ -79,13 +80,13 @@ export declare function computeDownsampleDimensions(srcWidth: number, srcHeight:
  *
  * Pure function — no DOM access, safe to call from property tests.
  *
- * @param sourceMime           Detected source MIME (e.g. from
+ * @param sourceMime - Detected source MIME (e.g. from
  *                             {@link detectSourceMimeType}) or `null` if
  *                             unknown.
- * @param preserveSourceFormat When `true`, alpha-capable source MIMEs
+ * @param preserveSourceFormat - When `true`, alpha-capable source MIMEs
  *                             survive downsampling unless overridden by
  *                             `downsampleMimeType`.
- * @param downsampleMimeType   Explicit MIME override; when truthy, wins over
+ * @param downsampleMimeType - Explicit MIME override; when truthy, wins over
  *                             both `sourceMime` and `preserveSourceFormat`.
  * @returns The MIME type to emit from the offscreen canvas.
  *
@@ -98,7 +99,7 @@ export declare function selectDownsampleMimeType(sourceMime: string | null, pres
  * input does not start with a recognizable image data URL prefix, so callers
  * can pass the result straight into {@link selectDownsampleMimeType}.
  *
- * @param dataUrl Base64 data URL (e.g. `data:image/png;base64,iVBOR...`).
+ * @param dataUrl - Base64 data URL (e.g. `data:image/png;base64,iVBOR...`).
  * @returns The lowercased MIME type, or `null` when no `image/*` prefix is
  *          present.
  */
@@ -119,14 +120,14 @@ export declare function detectSourceMimeType(dataUrl: string): string | null;
  * `image/image-loader.ts` can replay its Transactional_Load rollback bundle
  * before rejecting the public `loadImage` promise.
  *
- * @param imgEl                Decoded source image element.
- * @param maxWidth             Maximum allowed output width in pixels.
- * @param maxHeight            Maximum allowed output height in pixels.
- * @param sourceMime           Detected source MIME from the original data
+ * @param imageElement - Decoded source image element.
+ * @param maxWidth - Maximum allowed output width in pixels.
+ * @param maxHeight - Maximum allowed output height in pixels.
+ * @param sourceMime - Detected source MIME from the original data
  *                             URL (or `null` if unknown).
- * @param preserveSourceFormat When `true`, alpha-capable MIMEs survive.
- * @param downsampleMimeType   Optional explicit MIME override.
- * @param quality              Lossy compression quality in `[0, 1]` for
+ * @param preserveSourceFormat - When `true`, alpha-capable MIMEs survive.
+ * @param downsampleMimeType - Optional explicit MIME override.
+ * @param quality - Lossy compression quality in `[0, 1]` for
  *                             JPEG/WebP output. Ignored for PNG.
  * @returns The resampled data URL plus its dimensions and MIME.
  *
@@ -134,5 +135,5 @@ export declare function detectSourceMimeType(dataUrl: string): string | null;
  *         2D rendering context.
  *
  */
-export declare function resampleImage(imgEl: HTMLImageElement, maxWidth: number, maxHeight: number, sourceMime: string | null, preserveSourceFormat: boolean, downsampleMimeType: ImageMimeType | null | undefined, quality: number): ResampleResult;
+export declare function resampleImage(imageElement: HTMLImageElement, maxWidth: number, maxHeight: number, sourceMime: string | null, preserveSourceFormat: boolean, downsampleMimeType: ImageMimeType | null | undefined, quality: number): ResampleResult;
 //# sourceMappingURL=image-resampler.d.ts.map

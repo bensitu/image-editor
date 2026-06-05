@@ -1,6 +1,4 @@
 /**
- * @file animation-queue.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -222,7 +220,7 @@ test('FIFO order, at most one running, all promises settle', async () => {
             );
 
             // Once everything has settled, the queue must be quiescent
-            // again. The recursive `_process` empties the queue and
+            // again. The recursive `drainQueue` empties the queue and
             // flips `running=false` on the next iteration.
             assert.equal(queue.isRunning(), false, 'queue must be idle once every task settles');
         }),
@@ -445,7 +443,7 @@ test('isRunning() is true during an awaited task and false when idle', async () 
             }
 
             // Right after the synchronous add() calls, the head
-            // task has already entered its body (the `_process`
+            // task has already entered its body (the `drainQueue`
             // micro-runner runs synchronously up to its first
             // await), so the queue must report running.
             assert.equal(

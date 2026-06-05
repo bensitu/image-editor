@@ -1,132 +1,132 @@
 import { animateProps, restoreOrigin } from '../fabric/fabric-animation.js';
 export class TransformController {
-    constructor(ctx) {
-        Object.defineProperty(this, "ctx", {
+    constructor(context) {
+        Object.defineProperty(this, "context", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        this.ctx = ctx;
+        this.context = context;
     }
     async scaleImage(factor) {
         if (!Number.isFinite(factor))
             return;
-        const img = this.ctx.getOriginalImage();
-        if (!img)
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject)
             return;
-        if (this.ctx.guard.isAnimating())
+        if (this.context.guard.isAnimating())
             return;
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        const clamped = Math.max(this.ctx.options.minScale, Math.min(this.ctx.options.maxScale, factor));
-        this.ctx.setCurrentScale(clamped);
-        const targetAbs = this.ctx.getBaseImageScale() * clamped;
+        const clamped = Math.max(this.context.options.minScale, Math.min(this.context.options.maxScale, factor));
+        this.context.setCurrentScale(clamped);
+        const targetAbs = this.context.getBaseImageScale() * clamped;
         try {
-            const topLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top' });
-            img.setPositionByOrigin(topLeft, 'left', 'top');
-            img.setCoords();
+            const topLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(topLeft, 'left', 'top');
+            imageObject.setCoords();
         }
         catch (error) {
             console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
         }
         try {
-            await this.ctx.guard.runAnimation(() => animateProps(img, { scaleX: targetAbs, scaleY: targetAbs }, {
-                duration: this.ctx.options.animationDuration,
-                onChange: () => this.ctx.canvas.requestRenderAll(),
-            }, this.ctx.guard));
+            await this.context.guard.runAnimation(() => animateProps(imageObject, { scaleX: targetAbs, scaleY: targetAbs }, {
+                duration: this.context.options.animationDuration,
+                onChange: () => this.context.canvas.requestRenderAll(),
+            }, this.context.guard));
         }
         catch (error) {
             console.warn('[ImageEditor] scaleImage animation error', error);
             return;
         }
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        img.set({ scaleX: targetAbs, scaleY: targetAbs });
-        img.setCoords();
-        if (this.ctx.afterTransformSnap)
-            this.ctx.afterTransformSnap();
-        this.ctx.saveCanvasState();
+        imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
+        imageObject.setCoords();
+        if (this.context.afterTransformSnap)
+            this.context.afterTransformSnap();
+        this.context.saveCanvasState();
     }
     async rotateImage(degrees) {
         if (!Number.isFinite(degrees))
             return;
-        const img = this.ctx.getOriginalImage();
-        if (!img)
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject)
             return;
-        if (this.ctx.guard.isAnimating())
+        if (this.context.guard.isAnimating())
             return;
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        this.ctx.setCurrentRotation(degrees);
+        this.context.setCurrentRotation(degrees);
         try {
-            const centre = img.getCenterPoint();
-            img.set({ originX: 'center', originY: 'center' });
-            img.setPositionByOrigin(centre, 'center', 'center');
-            img.setCoords();
+            const centre = imageObject.getCenterPoint();
+            imageObject.set({ originX: 'center', originY: 'center' });
+            imageObject.setPositionByOrigin(centre, 'center', 'center');
+            imageObject.setCoords();
         }
         catch (error) {
             console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
         }
         let animationFailed = false;
         try {
-            await this.ctx.guard.runAnimation(() => animateProps(img, { angle: degrees }, {
-                duration: this.ctx.options.animationDuration,
-                onChange: () => this.ctx.canvas.requestRenderAll(),
-            }, this.ctx.guard));
+            await this.context.guard.runAnimation(() => animateProps(imageObject, { angle: degrees }, {
+                duration: this.context.options.animationDuration,
+                onChange: () => this.context.canvas.requestRenderAll(),
+            }, this.context.guard));
         }
         catch (error) {
             animationFailed = true;
             console.warn('[ImageEditor] rotateImage animation error', error);
         }
         finally {
-            if (this.ctx.guard.isDisposed()) {
-                restoreOrigin(img, 'left', 'top');
+            if (this.context.guard.isDisposed()) {
+                restoreOrigin(imageObject, 'left', 'top');
             }
         }
         if (animationFailed)
             return;
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        img.set('angle', degrees);
-        img.setCoords();
-        if (this.ctx.afterTransformSnap)
-            this.ctx.afterTransformSnap();
+        imageObject.set('angle', degrees);
+        imageObject.setCoords();
+        if (this.context.afterTransformSnap)
+            this.context.afterTransformSnap();
         try {
-            const newTopLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top' });
-            img.setPositionByOrigin(newTopLeft, 'left', 'top');
-            img.setCoords();
+            const newTopLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
+            imageObject.setCoords();
         }
         catch (error) {
             console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
         }
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
     async resetImageTransform() {
-        if (!this.ctx.getOriginalImage())
+        if (!this.context.getOriginalImage())
             return;
-        this.ctx.setSuppressSaveState(true);
+        this.context.setSuppressSaveState(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
         }
         finally {
-            this.ctx.setSuppressSaveState(false);
+            this.context.setSuppressSaveState(false);
         }
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
 }
-function computeTopLeftPoint(obj) {
-    obj.setCoords();
-    const coords = obj.getCoords();
+function computeTopLeftPoint(object) {
+    object.setCoords();
+    const coords = object.getCoords();
     const first = coords[0];
     if (first)
         return first;
-    const br = obj.getBoundingRect();
-    return { x: br.left, y: br.top };
+    const boundingRect = object.getBoundingRect();
+    return { x: boundingRect.left, y: boundingRect.top };
 }
 //# sourceMappingURL=transform-controller.js.map

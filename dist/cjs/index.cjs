@@ -19,9 +19,9 @@ class AnimationQueue {
     }
     add(animationFn) {
         return new Promise((resolve, reject) => {
-            this.queue.push({ fn: animationFn, resolve, reject });
+            this.queue.push({ run: animationFn, resolve, reject });
             if (!this.running) {
-                void this._process();
+                void this.drainQueue();
             }
         });
     }
@@ -51,7 +51,7 @@ class AnimationQueue {
         }
         return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
     }
-    async _process() {
+    async drainQueue() {
         if (this.queue.length === 0) {
             this.running = false;
             return;
@@ -59,13 +59,13 @@ class AnimationQueue {
         this.running = true;
         const entry = this.queue.shift();
         try {
-            await entry.fn();
+            await entry.run();
             entry.resolve();
         }
         catch (error) {
             entry.reject(error);
         }
-        void this._process();
+        void this.drainQueue();
     }
 }
 
@@ -412,31 +412,31 @@ function resolveOptions(input) {
 
 class OperationGuard {
     constructor() {
-        Object.defineProperty(this, "_isAnimating", {
+        Object.defineProperty(this, "isAnimationActive", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_isDisposed", {
+        Object.defineProperty(this, "isDisposedFlag", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_isLoading", {
+        Object.defineProperty(this, "isLoadingActive", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_activeOperationName", {
+        Object.defineProperty(this, "currentOperationName", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_activeOperationToken", {
+        Object.defineProperty(this, "currentOperationToken", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -444,103 +444,103 @@ class OperationGuard {
         });
     }
     isAnimating() {
-        return this._isAnimating;
+        return this.isAnimationActive;
     }
     isDisposed() {
-        return this._isDisposed;
+        return this.isDisposedFlag;
     }
     isLoading() {
-        return this._isLoading;
+        return this.isLoadingActive;
     }
     activeOperationName() {
-        return this._activeOperationName;
+        return this.currentOperationName;
     }
     isBusy() {
-        return this._isAnimating || this._isLoading || this._activeOperationToken !== null;
+        return (this.isAnimationActive || this.isLoadingActive || this.currentOperationToken !== null);
     }
     beginAnimation() {
-        this._isAnimating = true;
+        this.isAnimationActive = true;
     }
     endAnimation() {
-        this._isAnimating = false;
+        this.isAnimationActive = false;
     }
     markDisposed() {
-        this._isDisposed = true;
-        this._isAnimating = false;
-        this._isLoading = false;
-        this._activeOperationName = null;
-        this._activeOperationToken = null;
+        this.isDisposedFlag = true;
+        this.isAnimationActive = false;
+        this.isLoadingActive = false;
+        this.currentOperationName = null;
+        this.currentOperationToken = null;
     }
     beginLoading() {
-        this._isLoading = true;
+        this.isLoadingActive = true;
     }
     endLoading() {
-        this._isLoading = false;
+        this.isLoadingActive = false;
     }
     beginBusyOperation(operationName) {
         const token = Symbol(operationName);
-        this._activeOperationName = operationName;
-        this._activeOperationToken = token;
+        this.currentOperationName = operationName;
+        this.currentOperationToken = token;
         return token;
     }
     endBusyOperation(token) {
-        if (token && token === this._activeOperationToken) {
-            this._activeOperationName = null;
-            this._activeOperationToken = null;
+        if (token && token === this.currentOperationToken) {
+            this.currentOperationName = null;
+            this.currentOperationToken = null;
         }
     }
     isOwnOperation(token) {
-        return !!token && token === this._activeOperationToken;
+        return !!token && token === this.currentOperationToken;
     }
-    async runAnimation(fn) {
+    async runAnimation(animationTask) {
         this.beginAnimation();
         try {
-            return await fn();
+            return await animationTask();
         }
         finally {
             this.endAnimation();
         }
     }
     assertNotAnimating(operationLabel) {
-        if (this._isAnimating) {
+        if (this.isAnimationActive) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
         }
     }
     assertIdleForOperation(operationLabel, token) {
         var _a;
-        if (this._isDisposed) {
+        if (this.isDisposedFlag) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
         const ownOperation = this.isOwnOperation(token);
-        if (this._isAnimating) {
+        if (this.isAnimationActive) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
         }
-        if (this._isLoading && !ownOperation) {
+        if (this.isLoadingActive && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
         }
-        if (this._activeOperationToken && !ownOperation) {
+        if (this.currentOperationToken && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this._activeOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
         }
     }
     assertCanQueueAnimation(operationLabel, token) {
         var _a;
-        if (this._isDisposed) {
+        if (this.isDisposedFlag) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
         const ownOperation = this.isOwnOperation(token);
-        if (this._isLoading && !ownOperation) {
+        if (this.isLoadingActive && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
         }
-        if (this._activeOperationToken && !ownOperation) {
+        if (this.currentOperationToken && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this._activeOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
         }
     }
 }
 
-function isMaskObject(obj) {
-    return 'maskId' in obj && typeof obj.maskId === 'number';
+function isMaskObject(object) {
+    return 'maskId' in object && typeof object.maskId === 'number';
 }
 
 const SNAPSHOT_CUSTOM_KEYS = [
@@ -665,7 +665,7 @@ async function loadFromState(input) {
     }
     await canvas.loadFromJSON(json);
     const objects = canvas.getObjects();
-    restoreMaskPropsFromJSON(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
+    restoreMaskPropsFromJson(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -710,7 +710,7 @@ function isOriginalImageObject(object) {
     const isType = object.isType;
     return typeof isType === 'function' && isType.call(object, 'image');
 }
-function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
+function restoreMaskPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d, _e;
     const consumedCanvasIndexes = new Set();
     for (const jObj of jsonObjs) {
@@ -783,10 +783,10 @@ function restoreMaskPropsFromJSON(canvasObjs, jsonObjs) {
             maskObject.cornerSize = jObj.cornerSize;
         }
     }
-    jsonObjs.forEach((jObj, idx) => {
+    jsonObjs.forEach((jObj, index) => {
         if (jObj.maskLabel !== true)
             return;
-        const canvasObj = canvasObjs[idx];
+        const canvasObj = canvasObjs[index];
         if (canvasObj) {
             canvasObj.maskLabel = true;
         }
@@ -825,7 +825,7 @@ class HistoryManager {
             writable: true,
             value: -1
         });
-        Object.defineProperty(this, "_processing", {
+        Object.defineProperty(this, "isProcessing", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -841,10 +841,10 @@ class HistoryManager {
     }
     execute(command) {
         void command.execute();
-        this._pushAndTrim(command);
+        this.pushAndTrim(command);
     }
     push(command) {
-        this._pushAndTrim(command);
+        this.pushAndTrim(command);
     }
     canUndo() {
         return this.currentIndex >= 0;
@@ -853,9 +853,9 @@ class HistoryManager {
         return this.currentIndex < this.history.length - 1;
     }
     async undo() {
-        if (this._processing || !this.canUndo())
+        if (this.isProcessing || !this.canUndo())
             return;
-        this._processing = true;
+        this.isProcessing = true;
         try {
             const cmd = this.history[this.currentIndex];
             if (!cmd)
@@ -864,13 +864,13 @@ class HistoryManager {
             this.currentIndex--;
         }
         finally {
-            this._processing = false;
+            this.isProcessing = false;
         }
     }
     async redo() {
-        if (this._processing || !this.canRedo())
+        if (this.isProcessing || !this.canRedo())
             return;
-        this._processing = true;
+        this.isProcessing = true;
         try {
             const cmd = this.history[this.currentIndex + 1];
             if (!cmd)
@@ -879,10 +879,10 @@ class HistoryManager {
             this.currentIndex++;
         }
         finally {
-            this._processing = false;
+            this.isProcessing = false;
         }
     }
-    _pushAndTrim(command) {
+    pushAndTrim(command) {
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }
@@ -910,7 +910,7 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
     if (looksLikeFabricModule(fabricOrOptions)) {
         return {
             fabric: fabricOrOptions,
-            _fabricLoaded: true,
+            isFabricLoaded: true,
             options: maybeOptions !== null && maybeOptions !== void 0 ? maybeOptions : {},
         };
     }
@@ -919,7 +919,7 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
     if (looksLikeFabricModule(globalFabric)) {
         return {
             fabric: globalFabric,
-            _fabricLoaded: true,
+            isFabricLoaded: true,
             options,
         };
     }
@@ -928,7 +928,7 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
         'load it as a global <script> before instantiation.');
     return {
         fabric: null,
-        _fabricLoaded: false,
+        isFabricLoaded: false,
         options,
     };
 }
@@ -1129,19 +1129,19 @@ function attachMaskHoverHandlers(mask) {
     };
     tagged.on('mouseover', mouseover);
     tagged.on('mouseout', mouseout);
-    tagged.__imageEditorMaskHandlers = { mouseover, mouseout };
+    tagged.imageEditorMaskHandlers = { mouseover, mouseout };
 }
 function reattachMaskHoverHandlers(mask) {
     var _a;
     const tagged = mask;
-    if (tagged.__imageEditorMaskHandlers) {
+    if (tagged.imageEditorMaskHandlers) {
         try {
-            tagged.off('mouseover', tagged.__imageEditorMaskHandlers.mouseover);
-            tagged.off('mouseout', tagged.__imageEditorMaskHandlers.mouseout);
+            tagged.off('mouseover', tagged.imageEditorMaskHandlers.mouseover);
+            tagged.off('mouseout', tagged.imageEditorMaskHandlers.mouseout);
         }
         catch {
         }
-        delete tagged.__imageEditorMaskHandlers;
+        delete tagged.imageEditorMaskHandlers;
     }
     const patch = {};
     if (!Number.isFinite(Number(tagged.originalAlpha))) {
@@ -1161,20 +1161,20 @@ function reattachMaskHoverHandlers(mask) {
 }
 function detachMaskHoverHandlers(mask) {
     const tagged = mask;
-    if (!tagged.__imageEditorMaskHandlers)
+    if (!tagged.imageEditorMaskHandlers)
         return;
     try {
-        tagged.off('mouseover', tagged.__imageEditorMaskHandlers.mouseover);
-        tagged.off('mouseout', tagged.__imageEditorMaskHandlers.mouseout);
+        tagged.off('mouseover', tagged.imageEditorMaskHandlers.mouseover);
+        tagged.off('mouseout', tagged.imageEditorMaskHandlers.mouseout);
     }
     catch {
     }
-    delete tagged.__imageEditorMaskHandlers;
+    delete tagged.imageEditorMaskHandlers;
 }
 function captureMaskStyleBackup(mask) {
     var _a, _b, _c, _d, _e, _f, _g;
     return {
-        obj: mask,
+        object: mask,
         opacity: (_a = mask.opacity) !== null && _a !== void 0 ? _a : 1,
         fill: ((_b = mask.fill) !== null && _b !== void 0 ? _b : null),
         strokeWidth: (_c = mask.strokeWidth) !== null && _c !== void 0 ? _c : 0,
@@ -1186,7 +1186,7 @@ function captureMaskStyleBackup(mask) {
 }
 function restoreMaskStyleBackup(backup) {
     try {
-        backup.obj.set({
+        backup.object.set({
             opacity: backup.opacity,
             fill: backup.fill,
             strokeWidth: backup.strokeWidth,
@@ -1195,20 +1195,20 @@ function restoreMaskStyleBackup(backup) {
             evented: backup.evented,
             lockRotation: backup.lockRotation,
         });
-        if (typeof backup.obj.setCoords === 'function') {
-            backup.obj.setCoords();
+        if (typeof backup.object.setCoords === 'function') {
+            backup.object.setCoords();
         }
     }
     catch {
     }
 }
-async function withMaskStyleBackup(ctx, mutator, callback) {
-    if (!ctx.canvas)
+async function withMaskStyleBackup(context, mutator, callback) {
+    if (!context.canvas)
         return await callback();
-    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+    const masks = context.canvas.getObjects().filter(isMaskObject);
     const backups = masks.map(captureMaskStyleBackup);
     try {
-        masks.forEach((mask, idx) => mutator(mask, idx));
+        masks.forEach((mask, index) => mutator(mask, index));
         return await callback();
     }
     finally {
@@ -1301,10 +1301,15 @@ function getPartialExportEdges(bounds, angle = 0) {
         bottom: hasFractionalCanvasEdge(top + (Number(bounds.height) || 0)),
     };
 }
-function getObjectBBox(obj) {
-    obj.setCoords();
-    const br = obj.getBoundingRect();
-    return { left: br.left, top: br.top, width: br.width, height: br.height };
+function getObjectBBox(object) {
+    object.setCoords();
+    const boundingRect = object.getBoundingRect();
+    return {
+        left: boundingRect.left,
+        top: boundingRect.top,
+        width: boundingRect.width,
+        height: boundingRect.height,
+    };
 }
 
 const FORMAT_ALIAS_TABLE = Object.freeze({
@@ -1346,16 +1351,16 @@ function clampQuality(quality, fallback) {
 }
 function resolveExportFormat(options, downsampleQuality) {
     var _a;
-    const opts = options !== null && options !== void 0 ? options : {};
-    const fileType = opts.fileType;
-    const formatAlias = opts.format;
+    const providedOptions = options !== null && options !== void 0 ? options : {};
+    const fileType = providedOptions.fileType;
+    const formatAlias = providedOptions.format;
     const requested = fileType || formatAlias;
     const format = normalizeImageFormat(requested);
     const mimeType = mimeTypeFor(format);
     if (format === 'png') {
         return { format, mimeType, quality: undefined };
     }
-    const rawQuality = (_a = opts.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
+    const rawQuality = (_a = providedOptions.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
     const quality = clampQuality(rawQuality, downsampleQuality);
     return { format, mimeType, quality };
 }
@@ -1414,11 +1419,11 @@ function getCropRectContentBounds(cropRect) {
         height: Math.max(0, (Number(cropRect.height) || 0) * Math.abs(Number(cropRect.scaleY) || 1)),
     };
 }
-function removeCropRect(ctx, session) {
+function removeCropRect(context, session) {
     for (const targetHandlers of session.handlers) {
-        for (const rec of targetHandlers.handlers) {
+        for (const record of targetHandlers.handlers) {
             try {
-                targetHandlers.target.off(rec.evt, rec.fn);
+                targetHandlers.target.off(record.eventName, record.callback);
             }
             catch {
             }
@@ -1427,7 +1432,7 @@ function removeCropRect(ctx, session) {
     session.handlers = [];
     if (session.cropRect) {
         try {
-            ctx.canvas.remove(session.cropRect);
+            context.canvas.remove(session.cropRect);
         }
         catch {
         }
@@ -1435,9 +1440,9 @@ function removeCropRect(ctx, session) {
     }
 }
 function restoreCropObjectState(session) {
-    for (const rec of session.prevEvented) {
+    for (const record of session.prevEvented) {
         try {
-            rec.obj.set({ evented: rec.evented, selectable: rec.selectable });
+            record.object.set({ evented: record.evented, selectable: record.selectable });
         }
         catch {
         }
@@ -1450,12 +1455,12 @@ function restoreCropMaskBackups(session) {
     }
     session.maskBackups = [];
 }
-function teardownSession(ctx, session) {
-    removeCropRect(ctx, session);
+function teardownSession(context, session) {
+    removeCropRect(context, session);
     restoreCropObjectState(session);
     restoreCropMaskBackups(session);
     try {
-        ctx.canvas.selection = !!session.prevSelection;
+        context.canvas.selection = !!session.prevSelection;
     }
     catch {
     }
@@ -1470,7 +1475,7 @@ function maskIntersectsRegion(mask, region) {
 function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     var _a;
     const records = [];
-    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.obj, backup]));
+    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.object, backup]));
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
         try {
@@ -1495,11 +1500,11 @@ function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     }
     return records;
 }
-function reapplyPreservedMasks(ctx, cropRegion, records) {
+function reapplyPreservedMasks(context, cropRegion, records) {
     var _a;
     if (records.length === 0)
         return;
-    const { canvas } = ctx;
+    const { canvas } = context;
     let maxRestoredId = 0;
     for (const record of records) {
         try {
@@ -1523,28 +1528,29 @@ function reapplyPreservedMasks(ctx, cropRegion, records) {
         catch {
         }
     }
-    if (typeof ctx.getMaskCounter === 'function' && typeof ctx.setMaskCounter === 'function') {
-        const liveCounter = Number(ctx.getMaskCounter());
+    if (typeof context.getMaskCounter === 'function' &&
+        typeof context.setMaskCounter === 'function') {
+        const liveCounter = Number(context.getMaskCounter());
         const safeCounter = Number.isFinite(liveCounter) ? liveCounter : 0;
-        ctx.setMaskCounter(Math.max(safeCounter, maxRestoredId));
+        context.setMaskCounter(Math.max(safeCounter, maxRestoredId));
     }
     try {
-        (_a = ctx.updateMaskList) === null || _a === void 0 ? void 0 : _a.call(ctx);
+        (_a = context.updateMaskList) === null || _a === void 0 ? void 0 : _a.call(context);
     }
     catch {
     }
 }
-function enterCropMode(ctx) {
-    const { canvas, options } = ctx;
-    if (ctx.getCropSession())
+function enterCropMode(context) {
+    const { canvas, options } = context;
+    if (context.getCropSession())
         return;
-    const originalImage = ctx.getOriginalImage();
+    const originalImage = context.getOriginalImage();
     if (!originalImage)
         return;
-    if (!ctx.isImageLoaded())
+    if (!context.isImageLoaded())
         return;
     canvas.discardActiveObject();
-    const beforeJson = ctx.saveState();
+    const beforeJson = context.saveState();
     const prevSelection = !!canvas.selection;
     canvas.selection = false;
     originalImage.setCoords();
@@ -1563,7 +1569,7 @@ function enterCropMode(ctx) {
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
     const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
     const allowRotation = !!options.crop.allowRotationOfCropRect;
-    const cropRect = new ctx.fabric.Rect({
+    const cropRect = new context.fabric.Rect({
         left: rectLeft,
         top: rectTop,
         width: minCropWidth,
@@ -1591,33 +1597,33 @@ function enterCropMode(ctx) {
     const hideMasks = !!options.crop.hideMasksDuringCrop;
     const maskBackups = [];
     if (hideMasks) {
-        canvas.getObjects().forEach((obj) => {
-            if (obj === cropRect)
+        canvas.getObjects().forEach((object) => {
+            if (object === cropRect)
                 return;
-            if (!isMaskObject(obj))
+            if (!isMaskObject(object))
                 return;
-            maskBackups.push(captureMaskStyleBackup(obj));
+            maskBackups.push(captureMaskStyleBackup(object));
         });
     }
     const prevEvented = [];
-    canvas.getObjects().forEach((obj) => {
+    canvas.getObjects().forEach((object) => {
         var _a, _b;
-        if (obj === cropRect)
+        if (object === cropRect)
             return;
         prevEvented.push({
-            obj,
-            evented: (_a = obj.evented) !== null && _a !== void 0 ? _a : true,
-            selectable: (_b = obj.selectable) !== null && _b !== void 0 ? _b : true,
+            object,
+            evented: (_a = object.evented) !== null && _a !== void 0 ? _a : true,
+            selectable: (_b = object.selectable) !== null && _b !== void 0 ? _b : true,
         });
         try {
-            obj.set({ evented: false, selectable: false });
+            object.set({ evented: false, selectable: false });
         }
         catch {
         }
     });
     if (hideMasks) {
         for (const backup of maskBackups) {
-            applyCropHideMaskStyle(backup.obj);
+            applyCropHideMaskStyle(backup.object);
         }
     }
     const handleCropRectModified = () => {
@@ -1657,43 +1663,43 @@ function enterCropMode(ctx) {
             {
                 target: cropRect,
                 handlers: [
-                    { evt: 'modified', fn: handleCropRectModified },
-                    { evt: 'moving', fn: handleCropRectModified },
-                    { evt: 'scaling', fn: handleCropRectModified },
+                    { eventName: 'modified', callback: handleCropRectModified },
+                    { eventName: 'moving', callback: handleCropRectModified },
+                    { eventName: 'scaling', callback: handleCropRectModified },
                 ],
             },
         ],
     };
-    ctx.setCropSession(session);
+    context.setCropSession(session);
     canvas.renderAll();
 }
-function cancelCrop(ctx) {
-    const session = ctx.getCropSession();
+function cancelCrop(context) {
+    const session = context.getCropSession();
     if (!session)
         return;
-    ctx.canvas.discardActiveObject();
-    teardownSession(ctx, session);
-    ctx.setCropSession(null);
+    context.canvas.discardActiveObject();
+    teardownSession(context, session);
+    context.setCropSession(null);
     try {
-        ctx.canvas.renderAll();
+        context.canvas.renderAll();
     }
     catch {
     }
 }
-async function applyCrop(ctx) {
+async function applyCrop(context) {
     var _a, _b;
-    const session = ctx.getCropSession();
+    const session = context.getCropSession();
     if (!session || !session.cropRect)
         return;
-    const { canvas } = ctx;
+    const { canvas } = context;
     canvas.discardActiveObject();
     const beforeJson = session.beforeJson;
     const cropRect = session.cropRect;
-    const preserveMasks = !!ctx.options.crop.preserveMasksAfterCrop;
+    const preserveMasks = !!context.options.crop.preserveMasksAfterCrop;
     try {
         cropRect.setCoords();
         const cropAngle = Number(cropRect.angle) || 0;
-        if (!ctx.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
+        if (!context.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
             throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
         }
         const rectBounds = getCropRectContentBounds(cropRect);
@@ -1705,13 +1711,13 @@ async function applyCrop(ctx) {
             ? capturePreservedMasks(canvas, cropRegion, session.maskBackups)
             : [];
         restoreCropObjectState(session);
-        removeCropRect(ctx, session);
+        removeCropRect(context, session);
         canvas.selection = !!session.prevSelection;
         const cropFormat = resolveCropExportFormat({
-            cropExportFileType: ctx.options.crop.exportFileType,
-            currentImageMimeType: (_b = (_a = ctx.getCurrentImageMimeType) === null || _a === void 0 ? void 0 : _a.call(ctx)) !== null && _b !== void 0 ? _b : null,
-            cropExportQuality: ctx.options.crop.exportQuality,
-            downsampleQuality: ctx.options.downsampleQuality,
+            cropExportFileType: context.options.crop.exportFileType,
+            currentImageMimeType: (_b = (_a = context.getCurrentImageMimeType) === null || _a === void 0 ? void 0 : _a.call(context)) !== null && _b !== void 0 ? _b : null,
+            cropExportQuality: context.options.crop.exportQuality,
+            downsampleQuality: context.options.downsampleQuality,
         });
         const exportOptions = {
             format: cropFormat.format,
@@ -1725,22 +1731,22 @@ async function applyCrop(ctx) {
             exportOptions.quality = cropFormat.quality;
         }
         const croppedBase64 = canvas.toDataURL(exportOptions);
-        await ctx.loadImage(croppedBase64);
+        await context.loadImage(croppedBase64);
         if (preservedRecords.length > 0) {
-            reapplyPreservedMasks(ctx, cropRegion, preservedRecords);
+            reapplyPreservedMasks(context, cropRegion, preservedRecords);
             canvas.renderAll();
         }
-        const afterJson = ctx.saveState();
-        ctx.setCropSession(null);
+        const afterJson = context.saveState();
+        context.setCropSession(null);
         if (beforeJson && afterJson && beforeJson !== afterJson) {
-            ctx.historyManager.push(new Command(() => ctx.loadFromState(afterJson), () => ctx.loadFromState(beforeJson)));
+            context.historyManager.push(new Command(() => context.loadFromState(afterJson), () => context.loadFromState(beforeJson)));
         }
     }
     catch (error) {
-        teardownSession(ctx, session);
-        ctx.setCropSession(null);
+        teardownSession(context, session);
+        context.setCropSession(null);
         try {
-            await ctx.loadFromState(beforeJson);
+            await context.loadFromState(beforeJson);
         }
         catch (rollbackError) {
             console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
@@ -1756,21 +1762,23 @@ function resolveMultiplier(requested, fallback) {
     const num = Number(requested);
     if (Number.isFinite(num) && num > 0)
         return num;
-    const fb = Number(fallback);
-    return Number.isFinite(fb) && fb > 0 ? fb : 1;
+    const fallbackValue = Number(fallback);
+    return Number.isFinite(fallbackValue) && fallbackValue > 0 ? fallbackValue : 1;
 }
 function resolveExportArea(requested, fallback) {
     if (requested === 'canvas' || requested === 'image')
         return requested;
     return fallback === 'canvas' ? 'canvas' : 'image';
 }
-function resolveExportOptions(ctx, options) {
-    const opts = options !== null && options !== void 0 ? options : {};
+function resolveExportOptions(context, options) {
+    const providedOptions = options !== null && options !== void 0 ? options : {};
     return {
-        exportArea: resolveExportArea(opts.exportArea, ctx.options.exportAreaByDefault),
-        mergeMask: typeof opts.mergeMask === 'boolean' ? opts.mergeMask : ctx.options.mergeMaskByDefault,
-        multiplier: resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier),
-        format: resolveExportFormat(opts, ctx.options.downsampleQuality),
+        exportArea: resolveExportArea(providedOptions.exportArea, context.options.exportAreaByDefault),
+        mergeMask: typeof providedOptions.mergeMask === 'boolean'
+            ? providedOptions.mergeMask
+            : context.options.mergeMaskByDefault,
+        multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
+        format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
     };
 }
 function readCanvasDimension(canvas, getterName, propertyName) {
@@ -1779,27 +1787,27 @@ function readCanvasDimension(canvas, getterName, propertyName) {
     const value = typeof getter === 'function' ? getter.call(canvasLike) : canvasLike[propertyName];
     return Math.max(1, Math.ceil(Number.isFinite(value) ? Number(value) : 1));
 }
-function assertExportPixelBudget(ctx, multiplier, region) {
+function assertExportPixelBudget(context, multiplier, region) {
     var _a, _b;
-    const sourceWidth = (_a = region === null || region === void 0 ? void 0 : region.width) !== null && _a !== void 0 ? _a : readCanvasDimension(ctx.canvas, 'getWidth', 'width');
-    const sourceHeight = (_b = region === null || region === void 0 ? void 0 : region.height) !== null && _b !== void 0 ? _b : readCanvasDimension(ctx.canvas, 'getHeight', 'height');
+    const sourceWidth = (_a = region === null || region === void 0 ? void 0 : region.width) !== null && _a !== void 0 ? _a : readCanvasDimension(context.canvas, 'getWidth', 'width');
+    const sourceHeight = (_b = region === null || region === void 0 ? void 0 : region.height) !== null && _b !== void 0 ? _b : readCanvasDimension(context.canvas, 'getHeight', 'height');
     const outputWidth = Math.max(1, Math.ceil(sourceWidth * multiplier));
     const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
     const pixelCount = outputWidth * outputHeight;
-    const maxPixels = ctx.options.maxExportPixels;
+    const maxPixels = context.options.maxExportPixels;
     if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
         throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
             `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`);
     }
 }
-function computeExportRegion(ctx, exportArea) {
+function computeExportRegion(context, exportArea) {
     if (exportArea === 'canvas')
         return { region: null, partialEdges: null };
-    const originalImage = ctx.getOriginalImage();
+    const originalImage = context.getOriginalImage();
     if (!originalImage)
         return { region: null, partialEdges: null };
     const bounds = getObjectBBox(originalImage);
-    const canvasLike = ctx.canvas;
+    const canvasLike = context.canvas;
     const canvasWidth = typeof canvasLike.getWidth === 'function' ? canvasLike.getWidth() : canvasLike.width;
     const canvasHeight = typeof canvasLike.getHeight === 'function' ? canvasLike.getHeight() : canvasLike.height;
     if (!hasMeaningfulCanvasRegion(bounds, canvasWidth, canvasHeight)) {
@@ -1812,13 +1820,13 @@ function computeExportRegion(ctx, exportArea) {
         partialEdges: getPartialExportEdges(bounds, Number(originalImage.angle) || 0),
     };
 }
-async function withMaskExportState(ctx, mergeMask, fn) {
+async function withMaskExportState(context, mergeMask, callback) {
     if (!mergeMask)
-        return withMasksHidden(ctx, fn);
-    return withMaskStyleBackup({ canvas: ctx.canvas, options: ctx.options }, applyExportBakeInStyle, fn);
+        return withMasksHidden(context, callback);
+    return withMaskStyleBackup({ canvas: context.canvas, options: context.options }, applyExportBakeInStyle, callback);
 }
-async function withMasksHidden(ctx, fn) {
-    const backups = getCanvasObjects(ctx.canvas)
+async function withMasksHidden(context, callback) {
+    const backups = getCanvasObjects(context.canvas)
         .filter(isMaskObject)
         .map((mask) => ({
         mask,
@@ -1837,7 +1845,7 @@ async function withMasksHidden(ctx, fn) {
         }
     }
     try {
-        return await fn();
+        return await callback();
     }
     finally {
         for (const backup of backups) {
@@ -1870,7 +1878,7 @@ function captureMaskLabelBackups(canvas) {
     for (const object of getCanvasObjects(canvas)) {
         if (!isMaskObject(object))
             continue;
-        const label = object.__label;
+        const label = object.labelObject;
         if (!label)
             continue;
         const wasOnCanvas = isObjectOnCanvas(canvas, label);
@@ -1894,7 +1902,7 @@ function captureMaskLabelBackups(canvas) {
 function restoreMaskLabelBackups(canvas, backups) {
     for (const backup of backups) {
         try {
-            backup.mask.__label = backup.label;
+            backup.mask.labelObject = backup.label;
             if (typeof backup.label.set === 'function') {
                 backup.label.set({ visible: backup.visible });
             }
@@ -1961,7 +1969,7 @@ function applyExportBakeInStyle(mask) {
     catch {
     }
 }
-function renderCanvasToDataURL(canvas, format, quality, multiplier, region) {
+function renderCanvasToDataUrl(canvas, format, quality, multiplier, region) {
     const fabricOptions = {
         format,
         multiplier,
@@ -1987,35 +1995,35 @@ function getImageDimensions(imageElement) {
 }
 function loadImageElement(dataUrl) {
     return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+        const imageElement = new Image();
+        imageElement.crossOrigin = 'anonymous';
         const cleanup = () => {
-            if (typeof img.removeEventListener === 'function') {
-                img.removeEventListener('load', handleLoad);
-                img.removeEventListener('error', handleError);
+            if (typeof imageElement.removeEventListener === 'function') {
+                imageElement.removeEventListener('load', handleLoad);
+                imageElement.removeEventListener('error', handleError);
             }
             else {
-                img.onload = null;
-                img.onerror = null;
+                imageElement.onload = null;
+                imageElement.onerror = null;
             }
         };
         const handleLoad = () => {
             cleanup();
-            resolve(img);
+            resolve(imageElement);
         };
         const handleError = () => {
             cleanup();
             reject(new Error('Failed to decode export data URL'));
         };
-        if (typeof img.addEventListener === 'function') {
-            img.addEventListener('load', handleLoad, { once: true });
-            img.addEventListener('error', handleError, { once: true });
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
         }
         else {
-            img.onload = handleLoad;
-            img.onerror = handleError;
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
         }
-        img.src = dataUrl;
+        imageElement.src = dataUrl;
     });
 }
 async function sealPartialTransparentEdges(dataUrl, edges) {
@@ -2023,14 +2031,14 @@ async function sealPartialTransparentEdges(dataUrl, edges) {
         return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const off = document.createElement('canvas');
-    off.width = width;
-    off.height = height;
-    const ctx2d = off.getContext('2d');
-    if (!ctx2d)
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const canvasContext = offscreenCanvas.getContext('2d');
+    if (!canvasContext)
         throw new Error('2D canvas context is unavailable');
-    ctx2d.drawImage(imageElement, 0, 0, width, height);
-    const imageData = ctx2d.getImageData(0, 0, width, height);
+    canvasContext.drawImage(imageElement, 0, 0, width, height);
+    const imageData = canvasContext.getImageData(0, 0, width, height);
     const pixels = imageData.data;
     const sealPixel = (x, y, fallbackX, fallbackY) => {
         var _a, _b, _c, _d, _e, _f;
@@ -2065,8 +2073,8 @@ async function sealPartialTransparentEdges(dataUrl, edges) {
         for (let x = 0; x < width; x += 1)
             sealPixel(x, height - 1, x, height - 2);
     }
-    ctx2d.putImageData(imageData, 0, 0);
-    return off.toDataURL('image/png');
+    canvasContext.putImageData(imageData, 0, 0);
+    return offscreenCanvas.toDataURL('image/png');
 }
 function getJpegBackgroundColor(backgroundColor) {
     return resolveCanvasFillStyle(backgroundColor);
@@ -2075,19 +2083,19 @@ function resolveCanvasFillStyle(backgroundColor, fallback = '#ffffff') {
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
         return '#ffffff';
-    const ctx = createColorValidationContext();
-    if (!ctx)
+    const context = createColorValidationContext();
+    if (!context)
         return fallback;
-    ctx.fillStyle = '#000001';
-    const firstSentinel = ctx.fillStyle;
-    ctx.fillStyle = value;
-    const firstResolved = ctx.fillStyle;
+    context.fillStyle = '#000001';
+    const firstSentinel = context.fillStyle;
+    context.fillStyle = value;
+    const firstResolved = context.fillStyle;
     if (firstResolved !== firstSentinel)
         return firstResolved;
-    ctx.fillStyle = '#000002';
-    const secondSentinel = ctx.fillStyle;
-    ctx.fillStyle = value;
-    const secondResolved = ctx.fillStyle;
+    context.fillStyle = '#000002';
+    const secondSentinel = context.fillStyle;
+    context.fillStyle = value;
+    const secondResolved = context.fillStyle;
     if (secondResolved !== secondSentinel)
         return secondResolved;
     return fallback;
@@ -2133,16 +2141,16 @@ function isZeroCssAlpha(value) {
 async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const off = document.createElement('canvas');
-    off.width = width;
-    off.height = height;
-    const ctx2d = off.getContext('2d');
-    if (!ctx2d)
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const canvasContext = offscreenCanvas.getContext('2d');
+    if (!canvasContext)
         throw new Error('2D canvas context is unavailable');
-    ctx2d.fillStyle = getJpegBackgroundColor(backgroundColor);
-    ctx2d.fillRect(0, 0, width, height);
-    ctx2d.drawImage(imageElement, 0, 0, width, height);
-    return off.toDataURL('image/jpeg', quality);
+    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+    canvasContext.fillRect(0, 0, width, height);
+    canvasContext.drawImage(imageElement, 0, 0, width, height);
+    return offscreenCanvas.toDataURL('image/jpeg', quality);
 }
 function dataUrlToBytes(dataUrl) {
     var _a;
@@ -2171,78 +2179,78 @@ function dataUrlToBytes(dataUrl) {
     }
     throw new Error('No base64 decoder is available for exportImageFile.');
 }
-function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
+async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
-        return Promise.resolve(sourceDataUrl);
+        return sourceDataUrl;
     }
-    return loadImageElement(sourceDataUrl).then((img) => {
-        const { width, height } = getImageDimensions(img);
-        const off = document.createElement('canvas');
-        off.width = width;
-        off.height = height;
-        const ctx2d = off.getContext('2d');
-        if (!ctx2d)
-            throw new Error('Unable to acquire 2D context for export conversion');
-        if (target.format === 'jpeg') {
-            ctx2d.fillStyle = getJpegBackgroundColor(backgroundColor);
-            ctx2d.fillRect(0, 0, width, height);
-        }
-        ctx2d.drawImage(img, 0, 0, width, height);
-        return off.toDataURL(target.mimeType, target.quality);
-    });
+    const imageElement = await loadImageElement(sourceDataUrl);
+    const { width, height } = getImageDimensions(imageElement);
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const canvasContext = offscreenCanvas.getContext('2d');
+    if (!canvasContext) {
+        throw new Error('Unable to acquire 2D context for export conversion');
+    }
+    if (target.format === 'jpeg') {
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+        canvasContext.fillRect(0, 0, width, height);
+    }
+    canvasContext.drawImage(imageElement, 0, 0, width, height);
+    return offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function warnNoImageLoaded(operation) {
     console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
 }
-async function exportImageBase64(ctx, options) {
-    if (!ctx.isImageLoaded()) {
+async function exportImageBase64(context, options) {
+    if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
         return '';
     }
-    const activeObject = captureActiveObject(ctx.canvas);
-    const labelBackups = captureMaskLabelBackups(ctx.canvas);
+    const activeObject = captureActiveObject(context.canvas);
+    const labelBackups = captureMaskLabelBackups(context.canvas);
     try {
-        ctx.canvas.discardActiveObject();
-        const resolved = resolveExportOptions(ctx, options);
-        const { region, partialEdges } = computeExportRegion(ctx, resolved.exportArea);
-        assertExportPixelBudget(ctx, resolved.multiplier, region);
+        context.canvas.discardActiveObject();
+        const resolved = resolveExportOptions(context, options);
+        const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
+        assertExportPixelBudget(context, resolved.multiplier, region);
         const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
-        let dataUrl = await withMaskExportState(ctx, resolved.mergeMask, async () => renderCanvasToDataURL(ctx.canvas, renderFormat, renderQuality, resolved.multiplier, region));
+        let dataUrl = await withMaskExportState(context, resolved.mergeMask, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region));
         if (region) {
             dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
             if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, ctx.options.backgroundColor, resolved.format.quality);
+                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality);
             }
         }
         return dataUrl;
     }
     finally {
-        restoreMaskLabelBackups(ctx.canvas, labelBackups);
-        restoreActiveObject(ctx.canvas, activeObject);
-        requestRender(ctx.canvas);
+        restoreMaskLabelBackups(context.canvas, labelBackups);
+        restoreActiveObject(context.canvas, activeObject);
+        requestRender(context.canvas);
     }
 }
-async function exportImageFile(ctx, options) {
+async function exportImageFile(context, options) {
     var _a;
-    if (!ctx.isImageLoaded()) {
+    if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageFile');
         throw new ExportNotReadyError('exportImageFile');
     }
-    const opts = options !== null && options !== void 0 ? options : {};
-    const fileName = (_a = opts.fileName) !== null && _a !== void 0 ? _a : ctx.options.defaultDownloadFileName;
-    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
-    const base64 = await exportImageBase64(ctx, {
-        exportArea: opts.exportArea,
-        mergeMask: opts.mergeMask,
-        multiplier: opts.multiplier,
-        quality: opts.quality,
-        fileType: opts.fileType,
+    const providedOptions = options !== null && options !== void 0 ? options : {};
+    const fileName = (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName;
+    const resolved = resolveExportFormat(providedOptions, context.options.downsampleQuality);
+    const base64 = await exportImageBase64(context, {
+        exportArea: providedOptions.exportArea,
+        mergeMask: providedOptions.mergeMask,
+        multiplier: providedOptions.multiplier,
+        quality: providedOptions.quality,
+        fileType: providedOptions.fileType,
     });
     if (!base64) {
         throw new ExportNotReadyError('exportImageFile');
     }
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, ctx.options.backgroundColor);
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor);
     let bytes;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -2252,16 +2260,16 @@ async function exportImageFile(ctx, options) {
     }
     return new File([bytes], fileName, { type: resolved.mimeType });
 }
-function downloadImage(ctx, fileName) {
-    if (!ctx.isImageLoaded()) {
+function downloadImage(context, fileName) {
+    if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
-    const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : ctx.options.defaultDownloadFileName;
-    void exportImageBase64(ctx, {
-        exportArea: ctx.options.exportAreaByDefault,
-        mergeMask: ctx.options.mergeMaskByDefault,
-        multiplier: ctx.options.exportMultiplier,
+    const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : context.options.defaultDownloadFileName;
+    void exportImageBase64(context, {
+        exportArea: context.options.exportAreaByDefault,
+        mergeMask: context.options.mergeMaskByDefault,
+        multiplier: context.options.exportMultiplier,
     })
         .then((dataUrl) => {
         if (!dataUrl)
@@ -2278,43 +2286,43 @@ function downloadImage(ctx, fileName) {
         }
     })
         .catch((error) => {
-        reportError(ctx.options, error, 'downloadImage failed.');
+        reportError(context.options, error, 'downloadImage failed.');
         console.error('[ImageEditor] downloadImage failed', error);
     });
 }
-async function mergeMasks(ctx) {
-    if (!ctx.isImageLoaded())
+async function mergeMasks(context) {
+    if (!context.isImageLoaded())
         return;
-    const masks = ctx.canvas
+    const masks = context.canvas
         .getObjects()
         .filter((o) => 'maskId' in o && typeof o.maskId === 'number');
     if (masks.length === 0)
         return;
-    const beforeSnapshot = ctx.saveState();
-    ctx.canvas.discardActiveObject();
-    ctx.canvas.renderAll();
-    const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
-    const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
+    const beforeSnapshot = context.saveState();
+    context.canvas.discardActiveObject();
+    context.canvas.renderAll();
+    const preScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
+    const preScrollLeft = context.containerElement ? context.containerElement.scrollLeft : null;
     try {
-        const merged = await exportImageBase64(ctx, {
+        const merged = await exportImageBase64(context, {
             exportArea: 'image',
             mergeMask: true,
-            multiplier: ctx.options.exportMultiplier,
+            multiplier: context.options.exportMultiplier,
             fileType: 'png',
         });
         if (!merged) {
             throw new MergeMasksError('mergeMasks: exportImageBase64 returned an empty data URL.');
         }
-        ctx.removeAllMasksNoHistory();
-        await ctx.loadImage(merged, { preserveScroll: true });
-        const afterSnapshot = ctx.saveState();
-        if (ctx.containerElement) {
+        context.removeAllMasksNoHistory();
+        await context.loadImage(merged, { preserveScroll: true });
+        const afterSnapshot = context.saveState();
+        if (context.containerElement) {
             try {
                 if (preScrollTop !== null) {
-                    ctx.containerElement.scrollTop = preScrollTop;
+                    context.containerElement.scrollTop = preScrollTop;
                 }
                 if (preScrollLeft !== null) {
-                    ctx.containerElement.scrollLeft = preScrollLeft;
+                    context.containerElement.scrollLeft = preScrollLeft;
                 }
             }
             catch (scrollError) {
@@ -2322,12 +2330,12 @@ async function mergeMasks(ctx) {
             }
         }
         if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
-            ctx.historyManager.push(new Command(() => ctx.loadFromState(afterSnapshot), () => ctx.loadFromState(beforeSnapshot)));
+            context.historyManager.push(new Command(() => context.loadFromState(afterSnapshot), () => context.loadFromState(beforeSnapshot)));
         }
     }
     catch (error) {
         try {
-            await ctx.loadFromState(beforeSnapshot);
+            await context.loadFromState(beforeSnapshot);
         }
         catch (rollbackError) {
             console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
@@ -2355,10 +2363,10 @@ function withTimeout(promise, ms, label) {
     });
 }
 
-function forceReflow(el) {
-    if (!el)
+function forceReflow(element) {
+    if (!element)
         return;
-    void el.offsetWidth;
+    void element.offsetWidth;
 }
 
 function selectLayoutStrategy(options) {
@@ -2565,7 +2573,7 @@ function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, options
         baseImageScale: coverScale,
     };
 }
-function computeExpandLayout(imageWidth, imageHeight, _optionsCanvasWidth, _optionsCanvasHeight, containerSize) {
+function computeExpandLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
     const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
     const canvasHeight = Math.max(containerSize.height, Math.floor(imageHeight));
     return {
@@ -2621,94 +2629,102 @@ function detectSourceMimeType(dataUrl) {
     const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
     return match ? match[1].toLowerCase() : null;
 }
-function resampleImage(imgEl, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
-    const { width, height } = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, maxWidth, maxHeight);
+function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
+    const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const oc = document.createElement('canvas');
-    oc.width = width;
-    oc.height = height;
-    const ctx = oc.getContext('2d');
-    if (!ctx) {
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const context = offscreenCanvas.getContext('2d');
+    if (!context) {
         throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
     }
-    ctx.drawImage(imgEl, 0, 0, imgEl.naturalWidth, imgEl.naturalHeight, 0, 0, width, height);
-    const dataUrl = mimeType === 'image/png' ? oc.toDataURL(mimeType) : oc.toDataURL(mimeType, quality);
+    context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, width, height);
+    const dataUrl = mimeType === 'image/png'
+        ? offscreenCanvas.toDataURL(mimeType)
+        : offscreenCanvas.toDataURL(mimeType, quality);
     return { dataUrl, width, height, mimeType };
 }
 
-async function loadImage(ctx, imageBase64, loadOptions = {}) {
+async function loadImage(context, imageBase64, loadOptions = {}) {
     if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
         return;
     }
-    const placeholderHidden = ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
-    const containerScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
-    const containerScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
-    const containerOverflow = ctx.containerElement ? ctx.containerElement.style.overflow : null;
+    const placeholderHidden = context.placeholderElement
+        ? !!context.placeholderElement.hidden
+        : null;
+    const containerScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
+    const containerScrollLeft = context.containerElement
+        ? context.containerElement.scrollLeft
+        : null;
+    const containerOverflow = context.containerElement
+        ? context.containerElement.style.overflow
+        : null;
     const bundle = {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
         containerOverflow,
-        originalImage: ctx.getOriginalImage(),
-        isImageLoadedToCanvas: ctx.getIsImageLoadedToCanvas(),
-        lastSnapshot: ctx.getLastSnapshot(),
-        canvasJson: serializeCanvas(ctx.canvas),
-        maskCounter: ctx.getMaskCounter(),
-        currentScale: ctx.getCurrentScale(),
-        currentRotation: ctx.getCurrentRotation(),
-        baseImageScale: ctx.getBaseImageScale(),
-        currentImageMimeType: ctx.getCurrentImageMimeType(),
+        originalImage: context.getOriginalImage(),
+        isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
+        lastSnapshot: context.getLastSnapshot(),
+        canvasJson: serializeCanvas(context.canvas),
+        maskCounter: context.getMaskCounter(),
+        currentScale: context.getCurrentScale(),
+        currentRotation: context.getCurrentRotation(),
+        baseImageScale: context.getBaseImageScale(),
+        currentImageMimeType: context.getCurrentImageMimeType(),
     };
     try {
-        ctx.setPlaceholderVisible(false);
+        context.setPlaceholderVisible(false);
         const decode = startImageDecode(imageBase64);
-        let imgEl;
+        let imageElement;
         try {
-            imgEl = await withTimeout(decode.promise, ctx.options.imageLoadTimeoutMs, 'image decode');
+            imageElement = await withTimeout(decode.promise, context.options.imageLoadTimeoutMs, 'image decode');
         }
         catch (error) {
             decode.cleanup(true);
             throw error;
         }
-        const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
-        const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc.dataUrl, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
-        ctx.canvas.discardActiveObject();
-        ctx.canvas.clear();
-        ctx.canvas.backgroundColor = ctx.options.backgroundColor;
-        fimg.set({
+        const loadSource = maybeDownsample(imageElement, imageBase64, context.options);
+        const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
+        context.canvas.discardActiveObject();
+        context.canvas.clear();
+        context.canvas.backgroundColor = context.options.backgroundColor;
+        fabricImage.set({
             originX: 'left',
             originY: 'top',
             selectable: false,
             evented: false,
         });
-        const layout = computeLayout(ctx, fimg);
-        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerElement);
-        fimg.set({ left: layout.imageLeft, top: layout.imageTop });
-        fimg.scale(layout.imageScale);
-        ctx.canvas.add(fimg);
-        ctx.canvas.sendObjectToBack(fimg);
-        ctx.setOriginalImage(fimg);
-        ctx.setBaseImageScale(layout.baseImageScale);
-        ctx.setCurrentScale(1);
-        ctx.setCurrentRotation(0);
-        ctx.setMaskCounter(0);
-        ctx.setIsImageLoadedToCanvas(true);
-        ctx.setCurrentImageMimeType(loadSrc.mimeType);
-        ctx.canvas.renderAll();
-        ctx.setLastSnapshot(saveState({
-            canvas: ctx.canvas,
+        const layout = computeLayout(context, fabricImage);
+        applyCanvasDimensions(context.canvas, layout.canvasWidth, layout.canvasHeight, context.containerElement);
+        fabricImage.set({ left: layout.imageLeft, top: layout.imageTop });
+        fabricImage.scale(layout.imageScale);
+        context.canvas.add(fabricImage);
+        context.canvas.sendObjectToBack(fabricImage);
+        context.setOriginalImage(fabricImage);
+        context.setBaseImageScale(layout.baseImageScale);
+        context.setCurrentScale(1);
+        context.setCurrentRotation(0);
+        context.setMaskCounter(0);
+        context.setIsImageLoadedToCanvas(true);
+        context.setCurrentImageMimeType(loadSource.mimeType);
+        context.canvas.renderAll();
+        context.setLastSnapshot(saveState({
+            canvas: context.canvas,
             currentScale: 1,
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
-            currentImageMimeType: loadSrc.mimeType,
+            currentImageMimeType: loadSource.mimeType,
         }));
-        if (loadOptions.preserveScroll === true && ctx.containerElement) {
+        if (loadOptions.preserveScroll === true && context.containerElement) {
             try {
                 if (bundle.containerScrollTop !== null) {
-                    ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                    context.containerElement.scrollTop = bundle.containerScrollTop;
                 }
                 if (bundle.containerScrollLeft !== null) {
-                    ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                    context.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             }
             catch (error) {
@@ -2717,35 +2733,35 @@ async function loadImage(ctx, imageBase64, loadOptions = {}) {
         }
     }
     catch (error) {
-        await replayRollback(ctx, bundle);
+        await replayRollback(context, bundle);
         const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
-        reportError(ctx.options, error, errorMessage);
+        reportError(context.options, error, errorMessage);
         throw error;
     }
 }
 function startImageDecode(dataUrl) {
-    const img = new Image();
+    const imageElement = new Image();
     const cleanup = (clearSource = false) => {
-        if (typeof img.removeEventListener === 'function') {
-            img.removeEventListener('load', handleLoad);
-            img.removeEventListener('error', handleError);
+        if (typeof imageElement.removeEventListener === 'function') {
+            imageElement.removeEventListener('load', handleLoad);
+            imageElement.removeEventListener('error', handleError);
         }
         else {
-            img.onload = null;
-            img.onerror = null;
+            imageElement.onload = null;
+            imageElement.onerror = null;
         }
         if (clearSource) {
-            img.src = '';
+            imageElement.src = '';
         }
     };
     const handleLoad = () => {
-        if (!hasNaturalImageDimensions(img)) {
+        if (!hasNaturalImageDimensions(imageElement)) {
             cleanup(true);
             rejectImage(new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null));
             return;
         }
         cleanup(false);
-        resolveImage(img);
+        resolveImage(imageElement);
     };
     const handleError = (e) => {
         cleanup(true);
@@ -2756,23 +2772,23 @@ function startImageDecode(dataUrl) {
     const promise = new Promise((resolve, reject) => {
         resolveImage = resolve;
         rejectImage = reject;
-        if (typeof img.addEventListener === 'function') {
-            img.addEventListener('load', handleLoad, { once: true });
-            img.addEventListener('error', handleError, { once: true });
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
         }
         else {
-            img.onload = handleLoad;
-            img.onerror = handleError;
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
         }
-        img.src = dataUrl;
+        imageElement.src = dataUrl;
     });
     return { promise, cleanup };
 }
-function hasNaturalImageDimensions(img) {
-    return (Number.isFinite(img.naturalWidth) &&
-        Number.isFinite(img.naturalHeight) &&
-        img.naturalWidth > 0 &&
-        img.naturalHeight > 0);
+function hasNaturalImageDimensions(imageElement) {
+    return (Number.isFinite(imageElement.naturalWidth) &&
+        Number.isFinite(imageElement.naturalHeight) &&
+        imageElement.naturalWidth > 0 &&
+        imageElement.naturalHeight > 0);
 }
 function isPositiveFinite(value) {
     return Number.isFinite(value) && value > 0;
@@ -2782,7 +2798,7 @@ function toSupportedImageMimeType(mimeType) {
         ? mimeType
         : null;
 }
-function maybeDownsample(imgEl, originalDataUrl, options) {
+function maybeDownsample(imageElement, originalDataUrl, options) {
     const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
     if (!options.downsampleOnLoad) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
@@ -2792,71 +2808,72 @@ function maybeDownsample(imgEl, originalDataUrl, options) {
         reportWarning(options, null, 'loadImage skipped downsampling because downsample bounds are invalid.');
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
-    const dims = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
-    if (!dims.needsResize)
+    const downsampleDimensions = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
+    if (!downsampleDimensions.needsResize) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
+    }
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    const result = resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
-    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(result.dataUrl));
+    const resampledImage = resampleImage(imageElement, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
+    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(resampledImage.dataUrl));
     return {
-        dataUrl: result.dataUrl,
-        mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : result.mimeType,
+        dataUrl: resampledImage.dataUrl,
+        mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : resampledImage.mimeType,
     };
 }
-function computeLayout(ctx, fimg) {
+function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;
-    const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
-    const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
-    const scrollbarSize = measureScrollbarSize((_d = (_c = ctx.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
-    const viewport = ctx.viewportCache.measure(ctx.containerElement, {
-        width: ctx.options.canvasWidth,
-        height: ctx.options.canvasHeight,
+    const imageWidth = (_a = fabricImage.width) !== null && _a !== void 0 ? _a : 0;
+    const imageHeight = (_b = fabricImage.height) !== null && _b !== void 0 ? _b : 0;
+    const scrollbarSize = measureScrollbarSize((_d = (_c = context.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
+    const viewport = context.viewportCache.measure(context.containerElement, {
+        width: context.options.canvasWidth,
+        height: context.options.canvasHeight,
     }, scrollbarSize);
-    const strategy = selectLayoutStrategy(ctx.options);
+    const strategy = selectLayoutStrategy(context.options);
     if (strategy === 'fit') {
-        return computeFitLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+        return computeFitLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
     }
     if (strategy === 'cover') {
-        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport, scrollbarSize);
+        return computeCoverLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport, scrollbarSize);
     }
-    return computeExpandLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+    return computeExpandLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
 }
 function serializeCanvas(canvas) {
     canvas.discardActiveObject();
     const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     return JSON.stringify(json);
 }
-async function replayRollback(ctx, bundle) {
-    if (ctx.containerElement && bundle.containerOverflow !== null) {
+async function replayRollback(context, bundle) {
+    if (context.containerElement && bundle.containerOverflow !== null) {
         try {
-            ctx.containerElement.style.overflow = bundle.containerOverflow;
+            context.containerElement.style.overflow = bundle.containerOverflow;
         }
         catch (rollbackError) {
             console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
         }
     }
     try {
-        await ctx.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
-        ctx.canvas.renderAll();
+        await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
+        context.canvas.renderAll();
     }
     catch (rollbackError) {
         console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
-    ctx.setOriginalImage(bundle.originalImage);
-    ctx.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
-    ctx.setLastSnapshot(bundle.lastSnapshot);
-    ctx.setMaskCounter(bundle.maskCounter);
-    ctx.setCurrentScale(bundle.currentScale);
-    ctx.setCurrentRotation(bundle.currentRotation);
-    ctx.setBaseImageScale(bundle.baseImageScale);
-    ctx.setCurrentImageMimeType(bundle.currentImageMimeType);
-    if (ctx.containerElement) {
+    context.setOriginalImage(bundle.originalImage);
+    context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
+    context.setLastSnapshot(bundle.lastSnapshot);
+    context.setMaskCounter(bundle.maskCounter);
+    context.setCurrentScale(bundle.currentScale);
+    context.setCurrentRotation(bundle.currentRotation);
+    context.setBaseImageScale(bundle.baseImageScale);
+    context.setCurrentImageMimeType(bundle.currentImageMimeType);
+    if (context.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
-                ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                context.containerElement.scrollTop = bundle.containerScrollTop;
             }
             if (bundle.containerScrollLeft !== null) {
-                ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                context.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         }
         catch (rollbackError) {
@@ -2864,11 +2881,11 @@ async function replayRollback(ctx, bundle) {
         }
     }
     if (bundle.placeholderHidden !== null) {
-        ctx.setPlaceholderVisible(!bundle.placeholderHidden);
+        context.setPlaceholderVisible(!bundle.placeholderHidden);
     }
 }
 
-function animateProps(obj, props, options, guard) {
+function animateProps(object, props, options, guard) {
     return new Promise((resolve, reject) => {
         const propCount = Object.keys(props).length;
         if (propCount === 0) {
@@ -2877,7 +2894,7 @@ function animateProps(obj, props, options, guard) {
         }
         let completed = 0;
         try {
-            obj.animate(props, {
+            object.animate(props, {
                 duration: options.duration,
                 onChange: () => {
                     var _a;
@@ -2896,144 +2913,144 @@ function animateProps(obj, props, options, guard) {
         }
     });
 }
-function restoreOrigin(obj, originX, originY) {
+function restoreOrigin(object, originX, originY) {
     try {
-        obj.set({ originX, originY });
-        obj.setCoords();
+        object.set({ originX, originY });
+        object.setCoords();
     }
     catch {
     }
 }
 
 class TransformController {
-    constructor(ctx) {
-        Object.defineProperty(this, "ctx", {
+    constructor(context) {
+        Object.defineProperty(this, "context", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        this.ctx = ctx;
+        this.context = context;
     }
     async scaleImage(factor) {
         if (!Number.isFinite(factor))
             return;
-        const img = this.ctx.getOriginalImage();
-        if (!img)
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject)
             return;
-        if (this.ctx.guard.isAnimating())
+        if (this.context.guard.isAnimating())
             return;
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        const clamped = Math.max(this.ctx.options.minScale, Math.min(this.ctx.options.maxScale, factor));
-        this.ctx.setCurrentScale(clamped);
-        const targetAbs = this.ctx.getBaseImageScale() * clamped;
+        const clamped = Math.max(this.context.options.minScale, Math.min(this.context.options.maxScale, factor));
+        this.context.setCurrentScale(clamped);
+        const targetAbs = this.context.getBaseImageScale() * clamped;
         try {
-            const topLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top' });
-            img.setPositionByOrigin(topLeft, 'left', 'top');
-            img.setCoords();
+            const topLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(topLeft, 'left', 'top');
+            imageObject.setCoords();
         }
         catch (error) {
             console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
         }
         try {
-            await this.ctx.guard.runAnimation(() => animateProps(img, { scaleX: targetAbs, scaleY: targetAbs }, {
-                duration: this.ctx.options.animationDuration,
-                onChange: () => this.ctx.canvas.requestRenderAll(),
-            }, this.ctx.guard));
+            await this.context.guard.runAnimation(() => animateProps(imageObject, { scaleX: targetAbs, scaleY: targetAbs }, {
+                duration: this.context.options.animationDuration,
+                onChange: () => this.context.canvas.requestRenderAll(),
+            }, this.context.guard));
         }
         catch (error) {
             console.warn('[ImageEditor] scaleImage animation error', error);
             return;
         }
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        img.set({ scaleX: targetAbs, scaleY: targetAbs });
-        img.setCoords();
-        if (this.ctx.afterTransformSnap)
-            this.ctx.afterTransformSnap();
-        this.ctx.saveCanvasState();
+        imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
+        imageObject.setCoords();
+        if (this.context.afterTransformSnap)
+            this.context.afterTransformSnap();
+        this.context.saveCanvasState();
     }
     async rotateImage(degrees) {
         if (!Number.isFinite(degrees))
             return;
-        const img = this.ctx.getOriginalImage();
-        if (!img)
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject)
             return;
-        if (this.ctx.guard.isAnimating())
+        if (this.context.guard.isAnimating())
             return;
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        this.ctx.setCurrentRotation(degrees);
+        this.context.setCurrentRotation(degrees);
         try {
-            const centre = img.getCenterPoint();
-            img.set({ originX: 'center', originY: 'center' });
-            img.setPositionByOrigin(centre, 'center', 'center');
-            img.setCoords();
+            const centre = imageObject.getCenterPoint();
+            imageObject.set({ originX: 'center', originY: 'center' });
+            imageObject.setPositionByOrigin(centre, 'center', 'center');
+            imageObject.setCoords();
         }
         catch (error) {
             console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
         }
         let animationFailed = false;
         try {
-            await this.ctx.guard.runAnimation(() => animateProps(img, { angle: degrees }, {
-                duration: this.ctx.options.animationDuration,
-                onChange: () => this.ctx.canvas.requestRenderAll(),
-            }, this.ctx.guard));
+            await this.context.guard.runAnimation(() => animateProps(imageObject, { angle: degrees }, {
+                duration: this.context.options.animationDuration,
+                onChange: () => this.context.canvas.requestRenderAll(),
+            }, this.context.guard));
         }
         catch (error) {
             animationFailed = true;
             console.warn('[ImageEditor] rotateImage animation error', error);
         }
         finally {
-            if (this.ctx.guard.isDisposed()) {
-                restoreOrigin(img, 'left', 'top');
+            if (this.context.guard.isDisposed()) {
+                restoreOrigin(imageObject, 'left', 'top');
             }
         }
         if (animationFailed)
             return;
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        img.set('angle', degrees);
-        img.setCoords();
-        if (this.ctx.afterTransformSnap)
-            this.ctx.afterTransformSnap();
+        imageObject.set('angle', degrees);
+        imageObject.setCoords();
+        if (this.context.afterTransformSnap)
+            this.context.afterTransformSnap();
         try {
-            const newTopLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top' });
-            img.setPositionByOrigin(newTopLeft, 'left', 'top');
-            img.setCoords();
+            const newTopLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
+            imageObject.setCoords();
         }
         catch (error) {
             console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
         }
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
     async resetImageTransform() {
-        if (!this.ctx.getOriginalImage())
+        if (!this.context.getOriginalImage())
             return;
-        this.ctx.setSuppressSaveState(true);
+        this.context.setSuppressSaveState(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
         }
         finally {
-            this.ctx.setSuppressSaveState(false);
+            this.context.setSuppressSaveState(false);
         }
-        if (this.ctx.guard.isDisposed())
+        if (this.context.guard.isDisposed())
             return;
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
 }
-function computeTopLeftPoint(obj) {
-    obj.setCoords();
-    const coords = obj.getCoords();
+function computeTopLeftPoint(object) {
+    object.setCoords();
+    const coords = object.getCoords();
     const first = coords[0];
     if (first)
         return first;
-    const br = obj.getBoundingRect();
-    return { x: br.left, y: br.top };
+    const boundingRect = object.getBoundingRect();
+    return { x: boundingRect.left, y: boundingRect.top };
 }
 
 function resolveNumeric(val, axis, fallback, canvas, options) {
@@ -3152,9 +3169,9 @@ function polygonArea(points) {
     }
     return Math.abs(area) / 2;
 }
-function createMask(ctx, config = {}) {
+function createMask(context, config = {}) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
-    const { canvas, options, fabric: fabricModule } = ctx;
+    const { canvas, options, fabric: fabricModule } = context;
     if (!canvas)
         return null;
     const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
@@ -3176,7 +3193,7 @@ function createMask(ctx, config = {}) {
     const firstOffset = 10;
     let left;
     let top;
-    const previousMask = ctx.getLastMask();
+    const previousMask = context.getLastMask();
     if (config.left === undefined && previousMask) {
         const previousRight = ((_b = previousMask.left) !== null && _b !== void 0 ? _b : 0) +
             (typeof previousMask.getScaledWidth === 'function'
@@ -3218,8 +3235,8 @@ function createMask(ctx, config = {}) {
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            if (ctx.expandCanvasIfNeeded) {
-                ctx.expandCanvasIfNeeded(nextWidth, nextHeight);
+            if (context.expandCanvasIfNeeded) {
+                context.expandCanvasIfNeeded(nextWidth, nextHeight);
             }
             else {
                 canvas.setDimensions({ width: nextWidth, height: nextHeight });
@@ -3334,20 +3351,20 @@ function createMask(ctx, config = {}) {
     maskObject.originalStroke = maskObject.stroke;
     maskObject.originalStrokeWidth = maskObject.strokeWidth;
     attachMaskHoverHandlers(maskObject);
-    const nextId = ctx.getMaskCounter() + 1;
-    ctx.setMaskCounter(nextId);
+    const nextId = context.getMaskCounter() + 1;
+    context.setMaskCounter(nextId);
     maskObject.maskId = nextId;
     maskObject.maskUid = createMaskUid(nextId);
     maskObject.maskName = `${options.maskName}${nextId}`;
-    ctx.setLastMask(maskObject);
+    context.setLastMask(maskObject);
     canvas.add(maskObject);
     canvas.bringObjectToFront(maskObject);
-    ctx.updateMaskList();
+    context.updateMaskList();
     if (resolvedConfig.selectable !== false) {
         canvas.setActiveObject(maskObject);
     }
     canvas.renderAll();
-    ctx.saveCanvasState();
+    context.saveCanvasState();
     if (typeof resolvedConfig.onCreate === 'function') {
         try {
             resolvedConfig.onCreate(maskObject, canvas);
@@ -3358,78 +3375,78 @@ function createMask(ctx, config = {}) {
     }
     return maskObject;
 }
-function removeSelectedMask(ctx) {
-    const active = ctx.canvas.getActiveObject();
+function removeSelectedMask(context) {
+    const active = context.canvas.getActiveObject();
     if (!active || !isMaskObject(active))
         return;
-    ctx.removeLabelForMask(active);
+    context.removeLabelForMask(active);
     detachMaskHoverHandlers(active);
-    ctx.canvas.remove(active);
-    ctx.canvas.discardActiveObject();
-    ctx.updateMaskList();
-    ctx.canvas.renderAll();
-    ctx.saveCanvasState();
+    context.canvas.remove(active);
+    context.canvas.discardActiveObject();
+    context.updateMaskList();
+    context.canvas.renderAll();
+    context.saveCanvasState();
 }
-function removeAllMasks(ctx, options = {}) {
-    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+function removeAllMasks(context, options = {}) {
+    const masks = context.canvas.getObjects().filter(isMaskObject);
     if (masks.length === 0)
         return;
     for (const maskObject of masks) {
-        ctx.removeLabelForMask(maskObject);
+        context.removeLabelForMask(maskObject);
         detachMaskHoverHandlers(maskObject);
-        ctx.canvas.remove(maskObject);
+        context.canvas.remove(maskObject);
     }
-    ctx.canvas.discardActiveObject();
-    ctx.setLastMask(null);
-    ctx.updateMaskList();
-    ctx.canvas.renderAll();
+    context.canvas.discardActiveObject();
+    context.setLastMask(null);
+    context.updateMaskList();
+    context.canvas.renderAll();
     if (options.saveHistory !== false) {
-        ctx.saveCanvasState();
+        context.saveCanvasState();
     }
 }
 
-function removeLabelForMask(ctx, mask) {
-    if (!ctx.canvas || !mask.__label)
+function removeLabelForMask(context, mask) {
+    if (!context.canvas || !mask.labelObject)
         return;
     try {
-        if (ctx.canvas.getObjects().includes(mask.__label)) {
-            ctx.canvas.remove(mask.__label);
+        if (context.canvas.getObjects().includes(mask.labelObject)) {
+            context.canvas.remove(mask.labelObject);
         }
     }
     catch {
     }
     try {
-        delete mask.__label;
+        delete mask.labelObject;
     }
     catch {
     }
 }
-function createLabelForMask(ctx, mask) {
+function createLabelForMask(context, mask) {
     var _a;
-    const { canvas, options, fabric: fb } = ctx;
+    const { canvas, options, fabric: fabricModule } = context;
     if (!canvas || !options.maskLabelOnSelect)
         return;
-    removeLabelForMask(ctx, mask);
-    let textObj = null;
+    removeLabelForMask(context, mask);
+    let labelTextObject = null;
     if (typeof options.label.create === 'function') {
         try {
-            textObj = options.label.create(mask, fb);
+            labelTextObject = options.label.create(mask, fabricModule);
         }
         catch (error) {
             reportWarning(options, error, 'label.create callback threw.');
-            textObj = null;
+            labelTextObject = null;
         }
     }
-    if (!textObj) {
+    if (!labelTextObject) {
         const indexForGetText = mask.maskId - 1;
-        let txt = mask.maskName;
+        let labelText = mask.maskName;
         if (typeof options.label.getText === 'function') {
             try {
-                txt = options.label.getText(mask, indexForGetText);
+                labelText = options.label.getText(mask, indexForGetText);
             }
             catch (error) {
                 reportWarning(options, error, 'label.getText callback threw.');
-                txt = mask.maskName;
+                labelText = mask.maskName;
             }
         }
         const textOptions = {
@@ -3439,18 +3456,18 @@ function createLabelForMask(ctx, mask) {
             originX: 'left',
             originY: 'top',
         };
-        textObj = new fb.FabricText(txt, textOptions);
+        labelTextObject = new fabricModule.FabricText(labelText, textOptions);
     }
-    textObj.maskLabel = true;
-    mask.__label = textObj;
-    canvas.add(textObj);
-    canvas.bringObjectToFront(textObj);
-    syncMaskLabel(ctx, mask);
+    labelTextObject.maskLabel = true;
+    mask.labelObject = labelTextObject;
+    canvas.add(labelTextObject);
+    canvas.bringObjectToFront(labelTextObject);
+    syncMaskLabel(context, mask);
 }
-function syncMaskLabel(ctx, mask) {
+function syncMaskLabel(context, mask) {
     var _a, _b, _c;
-    const { canvas, options } = ctx;
-    if (!canvas || !options.maskLabelOnSelect || !mask.__label)
+    const { canvas, options } = context;
+    if (!canvas || !options.maskLabelOnSelect || !mask.labelObject)
         return;
     const coords = (_a = mask.getCoords) === null || _a === void 0 ? void 0 : _a.call(mask);
     if (!(coords === null || coords === void 0 ? void 0 : coords.length))
@@ -3463,7 +3480,7 @@ function syncMaskLabel(ctx, mask) {
     const vy = center.y - tl.y;
     const dist = Math.sqrt(vx * vx + vy * vy) || 1;
     const offset = Math.max(0, (_b = options.maskLabelOffset) !== null && _b !== void 0 ? _b : 3);
-    mask.__label.set({
+    mask.labelObject.set({
         left: Math.round(tl.x + (vx / dist) * offset),
         top: Math.round(tl.y + (vy / dist) * offset),
         angle: (_c = mask.angle) !== null && _c !== void 0 ? _c : 0,
@@ -3471,22 +3488,22 @@ function syncMaskLabel(ctx, mask) {
         originY: 'top',
         visible: true,
     });
-    mask.__label.setCoords();
+    mask.labelObject.setCoords();
     canvas.renderAll();
 }
-function showLabelForMask(ctx, mask) {
-    if (!ctx.options.maskLabelOnSelect)
+function showLabelForMask(context, mask) {
+    if (!context.options.maskLabelOnSelect)
         return;
-    if (!mask.__label) {
-        createLabelForMask(ctx, mask);
+    if (!mask.labelObject) {
+        createLabelForMask(context, mask);
     }
-    if (mask.__label) {
-        mask.__label.visible = true;
-        syncMaskLabel(ctx, mask);
+    if (mask.labelObject) {
+        mask.labelObject.visible = true;
+        syncMaskLabel(context, mask);
     }
 }
-function hideAllMaskLabels(ctx) {
-    const { canvas } = ctx;
+function hideAllMaskLabels(context) {
+    const { canvas } = context;
     if (!canvas)
         return;
     const objs = canvas.getObjects();
@@ -3499,32 +3516,32 @@ function hideAllMaskLabels(ctx) {
     });
     objs.filter(isMaskObject).forEach((o) => {
         try {
-            delete o.__label;
+            delete o.labelObject;
         }
         catch {
         }
     });
 }
 
-function renderMaskList(ctx) {
-    const listId = ctx.getListElementId();
+function renderMaskList(context) {
+    const listId = context.getListElementId();
     if (!listId)
         return;
     const listEl = document.getElementById(listId);
-    if (!listEl || !ctx.canvas)
+    if (!listEl || !context.canvas)
         return;
     listEl.innerHTML = '';
-    const canvas = ctx.canvas;
+    const canvas = context.canvas;
     canvas
         .getObjects()
         .filter(isMaskObject)
         .forEach((mask) => {
-        const li = document.createElement('li');
-        li.className = 'list-group-item mask-item';
-        li.textContent = mask.maskName;
-        li.dataset.maskId = String(mask.maskId);
-        li.onclick = () => {
-            const id = Number(li.dataset.maskId);
+        const listItemElement = document.createElement('li');
+        listItemElement.className = 'list-group-item mask-item';
+        listItemElement.textContent = mask.maskName;
+        listItemElement.dataset.maskId = String(mask.maskId);
+        listItemElement.onclick = () => {
+            const id = Number(listItemElement.dataset.maskId);
             if (!Number.isFinite(id))
                 return;
             const target = canvas
@@ -3533,13 +3550,13 @@ function renderMaskList(ctx) {
             if (!target)
                 return;
             canvas.setActiveObject(target);
-            ctx.onMaskSelected(target);
+            context.onMaskSelected(target);
         };
-        listEl.appendChild(li);
+        listEl.appendChild(listItemElement);
     });
 }
-function updateMaskListSelection(ctx, selectedMask) {
-    const listId = ctx.getListElementId();
+function updateMaskListSelection(context, selectedMask) {
+    const listId = context.getListElementId();
     if (!listId)
         return;
     const listEl = document.getElementById(listId);
@@ -3579,15 +3596,15 @@ class DomBindings {
         const id = this.resolveElementId(key);
         if (!id)
             return false;
-        const el = document.getElementById(id);
-        if (!el)
+        const element = document.getElementById(id);
+        if (!element)
             return false;
         const wrapped = (event) => {
             if (this.isDisposed())
                 return;
             handler(event);
         };
-        el.addEventListener(eventType, wrapped);
+        element.addEventListener(eventType, wrapped);
         this.registry.push({ elementKey: key, eventType, handler: wrapped });
         return true;
     }
@@ -3596,11 +3613,11 @@ class DomBindings {
             const id = this.resolveElementId(entry.elementKey);
             if (!id)
                 continue;
-            const el = document.getElementById(id);
-            if (!el)
+            const element = document.getElementById(id);
+            if (!element)
                 continue;
             try {
-                el.removeEventListener(entry.eventType, entry.handler);
+                element.removeEventListener(entry.eventType, entry.handler);
             }
             catch {
             }
@@ -3644,13 +3661,13 @@ function inferImageMimeType(file) {
         return null;
     return (_b = SUPPORTED_IMAGE_EXTENSIONS[ext]) !== null && _b !== void 0 ? _b : null;
 }
-function readFileAsDataURL(file) {
+function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-            const result = reader.result;
-            if (typeof result === 'string') {
-                resolve(result);
+            const fileReaderResult = reader.result;
+            if (typeof fileReaderResult === 'string') {
+                resolve(fileReaderResult);
             }
             else {
                 reject(new Error('FileReader returned a non-string result'));
@@ -3705,13 +3722,13 @@ const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
-        Object.defineProperty(this, "_fabric", {
+        Object.defineProperty(this, "fabricModule", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "_fabricLoaded", {
+        Object.defineProperty(this, "isFabricLoaded", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -3753,19 +3770,19 @@ class ImageEditor {
             writable: true,
             value: {}
         });
-        Object.defineProperty(this, "_elementOriginalDisabled", {
+        Object.defineProperty(this, "elementOriginalDisabledMap", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: new Map()
         });
-        Object.defineProperty(this, "_elementOriginalAriaDisabled", {
+        Object.defineProperty(this, "elementOriginalAriaDisabledMap", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: new Map()
         });
-        Object.defineProperty(this, "_elementOriginalPointerEvents", {
+        Object.defineProperty(this, "elementOriginalPointerEventsMap", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -3813,13 +3830,13 @@ class ImageEditor {
             writable: true,
             value: 0
         });
-        Object.defineProperty(this, "_lastMask", {
+        Object.defineProperty(this, "lastMask", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_lastSnapshot", {
+        Object.defineProperty(this, "lastSnapshot", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -3831,7 +3848,7 @@ class ImageEditor {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "_guard", {
+        Object.defineProperty(this, "operationGuard", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -3843,83 +3860,83 @@ class ImageEditor {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "_transformController", {
+        Object.defineProperty(this, "transformController", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_viewportCache", {
+        Object.defineProperty(this, "viewportCache", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: new ViewportCache()
         });
-        Object.defineProperty(this, "_cropSession", {
+        Object.defineProperty(this, "cropSession", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_bindings", {
+        Object.defineProperty(this, "domBindings", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_disposed", {
+        Object.defineProperty(this, "isDisposed", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_suppressSaveState", {
+        Object.defineProperty(this, "shouldSuppressSaveState", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_lastEmittedBusyState", {
+        Object.defineProperty(this, "lastEmittedIsBusy", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_activeStateRestoreOperation", {
+        Object.defineProperty(this, "activeStateRestoreOperation", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_nextSelectionChangeContext", {
+        Object.defineProperty(this, "nextSelectionChangeContext", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
         const detected = detectFabric(fabricModuleOrOptions, options);
-        this._fabric = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
-        this._fabricLoaded = detected._fabricLoaded;
+        this.fabricModule = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
+        this.isFabricLoaded = detected.isFabricLoaded;
         this.options = resolveOptions(detected.options);
         const layoutConflict = detectLayoutConflict(this.options);
         if (layoutConflict) {
             reportWarning(this.options, null, layoutConflict.message);
         }
-        this._guard = new OperationGuard();
+        this.operationGuard = new OperationGuard();
         this.animQueue = new AnimationQueue();
         this.historyManager = new HistoryManager(this.options.maxHistorySize);
     }
     init(idMap = {}) {
-        if (!this._fabricLoaded) {
+        if (!this.isFabricLoaded) {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
                 typeof globalFabric.Canvas !== 'function') {
                 return;
             }
-            this._fabric = globalFabric;
-            this._fabricLoaded = true;
+            this.fabricModule = globalFabric;
+            this.isFabricLoaded = true;
         }
-        if (this._disposed)
+        if (this.isDisposed)
             return;
         const defaults = {
             canvas: 'canvas',
@@ -3948,22 +3965,22 @@ class ImageEditor {
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
-        this._bindings = new DomBindings((key) => this.elements[key], () => this._disposed);
-        this._initCanvas();
-        this._transformController = new TransformController(this._buildTransformContext());
-        this._bindEvents();
-        this._updateInputs();
-        this._updateMaskList();
-        this._updateUI();
+        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed);
+        this.initCanvas();
+        this.transformController = new TransformController(this.buildTransformContext());
+        this.bindDomEvents();
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateUi();
         if (this.options.initialImageBase64) {
             void this.loadImage(this.options.initialImageBase64).catch(() => {
             });
         }
         else {
-            this._updatePlaceholderStatus();
+            this.updatePlaceholderStatus();
         }
     }
-    _initCanvas() {
+    initCanvas() {
         var _a;
         const id = this.elements.canvas;
         const canvasElement = id ? document.getElementById(id) : null;
@@ -3990,7 +4007,7 @@ class ImageEditor {
                 initialHeight = containerHeight;
             }
         }
-        this.canvas = new this._fabric.Canvas(canvasElement, {
+        this.canvas = new this.fabricModule.Canvas(canvasElement, {
             width: initialWidth,
             height: initialHeight,
             backgroundColor: this.options.backgroundColor,
@@ -3998,20 +4015,20 @@ class ImageEditor {
             preserveObjectStacking: true,
         });
         this.canvas.on('selection:created', (e) => {
-            this._onSelectionChanged(e.selected);
+            this.handleSelectionChanged(e.selected);
         });
         this.canvas.on('selection:updated', (e) => {
-            this._onSelectionChanged(e.selected);
+            this.handleSelectionChanged(e.selected);
         });
-        this.canvas.on('selection:cleared', () => this._onSelectionChanged([]));
+        this.canvas.on('selection:cleared', () => this.handleSelectionChanged([]));
         const onObjectEvent = (e) => {
             if (e.target && isMaskObject(e.target))
-                this._syncMaskLabel(e.target);
+                this.syncMaskLabel(e.target);
         };
         const onObjectModified = (e) => {
             if (!e.target || !isMaskObject(e.target))
                 return;
-            this._syncMaskLabel(e.target);
+            this.syncMaskLabel(e.target);
             this.saveState();
         };
         this.canvas.on('object:moving', onObjectEvent);
@@ -4019,50 +4036,50 @@ class ImageEditor {
         this.canvas.on('object:rotating', onObjectEvent);
         this.canvas.on('object:modified', onObjectModified);
     }
-    _bindEvents() {
-        this._bindIfExists('uploadArea', 'click', () => {
+    bindDomEvents() {
+        this.bindElementIfExists('uploadArea', 'click', () => {
             var _a;
             const inputId = this.elements.imageInput;
             if (inputId)
                 (_a = document.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
         });
-        this._bindIfExists('imageInput', 'change', (e) => {
+        this.bindElementIfExists('imageInput', 'change', (e) => {
             var _a;
             const file = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
             if (file)
-                void this._loadImageFile(file);
+                void this.loadImageFile(file);
         });
-        this._bindIfExists('zoomInButton', 'click', () => {
+        this.bindElementIfExists('zoomInButton', 'click', () => {
             void this.scaleImage(this.currentScale + this.options.scaleStep);
         });
-        this._bindIfExists('zoomOutButton', 'click', () => {
+        this.bindElementIfExists('zoomOutButton', 'click', () => {
             void this.scaleImage(this.currentScale - this.options.scaleStep);
         });
-        this._bindIfExists('resetImageTransformButton', 'click', () => {
+        this.bindElementIfExists('resetImageTransformButton', 'click', () => {
             void this.resetImageTransform();
         });
-        this._bindIfExists('createMaskButton', 'click', () => {
+        this.bindElementIfExists('createMaskButton', 'click', () => {
             this.createMask();
         });
-        this._bindIfExists('removeSelectedMaskButton', 'click', () => {
+        this.bindElementIfExists('removeSelectedMaskButton', 'click', () => {
             this.removeSelectedMask();
         });
-        this._bindIfExists('removeAllMasksButton', 'click', () => {
+        this.bindElementIfExists('removeAllMasksButton', 'click', () => {
             this.removeAllMasks();
         });
-        this._bindIfExists('mergeMasksButton', 'click', () => {
+        this.bindElementIfExists('mergeMasksButton', 'click', () => {
             void this.mergeMasks();
         });
-        this._bindIfExists('downloadImageButton', 'click', () => {
+        this.bindElementIfExists('downloadImageButton', 'click', () => {
             this.downloadImage();
         });
-        this._bindIfExists('undoButton', 'click', () => {
+        this.bindElementIfExists('undoButton', 'click', () => {
             this.undo();
         });
-        this._bindIfExists('redoButton', 'click', () => {
+        this.bindElementIfExists('redoButton', 'click', () => {
             this.redo();
         });
-        this._bindIfExists('rotateLeftButton', 'click', () => {
+        this.bindElementIfExists('rotateLeftButton', 'click', () => {
             const inputId = this.elements.rotateLeftDegreesInput;
             const inputEl = inputId
                 ? document.getElementById(inputId)
@@ -4075,7 +4092,7 @@ class ImageEditor {
             }
             void this.rotateImage(this.currentRotation - step);
         });
-        this._bindIfExists('rotateRightButton', 'click', () => {
+        this.bindElementIfExists('rotateRightButton', 'click', () => {
             const inputId = this.elements.rotateRightDegreesInput;
             const inputEl = inputId
                 ? document.getElementById(inputId)
@@ -4088,23 +4105,23 @@ class ImageEditor {
             }
             void this.rotateImage(this.currentRotation + step);
         });
-        this._bindIfExists('enterCropModeButton', 'click', () => {
+        this.bindElementIfExists('enterCropModeButton', 'click', () => {
             this.enterCropMode();
         });
-        this._bindIfExists('applyCropButton', 'click', () => {
+        this.bindElementIfExists('applyCropButton', 'click', () => {
             void this.applyCrop().catch((error) => {
                 reportError(this.options, error, 'Crop apply failed.');
             });
         });
-        this._bindIfExists('cancelCropButton', 'click', () => {
+        this.bindElementIfExists('cancelCropButton', 'click', () => {
             this.cancelCrop();
         });
     }
-    _bindIfExists(key, event, handler) {
+    bindElementIfExists(key, event, handler) {
         var _a;
-        (_a = this._bindings) === null || _a === void 0 ? void 0 : _a.bindIfExists(key, event, handler);
+        (_a = this.domBindings) === null || _a === void 0 ? void 0 : _a.bindIfExists(key, event, handler);
     }
-    async _loadImageFile(file) {
+    async loadImageFile(file) {
         const inputId = this.elements.imageInput;
         const inputEl = inputId
             ? document.getElementById(inputId)
@@ -4117,7 +4134,7 @@ class ImageEditor {
         }
         let dataUrl;
         try {
-            dataUrl = await readFileAsDataURL(file);
+            dataUrl = await readFileAsDataUrl(file);
         }
         catch (error) {
             reportError(this.options, error, 'Failed to read selected image file.');
@@ -4134,29 +4151,29 @@ class ImageEditor {
         }
     }
     async loadImage(base64, options = {}) {
-        if (!this._fabricLoaded || !this.canvas)
+        if (!this.isFabricLoaded || !this.canvas)
             return;
-        if (this._disposed)
+        if (this.isDisposed)
             return;
         if (typeof base64 !== 'string' || !base64.startsWith('data:image/'))
             return;
-        if (!this._canRunIdleOperation('loadImage', options))
+        if (!this.canRunIdleOperation('loadImage', options))
             return;
-        const context = this._getOperationContext('loadImage', options);
+        const callbackContext = this.getOperationContext('loadImage', options);
         const previousImage = this.originalImage;
-        const hadMasks = this._getMasks().length > 0;
-        this._emitOptionCallback('onImageLoadStart', [context]);
-        this._guard.beginLoading();
-        this._emitBusyChangeIfChanged(context);
-        this._updateUI();
-        this._hideAllMaskLabels();
-        const ctx = {
-            fabric: this._fabric,
+        const hadMasks = this.getMasks().length > 0;
+        this.emitOptionCallback('onImageLoadStart', [callbackContext]);
+        this.operationGuard.beginLoading();
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
+        this.hideAllMaskLabels();
+        const loadImageContext = {
+            fabric: this.fabricModule,
             canvas: this.canvas,
             options: this.options,
             containerElement: this.containerElement,
             placeholderElement: this.placeholderElement,
-            viewportCache: this._viewportCache,
+            viewportCache: this.viewportCache,
             getOriginalImage: () => this.originalImage,
             setOriginalImage: (v) => {
                 this.originalImage = v;
@@ -4165,9 +4182,9 @@ class ImageEditor {
             setIsImageLoadedToCanvas: (v) => {
                 this.isImageLoadedToCanvas = v;
             },
-            getLastSnapshot: () => this._lastSnapshot,
+            getLastSnapshot: () => this.lastSnapshot,
             setLastSnapshot: (v) => {
-                this._lastSnapshot = v;
+                this.lastSnapshot = v;
             },
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (v) => {
@@ -4194,95 +4211,95 @@ class ImageEditor {
             },
         };
         try {
-            await loadImage(ctx, base64, options);
+            await loadImage(loadImageContext, base64, options);
         }
         finally {
-            this._guard.endLoading();
-            this._emitBusyChangeIfChanged(context);
-            if (!this._disposed && this.canvas)
-                this._updateUI();
+            this.operationGuard.endLoading();
+            this.emitBusyChangeIfChanged(callbackContext);
+            if (!this.isDisposed && this.canvas)
+                this.updateUi();
         }
-        this._lastMask = null;
-        this._updateInputs();
-        this._updateMaskList();
-        this._updateUI();
+        this.lastMask = null;
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateUi();
         if (previousImage && previousImage !== this.originalImage) {
-            this._emitOptionCallback('onImageCleared', [previousImage, context]);
+            this.emitOptionCallback('onImageCleared', [previousImage, callbackContext]);
         }
-        const imageInfo = this._getImageInfo();
+        const imageInfo = this.getImageInfo();
         if (imageInfo) {
-            this._emitOptionCallback('onImageLoaded', [imageInfo, context]);
+            this.emitOptionCallback('onImageLoaded', [imageInfo, callbackContext]);
         }
         if (hadMasks) {
-            this._emitMasksChanged(context);
+            this.emitMasksChanged(callbackContext);
         }
-        this._emitImageChanged(context);
+        this.emitImageChanged(callbackContext);
     }
-    _getInternalOperationToken(options) {
+    getInternalOperationToken(options) {
         var _a;
         return ((_a = options === null || options === void 0 ? void 0 : options[INTERNAL_OPERATION_TOKEN]) !== null && _a !== void 0 ? _a : null);
     }
-    _canRunDuringAnimationQueue(options) {
+    canRunDuringAnimationQueue(options) {
         return !!(options === null || options === void 0 ? void 0 : options[INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]);
     }
-    _withInternalOperationOptions(token, options = {}) {
+    withInternalOperationOptions(token, options = {}) {
         return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
         };
     }
-    _withAnimationQueueBypass(options = {}) {
+    withAnimationQueueBypass(options = {}) {
         return {
             ...options,
             [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
         };
     }
-    _assertIdleForOperation(operationName, options) {
-        const token = this._getInternalOperationToken(options);
-        this._guard.assertIdleForOperation(operationName, token);
-        if (this._cropSession &&
-            !this._guard.isOwnOperation(token) &&
+    assertIdleForOperation(operationName, options) {
+        const token = this.getInternalOperationToken(options);
+        this.operationGuard.assertIdleForOperation(operationName, token);
+        if (this.cropSession &&
+            !this.operationGuard.isOwnOperation(token) &&
             !CROP_SESSION_ALLOWED_OPERATIONS.has(operationName)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while crop mode is active.`);
         }
-        if (this.animQueue.isBusy() && !this._canRunDuringAnimationQueue(options)) {
+        if (this.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
         }
     }
-    _canRunIdleOperation(operationName, options) {
+    canRunIdleOperation(operationName, options) {
         try {
-            this._assertIdleForOperation(operationName, options);
+            this.assertIdleForOperation(operationName, options);
             return true;
         }
         catch {
             return false;
         }
     }
-    _assertCanQueueAnimation(operationName, options) {
-        this._guard.assertCanQueueAnimation(operationName, this._getInternalOperationToken(options));
+    assertCanQueueAnimation(operationName, options) {
+        this.operationGuard.assertCanQueueAnimation(operationName, this.getInternalOperationToken(options));
     }
     isImageLoaded() {
         var _a, _b;
         return !!(this.originalImage &&
-            this.originalImage instanceof this._fabric.FabricImage &&
+            this.originalImage instanceof this.fabricModule.FabricImage &&
             ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
             ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
     }
     isBusy() {
-        return this._guard.isBusy() || this.animQueue.isBusy() || this._cropSession !== null;
+        return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
     }
-    _buildCallbackContext(operation, isInternalOperation = false) {
+    buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
     }
-    _getOperationContext(fallback, options) {
-        const internal = this._getInternalOperationToken(options);
-        const activeOperation = this._guard.activeOperationName();
+    getOperationContext(fallback, options) {
+        const internal = this.getInternalOperationToken(options);
+        const activeOperation = this.operationGuard.activeOperationName();
         if (internal && activeOperation) {
-            return this._buildCallbackContext(activeOperation, true);
+            return this.buildCallbackContext(activeOperation, true);
         }
-        return this._buildCallbackContext(fallback, false);
+        return this.buildCallbackContext(fallback, false);
     }
-    _emitOptionCallback(callbackName, args) {
+    emitOptionCallback(callbackName, args) {
         const callback = this.options[callbackName];
         if (typeof callback !== 'function')
             return;
@@ -4293,7 +4310,7 @@ class ImageEditor {
             console.error(`[ImageEditor] ${callbackName} callback threw`, error);
         }
     }
-    _getImageInfo() {
+    getImageInfo() {
         if (!this.canvas || !this.originalImage)
             return null;
         const canvasWidth = this.canvas.getWidth();
@@ -4323,48 +4340,48 @@ class ImageEditor {
             canvasHeight,
         };
     }
-    _getMasks() {
+    getMasks() {
         if (!this.canvas)
             return [];
         return this.canvas.getObjects().filter(isMaskObject).slice();
     }
-    _getMaskCollectionSignature() {
-        return this._getMasks()
+    getMaskCollectionSignature() {
+        return this.getMasks()
             .map((mask) => `${mask.maskId}:${mask.maskName}`)
             .join('|');
     }
-    _getEditorState() {
+    getEditorState() {
         const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
         const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
-        const image = this._getImageInfo();
+        const image = this.getImageInfo();
         return {
             hasImage: image !== null,
             image,
-            maskCount: this._getMasks().length,
+            maskCount: this.getMasks().length,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
             isBusy: this.isBusy(),
-            isCropMode: this._cropSession !== null,
+            isCropMode: this.cropSession !== null,
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),
             canvasWidth,
             canvasHeight,
         };
     }
-    _emitImageChanged(context) {
-        this._emitOptionCallback('onImageChanged', [this._getEditorState(), context]);
+    emitImageChanged(context) {
+        this.emitOptionCallback('onImageChanged', [this.getEditorState(), context]);
     }
-    _emitMasksChanged(context) {
-        this._emitOptionCallback('onMasksChanged', [this._getMasks(), context]);
+    emitMasksChanged(context) {
+        this.emitOptionCallback('onMasksChanged', [this.getMasks(), context]);
     }
-    _emitBusyChangeIfChanged(context) {
+    emitBusyChangeIfChanged(context) {
         const isBusy = this.isBusy();
-        if (this._lastEmittedBusyState === isBusy)
+        if (this.lastEmittedIsBusy === isBusy)
             return;
-        this._lastEmittedBusyState = isBusy;
-        this._emitOptionCallback('onBusyChange', [isBusy, context]);
+        this.lastEmittedIsBusy = isBusy;
+        this.emitOptionCallback('onBusyChange', [isBusy, context]);
     }
-    _buildSelection(selected) {
+    buildSelection(selected) {
         var _a;
         const selectedMasks = selected.filter(isMaskObject);
         return {
@@ -4372,20 +4389,20 @@ class ImageEditor {
             selectedMasks,
         };
     }
-    _withSelectionChangeContext(context, fn) {
-        const previous = this._nextSelectionChangeContext;
-        this._nextSelectionChangeContext = context;
+    withSelectionChangeContext(context, callback) {
+        const previous = this.nextSelectionChangeContext;
+        this.nextSelectionChangeContext = context;
         try {
-            return fn();
+            return callback();
         }
         finally {
-            this._nextSelectionChangeContext = previous;
+            this.nextSelectionChangeContext = previous;
         }
     }
-    _isSupportedImageMimeType(mimeType) {
+    isSupportedImageMimeType(mimeType) {
         return mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp';
     }
-    _inferCurrentImageMimeType() {
+    inferCurrentImageMimeType() {
         const image = this.originalImage;
         if (!image)
             return null;
@@ -4400,56 +4417,56 @@ class ImageEditor {
             source = null;
         }
         const mimeType = source ? detectSourceMimeType(source) : null;
-        return this._isSupportedImageMimeType(mimeType) ? mimeType : null;
+        return this.isSupportedImageMimeType(mimeType) ? mimeType : null;
     }
-    _setCanvasSizeInt(w, h) {
+    setCanvasSizePx(widthPx, heightPx) {
         if (!this.canvas)
             return;
-        applyCanvasDimensions(this.canvas, w, h, this.containerElement);
+        applyCanvasDimensions(this.canvas, widthPx, heightPx, this.containerElement);
     }
-    _alignObjectBoundingBoxToCanvasTopLeft(obj) {
+    alignObjectBoundingBoxToCanvasTopLeft(object) {
         var _a, _b;
-        obj.setCoords();
-        const boundingRect = obj.getBoundingRect();
-        obj.set({
-            left: ((_a = obj.left) !== null && _a !== void 0 ? _a : 0) - boundingRect.left,
-            top: ((_b = obj.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
+        object.setCoords();
+        const boundingRect = object.getBoundingRect();
+        object.set({
+            left: ((_a = object.left) !== null && _a !== void 0 ? _a : 0) - boundingRect.left,
+            top: ((_b = object.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
         });
-        obj.setCoords();
+        object.setCoords();
         this.canvas.renderAll();
     }
-    _measureLayoutViewport(scrollbarSize) {
-        return this._viewportCache.measure(this.containerElement, {
+    measureLayoutViewport(scrollbarSize) {
+        return this.viewportCache.measure(this.containerElement, {
             width: this.options.canvasWidth,
             height: this.options.canvasHeight,
         }, scrollbarSize);
     }
-    _updateCanvasSizeToImageBounds() {
+    updateCanvasSizeToImageBounds() {
         var _a, _b;
         if (!this.originalImage)
             return;
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
-        const viewport = this._measureLayoutViewport(scrollbarSize);
+        const viewport = this.measureLayoutViewport(scrollbarSize);
         if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
             const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
-            this._setCanvasSizeInt(canvasSize.width, canvasSize.height);
+            this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
         }
         if (boundingRect.width <= viewport.width && boundingRect.height <= viewport.height) {
-            this._setCanvasSizeInt(viewport.width, viewport.height);
+            this.setCanvasSizePx(viewport.width, viewport.height);
             return;
         }
-        this._setCanvasSizeInt(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
+        this.setCanvasSizePx(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
     }
-    _shouldNormalizeCanvasSizeAfterStateRestore() {
+    shouldNormalizeCanvasSizeAfterStateRestore() {
         var _a, _b;
         if (!this.canvas || !this.originalImage)
             return false;
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
-        const viewport = this._measureLayoutViewport(measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
+        const viewport = this.measureLayoutViewport(measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
         const canvasW = Math.ceil(this.canvas.getWidth());
         const canvasH = Math.ceil(this.canvas.getHeight());
         const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
@@ -4469,7 +4486,7 @@ class ImageEditor {
         }
         return clipsImage;
     }
-    _captureImageDisplayGeometry() {
+    captureImageDisplayGeometry() {
         if (!this.canvas || !this.originalImage)
             return null;
         this.originalImage.setCoords();
@@ -4481,10 +4498,10 @@ class ImageEditor {
             imageDisplayHeight: Math.max(1, boundingRect.height),
         };
     }
-    _restoreMergedImageDisplayGeometry(geometry) {
+    restoreMergedImageDisplayGeometry(geometry) {
         if (!geometry || !this.canvas || !this.originalImage)
             return;
-        this._setCanvasSizeInt(geometry.canvasWidth, geometry.canvasHeight);
+        this.setCanvasSizePx(geometry.canvasWidth, geometry.canvasHeight);
         const sourceW = Math.max(1, this.originalImage.width || geometry.imageDisplayWidth);
         const sourceH = Math.max(1, this.originalImage.height || geometry.imageDisplayHeight);
         const scale = Math.min(geometry.imageDisplayWidth / sourceW, geometry.imageDisplayHeight / sourceH);
@@ -4506,14 +4523,14 @@ class ImageEditor {
         this.currentScale = 1;
         this.currentRotation = 0;
         this.baseImageScale = scale;
-        this._lastSnapshot = this._captureSnapshot();
+        this.lastSnapshot = this.captureSnapshotInternal();
         this.canvas.renderAll();
     }
-    _buildTransformContext() {
+    buildTransformContext() {
         return {
             canvas: this.canvas,
             options: this.options,
-            guard: this._guard,
+            guard: this.operationGuard,
             getOriginalImage: () => this.originalImage,
             getCurrentScale: () => this.currentScale,
             setCurrentScale: (n) => {
@@ -4525,158 +4542,158 @@ class ImageEditor {
             },
             getBaseImageScale: () => this.baseImageScale,
             saveCanvasState: () => {
-                this._saveState(this._withAnimationQueueBypass());
+                this.saveStateInternal(this.withAnimationQueueBypass());
             },
             setSuppressSaveState: (suppress) => {
-                this._suppressSaveState = suppress;
+                this.shouldSuppressSaveState = suppress;
             },
             afterTransformSnap: () => {
-                if (this._disposed || !this.canvas || !this.originalImage)
+                if (this.isDisposed || !this.canvas || !this.originalImage)
                     return;
                 if (this.options.expandCanvasToImage ||
                     this.options.coverImageToCanvas ||
                     this.options.fitImageToCanvas) {
-                    this._updateCanvasSizeToImageBounds();
+                    this.updateCanvasSizeToImageBounds();
                 }
-                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
                     .filter(isMaskObject)
-                    .forEach((maskObject) => this._syncMaskLabel(maskObject));
+                    .forEach((maskObject) => this.syncMaskLabel(maskObject));
             },
         };
     }
     scaleImage(factor) {
-        if (this._disposed || !this._transformController)
+        if (this.isDisposed || !this.transformController)
             return Promise.resolve();
         if (!Number.isFinite(factor))
             return Promise.resolve();
         try {
-            this._assertCanQueueAnimation('scaleImage');
+            this.assertCanQueueAnimation('scaleImage');
         }
         catch (error) {
             return Promise.reject(error);
         }
-        const controller = this._transformController;
-        const context = this._buildCallbackContext('scaleImage', false);
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('scaleImage', false);
         const job = this.animQueue.add(async () => {
-            if (this._disposed)
+            if (this.isDisposed)
                 return;
-            this._updateUI();
+            this.updateUi();
             try {
                 await controller.scaleImage(factor);
-                if (!this._disposed)
-                    this._emitImageChanged(context);
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
             }
             finally {
-                if (!this._disposed) {
-                    this._updateInputs();
+                if (!this.isDisposed) {
+                    this.updateInputs();
                 }
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
     rotateImage(degrees) {
-        if (this._disposed || !this._transformController)
+        if (this.isDisposed || !this.transformController)
             return Promise.resolve();
         if (!Number.isFinite(degrees))
             return Promise.resolve();
         try {
-            this._assertCanQueueAnimation('rotateImage');
+            this.assertCanQueueAnimation('rotateImage');
         }
         catch (error) {
             return Promise.reject(error);
         }
-        const controller = this._transformController;
-        const context = this._buildCallbackContext('rotateImage', false);
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('rotateImage', false);
         const job = this.animQueue.add(async () => {
-            if (this._disposed)
+            if (this.isDisposed)
                 return;
-            this._updateUI();
+            this.updateUi();
             try {
                 await controller.rotateImage(degrees);
-                if (!this._disposed)
-                    this._emitImageChanged(context);
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
             }
             finally {
-                if (!this._disposed) {
-                    this._updateInputs();
+                if (!this.isDisposed) {
+                    this.updateInputs();
                 }
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
     resetImageTransform() {
-        if (this._disposed || !this._transformController)
+        if (this.isDisposed || !this.transformController)
             return Promise.resolve();
         try {
-            this._assertCanQueueAnimation('resetImageTransform');
+            this.assertCanQueueAnimation('resetImageTransform');
         }
         catch (error) {
             return Promise.reject(error);
         }
-        const controller = this._transformController;
-        const context = this._buildCallbackContext('resetImageTransform', false);
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('resetImageTransform', false);
         const job = this.animQueue.add(async () => {
-            if (this._disposed)
+            if (this.isDisposed)
                 return;
-            this._updateUI();
+            this.updateUi();
             try {
                 await controller.resetImageTransform();
-                if (!this._disposed)
-                    this._emitImageChanged(context);
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
             }
             finally {
-                if (!this._disposed) {
-                    this._updateInputs();
+                if (!this.isDisposed) {
+                    this.updateInputs();
                 }
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
-    _refreshUiAfterQueuedAnimation() {
-        if (this._disposed || !this.canvas)
+    refreshUiAfterQueuedAnimation() {
+        if (this.isDisposed || !this.canvas)
             return;
-        this._updateInputs();
-        this._updateUI();
+        this.updateInputs();
+        this.updateUi();
     }
     async loadFromState(jsonString) {
-        return this._loadFromState(jsonString);
+        return this.loadFromStateInternal(jsonString);
     }
-    async _loadFromState(jsonString, options) {
+    async loadFromStateInternal(jsonString, options) {
         var _a;
         if (!jsonString || !this.canvas)
             return;
-        if (this._disposed)
+        if (this.isDisposed)
             return;
-        if (!this._canRunIdleOperation('loadFromState', options))
+        if (!this.canRunIdleOperation('loadFromState', options))
             return;
-        const activeRestoreOperation = this._activeStateRestoreOperation;
-        const context = this._buildCallbackContext(activeRestoreOperation !== null && activeRestoreOperation !== void 0 ? activeRestoreOperation : 'loadFromState', activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo');
+        const activeRestoreOperation = this.activeStateRestoreOperation;
+        const context = this.buildCallbackContext(activeRestoreOperation !== null && activeRestoreOperation !== void 0 ? activeRestoreOperation : 'loadFromState', activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo');
         const previousImage = this.originalImage;
-        const previousMaskSignature = this._getMaskCollectionSignature();
+        const previousMaskSignature = this.getMaskCollectionSignature();
         try {
-            const result = await loadFromState({
+            const restoredState = await loadFromState({
                 canvas: this.canvas,
                 jsonString,
-                setCanvasSize: (w, h) => this._setCanvasSizeInt(w, h),
+                setCanvasSize: (widthPx, heightPx) => this.setCanvasSizePx(widthPx, heightPx),
             });
-            if (this._disposed || !this.canvas)
+            if (this.isDisposed || !this.canvas)
                 return;
-            this._hideAllMaskLabels();
-            this.originalImage = result.originalImage;
+            this.hideAllMaskLabels();
+            this.originalImage = restoredState.originalImage;
             if (this.originalImage) {
                 this.originalImage.set({
                     originX: 'left',
@@ -4688,18 +4705,18 @@ class ImageEditor {
                 });
                 this.canvas.sendObjectToBack(this.originalImage);
             }
-            this.maskCounter = result.maxMaskId;
-            const es = result.editorState;
-            if (es) {
-                this.currentScale = es.currentScale;
-                this.currentRotation = es.currentRotation;
-                this.baseImageScale = es.baseImageScale;
+            this.maskCounter = restoredState.maxMaskId;
+            const editorState = restoredState.editorState;
+            if (editorState) {
+                this.currentScale = editorState.currentScale;
+                this.currentRotation = editorState.currentRotation;
+                this.baseImageScale = editorState.baseImageScale;
             }
             if (this.originalImage) {
                 this.currentImageMimeType =
-                    es && 'currentImageMimeType' in es
-                        ? ((_a = es.currentImageMimeType) !== null && _a !== void 0 ? _a : null)
-                        : this._inferCurrentImageMimeType();
+                    editorState && 'currentImageMimeType' in editorState
+                        ? ((_a = editorState.currentImageMimeType) !== null && _a !== void 0 ? _a : null)
+                        : this.inferCurrentImageMimeType();
             }
             else {
                 this.currentImageMimeType = null;
@@ -4709,35 +4726,35 @@ class ImageEditor {
                 (this.options.expandCanvasToImage ||
                     this.options.coverImageToCanvas ||
                     this.options.fitImageToCanvas) &&
-                this._shouldNormalizeCanvasSizeAfterStateRestore()) {
-                this._updateCanvasSizeToImageBounds();
-                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+                this.shouldNormalizeCanvasSizeAfterStateRestore()) {
+                this.updateCanvasSizeToImageBounds();
+                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
-            const restoredMasks = result.objects.filter(isMaskObject);
-            this._lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
+            const restoredMasks = restoredState.objects.filter(isMaskObject);
+            this.lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
             restoredMasks.forEach((maskObject) => {
                 applyMaskUnselectedStyle(maskObject);
                 reattachMaskHoverHandlers(maskObject);
             });
-            this._lastSnapshot = this._captureSnapshot();
+            this.lastSnapshot = this.captureSnapshotInternal();
             this.canvas.renderAll();
-            this._updateInputs();
-            this._updateMaskList();
-            this._updateUI();
+            this.updateInputs();
+            this.updateMaskList();
+            this.updateUi();
             if (previousImage && previousImage !== this.originalImage) {
-                this._emitOptionCallback('onImageCleared', [previousImage, context]);
+                this.emitOptionCallback('onImageCleared', [previousImage, context]);
             }
-            if (previousMaskSignature !== this._getMaskCollectionSignature()) {
-                this._emitMasksChanged(context);
+            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
+                this.emitMasksChanged(context);
             }
-            this._emitImageChanged(context);
-            const activeMaskId = es === null || es === void 0 ? void 0 : es.activeMaskId;
+            this.emitImageChanged(context);
+            const activeMaskId = editorState === null || editorState === void 0 ? void 0 : editorState.activeMaskId;
             if (typeof activeMaskId === 'number') {
                 const activeMask = restoredMasks.find((maskObject) => maskObject.maskId === activeMaskId);
                 if (activeMask) {
-                    this._withSelectionChangeContext(context, () => {
+                    this.withSelectionChangeContext(context, () => {
                         this.canvas.setActiveObject(activeMask);
-                        this._onSelectionChanged([activeMask]);
+                        this.handleSelectionChanged([activeMask]);
                     });
                 }
             }
@@ -4748,17 +4765,17 @@ class ImageEditor {
         }
     }
     saveState() {
-        this._saveState();
+        this.saveStateInternal();
     }
-    _saveState(options) {
+    saveStateInternal(options) {
         var _a, _b;
-        if (!this.canvas || this._suppressSaveState)
+        if (!this.canvas || this.shouldSuppressSaveState)
             return;
-        if (!this._canRunIdleOperation('saveState', options))
+        if (!this.canRunIdleOperation('saveState', options))
             return;
         const activeObj = this.canvas.getActiveObject();
-        const activeMask = this._activeMaskForSnapshot();
-        this._hideAllMaskLabels();
+        const activeMask = this.getActiveMaskForSnapshot();
+        this.hideAllMaskLabels();
         try {
             const after = saveState({
                 canvas: this.canvas,
@@ -4768,207 +4785,207 @@ class ImageEditor {
                 baseImageScale: this.baseImageScale,
                 currentImageMimeType: this.currentImageMimeType,
             });
-            const before = (_b = this._lastSnapshot) !== null && _b !== void 0 ? _b : after;
+            const before = (_b = this.lastSnapshot) !== null && _b !== void 0 ? _b : after;
             if (after === before) {
                 return;
             }
             let executedOnce = false;
             const cmd = new Command(async () => {
                 if (executedOnce) {
-                    await this._loadFromState(after, this._withAnimationQueueBypass());
+                    await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
                 }
                 executedOnce = true;
             }, async () => {
-                await this._loadFromState(before, this._withAnimationQueueBypass());
+                await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
             });
             this.historyManager.execute(cmd);
-            this._lastSnapshot = after;
+            this.lastSnapshot = after;
         }
         catch (error) {
             reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
         }
         finally {
-            this._restoreActiveMaskAfterSnapshot(activeObj, activeMask);
-            this._updateUI();
+            this.restoreActiveMaskAfterSnapshot(activeObj, activeMask);
+            this.updateUi();
         }
     }
-    _restoreActiveMaskAfterSnapshot(activeObj, activeMask) {
+    restoreActiveMaskAfterSnapshot(activeObj, activeMask) {
         if (!this.canvas)
             return;
         const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
         if (!maskToRestore || !this.canvas.getObjects().includes(maskToRestore))
             return;
         this.canvas.setActiveObject(maskToRestore);
-        this._showLabelForMask(maskToRestore);
-        this._updateMaskListSelection(maskToRestore);
+        this.showLabelForMask(maskToRestore);
+        this.updateMaskListSelection(maskToRestore);
     }
     undo() {
-        if (this._disposed)
+        if (this.isDisposed)
             return Promise.resolve();
-        if (!this._canRunIdleOperation('undo'))
+        if (!this.canRunIdleOperation('undo'))
             return Promise.resolve();
-        const context = this._buildCallbackContext('undo', true);
+        const context = this.buildCallbackContext('undo', true);
         const job = this.animQueue.add(async () => {
-            if (this._disposed)
+            if (this.isDisposed)
                 return;
-            this._activeStateRestoreOperation = 'undo';
+            this.activeStateRestoreOperation = 'undo';
             try {
                 await this.historyManager.undo();
             }
             finally {
-                this._activeStateRestoreOperation = null;
+                this.activeStateRestoreOperation = null;
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
     redo() {
-        if (this._disposed)
+        if (this.isDisposed)
             return Promise.resolve();
-        if (!this._canRunIdleOperation('redo'))
+        if (!this.canRunIdleOperation('redo'))
             return Promise.resolve();
-        const context = this._buildCallbackContext('redo', true);
+        const context = this.buildCallbackContext('redo', true);
         const job = this.animQueue.add(async () => {
-            if (this._disposed)
+            if (this.isDisposed)
                 return;
-            this._activeStateRestoreOperation = 'redo';
+            this.activeStateRestoreOperation = 'redo';
             try {
                 await this.historyManager.redo();
             }
             finally {
-                this._activeStateRestoreOperation = null;
+                this.activeStateRestoreOperation = null;
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
     createMask(config = {}) {
         if (!this.canvas)
             return null;
-        if (!this._canRunIdleOperation('createMask'))
+        if (!this.canRunIdleOperation('createMask'))
             return null;
-        const context = this._buildCallbackContext('createMask', false);
-        const ctx = this._buildCreateMaskContext();
-        const mask = this._withSelectionChangeContext(context, () => createMask(ctx, config));
+        const callbackContext = this.buildCallbackContext('createMask', false);
+        const createMaskContext = this.buildCreateMaskContext();
+        const mask = this.withSelectionChangeContext(callbackContext, () => createMask(createMaskContext, config));
         if (mask) {
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
         return mask;
     }
     removeSelectedMask() {
         if (!this.canvas)
             return;
-        if (!this._canRunIdleOperation('removeSelectedMask'))
+        if (!this.canRunIdleOperation('removeSelectedMask'))
             return;
-        const before = this._getMasks().length;
-        const context = this._buildCallbackContext('removeSelectedMask', false);
-        const ctx = this._buildRemoveMaskContext();
-        this._withSelectionChangeContext(context, () => removeSelectedMask(ctx));
-        this._updateUI();
-        if (this._getMasks().length !== before) {
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+        const before = this.getMasks().length;
+        const callbackContext = this.buildCallbackContext('removeSelectedMask', false);
+        const removeMaskContext = this.buildRemoveMaskContext();
+        this.withSelectionChangeContext(callbackContext, () => removeSelectedMask(removeMaskContext));
+        this.updateUi();
+        if (this.getMasks().length !== before) {
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
     }
     removeAllMasks(options = {}) {
         if (!this.canvas)
             return;
-        if (!this._canRunIdleOperation('removeAllMasks', options))
+        if (!this.canRunIdleOperation('removeAllMasks', options))
             return;
-        const before = this._getMasks().length;
-        const context = this._buildCallbackContext('removeAllMasks', false);
-        const ctx = this._buildRemoveMaskContext();
-        this._withSelectionChangeContext(context, () => removeAllMasks(ctx, options));
-        this._updateUI();
-        if (this._getMasks().length !== before) {
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+        const before = this.getMasks().length;
+        const callbackContext = this.buildCallbackContext('removeAllMasks', false);
+        const removeMaskContext = this.buildRemoveMaskContext();
+        this.withSelectionChangeContext(callbackContext, () => removeAllMasks(removeMaskContext, options));
+        this.updateUi();
+        if (this.getMasks().length !== before) {
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
     }
-    _buildCreateMaskContext() {
+    buildCreateMaskContext() {
         return {
-            fabric: this._fabric,
+            fabric: this.fabricModule,
             canvas: this.canvas,
             options: this.options,
-            getLastMask: () => this._lastMask,
+            getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
-                this._lastMask = maskObject;
+                this.lastMask = maskObject;
             },
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
                 this.maskCounter = n;
             },
             updateMaskList: () => {
-                this._updateMaskList();
+                this.updateMaskList();
             },
             saveCanvasState: () => {
                 this.saveState();
             },
-            expandCanvasIfNeeded: (w, h) => {
-                this._setCanvasSizeInt(w, h);
+            expandCanvasIfNeeded: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
             },
         };
     }
-    _buildRemoveMaskContext() {
+    buildRemoveMaskContext() {
         return {
             canvas: this.canvas,
             removeLabelForMask: (mask) => {
-                this._removeLabelForMask(mask);
+                this.removeLabelForMask(mask);
             },
             updateMaskList: () => {
-                this._updateMaskList();
+                this.updateMaskList();
             },
             saveCanvasState: () => {
                 this.saveState();
             },
             setLastMask: (maskObject) => {
-                this._lastMask = maskObject;
+                this.lastMask = maskObject;
             },
         };
     }
-    _maskLabelContext() {
+    buildMaskLabelContext() {
         if (!this.canvas)
             return null;
-        return { fabric: this._fabric, canvas: this.canvas, options: this.options };
+        return { fabric: this.fabricModule, canvas: this.canvas, options: this.options };
     }
-    _removeLabelForMask(mask) {
-        const ctx = this._maskLabelContext();
-        if (!ctx)
+    removeLabelForMask(mask) {
+        const context = this.buildMaskLabelContext();
+        if (!context)
             return;
-        removeLabelForMask(ctx, mask);
+        removeLabelForMask(context, mask);
     }
-    _createLabelForMask(mask) {
-        const ctx = this._maskLabelContext();
-        if (!ctx)
+    createLabelForMask(mask) {
+        const context = this.buildMaskLabelContext();
+        if (!context)
             return;
-        createLabelForMask(ctx, mask);
+        createLabelForMask(context, mask);
     }
-    _hideAllMaskLabels() {
-        const ctx = this._maskLabelContext();
-        if (!ctx)
+    hideAllMaskLabels() {
+        const context = this.buildMaskLabelContext();
+        if (!context)
             return;
-        hideAllMaskLabels(ctx);
+        hideAllMaskLabels(context);
     }
-    _syncMaskLabel(mask) {
-        const ctx = this._maskLabelContext();
-        if (!ctx)
+    syncMaskLabel(mask) {
+        const context = this.buildMaskLabelContext();
+        if (!context)
             return;
-        syncMaskLabel(ctx, mask);
+        syncMaskLabel(context, mask);
     }
-    _showLabelForMask(mask) {
-        const ctx = this._maskLabelContext();
-        if (!ctx)
+    showLabelForMask(mask) {
+        const context = this.buildMaskLabelContext();
+        if (!context)
             return;
-        showLabelForMask(ctx, mask);
+        showLabelForMask(context, mask);
     }
-    _onSelectionChanged(selected) {
+    handleSelectionChanged(selected) {
         var _a, _b, _c;
         if (!this.canvas)
             return;
@@ -4976,8 +4993,8 @@ class ImageEditor {
         const masks = this.canvas.getObjects().filter(isMaskObject);
         masks.forEach((maskObject) => {
             if (maskObject !== selectedMask) {
-                if (maskObject.__label) {
-                    this._removeLabelForMask(maskObject);
+                if (maskObject.labelObject) {
+                    this.removeLabelForMask(maskObject);
                 }
                 applyMaskUnselectedStyle(maskObject);
             }
@@ -4986,134 +5003,134 @@ class ImageEditor {
             }
         });
         if (selectedMask)
-            this._showLabelForMask(selectedMask);
-        this._updateMaskListSelection(selectedMask);
+            this.showLabelForMask(selectedMask);
+        this.updateMaskListSelection(selectedMask);
         this.canvas.requestRenderAll();
-        this._updateUI();
-        const context = (_b = this._nextSelectionChangeContext) !== null && _b !== void 0 ? _b : this._buildCallbackContext((_c = this._activeStateRestoreOperation) !== null && _c !== void 0 ? _c : 'createMask', this._activeStateRestoreOperation === 'undo' ||
-            this._activeStateRestoreOperation === 'redo');
-        this._emitOptionCallback('onSelectionChange', [this._buildSelection(selected), context]);
+        this.updateUi();
+        const context = (_b = this.nextSelectionChangeContext) !== null && _b !== void 0 ? _b : this.buildCallbackContext((_c = this.activeStateRestoreOperation) !== null && _c !== void 0 ? _c : 'createMask', this.activeStateRestoreOperation === 'undo' ||
+            this.activeStateRestoreOperation === 'redo');
+        this.emitOptionCallback('onSelectionChange', [this.buildSelection(selected), context]);
     }
-    _maskListContext() {
+    buildMaskListContext() {
         return {
             canvas: this.canvas,
             getListElementId: () => this.elements.maskList,
-            onMaskSelected: (mask) => this._onSelectionChanged([mask]),
+            onMaskSelected: (mask) => this.handleSelectionChanged([mask]),
         };
     }
-    _updateMaskList() {
-        renderMaskList(this._maskListContext());
+    updateMaskList() {
+        renderMaskList(this.buildMaskListContext());
     }
-    _updateMaskListSelection(selectedMask) {
-        updateMaskListSelection(this._maskListContext(), selectedMask);
+    updateMaskListSelection(selectedMask) {
+        updateMaskListSelection(this.buildMaskListContext(), selectedMask);
     }
     async mergeMasks() {
         if (!this.canvas)
             return;
-        if (!this._canRunIdleOperation('mergeMasks'))
+        if (!this.canRunIdleOperation('mergeMasks'))
             return;
         const hasMasks = this.canvas.getObjects().some(isMaskObject);
         if (!hasMasks)
             return;
-        const context = this._buildCallbackContext('mergeMasks', false);
-        const operationToken = this._guard.beginBusyOperation('mergeMasks');
-        this._emitBusyChangeIfChanged(context);
-        this._updateUI();
+        const callbackContext = this.buildCallbackContext('mergeMasks', false);
+        const operationToken = this.operationGuard.beginBusyOperation('mergeMasks');
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
         try {
-            const ctx = this._buildMergeMasksContext(operationToken);
-            await mergeMasks(ctx);
-            this._updateInputs();
-            this._updateMaskList();
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+            const mergeMasksContext = this.buildMergeMasksContext(operationToken);
+            await mergeMasks(mergeMasksContext);
+            this.updateInputs();
+            this.updateMaskList();
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
         finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
-            this._updateUI();
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
+            this.updateUi();
         }
     }
     downloadImage(fileName) {
         if (!this.canvas)
             return;
-        if (!this._canRunIdleOperation('downloadImage'))
+        if (!this.canRunIdleOperation('downloadImage'))
             return;
-        const context = this._buildCallbackContext('downloadImage', false);
-        const operationToken = this._guard.beginBusyOperation('downloadImage');
-        this._emitBusyChangeIfChanged(context);
-        const ctx = this._buildExportServiceContext();
+        const callbackContext = this.buildCallbackContext('downloadImage', false);
+        const operationToken = this.operationGuard.beginBusyOperation('downloadImage');
+        this.emitBusyChangeIfChanged(callbackContext);
+        const exportContext = this.buildExportServiceContext();
         try {
-            downloadImage(ctx, fileName);
+            downloadImage(exportContext, fileName);
         }
         finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
         }
     }
     async exportImageBase64(options) {
         if (!this.canvas)
             return '';
-        if (!this._canRunIdleOperation('exportImageBase64', options))
+        if (!this.canRunIdleOperation('exportImageBase64', options))
             return '';
-        const context = this._buildCallbackContext('exportImageBase64', false);
-        const operationToken = this._guard.beginBusyOperation('exportImageBase64');
-        this._emitBusyChangeIfChanged(context);
-        const ctx = this._buildExportServiceContext();
+        const callbackContext = this.buildCallbackContext('exportImageBase64', false);
+        const operationToken = this.operationGuard.beginBusyOperation('exportImageBase64');
+        this.emitBusyChangeIfChanged(callbackContext);
+        const exportContext = this.buildExportServiceContext();
         try {
-            return await exportImageBase64(ctx, options);
+            return await exportImageBase64(exportContext, options);
         }
         finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
         }
     }
     async exportImageFile(options) {
-        this._assertIdleForOperation('exportImageFile', options);
-        const context = this._buildCallbackContext('exportImageFile', false);
-        const operationToken = this._guard.beginBusyOperation('exportImageFile');
-        this._emitBusyChangeIfChanged(context);
-        const ctx = this._buildExportServiceContext();
+        this.assertIdleForOperation('exportImageFile', options);
+        const callbackContext = this.buildCallbackContext('exportImageFile', false);
+        const operationToken = this.operationGuard.beginBusyOperation('exportImageFile');
+        this.emitBusyChangeIfChanged(callbackContext);
+        const exportContext = this.buildExportServiceContext();
         try {
-            return await exportImageFile(ctx, options);
+            return await exportImageFile(exportContext, options);
         }
         finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
         }
     }
-    _buildExportServiceContext() {
+    buildExportServiceContext() {
         return {
-            fabric: this._fabric,
+            fabric: this.fabricModule,
             canvas: this.canvas,
             options: this.options,
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
         };
     }
-    _buildMergeMasksContext(operationToken) {
+    buildMergeMasksContext(operationToken) {
         return {
-            ...this._buildExportServiceContext(),
+            ...this.buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: async (base64, opts) => {
-                const geometry = this._captureImageDisplayGeometry();
-                await this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts));
-                this._restoreMergedImageDisplayGeometry(geometry);
+            loadImage: async (base64, providedOptions) => {
+                const geometry = this.captureImageDisplayGeometry();
+                await this.loadImage(base64, this.withInternalOperationOptions(operationToken, providedOptions));
+                this.restoreMergedImageDisplayGeometry(geometry);
             },
-            saveState: () => this._captureSnapshot(),
-            loadFromState: (snapshot) => this._loadFromState(snapshot, this._withInternalOperationOptions(operationToken, this._withAnimationQueueBypass())),
+            saveState: () => this.captureSnapshotInternal(),
+            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
             removeAllMasksNoHistory: () => {
-                const ctx = this._buildRemoveMaskContext();
-                removeAllMasks(ctx, { saveHistory: false });
+                const context = this.buildRemoveMaskContext();
+                removeAllMasks(context, { saveHistory: false });
             },
         };
     }
-    _captureSnapshot() {
+    captureSnapshotInternal() {
         var _a;
         if (!this.canvas)
             return '';
-        const activeMask = this._activeMaskForSnapshot();
-        this._hideAllMaskLabels();
+        const activeMask = this.getActiveMaskForSnapshot();
+        this.hideAllMaskLabels();
         return saveState({
             canvas: this.canvas,
             activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
@@ -5123,7 +5140,7 @@ class ImageEditor {
             currentImageMimeType: this.currentImageMimeType,
         });
     }
-    _activeMaskForSnapshot() {
+    getActiveMaskForSnapshot() {
         var _a;
         if (!this.canvas)
             return null;
@@ -5132,227 +5149,228 @@ class ImageEditor {
             return activeObject;
         return ((_a = this.canvas
             .getObjects()
-            .find((object) => isMaskObject(object) && !!object.__label)) !== null && _a !== void 0 ? _a : null);
+            .find((object) => isMaskObject(object) && !!object.labelObject)) !== null && _a !== void 0 ? _a : null);
     }
     enterCropMode() {
         if (!this.canvas || !this.originalImage)
             return;
-        if (this._cropSession)
+        if (this.cropSession)
             return;
         if (!this.isImageLoaded())
             return;
-        if (!this._canRunIdleOperation('enterCropMode'))
+        if (!this.canRunIdleOperation('enterCropMode'))
             return;
-        const ctx = this._buildCropControllerContext();
-        enterCropMode(ctx);
-        this._updateUI();
-        const context = this._buildCallbackContext('enterCropMode', false);
-        this._emitBusyChangeIfChanged(context);
-        this._emitImageChanged(context);
+        const cropControllerContext = this.buildCropControllerContext();
+        enterCropMode(cropControllerContext);
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('enterCropMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
     }
     cancelCrop() {
-        if (!this.canvas || !this._cropSession)
+        if (!this.canvas || !this.cropSession)
             return;
-        if (!this._canRunIdleOperation('cancelCrop'))
+        if (!this.canRunIdleOperation('cancelCrop'))
             return;
-        const ctx = this._buildCropControllerContext();
-        cancelCrop(ctx);
-        this._cropSession = null;
-        this._updateUI();
+        const cropControllerContext = this.buildCropControllerContext();
+        cancelCrop(cropControllerContext);
+        this.cropSession = null;
+        this.updateUi();
         this.canvas.requestRenderAll();
-        const context = this._buildCallbackContext('cancelCrop', false);
-        this._emitBusyChangeIfChanged(context);
-        this._emitImageChanged(context);
+        const callbackContext = this.buildCallbackContext('cancelCrop', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
     }
     async applyCrop() {
-        if (!this.canvas || !this._cropSession)
+        if (!this.canvas || !this.cropSession)
             return;
-        if (!this._canRunIdleOperation('applyCrop'))
+        if (!this.canRunIdleOperation('applyCrop'))
             return;
-        const context = this._buildCallbackContext('applyCrop', false);
-        const hadMasks = this._getMasks().length > 0;
-        const operationToken = this._guard.beginBusyOperation('applyCrop');
-        this._emitBusyChangeIfChanged(context);
-        this._updateUI();
+        const callbackContext = this.buildCallbackContext('applyCrop', false);
+        const hadMasks = this.getMasks().length > 0;
+        const operationToken = this.operationGuard.beginBusyOperation('applyCrop');
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
         try {
-            const ctx = this._buildCropControllerContext(operationToken);
-            await applyCrop(ctx);
-            this._updateInputs();
-            this._updateMaskList();
-            if (hadMasks || this._getMasks().length > 0) {
-                this._emitMasksChanged(context);
+            const cropControllerContext = this.buildCropControllerContext(operationToken);
+            await applyCrop(cropControllerContext);
+            this.updateInputs();
+            this.updateMaskList();
+            if (hadMasks || this.getMasks().length > 0) {
+                this.emitMasksChanged(callbackContext);
             }
-            this._emitImageChanged(context);
+            this.emitImageChanged(callbackContext);
         }
         finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
-            this._updateUI();
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
+            this.updateUi();
         }
     }
-    _buildCropControllerContext(operationToken) {
+    buildCropControllerContext(operationToken) {
         return {
-            fabric: this._fabric,
+            fabric: this.fabricModule,
             canvas: this.canvas,
             options: this.options,
             historyManager: this.historyManager,
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
             getCurrentImageMimeType: () => this.currentImageMimeType,
-            getCropSession: () => this._cropSession,
+            getCropSession: () => this.cropSession,
             setCropSession: (s) => {
-                this._cropSession = s;
+                this.cropSession = s;
             },
-            saveState: () => this._captureSnapshot(),
-            loadFromState: (snapshot) => this._loadFromState(snapshot, this._withInternalOperationOptions(operationToken, this._withAnimationQueueBypass())),
-            loadImage: (base64, opts) => this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
+            saveState: () => this.captureSnapshotInternal(),
+            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
+            loadImage: (base64, providedOptions) => this.loadImage(base64, this.withInternalOperationOptions(operationToken, providedOptions)),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
                 this.maskCounter = n;
             },
             updateMaskList: () => {
-                this._updateMaskList();
+                this.updateMaskList();
             },
         };
     }
-    _updateInputs() {
+    updateInputs() {
         const scaleId = this.elements.scalePercentageInput;
         if (!scaleId)
             return;
-        const scaleEl = document.getElementById(scaleId);
-        if (scaleEl)
-            scaleEl.value = String(Math.round(this.currentScale * 100));
+        const scaleInputElement = document.getElementById(scaleId);
+        if (scaleInputElement)
+            scaleInputElement.value = String(Math.round(this.currentScale * 100));
     }
-    _updateUI() {
+    updateUi() {
         if (!this.canvas)
             return;
-        const hasImg = !!this.originalImage;
-        const masks = hasImg ? this.canvas.getObjects().filter(isMaskObject) : [];
+        const hasImage = !!this.originalImage;
+        const masks = hasImage ? this.canvas.getObjects().filter(isMaskObject) : [];
         const hasMasks = masks.length > 0;
-        const active = this.canvas.getActiveObject();
-        const hasSelectedMask = !!(active && isMaskObject(active));
-        const isDefault = this.currentScale === 1 && this.currentRotation === 0;
+        const activeObject = this.canvas.getActiveObject();
+        const hasSelectedMask = !!(activeObject && isMaskObject(activeObject));
+        const isDefaultTransform = this.currentScale === 1 && this.currentRotation === 0;
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
-        const inCrop = this._cropSession !== null;
-        const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
-        if (inCrop) {
+        const isInCropMode = this.cropSession !== null;
+        const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
+        if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                this._setDisabled(key, isBusy || !CROP_MODE_ENABLED_KEYS.includes(key));
+                this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
             });
             return;
         }
-        this._setDisabled('scalePercentageInput', !hasImg || isBusy);
-        this._setDisabled('rotateLeftDegreesInput', !hasImg || isBusy);
-        this._setDisabled('rotateRightDegreesInput', !hasImg || isBusy);
-        this._setDisabled('zoomInButton', !hasImg || isBusy || this.currentScale >= this.options.maxScale);
-        this._setDisabled('zoomOutButton', !hasImg || isBusy || this.currentScale <= this.options.minScale);
-        this._setDisabled('rotateLeftButton', !hasImg || isBusy);
-        this._setDisabled('rotateRightButton', !hasImg || isBusy);
-        this._setDisabled('createMaskButton', !hasImg || isBusy);
-        this._setDisabled('removeSelectedMaskButton', !hasSelectedMask || isBusy);
-        this._setDisabled('removeAllMasksButton', !hasMasks || isBusy);
-        this._setDisabled('mergeMasksButton', !hasImg || !hasMasks || isBusy);
-        this._setDisabled('downloadImageButton', !hasImg || isBusy);
-        this._setDisabled('resetImageTransformButton', !hasImg || isDefault || isBusy);
-        this._setDisabled('undoButton', !hasImg || isBusy || !canUndo);
-        this._setDisabled('redoButton', !hasImg || isBusy || !canRedo);
-        this._setDisabled('enterCropModeButton', !hasImg || isBusy);
-        this._setDisabled('imageInput', isBusy);
-        this._setDisabled('applyCropButton', true);
-        this._setDisabled('cancelCropButton', true);
+        this.setControlEnabled('scalePercentageInput', hasImage && !isBusy);
+        this.setControlEnabled('rotateLeftDegreesInput', hasImage && !isBusy);
+        this.setControlEnabled('rotateRightDegreesInput', hasImage && !isBusy);
+        this.setControlEnabled('zoomInButton', hasImage && !isBusy && this.currentScale < this.options.maxScale);
+        this.setControlEnabled('zoomOutButton', hasImage && !isBusy && this.currentScale > this.options.minScale);
+        this.setControlEnabled('rotateLeftButton', hasImage && !isBusy);
+        this.setControlEnabled('rotateRightButton', hasImage && !isBusy);
+        this.setControlEnabled('createMaskButton', hasImage && !isBusy);
+        this.setControlEnabled('removeSelectedMaskButton', hasSelectedMask && !isBusy);
+        this.setControlEnabled('removeAllMasksButton', hasMasks && !isBusy);
+        this.setControlEnabled('mergeMasksButton', hasImage && hasMasks && !isBusy);
+        this.setControlEnabled('downloadImageButton', hasImage && !isBusy);
+        this.setControlEnabled('resetImageTransformButton', hasImage && !isDefaultTransform && !isBusy);
+        this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
+        this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
+        this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
+        this.setControlEnabled('imageInput', !isBusy);
+        this.setControlEnabled('applyCropButton', false);
+        this.setControlEnabled('cancelCropButton', false);
     }
-    _setDisabled(key, disabled) {
+    setControlEnabled(key, isEnabled) {
         var _a;
         const id = this.elements[key];
         if (!id)
             return;
-        const el = document.getElementById(id);
-        if (!el)
+        const controlElement = document.getElementById(id);
+        if (!controlElement)
             return;
-        this._recordElementOriginalState(key, el);
-        if (el && 'disabled' in el) {
-            el.disabled = disabled;
+        this.recordElementOriginalState(key, controlElement);
+        if ('disabled' in controlElement) {
+            controlElement.disabled = !isEnabled;
             return;
         }
-        if (disabled) {
-            el.setAttribute('aria-disabled', 'true');
-            el.style.pointerEvents = 'none';
+        if (!isEnabled) {
+            controlElement.setAttribute('aria-disabled', 'true');
+            controlElement.style.pointerEvents = 'none';
         }
         else {
-            const originalAria = this._elementOriginalAriaDisabled.get(key);
+            const originalAria = this.elementOriginalAriaDisabledMap.get(key);
             if (originalAria === null || originalAria === undefined) {
-                el.removeAttribute('aria-disabled');
+                controlElement.removeAttribute('aria-disabled');
             }
             else {
-                el.setAttribute('aria-disabled', originalAria);
+                controlElement.setAttribute('aria-disabled', originalAria);
             }
-            el.style.pointerEvents = (_a = this._elementOriginalPointerEvents.get(key)) !== null && _a !== void 0 ? _a : '';
+            controlElement.style.pointerEvents =
+                (_a = this.elementOriginalPointerEventsMap.get(key)) !== null && _a !== void 0 ? _a : '';
         }
     }
-    _recordElementOriginalState(key, el) {
-        if (!this._elementOriginalAriaDisabled.has(key)) {
-            this._elementOriginalAriaDisabled.set(key, el.getAttribute('aria-disabled'));
+    recordElementOriginalState(key, element) {
+        if (!this.elementOriginalAriaDisabledMap.has(key)) {
+            this.elementOriginalAriaDisabledMap.set(key, element.getAttribute('aria-disabled'));
         }
-        if (!this._elementOriginalPointerEvents.has(key)) {
-            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        if (!this.elementOriginalPointerEventsMap.has(key)) {
+            this.elementOriginalPointerEventsMap.set(key, element.style.pointerEvents || '');
         }
-        if ('disabled' in el && !this._elementOriginalDisabled.has(key)) {
-            this._elementOriginalDisabled.set(key, !!el.disabled);
+        if ('disabled' in element && !this.elementOriginalDisabledMap.has(key)) {
+            this.elementOriginalDisabledMap.set(key, !!element.disabled);
         }
     }
-    _restoreElementOriginalStates() {
+    restoreElementOriginalStates() {
         var _a, _b;
         for (const key of Object.keys(this.elements)) {
             const id = this.elements[key];
             if (!id)
                 continue;
-            const el = document.getElementById(id);
-            if (!el)
+            const element = document.getElementById(id);
+            if (!element)
                 continue;
-            if ('disabled' in el && this._elementOriginalDisabled.has(key)) {
-                el.disabled =
-                    (_a = this._elementOriginalDisabled.get(key)) !== null && _a !== void 0 ? _a : false;
+            if ('disabled' in element && this.elementOriginalDisabledMap.has(key)) {
+                element.disabled =
+                    (_a = this.elementOriginalDisabledMap.get(key)) !== null && _a !== void 0 ? _a : false;
             }
-            if (this._elementOriginalAriaDisabled.has(key)) {
-                const originalAria = this._elementOriginalAriaDisabled.get(key);
+            if (this.elementOriginalAriaDisabledMap.has(key)) {
+                const originalAria = this.elementOriginalAriaDisabledMap.get(key);
                 if (originalAria === null || originalAria === undefined) {
-                    el.removeAttribute('aria-disabled');
+                    element.removeAttribute('aria-disabled');
                 }
                 else {
-                    el.setAttribute('aria-disabled', originalAria);
+                    element.setAttribute('aria-disabled', originalAria);
                 }
             }
-            if (this._elementOriginalPointerEvents.has(key)) {
-                el.style.pointerEvents = (_b = this._elementOriginalPointerEvents.get(key)) !== null && _b !== void 0 ? _b : '';
+            if (this.elementOriginalPointerEventsMap.has(key)) {
+                element.style.pointerEvents = (_b = this.elementOriginalPointerEventsMap.get(key)) !== null && _b !== void 0 ? _b : '';
             }
         }
-        this._elementOriginalDisabled.clear();
-        this._elementOriginalAriaDisabled.clear();
-        this._elementOriginalPointerEvents.clear();
+        this.elementOriginalDisabledMap.clear();
+        this.elementOriginalAriaDisabledMap.clear();
+        this.elementOriginalPointerEventsMap.clear();
     }
-    _updatePlaceholderStatus() {
+    updatePlaceholderStatus() {
         setPlaceholderVisible(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? !this.originalImage : false);
     }
     dispose() {
         var _a;
-        if (this._disposed)
+        if (this.isDisposed)
             return;
-        const context = this._buildCallbackContext('dispose', false);
+        const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.originalImage;
-        this._disposed = true;
-        this._guard.markDisposed();
+        this.isDisposed = true;
+        this.operationGuard.markDisposed();
         this.animQueue.clear();
-        (_a = this._bindings) === null || _a === void 0 ? void 0 : _a.removeAll();
-        this._restoreElementOriginalStates();
-        if (this._cropSession && this.canvas) {
+        (_a = this.domBindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+        this.restoreElementOriginalStates();
+        if (this.cropSession && this.canvas) {
             try {
-                const ctx = this._buildCropControllerContext();
-                cancelCrop(ctx);
+                const context = this.buildCropControllerContext();
+                cancelCrop(context);
             }
             catch {
             }
-            this._cropSession = null;
+            this.cropSession = null;
         }
         if (this.canvas) {
             try {
@@ -5367,20 +5385,20 @@ class ImageEditor {
         }
         this.originalImage = null;
         this.currentImageMimeType = null;
-        this._lastMask = null;
+        this.lastMask = null;
         this.maskCounter = 0;
         this.currentScale = 1;
         this.currentRotation = 0;
         this.baseImageScale = 1;
-        this._lastSnapshot = null;
-        this._transformController = null;
-        this._viewportCache.clear();
+        this.lastSnapshot = null;
+        this.transformController = null;
+        this.viewportCache.clear();
         if (previousImage) {
-            this._emitOptionCallback('onImageCleared', [previousImage, context]);
+            this.emitOptionCallback('onImageCleared', [previousImage, context]);
         }
-        this._emitImageChanged(context);
-        this._emitBusyChangeIfChanged(context);
-        this._emitOptionCallback('onEditorDisposed', [context]);
+        this.emitImageChanged(context);
+        this.emitBusyChangeIfChanged(context);
+        this.emitOptionCallback('onEditorDisposed', [context]);
     }
 }
 

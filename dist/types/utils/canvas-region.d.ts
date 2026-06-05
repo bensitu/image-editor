@@ -1,9 +1,8 @@
 /**
- * @file utils/canvas-region.ts
- * @description Pure helpers that turn floating-point Fabric.js bounding
- *              rectangles into integer pixel regions and provide the
- *              bounding-box math that mask preservation across crop and
- *              export paths share.
+ * Pure helpers that turn floating-point Fabric.js bounding
+ * rectangles into integer pixel regions and provide the
+ * bounding-box math that mask preservation across crop and
+ * export paths share.
  *
  * ## Owned contracts
  *
@@ -55,6 +54,8 @@
  * - This module does not mutate the Fabric object passed to
  *   `getObjectBBox` beyond the `setCoords` refresh required by
  *   Fabric.js v7's API.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 /**
@@ -106,7 +107,7 @@ export declare function hasMeaningfulCanvasRegion(rect: {
  *
  * region floor before mask remapping).
  *
- * @param rect The floating-point bounding rect to discretize.
+ * @param rect - The floating-point bounding rect to discretize.
  * @returns    An {@link IntegerRegion} safe to pass to `drawImage`.
  */
 export declare function getClampedCanvasRegion(rect: {
@@ -142,10 +143,10 @@ export declare function getPartialExportEdges(bounds: {
  * integer pixel regions should pipe the result through
  * {@link floorRegion}.
  *
- * @param obj The Fabric.js object to measure.
+ * @param object - The Fabric.js object to measure.
  * @returns   The absolute bounding rect in canvas pixels.
  */
-export declare function getObjectBBox(obj: FabricNS.FabricObject): {
+export declare function getObjectBBox(object: FabricNS.FabricObject): {
     left: number;
     top: number;
     width: number;
@@ -167,9 +168,9 @@ export declare function getObjectBBox(obj: FabricNS.FabricObject): {
  *
  * canvas before the mask coordinate remap).
  *
- * @param region       The integer region to clamp.
- * @param canvasWidth  The source canvas's pixel width.
- * @param canvasHeight The source canvas's pixel height.
+ * @param region - The integer region to clamp.
+ * @param canvasWidth - The source canvas's pixel width.
+ * @param canvasHeight - The source canvas's pixel height.
  * @returns            A clamped {@link IntegerRegion}.
  */
 export declare function clampRegionToCanvas(region: IntegerRegion, canvasWidth: number, canvasHeight: number): IntegerRegion;

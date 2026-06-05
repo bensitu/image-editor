@@ -1,6 +1,4 @@
 /**
- * @file dist-multi-format-exports.test.mjs
- *
  * Type:
  *   Smoke test
  *

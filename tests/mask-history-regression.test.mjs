@@ -1,6 +1,4 @@
 /**
- * @file mask-history-regression.test.mjs
- *
  * Type:
  *   Integration regression test
  *

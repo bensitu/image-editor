@@ -1,12 +1,11 @@
 /**
- * @file crop/crop-controller.ts
- * @description Crop session lifecycle owner. Implements the
- *              `enterCropMode → applyCrop` and
- *              `enterCropMode → cancelCrop` transitions atop the
- *              legacy crop pipeline, plus the dedicated crop rectangle
- *              shape, its drag/scale clamps, and the per-object
- *              `evented`/`selectable` freeze that keeps only the crop
- *              rectangle interactive while a session is open.
+ * Crop session lifecycle owner. Implements the
+ * `enterCropMode → applyCrop` and
+ * `enterCropMode → cancelCrop` transitions atop the
+ * legacy crop pipeline, plus the dedicated crop rectangle
+ * shape, its drag/scale clamps, and the per-object
+ * `evented`/`selectable` freeze that keeps only the crop
+ * rectangle interactive while a session is open.
  *
  * ## Owned contracts
  *
@@ -30,7 +29,7 @@
  *   double-render.
  * - On any failure between the crop region read
  *   and the history push, the pre-crop snapshot is restored via
- *   `ctx.loadFromState`, the {@link CropSession} is dropped, all
+ *   `context.loadFromState`, the {@link CropSession} is dropped, all
  *   crop-specific Fabric event handlers are detached, and the returned
  *   promise rejects with {@link CropApplyError} wrapping the original
  *   cause. A failure inside the rollback itself is logged but does not
@@ -57,7 +56,7 @@
  *   `lockRotation`) are the final word.
  * - `applyCrop` honours
  *   `options.crop.preserveMasksAfterCrop` defaulting to `false` in current:
- *   the inner `ctx.loadImage(croppedBase64)` replaces every canvas
+ *   the inner `context.loadImage(croppedBase64)` replaces every canvas
  *   object with the cropped base image, so masks disappear naturally
  *   when the option is `false`.
  * - When `options.crop.preserveMasksAfterCrop`
@@ -66,8 +65,8 @@
  *   re-adds the masks AFTER the loader commits the cropped image with
  *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
  *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
- *   the visible mask shape does not change size or orientation
- *. The cropRegion-relative shift matches legacy's
+ *   the visible mask shape does not change size or orientation. The
+ *   cropRegion-relative shift matches legacy's
  *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
  *   -cropRegion.sourceY)` and is the documented legacy behavior to
  *   preserve. Because shifting `left` / `top` by a constant translates
@@ -78,17 +77,19 @@
  *   module — the rotation angle is encoded in the rotated image's
  *   bounding rect, which moves with the same translation as the masks.
  *
- * ## Scope of THIS task (20.3)
+ * ## Post-crop mask preservation
  *
- * Task 20.2 already implemented hide-on-entry and restore-on-cancel for
- * `hideMasksDuringCrop`. Task 20.3 fills the post-load seam: when
- * `preserveMasksAfterCrop === true`, capture each mask's `left`, `top`,
- * `angle`, `scaleX`, and `scaleY` before the export and re-add the
- * masks shifted by `-cropRegion.left, -cropRegion.top` after
- * `ctx.loadImage(croppedBase64)` commits. The intersection filter
- * (drop masks that do not overlap the crop region) matches legacy
- * observable behavior — masks fully outside the cropped region are
- * removed, masks that intersect are preserved.
+ * Mask visibility during crop mode is owned by the
+ * `hideMasksDuringCrop` path above: masks can be hidden on entry and
+ * restored on cancel. The apply path separately owns
+ * `preserveMasksAfterCrop`: when the option is `true`, the controller
+ * captures each mask's `left`, `top`, `angle`, `scaleX`, and `scaleY`
+ * before export and re-adds the masks shifted by
+ * `-cropRegion.left, -cropRegion.top` after
+ * `context.loadImage(croppedBase64)` commits. The intersection filter
+ * drops masks that do not overlap the crop region, matching legacy
+ * observable behavior: masks fully outside the cropped region are
+ * removed, while intersecting masks are preserved.
  *
  * ## Implementation notes
  *
@@ -118,10 +119,53 @@
  * modules" table): this module is imported only by `image-editor.ts` and
  * is intentionally NOT re-exported from `src/index.ts`.
  *
+ * @module
  */
 import type * as FabricNS from 'fabric';
-import type { FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import type { CropHandler, CropPrevEvented, FabricModule, ImageMimeType, LoadImageOptions, MaskBackup, ResolvedOptions } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';
+/**
+ * Internal state of an open crop session. Built by {@link enterCropMode},
+ * consumed and discarded by {@link applyCrop} / {@link cancelCrop}.
+ *
+ * The `ImageEditor` facade owns the live pointer to this object; the
+ * controller reads and writes it through the
+ * {@link CropControllerContext.getCropSession} /
+ * {@link CropControllerContext.setCropSession} callbacks so multiple
+ * editor instances do not share crop state.
+ *
+ * Fields:
+ *
+ * - `beforeJson` — JSON snapshot of the canvas captured BEFORE the crop
+ *   rectangle was added. Used as both the rollback target on
+ *   `applyCrop` failure and the `undo` payload of
+ *   the history entry pushed on success.
+ * - `prevSelection` — value of `canvas.selection` immediately before the
+ *   controller forced it to `false` to keep only the crop rectangle
+ *   interactive. Restored on apply or cancel.
+ * - `prevEvented` — list of `{ object, evented, selectable}` records for
+ *   every canvas object that was frozen on entry. Restored on apply or
+ *   cancel.
+ * - `maskBackups` — per-mask style backup list. Populated by
+ *   `enterCropMode` when `options.crop.hideMasksDuringCrop` is `true`,
+ *   consumed by `cancelCrop` to restore each mask's pre-crop visual
+ *   state. Empty when the option is `false`.
+ * - `cropRect` — the active crop rectangle, or `null` after the rect has
+ *   been removed (so subsequent calls to {@link removeCropRect} are
+ *   idempotent on the success and rollback paths).
+ * - `handlers` — bound `modified` / `moving` / `scaling` handler records
+ *   on the crop rectangle. Detached when the session ends.
+ *
+ */
+export interface CropSession {
+    beforeJson: string;
+    prevSelection: boolean;
+    prevEvented: CropPrevEvented[];
+    /** Per-mask style backups captured when masks are hidden during crop mode. */
+    maskBackups: MaskBackup[];
+    cropRect: FabricNS.Rect | null;
+    handlers: CropHandler[];
+}
 /**
  * Dependency bundle passed by the `ImageEditor` facade into every crop
  * entry point. The controller has no class state of its own — every
@@ -132,8 +176,7 @@ import { type HistoryManager } from '../history/history-manager.js';
  * {@link import('../export/export-service.js').MergeMasksContext} for
  * consistency across pipeline modules.
  *
- * The orchestrator wiring (task 21.x) is responsible for constructing
- * this bundle from its own state.
+ * The `ImageEditor` facade constructs this bundle from its own state.
  */
 export interface CropControllerContext {
     /** Fabric module providing `Rect` for the crop rectangle. */
@@ -191,7 +234,7 @@ export interface CropControllerContext {
     /**
      * Reads the orchestrator's mask counter. Used by the
      * `preserveMasksAfterCrop` path so re-added masks restore the
-     * counter to `max(maskId)` after `ctx.loadImage` reset it to `0`
+     * counter to `max(maskId)` after `context.loadImage` reset it to `0`
      * on commit (invariant: subsequent `createMask`
      * calls must not collide with a preserved mask's `maskId`).
      *
@@ -209,7 +252,7 @@ export interface CropControllerContext {
      * Re-render the mask list DOM after preserved masks are re-added to
      * the post-crop canvas. Optional — the orchestrator may omit this
      * when no DOM list is wired (e.g., headless unit tests). Mirrors
-     * legacy's `_updateMaskList` call after preserved masks land.
+     * legacy's `updateMaskList` call after preserved masks land.
      */
     updateMaskList?(): void;
 }
@@ -253,10 +296,10 @@ export interface CropControllerContext {
  * pre-crop snapshot does not capture an `ActiveSelection` wrapper. The
  * state serializer's own discard provides a second line of defence.
  *
- * @param ctx Editor dependency bundle — see {@link CropControllerContext}.
+ * @param context - Editor dependency bundle — see {@link CropControllerContext}.
  *
  */
-export declare function enterCropMode(ctx: CropControllerContext): void;
+export declare function enterCropMode(context: CropControllerContext): void;
 /**
  * Close an open crop session WITHOUT applying the crop. Restores the
  * pre-crop `canvas.selection`, the per-object `evented` / `selectable`
@@ -273,10 +316,10 @@ export declare function enterCropMode(ctx: CropControllerContext): void;
  * currently-active selection (typically the crop rectangle itself) is
  * cleared before the rect is removed.
  *
- * @param ctx Editor dependency bundle — see {@link CropControllerContext}.
+ * @param context - Editor dependency bundle — see {@link CropControllerContext}.
  *
  */
-export declare function cancelCrop(ctx: CropControllerContext): void;
+export declare function cancelCrop(context: CropControllerContext): void;
 /**
  * Apply the active crop session: export the crop region as a JPEG data
  * URL, reload it as the new base image through the transactional
@@ -302,15 +345,15 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  *    `options.crop.preserveMasksAfterCrop === true`, capture each mask's
  *    pre-crop `left`, `top`, `angle`, `scaleX`, and `scaleY`, then
  *    remove the masks from the canvas so the cropped JPEG export does
- *    not bake them in (and so the inner `ctx.loadImage`'s
+ *    not bake them in (and so the inner `context.loadImage`'s
  *    `canvas.clear` does not dispose the captured reference). Masks
  *    fully outside the crop region are removed without a record so
  *    they do not reappear after the load (matches legacy's `intersectsCrop`
  *    filter).
  * 4. **Tear down session in place** — restore per-object evented /
  *    selectable values (so the export sees masks in their pre-crop
- *    state) and remove the crop rectangle along with its handlers
- *. The session pointer is NOT cleared yet
+ *    state) and remove the crop rectangle along with its handlers. The
+ *    session pointer is NOT cleared yet
  *    because the catch path may still need `session.beforeJson`.
  * 5. **Restore `canvas.selection`** — back to the pre-crop value before
  *    the cropped image is exported.
@@ -318,7 +361,7 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  *    integer region as `left` / `top` / `width` / `height` (matches
  *    legacy's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
  *    at the configured downsample quality.
- * 7. **Reload the cropped image** through `ctx.loadImage`. The
+ * 7. **Reload the cropped image** through `context.loadImage`. The
  *    transactional loader either commits the new image or rolls back —
  *    a failure propagates here so the rollback path below catches it.
  * 7a. **Reapply preserved masks** — when
@@ -340,12 +383,12 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  *   per-object state restored, `canvas.selection` reverted) so no
  *   stale crop state remains,
  * - clears the session pointer,
- * - restores the pre-crop snapshot via `ctx.loadFromState`,
+ * - restores the pre-crop snapshot via `context.loadFromState`,
  * - rejects with {@link CropApplyError} wrapping the original cause.
  *
  * Mask handling note: when `options.crop.preserveMasksAfterCrop` is
  * `false` (the current default), the inner
- * `ctx.loadImage(croppedBase64)` call replaces every canvas object
+ * `context.loadImage(croppedBase64)` call replaces every canvas object
  * with the cropped base image, so any masks are removed naturally
  * with no extra work in this function. When `preserveMasksAfterCrop`
  * is `true`, masks intersecting the crop region are captured before
@@ -354,11 +397,11 @@ export declare function cancelCrop(ctx: CropControllerContext): void;
  * Crop-mode mask hiding on entry / restoration on cancel is handled
  * in {@link enterCropMode} and the {@link teardownSession} chain.
  *
- * @param ctx Editor dependency bundle — see {@link CropControllerContext}.
+ * @param context - Editor dependency bundle — see {@link CropControllerContext}.
  * @returns   Resolves on success; rejects with {@link CropApplyError}
  *            on any pipeline failure (after the pre-crop snapshot has
  *            been restored).
  *
  */
-export declare function applyCrop(ctx: CropControllerContext): Promise<void>;
+export declare function applyCrop(context: CropControllerContext): Promise<void>;
 //# sourceMappingURL=crop-controller.d.ts.map

@@ -1,12 +1,12 @@
 /**
- * @file image-editor.ts
- * @module image-editor
  * @author Ben Situ
  * @license MIT
- * @description Lightweight canvas-based image editor built on Fabric.js v7.
- *              Provides masking, animated scale/rotate, crop, undo/redo, and export.
+ * Lightweight canvas-based image editor built on Fabric.js v7.
+ * Provides masking, animated scale/rotate, crop, undo/redo, and export.
+ *
+ * @module
  */
-import { type CanvasJSON } from './core/state-serializer.js';
+import { type CanvasJson } from './core/state-serializer.js';
 import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LoadImageOptions, MaskConfig, MaskObject, RemoveAllMasksOptions } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
@@ -29,6 +29,86 @@ import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOption
  * ```
  */
 export declare class ImageEditor {
+    private fabricModule;
+    private isFabricLoaded;
+    private readonly options;
+    private canvas;
+    private canvasElement;
+    private containerElement;
+    private placeholderElement;
+    private elements;
+    private readonly elementOriginalDisabledMap;
+    private readonly elementOriginalAriaDisabledMap;
+    private readonly elementOriginalPointerEventsMap;
+    private originalImage;
+    private baseImageScale;
+    private currentScale;
+    private currentRotation;
+    private isImageLoadedToCanvas;
+    private currentImageMimeType;
+    private maskCounter;
+    private lastMask;
+    private lastSnapshot;
+    private readonly historyManager;
+    /**
+     * Single source of truth for `isAnimating` and `isDisposed` flags
+     * shared between the facade, the transform controller, and the
+     * Fabric animation wrapper. The transform controller calls
+     * `runAnimation` to bracket each Fabric tween so the flag is
+     * cleared inside a `finally`; the facade reads
+     * `isAnimating` for the per-method guard rejections; and the
+     * dispose path forwards to
+     * `markDisposed` so in-flight animation callbacks short-circuit.
+     */
+    private readonly operationGuard;
+    private readonly animQueue;
+    /**
+     * Owns animated `scaleImage`, `rotateImage`, and
+     * `resetImageTransform`. The facade enqueues each public method on
+     * {@link animQueue} and the controller drives
+     * the per-Fabric-animation `runAnimation` bracket through
+     * {@link operationGuard}. The controller is constructed in {@link init}
+     * once `canvas` is available so its `TransformContext` can hold a
+     * stable Fabric canvas reference.
+     */
+    private transformController;
+    /**
+     * Hidden-container viewport cache shared across `loadImage` calls. Owned
+     * by the facade so the layout manager can reuse the last visible
+     * measurement when the editor is hidden inside a tab, modal, or
+     * accordion.
+     */
+    private readonly viewportCache;
+    /**
+     * Live crop session pointer owned by the facade. The crop controller
+     * (`crop/crop-controller.ts`) reads and writes this slot through the
+     * `getCropSession`/`setCropSession` callbacks bundled into the
+     * controller's context, so the controller has no class state of its
+     * own and multiple editors on the same page do not share crop state.
+     */
+    private cropSession;
+    /**
+     * Managed registry of DOM event listeners owned by this editor.
+     *
+     * Constructed lazily by {@link init} so the registry can read the
+     * editor's `isDisposed` flag through a closure that captures `this`.
+     * `dispose` drains the registry via {@link DomBindings.removeAll}
+     * and the wrapped handlers exit early while
+     * `isDisposed === true`.
+     */
+    private domBindings;
+    private isDisposed;
+    /**
+     * When `true`, {@link saveState} is a no-op.  Used by
+     * {@link resetImageTransform} (via the transform controller) to
+     * suppress the intermediate history entries from {@link scaleImage}
+     * and {@link rotateImage} so the entire reset is a single undoable
+     * step.
+     */
+    private shouldSuppressSaveState;
+    private lastEmittedIsBusy;
+    private activeStateRestoreOperation;
+    private nextSelectionChangeContext;
     /**
      * Creates a new image editor instance.
      *
@@ -56,8 +136,8 @@ export declare class ImageEditor {
      * instance as an internal facade field; nothing on the public surface
      * exposes it directly.
      *
-     * @param fabricModuleOrOptions Fabric.js module (ESM) or options (UMD).
-     * @param options               Editor options when the first argument
+     * @param fabricModuleOrOptions - Fabric.js module (ESM) or options (UMD).
+     * @param options - Editor options when the first argument
      *                              is the Fabric module. Ignored otherwise.
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
@@ -67,7 +147,7 @@ export declare class ImageEditor {
      *
      * Must be called once before any other method is used.
      *
-     * @param idMap Optional mapping from logical names to DOM element IDs.
+     * @param idMap - Optional mapping from logical names to DOM element IDs.
      *
      * @example
      * ```ts
@@ -75,6 +155,20 @@ export declare class ImageEditor {
      * ```
      */
     init(idMap?: ElementIdMap): void;
+    private initCanvas;
+    private bindDomEvents;
+    private bindElementIfExists;
+    /**
+     * Read a `File` selected via the upload control as a base64 data URL
+     * and route it through the transactional `loadImage` pipeline.
+     *
+     * Routes through `utils/file.ts` so MIME inference (including the
+     * empty-`file.type` extension fallback), `FileReader` plumbing, and
+     * input reset live in one place. The input is reset on both success
+     * and failure so re-selecting the same file fires a fresh `change`
+     * event.
+     */
+    private loadImageFile;
     /**
      * Loads a Base64-encoded image data URL onto the canvas.
      *
@@ -82,8 +176,7 @@ export declare class ImageEditor {
      * facade method delegates to it so all rollback, downsample, layout,
      * and `onImageLoaded` ordering rules are owned in one place.
      *
-     * Pipeline contract preserved end-to-end (5.3,
-     * 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 7.2, 7.3, 8.4, 18.1):
+     * Pipeline contract preserved end-to-end:
      *
      * - Non-`data:image/` strings resolve without mutation.
      * - On a valid data URL, the loader captures a rollback bundle BEFORE
@@ -91,7 +184,7 @@ export declare class ImageEditor {
      *   failures replay the bundle and reject with the original error.
      * - On commit, the loader sets `originalImage`, `currentScale = 1`,
      *   `currentRotation = 0`, `baseImageScale`, `maskCounter = 0`,
-     *   `_lastSnapshot`, and `isImageLoadedToCanvas = true`. It also
+     *   `lastSnapshot`, and `isImageLoadedToCanvas = true`. It also
      *   honours `LoadImageOptions.preserveScroll` and invokes
      *   `onImageLoaded` exactly once after every scalar is committed.
      *
@@ -100,15 +193,22 @@ export declare class ImageEditor {
      * the call as a documented no-op so a queued scale/rotate animation
      * cannot be torn down by a concurrent reload.
      *
-     * @param base64  Data URL string starting with `data:image/…`.
-     * @param options Optional {@link LoadImageOptions}; currently only
+     * @param base64 - Data URL string starting with `data:image/…`.
+     * @param options - Optional {@link LoadImageOptions}; currently only
      *                `preserveScroll` is consulted.
-     * @returns Promise that resolves once the image is on the canvas, or
+     * @returns A promise that resolves once the image is on the canvas, or
      *          rejects with the original error after a transactional
      *          rollback. Non-data:image inputs and Fabric-unavailable /
      *          disposed states resolve without observable mutation.
      */
     loadImage(base64: string, options?: LoadImageOptions): Promise<void>;
+    private getInternalOperationToken;
+    private canRunDuringAnimationQueue;
+    private withInternalOperationOptions;
+    private withAnimationQueueBypass;
+    private assertIdleForOperation;
+    private canRunIdleOperation;
+    private assertCanQueueAnimation;
     /**
      * Returns `true` if a valid image is currently loaded on the canvas.
      */
@@ -117,6 +217,65 @@ export declare class ImageEditor {
      * Returns `true` while the editor is loading, animating, or in crop mode.
      */
     isBusy(): boolean;
+    private buildCallbackContext;
+    private getOperationContext;
+    private emitOptionCallback;
+    private getImageInfo;
+    private getMasks;
+    private getMaskCollectionSignature;
+    private getEditorState;
+    private emitImageChanged;
+    private emitMasksChanged;
+    private emitBusyChangeIfChanged;
+    private buildSelection;
+    private withSelectionChangeContext;
+    private isSupportedImageMimeType;
+    private inferCurrentImageMimeType;
+    /**
+     * Atomically resize the Fabric canvas. Routes through
+     * {@link applyCanvasDimensions} so the canvas's lower (render) and
+     * upper (event) layers stay in sync and the surrounding container is
+     * reflowed before the next paint — matching the contract enforced
+     * across the rest of the layout pipeline (see
+     * `image/layout-manager.ts`).
+     */
+    private setCanvasSizePx;
+    /**
+     * Re-align an object so its bounding-box top-left maps to the
+     * object's `(left, top)` reference. Used by the transform pipeline's
+     * `afterTransformSnap` hook to absorb floating-point drift on the
+     * final animation tick.
+     */
+    private alignObjectBoundingBoxToCanvasTopLeft;
+    private measureLayoutViewport;
+    /**
+     * Resize the canvas to fit the transformed image bounds. Used by the
+     * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
+     * image that exceeds the viewport gets a real scroll range.
+     */
+    private updateCanvasSizeToImageBounds;
+    private shouldNormalizeCanvasSizeAfterStateRestore;
+    private captureImageDisplayGeometry;
+    private restoreMergedImageDisplayGeometry;
+    /**
+     * Build the {@link TransformContext} the controller reads/writes
+     * through. The facade is the single owner of `currentScale`,
+     * `currentRotation`, `baseImageScale`, `shouldSuppressSaveState`, and
+     * the {@link OperationGuard}, so the context's accessors all bind
+     * back to `this` rather than duplicating state.
+     *
+     * The `saveCanvasState` callback delegates to {@link saveState},
+     * which already honors `shouldSuppressSaveState`. That lets
+     * {@link resetImageTransform} reuse the public scale and rotate paths
+     * while suppressing intermediate saves and emitting one final history
+     * entry.
+     *
+     * The `afterTransformSnap` hook re-runs the post-animation UI helpers:
+     * expand-to-image canvas sizing, bounding-box re-alignment, and mask
+     * label sync.
+     *
+     */
+    private buildTransformContext;
     /**
      * Animates the image to the given scale factor.
      * The factor is clamped to `[options.minScale, options.maxScale]`.
@@ -128,7 +287,7 @@ export declare class ImageEditor {
      * `isAnimating` is `false` before this Promise settles
      * and calls {@link saveState} on success.
      *
-     * @returns Promise that resolves when the animation finishes.
+     * @returns A promise that resolves when the animation finishes.
      */
     scaleImage(factor: number): Promise<void>;
     /**
@@ -138,8 +297,8 @@ export declare class ImageEditor {
      * Non-finite input is a documented no-op; the controller
      * short-circuits without modifying canvas state.
      *
-     * @param degrees Target rotation angle in degrees.
-     * @returns Promise that resolves when the animation finishes.
+     * @param degrees - Target rotation angle in degrees.
+     * @returns A promise that resolves when the animation finishes.
      */
     rotateImage(degrees: number): Promise<void>;
     /**
@@ -149,14 +308,15 @@ export declare class ImageEditor {
      * Routed through the {@link animQueue} so the chained
      * `scaleImage(1)` and `rotateImage(0)` sub-animations are serialized
      * with any other queued transform. The
-     * controller toggles `_suppressSaveState` around the chain so the
+     * controller toggles `shouldSuppressSaveState` around the chain so the
      * inner per-operation `saveState` calls collapse into a single
      * post-reset save.
      *
-     * @returns Promise that resolves when both sub-animations have
+     * @returns A promise that resolves when both sub-animations have
      *          settled and the single history entry has been recorded.
      */
     resetImageTransform(): Promise<void>;
+    private refreshUiAfterQueuedAnimation;
     /**
      * Restores a previously serialized canvas state.
      *
@@ -169,20 +329,23 @@ export declare class ImageEditor {
      * promise rejects with the original error so the history manager
      * leaves `currentIndex` untouched on a failed undo/redo restore.
      *
-     * @param jsonString JSON string returned by `saveState` (or parsed object).
+     * @param jsonString - JSON string returned by `saveState` (or parsed object).
      */
-    loadFromState(jsonString: string | CanvasJSON): Promise<void>;
+    loadFromState(jsonString: string | CanvasJson): Promise<void>;
+    private loadFromStateInternal;
     /**
      * Captures the current canvas state into the undo/redo history.
      * Called automatically after transforms, mask operations, and crop.
      */
     saveState(): void;
+    private saveStateInternal;
+    private restoreActiveMaskAfterSnapshot;
     /**
      * Undoes the last recorded action.
      *
      * Routed through {@link animQueue} so that undo is serialized with any
      * in-progress animation and rapid clicks cannot interleave canvas restores.
-     * The {@link HistoryManager._processing} lock provides a second line of
+     * The {@link HistoryManager.isProcessing} lock provides a second line of
      * defence inside the history layer itself.
      *
      * After {@link dispose} the call resolves without touching the canvas.
@@ -205,10 +368,9 @@ export declare class ImageEditor {
      * falsy-style preservation, monotonic `maskCounter` bookkeeping,
      * and the post-create ordering contract: add to canvas → update
      * list DOM → `setActiveObject` (when `selectable !== false`) →
-     * `saveState` → `config.onCreate(mask, canvas)`
-     * (19.1–19.5, 21.1, 21.2, 22.1, 22.2).
+     * `saveState` → `config.onCreate(mask, canvas)`.
      *
-     * @param config  Shape type, dimensions, position, style, and callbacks.
+     * @param config - Shape type, dimensions, position, style, and callbacks.
      * @returns The created mask object, or `null` if the canvas is unavailable.
      *
      * @example
@@ -237,7 +399,7 @@ export declare class ImageEditor {
      *
      * Delegates to {@link removeAllMasks} in `mask/mask-factory.ts`,
      * which removes every mask and label in canvas order, clears the
-     * `_lastMask` reference, re-renders the mask list
+     * `lastMask` reference, re-renders the mask list
      * DOM, and pushes a single history entry by default. Callers can
      * pass `{ saveHistory: false}` to skip the history push — used by
      * the merge and crop pipelines, which already record their own
@@ -251,6 +413,31 @@ export declare class ImageEditor {
      * left untouched.
      */
     removeAllMasks(options?: RemoveAllMasksOptions): void;
+    /**
+     * Build the {@link CreateMaskContext} the mask factory reads/writes
+     * through. The facade is the single owner of `maskCounter`,
+     * `lastMask`, the canvas, and `saveState`, so the context's
+     * accessors all bind back to `this` rather than duplicating state.
+     */
+    private buildCreateMaskContext;
+    /**
+     * Build the {@link RemoveMaskContext} the mask factory reads/writes
+     * through for `removeSelectedMask` / `removeAllMasks`. The facade
+     * is the single owner of the canvas, mask label DOM, mask list
+     * DOM, history, and `lastMask`, so the context's accessors bind
+     * back to `this`.
+     */
+    private buildRemoveMaskContext;
+    private buildMaskLabelContext;
+    private removeLabelForMask;
+    private createLabelForMask;
+    private hideAllMaskLabels;
+    private syncMaskLabel;
+    private showLabelForMask;
+    private handleSelectionChanged;
+    private buildMaskListContext;
+    private updateMaskList;
+    private updateMaskListSelection;
     /**
      * Bakes all current masks into the image:
      * exports the masked image, removes the masks, and re-imports the result
@@ -268,7 +455,7 @@ export declare class ImageEditor {
      * On any failure it restores the pre-merge snapshot and rejects with
      * `MergeMasksError`.
      *
-     * @returns Promise that resolves when the merge is complete.
+     * @returns A promise that resolves when the merge is complete.
      */
     mergeMasks(): Promise<void>;
     /**
@@ -281,7 +468,7 @@ export declare class ImageEditor {
      * which builds the data URL through the same pipeline used by
      * {@link exportImageBase64} and triggers the anchor-driven download.
      *
-     * @param fileName Filename for the downloaded file.
+     * @param fileName - Filename for the downloaded file.
      *   @default `options.defaultDownloadFileName`
      */
     downloadImage(fileName?: string): void;
@@ -298,8 +485,8 @@ export declare class ImageEditor {
      * the call resolves to an empty string so an in-flight scale/rotate
      * animation does not see a mid-frame export of the canvas.
      *
-     * @param options Export options.
-     * @returns Promise resolving to a data URL on success, or `''` when
+     * @param options - Export options.
+     * @returns A promise resolving to a data URL on success, or `''` when
      *          no image is loaded.
      */
     exportImageBase64(options?: Base64ExportOptions): Promise<string>;
@@ -310,8 +497,7 @@ export declare class ImageEditor {
      * which reuses the base64 pipeline, repaints through an offscreen
      * canvas only when the resulting MIME type does not match the
      * requested `fileType`, and resolves with a `File` whose `type`
-     * matches the requested format (25.4,
-     * 26.1–26.4).
+     * matches the requested format.
      *
      * Operation guard: while `isAnimating === true`
      * the call rejects via `OperationGuard.assertNotAnimating` because
@@ -319,8 +505,8 @@ export declare class ImageEditor {
      * embeds the operation label so callers can distinguish the guard
      * rejection from an underlying export failure.
      *
-     * @param options Export and file options.
-     * @returns Promise resolving to a `File`.
+     * @param options - Export and file options.
+     * @returns A promise resolving to a `File`.
      * @throws  `ExportNotReadyError` when no image is loaded.
      *
      * @example
@@ -331,6 +517,32 @@ export declare class ImageEditor {
      * ```
      */
     exportImageFile(options?: ImageFileExportOptions): Promise<File>;
+    /**
+     * Build the {@link ExportServiceContext} the export service reads
+     * through. The facade is the single owner of the canvas, options,
+     * and the `originalImage` reference.
+     */
+    private buildExportServiceContext;
+    /**
+     * Build the {@link MergeMasksContext} the merge pipeline reads
+     * through. Extends the export-service context with the history
+     * manager, container element, transactional `loadImage`, and the
+     * `saveState`/`loadFromState`/`removeAllMasksNoHistory` callbacks
+     * the merge needs.
+     */
+    private buildMergeMasksContext;
+    /**
+     * Capture a snapshot string suitable for `loadFromState` without
+     * pushing it onto the history stack. Used by the merge and crop
+     * pipelines, which manage their own enclosing history entries and
+     * need the same wire format `saveState` writes to history.
+     *
+     * Routes through `core/state-serializer.ts` so the snapshot wire
+     * format has one production path. Does NOT push a history entry
+     * and does NOT update `lastSnapshot`.
+     */
+    private captureSnapshotInternal;
+    private getActiveMaskForSnapshot;
     /**
      * Enters crop mode: adds a resizable selection rect to the canvas.
      * All other controls are disabled until {@link applyCrop} or
@@ -375,20 +587,34 @@ export declare class ImageEditor {
      * exactly one history entry. On any failure it restores the
      * pre-crop snapshot and rejects with `CropApplyError`.
      *
-     * @returns Promise that resolves when the cropped image is loaded.
+     * @returns A promise that resolves when the cropped image is loaded.
      */
     applyCrop(): Promise<void>;
+    /**
+     * Build the {@link CropControllerContext} the crop controller reads
+     * through. The facade is the single owner of the live crop session
+     * pointer (`cropSession`), the canvas, the resolved options, the
+     * history manager, and the transactional loader, so the context's
+     * accessors all bind back to `this`.
+     */
+    private buildCropControllerContext;
+    private updateInputs;
+    private updateUi;
+    private setControlEnabled;
+    private recordElementOriginalState;
+    private restoreElementOriginalStates;
+    private updatePlaceholderStatus;
     /**
      * Cleans up all DOM event listeners and disposes the Fabric.js Canvas.
      * Call this when the editor is no longer needed to prevent memory leaks.
      *
      * Teardown sequence:
      *
-     * 1. Short-circuit on a second call so `dispose` is idempotent
-     *. This also guards against re-running
+     * 1. Short-circuit on a second call so `dispose` is idempotent. This
+     *    also guards against re-running
      *    the teardown path after the canvas reference has already been
      *    nulled.
-     * 2. Set `_disposed = true` so in-flight animation `onChange`/
+     * 2. Set `isDisposed = true` so in-flight animation `onChange`/
      *    `onComplete` callbacks bail before touching the canvas
      * and so disposed-aware DOM handlers
      *    exit early.

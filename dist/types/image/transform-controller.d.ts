@@ -1,17 +1,16 @@
 /**
- * @file image/transform-controller.ts
- * @description Animated scale, rotate, and reset operations on the
- *              `originalImage` with history integration. Owns the current
- *              transform pipeline that the `ImageEditor` facade routes
- *              through the {@link../animation/animation-queue.AnimationQueue}.
+ * Animated scale, rotate, and reset operations on the
+ * `originalImage` with history integration. Owns the current
+ * transform pipeline that the `ImageEditor` facade routes
+ * through the `AnimationQueue`.
  *
  * ## Owned contracts
  *
  * - `scaleImage(factor)` clamps `factor` to
  *   `[options.minScale, options.maxScale]` and animates the image scale
  *   to the clamped factor over `options.animationDuration` milliseconds.
- *   `scaleX` and `scaleY` are tweened together; the wrapper
- *   {@link../fabric/fabric-animation.animateProps} hides the v7 per-property
+ *   `scaleX` and `scaleY` are tweened together; {@link animateProps}
+ *   hides the v7 per-property
  *   `onComplete` shape.
  * - `rotateImage(degrees)` animates `angle` to
  *   the requested value over `options.animationDuration` milliseconds.
@@ -40,41 +39,40 @@
  *
  * The transform pipeline cooperates with three guards:
  *
- * 1. The orchestrator's {@link TransformContext.guard} — used to set
- *    `isAnimating` true/false around the Fabric animation
- *. The `runAnimation` bracket in
- *    {@link../core/operation-guard.OperationGuard} clears the flag
- *    inside a `finally` so the public promise sees `isAnimating === false`
- *    before settling.
- * 2. The animation queue (owned by the orchestrator) — serializes
+ * 1. The orchestrator's {@link TransformContext.guard} sets
+ *    `isAnimating` true/false around the Fabric animation. The
+ *    `OperationGuard.runAnimation()` bracket clears the flag inside a
+ *    `finally` so the public promise sees `isAnimating === false` before
+ *    settling.
+ * 2. The animation queue (owned by the orchestrator) serializes
  *    `scaleImage`, `rotateImage`, and `resetImageTransform` so concurrent
- *    callers do not interleave mid-animation Fabric mutations
- *. The transform controller does NOT enqueue
- *    on the queue itself; the orchestrator wraps each call through
- *    `animQueue.add(...)` before invoking the controller method.
- * 3. The dispose flag on {@link TransformContext.guard} — animation
- *    callbacks consult `guard.isDisposed` before touching the canvas
- *. Rotation animations also restore the
- *    `'left'/'top'` origin via
- *    {@link../fabric/fabric-animation.restoreOrigin} when dispose
- *    interrupts the animation so a post-dispose
- *    inspector or a re-init that reuses the image reference still sees
- *    the documented origin.
+ *    callers do not interleave mid-animation Fabric mutations. The
+ *    transform controller does NOT enqueue on the queue itself; the
+ *    orchestrator wraps each call through `animQueue.add(...)` before
+ *    invoking the controller method.
+ * 3. The dispose flag on {@link TransformContext.guard} lets animation
+ *    callbacks consult `guard.isDisposed()` before touching the canvas.
+ *    Rotation animations also restore the `'left'/'top'` origin via
+ *    {@link restoreOrigin} when dispose interrupts the animation so a
+ *    post-dispose inspector or a re-init that reuses the image reference
+ *    still sees the documented origin.
  *
  * ## Why a class with a context bundle?
  *
- * legacy's monolithic `ImageEditor` owned all transform state. current keeps that
+ * The legacy monolithic `ImageEditor` owned all transform state. This module keeps that
  * state on the facade so `currentScale`, `currentRotation`,
- * `baseImageScale`, and `_suppressSaveState` remain on a single owner
+ * `baseImageScale`, and `shouldSuppressSaveState` remain on a single owner
  * (these are part of the snapshot wire format). The
  * controller therefore reads and writes through the
  * {@link TransformContext} accessor pairs rather than duplicating the
  * fields. Mirrors the same pattern used by
- * {@link../image/image-loader.LoadImageContext}.
+ * `LoadImageContext`.
  *
  * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { ResolvedOptions } from '../core/public-types.js';
@@ -82,14 +80,13 @@ import type { OperationGuard } from '../core/operation-guard.js';
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link TransformController}. Mirrors the
- * {@link../image/image-loader.LoadImageContext} shape so each pipeline
+ * `LoadImageContext` shape so each pipeline
  * keeps the orchestrator as the single owner of editor state.
  *
  * The facade is responsible for:
  *
  * - constructing a single {@link OperationGuard} per editor and reusing it
- *   across pipelines so `isAnimating` and `_disposed` live in one place
- *,
+ *   across pipelines so `isAnimating` and `isDisposed` live in one place,
  * - routing each public transform method through the animation queue
  *   before calling into the controller,
  * - wiring {@link TransformContext.saveCanvasState} to the shared
@@ -132,7 +129,7 @@ export interface TransformContext {
      * Persist a snapshot to the history stack. Wired by the orchestrator
      * to `core/state-serializer.ts → saveState` plus the surrounding
      * mask-label hide/restore bracket. While the suppression flag set by
-     * {@link setSuppressSaveState}`(true)` is active, the orchestrator
+     * `setSuppressSaveState(true)` is active, the orchestrator
      * MUST treat this as a no-op so `resetImageTransform` records exactly
      * one history entry.
      */
@@ -179,10 +176,11 @@ export interface TransformContext {
  *
  */
 export declare class TransformController {
+    private readonly context;
     /**
-     * @param ctx Dependency bundle owned by the `ImageEditor` facade.
+     * @param context - Dependency bundle owned by the `ImageEditor` facade.
      */
-    constructor(ctx: TransformContext);
+    constructor(context: TransformContext);
     /**
      * Animate the image scale to `factor`, clamped to
      * `[options.minScale, options.maxScale]`.
@@ -190,8 +188,7 @@ export declare class TransformController {
      * Steps:
      *
      * 1. Bail (resolved) when no image is loaded, an animation is already
-     *    in progress, or the editor has been disposed (Contracts
-     *    14.1, 15.2).
+     *    in progress, or the editor has been disposed.
      * 2. Clamp `factor` to `[minScale, maxScale]` and update
      *    `currentScale` so toolbar inputs reflect the requested value
      *    BEFORE the animation begins (matches legacy timing).
@@ -211,9 +208,9 @@ export declare class TransformController {
      *    animation, the controller exits without snapping or saving so
      *    no torn-down canvas reference is touched.
      *
-     * @param factor Requested scale factor (1 = base, may exceed bounds —
+     * @param factor - Requested scale factor (1 = base, may exceed bounds —
      *               the value is clamped before use).
-     * @returns Promise that resolves once the animation has settled and
+     * @returns A promise that resolves once the animation has settled and
      *          history has been recorded, or immediately when the call
      *          short-circuits due to one of the bail conditions.
      *
@@ -247,13 +244,13 @@ export declare class TransformController {
      * branch is skipped — leaving the image in the temporary
      * centre-origin state. The controller invokes
      * {@link restoreOrigin} from `finally` so a post-dispose inspector
-     * still sees the documented `'left'/'top'` origin
-     *. `restoreOrigin` is documented as silent
+     * still sees the documented `'left'/'top'` origin. `restoreOrigin`
+     * is documented as silent
      * best-effort cleanup so it cannot mask the original animation
      * error.
      *
-     * @param degrees Target rotation angle in degrees. Non-finite values are no-ops.
-     * @returns Promise that resolves once the animation has settled and
+     * @param degrees - Target rotation angle in degrees. Non-finite values are no-ops.
+     * @returns A promise that resolves once the animation has settled and
      *          history has been recorded, or immediately when the call
      *          short-circuits due to one of the bail conditions.
      *
@@ -280,7 +277,7 @@ export declare class TransformController {
      *   to history (the partially-applied scale or rotation is still
      *   recoverable via subsequent successful transforms).
      *
-     * @returns Promise that resolves once both sub-animations have
+     * @returns A promise that resolves once both sub-animations have
      *          settled and the single history entry has been recorded.
      *          Resolves immediately as a no-op when no image is loaded.
      *

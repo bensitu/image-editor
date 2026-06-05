@@ -1,6 +1,4 @@
 /**
- * @file dom-canonical-bindings.test.mjs
- *
  * Verifies v2 canonical ElementIdMap names at the ImageEditor facade boundary.
  */
 
@@ -43,18 +41,18 @@ const CANONICAL_IDS = Object.freeze({
 
 class MockCanvas {
     constructor() {
-        this._objects = [];
-        this._active = null;
+        this.objects = [];
+        this.activeObject = null;
     }
     on() {}
     getObjects() {
-        return [...this._objects];
+        return [...this.objects];
     }
     getActiveObject() {
-        return this._active;
+        return this.activeObject;
     }
     discardActiveObject() {
-        this._active = null;
+        this.activeObject = null;
         return this;
     }
     requestRenderAll() {}

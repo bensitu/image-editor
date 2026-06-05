@@ -1,6 +1,4 @@
 /**
- * @file dom-bindings.property.test.mjs
- *
  * Type:
  *   Property test
  *

@@ -1,23 +1,23 @@
 import { isMaskObject } from '../core/public-types.js';
-export function renderMaskList(ctx) {
-    const listId = ctx.getListElementId();
+export function renderMaskList(context) {
+    const listId = context.getListElementId();
     if (!listId)
         return;
     const listEl = document.getElementById(listId);
-    if (!listEl || !ctx.canvas)
+    if (!listEl || !context.canvas)
         return;
     listEl.innerHTML = '';
-    const canvas = ctx.canvas;
+    const canvas = context.canvas;
     canvas
         .getObjects()
         .filter(isMaskObject)
         .forEach((mask) => {
-        const li = document.createElement('li');
-        li.className = 'list-group-item mask-item';
-        li.textContent = mask.maskName;
-        li.dataset.maskId = String(mask.maskId);
-        li.onclick = () => {
-            const id = Number(li.dataset.maskId);
+        const listItemElement = document.createElement('li');
+        listItemElement.className = 'list-group-item mask-item';
+        listItemElement.textContent = mask.maskName;
+        listItemElement.dataset.maskId = String(mask.maskId);
+        listItemElement.onclick = () => {
+            const id = Number(listItemElement.dataset.maskId);
             if (!Number.isFinite(id))
                 return;
             const target = canvas
@@ -26,13 +26,13 @@ export function renderMaskList(ctx) {
             if (!target)
                 return;
             canvas.setActiveObject(target);
-            ctx.onMaskSelected(target);
+            context.onMaskSelected(target);
         };
-        listEl.appendChild(li);
+        listEl.appendChild(listItemElement);
     });
 }
-export function updateMaskListSelection(ctx, selectedMask) {
-    const listId = ctx.getListElementId();
+export function updateMaskListSelection(context, selectedMask) {
+    const listId = context.getListElementId();
     if (!listId)
         return;
     const listEl = document.getElementById(listId);

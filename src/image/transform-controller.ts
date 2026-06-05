@@ -1,17 +1,16 @@
 /**
- * @file image/transform-controller.ts
- * @description Animated scale, rotate, and reset operations on the
- *              `originalImage` with history integration. Owns the current
- *              transform pipeline that the `ImageEditor` facade routes
- *              through the {@link../animation/animation-queue.AnimationQueue}.
+ * Animated scale, rotate, and reset operations on the
+ * `originalImage` with history integration. Owns the current
+ * transform pipeline that the `ImageEditor` facade routes
+ * through the `AnimationQueue`.
  *
  * ## Owned contracts
  *
  * - `scaleImage(factor)` clamps `factor` to
  *   `[options.minScale, options.maxScale]` and animates the image scale
  *   to the clamped factor over `options.animationDuration` milliseconds.
- *   `scaleX` and `scaleY` are tweened together; the wrapper
- *   {@link../fabric/fabric-animation.animateProps} hides the v7 per-property
+ *   `scaleX` and `scaleY` are tweened together; {@link animateProps}
+ *   hides the v7 per-property
  *   `onComplete` shape.
  * - `rotateImage(degrees)` animates `angle` to
  *   the requested value over `options.animationDuration` milliseconds.
@@ -40,41 +39,40 @@
  *
  * The transform pipeline cooperates with three guards:
  *
- * 1. The orchestrator's {@link TransformContext.guard} — used to set
- *    `isAnimating` true/false around the Fabric animation
- *. The `runAnimation` bracket in
- *    {@link../core/operation-guard.OperationGuard} clears the flag
- *    inside a `finally` so the public promise sees `isAnimating === false`
- *    before settling.
- * 2. The animation queue (owned by the orchestrator) — serializes
+ * 1. The orchestrator's {@link TransformContext.guard} sets
+ *    `isAnimating` true/false around the Fabric animation. The
+ *    `OperationGuard.runAnimation()` bracket clears the flag inside a
+ *    `finally` so the public promise sees `isAnimating === false` before
+ *    settling.
+ * 2. The animation queue (owned by the orchestrator) serializes
  *    `scaleImage`, `rotateImage`, and `resetImageTransform` so concurrent
- *    callers do not interleave mid-animation Fabric mutations
- *. The transform controller does NOT enqueue
- *    on the queue itself; the orchestrator wraps each call through
- *    `animQueue.add(...)` before invoking the controller method.
- * 3. The dispose flag on {@link TransformContext.guard} — animation
- *    callbacks consult `guard.isDisposed` before touching the canvas
- *. Rotation animations also restore the
- *    `'left'/'top'` origin via
- *    {@link../fabric/fabric-animation.restoreOrigin} when dispose
- *    interrupts the animation so a post-dispose
- *    inspector or a re-init that reuses the image reference still sees
- *    the documented origin.
+ *    callers do not interleave mid-animation Fabric mutations. The
+ *    transform controller does NOT enqueue on the queue itself; the
+ *    orchestrator wraps each call through `animQueue.add(...)` before
+ *    invoking the controller method.
+ * 3. The dispose flag on {@link TransformContext.guard} lets animation
+ *    callbacks consult `guard.isDisposed()` before touching the canvas.
+ *    Rotation animations also restore the `'left'/'top'` origin via
+ *    {@link restoreOrigin} when dispose interrupts the animation so a
+ *    post-dispose inspector or a re-init that reuses the image reference
+ *    still sees the documented origin.
  *
  * ## Why a class with a context bundle?
  *
- * legacy's monolithic `ImageEditor` owned all transform state. current keeps that
+ * The legacy monolithic `ImageEditor` owned all transform state. This module keeps that
  * state on the facade so `currentScale`, `currentRotation`,
- * `baseImageScale`, and `_suppressSaveState` remain on a single owner
+ * `baseImageScale`, and `shouldSuppressSaveState` remain on a single owner
  * (these are part of the snapshot wire format). The
  * controller therefore reads and writes through the
  * {@link TransformContext} accessor pairs rather than duplicating the
  * fields. Mirrors the same pattern used by
- * {@link../image/image-loader.LoadImageContext}.
+ * `LoadImageContext`.
  *
  * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -88,14 +86,13 @@ import { animateProps, restoreOrigin } from '../fabric/fabric-animation.js';
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link TransformController}. Mirrors the
- * {@link../image/image-loader.LoadImageContext} shape so each pipeline
+ * `LoadImageContext` shape so each pipeline
  * keeps the orchestrator as the single owner of editor state.
  *
  * The facade is responsible for:
  *
  * - constructing a single {@link OperationGuard} per editor and reusing it
- *   across pipelines so `isAnimating` and `_disposed` live in one place
- *,
+ *   across pipelines so `isAnimating` and `isDisposed` live in one place,
  * - routing each public transform method through the animation queue
  *   before calling into the controller,
  * - wiring {@link TransformContext.saveCanvasState} to the shared
@@ -143,7 +140,7 @@ export interface TransformContext {
      * Persist a snapshot to the history stack. Wired by the orchestrator
      * to `core/state-serializer.ts → saveState` plus the surrounding
      * mask-label hide/restore bracket. While the suppression flag set by
-     * {@link setSuppressSaveState}`(true)` is active, the orchestrator
+     * `setSuppressSaveState(true)` is active, the orchestrator
      * MUST treat this as a no-op so `resetImageTransform` records exactly
      * one history entry.
      */
@@ -195,13 +192,13 @@ export interface TransformContext {
  *
  */
 export class TransformController {
-    /** @internal */ private readonly ctx: TransformContext;
+    private readonly context: TransformContext;
 
     /**
-     * @param ctx Dependency bundle owned by the `ImageEditor` facade.
+     * @param context - Dependency bundle owned by the `ImageEditor` facade.
      */
-    constructor(ctx: TransformContext) {
-        this.ctx = ctx;
+    constructor(context: TransformContext) {
+        this.context = context;
     }
 
     /**
@@ -211,8 +208,7 @@ export class TransformController {
      * Steps:
      *
      * 1. Bail (resolved) when no image is loaded, an animation is already
-     *    in progress, or the editor has been disposed (Contracts
-     *    14.1, 15.2).
+     *    in progress, or the editor has been disposed.
      * 2. Clamp `factor` to `[minScale, maxScale]` and update
      *    `currentScale` so toolbar inputs reflect the requested value
      *    BEFORE the animation begins (matches legacy timing).
@@ -232,9 +228,9 @@ export class TransformController {
      *    animation, the controller exits without snapping or saving so
      *    no torn-down canvas reference is touched.
      *
-     * @param factor Requested scale factor (1 = base, may exceed bounds —
+     * @param factor - Requested scale factor (1 = base, may exceed bounds —
      *               the value is clamped before use).
-     * @returns Promise that resolves once the animation has settled and
+     * @returns A promise that resolves once the animation has settled and
      *          history has been recorded, or immediately when the call
      *          short-circuits due to one of the bail conditions.
      *
@@ -242,29 +238,29 @@ export class TransformController {
     async scaleImage(factor: number): Promise<void> {
         if (!Number.isFinite(factor)) return;
 
-        const img = this.ctx.getOriginalImage();
-        if (!img) return;
-        if (this.ctx.guard.isAnimating()) return;
-        if (this.ctx.guard.isDisposed()) return;
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject) return;
+        if (this.context.guard.isAnimating()) return;
+        if (this.context.guard.isDisposed()) return;
 
         // clamp before mutating any visible state.
         const clamped = Math.max(
-            this.ctx.options.minScale,
-            Math.min(this.ctx.options.maxScale, factor),
+            this.context.options.minScale,
+            Math.min(this.context.options.maxScale, factor),
         );
-        this.ctx.setCurrentScale(clamped);
+        this.context.setCurrentScale(clamped);
 
-        const targetAbs = this.ctx.getBaseImageScale() * clamped;
+        const targetAbs = this.context.getBaseImageScale() * clamped;
 
         // legacy parity — re-anchor to the current top-left so the scale
         // animation tweens around the upper-left corner rather than the
         // Fabric default centre. The orchestrator's afterTransformSnap
         // re-aligns the bounding box once the animation finishes.
         try {
-            const topLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top' });
-            img.setPositionByOrigin(topLeft, 'left', 'top');
-            img.setCoords();
+            const topLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(topLeft, 'left', 'top');
+            imageObject.setCoords();
         } catch (error) {
             console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
         }
@@ -272,15 +268,15 @@ export class TransformController {
         try {
             // runAnimation brackets the begin/end so
             // `isAnimating` is `false` before this method's promise settles.
-            await this.ctx.guard.runAnimation(() =>
+            await this.context.guard.runAnimation(() =>
                 animateProps(
-                    img,
+                    imageObject,
                     { scaleX: targetAbs, scaleY: targetAbs },
                     {
-                        duration: this.ctx.options.animationDuration,
-                        onChange: () => this.ctx.canvas.requestRenderAll(),
+                        duration: this.context.options.animationDuration,
+                        onChange: () => this.context.canvas.requestRenderAll(),
                     },
-                    this.ctx.guard,
+                    this.context.guard,
                 ),
             );
         } catch (error) {
@@ -289,15 +285,15 @@ export class TransformController {
         }
 
         // the canvas may have been disposed mid-animation.
-        if (this.ctx.guard.isDisposed()) return;
+        if (this.context.guard.isDisposed()) return;
 
-        img.set({ scaleX: targetAbs, scaleY: targetAbs });
-        img.setCoords();
+        imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
+        imageObject.setCoords();
 
-        if (this.ctx.afterTransformSnap) this.ctx.afterTransformSnap();
+        if (this.context.afterTransformSnap) this.context.afterTransformSnap();
 
         // record a snapshot so the new scale is undoable.
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
 
     /**
@@ -328,13 +324,13 @@ export class TransformController {
      * branch is skipped — leaving the image in the temporary
      * centre-origin state. The controller invokes
      * {@link restoreOrigin} from `finally` so a post-dispose inspector
-     * still sees the documented `'left'/'top'` origin
-     *. `restoreOrigin` is documented as silent
+     * still sees the documented `'left'/'top'` origin. `restoreOrigin`
+     * is documented as silent
      * best-effort cleanup so it cannot mask the original animation
      * error.
      *
-     * @param degrees Target rotation angle in degrees. Non-finite values are no-ops.
-     * @returns Promise that resolves once the animation has settled and
+     * @param degrees - Target rotation angle in degrees. Non-finite values are no-ops.
+     * @returns A promise that resolves once the animation has settled and
      *          history has been recorded, or immediately when the call
      *          short-circuits due to one of the bail conditions.
      *
@@ -343,35 +339,35 @@ export class TransformController {
         // Non-finite input is a no-op with no observable mutation.
         if (!Number.isFinite(degrees)) return;
 
-        const img = this.ctx.getOriginalImage();
-        if (!img) return;
-        if (this.ctx.guard.isAnimating()) return;
-        if (this.ctx.guard.isDisposed()) return;
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject) return;
+        if (this.context.guard.isAnimating()) return;
+        if (this.context.guard.isDisposed()) return;
 
-        this.ctx.setCurrentRotation(degrees);
+        this.context.setCurrentRotation(degrees);
 
         // Pre-animation: tween around the visual centroid so a quarter
         // turn does not slide the image off the canvas.
         try {
-            const centre = img.getCenterPoint();
-            img.set({ originX: 'center', originY: 'center' });
-            img.setPositionByOrigin(centre, 'center', 'center');
-            img.setCoords();
+            const centre = imageObject.getCenterPoint();
+            imageObject.set({ originX: 'center', originY: 'center' });
+            imageObject.setPositionByOrigin(centre, 'center', 'center');
+            imageObject.setCoords();
         } catch (error) {
             console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
         }
 
         let animationFailed = false;
         try {
-            await this.ctx.guard.runAnimation(() =>
+            await this.context.guard.runAnimation(() =>
                 animateProps(
-                    img,
+                    imageObject,
                     { angle: degrees },
                     {
-                        duration: this.ctx.options.animationDuration,
-                        onChange: () => this.ctx.canvas.requestRenderAll(),
+                        duration: this.context.options.animationDuration,
+                        onChange: () => this.context.canvas.requestRenderAll(),
                     },
-                    this.ctx.guard,
+                    this.context.guard,
                 ),
             );
         } catch (error) {
@@ -384,33 +380,33 @@ export class TransformController {
             // best-effort cleanup so a post-dispose inspector or a
             // re-init that reuses the image reference still sees the
             // documented `'left'/'top'` origin.
-            if (this.ctx.guard.isDisposed()) {
-                restoreOrigin(img, 'left', 'top');
+            if (this.context.guard.isDisposed()) {
+                restoreOrigin(imageObject, 'left', 'top');
             }
         }
 
         if (animationFailed) return;
-        if (this.ctx.guard.isDisposed()) return;
+        if (this.context.guard.isDisposed()) return;
 
-        img.set('angle', degrees);
-        img.setCoords();
+        imageObject.set('angle', degrees);
+        imageObject.setCoords();
 
-        if (this.ctx.afterTransformSnap) this.ctx.afterTransformSnap();
+        if (this.context.afterTransformSnap) this.context.afterTransformSnap();
 
         // Restore origin to top-left around the post-animation
         // bounding-box top-left so subsequent placement math uses the
         // documented origin.
         try {
-            const newTopLeft = computeTopLeftPoint(img);
-            img.set({ originX: 'left', originY: 'top' });
-            img.setPositionByOrigin(newTopLeft, 'left', 'top');
-            img.setCoords();
+            const newTopLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
+            imageObject.setCoords();
         } catch (error) {
             console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
         }
 
         // record a snapshot so the new rotation is undoable.
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
 
     /**
@@ -434,26 +430,26 @@ export class TransformController {
      *   to history (the partially-applied scale or rotation is still
      *   recoverable via subsequent successful transforms).
      *
-     * @returns Promise that resolves once both sub-animations have
+     * @returns A promise that resolves once both sub-animations have
      *          settled and the single history entry has been recorded.
      *          Resolves immediately as a no-op when no image is loaded.
      *
      */
     async resetImageTransform(): Promise<void> {
-        if (!this.ctx.getOriginalImage()) return;
+        if (!this.context.getOriginalImage()) return;
 
-        this.ctx.setSuppressSaveState(true);
+        this.context.setSuppressSaveState(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
         } finally {
-            this.ctx.setSuppressSaveState(false);
+            this.context.setSuppressSaveState(false);
         }
 
-        if (this.ctx.guard.isDisposed()) return;
+        if (this.context.guard.isDisposed()) return;
 
         // single history entry for the whole reset.
-        this.ctx.saveCanvasState();
+        this.context.saveCanvasState();
     }
 }
 
@@ -467,17 +463,17 @@ export class TransformController {
  * `getBoundingRect` covers the rare Fabric build where `getCoords`
  * returns an empty array (notably the v7 detached-canvas edge case).
  */
-function computeTopLeftPoint(obj: FabricNS.FabricObject): FabricNS.Point {
-    obj.setCoords();
-    const coords = obj.getCoords();
+function computeTopLeftPoint(object: FabricNS.FabricObject): FabricNS.Point {
+    object.setCoords();
+    const coords = object.getCoords();
     const first = coords[0];
     if (first) return first as unknown as FabricNS.Point;
     // Fallback path — construct the point ad hoc. This keeps the
     // controller free of a `FabricModule` reference (the
     // {@link TransformContext} intentionally does not carry one) at the
-    // cost of returning a plain `{ x, y}` shape that Fabric's
+    // cost of returning a plain `{ x, y }` shape that Fabric's
     // `setPositionByOrigin` accepts as a `Point` (its signature widens
     // to `XY` in v7).
-    const br = obj.getBoundingRect();
-    return { x: br.left, y: br.top } as unknown as FabricNS.Point;
+    const boundingRect = object.getBoundingRect();
+    return { x: boundingRect.left, y: boundingRect.top } as unknown as FabricNS.Point;
 }

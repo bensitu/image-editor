@@ -1,10 +1,9 @@
 /**
- * @file ui-state.ts
- * @description Disabled-state, aria-state, and toolbar-state helpers used by
- *              {@link ImageEditor}'s `init` and operation handlers. These
- *              helpers share the same `idMap`-driven element-resolution
- *              vocabulary as `dom-bindings.ts` so the orchestrator can speak
- *              one language when wiring or refreshing UI state.
+ * Disabled-state, aria-state, and toolbar-state helpers used by
+ * {@link ImageEditor}'s `init` and operation handlers. These
+ * helpers share the same `idMap`-driven element-resolution
+ * vocabulary as `dom-bindings.ts` so the orchestrator can speak
+ * one language when wiring or refreshing UI state.
  *
  * ## Owned contracts
  *
@@ -15,7 +14,7 @@
  * - Toolbar-state mutation must remain a no-op when
  *   the editor is disposed or when a logical key is unmapped. Each helper
  *   short-circuits on a missing element ID or missing DOM node so
- *   post-`dispose` `_updateUI`-style calls cannot throw or surprise the
+ *   post-`dispose` `updateUi`-style calls cannot throw or surprise the
  *   host page.
  *
  * ## Why this lives in its own module
@@ -27,6 +26,8 @@
  * Like `dom-bindings.ts` and `visibility-state.ts`, this module is imported
  * by `image-editor.ts` only and is intentionally NOT re-exported from
  * `src/index.ts`.
+ *
+ * @module
  */
 import type { ElementIdMap } from '../core/public-types.js';
 /**
@@ -46,7 +47,7 @@ export type ElementKey = keyof Required<ElementIdMap>;
 export type ElementIdResolver = (key: ElementKey) => string | null | undefined;
 /**
  * Set the native `disabled` IDL property on a button-like control resolved
- * from `key`. Used by the orchestrator's `_updateUI` policy: each toolbar
+ * from `key`. Used by the orchestrator's `updateUi` policy: each toolbar
  * button maps to one logical key, and the policy decides whether the
  * button is currently usable.
  *
@@ -69,9 +70,9 @@ export type ElementIdResolver = (key: ElementKey) => string | null | undefined;
  * assignment via the IDL slot but will not visually reflect it; that is
  * the integrator's responsibility per the public `idMap` contract.
  *
- * @param resolveElementId Resolver from logical key to DOM element ID.
- * @param key              Logical toolbar element key.
- * @param disabled         Target `disabled` value.
+ * @param resolveElementId - Resolver from logical key to DOM element ID.
+ * @param key - Logical toolbar element key.
+ * @param disabled - Target `disabled` value.
  */
 export declare function setDisabled(resolveElementId: ElementIdResolver, key: ElementKey, disabled: boolean): void;
 /**
@@ -86,9 +87,9 @@ export declare function setDisabled(resolveElementId: ElementIdResolver, key: El
  * ARIA spec — never the empty string and never removed entirely, so a
  * subsequent toggle is a single `setAttribute` away.
  *
- * @param resolveElementId Resolver from logical key to DOM element ID.
- * @param key              Logical toolbar element key.
- * @param disabled         Target `aria-disabled` value.
+ * @param resolveElementId - Resolver from logical key to DOM element ID.
+ * @param key - Logical toolbar element key.
+ * @param disabled - Target `aria-disabled` value.
  */
 export declare function setAriaDisabled(resolveElementId: ElementIdResolver, key: ElementKey, disabled: boolean): void;
 /**
@@ -102,10 +103,10 @@ export declare function setAriaDisabled(resolveElementId: ElementIdResolver, key
  * regardless of its current presence. Missing key or missing element is a
  * silent no-op.
  *
- * @param resolveElementId Resolver from logical key to DOM element ID.
- * @param key              Logical toolbar element key.
- * @param className        CSS class name to toggle.
- * @param enabled          `true` to add the class, `false` to remove it.
+ * @param resolveElementId - Resolver from logical key to DOM element ID.
+ * @param key - Logical toolbar element key.
+ * @param className - CSS class name to toggle.
+ * @param enabled - `true` to add the class, `false` to remove it.
  */
 export declare function setClass(resolveElementId: ElementIdResolver, key: ElementKey, className: string, enabled: boolean): void;
 //# sourceMappingURL=ui-state.d.ts.map

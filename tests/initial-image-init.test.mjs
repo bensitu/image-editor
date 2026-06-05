@@ -1,6 +1,4 @@
 /**
- * @file initial-image-init.test.mjs
- *
  * Verifies initialImageBase64 failures are reported without unhandled rejections.
  */
 
@@ -18,22 +16,22 @@ class ErrorImage {
     constructor() {
         this.naturalWidth = 0;
         this.naturalHeight = 0;
-        this._listeners = new Map();
+        this.listeners = new Map();
     }
     addEventListener(event, handler) {
-        this._listeners.set(event, handler);
+        this.listeners.set(event, handler);
     }
     removeEventListener(event) {
-        this._listeners.delete(event);
+        this.listeners.delete(event);
     }
     set src(value) {
-        this._src = value;
+        this.source = value;
         queueMicrotask(() => {
-            this._listeners.get('error')?.(new Event('error'));
+            this.listeners.get('error')?.(new Event('error'));
         });
     }
     get src() {
-        return this._src;
+        return this.source;
     }
 }
 
@@ -42,11 +40,11 @@ class MockCanvas {
         this.width = options.width ?? 300;
         this.height = options.height ?? 150;
         this.backgroundColor = options.backgroundColor ?? 'transparent';
-        this._objects = [];
+        this.objects = [];
     }
     on() {}
     getObjects() {
-        return [...this._objects];
+        return [...this.objects];
     }
     getActiveObject() {
         return null;
@@ -65,7 +63,7 @@ class MockCanvas {
     async loadFromJSON(json) {
         this.width = json.width ?? this.width;
         this.height = json.height ?? this.height;
-        this._objects = Array.isArray(json.objects) ? json.objects : [];
+        this.objects = Array.isArray(json.objects) ? json.objects : [];
         return this;
     }
     setDimensions({ width, height }) {

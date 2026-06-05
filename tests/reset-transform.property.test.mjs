@@ -1,6 +1,4 @@
 /**
- * @file reset-transform.property.test.mjs
- *
  * Type:
  *   Property test
  *

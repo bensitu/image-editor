@@ -1,6 +1,4 @@
 /**
- * @file state-serializer.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -396,7 +394,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
             }
 
             // Per-object assertion that mask metadata was re-applied
-            // verbatim by `restoreMaskPropsFromJSON`. This
+            // verbatim by `restoreMaskPropsFromJson`. This
             // is the gate that protects the byte-level round-trip from
             // a stale Fabric `_setOptions` regression.
             for (const sourceMask of scenario.masks) {

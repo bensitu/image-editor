@@ -1,9 +1,8 @@
 /**
- * @file operation-guard.ts
- * @description Animation-state guard used by the {@link ImageEditor} facade
- *              to block stateful public operations while an animation is in
- *              progress, and to centralize the dispose flag that in-flight
- *              animation callbacks check before touching the canvas.
+ * Animation-state guard used by the {@link ImageEditor} facade
+ * to block stateful public operations while an animation is in
+ * progress, and to centralize the dispose flag that in-flight
+ * animation callbacks check before touching the canvas.
  *
  * ## Owned contracts
  *
@@ -12,8 +11,7 @@
  *   `downloadImage`, `enterCropMode`, `applyCrop`, `removeAllMasks`, and
  *   `loadImage` with a clear error or no-op (documented per method).
  * - `undo` and `redo` are NOT routed through this
- *   guard; they are serialized by the {@link
- *../animation/animation-queue.AnimationQueue} instead. Callers that
+ *   guard; they are serialized by the `AnimationQueue` instead. Callers that
  *   would otherwise be blocked by the `isAnimating` flag still flow
  *   through `assertNotAnimating`; `undo` / `redo` skip the guard
  *   entirely (see `image-editor.ts`).
@@ -24,7 +22,7 @@
  *
  * ## Why the guard owns the dispose flag too
  *
- * In-flight animation callbacks check `_disposed` before touching the
+ * In-flight animation callbacks check `isDisposed` before touching the
  * canvas. Co-locating the disposed flag here keeps both checks behind a
  * single small object so the Fabric animation wrapper
  * (`fabric/fabric-animation.ts`) and the dispose path (`image-editor.ts`)
@@ -38,6 +36,8 @@
  * The guard is imported by `image-editor.ts` and
  * `fabric/fabric-animation.ts`. It is intentionally NOT re-exported from
  * `src/index.ts`.
+ *
+ * @module
  */
 
 /**
@@ -55,7 +55,7 @@ export interface AnimationState {
 export type OperationToken = symbol;
 
 /**
- * Tracks the editor's `isAnimating` and `_disposed` flags and exposes the
+ * Tracks the editor's `isAnimating` and `isDisposed` flags and exposes the
  * single-line `assertNotAnimating` gate used by every guarded public
  * method.
  *
@@ -64,11 +64,11 @@ export type OperationToken = symbol;
  *
  */
 export class OperationGuard {
-    /** @internal */ private _isAnimating = false;
-    /** @internal */ private _isDisposed = false;
-    /** @internal */ private _isLoading = false;
-    /** @internal */ private _activeOperationName: string | null = null;
-    /** @internal */ private _activeOperationToken: OperationToken | null = null;
+    private isAnimationActive = false;
+    private isDisposedFlag = false;
+    private isLoadingActive = false;
+    private currentOperationName: string | null = null;
+    private currentOperationToken: OperationToken | null = null;
 
     /**
      * Returns `true` while an animation block is open (between
@@ -78,7 +78,7 @@ export class OperationGuard {
      * the per-method guards.
      */
     isAnimating(): boolean {
-        return this._isAnimating;
+        return this.isAnimationActive;
     }
 
     /**
@@ -86,28 +86,30 @@ export class OperationGuard {
      * callbacks consult this before touching the canvas.
      */
     isDisposed(): boolean {
-        return this._isDisposed;
+        return this.isDisposedFlag;
     }
 
     /**
      * Returns `true` while a transactional image load is in progress.
      */
     isLoading(): boolean {
-        return this._isLoading;
+        return this.isLoadingActive;
     }
 
     /**
      * Returns the currently active non-load operation name, if any.
      */
     activeOperationName(): string | null {
-        return this._activeOperationName;
+        return this.currentOperationName;
     }
 
     /**
      * Returns `true` while any guard-owned busy state is active.
      */
     isBusy(): boolean {
-        return this._isAnimating || this._isLoading || this._activeOperationToken !== null;
+        return (
+            this.isAnimationActive || this.isLoadingActive || this.currentOperationToken !== null
+        );
     }
 
     /**
@@ -119,7 +121,7 @@ export class OperationGuard {
      * `try/finally` rather than caller discipline.
      */
     beginAnimation(): void {
-        this._isAnimating = true;
+        this.isAnimationActive = true;
     }
 
     /**
@@ -128,7 +130,7 @@ export class OperationGuard {
      * resolves or rejects.
      */
     endAnimation(): void {
-        this._isAnimating = false;
+        this.isAnimationActive = false;
     }
 
     /**
@@ -142,25 +144,25 @@ export class OperationGuard {
      * Idempotent: calling twice is a no-op.
      */
     markDisposed(): void {
-        this._isDisposed = true;
-        this._isAnimating = false;
-        this._isLoading = false;
-        this._activeOperationName = null;
-        this._activeOperationToken = null;
+        this.isDisposedFlag = true;
+        this.isAnimationActive = false;
+        this.isLoadingActive = false;
+        this.currentOperationName = null;
+        this.currentOperationToken = null;
     }
 
     /**
      * Mark a transactional image load as active.
      */
     beginLoading(): void {
-        this._isLoading = true;
+        this.isLoadingActive = true;
     }
 
     /**
      * Clear the transactional image load flag.
      */
     endLoading(): void {
-        this._isLoading = false;
+        this.isLoadingActive = false;
     }
 
     /**
@@ -169,8 +171,8 @@ export class OperationGuard {
      */
     beginBusyOperation(operationName: string): OperationToken {
         const token = Symbol(operationName);
-        this._activeOperationName = operationName;
-        this._activeOperationToken = token;
+        this.currentOperationName = operationName;
+        this.currentOperationToken = token;
         return token;
     }
 
@@ -178,9 +180,9 @@ export class OperationGuard {
      * Clear the active operation only when the matching token finishes.
      */
     endBusyOperation(token: OperationToken | null | undefined): void {
-        if (token && token === this._activeOperationToken) {
-            this._activeOperationName = null;
-            this._activeOperationToken = null;
+        if (token && token === this.currentOperationToken) {
+            this.currentOperationName = null;
+            this.currentOperationToken = null;
         }
     }
 
@@ -188,14 +190,14 @@ export class OperationGuard {
      * Returns `true` when `token` belongs to the currently active operation.
      */
     isOwnOperation(token: OperationToken | null | undefined): boolean {
-        return !!token && token === this._activeOperationToken;
+        return !!token && token === this.currentOperationToken;
     }
 
     /**
      * Run an async function inside a `beginAnimation` / `endAnimation`
      * bracket. The bracket is released in a `finally` so the
      * `isAnimating === false` invariant holds even
-     * when `fn` rejects.
+     * when `animationTask` rejects.
      *
      * Used by the orchestrator's transform pipeline (`scaleImage`,
      * `rotateImage`, `resetImageTransform`) when wrapping a single Fabric
@@ -203,15 +205,15 @@ export class OperationGuard {
      * enforces FIFO ordering across multiple wrappers, so callers do not
      * need to coordinate begin/end across queue entries.
      *
-     * @typeParam T  Resolved value of the wrapped animation.
-     * @param fn     Animation function returning a promise.
-     * @returns      The promise returned by `fn`, with begin/end bracketing
+     * @typeParam T - Resolved value of the wrapped animation.
+     * @param animationTask - Animation function returning a promise.
+     * @returns      The promise returned by `animationTask`, with begin/end bracketing
      *               applied around its lifetime.
      */
-    async runAnimation<T>(fn: () => Promise<T>): Promise<T> {
+    async runAnimation<T>(animationTask: () => Promise<T>): Promise<T> {
         this.beginAnimation();
         try {
-            return await fn();
+            return await animationTask();
         } finally {
             this.endAnimation();
         }
@@ -232,13 +234,12 @@ export class OperationGuard {
      * the failure into a documented no-op shape before it reaches the
      * consumer.
      *
-     * @param operationLabel
-     *   Short, user-facing operation name (e.g. `'mergeMasks'`).
+     * @param operationLabel - Short, user-facing operation name (e.g. `'mergeMasks'`).
      *   Embedded in the error message verbatim.
      * @throws Error when {@link isAnimating} returns `true`.
      */
     assertNotAnimating(operationLabel: string): void {
-        if (this._isAnimating) {
+        if (this.isAnimationActive) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`,
             );
@@ -251,24 +252,24 @@ export class OperationGuard {
      * operation token to proceed.
      */
     assertIdleForOperation(operationLabel: string, token?: OperationToken | null): void {
-        if (this._isDisposed) {
+        if (this.isDisposedFlag) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
         const ownOperation = this.isOwnOperation(token);
-        if (this._isAnimating) {
+        if (this.isAnimationActive) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`,
             );
         }
-        if (this._isLoading && !ownOperation) {
+        if (this.isLoadingActive && !ownOperation) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`,
             );
         }
-        if (this._activeOperationToken && !ownOperation) {
+        if (this.currentOperationToken && !ownOperation) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while ` +
-                    `${this._activeOperationName ?? 'another operation'} is running.`,
+                    `${this.currentOperationName ?? 'another operation'} is running.`,
             );
         }
     }
@@ -279,19 +280,19 @@ export class OperationGuard {
      * left to the animation queue.
      */
     assertCanQueueAnimation(operationLabel: string, token?: OperationToken | null): void {
-        if (this._isDisposed) {
+        if (this.isDisposedFlag) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
         const ownOperation = this.isOwnOperation(token);
-        if (this._isLoading && !ownOperation) {
+        if (this.isLoadingActive && !ownOperation) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`,
             );
         }
-        if (this._activeOperationToken && !ownOperation) {
+        if (this.currentOperationToken && !ownOperation) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationLabel}" while ` +
-                    `${this._activeOperationName ?? 'another operation'} is running.`,
+                    `${this.currentOperationName ?? 'another operation'} is running.`,
             );
         }
     }

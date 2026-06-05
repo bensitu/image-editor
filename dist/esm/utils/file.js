@@ -19,13 +19,13 @@ export function inferImageMimeType(file) {
         return null;
     return (_b = SUPPORTED_IMAGE_EXTENSIONS[ext]) !== null && _b !== void 0 ? _b : null;
 }
-export function readFileAsDataURL(file) {
+export function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-            const result = reader.result;
-            if (typeof result === 'string') {
-                resolve(result);
+            const fileReaderResult = reader.result;
+            if (typeof fileReaderResult === 'string') {
+                resolve(fileReaderResult);
             }
             else {
                 reject(new Error('FileReader returned a non-string result'));

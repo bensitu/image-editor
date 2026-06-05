@@ -1,6 +1,4 @@
 /**
- * @file mask-factory.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -153,7 +151,7 @@ function makeCanvas() {
 
 /**
  * Build a fully wired `CreateMaskContext` over the mocks above. The
- * counter and `_lastMask` slots are owned here (mirroring the
+ * counter and `lastMask` slots are owned here (mirroring the
  * orchestrator's ownership in `image-editor.ts`) so each iteration
  * starts from a clean state.
  */
@@ -182,25 +180,23 @@ function makeContext(overrides = {}) {
 // ─── Arbitraries ───────────────────────────────────────────────────────────
 
 /**
- * Shapes covered by 's per-shape origin clause. Polygon
- * placement is covered by its own dedicated property (19); the
- * factory's polygon path reads `originX: 'left'` / `originY: 'top'`
- * from the same `originProps` literal so the rect/circle/ellipse
- * sample is sufficient to validate the the documented contract contract here.
+ * Shapes covered by the per-shape origin contract. Polygon placement
+ * has its own dedicated property; the factory's polygon path reads
+ * `originX: 'left'` / `originY: 'top'` from the same `originProps`
+ * literal, so the rect/circle/ellipse sample is sufficient here.
  */
 const shapeArb = fc.constantFrom('rect', 'circle', 'ellipse');
 
 /**
- * `strokeWidth` values that the factory MUST preserve verbatim (Contract
- * 22.1). `0` is the canonical falsy sample; finite positive numbers
- * round-trip too so the same property covers both branches.
+ * `strokeWidth` values that the factory MUST preserve verbatim. `0` is
+ * the canonical falsy sample; finite positive numbers round-trip too so
+ * the same property covers both branches.
  */
 const strokeWidthArb = fc.constantFrom(0, 1, 5, null);
 
 /**
  * `stroke` values that exercise the falsy-style preservation contract.
- * `null` and `''` MUST NOT be replaced by the `'#ccc'` fallback (Contract
- * 22.1).
+ * `null` and `''` MUST NOT be replaced by the `'#ccc'` fallback.
  */
 const strokeArb = fc.constantFrom('red', null, '', '#fff');
 
@@ -523,12 +519,12 @@ test('removeAllMasks detaches hover handlers from removed mask objects', () => {
     assert.ok(mask, 'mask must be created');
     assert.equal(mask.__listeners.mouseover.length, 1);
     assert.equal(mask.__listeners.mouseout.length, 1);
-    assert.ok(mask.__imageEditorMaskHandlers, 'hover handler tag must be attached');
+    assert.ok(mask.imageEditorMaskHandlers, 'hover handler tag must be attached');
 
     removeAllMasks(ctx, { saveHistory: false });
 
     assert.equal(ctx.canvas.objects.length, 0, 'mask must be removed from the canvas');
     assert.equal(mask.__listeners.mouseover.length, 0, 'mouseover handler must be detached');
     assert.equal(mask.__listeners.mouseout.length, 0, 'mouseout handler must be detached');
-    assert.equal(mask.__imageEditorMaskHandlers, undefined, 'hover handler tag must be cleared');
+    assert.equal(mask.imageEditorMaskHandlers, undefined, 'hover handler tag must be cleared');
 });

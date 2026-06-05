@@ -1,6 +1,4 @@
 /**
- * @file viewport-cache.property.test.mjs
- *
  * Type:
  *   Property test
  *

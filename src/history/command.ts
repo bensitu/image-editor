@@ -1,6 +1,5 @@
 /**
- * @file command.ts
- * @description Re-export shim for the {@link Command} class.
+ * Re-export shim for the {@link Command} class.
  *
  * The class itself is defined alongside {@link HistoryManager} in
  * `./history-manager.ts` so the history module can be loaded directly
@@ -10,6 +9,8 @@
  * Module-layout consumers — and the canonical Module Responsibilities
  * table — continue to see `command.ts` as the named home of the
  * `Command` primitive.
+ *
+ * @module
  */
 
 export { Command } from './history-manager.js';

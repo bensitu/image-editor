@@ -1,6 +1,4 @@
 /**
- * @file active-selection-discard.property.test.mjs
- *
  * Type:
  *   Property test
  *

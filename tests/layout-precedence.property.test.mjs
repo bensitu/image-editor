@@ -1,6 +1,4 @@
 /**
- * @file layout-precedence.property.test.mjs
- *
  * Type:
  *   Property test
  *

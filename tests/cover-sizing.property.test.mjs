@@ -1,6 +1,4 @@
 /**
- * @file cover-sizing.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -180,6 +178,17 @@ function finalScrollbarState(canvasSize, viewport, scrollbar) {
     return { hasHorizontal, hasVertical };
 }
 
+function fillsSettledViewportAxis(contentSize, effectiveViewportSize) {
+    // Cover sizing uses OVERFLOW_EPSILON when deciding whether an axis
+    // actually needs a scrollbar. A dimension up to that tolerance over
+    // the final safe viewport axis is still considered settled, so the
+    // property must use the same tolerance instead of exact equality.
+    return (
+        contentSize + 1e-9 >= effectiveViewportSize &&
+        contentSize <= effectiveViewportSize + OVERFLOW_EPSILON + 1e-9
+    );
+}
+
 test('cover layout matches the scrollbar-aware scroll-safe reference formula', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
@@ -257,8 +266,8 @@ test('large cover images fill at least one safe viewport axis', () => {
 
             if (expected.imageScale < 1) {
                 assert.ok(
-                    Math.abs(contentW - effectiveW) < 1e-9 ||
-                        Math.abs(contentH - effectiveH) < 1e-9,
+                    fillsSettledViewportAxis(contentW, effectiveW) ||
+                        fillsSettledViewportAxis(contentH, effectiveH),
                     `scaled cover image must fill one final viewport axis for ${JSON.stringify(input)}`,
                 );
             }

@@ -1,6 +1,6 @@
-export function forceReflow(el) {
-    if (!el)
+export function forceReflow(element) {
+    if (!element)
         return;
-    void el.offsetWidth;
+    void element.offsetWidth;
 }
 //# sourceMappingURL=dom.js.map

@@ -51,19 +51,19 @@ export function attachMaskHoverHandlers(mask) {
     };
     tagged.on('mouseover', mouseover);
     tagged.on('mouseout', mouseout);
-    tagged.__imageEditorMaskHandlers = { mouseover, mouseout };
+    tagged.imageEditorMaskHandlers = { mouseover, mouseout };
 }
 export function reattachMaskHoverHandlers(mask) {
     var _a;
     const tagged = mask;
-    if (tagged.__imageEditorMaskHandlers) {
+    if (tagged.imageEditorMaskHandlers) {
         try {
-            tagged.off('mouseover', tagged.__imageEditorMaskHandlers.mouseover);
-            tagged.off('mouseout', tagged.__imageEditorMaskHandlers.mouseout);
+            tagged.off('mouseover', tagged.imageEditorMaskHandlers.mouseover);
+            tagged.off('mouseout', tagged.imageEditorMaskHandlers.mouseout);
         }
         catch {
         }
-        delete tagged.__imageEditorMaskHandlers;
+        delete tagged.imageEditorMaskHandlers;
     }
     const patch = {};
     if (!Number.isFinite(Number(tagged.originalAlpha))) {
@@ -83,20 +83,20 @@ export function reattachMaskHoverHandlers(mask) {
 }
 export function detachMaskHoverHandlers(mask) {
     const tagged = mask;
-    if (!tagged.__imageEditorMaskHandlers)
+    if (!tagged.imageEditorMaskHandlers)
         return;
     try {
-        tagged.off('mouseover', tagged.__imageEditorMaskHandlers.mouseover);
-        tagged.off('mouseout', tagged.__imageEditorMaskHandlers.mouseout);
+        tagged.off('mouseover', tagged.imageEditorMaskHandlers.mouseover);
+        tagged.off('mouseout', tagged.imageEditorMaskHandlers.mouseout);
     }
     catch {
     }
-    delete tagged.__imageEditorMaskHandlers;
+    delete tagged.imageEditorMaskHandlers;
 }
 export function captureMaskStyleBackup(mask) {
     var _a, _b, _c, _d, _e, _f, _g;
     return {
-        obj: mask,
+        object: mask,
         opacity: (_a = mask.opacity) !== null && _a !== void 0 ? _a : 1,
         fill: ((_b = mask.fill) !== null && _b !== void 0 ? _b : null),
         strokeWidth: (_c = mask.strokeWidth) !== null && _c !== void 0 ? _c : 0,
@@ -108,7 +108,7 @@ export function captureMaskStyleBackup(mask) {
 }
 export function restoreMaskStyleBackup(backup) {
     try {
-        backup.obj.set({
+        backup.object.set({
             opacity: backup.opacity,
             fill: backup.fill,
             strokeWidth: backup.strokeWidth,
@@ -117,17 +117,17 @@ export function restoreMaskStyleBackup(backup) {
             evented: backup.evented,
             lockRotation: backup.lockRotation,
         });
-        if (typeof backup.obj.setCoords === 'function') {
-            backup.obj.setCoords();
+        if (typeof backup.object.setCoords === 'function') {
+            backup.object.setCoords();
         }
     }
     catch {
     }
 }
-export function withNormalizedMaskStyles(ctx, callback) {
-    if (!ctx.canvas)
+export function withNormalizedMaskStyles(context, callback) {
+    if (!context.canvas)
         return callback();
-    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+    const masks = context.canvas.getObjects().filter(isMaskObject);
     const patches = [];
     try {
         for (const mask of masks) {
@@ -143,7 +143,7 @@ export function withNormalizedMaskStyles(ctx, callback) {
             });
             if (Object.keys(stylePatch).length === 0)
                 continue;
-            patches.push({ obj: mask, snapshot });
+            patches.push({ object: mask, snapshot });
             mask.set(stylePatch);
         }
         return callback();
@@ -151,20 +151,20 @@ export function withNormalizedMaskStyles(ctx, callback) {
     finally {
         for (const patch of patches) {
             try {
-                patch.obj.set(patch.snapshot);
+                patch.object.set(patch.snapshot);
             }
             catch {
             }
         }
     }
 }
-export async function withMaskStyleBackup(ctx, mutator, callback) {
-    if (!ctx.canvas)
+export async function withMaskStyleBackup(context, mutator, callback) {
+    if (!context.canvas)
         return await callback();
-    const masks = ctx.canvas.getObjects().filter(isMaskObject);
+    const masks = context.canvas.getObjects().filter(isMaskObject);
     const backups = masks.map(captureMaskStyleBackup);
     try {
-        masks.forEach((mask, idx) => mutator(mask, idx));
+        masks.forEach((mask, index) => mutator(mask, index));
         return await callback();
     }
     finally {

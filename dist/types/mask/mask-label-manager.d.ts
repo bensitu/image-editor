@@ -1,11 +1,10 @@
 /**
- * @file mask/mask-label-manager.ts
- * @description Per-mask label overlay creation, positioning, show/hide, and
- *              removal. Owns the legacy `_createLabelForMask`, `_syncMaskLabel`,
- *              `_showLabelForMask`, `_hideAllMaskLabels`, and
- *              `_removeLabelForMask` logic that was inlined on the editor
- *              in legacy and is now extracted into pure(ish) helpers that take a
- *              {@link MaskLabelManagerContext}.
+ * Per-mask label overlay creation, positioning, show/hide, and
+ * removal. Owns the legacy `createLabelForMask`, `syncMaskLabel`,
+ * `showLabelForMask`, `hideAllMaskLabels`, and
+ * `removeLabelForMask` logic that was inlined on the editor
+ * in legacy and is now extracted into pure(ish) helpers that take a
+ * {@link MaskLabelManagerContext}.
  *
  * ## Owned contracts
  *
@@ -51,6 +50,8 @@
  *   `originX: 'left'`/`originY: 'top'` via `core/default-options.ts`, but
  *   we set them explicitly here as well so the contract holds even when a
  *   caller bypasses `resolveOptions` (e.g. in unit tests).
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-types.js';
@@ -72,21 +73,21 @@ export interface MaskLabelManagerContext {
 /**
  * Remove the label overlay associated with `mask` (if any).
  *
- * No-op when the canvas is unset or the mask has no `__label`. Each
+ * No-op when the canvas is unset or the mask has no `labelObject`. Each
  * removal step is wrapped in `try/catch` so a stale Fabric reference does
  * not break callers that iterate every mask (e.g. {@link hideAllMaskLabels}
  * or `removeAllMasks`).
  *
  * Steps:
  *
- * 1. If `mask.__label` is present and still on the canvas, remove it.
- * 2. Delete `mask.__label` so subsequent {@link showLabelForMask} calls
+ * 1. If `mask.labelObject` is present and still on the canvas, remove it.
+ * 2. Delete `mask.labelObject` so subsequent {@link showLabelForMask} calls
  *    rebuild it instead of reusing a stale reference.
  *
- * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
- * @param mask The mask whose label overlay should be removed.
+ * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param mask - The mask whose label overlay should be removed.
  */
-export declare function removeLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObject): void;
+export declare function removeLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void;
 /**
  * Create (or recreate) the label overlay for `mask`.
  *
@@ -108,16 +109,16 @@ export declare function removeLabelForMask(ctx: MaskLabelManagerContext, mask: M
  * 5. Attach the label to the mask, add it to the canvas, bring it to the
  *    front, and run an initial {@link syncMaskLabel} to position it.
  *
- * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
- * @param mask The mask the label overlay is being created for.
+ * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param mask - The mask the label overlay is being created for.
  */
-export declare function createLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObject): void;
+export declare function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void;
 /**
  * Re-position the label overlay to track its mask's current bounding box,
  * angle, and visibility.
  *
  * No-op when the canvas is unset, `options.maskLabelOnSelect` is `false`,
- * or the mask has no `__label`. Designed to be called from Fabric event
+ * or the mask has no `labelObject`. Designed to be called from Fabric event
  * handlers (`object:moving`, `object:scaling`, `object:rotating`,
  * `object:modified`) without checking those guards at every call site.
  *
@@ -131,10 +132,10 @@ export declare function createLabelForMask(ctx: MaskLabelManagerContext, mask: M
  * - `originX: 'left'` and `originY: 'top'` are re-asserted on every sync
  *   to.
  *
- * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
- * @param mask The mask whose label should be repositioned.
+ * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param mask - The mask whose label should be repositioned.
  */
-export declare function syncMaskLabel(ctx: MaskLabelManagerContext, mask: MaskObject): void;
+export declare function syncMaskLabel(context: MaskLabelManagerContext, mask: MaskObject): void;
 /**
  * Ensure the label for `mask` is present and visible.
  *
@@ -143,13 +144,13 @@ export declare function syncMaskLabel(ctx: MaskLabelManagerContext, mask: MaskOb
  * `visible` to `true` and re-syncs the position. Used by the orchestrator's
  * selection handler when a single mask becomes the active object.
  *
- * @param ctx  Orchestration context — see {@link MaskLabelManagerContext}.
- * @param mask The mask whose label should be shown.
+ * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param mask - The mask whose label should be shown.
  */
-export declare function showLabelForMask(ctx: MaskLabelManagerContext, mask: MaskObject): void;
+export declare function showLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void;
 /**
  * Remove every label overlay currently on the canvas and detach the
- * `__label` reference from every mask.
+ * `labelObject` reference from every mask.
  *
  * Called by the orchestrator before serialization (`saveState`) and
  * after `loadFromJSON`-driven restores so that label objects — which
@@ -160,11 +161,11 @@ export declare function showLabelForMask(ctx: MaskLabelManagerContext, mask: Mas
  * 1. Remove every object flagged with `maskLabel === true` from the
  *    canvas. Each removal is wrapped in `try/catch` so a stale Fabric
  *    reference does not break the loop.
- * 2. Delete `__label` from every mask object so a subsequent
+ * 2. Delete `labelObject` from every mask object so a subsequent
  *    {@link showLabelForMask} rebuilds the label rather than reusing a
  *    detached reference.
  *
- * @param ctx Orchestration context — see {@link MaskLabelManagerContext}.
+ * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
  */
-export declare function hideAllMaskLabels(ctx: MaskLabelManagerContext): void;
+export declare function hideAllMaskLabels(context: MaskLabelManagerContext): void;
 //# sourceMappingURL=mask-label-manager.d.ts.map

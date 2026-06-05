@@ -1,6 +1,4 @@
 /**
- * @file package-shape.test.mjs
- *
  * Type:
  *   Smoke test
  *

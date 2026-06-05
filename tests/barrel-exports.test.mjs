@@ -1,6 +1,4 @@
 /**
- * @file barrel-exports.test.mjs
- *
  * Type:
  *   Smoke test
  *

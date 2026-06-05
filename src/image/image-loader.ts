@@ -1,16 +1,15 @@
 /**
- * @file image/image-loader.ts
- * @description Transactional `loadImage` pipeline. Validates the input,
- *              snapshots every field that the pipeline is about to mutate
- *              into a {@link RollbackBundle}, decodes the data URL into an
- *              `HTMLImageElement` under the configured timeout, optionally
- *              downsamples via {@link resampleImage}, awaits
- *              `FabricImage.fromURL` under the same timeout, applies the
- *              layout strategy chosen by `image/layout-manager.ts`, commits
- *              the new image to the canvas, and emits a fresh
- *              `_lastSnapshot` via `core/state-serializer.ts`. Any failure
- *              between the snapshot and the commit replays the bundle and
- *              rejects with the original error.
+ * Transactional `loadImage` pipeline. Validates the input,
+ * snapshots every field that the pipeline is about to mutate
+ * into a {@link RollbackBundle}, decodes the data URL into an
+ * `HTMLImageElement` under the configured timeout, optionally
+ * downsamples via {@link resampleImage}, awaits
+ * `FabricImage.fromURL` under the same timeout, applies the
+ * layout strategy chosen by `image/layout-manager.ts`, commits
+ * the new image to the canvas, and emits a fresh
+ * `lastSnapshot` via `core/state-serializer.ts`. Any failure
+ * between the snapshot and the commit replays the bundle and
+ * rejects with the original error.
  *
  * ## Owned contracts
  *
@@ -27,14 +26,14 @@
  * - On a valid `data:image/` URL, the loader captures
  *   the rollback bundle *before* mutating any of the fields it tracks
  *   (placeholder `hidden`, container `scrollTop`/`scrollLeft`, container
- *   inline `overflow`, `originalImage`, `_lastSnapshot`, the canvas JSON
+ *   inline `overflow`, `originalImage`, `lastSnapshot`, the canvas JSON
  *   snapshot, plus the editor transform fields the rollback needs to
  *   restore the live canvas to a consistent state).
  * - Decode, Fabric, downsample, and timeout failures
  *   restore every field captured in the rollback bundle and reject with the
  *   original error.
  * - On success, `isImageLoadedToCanvas` is set to
- *   `true`, `_lastSnapshot` is replaced with a fresh snapshot derived from
+ *   `true`, `lastSnapshot` is replaced with a fresh snapshot derived from
  *   the new canvas, and `maskCounter` is reset to `0`.
  * - Either the new image is committed fully, or the
  *   prior committed state is restored fully. No partial state is observable
@@ -90,6 +89,8 @@
  * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is the canonical owner of the transactional
  * load helpers. It is NOT re-exported from `src/index.ts`.
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -201,16 +202,16 @@ export interface LoadImageContext {
     /** Reads the previously-committed `originalImage`. */
     getOriginalImage(): FabricNS.FabricImage | null;
     /** Writes `originalImage` (used both on commit and on rollback). */
-    setOriginalImage(img: FabricNS.FabricImage | null): void;
+    setOriginalImage(imageObject: FabricNS.FabricImage | null): void;
 
     /** Reads `isImageLoadedToCanvas`. */
     getIsImageLoadedToCanvas(): boolean;
     /** Writes `isImageLoadedToCanvas`. */
     setIsImageLoadedToCanvas(v: boolean): void;
 
-    /** Reads `_lastSnapshot`. */
+    /** Reads `lastSnapshot`. */
     getLastSnapshot(): string | null;
-    /** Writes `_lastSnapshot`. */
+    /** Writes `lastSnapshot`. */
     setLastSnapshot(s: string | null): void;
 
     /** Reads `maskCounter`. */
@@ -271,7 +272,7 @@ export interface LoadImageContext {
  *    apply via {@link applyCanvasDimensions}.
  * 8. **Commit** — set `isImageLoadedToCanvas`,
  *    reset `maskCounter` to 0, reset transforms, and emit a fresh
- *    `_lastSnapshot` via {@link saveState}.
+ *    `lastSnapshot` via {@link saveState}.
  *
  * Any rejection between step 3 and step 8 routes through {@link replayRollback}
  * before re-throwing the original error. On the rollback
@@ -294,9 +295,9 @@ export interface LoadImageContext {
  * helper returns from a committed load. Keeping them outside the loader keeps
  * transactional mutation/rollback separate from facade-level event ordering.
  *
- * @param ctx          Editor dependency bundle.
- * @param imageBase64  Base64 data URL to load (`data:image/...;base64...`).
- * @param loadOptions  Public {@link LoadImageOptions}. Currently only
+ * @param context - Editor dependency bundle.
+ * @param imageBase64 - Base64 data URL to load (`data:image/...;base64...`).
+ * @param loadOptions - Public {@link LoadImageOptions}. Currently only
  *                     `preserveScroll` is consulted; defaults to `false`.
  * @returns Resolved promise on success, rejected with the original error
  *          (after rollback) on failure. Non-data:image inputs resolve
@@ -304,7 +305,7 @@ export interface LoadImageContext {
  *
  */
 export async function loadImage(
-    ctx: LoadImageContext,
+    context: LoadImageContext,
     imageBase64: string,
     loadOptions: LoadImageOptions = {},
 ): Promise<void> {
@@ -318,40 +319,46 @@ export async function loadImage(
     //    mutation. Reads `style.overflow` (NOT computed style) so the
     //    rollback restores the developer's inline value verbatim
     //    (never invent a new inline style).
-    const placeholderHidden = ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
-    const containerScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
-    const containerScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
-    const containerOverflow = ctx.containerElement ? ctx.containerElement.style.overflow : null;
+    const placeholderHidden = context.placeholderElement
+        ? !!context.placeholderElement.hidden
+        : null;
+    const containerScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
+    const containerScrollLeft = context.containerElement
+        ? context.containerElement.scrollLeft
+        : null;
+    const containerOverflow = context.containerElement
+        ? context.containerElement.style.overflow
+        : null;
 
     const bundle: RollbackBundle = {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
         containerOverflow,
-        originalImage: ctx.getOriginalImage(),
-        isImageLoadedToCanvas: ctx.getIsImageLoadedToCanvas(),
-        lastSnapshot: ctx.getLastSnapshot(),
-        canvasJson: serializeCanvas(ctx.canvas),
-        maskCounter: ctx.getMaskCounter(),
-        currentScale: ctx.getCurrentScale(),
-        currentRotation: ctx.getCurrentRotation(),
-        baseImageScale: ctx.getBaseImageScale(),
-        currentImageMimeType: ctx.getCurrentImageMimeType(),
+        originalImage: context.getOriginalImage(),
+        isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
+        lastSnapshot: context.getLastSnapshot(),
+        canvasJson: serializeCanvas(context.canvas),
+        maskCounter: context.getMaskCounter(),
+        currentScale: context.getCurrentScale(),
+        currentRotation: context.getCurrentRotation(),
+        baseImageScale: context.getBaseImageScale(),
+        currentImageMimeType: context.getCurrentImageMimeType(),
     };
 
     try {
         // 3. First mutation — hide the placeholder via the visibility
         //    helper. The bundle holds the prior value so rollback can
         //    restore it.
-        ctx.setPlaceholderVisible(false);
+        context.setPlaceholderVisible(false);
 
         // 4. decode under the configured timeout.
         const decode = startImageDecode(imageBase64);
-        let imgEl: HTMLImageElement;
+        let imageElement: HTMLImageElement;
         try {
-            imgEl = await withTimeout(
+            imageElement = await withTimeout(
                 decode.promise,
-                ctx.options.imageLoadTimeoutMs,
+                context.options.imageLoadTimeoutMs,
                 'image decode',
             );
         } catch (error) {
@@ -363,14 +370,14 @@ export async function loadImage(
         //    throws DownsampleError when the offscreen canvas cannot get
         //    a 2D context; the surrounding catch routes that through the
         //    rollback path.
-        const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
+        const loadSource = maybeDownsample(imageElement, imageBase64, context.options);
 
         // 6. Fabric image creation under the same
         //    timeout. Cross-origin is requested so canvases stay
         //    untainted for export.
-        const fimg = await withTimeout(
-            ctx.fabric.FabricImage.fromURL(loadSrc.dataUrl, { crossOrigin: 'anonymous' }),
-            ctx.options.imageLoadTimeoutMs,
+        const fabricImage = await withTimeout(
+            context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }),
+            context.options.imageLoadTimeoutMs,
             'FabricImage.fromURL',
         );
 
@@ -379,52 +386,52 @@ export async function loadImage(
         //    into the new state, then clear the canvas, then add the
         //    image. Background color is reapplied because `clear`
         //    drops it.
-        ctx.canvas.discardActiveObject();
-        ctx.canvas.clear();
-        ctx.canvas.backgroundColor = ctx.options.backgroundColor;
+        context.canvas.discardActiveObject();
+        context.canvas.clear();
+        context.canvas.backgroundColor = context.options.backgroundColor;
 
-        fimg.set({
+        fabricImage.set({
             originX: 'left',
             originY: 'top',
             selectable: false,
             evented: false,
         });
 
-        const layout = computeLayout(ctx, fimg);
+        const layout = computeLayout(context, fabricImage);
         applyCanvasDimensions(
-            ctx.canvas,
+            context.canvas,
             layout.canvasWidth,
             layout.canvasHeight,
-            ctx.containerElement,
+            context.containerElement,
         );
-        fimg.set({ left: layout.imageLeft, top: layout.imageTop });
-        fimg.scale(layout.imageScale);
+        fabricImage.set({ left: layout.imageLeft, top: layout.imageTop });
+        fabricImage.scale(layout.imageScale);
 
-        ctx.canvas.add(fimg);
-        ctx.canvas.sendObjectToBack(fimg);
+        context.canvas.add(fabricImage);
+        context.canvas.sendObjectToBack(fabricImage);
 
         // 8. commit editor scalar state.
-        ctx.setOriginalImage(fimg);
-        ctx.setBaseImageScale(layout.baseImageScale);
-        ctx.setCurrentScale(1);
-        ctx.setCurrentRotation(0);
-        ctx.setMaskCounter(0);
-        ctx.setIsImageLoadedToCanvas(true);
-        ctx.setCurrentImageMimeType(loadSrc.mimeType);
+        context.setOriginalImage(fabricImage);
+        context.setBaseImageScale(layout.baseImageScale);
+        context.setCurrentScale(1);
+        context.setCurrentRotation(0);
+        context.setMaskCounter(0);
+        context.setIsImageLoadedToCanvas(true);
+        context.setCurrentImageMimeType(loadSource.mimeType);
 
-        ctx.canvas.renderAll();
+        context.canvas.renderAll();
 
-        // emit a fresh `_lastSnapshot` derived from
+        // emit a fresh `lastSnapshot` derived from
         // the new canvas state. `saveState` discards any active
         // selection (already done above) and embeds `_editorState` so
         // the next undo has a correct "before" pointer.
-        ctx.setLastSnapshot(
+        context.setLastSnapshot(
             saveState({
-                canvas: ctx.canvas,
+                canvas: context.canvas,
                 currentScale: 1,
                 currentRotation: 0,
                 baseImageScale: layout.baseImageScale,
-                currentImageMimeType: loadSrc.mimeType,
+                currentImageMimeType: loadSource.mimeType,
             }),
         );
 
@@ -437,13 +444,13 @@ export async function loadImage(
         // `false`, the scroll position is intentionally left untouched
         // so legacy's documented scroll/viewport behavior for the selected
         // layout mode applies.
-        if (loadOptions.preserveScroll === true && ctx.containerElement) {
+        if (loadOptions.preserveScroll === true && context.containerElement) {
             try {
                 if (bundle.containerScrollTop !== null) {
-                    ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                    context.containerElement.scrollTop = bundle.containerScrollTop;
                 }
                 if (bundle.containerScrollLeft !== null) {
-                    ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                    context.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             } catch (error) {
                 console.warn('[ImageEditor] preserveScroll restore failed', error);
@@ -457,7 +464,7 @@ export async function loadImage(
         // replay the bundle and reject with the
         // original error. Failures inside the rollback itself are
         // logged but do NOT mask the original error.
-        await replayRollback(ctx, bundle);
+        await replayRollback(context, bundle);
 
         // route the original error through the public
         // `onError(error, message)` callback. `reportError` catches and
@@ -468,7 +475,7 @@ export async function loadImage(
         // (atomic rewind).
         const errorMessage =
             error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
-        reportError(ctx.options, error, errorMessage);
+        reportError(context.options, error, errorMessage);
 
         throw error;
     }
@@ -487,22 +494,22 @@ interface ImageDecodeHandle {
 }
 
 function startImageDecode(dataUrl: string): ImageDecodeHandle {
-    const img = new Image();
+    const imageElement = new Image();
     const cleanup = (clearSource = false): void => {
-        if (typeof img.removeEventListener === 'function') {
-            img.removeEventListener('load', handleLoad);
-            img.removeEventListener('error', handleError);
+        if (typeof imageElement.removeEventListener === 'function') {
+            imageElement.removeEventListener('load', handleLoad);
+            imageElement.removeEventListener('error', handleError);
         } else {
-            img.onload = null;
-            img.onerror = null;
+            imageElement.onload = null;
+            imageElement.onerror = null;
         }
         if (clearSource) {
-            img.src = '';
+            imageElement.src = '';
         }
     };
 
     const handleLoad = (): void => {
-        if (!hasNaturalImageDimensions(img)) {
+        if (!hasNaturalImageDimensions(imageElement)) {
             cleanup(true);
             rejectImage(
                 new ImageDecodeError(
@@ -513,37 +520,37 @@ function startImageDecode(dataUrl: string): ImageDecodeHandle {
             return;
         }
         cleanup(false);
-        resolveImage(img);
+        resolveImage(imageElement);
     };
     const handleError = (e: Event | string): void => {
         cleanup(true);
         rejectImage(new ImageDecodeError('Failed to decode image data URL.', e));
     };
-    let resolveImage!: (img: HTMLImageElement) => void;
+    let resolveImage!: (imageElement: HTMLImageElement) => void;
     let rejectImage!: (error: Error) => void;
 
     const promise = new Promise<HTMLImageElement>((resolve, reject) => {
         resolveImage = resolve;
         rejectImage = reject;
-        if (typeof img.addEventListener === 'function') {
-            img.addEventListener('load', handleLoad, { once: true });
-            img.addEventListener('error', handleError, { once: true });
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
         } else {
-            img.onload = handleLoad;
-            img.onerror = handleError;
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
         }
-        img.src = dataUrl;
+        imageElement.src = dataUrl;
     });
 
     return { promise, cleanup };
 }
 
-function hasNaturalImageDimensions(img: HTMLImageElement): boolean {
+function hasNaturalImageDimensions(imageElement: HTMLImageElement): boolean {
     return (
-        Number.isFinite(img.naturalWidth) &&
-        Number.isFinite(img.naturalHeight) &&
-        img.naturalWidth > 0 &&
-        img.naturalHeight > 0
+        Number.isFinite(imageElement.naturalWidth) &&
+        Number.isFinite(imageElement.naturalHeight) &&
+        imageElement.naturalWidth > 0 &&
+        imageElement.naturalHeight > 0
     );
 }
 
@@ -566,7 +573,7 @@ function toSupportedImageMimeType(mimeType: string | null): ImageMimeType | null
  * propagate to the caller's catch.
  */
 function maybeDownsample(
-    imgEl: HTMLImageElement,
+    imageElement: HTMLImageElement,
     originalDataUrl: string,
     options: ResolvedOptions,
 ): { dataUrl: string; mimeType: ImageMimeType | null } {
@@ -587,17 +594,19 @@ function maybeDownsample(
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
 
-    const dims = computeDownsampleDimensions(
-        imgEl.naturalWidth,
-        imgEl.naturalHeight,
+    const downsampleDimensions = computeDownsampleDimensions(
+        imageElement.naturalWidth,
+        imageElement.naturalHeight,
         options.downsampleMaxWidth,
         options.downsampleMaxHeight,
     );
-    if (!dims.needsResize) return { dataUrl: originalDataUrl, mimeType: originalMimeType };
+    if (!downsampleDimensions.needsResize) {
+        return { dataUrl: originalDataUrl, mimeType: originalMimeType };
+    }
 
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    const result = resampleImage(
-        imgEl,
+    const resampledImage = resampleImage(
+        imageElement,
         options.downsampleMaxWidth,
         options.downsampleMaxHeight,
         sourceMime,
@@ -605,10 +614,10 @@ function maybeDownsample(
         options.downsampleMimeType,
         options.downsampleQuality,
     );
-    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(result.dataUrl));
+    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(resampledImage.dataUrl));
     return {
-        dataUrl: result.dataUrl,
-        mimeType: actualMimeType ?? result.mimeType,
+        dataUrl: resampledImage.dataUrl,
+        mimeType: actualMimeType ?? resampledImage.mimeType,
     };
 }
 
@@ -617,44 +626,44 @@ function maybeDownsample(
  * {@link selectLayoutStrategy} and the per-strategy computers in
  * `image/layout-manager.ts`.
  */
-function computeLayout(ctx: LoadImageContext, fimg: FabricNS.FabricImage): LayoutResult {
-    const imgW = fimg.width ?? 0;
-    const imgH = fimg.height ?? 0;
-    const scrollbarSize = measureScrollbarSize(ctx.containerElement?.ownerDocument ?? null);
-    const viewport = ctx.viewportCache.measure(
-        ctx.containerElement,
+function computeLayout(context: LoadImageContext, fabricImage: FabricNS.FabricImage): LayoutResult {
+    const imageWidth = fabricImage.width ?? 0;
+    const imageHeight = fabricImage.height ?? 0;
+    const scrollbarSize = measureScrollbarSize(context.containerElement?.ownerDocument ?? null);
+    const viewport = context.viewportCache.measure(
+        context.containerElement,
         {
-            width: ctx.options.canvasWidth,
-            height: ctx.options.canvasHeight,
+            width: context.options.canvasWidth,
+            height: context.options.canvasHeight,
         },
         scrollbarSize,
     );
 
-    const strategy = selectLayoutStrategy(ctx.options);
+    const strategy = selectLayoutStrategy(context.options);
     if (strategy === 'fit') {
         return computeFitLayout(
-            imgW,
-            imgH,
-            ctx.options.canvasWidth,
-            ctx.options.canvasHeight,
+            imageWidth,
+            imageHeight,
+            context.options.canvasWidth,
+            context.options.canvasHeight,
             viewport,
         );
     }
     if (strategy === 'cover') {
         return computeCoverLayout(
-            imgW,
-            imgH,
-            ctx.options.canvasWidth,
-            ctx.options.canvasHeight,
+            imageWidth,
+            imageHeight,
+            context.options.canvasWidth,
+            context.options.canvasHeight,
             viewport,
             scrollbarSize,
         );
     }
     return computeExpandLayout(
-        imgW,
-        imgH,
-        ctx.options.canvasWidth,
-        ctx.options.canvasHeight,
+        imageWidth,
+        imageHeight,
+        context.options.canvasWidth,
+        context.options.canvasHeight,
         viewport,
     );
 }
@@ -680,15 +689,15 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
  * Replay the rollback bundle in the documented reverse-of-capture order.
  *
  * Errors thrown during the rollback itself are logged via `console.warn`
- * and swallowed: the loader must always reject with the *original* error
- *, so a defective rollback cannot mask the cause.
+ * and swallowed: the loader must always reject with the *original* error,
+ * so a defective rollback cannot mask the cause.
  */
-async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Promise<void> {
+async function replayRollback(context: LoadImageContext, bundle: RollbackBundle): Promise<void> {
     // 1. Restore container `overflow` inline value first so subsequent
     //    DOM reads (scroll metrics, layout) see the developer's CSS.
-    if (ctx.containerElement && bundle.containerOverflow !== null) {
+    if (context.containerElement && bundle.containerOverflow !== null) {
         try {
-            ctx.containerElement.style.overflow = bundle.containerOverflow;
+            context.containerElement.style.overflow = bundle.containerOverflow;
         } catch (rollbackError) {
             console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
         }
@@ -700,11 +709,11 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
     //    surfacing the original error.
     try {
         await (
-            ctx.canvas as unknown as {
+            context.canvas as unknown as {
                 loadFromJSON(json: unknown): Promise<FabricNS.Canvas>;
             }
         ).loadFromJSON(JSON.parse(bundle.canvasJson));
-        ctx.canvas.renderAll();
+        context.canvas.renderAll();
     } catch (rollbackError) {
         console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
@@ -712,26 +721,26 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
     // 3. Restore editor scalar state. Done after the canvas restore so
     //    handlers reading these fields during render see the rolled-back
     //    values.
-    ctx.setOriginalImage(bundle.originalImage);
-    ctx.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
-    ctx.setLastSnapshot(bundle.lastSnapshot);
-    ctx.setMaskCounter(bundle.maskCounter);
-    ctx.setCurrentScale(bundle.currentScale);
-    ctx.setCurrentRotation(bundle.currentRotation);
-    ctx.setBaseImageScale(bundle.baseImageScale);
-    ctx.setCurrentImageMimeType(bundle.currentImageMimeType);
+    context.setOriginalImage(bundle.originalImage);
+    context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
+    context.setLastSnapshot(bundle.lastSnapshot);
+    context.setMaskCounter(bundle.maskCounter);
+    context.setCurrentScale(bundle.currentScale);
+    context.setCurrentRotation(bundle.currentRotation);
+    context.setBaseImageScale(bundle.baseImageScale);
+    context.setCurrentImageMimeType(bundle.currentImageMimeType);
 
     // 4. Restore container scroll. After `loadFromJSON` Fabric may have
     //    resized the canvas, which itself can mutate scroll metrics on
     //    the container; restoring scroll last guarantees the captured
     //    values stick (will rely on the same ordering).
-    if (ctx.containerElement) {
+    if (context.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
-                ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                context.containerElement.scrollTop = bundle.containerScrollTop;
             }
             if (bundle.containerScrollLeft !== null) {
-                ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                context.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         } catch (rollbackError) {
             console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
@@ -745,6 +754,6 @@ async function replayRollback(ctx: LoadImageContext, bundle: RollbackBundle): Pr
         // perspective: `show === true` means the placeholder is visible.
         // The bundle stored `placeholderElement.hidden`, so the desired `show`
         // is the inverse.
-        ctx.setPlaceholderVisible(!bundle.placeholderHidden);
+        context.setPlaceholderVisible(!bundle.placeholderHidden);
     }
 }

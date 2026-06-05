@@ -1,6 +1,4 @@
 /**
- * @file fit-sizing.property.test.mjs
- *
  * Type:
  *   Property test
  *

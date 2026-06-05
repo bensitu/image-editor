@@ -1,6 +1,4 @@
 /**
- * @file number-utils.property.test.mjs
- *
  * Type:
  *   Property test
  *

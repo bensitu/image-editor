@@ -78,10 +78,15 @@ export function getPartialExportEdges(bounds, angle = 0) {
         bottom: hasFractionalCanvasEdge(top + (Number(bounds.height) || 0)),
     };
 }
-export function getObjectBBox(obj) {
-    obj.setCoords();
-    const br = obj.getBoundingRect();
-    return { left: br.left, top: br.top, width: br.width, height: br.height };
+export function getObjectBBox(object) {
+    object.setCoords();
+    const boundingRect = object.getBoundingRect();
+    return {
+        left: boundingRect.left,
+        top: boundingRect.top,
+        width: boundingRect.width,
+        height: boundingRect.height,
+    };
 }
 export function clampRegionToCanvas(region, canvasWidth, canvasHeight) {
     const safeCw = Math.max(1, Math.floor(Number.isFinite(canvasWidth) ? canvasWidth : 1));

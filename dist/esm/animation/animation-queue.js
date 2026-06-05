@@ -15,9 +15,9 @@ export class AnimationQueue {
     }
     add(animationFn) {
         return new Promise((resolve, reject) => {
-            this.queue.push({ fn: animationFn, resolve, reject });
+            this.queue.push({ run: animationFn, resolve, reject });
             if (!this.running) {
-                void this._process();
+                void this.drainQueue();
             }
         });
     }
@@ -47,7 +47,7 @@ export class AnimationQueue {
         }
         return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
     }
-    async _process() {
+    async drainQueue() {
         if (this.queue.length === 0) {
             this.running = false;
             return;
@@ -55,13 +55,13 @@ export class AnimationQueue {
         this.running = true;
         const entry = this.queue.shift();
         try {
-            await entry.fn();
+            await entry.run();
             entry.resolve();
         }
         catch (error) {
             entry.reject(error);
         }
-        void this._process();
+        void this.drainQueue();
     }
 }
 //# sourceMappingURL=animation-queue.js.map

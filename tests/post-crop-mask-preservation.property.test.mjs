@@ -1,6 +1,4 @@
 /**
- * @file post-crop-mask-preservation.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -64,7 +62,7 @@ const { attachMaskHoverHandlers } = await import('../src/mask/mask-style.ts');
 class MockCropRect {
     constructor(props) {
         Object.assign(this, props);
-        this._handlers = [];
+        this.handlers = [];
     }
     set(patch) {
         Object.assign(this, patch);
@@ -73,10 +71,10 @@ class MockCropRect {
     setCoords() {}
     setControlVisible() {}
     on(event, fn) {
-        this._handlers.push({ event, fn, detached: false });
+        this.handlers.push({ event, fn, detached: false });
     }
     off(event, fn) {
-        for (const rec of this._handlers) {
+        for (const rec of this.handlers) {
             if (!rec.detached && rec.event === event && rec.fn === fn) {
                 rec.detached = true;
             }
@@ -112,47 +110,47 @@ class MockCropRect {
  */
 class MockCanvas {
     constructor({ width = 800, height = 600 } = {}) {
-        this._width = width;
-        this._height = height;
-        this._objects = [];
-        this._selection = true;
+        this.width = width;
+        this.height = height;
+        this.objects = [];
+        this.isSelectionEnabled = true;
     }
 
     get selection() {
-        return this._selection;
+        return this.isSelectionEnabled;
     }
     set selection(v) {
-        this._selection = v;
+        this.isSelectionEnabled = v;
     }
 
     discardActiveObject() {
         return this;
     }
     getObjects() {
-        return [...this._objects];
+        return [...this.objects];
     }
     add(obj) {
-        this._objects.push(obj);
+        this.objects.push(obj);
     }
     remove(obj) {
-        const i = this._objects.indexOf(obj);
-        if (i >= 0) this._objects.splice(i, 1);
+        const i = this.objects.indexOf(obj);
+        if (i >= 0) this.objects.splice(i, 1);
     }
     bringObjectToFront(obj) {
-        const i = this._objects.indexOf(obj);
+        const i = this.objects.indexOf(obj);
         if (i >= 0) {
-            this._objects.splice(i, 1);
-            this._objects.push(obj);
+            this.objects.splice(i, 1);
+            this.objects.push(obj);
         }
     }
     setActiveObject() {
         return this;
     }
     getWidth() {
-        return this._width;
+        return this.width;
     }
     getHeight() {
-        return this._height;
+        return this.height;
     }
     renderAll() {}
     requestRenderAll() {}
@@ -160,7 +158,7 @@ class MockCanvas {
         return 'data:image/jpeg;base64,STUB';
     }
     clear() {
-        this._objects = [];
+        this.objects = [];
     }
 }
 
@@ -321,7 +319,7 @@ function makeContext({
     hideMasksDuringCrop = false,
 }) {
     const canvas = new MockCanvas({ width: canvasWidth, height: canvasHeight });
-    for (const mask of masks) canvas._objects.push(mask);
+    for (const mask of masks) canvas.objects.push(mask);
 
     const originalImage = makeOriginalImage({
         imageAngle,
@@ -632,20 +630,20 @@ test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's le
                         continue;
                     }
 
-                    // 31.4 — the surviving mask is on the post-crop
-                    // canvas. The reapply pass re-adds the captured
-                    // mask reference verbatim (`canvas.add(record.mask)`),
-                    // so identity equality is the right comparison.
+                    // Intersecting masks must survive on the post-crop
+                    // canvas. The reapply pass re-adds the captured mask
+                    // reference verbatim (`canvas.add(record.mask)`), so
+                    // identity equality is the right comparison.
                     assert.ok(
                         surviving.includes(mask),
                         `the documented contract: mask[${i}] (maskId=${mask.maskId}) intersects cropRegion={left:${cropRegion.left},top:${cropRegion.top},w:${cropRegion.width},h:${cropRegion.height}} and MUST survive on the post-crop canvas`,
                     );
 
-                    // 31.4, 32.1 — `left` / `top` shifted by
-                    // `-cropRegion.left, -cropRegion.top`. The shift
-                    // is angle-independent: the property iterates
-                    // `imageAngle` across a wide range and asserts the
-                    // same offsets for every angle.
+                    // `left` / `top` are shifted by
+                    // `-cropRegion.left, -cropRegion.top`. The shift is
+                    // angle-independent: the property iterates `imageAngle`
+                    // across a wide range and asserts the same offsets for
+                    // every angle.
                     assert.equal(
                         mask.left,
                         pre.left - cropRegion.left,
@@ -657,9 +655,9 @@ test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's le
                         `the documented contract: mask[${i}].top must equal pre.top (${pre.top}) - cropRegion.top (${cropRegion.top}); got ${mask.top} at imageAngle=${imageAngle}`,
                     );
 
-                    // 32.2 — angle, scaleX, scaleY preserved verbatim
-                    // so the visible mask shape does not change size
-                    // or orientation. `Object.is` matches NaN to NaN
+                    // `angle`, `scaleX`, and `scaleY` are preserved
+                    // verbatim so the visible mask shape does not change
+                    // size or orientation. `Object.is` matches NaN to NaN
                     // and distinguishes `+0` / `-0`; the arbitraries
                     // never produce NaN (`noNaN: true`) so a strict
                     // equality is sufficient here.
@@ -855,7 +853,7 @@ test('applyCrop with preserveMasksAfterCrop=true does not duplicate mask hover h
 
     assert.equal(mask.__listeners.mouseover.length, 1);
     assert.equal(mask.__listeners.mouseout.length, 1);
-    assert.ok(mask.__imageEditorMaskHandlers, 'hover handler tag must remain valid');
+    assert.ok(mask.imageEditorMaskHandlers, 'hover handler tag must remain valid');
 });
 
 test('applyCrop rejects an empty crop region instead of exporting a silent 1x1 image', async () => {

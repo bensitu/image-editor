@@ -1,9 +1,8 @@
 /**
- * @file mask/mask-list.ts
- * @description Mask list DOM rendering — owns the legacy `_updateMaskList` and
- *              `_handleMaskListClick` logic that was inlined on the editor in
- *              legacy and is now extracted into pure(ish) helpers that take a
- *              {@link MaskListContext}.
+ * Mask list DOM rendering — owns the legacy `updateMaskList` and
+ * `_handleMaskListClick` logic that was inlined on the editor in
+ * legacy and is now extracted into pure(ish) helpers that take a
+ * {@link MaskListContext}.
  *
  * ## Owned contracts
  *
@@ -53,6 +52,8 @@
  *   already fire often enough that an incremental diff is not justified.
  *   `innerHTML = ''` also detaches every prior `onclick` handler we attached
  *   below, so there is no need to track listeners separately.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { MaskObject } from '../core/public-types.js';
@@ -97,7 +98,7 @@ export interface MaskListContext {
  *
  * Steps:
  *
- * 1. Resolve the list element via `ctx.getListElementId`. Bail out if
+ * 1. Resolve the list element via `context.getListElementId`. Bail out if
  *    missing.
  * 2. Clear the container with `innerHTML = ''`. This also detaches every
  *    `onclick` handler attached on the previous render, so there is no
@@ -110,22 +111,21 @@ export interface MaskListContext {
  *        owned by `mask/mask-label-manager.ts`; this list shows the same
  *        identifier);
  *      - `dataset.maskId` set to `String(mask.maskId)` so the click
- *        handler and tests can key off a stable identifier
- *;
+ *        handler and tests can key off a stable identifier;
  *      - an `onclick` handler that looks up the mask by `maskId` —
- *        regardless of the item's current position in the list
- * — calls `setActiveObject` on the canvas, and
- *        forwards to `ctx.onMaskSelected(mask)` so the orchestrator's
+ *        regardless of the item's current position in the list — calls
+ *        `setActiveObject` on the canvas, and
+ *        forwards to `context.onMaskSelected(mask)` so the orchestrator's
  *        selection-changed pipeline runs.
  *
- * @param ctx Orchestration context — see {@link MaskListContext}.
+ * @param context - Orchestration context — see {@link MaskListContext}.
  */
-export declare function renderMaskList(ctx: MaskListContext): void;
+export declare function renderMaskList(context: MaskListContext): void;
 /**
  * Toggle the `active` CSS class on every `<li class="mask-item">` so the
  * one whose `data-mask-id` matches `selectedMask.maskId` is highlighted.
  *
- * Matches legacy's `_updateMaskListSelection` behavior except that selection is
+ * Matches legacy's `updateMaskListSelection` behavior except that selection is
  * keyed off `data-mask-id` instead of the list-item text content. legacy used
  * the visible name (`textContent === selectedMask.maskName`), which broke
  * when an integrator overrode `options.label.getText` to render anything
@@ -136,9 +136,9 @@ export declare function renderMaskList(ctx: MaskListContext): void;
  * No-op when the integrator did not supply a `maskList` element ID or the
  * configured element does not exist in the document.
  *
- * @param ctx           Orchestration context — see {@link MaskListContext}.
- * @param selectedMask  The currently selected mask, or `null` to clear the
+ * @param context - Orchestration context — see {@link MaskListContext}.
+ * @param selectedMask - The currently selected mask, or `null` to clear the
  *                      highlight.
  */
-export declare function updateMaskListSelection(ctx: MaskListContext, selectedMask: MaskObject | null): void;
+export declare function updateMaskListSelection(context: MaskListContext, selectedMask: MaskObject | null): void;
 //# sourceMappingURL=mask-list.d.ts.map

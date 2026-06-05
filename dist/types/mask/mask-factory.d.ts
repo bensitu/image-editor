@@ -1,13 +1,12 @@
 /**
- * @file mask/mask-factory.ts
- * @description Function-based mask creation entry point used by the
- *              `ImageEditor` orchestrator.
+ * Function-based mask creation entry point used by the
+ * `ImageEditor` orchestrator.
  *
  * ## Owned contracts
  *
  * - On a successful `createMask`, the editor SHALL
  *   increment `maskCounter` and assign the result to `mask.maskId`. Counter
- *   bookkeeping flows through `ctx.getMaskCounter` / `ctx.setMaskCounter` so
+ *   bookkeeping flows through `context.getMaskCounter` / `context.setMaskCounter` so
  *   the orchestrator retains ownership of the field across loadImage and
  *   loadFromState (which reset / restore the counter).
  * - Together with `core/state-serializer.ts`, mask IDs
@@ -41,7 +40,7 @@
  *   constructs the polygon without `left`/`top`, reads the resulting
  *   bounding rect, and shifts the object by the delta so the rendered
  *   bounding box top-left matches the requested coordinate.
- * - Polygon points may be supplied as `{ x, y}`
+ * - Polygon points may be supplied as `{ x, y }`
  *   objects or `[x, y]` tuples; both forms are normalized via
  *   `coercePoint` from `utils/number.ts` before reaching Fabric.
  *
@@ -53,7 +52,7 @@
  * - `removeAllMasks` is operation-guard-rejected
  *   while `isAnimating` is `true`. The guard lives on the orchestrator;
  *   this module is only invoked after the guard has cleared.
- * - `removeAllMasks` clears `_lastMask` to `null`,
+ * - `removeAllMasks` clears `lastMask` to `null`,
  *   so subsequent `createMask` calls cannot auto-place relative to a
  *   removed reference and `maskId` uniqueness is preserved across mixed
  *   `createMask` / `removeAllMasks` / `undo` / `redo` sequences.
@@ -65,14 +64,16 @@
  * ## Design notes
  *
  * - The orchestrator owns the editor-level state (`maskCounter`,
- *   `_lastMask`, the canvas, `saveState`, `_updateMaskList`). The factory
+ *   `lastMask`, the canvas, `saveState`, `updateMaskList`). The factory
  *   reads/writes those slots through getter/setter callbacks supplied in
  *   {@link CreateMaskContext} so this module is independent of the
  *   `ImageEditor` class shape.
  * - `expandCanvasIfNeeded` is optional. The orchestrator may supply it to
- *   route through `_setCanvasSizeInt` (which forces a synchronous reflow on
+ *   route through `setCanvasSizePx` (which forces a synchronous reflow on
  *   the scroll container, see `image-editor.ts`). When absent, the factory
  *   falls back to the public Fabric API `canvas.setDimensions`.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { FabricModule, MaskConfig, MaskObject, RemoveAllMasksOptions, ResolvedOptions } from '../core/public-types.js';
@@ -82,7 +83,7 @@ import type { FabricModule, MaskConfig, MaskObject, RemoveAllMasksOptions, Resol
  *
  * The factory does NOT own any of these slots — it only reads and updates
  * them through the supplied accessors so ownership of `maskCounter`,
- * `_lastMask`, history snapshots, and the mask list DOM stays on the editor.
+ * `lastMask`, history snapshots, and the mask list DOM stays on the editor.
  */
 export interface CreateMaskContext {
     /** Injected Fabric.js v7 module used to construct the shape. */
@@ -105,7 +106,7 @@ export interface CreateMaskContext {
      * Optional canvas resize hook used when `options.expandCanvasToImage` is
      * `true` and the placed mask would extend past the current canvas size.
      * If omitted, the factory calls `canvas.setDimensions` directly. The
-     * orchestrator typically passes `_setCanvasSizeInt` here so the scroll
+     * orchestrator typically passes `setCanvasSizePx` here so the scroll
      * container reflows synchronously with the new canvas size.
      */
     expandCanvasIfNeeded?: (width: number, height: number) => void;
@@ -114,12 +115,12 @@ export interface CreateMaskContext {
  * Create a mask via the resolved {@link MaskConfig} and add it to the
  * canvas.
  *
- * Steps (19.5):
+ * Creation steps:
  *
  * 1. Resolve the config: apply defaults, then resolve placement
  *    (`left`/`top`) and dimensions (`width`/`height`/`rx`/`ry`/`radius`)
  *    via {@link resolveNumeric} so percentages and factory functions
- *    collapse to pixel numbers (20.3).
+ *    collapse to pixel numbers before Fabric shape construction.
  * 2. Optionally expand the canvas if the placement would overflow.
  * 3. Build the Fabric shape — switch on `config.shape`, or call
  *    `config.fabricGenerator` if provided.
@@ -135,16 +136,16 @@ export interface CreateMaskContext {
  *    `setActiveObject` (when `selectable !== false`) → `saveCanvasState`
  *    → `config.onCreate(mask, canvas)`.
  *
- * @param ctx    Orchestration context — see {@link CreateMaskContext}.
- * @param config User-supplied mask configuration.
+ * @param context - Orchestration context — see {@link CreateMaskContext}.
+ * @param config - User-supplied mask configuration.
  * @returns      The created mask object, or `null` if the canvas is unset.
  */
-export declare function createMask(ctx: CreateMaskContext, config?: MaskConfig): MaskObject | null;
+export declare function createMask(context: CreateMaskContext, config?: MaskConfig): MaskObject | null;
 /**
  * Orchestration callbacks needed by {@link removeSelectedMask} and
  * {@link removeAllMasks}. The helpers do NOT own any of these slots — they
  * read and update them through the supplied accessors so ownership of the
- * canvas, mask label DOM, mask list DOM, history, and `_lastMask` stays on
+ * canvas, mask label DOM, mask list DOM, history, and `lastMask` stays on
  * the editor.
  */
 export interface RemoveMaskContext {
@@ -160,7 +161,7 @@ export interface RemoveMaskContext {
     /** Push a single history entry for the removal batch. */
     saveCanvasState(): void;
     /**
-     * Reset the orchestrator's `_lastMask` reference. Called with `null`
+     * Reset the orchestrator's `lastMask` reference. Called with `null`
      * when every mask is removed so the next `createMask` does not
      * auto-place relative to a removed mask.
      */
@@ -177,9 +178,9 @@ export interface RemoveMaskContext {
  * 4. Re-render the mask list DOM and the canvas.
  * 5. Push a single history entry via {@link RemoveMaskContext.saveCanvasState}.
  *
- * @param ctx Orchestration context — see {@link RemoveMaskContext}.
+ * @param context - Orchestration context — see {@link RemoveMaskContext}.
  */
-export declare function removeSelectedMask(ctx: RemoveMaskContext): void;
+export declare function removeSelectedMask(context: RemoveMaskContext): void;
 /**
  * Remove all masks (and their label overlays) from the canvas.
  *
@@ -195,14 +196,14 @@ export declare function removeSelectedMask(ctx: RemoveMaskContext): void;
  * 2. For each mask: remove its label overlay, then remove the mask object
  *    from the canvas.
  * 3. Clear the active selection.
- * 4. Reset `_lastMask` to `null` so the next `createMask` does not
+ * 4. Reset `lastMask` to `null` so the next `createMask` does not
  *    auto-place relative to a removed reference.
  * 5. Re-render the mask list DOM and the canvas.
  * 6. Conditionally push a history entry depending on
  *    `options.saveHistory`.
  *
- * @param ctx     Orchestration context — see {@link RemoveMaskContext}.
- * @param options Bulk-removal options. Defaults to `{ saveHistory: true}`.
+ * @param context - Orchestration context — see {@link RemoveMaskContext}.
+ * @param options - Bulk-removal options. Defaults to `{ saveHistory: true}`.
  */
-export declare function removeAllMasks(ctx: RemoveMaskContext, options?: RemoveAllMasksOptions): void;
+export declare function removeAllMasks(context: RemoveMaskContext, options?: RemoveAllMasksOptions): void;
 //# sourceMappingURL=mask-factory.d.ts.map

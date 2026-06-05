@@ -1,8 +1,7 @@
 /**
- * @file dom-bindings.ts
- * @description Managed registry of DOM event listeners owned by the
- *              {@link ImageEditor} facade. Records every listener it adds so
- *              `dispose` can detach them all idempotently.
+ * Managed registry of DOM event listeners owned by the
+ * {@link ImageEditor} facade. Records every listener it adds so
+ * `dispose` can detach them all idempotently.
  *
  * ## Owned contracts
  *
@@ -16,7 +15,7 @@
  *   `try/catch` so a second `dispose` (or a listener that has already been
  *   detached by other means) never throws. `removeAll` is idempotent.
  * - Every bound handler is wrapped so it consults the
- *   editor's `_disposed` flag (via the `isDisposed` callback supplied to the
+ *   editor's `isDisposed` flag (via the `isDisposed` callback supplied to the
  *   constructor) and exits early without touching the canvas while disposed.
  *
  * ## Why this lives in its own module
@@ -27,6 +26,8 @@
  * tests exercise the bindings registry without instantiating a full editor.
  * This module is imported by `image-editor.ts` only and is intentionally not
  * re-exported from `src/index.ts`.
+ *
+ * @module
  */
 import type { ElementIdMap } from '../core/public-types.js';
 /**
@@ -42,7 +43,7 @@ export type ElementKey = keyof Required<ElementIdMap>;
  * animation queue, or the operation guard — it only knows how to look up an
  * element ID for a key and how to add/remove a listener. Disposed-state
  * awareness comes in via the `isDisposed` callback so the guard can stay the
- * single source of truth for the `_disposed` flag (see
+ * single source of truth for the `isDisposed` flag (see
  * `core/operation-guard.ts`).
  *
  * Usage:
@@ -50,21 +51,24 @@ export type ElementKey = keyof Required<ElementIdMap>;
  * ```ts
  * const bindings = new DomBindings(
  *   (key) => this.elements[key],
- *    => this.guard.isDisposed,
- *);
- * bindings.bindIfExists('zoomInButton', 'click',   => this.scaleImage(s + step));
- * //..
- * bindings.removeAll; // called from dispose
+ *   () => this.guard.isDisposed(),
+ * );
+ * bindings.bindIfExists('zoomInButton', 'click', () =>
+ *   this.scaleImage(s + step),
+ * );
+ * // ...
+ * bindings.removeAll(); // called from dispose
  * ```
  */
 export declare class DomBindings {
+    private registry;
+    private readonly resolveElementId;
+    private readonly isDisposed;
     /**
-     * @param resolveElementId
-     *   Returns the resolved DOM element ID for a given logical key, or a
+     * @param resolveElementId - Returns the resolved DOM element ID for a given logical key, or a
      *   falsy value when the integrator omitted that key from the `idMap`.
      *   The orchestrator's `elements` table fills this role.
-     * @param isDisposed
-     *   Returns the editor's current `_disposed` flag. Bound handlers
+     * @param isDisposed - Returns the editor's current `isDisposed` flag. Bound handlers
      *   consult this on every dispatch and exit early when it returns
      *   `true`.
      */

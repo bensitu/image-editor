@@ -1,6 +1,4 @@
 /**
- * @file crop-transitions.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -65,7 +63,7 @@ class MockCropRect {
         // Track every (event, handler) pair so the test can compute
         // `attached - detached` after each transition. A clean session
         // ends with the count back at zero.
-        this._handlers = []; // { event, fn, detached }
+        this.handlers = []; // { event, fn, detached }
     }
     set(patch) {
         Object.assign(this, patch);
@@ -80,13 +78,13 @@ class MockCropRect {
         // not assert visibility.
     }
     on(event, fn) {
-        this._handlers.push({ event, fn, detached: false });
+        this.handlers.push({ event, fn, detached: false });
     }
     off(event, fn) {
         // Mark every matching live handler as detached. Mirrors
         // Fabric.js v7's `off(event, fn)` semantics, which removes the
         // specific handler rather than every handler for the event.
-        for (const rec of this._handlers) {
+        for (const rec of this.handlers) {
             if (!rec.detached && rec.event === event && rec.fn === fn) {
                 rec.detached = true;
             }
@@ -104,7 +102,7 @@ class MockCropRect {
     }
     /** Number of bound handlers that are still attached. */
     liveHandlerCount() {
-        return this._handlers.filter((h) => !h.detached).length;
+        return this.handlers.filter((h) => !h.detached).length;
     }
 }
 
@@ -128,10 +126,10 @@ class MockCropRect {
  */
 class MockCanvas {
     constructor({ width = 800, height = 600 } = {}) {
-        this._width = width;
-        this._height = height;
-        this._objects = [];
-        this._selection = true;
+        this.width = width;
+        this.height = height;
+        this.objects = [];
+        this.isSelectionEnabled = true;
         this.callOrder = [];
         this.toDataURLCalls = [];
     }
@@ -140,11 +138,11 @@ class MockCanvas {
     // controller's `canvas.selection = false` and `canvas.selection = !!prev`
     // assignments are observable.
     get selection() {
-        return this._selection;
+        return this.isSelectionEnabled;
     }
     set selection(v) {
         this.callOrder.push(`selection=${v}`);
-        this._selection = v;
+        this.isSelectionEnabled = v;
     }
 
     discardActiveObject() {
@@ -153,23 +151,23 @@ class MockCanvas {
     }
     getObjects() {
         this.callOrder.push('getObjects');
-        return [...this._objects];
+        return [...this.objects];
     }
     add(obj) {
         this.callOrder.push('add');
-        this._objects.push(obj);
+        this.objects.push(obj);
     }
     remove(obj) {
         this.callOrder.push('remove');
-        const i = this._objects.indexOf(obj);
-        if (i >= 0) this._objects.splice(i, 1);
+        const i = this.objects.indexOf(obj);
+        if (i >= 0) this.objects.splice(i, 1);
     }
     bringObjectToFront(obj) {
         this.callOrder.push('bringObjectToFront');
-        const i = this._objects.indexOf(obj);
+        const i = this.objects.indexOf(obj);
         if (i >= 0) {
-            this._objects.splice(i, 1);
-            this._objects.push(obj);
+            this.objects.splice(i, 1);
+            this.objects.push(obj);
         }
     }
     setActiveObject() {
@@ -177,10 +175,10 @@ class MockCanvas {
         return this;
     }
     getWidth() {
-        return this._width;
+        return this.width;
     }
     getHeight() {
-        return this._height;
+        return this.height;
     }
     toDataURL(options) {
         this.callOrder.push('toDataURL');
@@ -225,8 +223,7 @@ function makeOriginalImage() {
  *   - A scripted `loadImage` that either commits (success) or rejects
  *     with a tagged error (failure injection for the documented contract).
  *   - `saveStateCalls` / `loadFromStateCalls` recording every
- *     snapshot capture and restore so the test can assert ordering
- *.
+ *     snapshot capture and restore so the test can assert ordering.
  *   - `sessionPointer` — the live `CropSession | null` ref the
  *     controller reads/writes. The orchestrator owns this in
  *     production; here a plain object suffices.
@@ -345,7 +342,7 @@ test('enterCropMode clamps crop rectangle movement and scaling inside image boun
     const { ctx, sessionRef } = makeContext();
     enterCropMode(ctx);
     const cropRect = sessionRef.current.cropRect;
-    const movingHandler = cropRect._handlers.find((h) => h.event === 'moving')?.fn;
+    const movingHandler = cropRect.handlers.find((h) => h.event === 'moving')?.fn;
     assert.equal(typeof movingHandler, 'function', 'crop rect must bind a moving handler');
 
     cropRect.left = -500;
@@ -423,7 +420,7 @@ test('enterCropMode → applyCrop — pre-crop snapshot precedes the crop rect, 
             // `prevEvented`. The shapes are plain objects with the
             // structural surface the controller touches.
             for (let i = 0; i < objectCount; i++) {
-                canvas._objects.push({
+                canvas.objects.push({
                     type: 'rect',
                     evented: true,
                     selectable: true,
@@ -586,7 +583,7 @@ test('enterCropMode → cancelCrop — no history entry produced, session cleare
             });
 
             for (let i = 0; i < objectCount; i++) {
-                canvas._objects.push({
+                canvas.objects.push({
                     type: 'rect',
                     evented: true,
                     selectable: true,
@@ -657,7 +654,7 @@ test('failed applyCrop — rejects with CropApplyError, no history entry pushed,
                 makeContext({ failLoadImage: true });
 
             for (let i = 0; i < objectCount; i++) {
-                canvas._objects.push({
+                canvas.objects.push({
                     type: 'rect',
                     evented: true,
                     selectable: true,

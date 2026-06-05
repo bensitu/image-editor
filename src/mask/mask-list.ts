@@ -1,9 +1,8 @@
 /**
- * @file mask/mask-list.ts
- * @description Mask list DOM rendering — owns the legacy `_updateMaskList` and
- *              `_handleMaskListClick` logic that was inlined on the editor in
- *              legacy and is now extracted into pure(ish) helpers that take a
- *              {@link MaskListContext}.
+ * Mask list DOM rendering — owns the legacy `updateMaskList` and
+ * `_handleMaskListClick` logic that was inlined on the editor in
+ * legacy and is now extracted into pure(ish) helpers that take a
+ * {@link MaskListContext}.
  *
  * ## Owned contracts
  *
@@ -53,6 +52,8 @@
  *   already fire often enough that an incremental diff is not justified.
  *   `innerHTML = ''` also detaches every prior `onclick` handler we attached
  *   below, so there is no need to track listeners separately.
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -101,7 +102,7 @@ export interface MaskListContext {
  *
  * Steps:
  *
- * 1. Resolve the list element via `ctx.getListElementId`. Bail out if
+ * 1. Resolve the list element via `context.getListElementId`. Bail out if
  *    missing.
  * 2. Clear the container with `innerHTML = ''`. This also detaches every
  *    `onclick` handler attached on the previous render, so there is no
@@ -114,57 +115,56 @@ export interface MaskListContext {
  *        owned by `mask/mask-label-manager.ts`; this list shows the same
  *        identifier);
  *      - `dataset.maskId` set to `String(mask.maskId)` so the click
- *        handler and tests can key off a stable identifier
- *;
+ *        handler and tests can key off a stable identifier;
  *      - an `onclick` handler that looks up the mask by `maskId` —
- *        regardless of the item's current position in the list
- * — calls `setActiveObject` on the canvas, and
- *        forwards to `ctx.onMaskSelected(mask)` so the orchestrator's
+ *        regardless of the item's current position in the list — calls
+ *        `setActiveObject` on the canvas, and
+ *        forwards to `context.onMaskSelected(mask)` so the orchestrator's
  *        selection-changed pipeline runs.
  *
- * @param ctx Orchestration context — see {@link MaskListContext}.
+ * @param context - Orchestration context — see {@link MaskListContext}.
  */
-export function renderMaskList(ctx: MaskListContext): void {
-    const listId = ctx.getListElementId();
+export function renderMaskList(context: MaskListContext): void {
+    const listId = context.getListElementId();
     if (!listId) return;
     const listEl = document.getElementById(listId);
-    if (!listEl || !ctx.canvas) return;
+    if (!listEl || !context.canvas) return;
 
     // Drop the previous DOM (and, by detaching the nodes, every onclick
     // handler we attached below). Rebuilding from scratch keeps the list in
     // exact sync with the canvas object order without any incremental diff.
     listEl.innerHTML = '';
 
-    const canvas = ctx.canvas;
+    const canvas = context.canvas;
 
     canvas
         .getObjects()
         .filter(isMaskObject)
         .forEach((mask) => {
-            const li = document.createElement('li');
+            const listItemElement = document.createElement('li');
             // Class names are part of the documented DOM contract so existing
             // CSS / theme overrides keep working.
-            li.className = 'list-group-item mask-item';
-            li.textContent = mask.maskName;
+            listItemElement.className = 'list-group-item mask-item';
+            listItemElement.textContent = mask.maskName;
             // stable identifier for click routing and tests.
-            li.dataset.maskId = String(mask.maskId);
+            listItemElement.dataset.maskId = String(mask.maskId);
 
-            li.onclick = () => {
+            listItemElement.onclick = () => {
                 // select by maskId lookup, NOT by list
                 // position. Re-read `canvas.getObjects` at click time so the
                 // lookup tolerates objects that were re-ordered or removed
                 // between render and click.
-                const id = Number(li.dataset.maskId);
+                const id = Number(listItemElement.dataset.maskId);
                 if (!Number.isFinite(id)) return;
                 const target = canvas
                     .getObjects()
                     .find((o) => isMaskObject(o) && o.maskId === id) as MaskObject | undefined;
                 if (!target) return;
                 canvas.setActiveObject(target);
-                ctx.onMaskSelected(target);
+                context.onMaskSelected(target);
             };
 
-            listEl.appendChild(li);
+            listEl.appendChild(listItemElement);
         });
 }
 
@@ -172,7 +172,7 @@ export function renderMaskList(ctx: MaskListContext): void {
  * Toggle the `active` CSS class on every `<li class="mask-item">` so the
  * one whose `data-mask-id` matches `selectedMask.maskId` is highlighted.
  *
- * Matches legacy's `_updateMaskListSelection` behavior except that selection is
+ * Matches legacy's `updateMaskListSelection` behavior except that selection is
  * keyed off `data-mask-id` instead of the list-item text content. legacy used
  * the visible name (`textContent === selectedMask.maskName`), which broke
  * when an integrator overrode `options.label.getText` to render anything
@@ -183,15 +183,15 @@ export function renderMaskList(ctx: MaskListContext): void {
  * No-op when the integrator did not supply a `maskList` element ID or the
  * configured element does not exist in the document.
  *
- * @param ctx           Orchestration context — see {@link MaskListContext}.
- * @param selectedMask  The currently selected mask, or `null` to clear the
+ * @param context - Orchestration context — see {@link MaskListContext}.
+ * @param selectedMask - The currently selected mask, or `null` to clear the
  *                      highlight.
  */
 export function updateMaskListSelection(
-    ctx: MaskListContext,
+    context: MaskListContext,
     selectedMask: MaskObject | null,
 ): void {
-    const listId = ctx.getListElementId();
+    const listId = context.getListElementId();
     if (!listId) return;
     const listEl = document.getElementById(listId);
     if (!listEl) return;

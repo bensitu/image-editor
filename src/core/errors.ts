@@ -1,6 +1,5 @@
 /**
- * @file errors.ts
- * @description Typed error classes raised by the editor pipelines (load,
+ * Typed error classes raised by the editor pipelines (load,
  * downsample, merge, crop, export).
  *
  * All errors that may surface to consumers extend {@link Error} directly so
@@ -13,6 +12,8 @@
  * `src/index.ts`. Consumers see them via promise rejections from public
  * methods (e.g. `loadImage.catch(error =>...)`) and should branch on
  * `error.name` or `instanceof` for fine-grained handling.
+ *
+ * @module
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ function fixPrototype(self: Error, ctor: new (...args: never[]) => Error): void 
  * `loadImage` no-ops that resolve to `undefined`.
  *
  * Surfaces to consumer as: a single `console.error`; subsequent public
- * methods are guarded by the adapter's `_fabricLoaded === false` flag.
+ * methods are guarded by the adapter's `isFabricLoaded === false` flag.
  *
  */
 export class FabricUnavailableError extends Error {

@@ -1,6 +1,4 @@
 /**
- * @file hide-masks-during-crop.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -62,7 +60,7 @@ const { HistoryManager } = await import('../src/history/history-manager.ts');
 class MockCropRect {
     constructor(props) {
         Object.assign(this, props);
-        this._handlers = [];
+        this.handlers = [];
     }
     set(patch) {
         Object.assign(this, patch);
@@ -77,10 +75,10 @@ class MockCropRect {
         // not assert visibility.
     }
     on(event, fn) {
-        this._handlers.push({ event, fn, detached: false });
+        this.handlers.push({ event, fn, detached: false });
     }
     off(event, fn) {
-        for (const rec of this._handlers) {
+        for (const rec of this.handlers) {
             if (!rec.detached && rec.event === event && rec.fn === fn) {
                 rec.detached = true;
             }
@@ -106,47 +104,47 @@ class MockCropRect {
  */
 class MockCanvas {
     constructor({ width = 800, height = 600 } = {}) {
-        this._width = width;
-        this._height = height;
-        this._objects = [];
-        this._selection = true;
+        this.width = width;
+        this.height = height;
+        this.objects = [];
+        this.isSelectionEnabled = true;
     }
 
     get selection() {
-        return this._selection;
+        return this.isSelectionEnabled;
     }
     set selection(v) {
-        this._selection = v;
+        this.isSelectionEnabled = v;
     }
 
     discardActiveObject() {
         return this;
     }
     getObjects() {
-        return [...this._objects];
+        return [...this.objects];
     }
     add(obj) {
-        this._objects.push(obj);
+        this.objects.push(obj);
     }
     remove(obj) {
-        const i = this._objects.indexOf(obj);
-        if (i >= 0) this._objects.splice(i, 1);
+        const i = this.objects.indexOf(obj);
+        if (i >= 0) this.objects.splice(i, 1);
     }
     bringObjectToFront(obj) {
-        const i = this._objects.indexOf(obj);
+        const i = this.objects.indexOf(obj);
         if (i >= 0) {
-            this._objects.splice(i, 1);
-            this._objects.push(obj);
+            this.objects.splice(i, 1);
+            this.objects.push(obj);
         }
     }
     setActiveObject() {
         return this;
     }
     getWidth() {
-        return this._width;
+        return this.width;
     }
     getHeight() {
-        return this._height;
+        return this.height;
     }
     renderAll() {}
     requestRenderAll() {}
@@ -220,7 +218,7 @@ function makeMockMask(maskId, styleSeed) {
  */
 function makeContext({ hideMasksDuringCrop, masks }) {
     const canvas = new MockCanvas();
-    for (const mask of masks) canvas._objects.push(mask);
+    for (const mask of masks) canvas.objects.push(mask);
 
     const originalImage = makeOriginalImage();
     const historyManager = new HistoryManager(50);
@@ -374,9 +372,9 @@ test('enterCropMode with hideMasksDuringCrop=true backs up prior mask styles and
                 const backup = session.maskBackups[i];
                 const prior = preCropStyles[i];
                 assert.equal(
-                    backup.obj,
+                    backup.object,
                     masks[i],
-                    `the documented contract: maskBackups[${i}].obj must reference the live mask`,
+                    `the documented contract: maskBackups[${i}].object must reference the live mask`,
                 );
                 assert.equal(
                     backup.opacity,

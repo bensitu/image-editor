@@ -1,16 +1,15 @@
 /**
- * @file image/image-loader.ts
- * @description Transactional `loadImage` pipeline. Validates the input,
- *              snapshots every field that the pipeline is about to mutate
- *              into a {@link RollbackBundle}, decodes the data URL into an
- *              `HTMLImageElement` under the configured timeout, optionally
- *              downsamples via {@link resampleImage}, awaits
- *              `FabricImage.fromURL` under the same timeout, applies the
- *              layout strategy chosen by `image/layout-manager.ts`, commits
- *              the new image to the canvas, and emits a fresh
- *              `_lastSnapshot` via `core/state-serializer.ts`. Any failure
- *              between the snapshot and the commit replays the bundle and
- *              rejects with the original error.
+ * Transactional `loadImage` pipeline. Validates the input,
+ * snapshots every field that the pipeline is about to mutate
+ * into a {@link RollbackBundle}, decodes the data URL into an
+ * `HTMLImageElement` under the configured timeout, optionally
+ * downsamples via {@link resampleImage}, awaits
+ * `FabricImage.fromURL` under the same timeout, applies the
+ * layout strategy chosen by `image/layout-manager.ts`, commits
+ * the new image to the canvas, and emits a fresh
+ * `lastSnapshot` via `core/state-serializer.ts`. Any failure
+ * between the snapshot and the commit replays the bundle and
+ * rejects with the original error.
  *
  * ## Owned contracts
  *
@@ -27,14 +26,14 @@
  * - On a valid `data:image/` URL, the loader captures
  *   the rollback bundle *before* mutating any of the fields it tracks
  *   (placeholder `hidden`, container `scrollTop`/`scrollLeft`, container
- *   inline `overflow`, `originalImage`, `_lastSnapshot`, the canvas JSON
+ *   inline `overflow`, `originalImage`, `lastSnapshot`, the canvas JSON
  *   snapshot, plus the editor transform fields the rollback needs to
  *   restore the live canvas to a consistent state).
  * - Decode, Fabric, downsample, and timeout failures
  *   restore every field captured in the rollback bundle and reject with the
  *   original error.
  * - On success, `isImageLoadedToCanvas` is set to
- *   `true`, `_lastSnapshot` is replaced with a fresh snapshot derived from
+ *   `true`, `lastSnapshot` is replaced with a fresh snapshot derived from
  *   the new canvas, and `maskCounter` is reset to `0`.
  * - Either the new image is committed fully, or the
  *   prior committed state is restored fully. No partial state is observable
@@ -90,6 +89,8 @@
  * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is the canonical owner of the transactional
  * load helpers. It is NOT re-exported from `src/index.ts`.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
@@ -169,14 +170,14 @@ export interface LoadImageContext {
     /** Reads the previously-committed `originalImage`. */
     getOriginalImage(): FabricNS.FabricImage | null;
     /** Writes `originalImage` (used both on commit and on rollback). */
-    setOriginalImage(img: FabricNS.FabricImage | null): void;
+    setOriginalImage(imageObject: FabricNS.FabricImage | null): void;
     /** Reads `isImageLoadedToCanvas`. */
     getIsImageLoadedToCanvas(): boolean;
     /** Writes `isImageLoadedToCanvas`. */
     setIsImageLoadedToCanvas(v: boolean): void;
-    /** Reads `_lastSnapshot`. */
+    /** Reads `lastSnapshot`. */
     getLastSnapshot(): string | null;
-    /** Writes `_lastSnapshot`. */
+    /** Writes `lastSnapshot`. */
     setLastSnapshot(s: string | null): void;
     /** Reads `maskCounter`. */
     getMaskCounter(): number;
@@ -228,7 +229,7 @@ export interface LoadImageContext {
  *    apply via {@link applyCanvasDimensions}.
  * 8. **Commit** — set `isImageLoadedToCanvas`,
  *    reset `maskCounter` to 0, reset transforms, and emit a fresh
- *    `_lastSnapshot` via {@link saveState}.
+ *    `lastSnapshot` via {@link saveState}.
  *
  * Any rejection between step 3 and step 8 routes through {@link replayRollback}
  * before re-throwing the original error. On the rollback
@@ -251,14 +252,14 @@ export interface LoadImageContext {
  * helper returns from a committed load. Keeping them outside the loader keeps
  * transactional mutation/rollback separate from facade-level event ordering.
  *
- * @param ctx          Editor dependency bundle.
- * @param imageBase64  Base64 data URL to load (`data:image/...;base64...`).
- * @param loadOptions  Public {@link LoadImageOptions}. Currently only
+ * @param context - Editor dependency bundle.
+ * @param imageBase64 - Base64 data URL to load (`data:image/...;base64...`).
+ * @param loadOptions - Public {@link LoadImageOptions}. Currently only
  *                     `preserveScroll` is consulted; defaults to `false`.
  * @returns Resolved promise on success, rejected with the original error
  *          (after rollback) on failure. Non-data:image inputs resolve
  *          without observable mutation.
  *
  */
-export declare function loadImage(ctx: LoadImageContext, imageBase64: string, loadOptions?: LoadImageOptions): Promise<void>;
+export declare function loadImage(context: LoadImageContext, imageBase64: string, loadOptions?: LoadImageOptions): Promise<void>;
 //# sourceMappingURL=image-loader.d.ts.map

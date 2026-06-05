@@ -1,7 +1,6 @@
 /**
- * @file utils/timeout.ts
- * @description Promise/timer race helper used by the image-loader pipeline
- *              to bound the decode and `FabricImage.fromURL` steps.
+ * Promise/timer race helper used by the image-loader pipeline
+ * to bound the decode and `FabricImage.fromURL` steps.
  *
  * ## Owned contracts
  *
@@ -45,6 +44,8 @@
  * - The helper does NOT validate `ms`. Callers pass the resolved
  *   `imageLoadTimeoutMs` from `default-options.ts`, which is already
  *   coerced to a finite non-negative number.
+ *
+ * @module
  */
 
 import { ImageLoadTimeoutError } from '../core/errors.js';
@@ -64,21 +65,18 @@ import { ImageLoadTimeoutError } from '../core/errors.js';
  *   decodeImageElement(base64),
  *   options.imageLoadTimeoutMs,
  *   'image decode',
- *);
+ * );
  * ```
  *
- * @typeParam T  Resolved value type of the wrapped promise.
+ * @typeParam T - Resolved value type of the wrapped promise.
  *
- * @param promise
- *   The async work to race. Forwarded verbatim on resolution; rejection
+ * @param promise - The async work to race. Forwarded verbatim on resolution; rejection
  *   reasons are forwarded unchanged so callers can branch on the original
  *   error type.
- * @param ms
- *   Timeout duration in milliseconds. Expected to be a finite,
+ * @param ms - Timeout duration in milliseconds. Expected to be a finite,
  *   non-negative number; the caller (typically `default-options.ts`) is
  *   responsible for coercion.
- * @param label
- *   Human-readable step label embedded in the timeout error message
+ * @param label - Human-readable step label embedded in the timeout error message
  *   (e.g. `'image decode'`, `'FabricImage.fromURL'`).
  *
  * @returns A promise that resolves to the wrapped promise's value, or

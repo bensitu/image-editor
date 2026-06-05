@@ -1,6 +1,4 @@
 /**
- * @file scale-clamp.property.test.mjs
- *
  * Type:
  *   Property test
  *

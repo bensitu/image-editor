@@ -1,6 +1,4 @@
 /**
- * @file layout-css-preservation.property.test.mjs
- *
  * Type:
  *   Property test
  *

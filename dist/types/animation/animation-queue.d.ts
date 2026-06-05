@@ -1,26 +1,27 @@
 /**
- * @file animation-queue.ts
- * @description FIFO sequential animation queue that prevents overlapping
- *   animations and provides dispose-safe settlement so callers do not
- *   hang during `dispose` or hard-reset paths.
+ * FIFO sequential animation queue that prevents overlapping
+ * animations and provides dispose-safe settlement so callers do not
+ * hang during `dispose` or hard-reset paths.
  *
  * Implements:
- *   - at most one entry runs at a time, in enqueue order.
- *   - animation-producing operations (`scaleImage`,
- *     `rotateImage`, `resetImageTransform`, `undo`, `redo`) are routed
- *     through this queue by the orchestrator.
- *   - every promise returned by {@link AnimationQueue.add}
- *     eventually settles, even when the queue is drained by
- *     {@link AnimationQueue.clear}.
- *   - the active entry's promise settles only after
- *     its function settles, so the orchestrator can flip its
- *     `isAnimating` flag inside the wrapped function before this queue
- *     resolves the caller.
- *   - dispose paths can drain pending
- *     entries via {@link AnimationQueue.clear} so queued callers do not
- *     hang. In-flight animation wrappers (see `fabric/fabric-animation.ts`)
- *     check `_disposed` independently and exit without touching the
- *     canvas; the queue itself never inspects editor state.
+ * - at most one entry runs at a time, in enqueue order.
+ * - animation-producing operations (`scaleImage`,
+ *   `rotateImage`, `resetImageTransform`, `undo`, `redo`) are routed
+ *   through this queue by the orchestrator.
+ * - every promise returned by {@link AnimationQueue.add}
+ *   eventually settles, even when the queue is drained by
+ *   {@link AnimationQueue.clear}.
+ * - the active entry's promise settles only after
+ *   its function settles, so the orchestrator can flip its
+ *   `isAnimating` flag inside the wrapped function before this queue
+ *   resolves the caller.
+ * - dispose paths can drain pending
+ *   entries via {@link AnimationQueue.clear} so queued callers do not
+ *   hang. In-flight animation wrappers (see `fabric/fabric-animation.ts`)
+ *   check `isDisposed` independently and exit without touching the
+ *   canvas; the queue itself never inspects editor state.
+ *
+ * @module
  */
 /**
  * Guarantees that animation-producing operations are executed strictly
@@ -36,16 +37,16 @@
  *
  * @example
  * ```ts
- * const queue = new AnimationQueue;
- * queue.add(  => object.scale(2, { duration: 300}));
- * queue.add(  => object.rotate(90, { duration: 300}));
+ * const queue = new AnimationQueue();
+ * queue.add(() => object.scale(2, { duration: 300 }));
+ * queue.add(() => object.rotate(90, { duration: 300 }));
  * // The rotate starts only after the scale completes.
  * ```
  */
 export declare class AnimationQueue {
     /** Pending entries waiting to start, in FIFO order. */
     private queue;
-    /** True while an entry is being awaited inside {@link _process}. */
+    /** True while an entry is being awaited inside {@link drainQueue}. */
     private running;
     /**
      * Enqueues an animation function and returns a Promise that settles
@@ -53,14 +54,13 @@ export declare class AnimationQueue {
      *
      * The promise resolves when `animationFn`'s returned promise resolves
      * and rejects when it rejects, after the queue has popped the entry
-     * and before the next entry begins. This
-     * (FIFO, at most one running) and 14.3 (the wrapped function settles
-     * before the public promise does, so the orchestrator can flip its
-     * `isAnimating` flag inside `animationFn`).
+     * and before the next entry begins. This preserves FIFO ordering and
+     * lets the orchestrator flip its `isAnimating` flag inside
+     * `animationFn` before the public promise settles.
      *
-     * @param animationFn A function that performs async work and resolves
+     * @param animationFn - Function that performs async work and resolves
      *   when the animation has finished or rejects with the original error.
-     * @returns Promise<void> that settles once this specific entry has
+     * @returns A promise that settles once this specific entry has
      *   completed, been rejected, or been drained by {@link clear}.
      */
     add(animationFn: () => Promise<void>): Promise<void>;
@@ -71,11 +71,11 @@ export declare class AnimationQueue {
      *
      * The currently active entry (if any) is not interrupted by this
      * method; its promise settles when its function settles. Animation
-     * wrappers in `fabric/fabric-animation.ts` observe `_disposed`
+     * wrappers in `fabric/fabric-animation.ts` observe `isDisposed`
      * independently and exit without touching the canvas, so the active
      * entry typically settles promptly after dispose calls `clear`.
      *
-     * @param reason When provided, pending entries reject with this
+     * @param reason - When provided, pending entries reject with this
      *   value (typed errors from `core/errors.ts` are recommended for
      *   diagnostics). When omitted, pending entries resolve normally,
      *   which is the documented dispose default — the orchestrator's
@@ -84,7 +84,7 @@ export declare class AnimationQueue {
     clear(reason?: unknown): void;
     /**
      * Reports whether an entry is currently active. Returns `true` only
-     * while {@link _process} is awaiting an entry's function; pending
+     * while {@link drainQueue} is awaiting an entry's function; pending
      * entries that have not yet started do not count as running.
      */
     isRunning(): boolean;
@@ -106,5 +106,6 @@ export declare class AnimationQueue {
      * method.
      */
     waitForIdle(): Promise<void>;
+    private drainQueue;
 }
 //# sourceMappingURL=animation-queue.d.ts.map

@@ -1,13 +1,12 @@
 /**
- * @file export/export-service.ts
- * @description Base64, file, and download entry points for the current export
- *              pipeline. The orchestrator (`image-editor.ts`) delegates
- *              `exportImageBase64`, `exportImageFile`, and `downloadImage`
- *              to the helpers in this module so the export logic lives in
- *              a single owner module per the documented module-decomposition
- *              table.
+ * Base64, file, and download entry points for the current export
+ * pipeline. The orchestrator (`image-editor.ts`) delegates
+ * `exportImageBase64`, `exportImageFile`, and `downloadImage`
+ * to the helpers in this module so the export logic lives in
+ * a single owner module per the documented module-decomposition
+ * table.
  *
- * ## Owned contracts (this task — 18.4 builds on 18.3)
+ * ## Owned contracts
  *
  * - Before computing the export region, every
  *   export entry point SHALL discard any active Fabric `ActiveSelection`
@@ -28,21 +27,21 @@
  * - When `isImageLoaded` is `false`, the three
  *   entry points exhibit the documented "no image loaded" shapes:
  *
- *     | entry point          | shape on no image                   |
- *     | -------------------- | ----------------------------------- |
- *     | `exportImageBase64`  | resolves to `''`                    |
- *     | `exportImageFile`    | rejects with `ExportNotReadyError`  |
- *     | `downloadImage`      | no-op (returns synchronously)       |
+ *   | entry point          | shape on no image                   |
+ *   | -------------------- | ----------------------------------- |
+ *   | `exportImageBase64`  | resolves to `''`                    |
+ *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
+ *   | `downloadImage`      | no-op (returns synchronously)       |
  *
- *   Each path emits a single `console.warn` naming the missing image so
- *   the consumer's logs identify which export attempt was skipped.
+ * Each path emits a single `console.warn` naming the missing image so
+ * the consumer's logs identify which export attempt was skipped.
  * - When `exportArea` resolves
  *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
  *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
- *   No intermediate `<canvas>` element is created (27.2), and sub-pixel
- *   width/height values are floored to integer pixels (27.3) through
- *   the {@link floorRegion} helper.
+ *   No intermediate `<canvas>` element is created, and sub-pixel
+ *   width/height values are floored to integer pixels through the
+ *   {@link floorRegion} helper before Fabric receives the region.
  * - When `mergeMask` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
@@ -88,6 +87,8 @@
  * The module is intentionally NOT re-exported from `src/index.ts`
  * (only `ImageEditor`, `isMaskObject`, and the
  * documented public types are root-exported).
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { Base64ExportOptions, FabricModule, ImageFileExportOptions, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
@@ -132,7 +133,7 @@ export interface ExportServiceContext {
  *
  * Steps, in order:
  *
- * 1. **No-image gate** — when `ctx.isImageLoaded`
+ * 1. **No-image gate** — when `context.isImageLoaded`
  *    is `false`, emit a `console.warn` and resolve to `''` without
  *    touching the canvas.
  * 2. **Discard ActiveSelection** — call
@@ -154,15 +155,15 @@ export interface ExportServiceContext {
  *    threw. The inner step is a single
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
  *
- * @param ctx      Export context bundle.
- * @param options  Optional {@link Base64ExportOptions}. Both `fileType`
+ * @param context - Export context bundle.
+ * @param options - Optional {@link Base64ExportOptions}. Both `fileType`
  *                 and `format` are accepted; when
  *                 both are supplied, `fileType` wins.
  * @returns        Resolves to a `data:image/...;base64...` URL on
  *                 success, or `''` when no image is loaded.
  *
  */
-export declare function exportImageBase64(ctx: ExportServiceContext, options?: Base64ExportOptions): Promise<string>;
+export declare function exportImageBase64(context: ExportServiceContext, options?: Base64ExportOptions): Promise<string>;
 /**
  * Render the live canvas to a `File`.
  *
@@ -174,13 +175,13 @@ export declare function exportImageBase64(ctx: ExportServiceContext, options?: B
  * and the export contract requires the output MIME to match the resolved
  * `fileType`.
  *
- * @param ctx      Export context bundle.
- * @param options  Optional {@link ImageFileExportOptions}.
+ * @param context - Export context bundle.
+ * @param options - Optional {@link ImageFileExportOptions}.
  * @returns        Resolves with the rendered `File`.
  * @throws         {@link ExportNotReadyError} when no image is loaded.
  *
  */
-export declare function exportImageFile(ctx: ExportServiceContext, options?: ImageFileExportOptions): Promise<File>;
+export declare function exportImageFile(context: ExportServiceContext, options?: ImageFileExportOptions): Promise<File>;
 /**
  * Trigger a browser download of the live canvas.
  *
@@ -197,12 +198,12 @@ export declare function exportImageFile(ctx: ExportServiceContext, options?: Ima
  * with `console.error` rather than rethrown — `downloadImage` returns
  * `void` and there is no caller-visible promise to reject.
  *
- * @param ctx       Export context bundle.
- * @param fileName  Optional filename override. Defaults to
+ * @param context - Export context bundle.
+ * @param fileName - Optional filename override. Defaults to
  *                  `options.defaultDownloadFileName`.
  *
  */
-export declare function downloadImage(ctx: ExportServiceContext, fileName?: string): void;
+export declare function downloadImage(context: ExportServiceContext, fileName?: string): void;
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link mergeMasks}. Extends {@link ExportServiceContext} with the
@@ -224,9 +225,8 @@ export declare function downloadImage(ctx: ExportServiceContext, fileName?: stri
  *   even when the inner `loadImage` did not honor `preserveScroll`.
  *
  * Mirrors the shape of `image/image-loader.ts → LoadImageContext` for
- * consistency across pipeline modules. The orchestrator wiring
- * (task 21.6) is responsible for constructing this bundle from its
- * own state.
+ * consistency across pipeline modules. The `ImageEditor` facade constructs
+ * this bundle from its own state.
  *
  */
 export interface MergeMasksContext extends ExportServiceContext {
@@ -248,7 +248,7 @@ export interface MergeMasksContext extends ExportServiceContext {
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     /**
      * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
-     * orchestrator's `_lastSnapshot`-producing path so the merge stores
+     * orchestrator's `lastSnapshot`-producing path so the merge stores
      * exactly the same wire format used by `undo` / `redo`.
      */
     saveState(): string;
@@ -260,8 +260,8 @@ export interface MergeMasksContext extends ExportServiceContext {
     loadFromState(snapshot: string): Promise<void>;
     /**
      * Remove every mask from the canvas WITHOUT pushing a history
-     * entry. The merge owns the single enclosing history entry
-     *, so the inner mask-removal step must opt out
+     * entry. The merge owns the single enclosing history entry, so the
+     * inner mask-removal step must opt out
      * of its own history push.
      */
     removeAllMasksNoHistory(): void;
@@ -279,8 +279,8 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    is loaded or when the canvas carries no mask objects (matches
  *    legacy's `if (!this.originalImage) return; … if (!masks.length) return;`).
  * 2. **Capture pre-merge snapshot** — call
- *    `ctx.saveState` so the snapshot is suitable for
- *    `ctx.loadFromState(...)`. The snapshot is the one source of
+ *    `context.saveState` so the snapshot is suitable for
+ *    `context.loadFromState(...)`. The snapshot is the one source of
  *    truth for both the merge command's `undo` and
  *    the rollback path.
  * 3. **Discard ActiveSelection** — drop any active
@@ -296,11 +296,11 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    on both success and failure.
  * 6. **Remove all masks** without pushing history — the merge owns
  *    the single enclosing history entry, so the
- *    inner removal step opts out of its own history push.
+ *    inner removal step providedOptions out of its own history push.
  * 7. **Reload the merged image** through the transactional
  *    `image/image-loader.ts` with `preserveScroll: true`. A failed
  *    reload propagates here so the rollback path catches it.
- * 8. **Capture post-merge snapshot** — call `ctx.saveState` again so
+ * 8. **Capture post-merge snapshot** — call `context.saveState` again so
  *    the merge command's `execute` can replay the merged state on
  *    redo.
  * 9. **Restore scroll defensively** — write the
@@ -309,25 +309,25 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    the user's view does not jump regardless of the layout strategy
  *    chosen by the loader.
  * 10. **Push exactly one history command** whose
- *    `undo` restores the pre-merge snapshot via `ctx.loadFromState`
+ *    `undo` restores the pre-merge snapshot via `context.loadFromState`
  *    and whose `execute` re-applies the merged snapshot via
- *    `ctx.loadFromState`. The command is pushed via
+ *    `context.loadFromState`. The command is pushed via
  *    {@link HistoryManager.push} (NOT `execute`) because the merged
  *    state is already on the canvas — the first `redo` call should
  *    re-run the merged-state restore, but the initial commit should
  *    not double-render.
  *
  * On any failure between step 3 and step 10, the pre-merge snapshot
- * captured in step 3 is restored via `ctx.loadFromState` and the
+ * captured in step 3 is restored via `context.loadFromState` and the
  * promise rejects with {@link MergeMasksError} wrapping the original
  * cause. A failure inside the rollback itself is
  * logged via `console.warn` but does not mask the original error.
  *
- * @param ctx Editor dependency bundle — see {@link MergeMasksContext}.
+ * @param context - Editor dependency bundle — see {@link MergeMasksContext}.
  * @returns   Resolves on success; rejects with
  *            {@link MergeMasksError} on any pipeline failure (after
  *            the pre-merge snapshot has been restored).
  *
  */
-export declare function mergeMasks(ctx: MergeMasksContext): Promise<void>;
+export declare function mergeMasks(context: MergeMasksContext): Promise<void>;
 //# sourceMappingURL=export-service.d.ts.map

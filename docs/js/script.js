@@ -570,30 +570,40 @@ function handleCreateMaskButtonClick() {
     updateDemoControls();
 }
 
-function loadFile(file) {
-    if (!file || !canLoadImage()) return Promise.resolve();
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = function (loadEvent) {
+            resolve(loadEvent.target.result);
+        };
+
+        reader.onerror = function () {
+            reject(new Error(getCurrentTranslations('errorFileRead')));
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
+
+async function loadFile(file) {
+    if (!file || !canLoadImage()) return;
 
     clearMessage();
     setOptions();
     demoLoading = true;
     updateDemoControls();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = function (loadEvent) {
-            const imageBase64 = loadEvent.target.result;
-            editor.loadImage(imageBase64).then(resolve).catch(reject);
-        };
-        reader.onerror = () => reject(new Error(getCurrentTranslations('errorFileRead')));
-        reader.readAsDataURL(file);
-    })
-        .catch(function (error) {
-            showMessage(error);
-            console.error(error);
-        })
-        .finally(function () {
-            demoLoading = false;
-            updateDemoControls();
-        });
+
+    try {
+        const imageBase64 = await readFileAsDataUrl(file);
+        await editor.loadImage(imageBase64);
+    } catch (error) {
+        showMessage(error);
+        console.error(error);
+    } finally {
+        demoLoading = false;
+        updateDemoControls();
+    }
 }
 
 function handleLoadButtonClick() {

@@ -1,6 +1,4 @@
 /**
- * @file history-manager.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -107,7 +105,7 @@ const syncStepArb = fc.record({
 // runs.
 const syncStepsArb = fc.array(syncStepArb, { minLength: 0, maxLength: 25 });
 
-// Async op model (16.2): each step is one awaited undo() or redo() call.
+// Async op model: each step is one awaited undo() or redo() call.
 // `noop`-mode steps invoke the API even when canUndo/canRedo says no, to
 // confirm the no-op behaviour holds.
 const asyncOpArb = fc.constantFrom('undo', 'redo');
@@ -310,7 +308,7 @@ test('async undo/redo move currentIndex by exactly ±1 per successful awaited ca
     );
 });
 
-test('_processing lock makes overlapping undo/redo calls no-ops', async () => {
+test('isProcessing lock makes overlapping undo/redo calls no-ops', async () => {
     await fc.assert(
         fc.asyncProperty(
             fc.integer({ min: 2, max: 8 }),

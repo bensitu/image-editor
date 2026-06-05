@@ -1,11 +1,10 @@
 /**
- * @file mask/mask-style.ts
- * @description Hover, selection, and "original style restore" helpers for
- *              mask visual state. Owns the legacy `_getMaskNormalStyle`,
- *              `_withNormalizedMaskStyles`, `_rebindMaskEvents`, and the
- *              selected/unselected stroke logic from `_handleSelectionChanged`
- *              that were inlined on the editor in legacy and are now extracted
- *              into pure(ish) helpers that take a {@link MaskStyleContext}.
+ * Hover, selection, and "original style restore" helpers for
+ * mask visual state. Owns the legacy `_getMaskNormalStyle`,
+ * `_withNormalizedMaskStyles`, `_rebindMaskEvents`, and the
+ * selected/unselected stroke logic from `_handleSelectionChanged`
+ * that were inlined on the editor in legacy and are now extracted
+ * into pure(ish) helpers that take a {@link MaskStyleContext}.
  *
  * Two callers consume the same backup shape:
  *
@@ -83,9 +82,11 @@
  *   read `mask.originalAlpha` / `mask.originalStroke` / `mask.originalStrokeWidth`
  *   on every event so the visual matches the live "original" values even
  *   after a stroke or opacity change (matching legacy).
- * - The handlers are tagged on `mask.__imageEditorMaskHandlers` exactly as
+ * - The handlers are tagged on `mask.imageEditorMaskHandlers` exactly as
  *   legacy did so {@link reattachMaskHoverHandlers} can drop the old pair before
  *   binding fresh ones, avoiding duplicate listeners after `loadFromJSON`.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { MaskBackup, MaskObject, ResolvedOptions } from '../core/public-types.js';
@@ -134,7 +135,7 @@ export interface MaskNormalStyle {
  * - export bake-in callers that want a pre-mutation snapshot of the live
  *   visual when no `MaskBackup` is being captured.
  *
- * @param mask The mask to inspect.
+ * @param mask - The mask to inspect.
  * @returns A {@link MaskNormalStyle} ready to pass to `mask.set(...)`.
  */
 export declare function getMaskNormalStyle(mask: MaskObject): MaskNormalStyle;
@@ -145,7 +146,7 @@ export declare function getMaskNormalStyle(mask: MaskObject): MaskNormalStyle;
  * - `strokeWidth` → `2` (legacy).
  * - `opacity` → `min(originalAlpha + 0.2, 1)` (legacy).
  *
- * @param mask The mask to inspect.
+ * @param mask - The mask to inspect.
  * @returns A style patch ready to pass to `mask.set(...)`.
  */
 export declare function getMaskHoverStyle(mask: MaskObject): MaskNormalStyle;
@@ -156,7 +157,7 @@ export declare function getMaskHoverStyle(mask: MaskObject): MaskNormalStyle;
  * Does NOT change opacity — the selection highlight only modifies the
  * outline so the user can still see the mask's tinted fill.
  *
- * @param mask The mask becoming selected.
+ * @param mask - The mask becoming selected.
  */
 export declare function applyMaskSelectedStyle(mask: MaskObject): void;
 /**
@@ -169,7 +170,7 @@ export declare function applyMaskSelectedStyle(mask: MaskObject): void;
  * opacity (which may differ from `originalAlpha` while a hover is in
  * progress, etc.).
  *
- * @param mask The mask becoming un-selected.
+ * @param mask - The mask becoming un-selected.
  */
 export declare function applyMaskUnselectedStyle(mask: MaskObject): void;
 /**
@@ -178,7 +179,7 @@ export declare function applyMaskUnselectedStyle(mask: MaskObject): void;
  * `mask.originalStroke` / `mask.originalStrokeWidth` on each event so they
  * track any post-attach mutation (matching legacy's `_rebindMaskEvents`).
  *
- * Handlers are tagged on `mask.__imageEditorMaskHandlers` so
+ * Handlers are tagged on `mask.imageEditorMaskHandlers` so
  * {@link reattachMaskHoverHandlers} can drop them before binding a new
  * pair, avoiding duplicates after a `loadFromJSON` restore.
  *
@@ -186,7 +187,7 @@ export declare function applyMaskUnselectedStyle(mask: MaskObject): void;
  * detach simply produces two pairs of listeners. Use
  * {@link reattachMaskHoverHandlers} to refresh listeners safely.
  *
- * @param mask The mask to bind handlers on.
+ * @param mask - The mask to bind handlers on.
  */
 export declare function attachMaskHoverHandlers(mask: MaskObject): void;
 /**
@@ -204,7 +205,7 @@ export declare function attachMaskHoverHandlers(mask: MaskObject): void;
  * correctly. The current Pretty_Printer always serializes
  * `originalAlpha`, but we defend against partial payloads here too.
  *
- * @param mask The mask to refresh handlers on.
+ * @param mask - The mask to refresh handlers on.
  */
 export declare function reattachMaskHoverHandlers(mask: MaskObject): void;
 /**
@@ -215,7 +216,7 @@ export declare function reattachMaskHoverHandlers(mask: MaskObject): void;
  * reference does not break callers that iterate every mask (e.g. the
  * `dispose` path or `removeAllMasks`).
  *
- * @param mask The mask to detach handlers from.
+ * @param mask - The mask to detach handlers from.
  */
 export declare function detachMaskHoverHandlers(mask: MaskObject): void;
 /**
@@ -241,14 +242,14 @@ export declare function detachMaskHoverHandlers(mask: MaskObject): void;
  * `true`, missing `lockRotation` → `false`. They never override a
  * caller-supplied value because the snapshot reads from the live mask.
  *
- * @param mask The mask whose live style should be captured.
+ * @param mask - The mask whose live style should be captured.
  * @returns A {@link MaskBackup} suitable for passing to
  *          {@link restoreMaskStyleBackup}.
  */
 export declare function captureMaskStyleBackup(mask: MaskObject): MaskBackup;
 /**
  * Restore every backed-up field from a {@link MaskBackup} onto the mask
- * referenced by `backup.obj`.
+ * referenced by `backup.object`.
  *
  * Wraps the `set(...)` call in `try/catch` so a stale Fabric reference (a
  * mask removed after the backup was captured but before the restore
@@ -256,7 +257,7 @@ export declare function captureMaskStyleBackup(mask: MaskObject): MaskBackup;
  * After a successful restore, `setCoords` is called to keep Fabric's
  * cached bounding rect in sync (matching legacy's mergeMasks restore).
  *
- * @param backup The backup produced by {@link captureMaskStyleBackup}.
+ * @param backup - The backup produced by {@link captureMaskStyleBackup}.
  *
  */
 export declare function restoreMaskStyleBackup(backup: MaskBackup): void;
@@ -280,11 +281,11 @@ export declare function restoreMaskStyleBackup(backup: MaskBackup): void;
  * rejected. The function returns whatever `callback` returns (sync or
  * Promise), preserving the caller's control flow.
  *
- * @param ctx      Orchestration context — see {@link MaskStyleContext}.
- * @param callback Body to execute with normalized mask styles.
+ * @param context - Orchestration context — see {@link MaskStyleContext}.
+ * @param callback - Body to execute with normalized mask styles.
  * @returns        The value returned by `callback` (or the promise it returned).
  */
-export declare function withNormalizedMaskStyles<T>(ctx: MaskStyleContext, callback: () => T): T;
+export declare function withNormalizedMaskStyles<T>(context: MaskStyleContext, callback: () => T): T;
 /**
  * Captures every mask's live style via {@link captureMaskStyleBackup},
  * runs the supplied async `callback` (which is allowed to mutate masks
@@ -301,22 +302,22 @@ export declare function withNormalizedMaskStyles<T>(ctx: MaskStyleContext, callb
  *
  * The function returns whatever `callback` resolves to.
  *
- * @typeParam T      The return type of `callback`.
- * @param ctx        Orchestration context — see {@link MaskStyleContext}.
- * @param mutator    Synchronous function applied to each captured mask
+ * @typeParam T - The return type of `callback`.
+ * @param context - Orchestration context — see {@link MaskStyleContext}.
+ * @param mutator - Synchronous function applied to each captured mask
  *                   BEFORE `callback` runs. Typically applies the export
  *                   bake-in style. Called once per mask in canvas object
  *                   order with `(mask, index)`. Backups are captured BEFORE
  *                   the mutator runs so an exception in the mutator still
  *                   triggers the `finally` restore for already-mutated
  *                   masks.
- * @param callback   The export body to run after every mutator pass
+ * @param callback - The export body to run after every mutator pass
  *                   completed. Typically `canvas.toDataURL` plus any
  *                   post-processing.
  * @returns          The value `callback` resolved to.
  *
  */
-export declare function withMaskStyleBackup<T>(ctx: MaskStyleContext, mutator: (mask: MaskObject, index: number) => void, callback: () => Promise<T> | T): Promise<T>;
+export declare function withMaskStyleBackup<T>(context: MaskStyleContext, mutator: (mask: MaskObject, index: number) => void, callback: () => Promise<T> | T): Promise<T>;
 /**
  * Apply the crop-mode hide style on `mask`: opacity 0 + non-interactive.
  *
@@ -331,7 +332,7 @@ export declare function withMaskStyleBackup<T>(ctx: MaskStyleContext, mutator: (
  * pointer events. Wraps the `set(...)` in `try/catch` so a removed mask
  * does not break the loop in the controller.
  *
- * @param mask The mask to hide.
+ * @param mask - The mask to hide.
  */
 export declare function applyCropHideMaskStyle(mask: MaskObject): void;
 //# sourceMappingURL=mask-style.d.ts.map

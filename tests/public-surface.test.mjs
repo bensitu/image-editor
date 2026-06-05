@@ -1,6 +1,4 @@
 /**
- * @file public-surface.test.mjs
- *
  * Type:
  *   Smoke test
  *

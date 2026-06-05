@@ -1,6 +1,4 @@
 /**
- * @file downsample-dimensions.property.test.mjs
- *
  * Type:
  *   Property test
  *

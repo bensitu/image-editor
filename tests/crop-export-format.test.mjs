@@ -1,6 +1,4 @@
 /**
- * @file crop-export-format.test.mjs
- *
  * Type:
  *   Unit test
  *
@@ -46,7 +44,7 @@ const { HistoryManager } = await import('../src/history/history-manager.ts');
 class MockCropRect {
     constructor(props) {
         Object.assign(this, props);
-        this._handlers = [];
+        this.handlers = [];
     }
     set(patch) {
         Object.assign(this, patch);
@@ -55,7 +53,7 @@ class MockCropRect {
     setCoords() {}
     setControlVisible() {}
     on(event, fn) {
-        this._handlers.push({ event, fn });
+        this.handlers.push({ event, fn });
     }
     off() {}
     getBoundingRect() {
@@ -70,9 +68,9 @@ class MockCropRect {
 
 class MockCanvas {
     constructor({ returnMimeType } = {}) {
-        this._objects = [];
-        this._width = 200;
-        this._height = 150;
+        this.objects = [];
+        this.width = 200;
+        this.height = 150;
         this.selection = true;
         this.toDataURLCalls = [];
         this.returnMimeType = returnMimeType;
@@ -81,29 +79,29 @@ class MockCanvas {
         return this;
     }
     getObjects() {
-        return this._objects.slice();
+        return this.objects.slice();
     }
     add(object) {
-        this._objects.push(object);
+        this.objects.push(object);
     }
     remove(object) {
-        const index = this._objects.indexOf(object);
-        if (index >= 0) this._objects.splice(index, 1);
+        const index = this.objects.indexOf(object);
+        if (index >= 0) this.objects.splice(index, 1);
     }
     bringObjectToFront() {}
     setActiveObject() {
         return this;
     }
     getWidth() {
-        return this._width;
+        return this.width;
     }
     getHeight() {
-        return this._height;
+        return this.height;
     }
     renderAll() {}
     requestRenderAll() {}
     clear() {
-        this._objects = [];
+        this.objects = [];
     }
     toDataURL(options) {
         this.toDataURLCalls.push({ ...options });

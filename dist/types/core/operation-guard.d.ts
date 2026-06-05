@@ -1,9 +1,8 @@
 /**
- * @file operation-guard.ts
- * @description Animation-state guard used by the {@link ImageEditor} facade
- *              to block stateful public operations while an animation is in
- *              progress, and to centralize the dispose flag that in-flight
- *              animation callbacks check before touching the canvas.
+ * Animation-state guard used by the {@link ImageEditor} facade
+ * to block stateful public operations while an animation is in
+ * progress, and to centralize the dispose flag that in-flight
+ * animation callbacks check before touching the canvas.
  *
  * ## Owned contracts
  *
@@ -12,8 +11,7 @@
  *   `downloadImage`, `enterCropMode`, `applyCrop`, `removeAllMasks`, and
  *   `loadImage` with a clear error or no-op (documented per method).
  * - `undo` and `redo` are NOT routed through this
- *   guard; they are serialized by the {@link
- *../animation/animation-queue.AnimationQueue} instead. Callers that
+ *   guard; they are serialized by the `AnimationQueue` instead. Callers that
  *   would otherwise be blocked by the `isAnimating` flag still flow
  *   through `assertNotAnimating`; `undo` / `redo` skip the guard
  *   entirely (see `image-editor.ts`).
@@ -24,7 +22,7 @@
  *
  * ## Why the guard owns the dispose flag too
  *
- * In-flight animation callbacks check `_disposed` before touching the
+ * In-flight animation callbacks check `isDisposed` before touching the
  * canvas. Co-locating the disposed flag here keeps both checks behind a
  * single small object so the Fabric animation wrapper
  * (`fabric/fabric-animation.ts`) and the dispose path (`image-editor.ts`)
@@ -38,6 +36,8 @@
  * The guard is imported by `image-editor.ts` and
  * `fabric/fabric-animation.ts`. It is intentionally NOT re-exported from
  * `src/index.ts`.
+ *
+ * @module
  */
 /**
  * Read-only view of the guard state. Useful for diagnostics, property
@@ -52,7 +52,7 @@ export interface AnimationState {
 }
 export type OperationToken = symbol;
 /**
- * Tracks the editor's `isAnimating` and `_disposed` flags and exposes the
+ * Tracks the editor's `isAnimating` and `isDisposed` flags and exposes the
  * single-line `assertNotAnimating` gate used by every guarded public
  * method.
  *
@@ -61,6 +61,11 @@ export type OperationToken = symbol;
  *
  */
 export declare class OperationGuard {
+    private isAnimationActive;
+    private isDisposedFlag;
+    private isLoadingActive;
+    private currentOperationName;
+    private currentOperationToken;
     /**
      * Returns `true` while an animation block is open (between
      * {@link beginAnimation} and {@link endAnimation}).
@@ -137,7 +142,7 @@ export declare class OperationGuard {
      * Run an async function inside a `beginAnimation` / `endAnimation`
      * bracket. The bracket is released in a `finally` so the
      * `isAnimating === false` invariant holds even
-     * when `fn` rejects.
+     * when `animationTask` rejects.
      *
      * Used by the orchestrator's transform pipeline (`scaleImage`,
      * `rotateImage`, `resetImageTransform`) when wrapping a single Fabric
@@ -145,12 +150,12 @@ export declare class OperationGuard {
      * enforces FIFO ordering across multiple wrappers, so callers do not
      * need to coordinate begin/end across queue entries.
      *
-     * @typeParam T  Resolved value of the wrapped animation.
-     * @param fn     Animation function returning a promise.
-     * @returns      The promise returned by `fn`, with begin/end bracketing
+     * @typeParam T - Resolved value of the wrapped animation.
+     * @param animationTask - Animation function returning a promise.
+     * @returns      The promise returned by `animationTask`, with begin/end bracketing
      *               applied around its lifetime.
      */
-    runAnimation<T>(fn: () => Promise<T>): Promise<T>;
+    runAnimation<T>(animationTask: () => Promise<T>): Promise<T>;
     /**
      * Throw if an animation is currently in progress. Used as the gate for
      * the operations enumerated: `mergeMasks`,
@@ -166,8 +171,7 @@ export declare class OperationGuard {
      * the failure into a documented no-op shape before it reaches the
      * consumer.
      *
-     * @param operationLabel
-     *   Short, user-facing operation name (e.g. `'mergeMasks'`).
+     * @param operationLabel - Short, user-facing operation name (e.g. `'mergeMasks'`).
      *   Embedded in the error message verbatim.
      * @throws Error when {@link isAnimating} returns `true`.
      */

@@ -1,6 +1,4 @@
 /**
- * @file transactional-load.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -84,7 +82,7 @@ function installImageStub(mode = 'success') {
             this.height = naturalSize;
         }
         set src(value) {
-            this._src = value;
+            this.source = value;
             queueMicrotask(() => {
                 if (mode === 'error') {
                     if (this.onerror) this.onerror(new Error('decode failed'));
@@ -94,7 +92,7 @@ function installImageStub(mode = 'success') {
             });
         }
         get src() {
-            return this._src;
+            return this.source;
         }
     }
     globalThis.Image = StubImage;
@@ -470,7 +468,7 @@ test('success commits the new-image state', async () => {
             );
             assert.ok(
                 holder.state.lastSnapshot !== null && typeof holder.state.lastSnapshot === 'string',
-                'the documented contract: success must emit a fresh _lastSnapshot string',
+                'the documented contract: success must emit a fresh lastSnapshot string',
             );
             assert.ok(
                 holder.state.originalImage !== null,

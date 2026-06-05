@@ -1,13 +1,14 @@
 /**
- * @file public-types.ts
- * @description Public interfaces and types for `@bensitu/image-editor`.
+ * Public interfaces and types for `@bensitu/image-editor`.
  *
  * All types declared here are re-exported from the package root
  * (`src/index.ts`) so consumers can import them directly:
  *
  * ```ts
- * import type { ImageEditorOptions, MaskConfig} from '@bensitu/image-editor';
+ * import type { ImageEditorOptions, MaskConfig } from '@bensitu/image-editor';
  * ```
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 /**
@@ -73,7 +74,7 @@ export interface MaskObject extends FabricNS.FabricObject {
     /** Original stroke width captured for hover/selection style restore. */
     originalStrokeWidth?: number;
     /** Active label overlay object, if currently displayed. */
-    __label?: FabricNS.FabricObject;
+    labelObject?: FabricNS.FabricObject;
     /** Marker flag — `true` only on the crop rectangle, never on real masks. */
     isCropRect?: boolean;
     /**
@@ -83,11 +84,11 @@ export interface MaskObject extends FabricNS.FabricObject {
     maskLabel?: boolean;
 }
 /**
- * Type guard — returns `true` when `obj` carries the runtime mask metadata
+ * Type guard — returns `true` when `object` carries the runtime mask metadata
  * (`maskId: number`) so consumers can filter `canvas.getObjects`
  * deterministically.
  */
-export declare function isMaskObject(obj: FabricNS.FabricObject): obj is MaskObject;
+export declare function isMaskObject(object: FabricNS.FabricObject): object is MaskObject;
 /**
  * Public operation/reason associated with lifecycle and state callbacks.
  */
@@ -211,6 +212,12 @@ export interface CropConfig {
     exportQuality?: number;
 }
 /**
+ * Crop configuration after defaults are applied. `exportQuality` remains
+ * optional so `undefined` can continue to mean "fall back to
+ * `downsampleQuality`".
+ */
+export type ResolvedCropConfig = Required<Omit<CropConfig, 'exportQuality'>> & Pick<CropConfig, 'exportQuality'>;
+/**
  * A numeric property that may be provided as:
  *   - a plain `number` in canvas pixels,
  *   - a CSS-style percentage string (`"50%"`) — resolved against the canvas
@@ -220,7 +227,7 @@ export interface CropConfig {
  */
 export type MaskNumericProp = number | `${number}%` | string | ((canvas: FabricNS.Canvas, options: ResolvedOptions) => number);
 /**
- * Polygon vertex accepted by `MaskConfig.points`. Coerced to `{ x, y}`
+ * Polygon vertex accepted by `MaskConfig.points`. Coerced to `{ x, y }`
  * internally regardless of input form.
  */
 export type PolygonPoint = {
@@ -239,7 +246,7 @@ export interface MaskConfig {
     shape?: 'rect' | 'circle' | 'ellipse' | 'polygon' | string;
     /**
      * Polygon vertex array. Required when `shape === 'polygon'`.
-     * Each element may be `{ x, y}` or `[x, y]`.
+     * Each element may be `{ x, y }` or `[x, y]`.
      */
     points?: PolygonPoint[];
     /** Mask width (rect) / used as diameter hint for circle. */
@@ -303,7 +310,7 @@ export interface MaskConfig {
      * object. Receives the fully resolved config, the canvas, and the
      * resolved editor options.
      */
-    fabricGenerator?: (cfg: ResolvedMaskConfig, canvas: FabricNS.Canvas, options: ResolvedOptions) => FabricNS.FabricObject;
+    fabricGenerator?: (config: ResolvedMaskConfig, canvas: FabricNS.Canvas, options: ResolvedOptions) => FabricNS.FabricObject;
 }
 /**
  * Fully resolved mask config produced after defaults and percentage resolution
@@ -574,7 +581,7 @@ export interface ImageEditorOptions {
     /** Called when a valid image load is about to start. */
     onImageLoadStart?: (context: ImageEditorCallbackContext) => void;
     /** Called after an image is successfully loaded onto the canvas. */
-    onImageLoaded?: (info: ImageInfo, context: ImageEditorCallbackContext) => void;
+    onImageLoaded?: (imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void;
     /** Called when a previously loaded image stops being current. */
     onImageCleared?: (previousImage: FabricNS.FabricImage | null, context: ImageEditorCallbackContext) => void;
     /** Called after externally visible editor state changes. */
@@ -617,7 +624,7 @@ export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'labe
     label: LabelConfig;
     crop: ResolvedCropConfig;
     onImageLoadStart: ((context: ImageEditorCallbackContext) => void) | null;
-    onImageLoaded: ((info: ImageInfo, context: ImageEditorCallbackContext) => void) | null;
+    onImageLoaded: ((imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void) | null;
     onImageCleared: ((previousImage: FabricNS.FabricImage | null, context: ImageEditorCallbackContext) => void) | null;
     onImageChanged: ((state: ImageEditorState, context: ImageEditorCallbackContext) => void) | null;
     onBusyChange: ((isBusy: boolean, context: ImageEditorCallbackContext) => void) | null;
@@ -626,5 +633,35 @@ export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'labe
     onSelectionChange: ((selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void) | null;
     onError: ((error: unknown, message: string) => void) | null;
     onWarning: ((error: unknown, message: string) => void) | null;
+}
+/** DOM event subscription pair retained so teardown can remove the listener. */
+export interface BoundHandler {
+    event: string;
+    handler: EventListener;
+}
+/** Crop-session handler registry entry for crop rectangle events. */
+export interface CropHandler {
+    target: MaskObject | FabricNS.Rect;
+    handlers: Array<{
+        eventName: string;
+        callback: () => void;
+    }>;
+}
+/** Previous Fabric interaction flags captured before crop mode freezes objects. */
+export interface CropPrevEvented {
+    object: FabricNS.FabricObject;
+    evented: boolean;
+    selectable: boolean;
+}
+/** Full mask style snapshot used to restore hover, selection, and crop styles. */
+export interface MaskBackup {
+    object: MaskObject;
+    opacity: number;
+    fill: FabricNS.TFiller | string | null;
+    strokeWidth: number;
+    stroke: FabricNS.TFiller | string | null;
+    selectable: boolean;
+    evented: boolean;
+    lockRotation: boolean;
 }
 //# sourceMappingURL=public-types.d.ts.map

@@ -1,6 +1,4 @@
 /**
- * @file options-resolution.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -314,12 +312,12 @@ test('options resolution completeness and deep-merge', () => {
         fc.property(partialOptionsArb(), (input) => {
             const resolved = resolveOptions(input);
 
-            // 3.1 — every documented top-level key is present.
+            // Every documented top-level key is present.
             for (const key of ALL_TOP_LEVEL_KEYS) {
                 assert.ok(key in resolved, `expected resolved to contain key '${key}'`);
             }
 
-            // 3.5 — preserveSourceFormat default.
+            // `preserveSourceFormat` defaults to source-preserving exports.
             if (!('preserveSourceFormat' in input)) {
                 assert.equal(
                     resolved.preserveSourceFormat,
@@ -330,7 +328,7 @@ test('options resolution completeness and deep-merge', () => {
                 assert.equal(resolved.preserveSourceFormat, input.preserveSourceFormat);
             }
 
-            // 3.6 — imageLoadTimeoutMs default.
+            // `imageLoadTimeoutMs` defaults to the documented timeout.
             if (!('imageLoadTimeoutMs' in input)) {
                 assert.equal(
                     resolved.imageLoadTimeoutMs,
@@ -341,7 +339,8 @@ test('options resolution completeness and deep-merge', () => {
                 assert.equal(resolved.imageLoadTimeoutMs, input.imageLoadTimeoutMs);
             }
 
-            // 3.1 — every user-supplied scalar key passes through; unsupplied → default.
+            // Every user-supplied scalar key passes through; unsupplied keys
+            // fall back to defaults.
             for (const key of TOP_LEVEL_SCALAR_KEYS) {
                 if (key in input) {
                     assert.deepEqual(
@@ -358,9 +357,9 @@ test('options resolution completeness and deep-merge', () => {
                 }
             }
 
-            // 3.7 — non-function callbacks normalized to null.
-            // 3.8 — function callbacks preserved by identity (so the public
-            //       `(error, message)` argument order is preserved at the call site).
+            // Non-function callbacks are normalized to null. Function
+            // callbacks are preserved by identity so the public
+            // `(error, message)` argument order is preserved at the call site.
             for (const cbKey of CALLBACK_KEYS) {
                 const userVal = input[cbKey];
                 if (typeof userVal === 'function') {
@@ -378,7 +377,7 @@ test('options resolution completeness and deep-merge', () => {
                 }
             }
 
-            // 3.2 — label.textOptions deep-merged with documented defaults.
+            // `label.textOptions` is deep-merged with documented defaults.
             const userTextOpts = input.label?.textOptions ?? {};
             const defaultTextOpts = DEFAULT_LABEL.textOptions;
             for (const key of TEXT_OPTIONS_DEFAULT_KEYS) {
@@ -430,7 +429,7 @@ test('options resolution completeness and deep-merge', () => {
                 );
             }
 
-            // 3.9 — unknown top-level keys silently dropped.
+            // Unknown top-level keys are silently dropped.
             for (const k of Object.keys(input)) {
                 if (k.startsWith(UNKNOWN_KEY_PREFIX)) {
                     assert.equal(
@@ -441,7 +440,7 @@ test('options resolution completeness and deep-merge', () => {
                 }
             }
 
-            // 3.10 — nested label / textOptions / crop are frozen.
+            // Nested label / textOptions / crop objects are frozen.
             assert.equal(Object.isFrozen(resolved.label), true, 'resolved.label must be frozen');
             assert.equal(
                 Object.isFrozen(resolved.label.textOptions),
@@ -450,7 +449,7 @@ test('options resolution completeness and deep-merge', () => {
             );
             assert.equal(Object.isFrozen(resolved.crop), true, 'resolved.crop must be frozen');
 
-            // 3.10 — post-construction mutation of U, U.label, U.label.textOptions,
+            // Post-construction mutation of U, U.label, U.label.textOptions,
             // and U.crop must NOT affect the live ResolvedOptions.
             const canvasWidthBefore = resolved.canvasWidth;
             const fontSizeBefore = resolved.label.textOptions.fontSize;

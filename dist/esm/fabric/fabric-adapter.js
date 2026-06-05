@@ -12,7 +12,7 @@ export function detectFabric(fabricOrOptions, maybeOptions, globalScope = global
     if (looksLikeFabricModule(fabricOrOptions)) {
         return {
             fabric: fabricOrOptions,
-            _fabricLoaded: true,
+            isFabricLoaded: true,
             options: maybeOptions !== null && maybeOptions !== void 0 ? maybeOptions : {},
         };
     }
@@ -21,7 +21,7 @@ export function detectFabric(fabricOrOptions, maybeOptions, globalScope = global
     if (looksLikeFabricModule(globalFabric)) {
         return {
             fabric: globalFabric,
-            _fabricLoaded: true,
+            isFabricLoaded: true,
             options,
         };
     }
@@ -30,7 +30,7 @@ export function detectFabric(fabricOrOptions, maybeOptions, globalScope = global
         'load it as a global <script> before instantiation.');
     return {
         fabric: null,
-        _fabricLoaded: false,
+        isFabricLoaded: false,
         options,
     };
 }

@@ -1,6 +1,4 @@
 /**
- * @file polygon-placement.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -93,10 +91,10 @@ function makeFabric() {
             const maxY = Math.max(...ys);
 
             Object.assign(this, { type: 'polygon', points: pts, ...props });
-            this._minX = minX;
-            this._minY = minY;
-            this._width = maxX - minX;
-            this._height = maxY - minY;
+            this.minX = minX;
+            this.minY = minY;
+            this.width = maxX - minX;
+            this.height = maxY - minY;
 
             this.set = function (p, v) {
                 if (typeof p === 'string') this[p] = v;
@@ -110,10 +108,10 @@ function makeFabric() {
                 // this.top). After the factory's delta-shift the
                 // bounding rect lands at the requested (left, top).
                 return {
-                    left: (this.left ?? 0) - this._minX,
-                    top: (this.top ?? 0) - this._minY,
-                    width: this._width,
-                    height: this._height,
+                    left: (this.left ?? 0) - this.minX,
+                    top: (this.top ?? 0) - this.minY,
+                    width: this.width,
+                    height: this.height,
                 };
             };
             this.on = function () {};
@@ -148,7 +146,7 @@ function makeCanvas() {
 
 /**
  * Build a fully wired `CreateMaskContext` over the mocks above. The
- * counter and `_lastMask` slots are owned here (mirroring the
+ * counter and `lastMask` slots are owned here (mirroring the
  * orchestrator's ownership in `image-editor.ts`) so each iteration
  * starts from a clean state.
  */

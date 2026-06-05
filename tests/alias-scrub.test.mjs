@@ -1,6 +1,4 @@
 /**
- * @file alias-scrub.test.mjs
- *
  * Type:
  *   Smoke test
  *

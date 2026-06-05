@@ -1,6 +1,4 @@
 /**
- * @file export-service.test.mjs
- *
  * Type:
  *   Unit test
  *
@@ -69,7 +67,7 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
         getHeight() {
             return this.height;
         },
-        // The bake-in/restore bracket (Task 18.4) reads `getObjects()`
+        // The export style backup/restore bracket reads `getObjects()`
         // through `withMaskStyleBackup` to enumerate masks. These tests
         // exercise format/multiplier/no-image gates rather than the
         // bake-in itself, so an empty list is the right stand-in.
@@ -374,7 +372,7 @@ test('exportImageBase64: hides mask labels during export and restores them after
     const mask = {
         type: 'rect',
         maskId: 1,
-        __label: label,
+        labelObject: label,
         set(patch) {
             Object.assign(this, patch);
         },
@@ -421,7 +419,7 @@ test('exportImageBase64: hides mask labels during export and restores them after
 
     await exportImageBase64(ctx);
 
-    assert.equal(mask.__label, label, 'mask label reference must be restored');
+    assert.equal(mask.labelObject, label, 'mask label reference must be restored');
     assert.equal(canvas.objects.includes(label), true, 'label overlay must return to canvas');
     assert.equal(label.visible, true, 'label visibility must be restored');
 });

@@ -30,7 +30,7 @@ export class HistoryManager {
             writable: true,
             value: -1
         });
-        Object.defineProperty(this, "_processing", {
+        Object.defineProperty(this, "isProcessing", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -46,10 +46,10 @@ export class HistoryManager {
     }
     execute(command) {
         void command.execute();
-        this._pushAndTrim(command);
+        this.pushAndTrim(command);
     }
     push(command) {
-        this._pushAndTrim(command);
+        this.pushAndTrim(command);
     }
     canUndo() {
         return this.currentIndex >= 0;
@@ -58,9 +58,9 @@ export class HistoryManager {
         return this.currentIndex < this.history.length - 1;
     }
     async undo() {
-        if (this._processing || !this.canUndo())
+        if (this.isProcessing || !this.canUndo())
             return;
-        this._processing = true;
+        this.isProcessing = true;
         try {
             const cmd = this.history[this.currentIndex];
             if (!cmd)
@@ -69,13 +69,13 @@ export class HistoryManager {
             this.currentIndex--;
         }
         finally {
-            this._processing = false;
+            this.isProcessing = false;
         }
     }
     async redo() {
-        if (this._processing || !this.canRedo())
+        if (this.isProcessing || !this.canRedo())
             return;
-        this._processing = true;
+        this.isProcessing = true;
         try {
             const cmd = this.history[this.currentIndex + 1];
             if (!cmd)
@@ -84,10 +84,10 @@ export class HistoryManager {
             this.currentIndex++;
         }
         finally {
-            this._processing = false;
+            this.isProcessing = false;
         }
     }
-    _pushAndTrim(command) {
+    pushAndTrim(command) {
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }

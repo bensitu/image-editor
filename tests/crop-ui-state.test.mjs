@@ -1,13 +1,11 @@
 /**
- * @file crop-ui-state.test.mjs
- *
  * Type:
  *   Unit test
  *
  * Purpose:
  *   Verifies the ImageEditor facade UI state machine around crop mode. Entering crop
  *   mode freezes toolbar buttons, the file picker, and numeric transform inputs;
- *   leaving crop mode must restore those same controls through the normal _updateUI
+ *   leaving crop mode must restore those same controls through the normal updateUi
  *   path.
  *
  * Scope:
@@ -54,18 +52,18 @@ const CONTROL_KEYS = [
 
 class MockCanvas {
     constructor() {
-        this._objects = [];
-        this._active = null;
+        this.objects = [];
+        this.activeObject = null;
     }
     on() {}
     getObjects() {
-        return [...this._objects];
+        return [...this.objects];
     }
     getActiveObject() {
-        return this._active;
+        return this.activeObject;
     }
     discardActiveObject() {
-        this._active = null;
+        this.activeObject = null;
         return this;
     }
     requestRenderAll() {}
@@ -146,8 +144,8 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     editor.init({});
     editor.originalImage = new fabric.FabricImage();
 
-    editor._cropSession = {};
-    editor._updateUI();
+    editor.cropSession = {};
+    editor.updateUi();
 
     for (const key of CONTROL_KEYS) {
         assert.equal(getControl(key).disabled, true, `${key} must be frozen in crop mode`);
@@ -155,8 +153,8 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     assert.equal(getControl('applyCropButton').disabled, false);
     assert.equal(getControl('cancelCropButton').disabled, false);
 
-    editor._cropSession = null;
-    editor._updateUI();
+    editor.cropSession = null;
+    editor.updateUi();
 
     for (const key of CONTROL_KEYS) {
         assert.equal(getControl(key).disabled, false, `${key} must be restored after crop mode`);

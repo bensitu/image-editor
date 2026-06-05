@@ -4,79 +4,85 @@ import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
 import { withTimeout } from '../utils/timeout.js';
 import { computeCoverLayout, computeExpandLayout, computeFitLayout, selectLayoutStrategy, applyCanvasDimensions, measureScrollbarSize, } from './layout-manager.js';
 import { computeDownsampleDimensions, detectSourceMimeType, resampleImage, } from './image-resampler.js';
-export async function loadImage(ctx, imageBase64, loadOptions = {}) {
+export async function loadImage(context, imageBase64, loadOptions = {}) {
     if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
         return;
     }
-    const placeholderHidden = ctx.placeholderElement ? !!ctx.placeholderElement.hidden : null;
-    const containerScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
-    const containerScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
-    const containerOverflow = ctx.containerElement ? ctx.containerElement.style.overflow : null;
+    const placeholderHidden = context.placeholderElement
+        ? !!context.placeholderElement.hidden
+        : null;
+    const containerScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
+    const containerScrollLeft = context.containerElement
+        ? context.containerElement.scrollLeft
+        : null;
+    const containerOverflow = context.containerElement
+        ? context.containerElement.style.overflow
+        : null;
     const bundle = {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
         containerOverflow,
-        originalImage: ctx.getOriginalImage(),
-        isImageLoadedToCanvas: ctx.getIsImageLoadedToCanvas(),
-        lastSnapshot: ctx.getLastSnapshot(),
-        canvasJson: serializeCanvas(ctx.canvas),
-        maskCounter: ctx.getMaskCounter(),
-        currentScale: ctx.getCurrentScale(),
-        currentRotation: ctx.getCurrentRotation(),
-        baseImageScale: ctx.getBaseImageScale(),
-        currentImageMimeType: ctx.getCurrentImageMimeType(),
+        originalImage: context.getOriginalImage(),
+        isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
+        lastSnapshot: context.getLastSnapshot(),
+        canvasJson: serializeCanvas(context.canvas),
+        maskCounter: context.getMaskCounter(),
+        currentScale: context.getCurrentScale(),
+        currentRotation: context.getCurrentRotation(),
+        baseImageScale: context.getBaseImageScale(),
+        currentImageMimeType: context.getCurrentImageMimeType(),
     };
     try {
-        ctx.setPlaceholderVisible(false);
+        context.setPlaceholderVisible(false);
         const decode = startImageDecode(imageBase64);
-        let imgEl;
+        let imageElement;
         try {
-            imgEl = await withTimeout(decode.promise, ctx.options.imageLoadTimeoutMs, 'image decode');
+            imageElement = await withTimeout(decode.promise, context.options.imageLoadTimeoutMs, 'image decode');
         }
         catch (error) {
             decode.cleanup(true);
             throw error;
         }
-        const loadSrc = maybeDownsample(imgEl, imageBase64, ctx.options);
-        const fimg = await withTimeout(ctx.fabric.FabricImage.fromURL(loadSrc.dataUrl, { crossOrigin: 'anonymous' }), ctx.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
-        ctx.canvas.discardActiveObject();
-        ctx.canvas.clear();
-        ctx.canvas.backgroundColor = ctx.options.backgroundColor;
-        fimg.set({
+        const loadSource = maybeDownsample(imageElement, imageBase64, context.options);
+        const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
+        context.canvas.discardActiveObject();
+        context.canvas.clear();
+        context.canvas.backgroundColor = context.options.backgroundColor;
+        fabricImage.set({
             originX: 'left',
             originY: 'top',
             selectable: false,
             evented: false,
         });
-        const layout = computeLayout(ctx, fimg);
-        applyCanvasDimensions(ctx.canvas, layout.canvasWidth, layout.canvasHeight, ctx.containerElement);
-        fimg.set({ left: layout.imageLeft, top: layout.imageTop });
-        fimg.scale(layout.imageScale);
-        ctx.canvas.add(fimg);
-        ctx.canvas.sendObjectToBack(fimg);
-        ctx.setOriginalImage(fimg);
-        ctx.setBaseImageScale(layout.baseImageScale);
-        ctx.setCurrentScale(1);
-        ctx.setCurrentRotation(0);
-        ctx.setMaskCounter(0);
-        ctx.setIsImageLoadedToCanvas(true);
-        ctx.setCurrentImageMimeType(loadSrc.mimeType);
-        ctx.canvas.renderAll();
-        ctx.setLastSnapshot(saveState({
-            canvas: ctx.canvas,
+        const layout = computeLayout(context, fabricImage);
+        applyCanvasDimensions(context.canvas, layout.canvasWidth, layout.canvasHeight, context.containerElement);
+        fabricImage.set({ left: layout.imageLeft, top: layout.imageTop });
+        fabricImage.scale(layout.imageScale);
+        context.canvas.add(fabricImage);
+        context.canvas.sendObjectToBack(fabricImage);
+        context.setOriginalImage(fabricImage);
+        context.setBaseImageScale(layout.baseImageScale);
+        context.setCurrentScale(1);
+        context.setCurrentRotation(0);
+        context.setMaskCounter(0);
+        context.setIsImageLoadedToCanvas(true);
+        context.setCurrentImageMimeType(loadSource.mimeType);
+        context.canvas.renderAll();
+        context.setLastSnapshot(saveState({
+            canvas: context.canvas,
             currentScale: 1,
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
-            currentImageMimeType: loadSrc.mimeType,
+            currentImageMimeType: loadSource.mimeType,
         }));
-        if (loadOptions.preserveScroll === true && ctx.containerElement) {
+        if (loadOptions.preserveScroll === true && context.containerElement) {
             try {
                 if (bundle.containerScrollTop !== null) {
-                    ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                    context.containerElement.scrollTop = bundle.containerScrollTop;
                 }
                 if (bundle.containerScrollLeft !== null) {
-                    ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                    context.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             }
             catch (error) {
@@ -85,35 +91,35 @@ export async function loadImage(ctx, imageBase64, loadOptions = {}) {
         }
     }
     catch (error) {
-        await replayRollback(ctx, bundle);
+        await replayRollback(context, bundle);
         const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
-        reportError(ctx.options, error, errorMessage);
+        reportError(context.options, error, errorMessage);
         throw error;
     }
 }
 function startImageDecode(dataUrl) {
-    const img = new Image();
+    const imageElement = new Image();
     const cleanup = (clearSource = false) => {
-        if (typeof img.removeEventListener === 'function') {
-            img.removeEventListener('load', handleLoad);
-            img.removeEventListener('error', handleError);
+        if (typeof imageElement.removeEventListener === 'function') {
+            imageElement.removeEventListener('load', handleLoad);
+            imageElement.removeEventListener('error', handleError);
         }
         else {
-            img.onload = null;
-            img.onerror = null;
+            imageElement.onload = null;
+            imageElement.onerror = null;
         }
         if (clearSource) {
-            img.src = '';
+            imageElement.src = '';
         }
     };
     const handleLoad = () => {
-        if (!hasNaturalImageDimensions(img)) {
+        if (!hasNaturalImageDimensions(imageElement)) {
             cleanup(true);
             rejectImage(new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null));
             return;
         }
         cleanup(false);
-        resolveImage(img);
+        resolveImage(imageElement);
     };
     const handleError = (e) => {
         cleanup(true);
@@ -124,23 +130,23 @@ function startImageDecode(dataUrl) {
     const promise = new Promise((resolve, reject) => {
         resolveImage = resolve;
         rejectImage = reject;
-        if (typeof img.addEventListener === 'function') {
-            img.addEventListener('load', handleLoad, { once: true });
-            img.addEventListener('error', handleError, { once: true });
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
         }
         else {
-            img.onload = handleLoad;
-            img.onerror = handleError;
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
         }
-        img.src = dataUrl;
+        imageElement.src = dataUrl;
     });
     return { promise, cleanup };
 }
-function hasNaturalImageDimensions(img) {
-    return (Number.isFinite(img.naturalWidth) &&
-        Number.isFinite(img.naturalHeight) &&
-        img.naturalWidth > 0 &&
-        img.naturalHeight > 0);
+function hasNaturalImageDimensions(imageElement) {
+    return (Number.isFinite(imageElement.naturalWidth) &&
+        Number.isFinite(imageElement.naturalHeight) &&
+        imageElement.naturalWidth > 0 &&
+        imageElement.naturalHeight > 0);
 }
 function isPositiveFinite(value) {
     return Number.isFinite(value) && value > 0;
@@ -150,7 +156,7 @@ function toSupportedImageMimeType(mimeType) {
         ? mimeType
         : null;
 }
-function maybeDownsample(imgEl, originalDataUrl, options) {
+function maybeDownsample(imageElement, originalDataUrl, options) {
     const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
     if (!options.downsampleOnLoad) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
@@ -160,71 +166,72 @@ function maybeDownsample(imgEl, originalDataUrl, options) {
         reportWarning(options, null, 'loadImage skipped downsampling because downsample bounds are invalid.');
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
-    const dims = computeDownsampleDimensions(imgEl.naturalWidth, imgEl.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
-    if (!dims.needsResize)
+    const downsampleDimensions = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
+    if (!downsampleDimensions.needsResize) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
+    }
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    const result = resampleImage(imgEl, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
-    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(result.dataUrl));
+    const resampledImage = resampleImage(imageElement, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
+    const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(resampledImage.dataUrl));
     return {
-        dataUrl: result.dataUrl,
-        mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : result.mimeType,
+        dataUrl: resampledImage.dataUrl,
+        mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : resampledImage.mimeType,
     };
 }
-function computeLayout(ctx, fimg) {
+function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;
-    const imgW = (_a = fimg.width) !== null && _a !== void 0 ? _a : 0;
-    const imgH = (_b = fimg.height) !== null && _b !== void 0 ? _b : 0;
-    const scrollbarSize = measureScrollbarSize((_d = (_c = ctx.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
-    const viewport = ctx.viewportCache.measure(ctx.containerElement, {
-        width: ctx.options.canvasWidth,
-        height: ctx.options.canvasHeight,
+    const imageWidth = (_a = fabricImage.width) !== null && _a !== void 0 ? _a : 0;
+    const imageHeight = (_b = fabricImage.height) !== null && _b !== void 0 ? _b : 0;
+    const scrollbarSize = measureScrollbarSize((_d = (_c = context.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
+    const viewport = context.viewportCache.measure(context.containerElement, {
+        width: context.options.canvasWidth,
+        height: context.options.canvasHeight,
     }, scrollbarSize);
-    const strategy = selectLayoutStrategy(ctx.options);
+    const strategy = selectLayoutStrategy(context.options);
     if (strategy === 'fit') {
-        return computeFitLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+        return computeFitLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
     }
     if (strategy === 'cover') {
-        return computeCoverLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport, scrollbarSize);
+        return computeCoverLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport, scrollbarSize);
     }
-    return computeExpandLayout(imgW, imgH, ctx.options.canvasWidth, ctx.options.canvasHeight, viewport);
+    return computeExpandLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
 }
 function serializeCanvas(canvas) {
     canvas.discardActiveObject();
     const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     return JSON.stringify(json);
 }
-async function replayRollback(ctx, bundle) {
-    if (ctx.containerElement && bundle.containerOverflow !== null) {
+async function replayRollback(context, bundle) {
+    if (context.containerElement && bundle.containerOverflow !== null) {
         try {
-            ctx.containerElement.style.overflow = bundle.containerOverflow;
+            context.containerElement.style.overflow = bundle.containerOverflow;
         }
         catch (rollbackError) {
             console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
         }
     }
     try {
-        await ctx.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
-        ctx.canvas.renderAll();
+        await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
+        context.canvas.renderAll();
     }
     catch (rollbackError) {
         console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
-    ctx.setOriginalImage(bundle.originalImage);
-    ctx.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
-    ctx.setLastSnapshot(bundle.lastSnapshot);
-    ctx.setMaskCounter(bundle.maskCounter);
-    ctx.setCurrentScale(bundle.currentScale);
-    ctx.setCurrentRotation(bundle.currentRotation);
-    ctx.setBaseImageScale(bundle.baseImageScale);
-    ctx.setCurrentImageMimeType(bundle.currentImageMimeType);
-    if (ctx.containerElement) {
+    context.setOriginalImage(bundle.originalImage);
+    context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
+    context.setLastSnapshot(bundle.lastSnapshot);
+    context.setMaskCounter(bundle.maskCounter);
+    context.setCurrentScale(bundle.currentScale);
+    context.setCurrentRotation(bundle.currentRotation);
+    context.setBaseImageScale(bundle.baseImageScale);
+    context.setCurrentImageMimeType(bundle.currentImageMimeType);
+    if (context.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
-                ctx.containerElement.scrollTop = bundle.containerScrollTop;
+                context.containerElement.scrollTop = bundle.containerScrollTop;
             }
             if (bundle.containerScrollLeft !== null) {
-                ctx.containerElement.scrollLeft = bundle.containerScrollLeft;
+                context.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         }
         catch (rollbackError) {
@@ -232,7 +239,7 @@ async function replayRollback(ctx, bundle) {
         }
     }
     if (bundle.placeholderHidden !== null) {
-        ctx.setPlaceholderVisible(!bundle.placeholderHidden);
+        context.setPlaceholderVisible(!bundle.placeholderHidden);
     }
 }
 //# sourceMappingURL=image-loader.js.map

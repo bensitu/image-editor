@@ -1,6 +1,4 @@
 /**
- * @file export-style-restoration.property.test.mjs
- *
  * Type:
  *   Property test
  *

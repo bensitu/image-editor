@@ -8,7 +8,7 @@
  */
 
 /**
- * Force a synchronous layout reflow on `el`.
+ * Force a synchronous layout reflow on `element`.
  *
  * Reading an offset/scroll/clientWidth-like property forces the browser
  * to flush queued style and layout work on the spot, before any further
@@ -18,15 +18,15 @@
  *
  * The read is cast to `void` and isolated in this helper so optimizers
  * cannot eliminate it as a dead access. The function is a no-op when
- * `el` is `null` or `undefined`, which keeps callers free of guards in
+ * `element` is `null` or `undefined`, which keeps callers free of guards in
  * environments where the container element may not yet be attached.
  *
- * @param el The element whose layout should be flushed. `null` is ignored.
+ * @param element - The element whose layout should be flushed. `null` is ignored.
  */
-export function forceReflow(el: HTMLElement | null | undefined): void {
-    if (!el) return;
+export function forceReflow(element: HTMLElement | null | undefined): void {
+    if (!element) return;
     // One-shot read of `offsetWidth` is the documented way to flush layout
     // synchronously. `void` ensures the value is observed by the engine
     // without being assigned anywhere the optimizer might treat as dead.
-    void el.offsetWidth;
+    void element.offsetWidth;
 }

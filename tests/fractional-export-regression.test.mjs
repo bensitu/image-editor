@@ -173,12 +173,12 @@ test('facade blocks mutating operations while a load is active', async (t) => {
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
 
-    editor._guard.beginLoading();
+    editor.operationGuard.beginLoading();
     try {
         assert.equal(editor.createMask({ width: 20, height: 20 }), null);
         assert.equal(await editor.exportImageBase64({ exportArea: 'image' }), '');
         await assert.rejects(() => editor.scaleImage(1.1), /image is loading/);
     } finally {
-        editor._guard.endLoading();
+        editor.operationGuard.endLoading();
     }
 });

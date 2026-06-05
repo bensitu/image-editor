@@ -1,6 +1,4 @@
 /**
- * @file mask-list-dom.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -108,20 +106,20 @@ function makeMask(id, name) {
  */
 function makeCanvas(objects) {
     return {
-        _objects: [...objects],
-        _activeObject: null,
+        objects: [...objects],
+        activeObject: null,
         getObjects() {
-            return this._objects;
+            return this.objects;
         },
         setActiveObject(o) {
-            this._activeObject = o;
+            this.activeObject = o;
         },
         add(o) {
-            this._objects.push(o);
+            this.objects.push(o);
         },
         remove(o) {
-            const idx = this._objects.indexOf(o);
-            if (idx >= 0) this._objects.splice(idx, 1);
+            const idx = this.objects.indexOf(o);
+            if (idx >= 0) this.objects.splice(idx, 1);
         },
         bringObjectToFront() {},
         renderAll() {},
@@ -136,7 +134,7 @@ function makeCanvas(objects) {
  */
 function makeFabric() {
     function FabricText(txt, opts) {
-        this._kind = 'text';
+        this.kind = 'text';
         this.text = txt;
         Object.assign(this, opts ?? {});
         this.set = function (p, v) {
@@ -180,7 +178,7 @@ function permutationArb(items) {
     });
 }
 
-// ─── / 21.2: render produces canonical DOM ────────────────────
+// ─── Canonical DOM render ─────────────────────────────────────
 
 test('renderMaskList renders one <li> per mask in canvas order with data-mask-id', () => {
     fc.assert(
@@ -266,7 +264,7 @@ test('clicking a <li> selects by maskId lookup regardless of list ordering', () 
                 // position. After this swap, "list position" and
                 // "canvas object index" differ for every entry that
                 // moved.
-                canvas._objects = permutation.map((i) => masks[i]);
+                canvas.objects = permutation.map((i) => masks[i]);
 
                 const ul = document.getElementById(listId);
                 const items = Array.from(ul.querySelectorAll('li.mask-item'));
@@ -292,7 +290,7 @@ test('clicking a <li> selects by maskId lookup regardless of list ordering', () 
                         'the documented contract: each click must invoke onMaskSelected exactly once',
                     );
                     assert.equal(
-                        canvas._activeObject,
+                        canvas.activeObject,
                         expectedMask,
                         'the documented contract: canvas.setActiveObject must receive the mask whose maskId matches data-mask-id',
                     );
@@ -356,11 +354,11 @@ test('label text uses options.label.getText(mask, mask.maskId - 1)', () => {
                 // The Text constructor must have been called with
                 // the value `getText` returned, and the resulting
                 // label must be attached to the mask via
-                // `mask.__label`.
-                assert.ok(mask.__label, 'label must be attached to the mask');
-                assert.equal(mask.__label._kind, 'text');
+                // `mask.labelObject`.
+                assert.ok(mask.labelObject, 'label must be attached to the mask');
+                assert.equal(mask.labelObject.kind, 'text');
                 assert.equal(
-                    mask.__label.text,
+                    mask.labelObject.text,
                     `M#${mask.maskId}@${mask.maskId - 1}`,
                     'the documented contract: label text must reflect the (mask, mask.maskId - 1) call',
                 );
@@ -403,8 +401,8 @@ test('label.getText errors fall back to the mask name and report a warning', () 
 
     createLabelForMask({ fabric, canvas, options }, mask);
 
-    assert.ok(mask.__label, 'fallback label must be created');
-    assert.equal(mask.__label.text, 'mask3');
+    assert.ok(mask.labelObject, 'fallback label must be created');
+    assert.equal(mask.labelObject.text, 'mask3');
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].error, callbackError);
     assert.match(warnings[0].message, /label\.getText/);
@@ -431,8 +429,8 @@ test('label.create errors fall back to the default label and report a warning', 
 
     createLabelForMask({ fabric, canvas, options }, mask);
 
-    assert.ok(mask.__label, 'fallback label must be created');
-    assert.equal(mask.__label.text, 'mask4');
+    assert.ok(mask.labelObject, 'fallback label must be created');
+    assert.equal(mask.labelObject.text, 'mask4');
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].error, callbackError);
     assert.match(warnings[0].message, /label\.create/);

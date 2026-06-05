@@ -1,6 +1,4 @@
 /**
- * @file placeholder-visibility.property.test.mjs
- *
  * Type:
  *   Property test
  *

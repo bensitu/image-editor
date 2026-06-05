@@ -1,6 +1,4 @@
 /**
- * @file lifecycle-callbacks.test.mjs
- *
  * Type:
  *   Integration-style unit test
  *
@@ -140,7 +138,7 @@ test('onImageChanged reports load, mask, undo, redo, and loadFromState state tra
     t.after(() => disposeEditor(editor));
 
     await loadFixtureImage(editor);
-    const snapshot = editor._captureSnapshot();
+    const snapshot = editor.captureSnapshotInternal();
     editor.createMask({ width: 20, height: 20 });
     await editor.undo();
     await editor.redo();
@@ -295,7 +293,7 @@ test('saveState restores the selected mask label when snapshot capture fails', a
 
     await loadFixtureImage(editor);
     const mask = editor.createMask({ width: 20, height: 20 });
-    assert.ok(mask?.__label, 'sanity: selected mask must have a visible label before save');
+    assert.ok(mask?.labelObject, 'sanity: selected mask must have a visible label before save');
     const historyLengthBefore = editor.historyManager.history.length;
     const originalToJSON = editor.canvas.toJSON;
     const snapshotError = new Error('snapshot failed');
@@ -309,8 +307,8 @@ test('saveState restores the selected mask label when snapshot capture fails', a
         editor.canvas.toJSON = originalToJSON;
     }
 
-    assert.ok(mask.__label, 'selected mask label must be restored after failed saveState');
-    assert.equal(editor.canvas.getObjects().includes(mask.__label), true);
+    assert.ok(mask.labelObject, 'selected mask label must be restored after failed saveState');
+    assert.equal(editor.canvas.getObjects().includes(mask.labelObject), true);
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].error, snapshotError);
     assert.match(warnings[0].message, /capture canvas snapshot/);

@@ -1,30 +1,30 @@
 export class OperationGuard {
     constructor() {
-        Object.defineProperty(this, "_isAnimating", {
+        Object.defineProperty(this, "isAnimationActive", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_isDisposed", {
+        Object.defineProperty(this, "isDisposedFlag", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_isLoading", {
+        Object.defineProperty(this, "isLoadingActive", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "_activeOperationName", {
+        Object.defineProperty(this, "currentOperationName", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: null
         });
-        Object.defineProperty(this, "_activeOperationToken", {
+        Object.defineProperty(this, "currentOperationToken", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -32,97 +32,97 @@ export class OperationGuard {
         });
     }
     isAnimating() {
-        return this._isAnimating;
+        return this.isAnimationActive;
     }
     isDisposed() {
-        return this._isDisposed;
+        return this.isDisposedFlag;
     }
     isLoading() {
-        return this._isLoading;
+        return this.isLoadingActive;
     }
     activeOperationName() {
-        return this._activeOperationName;
+        return this.currentOperationName;
     }
     isBusy() {
-        return this._isAnimating || this._isLoading || this._activeOperationToken !== null;
+        return (this.isAnimationActive || this.isLoadingActive || this.currentOperationToken !== null);
     }
     beginAnimation() {
-        this._isAnimating = true;
+        this.isAnimationActive = true;
     }
     endAnimation() {
-        this._isAnimating = false;
+        this.isAnimationActive = false;
     }
     markDisposed() {
-        this._isDisposed = true;
-        this._isAnimating = false;
-        this._isLoading = false;
-        this._activeOperationName = null;
-        this._activeOperationToken = null;
+        this.isDisposedFlag = true;
+        this.isAnimationActive = false;
+        this.isLoadingActive = false;
+        this.currentOperationName = null;
+        this.currentOperationToken = null;
     }
     beginLoading() {
-        this._isLoading = true;
+        this.isLoadingActive = true;
     }
     endLoading() {
-        this._isLoading = false;
+        this.isLoadingActive = false;
     }
     beginBusyOperation(operationName) {
         const token = Symbol(operationName);
-        this._activeOperationName = operationName;
-        this._activeOperationToken = token;
+        this.currentOperationName = operationName;
+        this.currentOperationToken = token;
         return token;
     }
     endBusyOperation(token) {
-        if (token && token === this._activeOperationToken) {
-            this._activeOperationName = null;
-            this._activeOperationToken = null;
+        if (token && token === this.currentOperationToken) {
+            this.currentOperationName = null;
+            this.currentOperationToken = null;
         }
     }
     isOwnOperation(token) {
-        return !!token && token === this._activeOperationToken;
+        return !!token && token === this.currentOperationToken;
     }
-    async runAnimation(fn) {
+    async runAnimation(animationTask) {
         this.beginAnimation();
         try {
-            return await fn();
+            return await animationTask();
         }
         finally {
             this.endAnimation();
         }
     }
     assertNotAnimating(operationLabel) {
-        if (this._isAnimating) {
+        if (this.isAnimationActive) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
         }
     }
     assertIdleForOperation(operationLabel, token) {
         var _a;
-        if (this._isDisposed) {
+        if (this.isDisposedFlag) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
         const ownOperation = this.isOwnOperation(token);
-        if (this._isAnimating) {
+        if (this.isAnimationActive) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
         }
-        if (this._isLoading && !ownOperation) {
+        if (this.isLoadingActive && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
         }
-        if (this._activeOperationToken && !ownOperation) {
+        if (this.currentOperationToken && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this._activeOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
         }
     }
     assertCanQueueAnimation(operationLabel, token) {
         var _a;
-        if (this._isDisposed) {
+        if (this.isDisposedFlag) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
         }
         const ownOperation = this.isOwnOperation(token);
-        if (this._isLoading && !ownOperation) {
+        if (this.isLoadingActive && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
         }
-        if (this._activeOperationToken && !ownOperation) {
+        if (this.currentOperationToken && !ownOperation) {
             throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this._activeOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
         }
     }
 }

@@ -1,6 +1,4 @@
 /**
- * @file mask-id-uniqueness.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -131,7 +129,7 @@ class MockCanvas {
         this.objects = [];
         this.width = 800;
         this.height = 600;
-        this._active = null;
+        this.activeObject = null;
     }
 
     getWidth() {
@@ -156,15 +154,15 @@ class MockCanvas {
     }
 
     setActiveObject(o) {
-        this._active = o;
+        this.activeObject = o;
     }
 
     getActiveObject() {
-        return this._active;
+        return this.activeObject;
     }
 
     discardActiveObject() {
-        this._active = null;
+        this.activeObject = null;
     }
 
     bringObjectToFront(o) {
@@ -208,7 +206,7 @@ class MockCanvas {
         this.objects = Array.isArray(json.objects) ? json.objects.map((o) => ({ ...o })) : [];
         if (typeof json.width === 'number') this.width = json.width;
         if (typeof json.height === 'number') this.height = json.height;
-        this._active = null;
+        this.activeObject = null;
         return this;
     }
 }
@@ -418,15 +416,15 @@ test('mask ID uniqueness across mixed createMask / mergeMasks (simulated removeA
                     }
                     case 'removeAll': {
                         // `mergeMasks` removes every mask before
-                        // reloading the merged image. The
-                        // mask-removal half is the contract Contract
-                        // 18.4 cares about here, so the simulated
-                        // op runs only that half.
+                        // reloading the merged image. This model only
+                        // needs the mask-removal half, because the ID
+                        // contract depends on clearing masks without
+                        // resetting `maskCounter`.
                         removeAllMasks(model.removeCtx(), {
                             saveHistory: false,
                         });
                         // Per `removeAllMasks` docs: maskCounter is
-                        // NOT reset — only `_lastMask` is cleared.
+                        // NOT reset — only `lastMask` is cleared.
                         // We assert that explicitly.
                         assert.equal(
                             liveMaskIds(model.canvas).length,

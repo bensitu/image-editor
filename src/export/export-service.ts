@@ -1,13 +1,12 @@
 /**
- * @file export/export-service.ts
- * @description Base64, file, and download entry points for the current export
- *              pipeline. The orchestrator (`image-editor.ts`) delegates
- *              `exportImageBase64`, `exportImageFile`, and `downloadImage`
- *              to the helpers in this module so the export logic lives in
- *              a single owner module per the documented module-decomposition
- *              table.
+ * Base64, file, and download entry points for the current export
+ * pipeline. The orchestrator (`image-editor.ts`) delegates
+ * `exportImageBase64`, `exportImageFile`, and `downloadImage`
+ * to the helpers in this module so the export logic lives in
+ * a single owner module per the documented module-decomposition
+ * table.
  *
- * ## Owned contracts (this task — 18.4 builds on 18.3)
+ * ## Owned contracts
  *
  * - Before computing the export region, every
  *   export entry point SHALL discard any active Fabric `ActiveSelection`
@@ -28,21 +27,21 @@
  * - When `isImageLoaded` is `false`, the three
  *   entry points exhibit the documented "no image loaded" shapes:
  *
- *     | entry point          | shape on no image                   |
- *     | -------------------- | ----------------------------------- |
- *     | `exportImageBase64`  | resolves to `''`                    |
- *     | `exportImageFile`    | rejects with `ExportNotReadyError`  |
- *     | `downloadImage`      | no-op (returns synchronously)       |
+ *   | entry point          | shape on no image                   |
+ *   | -------------------- | ----------------------------------- |
+ *   | `exportImageBase64`  | resolves to `''`                    |
+ *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
+ *   | `downloadImage`      | no-op (returns synchronously)       |
  *
- *   Each path emits a single `console.warn` naming the missing image so
- *   the consumer's logs identify which export attempt was skipped.
+ * Each path emits a single `console.warn` naming the missing image so
+ * the consumer's logs identify which export attempt was skipped.
  * - When `exportArea` resolves
  *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
  *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
- *   No intermediate `<canvas>` element is created (27.2), and sub-pixel
- *   width/height values are floored to integer pixels (27.3) through
- *   the {@link floorRegion} helper.
+ *   No intermediate `<canvas>` element is created, and sub-pixel
+ *   width/height values are floored to integer pixels through the
+ *   {@link floorRegion} helper before Fabric receives the region.
  * - When `mergeMask` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
@@ -88,6 +87,8 @@
  * The module is intentionally NOT re-exported from `src/index.ts`
  * (only `ImageEditor`, `isMaskObject`, and the
  * documented public types are root-exported).
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -189,15 +190,15 @@ export interface ExportServiceContext {
  * caller-supplied `0` or non-finite value falls through to the resolved
  * default and finally to `1`.
  *
- * @param requested  Caller-supplied multiplier from the export options.
- * @param fallback   `options.exportMultiplier` from {@link ResolvedOptions}.
+ * @param requested - Caller-supplied multiplier from the export options.
+ * @param fallback - `options.exportMultiplier` from {@link ResolvedOptions}.
  * @returns          A finite multiplier `>= 1`, never `NaN`.
  */
 function resolveMultiplier(requested: unknown, fallback: number): number {
     const num = Number(requested);
     if (Number.isFinite(num) && num > 0) return num;
-    const fb = Number(fallback);
-    return Number.isFinite(fb) && fb > 0 ? fb : 1;
+    const fallbackValue = Number(fallback);
+    return Number.isFinite(fallbackValue) && fallbackValue > 0 ? fallbackValue : 1;
 }
 
 function resolveExportArea(requested: unknown, fallback: ExportArea): ExportArea {
@@ -206,16 +207,21 @@ function resolveExportArea(requested: unknown, fallback: ExportArea): ExportArea
 }
 
 function resolveExportOptions(
-    ctx: ExportServiceContext,
+    context: ExportServiceContext,
     options?: Base64ExportOptions | ImageFileExportOptions | null,
 ): ResolvedExportOptions {
-    const opts = options ?? {};
+    const providedOptions = options ?? {};
     return {
-        exportArea: resolveExportArea(opts.exportArea, ctx.options.exportAreaByDefault),
+        exportArea: resolveExportArea(
+            providedOptions.exportArea,
+            context.options.exportAreaByDefault,
+        ),
         mergeMask:
-            typeof opts.mergeMask === 'boolean' ? opts.mergeMask : ctx.options.mergeMaskByDefault,
-        multiplier: resolveMultiplier(opts.multiplier, ctx.options.exportMultiplier),
-        format: resolveExportFormat(opts, ctx.options.downsampleQuality),
+            typeof providedOptions.mergeMask === 'boolean'
+                ? providedOptions.mergeMask
+                : context.options.mergeMaskByDefault,
+        multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
+        format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
     };
 }
 
@@ -236,16 +242,17 @@ function readCanvasDimension(
 }
 
 function assertExportPixelBudget(
-    ctx: ExportServiceContext,
+    context: ExportServiceContext,
     multiplier: number,
     region: IntegerRegion | null,
 ): void {
-    const sourceWidth = region?.width ?? readCanvasDimension(ctx.canvas, 'getWidth', 'width');
-    const sourceHeight = region?.height ?? readCanvasDimension(ctx.canvas, 'getHeight', 'height');
+    const sourceWidth = region?.width ?? readCanvasDimension(context.canvas, 'getWidth', 'width');
+    const sourceHeight =
+        region?.height ?? readCanvasDimension(context.canvas, 'getHeight', 'height');
     const outputWidth = Math.max(1, Math.ceil(sourceWidth * multiplier));
     const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
     const pixelCount = outputWidth * outputHeight;
-    const maxPixels = ctx.options.maxExportPixels;
+    const maxPixels = context.options.maxExportPixels;
 
     if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
         throw new RangeError(
@@ -266,7 +273,7 @@ function assertExportPixelBudget(
  * - When `exportArea` is `'canvas'`, the full canvas is exported
  *   regardless of whether an `originalImage` is present (the masks
  *   stencil is what the consumer asked for).
- * - When `exportArea` is `'image'` and `ctx.getOriginalImage`
+ * - When `exportArea` is `'image'` and `context.getOriginalImage`
  *   returns a valid image, the image's absolute bounding rect is read
  *   through {@link getObjectBBox} (which calls `setCoords` so a
  *   freshly mutated image returns fresh coordinates) and discretized
@@ -281,8 +288,8 @@ function assertExportPixelBudget(
  *   `toDataURL` call still emits a valid frame instead of throwing on
  *   a `null` bounding rect.
  *
- * @param ctx              Export context for `originalImage` access.
- * @param exportArea       Resolved export-area value (caller default already
+ * @param context - Export context for `originalImage` access.
+ * @param exportArea - Resolved export-area value (caller default already
  *                         applied by the entry point).
  * @returns                `null` for full-canvas exports; otherwise an
  *                         {@link IntegerRegion} suitable for
@@ -293,12 +300,15 @@ interface ExportRegionInfo {
     partialEdges: PartialExportEdges | null;
 }
 
-function computeExportRegion(ctx: ExportServiceContext, exportArea: ExportArea): ExportRegionInfo {
+function computeExportRegion(
+    context: ExportServiceContext,
+    exportArea: ExportArea,
+): ExportRegionInfo {
     if (exportArea === 'canvas') return { region: null, partialEdges: null };
-    const originalImage = ctx.getOriginalImage();
+    const originalImage = context.getOriginalImage();
     if (!originalImage) return { region: null, partialEdges: null };
     const bounds = getObjectBBox(originalImage);
-    const canvasLike = ctx.canvas as FabricNS.Canvas & {
+    const canvasLike = context.canvas as FabricNS.Canvas & {
         width?: number;
         height?: number;
         getWidth?: () => number;
@@ -321,8 +331,8 @@ function computeExportRegion(ctx: ExportServiceContext, exportArea: ExportArea):
 
 /**
  * Bracket helper that captures every mask's live style, applies the
- * export-only bake-in style, runs `fn`, and restores the captured live
- * styles inside a `finally` block — even if `fn` rejected.
+ * export-only bake-in style, runs `callback`, and restores the captured live
+ * styles inside a `finally` block — even if `callback` rejected.
  *
  * Bake-in is applied when `mergeMask === true`, matching the merge path's
  * mergeMask path where the rendered raster needs solid black masks so
@@ -342,32 +352,35 @@ function computeExportRegion(ctx: ExportServiceContext, exportArea: ExportArea):
  * restores all six fields in a `finally` even when the inner step
  * rejected.
  *
- * @param ctx              Export context — supplies the live canvas to
+ * @param context - Export context — supplies the live canvas to
  *                         the canonical backup helper.
- * @param mergeMask        Resolved mask compositing flag. `true` triggers
+ * @param mergeMask - Resolved mask compositing flag. `true` triggers
  *                         bake-in; `false` hides masks during render.
- * @param fn               The async data-URL rendering step. Already
+ * @param callback - The async data-URL rendering step. Already
  *                         knows the resolved format/quality/multiplier
  *                         and the export region, and calls
  *                         `canvas.toDataURL` directly.
- * @returns                Whatever `fn` resolves to.
+ * @returns                Whatever `callback` resolves to.
  *
  */
 async function withMaskExportState<T>(
-    ctx: ExportServiceContext,
+    context: ExportServiceContext,
     mergeMask: boolean,
-    fn: () => Promise<T>,
+    callback: () => Promise<T>,
 ): Promise<T> {
-    if (!mergeMask) return withMasksHidden(ctx, fn);
+    if (!mergeMask) return withMasksHidden(context, callback);
     return withMaskStyleBackup(
-        { canvas: ctx.canvas, options: ctx.options },
+        { canvas: context.canvas, options: context.options },
         applyExportBakeInStyle,
-        fn,
+        callback,
     );
 }
 
-async function withMasksHidden<T>(ctx: ExportServiceContext, fn: () => Promise<T>): Promise<T> {
-    const backups: MaskVisibilityBackup[] = getCanvasObjects(ctx.canvas)
+async function withMasksHidden<T>(
+    context: ExportServiceContext,
+    callback: () => Promise<T>,
+): Promise<T> {
+    const backups: MaskVisibilityBackup[] = getCanvasObjects(context.canvas)
         .filter(isMaskObject)
         .map((mask) => ({
             mask,
@@ -387,7 +400,7 @@ async function withMasksHidden<T>(ctx: ExportServiceContext, fn: () => Promise<T
     }
 
     try {
-        return await fn();
+        return await callback();
     } finally {
         for (const backup of backups) {
             try {
@@ -419,7 +432,7 @@ function captureMaskLabelBackups(canvas: FabricNS.Canvas): LabelBackup[] {
     const backups: LabelBackup[] = [];
     for (const object of getCanvasObjects(canvas)) {
         if (!isMaskObject(object)) continue;
-        const label = object.__label;
+        const label = object.labelObject;
         if (!label) continue;
         const wasOnCanvas = isObjectOnCanvas(canvas, label);
         backups.push({
@@ -441,7 +454,7 @@ function captureMaskLabelBackups(canvas: FabricNS.Canvas): LabelBackup[] {
 function restoreMaskLabelBackups(canvas: FabricNS.Canvas, backups: readonly LabelBackup[]): void {
     for (const backup of backups) {
         try {
-            backup.mask.__label = backup.label;
+            backup.mask.labelObject = backup.label;
             if (typeof backup.label.set === 'function') {
                 backup.label.set({ visible: backup.visible });
             } else {
@@ -523,10 +536,10 @@ function applyExportBakeInStyle(mask: MaskObject): void {
  * `canvas.toDataURL` directly — there is no intermediate `<canvas>`.
  *
  * The `region` argument is `null` for full-canvas exports and an
- * {@link IntegerRegion} for image-area exports (Contracts
- * 27.1, 27.3).
+ * {@link IntegerRegion} for image-area exports, where the image bounding
+ * box has already been floored to Fabric's integer region coordinates.
  */
-function renderCanvasToDataURL(
+function renderCanvasToDataUrl(
     canvas: FabricNS.Canvas,
     format: NormalizedImageFormat,
     quality: number | undefined,
@@ -565,35 +578,35 @@ function getImageDimensions(imageElement: HTMLImageElement): { width: number; he
 
 function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
     return new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+        const imageElement = new Image();
+        imageElement.crossOrigin = 'anonymous';
 
         const cleanup = (): void => {
-            if (typeof img.removeEventListener === 'function') {
-                img.removeEventListener('load', handleLoad);
-                img.removeEventListener('error', handleError);
+            if (typeof imageElement.removeEventListener === 'function') {
+                imageElement.removeEventListener('load', handleLoad);
+                imageElement.removeEventListener('error', handleError);
             } else {
-                img.onload = null;
-                img.onerror = null;
+                imageElement.onload = null;
+                imageElement.onerror = null;
             }
         };
         const handleLoad = (): void => {
             cleanup();
-            resolve(img);
+            resolve(imageElement);
         };
         const handleError = (): void => {
             cleanup();
             reject(new Error('Failed to decode export data URL'));
         };
 
-        if (typeof img.addEventListener === 'function') {
-            img.addEventListener('load', handleLoad, { once: true });
-            img.addEventListener('error', handleError, { once: true });
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
         } else {
-            img.onload = handleLoad;
-            img.onerror = handleError;
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
         }
-        img.src = dataUrl;
+        imageElement.src = dataUrl;
     });
 }
 
@@ -605,14 +618,14 @@ async function sealPartialTransparentEdges(
 
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const off = document.createElement('canvas');
-    off.width = width;
-    off.height = height;
-    const ctx2d = off.getContext('2d');
-    if (!ctx2d) throw new Error('2D canvas context is unavailable');
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const canvasContext = offscreenCanvas.getContext('2d');
+    if (!canvasContext) throw new Error('2D canvas context is unavailable');
 
-    ctx2d.drawImage(imageElement, 0, 0, width, height);
-    const imageData = ctx2d.getImageData(0, 0, width, height);
+    canvasContext.drawImage(imageElement, 0, 0, width, height);
+    const imageData = canvasContext.getImageData(0, 0, width, height);
     const pixels = imageData.data;
 
     const sealPixel = (x: number, y: number, fallbackX: number, fallbackY: number): void => {
@@ -645,8 +658,8 @@ async function sealPartialTransparentEdges(
         for (let x = 0; x < width; x += 1) sealPixel(x, height - 1, x, height - 2);
     }
 
-    ctx2d.putImageData(imageData, 0, 0);
-    return off.toDataURL('image/png');
+    canvasContext.putImageData(imageData, 0, 0);
+    return offscreenCanvas.toDataURL('image/png');
 }
 
 function getJpegBackgroundColor(backgroundColor: unknown): string {
@@ -656,19 +669,19 @@ function getJpegBackgroundColor(backgroundColor: unknown): string {
 function resolveCanvasFillStyle(backgroundColor: unknown, fallback = '#ffffff'): string {
     const value = String(backgroundColor ?? '').trim();
     if (!value || isTransparentCssColor(value)) return '#ffffff';
-    const ctx = createColorValidationContext();
-    if (!ctx) return fallback;
+    const context = createColorValidationContext();
+    if (!context) return fallback;
 
-    ctx.fillStyle = '#000001';
-    const firstSentinel = ctx.fillStyle;
-    ctx.fillStyle = value;
-    const firstResolved = ctx.fillStyle;
+    context.fillStyle = '#000001';
+    const firstSentinel = context.fillStyle;
+    context.fillStyle = value;
+    const firstResolved = context.fillStyle;
     if (firstResolved !== firstSentinel) return firstResolved;
 
-    ctx.fillStyle = '#000002';
-    const secondSentinel = ctx.fillStyle;
-    ctx.fillStyle = value;
-    const secondResolved = ctx.fillStyle;
+    context.fillStyle = '#000002';
+    const secondSentinel = context.fillStyle;
+    context.fillStyle = value;
+    const secondResolved = context.fillStyle;
     if (secondResolved !== secondSentinel) return secondResolved;
 
     return fallback;
@@ -722,15 +735,15 @@ async function convertDataUrlToOpaqueJpeg(
 ): Promise<string> {
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const off = document.createElement('canvas');
-    off.width = width;
-    off.height = height;
-    const ctx2d = off.getContext('2d');
-    if (!ctx2d) throw new Error('2D canvas context is unavailable');
-    ctx2d.fillStyle = getJpegBackgroundColor(backgroundColor);
-    ctx2d.fillRect(0, 0, width, height);
-    ctx2d.drawImage(imageElement, 0, 0, width, height);
-    return off.toDataURL('image/jpeg', quality);
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const canvasContext = offscreenCanvas.getContext('2d');
+    if (!canvasContext) throw new Error('2D canvas context is unavailable');
+    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+    canvasContext.fillRect(0, 0, width, height);
+    canvasContext.drawImage(imageElement, 0, 0, width, height);
+    return offscreenCanvas.toDataURL('image/jpeg', quality);
 }
 
 /**
@@ -795,28 +808,35 @@ function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
  * match the requested format; the matching-prefix fast path returns the
  * URL unchanged and skips the extra decode entirely.
  */
-function reencodeDataUrlAs(
+async function reencodeDataUrlAs(
     sourceDataUrl: string,
     target: ResolvedExportFormat,
     backgroundColor: unknown,
 ): Promise<string> {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
-        return Promise.resolve(sourceDataUrl);
+        return sourceDataUrl;
     }
-    return loadImageElement(sourceDataUrl).then((img) => {
-        const { width, height } = getImageDimensions(img);
-        const off = document.createElement('canvas');
-        off.width = width;
-        off.height = height;
-        const ctx2d = off.getContext('2d');
-        if (!ctx2d) throw new Error('Unable to acquire 2D context for export conversion');
-        if (target.format === 'jpeg') {
-            ctx2d.fillStyle = getJpegBackgroundColor(backgroundColor);
-            ctx2d.fillRect(0, 0, width, height);
-        }
-        ctx2d.drawImage(img, 0, 0, width, height);
-        return off.toDataURL(target.mimeType, target.quality);
-    });
+
+    const imageElement = await loadImageElement(sourceDataUrl);
+    const { width, height } = getImageDimensions(imageElement);
+
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+
+    const canvasContext = offscreenCanvas.getContext('2d');
+    if (!canvasContext) {
+        throw new Error('Unable to acquire 2D context for export conversion');
+    }
+
+    if (target.format === 'jpeg') {
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+        canvasContext.fillRect(0, 0, width, height);
+    }
+
+    canvasContext.drawImage(imageElement, 0, 0, width, height);
+
+    return offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 
 /** Single source of truth for the "no image" warning text. */
@@ -831,7 +851,7 @@ function warnNoImageLoaded(operation: string): void {
  *
  * Steps, in order:
  *
- * 1. **No-image gate** — when `ctx.isImageLoaded`
+ * 1. **No-image gate** — when `context.isImageLoaded`
  *    is `false`, emit a `console.warn` and resolve to `''` without
  *    touching the canvas.
  * 2. **Discard ActiveSelection** — call
@@ -853,8 +873,8 @@ function warnNoImageLoaded(operation: string): void {
  *    threw. The inner step is a single
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
  *
- * @param ctx      Export context bundle.
- * @param options  Optional {@link Base64ExportOptions}. Both `fileType`
+ * @param context - Export context bundle.
+ * @param options - Optional {@link Base64ExportOptions}. Both `fileType`
  *                 and `format` are accepted; when
  *                 both are supplied, `fileType` wins.
  * @returns        Resolves to a `data:image/...;base64...` URL on
@@ -862,31 +882,31 @@ function warnNoImageLoaded(operation: string): void {
  *
  */
 export async function exportImageBase64(
-    ctx: ExportServiceContext,
+    context: ExportServiceContext,
     options?: Base64ExportOptions,
 ): Promise<string> {
-    if (!ctx.isImageLoaded()) {
+    if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
         return '';
     }
 
-    const activeObject = captureActiveObject(ctx.canvas);
-    const labelBackups = captureMaskLabelBackups(ctx.canvas);
+    const activeObject = captureActiveObject(context.canvas);
+    const labelBackups = captureMaskLabelBackups(context.canvas);
     try {
         // Drop any active selection BEFORE region math. It is restored in
         // the finally block so export does not perturb the editor UI.
-        ctx.canvas.discardActiveObject();
+        context.canvas.discardActiveObject();
 
-        const resolved = resolveExportOptions(ctx, options);
-        const { region, partialEdges } = computeExportRegion(ctx, resolved.exportArea);
-        assertExportPixelBudget(ctx, resolved.multiplier, region);
+        const resolved = resolveExportOptions(context, options);
+        const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
+        assertExportPixelBudget(context, resolved.multiplier, region);
         const renderFormat =
             region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
 
-        let dataUrl = await withMaskExportState(ctx, resolved.mergeMask, async () =>
-            renderCanvasToDataURL(
-                ctx.canvas,
+        let dataUrl = await withMaskExportState(context, resolved.mergeMask, async () =>
+            renderCanvasToDataUrl(
+                context.canvas,
                 renderFormat,
                 renderQuality,
                 resolved.multiplier,
@@ -898,16 +918,16 @@ export async function exportImageBase64(
             if (resolved.format.format === 'jpeg') {
                 dataUrl = await convertDataUrlToOpaqueJpeg(
                     dataUrl,
-                    ctx.options.backgroundColor,
+                    context.options.backgroundColor,
                     resolved.format.quality,
                 );
             }
         }
         return dataUrl;
     } finally {
-        restoreMaskLabelBackups(ctx.canvas, labelBackups);
-        restoreActiveObject(ctx.canvas, activeObject);
-        requestRender(ctx.canvas);
+        restoreMaskLabelBackups(context.canvas, labelBackups);
+        restoreActiveObject(context.canvas, activeObject);
+        requestRender(context.canvas);
     }
 }
 
@@ -924,46 +944,46 @@ export async function exportImageBase64(
  * and the export contract requires the output MIME to match the resolved
  * `fileType`.
  *
- * @param ctx      Export context bundle.
- * @param options  Optional {@link ImageFileExportOptions}.
+ * @param context - Export context bundle.
+ * @param options - Optional {@link ImageFileExportOptions}.
  * @returns        Resolves with the rendered `File`.
  * @throws         {@link ExportNotReadyError} when no image is loaded.
  *
  */
 export async function exportImageFile(
-    ctx: ExportServiceContext,
+    context: ExportServiceContext,
     options?: ImageFileExportOptions,
 ): Promise<File> {
-    if (!ctx.isImageLoaded()) {
+    if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageFile');
         throw new ExportNotReadyError('exportImageFile');
     }
 
-    const opts = options ?? {};
-    const fileName = opts.fileName ?? ctx.options.defaultDownloadFileName;
-    const resolved = resolveExportFormat(opts, ctx.options.downsampleQuality);
+    const providedOptions = options ?? {};
+    const fileName = providedOptions.fileName ?? context.options.defaultDownloadFileName;
+    const resolved = resolveExportFormat(providedOptions, context.options.downsampleQuality);
 
     // Reuse `exportImageBase64` so format/quality/multiplier resolution,
     // ActiveSelection discard, and the bake-in/restore bracket are all
     // defined once.
-    const base64 = await exportImageBase64(ctx, {
-        exportArea: opts.exportArea,
-        mergeMask: opts.mergeMask,
-        multiplier: opts.multiplier,
-        quality: opts.quality,
-        fileType: opts.fileType,
+    const base64 = await exportImageBase64(context, {
+        exportArea: providedOptions.exportArea,
+        mergeMask: providedOptions.mergeMask,
+        multiplier: providedOptions.multiplier,
+        quality: providedOptions.quality,
+        fileType: providedOptions.fileType,
     });
     if (!base64) {
         // exportImageBase64 already warned about the missing image; the
-        // file path still owes its own typed rejection per Contract
-        // 25.4.  In practice this branch is unreachable because the
-        // `isImageLoaded` gate above already returned, but the guard
-        // keeps the function total even if a caller bypasses the gate
-        // by mutating the context between awaits.
+        // file path still owes its own typed rejection. In practice this
+        // branch is unreachable because the `isImageLoaded` gate above
+        // already returned, but the guard keeps the function total even
+        // if a caller bypasses the gate by mutating the context between
+        // awaits.
         throw new ExportNotReadyError('exportImageFile');
     }
 
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, ctx.options.backgroundColor);
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor);
     let bytes: Uint8Array<ArrayBuffer>;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -991,27 +1011,27 @@ export async function exportImageFile(
  * with `console.error` rather than rethrown — `downloadImage` returns
  * `void` and there is no caller-visible promise to reject.
  *
- * @param ctx       Export context bundle.
- * @param fileName  Optional filename override. Defaults to
+ * @param context - Export context bundle.
+ * @param fileName - Optional filename override. Defaults to
  *                  `options.defaultDownloadFileName`.
  *
  */
-export function downloadImage(ctx: ExportServiceContext, fileName?: string): void {
-    if (!ctx.isImageLoaded()) {
+export function downloadImage(context: ExportServiceContext, fileName?: string): void {
+    if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
 
-    const resolvedFileName = fileName ?? ctx.options.defaultDownloadFileName;
+    const resolvedFileName = fileName ?? context.options.defaultDownloadFileName;
 
     // The download path mirrors legacy: an anchor with `download` and an
     // `href` set to the data URL emitted by `exportImageBase64`. The
     // anchor is appended to `document.body` because some browsers
     // (notably Firefox) ignore programmatic clicks on detached nodes.
-    void exportImageBase64(ctx, {
-        exportArea: ctx.options.exportAreaByDefault,
-        mergeMask: ctx.options.mergeMaskByDefault,
-        multiplier: ctx.options.exportMultiplier,
+    void exportImageBase64(context, {
+        exportArea: context.options.exportAreaByDefault,
+        mergeMask: context.options.mergeMaskByDefault,
+        multiplier: context.options.exportMultiplier,
     })
         .then((dataUrl) => {
             if (!dataUrl) return; // already warned by `exportImageBase64`
@@ -1026,7 +1046,7 @@ export function downloadImage(ctx: ExportServiceContext, fileName?: string): voi
             }
         })
         .catch((error: unknown) => {
-            reportError(ctx.options, error, 'downloadImage failed.');
+            reportError(context.options, error, 'downloadImage failed.');
             console.error('[ImageEditor] downloadImage failed', error);
         });
 }
@@ -1054,9 +1074,8 @@ export function downloadImage(ctx: ExportServiceContext, fileName?: string): voi
  *   even when the inner `loadImage` did not honor `preserveScroll`.
  *
  * Mirrors the shape of `image/image-loader.ts → LoadImageContext` for
- * consistency across pipeline modules. The orchestrator wiring
- * (task 21.6) is responsible for constructing this bundle from its
- * own state.
+ * consistency across pipeline modules. The `ImageEditor` facade constructs
+ * this bundle from its own state.
  *
  */
 export interface MergeMasksContext extends ExportServiceContext {
@@ -1080,7 +1099,7 @@ export interface MergeMasksContext extends ExportServiceContext {
 
     /**
      * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
-     * orchestrator's `_lastSnapshot`-producing path so the merge stores
+     * orchestrator's `lastSnapshot`-producing path so the merge stores
      * exactly the same wire format used by `undo` / `redo`.
      */
     saveState(): string;
@@ -1094,8 +1113,8 @@ export interface MergeMasksContext extends ExportServiceContext {
 
     /**
      * Remove every mask from the canvas WITHOUT pushing a history
-     * entry. The merge owns the single enclosing history entry
-     *, so the inner mask-removal step must opt out
+     * entry. The merge owns the single enclosing history entry, so the
+     * inner mask-removal step must opt out
      * of its own history push.
      */
     removeAllMasksNoHistory(): void;
@@ -1114,8 +1133,8 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    is loaded or when the canvas carries no mask objects (matches
  *    legacy's `if (!this.originalImage) return; … if (!masks.length) return;`).
  * 2. **Capture pre-merge snapshot** — call
- *    `ctx.saveState` so the snapshot is suitable for
- *    `ctx.loadFromState(...)`. The snapshot is the one source of
+ *    `context.saveState` so the snapshot is suitable for
+ *    `context.loadFromState(...)`. The snapshot is the one source of
  *    truth for both the merge command's `undo` and
  *    the rollback path.
  * 3. **Discard ActiveSelection** — drop any active
@@ -1131,11 +1150,11 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    on both success and failure.
  * 6. **Remove all masks** without pushing history — the merge owns
  *    the single enclosing history entry, so the
- *    inner removal step opts out of its own history push.
+ *    inner removal step providedOptions out of its own history push.
  * 7. **Reload the merged image** through the transactional
  *    `image/image-loader.ts` with `preserveScroll: true`. A failed
  *    reload propagates here so the rollback path catches it.
- * 8. **Capture post-merge snapshot** — call `ctx.saveState` again so
+ * 8. **Capture post-merge snapshot** — call `context.saveState` again so
  *    the merge command's `execute` can replay the merged state on
  *    redo.
  * 9. **Restore scroll defensively** — write the
@@ -1144,34 +1163,34 @@ export interface MergeMasksContext extends ExportServiceContext {
  *    the user's view does not jump regardless of the layout strategy
  *    chosen by the loader.
  * 10. **Push exactly one history command** whose
- *    `undo` restores the pre-merge snapshot via `ctx.loadFromState`
+ *    `undo` restores the pre-merge snapshot via `context.loadFromState`
  *    and whose `execute` re-applies the merged snapshot via
- *    `ctx.loadFromState`. The command is pushed via
+ *    `context.loadFromState`. The command is pushed via
  *    {@link HistoryManager.push} (NOT `execute`) because the merged
  *    state is already on the canvas — the first `redo` call should
  *    re-run the merged-state restore, but the initial commit should
  *    not double-render.
  *
  * On any failure between step 3 and step 10, the pre-merge snapshot
- * captured in step 3 is restored via `ctx.loadFromState` and the
+ * captured in step 3 is restored via `context.loadFromState` and the
  * promise rejects with {@link MergeMasksError} wrapping the original
  * cause. A failure inside the rollback itself is
  * logged via `console.warn` but does not mask the original error.
  *
- * @param ctx Editor dependency bundle — see {@link MergeMasksContext}.
+ * @param context - Editor dependency bundle — see {@link MergeMasksContext}.
  * @returns   Resolves on success; rejects with
  *            {@link MergeMasksError} on any pipeline failure (after
  *            the pre-merge snapshot has been restored).
  *
  */
-export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
+export async function mergeMasks(context: MergeMasksContext): Promise<void> {
     // 1. No-op gates — match legacy's `if (!this.originalImage) return; …
     //    if (!masks.length) return;`. These run before the snapshot is
     //    captured so a no-op merge does not produce an empty history
     //    entry.
-    if (!ctx.isImageLoaded()) return;
+    if (!context.isImageLoaded()) return;
 
-    const masks = ctx.canvas
+    const masks = context.canvas
         .getObjects()
         .filter(
             (o): o is MaskObject =>
@@ -1185,29 +1204,29 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
     //    command's `undo`. Capture before the explicit discard below
     //    so the serializer can record the active mask id and the facade
     //    can rebuild the transient label/list selection on undo.
-    const beforeSnapshot = ctx.saveState();
+    const beforeSnapshot = context.saveState();
 
     // 3. drop any active selection BEFORE computing
     //    the merged bitmap. `discardActiveObject` is a no-op when no
-    //    selection is active. `ctx.saveState` already discarded once;
+    //    selection is active. `context.saveState` already discarded once;
     //    the duplicate call is harmless and keeps this function
     //    readable as a self-contained pipeline.
-    ctx.canvas.discardActiveObject();
-    ctx.canvas.renderAll();
+    context.canvas.discardActiveObject();
+    context.canvas.renderAll();
 
     // 4. Capture pre-merge container scroll. Read
     //    BEFORE any mutation so the values reflect the user's pre-merge
     //    viewport, not the post-merge canvas size.
-    const preScrollTop = ctx.containerElement ? ctx.containerElement.scrollTop : null;
-    const preScrollLeft = ctx.containerElement ? ctx.containerElement.scrollLeft : null;
+    const preScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
+    const preScrollLeft = context.containerElement ? context.containerElement.scrollLeft : null;
 
     try {
         // 5. Render the merged bitmap. `exportImageBase64` runs the
         //    bake-in/restore bracket internally.
-        const merged = await exportImageBase64(ctx, {
+        const merged = await exportImageBase64(context, {
             exportArea: 'image',
             mergeMask: true,
-            multiplier: ctx.options.exportMultiplier,
+            multiplier: context.options.exportMultiplier,
             fileType: 'png',
         });
         if (!merged) {
@@ -1221,7 +1240,7 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
 
         // 6. Remove every mask WITHOUT pushing a history entry. The
         //    merge owns the single enclosing entry.
-        ctx.removeAllMasksNoHistory();
+        context.removeAllMasksNoHistory();
 
         // 7. Reload the merged image through the transactional loader
         //    so a decode/Fabric/timeout failure propagates back here
@@ -1229,11 +1248,11 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         //    nudges the loader to preserve scroll for the layouts that
         //    honor it; the explicit step 9 below handles the layouts
         //    that don't.
-        await ctx.loadImage(merged, { preserveScroll: true });
+        await context.loadImage(merged, { preserveScroll: true });
 
         // 8. Capture the post-merge snapshot for the merge command's
         //    `execute` (used on redo).
-        const afterSnapshot = ctx.saveState();
+        const afterSnapshot = context.saveState();
 
         // 9. Defensive scroll restore — even when
         //    the inner `loadImage` honored `preserveScroll`, the layout
@@ -1242,13 +1261,13 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         //    here guarantees the user's view does not jump regardless
         //    of which layout strategy was selected for the merged
         //    image.
-        if (ctx.containerElement) {
+        if (context.containerElement) {
             try {
                 if (preScrollTop !== null) {
-                    ctx.containerElement.scrollTop = preScrollTop;
+                    context.containerElement.scrollTop = preScrollTop;
                 }
                 if (preScrollLeft !== null) {
-                    ctx.containerElement.scrollLeft = preScrollLeft;
+                    context.containerElement.scrollLeft = preScrollLeft;
                 }
             } catch (scrollError) {
                 console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollError);
@@ -1261,10 +1280,10 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         //     should re-run the merged-state restore via the
         //     command's `execute`.
         if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
-            ctx.historyManager.push(
+            context.historyManager.push(
                 new Command(
-                    () => ctx.loadFromState(afterSnapshot),
-                    () => ctx.loadFromState(beforeSnapshot),
+                    () => context.loadFromState(afterSnapshot),
+                    () => context.loadFromState(beforeSnapshot),
                 ),
             );
         }
@@ -1273,7 +1292,7 @@ export async function mergeMasks(ctx: MergeMasksContext): Promise<void> {
         // reject with `MergeMasksError`. A failure inside the rollback
         // itself is logged but does NOT mask the original error.
         try {
-            await ctx.loadFromState(beforeSnapshot);
+            await context.loadFromState(beforeSnapshot);
         } catch (rollbackError) {
             console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
         }

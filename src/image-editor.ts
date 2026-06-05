@@ -1,10 +1,10 @@
 /**
- * @file image-editor.ts
- * @module image-editor
  * @author Ben Situ
  * @license MIT
- * @description Lightweight canvas-based image editor built on Fabric.js v7.
- *              Provides masking, animated scale/rotate, crop, undo/redo, and export.
+ * Lightweight canvas-based image editor built on Fabric.js v7.
+ * Provides masking, animated scale/rotate, crop, undo/redo, and export.
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -15,7 +15,7 @@ import { OperationGuard, type OperationToken } from './core/operation-guard.js';
 import {
     loadFromState as loadFromStateImpl,
     saveState as saveStateImpl,
-    type CanvasJSON,
+    type CanvasJson,
 } from './core/state-serializer.js';
 import { Command, HistoryManager } from './history/history-manager.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
@@ -86,7 +86,7 @@ import {
 } from './mask/mask-style.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
-import { inferImageMimeType, readFileAsDataURL, resetFileInput } from './utils/file.js';
+import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from './utils/file.js';
 import { detectSourceMimeType } from './image/image-resampler.js';
 
 // ─── Internal element-key type ────────────────────────────────────────────────
@@ -167,44 +167,41 @@ const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
  */
 export class ImageEditor {
     // ── Fabric injection ────────────────────────────────────────────────────
-    /** @internal */ private _fabric: FabricModule;
-    /** @internal */ private _fabricLoaded: boolean;
+    private fabricModule: FabricModule;
+    private isFabricLoaded: boolean;
 
     // ── Resolved options ────────────────────────────────────────────────────
-    /** @internal */ private readonly options: ResolvedOptions;
+    private readonly options: ResolvedOptions;
 
     // ── Canvas / DOM ────────────────────────────────────────────────────────
-    /** @internal */ private canvas: FabricNS.Canvas | null = null;
-    /** @internal */ private canvasElement: HTMLCanvasElement | null = null;
-    /** @internal */ private containerElement: HTMLElement | null = null;
-    /** @internal */ private placeholderElement: HTMLElement | null = null;
-    /** @internal */ private elements: ResolvedElementIdMap = {} as ResolvedElementIdMap;
-    /** @internal */ private readonly _elementOriginalDisabled = new Map<ElementKey, boolean>();
-    /** @internal */ private readonly _elementOriginalAriaDisabled = new Map<
-        ElementKey,
-        string | null
-    >();
-    /** @internal */ private readonly _elementOriginalPointerEvents = new Map<ElementKey, string>();
+    private canvas: FabricNS.Canvas | null = null;
+    private canvasElement: HTMLCanvasElement | null = null;
+    private containerElement: HTMLElement | null = null;
+    private placeholderElement: HTMLElement | null = null;
+    private elements: ResolvedElementIdMap = {} as ResolvedElementIdMap;
+    private readonly elementOriginalDisabledMap = new Map<ElementKey, boolean>();
+    private readonly elementOriginalAriaDisabledMap = new Map<ElementKey, string | null>();
+    private readonly elementOriginalPointerEventsMap = new Map<ElementKey, string>();
 
     // ── Image state ─────────────────────────────────────────────────────────
-    /** @internal */ private originalImage: FabricNS.FabricImage | null = null;
-    /** @internal */ private baseImageScale = 1;
-    /** @internal */ private currentScale = 1;
-    /** @internal */ private currentRotation = 0;
-    /** @internal */ private isImageLoadedToCanvas = false;
-    /** @internal */ private currentImageMimeType: ImageMimeType | null = null;
+    private originalImage: FabricNS.FabricImage | null = null;
+    private baseImageScale = 1;
+    private currentScale = 1;
+    private currentRotation = 0;
+    private isImageLoadedToCanvas = false;
+    private currentImageMimeType: ImageMimeType | null = null;
 
     // ── Mask state ──────────────────────────────────────────────────────────
-    /** @internal */ private maskCounter = 0;
-    /** @internal */ private _lastMask: MaskObject | null = null;
+    private maskCounter = 0;
+    private lastMask: MaskObject | null = null;
 
     // ── History ─────────────────────────────────────────────────────────────
-    /** @internal */ private _lastSnapshot: string | null = null;
-    /** @internal */ private readonly historyManager: HistoryManager;
+    private lastSnapshot: string | null = null;
+    private readonly historyManager: HistoryManager;
 
     // ── Animation ───────────────────────────────────────────────────────────
     /**
-     * Single source of truth for `isAnimating` and `_disposed` flags
+     * Single source of truth for `isAnimating` and `isDisposed` flags
      * shared between the facade, the transform controller, and the
      * Fabric animation wrapper. The transform controller calls
      * `runAnimation` to bracket each Fabric tween so the flag is
@@ -212,21 +209,19 @@ export class ImageEditor {
      * `isAnimating` for the per-method guard rejections; and the
      * dispose path forwards to
      * `markDisposed` so in-flight animation callbacks short-circuit.
-     * @internal
      */
-    private readonly _guard: OperationGuard;
-    /** @internal */ private readonly animQueue: AnimationQueue;
+    private readonly operationGuard: OperationGuard;
+    private readonly animQueue: AnimationQueue;
     /**
      * Owns animated `scaleImage`, `rotateImage`, and
      * `resetImageTransform`. The facade enqueues each public method on
      * {@link animQueue} and the controller drives
      * the per-Fabric-animation `runAnimation` bracket through
-     * {@link _guard}. The controller is constructed in {@link init}
+     * {@link operationGuard}. The controller is constructed in {@link init}
      * once `canvas` is available so its `TransformContext` can hold a
      * stable Fabric canvas reference.
-     * @internal
      */
-    private _transformController: TransformController | null = null;
+    private transformController: TransformController | null = null;
 
     // ── Image-loader viewport cache ─────────────────────────────────────────
     /**
@@ -234,9 +229,8 @@ export class ImageEditor {
      * by the facade so the layout manager can reuse the last visible
      * measurement when the editor is hidden inside a tab, modal, or
      * accordion.
-     * @internal
      */
-    private readonly _viewportCache: ViewportCache = new ViewportCache();
+    private readonly viewportCache: ViewportCache = new ViewportCache();
 
     // ── Crop ────────────────────────────────────────────────────────────────
     /**
@@ -245,35 +239,32 @@ export class ImageEditor {
      * `getCropSession`/`setCropSession` callbacks bundled into the
      * controller's context, so the controller has no class state of its
      * own and multiple editors on the same page do not share crop state.
-     * @internal
      */
-    private _cropSession: CropSession | null = null;
+    private cropSession: CropSession | null = null;
 
     // ── DOM event cleanup ───────────────────────────────────────────────────
     /**
      * Managed registry of DOM event listeners owned by this editor.
      *
      * Constructed lazily by {@link init} so the registry can read the
-     * editor's `_disposed` flag through a closure that captures `this`.
+     * editor's `isDisposed` flag through a closure that captures `this`.
      * `dispose` drains the registry via {@link DomBindings.removeAll}
      * and the wrapped handlers exit early while
-     * `_disposed === true`.
-     * @internal
+     * `isDisposed === true`.
      */
-    private _bindings: DomBindings | null = null;
-    /** @internal */ private _disposed = false;
+    private domBindings: DomBindings | null = null;
+    private isDisposed = false;
     /**
      * When `true`, {@link saveState} is a no-op.  Used by
      * {@link resetImageTransform} (via the transform controller) to
      * suppress the intermediate history entries from {@link scaleImage}
      * and {@link rotateImage} so the entire reset is a single undoable
      * step.
-     * @internal
      */
-    private _suppressSaveState = false;
-    /** @internal */ private _lastEmittedBusyState: boolean | null = null;
-    /** @internal */ private _activeStateRestoreOperation: ImageEditorOperation | null = null;
-    /** @internal */ private _nextSelectionChangeContext: ImageEditorCallbackContext | null = null;
+    private shouldSuppressSaveState = false;
+    private lastEmittedIsBusy: boolean | null = null;
+    private activeStateRestoreOperation: ImageEditorOperation | null = null;
+    private nextSelectionChangeContext: ImageEditorCallbackContext | null = null;
 
     // ── Callbacks ───────────────────────────────────────────────────────────
     // The `onImageLoaded`, `onError`, and `onWarning` callbacks live on
@@ -313,8 +304,8 @@ export class ImageEditor {
      * instance as an internal facade field; nothing on the public surface
      * exposes it directly.
      *
-     * @param fabricModuleOrOptions Fabric.js module (ESM) or options (UMD).
-     * @param options               Editor options when the first argument
+     * @param fabricModuleOrOptions - Fabric.js module (ESM) or options (UMD).
+     * @param options - Editor options when the first argument
      *                              is the Fabric module. Ignored otherwise.
      */
     constructor(
@@ -324,17 +315,17 @@ export class ImageEditor {
         // detect the Fabric module and
         // separate it from the user's options partial. The adapter logs a
         // single `console.error` on a miss; we then surface that miss via
-        // `_fabricLoaded === false` so `init` and `loadImage` can
+        // `isFabricLoaded === false` so `init` and `loadImage` can
         // short-circuit.
         const detected = detectFabric(fabricModuleOrOptions, options);
 
         // The adapter returns `null` on a miss; the public field type is
         // `FabricModule`, so the cast keeps the rest of the class typed
-        // exactly as before. The `_fabricLoaded` flag is the single
+        // exactly as before. The `isFabricLoaded` flag is the single
         // source of truth for "is Fabric usable?" — every public method
         // that touches Fabric checks it before mutating canvas state.
-        this._fabric = detected.fabric ?? ({} as FabricModule);
-        this._fabricLoaded = detected._fabricLoaded;
+        this.fabricModule = detected.fabric ?? ({} as FabricModule);
+        this.isFabricLoaded = detected.isFabricLoaded;
 
         // resolve options through the canonical
         // resolver. `resolveOptions` applies defaults for every top-level
@@ -356,17 +347,17 @@ export class ImageEditor {
         }
 
         // ── Internal facade state ─────────────────────────────────────────
-        // `historyManager`, `animQueue`, `_guard`, and the callbacks on
+        // `historyManager`, `animQueue`, `operationGuard`, and the callbacks on
         // `options` stay implementation-owned. The public read-only
         // introspection point is `isImageLoaded`.
         //
-        // The `_guard` is shared between the facade (for the
+        // The `operationGuard` is shared between the facade (for the
         // animation per-method guards), the transform controller
         // (for `runAnimation` bracketing), and the
-        // Fabric animation wrapper (for `_disposed`-aware callbacks).
-        // The `_transformController` is constructed
+        // Fabric animation wrapper (for `isDisposed`-aware callbacks).
+        // The `transformController` is constructed
         // lazily in {@link init} once a canvas is available.
-        this._guard = new OperationGuard();
+        this.operationGuard = new OperationGuard();
         this.animQueue = new AnimationQueue();
         this.historyManager = new HistoryManager(this.options.maxHistorySize);
     }
@@ -381,7 +372,7 @@ export class ImageEditor {
      *
      * Must be called once before any other method is used.
      *
-     * @param idMap Optional mapping from logical names to DOM element IDs.
+     * @param idMap - Optional mapping from logical names to DOM element IDs.
      *
      * @example
      * ```ts
@@ -389,7 +380,7 @@ export class ImageEditor {
      * ```
      */
     init(idMap: ElementIdMap = {}): void {
-        if (!this._fabricLoaded) {
+        if (!this.isFabricLoaded) {
             const globalFabric = (globalThis as unknown as { fabric?: unknown }).fabric;
             if (
                 !globalFabric ||
@@ -397,15 +388,15 @@ export class ImageEditor {
             ) {
                 return;
             }
-            this._fabric = globalFabric as FabricModule;
-            this._fabricLoaded = true;
+            this.fabricModule = globalFabric as FabricModule;
+            this.isFabricLoaded = true;
         }
         // Idempotency on the dispose side is mirrored
         // here: a post-dispose `init` would otherwise re-create the
         // canvas without the bindings registry the dispose path drained,
         // and would also leak Fabric resources. Returning early matches
         // the dispose contract in `core/operation-guard.ts`.
-        if (this._disposed) return;
+        if (this.isDisposed) return;
 
         const defaults: ResolvedElementIdMap = {
             canvas: 'canvas',
@@ -441,27 +432,27 @@ export class ImageEditor {
         // mutations are reflected without rebuilding the registry; the
         // disposed-flag closure routes through the operation guard's single
         // source of truth.
-        this._bindings = new DomBindings(
+        this.domBindings = new DomBindings(
             (key) => this.elements[key],
-            () => this._disposed,
+            () => this.isDisposed,
         );
 
-        this._initCanvas();
+        this.initCanvas();
         // Construct the transform controller now that the Fabric canvas
         // is available. The context binds back to facade fields so the
         // controller does not duplicate state.
-        this._transformController = new TransformController(this._buildTransformContext());
-        this._bindEvents();
-        this._updateInputs();
-        this._updateMaskList();
-        this._updateUI();
+        this.transformController = new TransformController(this.buildTransformContext());
+        this.bindDomEvents();
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateUi();
 
         if (this.options.initialImageBase64) {
             void this.loadImage(this.options.initialImageBase64).catch(() => {
                 // loadImage already restores state and routes the error through onError.
             });
         } else {
-            this._updatePlaceholderStatus();
+            this.updatePlaceholderStatus();
         }
     }
 
@@ -469,8 +460,7 @@ export class ImageEditor {
     // PRIVATE — canvas setup
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** @internal */
-    private _initCanvas(): void {
+    private initCanvas(): void {
         const id = this.elements.canvas;
         const canvasElement = id ? (document.getElementById(id) as HTMLCanvasElement | null) : null;
         if (!canvasElement) throw new Error(`[ImageEditor] Canvas element not found: "${id}"`);
@@ -498,7 +488,7 @@ export class ImageEditor {
             }
         }
 
-        this.canvas = new this._fabric.Canvas(canvasElement, {
+        this.canvas = new this.fabricModule.Canvas(canvasElement, {
             width: initialWidth,
             height: initialHeight,
             backgroundColor: this.options.backgroundColor,
@@ -507,19 +497,19 @@ export class ImageEditor {
         });
 
         this.canvas.on('selection:created', (e) => {
-            this._onSelectionChanged((e as { selected: FabricNS.FabricObject[] }).selected);
+            this.handleSelectionChanged((e as { selected: FabricNS.FabricObject[] }).selected);
         });
         this.canvas.on('selection:updated', (e) => {
-            this._onSelectionChanged((e as { selected: FabricNS.FabricObject[] }).selected);
+            this.handleSelectionChanged((e as { selected: FabricNS.FabricObject[] }).selected);
         });
-        this.canvas.on('selection:cleared', () => this._onSelectionChanged([]));
+        this.canvas.on('selection:cleared', () => this.handleSelectionChanged([]));
 
         const onObjectEvent = (e: { target?: FabricNS.FabricObject }) => {
-            if (e.target && isMaskObject(e.target)) this._syncMaskLabel(e.target);
+            if (e.target && isMaskObject(e.target)) this.syncMaskLabel(e.target);
         };
         const onObjectModified = (e: { target?: FabricNS.FabricObject }) => {
             if (!e.target || !isMaskObject(e.target)) return;
-            this._syncMaskLabel(e.target);
+            this.syncMaskLabel(e.target);
             this.saveState();
         };
         this.canvas.on('object:moving', onObjectEvent);
@@ -532,53 +522,52 @@ export class ImageEditor {
     // PRIVATE — DOM / UI bindings
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** @internal */
-    private _bindEvents(): void {
-        this._bindIfExists('uploadArea', 'click', () => {
+    private bindDomEvents(): void {
+        this.bindElementIfExists('uploadArea', 'click', () => {
             const inputId = this.elements.imageInput;
             if (inputId) document.getElementById(inputId)?.click();
         });
 
-        this._bindIfExists('imageInput', 'change', (e) => {
+        this.bindElementIfExists('imageInput', 'change', (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
-            if (file) void this._loadImageFile(file);
+            if (file) void this.loadImageFile(file);
         });
 
-        this._bindIfExists('zoomInButton', 'click', () => {
+        this.bindElementIfExists('zoomInButton', 'click', () => {
             void this.scaleImage(this.currentScale + this.options.scaleStep);
         });
-        this._bindIfExists('zoomOutButton', 'click', () => {
+        this.bindElementIfExists('zoomOutButton', 'click', () => {
             void this.scaleImage(this.currentScale - this.options.scaleStep);
         });
-        this._bindIfExists('resetImageTransformButton', 'click', () => {
+        this.bindElementIfExists('resetImageTransformButton', 'click', () => {
             void this.resetImageTransform();
         });
 
-        this._bindIfExists('createMaskButton', 'click', () => {
+        this.bindElementIfExists('createMaskButton', 'click', () => {
             this.createMask();
         });
-        this._bindIfExists('removeSelectedMaskButton', 'click', () => {
+        this.bindElementIfExists('removeSelectedMaskButton', 'click', () => {
             this.removeSelectedMask();
         });
-        this._bindIfExists('removeAllMasksButton', 'click', () => {
+        this.bindElementIfExists('removeAllMasksButton', 'click', () => {
             this.removeAllMasks();
         });
 
-        this._bindIfExists('mergeMasksButton', 'click', () => {
+        this.bindElementIfExists('mergeMasksButton', 'click', () => {
             void this.mergeMasks();
         });
-        this._bindIfExists('downloadImageButton', 'click', () => {
+        this.bindElementIfExists('downloadImageButton', 'click', () => {
             this.downloadImage();
         });
 
-        this._bindIfExists('undoButton', 'click', () => {
+        this.bindElementIfExists('undoButton', 'click', () => {
             this.undo();
         });
-        this._bindIfExists('redoButton', 'click', () => {
+        this.bindElementIfExists('redoButton', 'click', () => {
             this.redo();
         });
 
-        this._bindIfExists('rotateLeftButton', 'click', () => {
+        this.bindElementIfExists('rotateLeftButton', 'click', () => {
             const inputId = this.elements.rotateLeftDegreesInput;
             const inputEl = inputId
                 ? (document.getElementById(inputId) as HTMLInputElement | null)
@@ -590,7 +579,7 @@ export class ImageEditor {
             }
             void this.rotateImage(this.currentRotation - step);
         });
-        this._bindIfExists('rotateRightButton', 'click', () => {
+        this.bindElementIfExists('rotateRightButton', 'click', () => {
             const inputId = this.elements.rotateRightDegreesInput;
             const inputEl = inputId
                 ? (document.getElementById(inputId) as HTMLInputElement | null)
@@ -603,26 +592,25 @@ export class ImageEditor {
             void this.rotateImage(this.currentRotation + step);
         });
 
-        this._bindIfExists('enterCropModeButton', 'click', () => {
+        this.bindElementIfExists('enterCropModeButton', 'click', () => {
             this.enterCropMode();
         });
-        this._bindIfExists('applyCropButton', 'click', () => {
+        this.bindElementIfExists('applyCropButton', 'click', () => {
             void this.applyCrop().catch((error) => {
                 reportError(this.options, error, 'Crop apply failed.');
             });
         });
-        this._bindIfExists('cancelCropButton', 'click', () => {
+        this.bindElementIfExists('cancelCropButton', 'click', () => {
             this.cancelCrop();
         });
     }
 
-    /** @internal */
-    private _bindIfExists(key: ElementKey, event: string, handler: EventListener): void {
+    private bindElementIfExists(key: ElementKey, event: string, handler: EventListener): void {
         // Routed through the managed registry so `dispose` can detach
         // every listener with a single `removeAll` call. The registry
-        // also wraps the handler in a `_disposed`-aware shim so handlers
+        // also wraps the handler in a `isDisposed`-aware shim so handlers
         // stop firing once dispose has run.
-        this._bindings?.bindIfExists(key, event, handler);
+        this.domBindings?.bindIfExists(key, event, handler);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -638,9 +626,8 @@ export class ImageEditor {
      * input reset live in one place. The input is reset on both success
      * and failure so re-selecting the same file fires a fresh `change`
      * event.
-     * @internal
      */
-    private async _loadImageFile(file: File): Promise<void> {
+    private async loadImageFile(file: File): Promise<void> {
         const inputId = this.elements.imageInput;
         const inputEl = inputId
             ? (document.getElementById(inputId) as HTMLInputElement | null)
@@ -659,7 +646,7 @@ export class ImageEditor {
 
         let dataUrl: string;
         try {
-            dataUrl = await readFileAsDataURL(file);
+            dataUrl = await readFileAsDataUrl(file);
         } catch (error) {
             reportError(this.options, error, 'Failed to read selected image file.');
             resetFileInput(inputEl);
@@ -682,8 +669,7 @@ export class ImageEditor {
      * facade method delegates to it so all rollback, downsample, layout,
      * and `onImageLoaded` ordering rules are owned in one place.
      *
-     * Pipeline contract preserved end-to-end (5.3,
-     * 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 7.2, 7.3, 8.4, 18.1):
+     * Pipeline contract preserved end-to-end:
      *
      * - Non-`data:image/` strings resolve without mutation.
      * - On a valid data URL, the loader captures a rollback bundle BEFORE
@@ -691,7 +677,7 @@ export class ImageEditor {
      *   failures replay the bundle and reject with the original error.
      * - On commit, the loader sets `originalImage`, `currentScale = 1`,
      *   `currentRotation = 0`, `baseImageScale`, `maskCounter = 0`,
-     *   `_lastSnapshot`, and `isImageLoadedToCanvas = true`. It also
+     *   `lastSnapshot`, and `isImageLoadedToCanvas = true`. It also
      *   honours `LoadImageOptions.preserveScroll` and invokes
      *   `onImageLoaded` exactly once after every scalar is committed.
      *
@@ -700,10 +686,10 @@ export class ImageEditor {
      * the call as a documented no-op so a queued scale/rotate animation
      * cannot be torn down by a concurrent reload.
      *
-     * @param base64  Data URL string starting with `data:image/…`.
-     * @param options Optional {@link LoadImageOptions}; currently only
+     * @param base64 - Data URL string starting with `data:image/…`.
+     * @param options - Optional {@link LoadImageOptions}; currently only
      *                `preserveScroll` is consulted.
-     * @returns Promise that resolves once the image is on the canvas, or
+     * @returns A promise that resolves once the image is on the canvas, or
      *          rejects with the original error after a transactional
      *          rollback. Non-data:image inputs and Fabric-unavailable /
      *          disposed states resolve without observable mutation.
@@ -711,36 +697,36 @@ export class ImageEditor {
     async loadImage(base64: string, options: LoadImageOptions = {}): Promise<void> {
         // Fabric-unavailable and disposed gates mirror "init and
         // loadImage are no-ops" contract.
-        if (!this._fabricLoaded || !this.canvas) return;
-        if (this._disposed) return;
+        if (!this.isFabricLoaded || !this.canvas) return;
+        if (this.isDisposed) return;
         if (typeof base64 !== 'string' || !base64.startsWith('data:image/')) return;
 
-        if (!this._canRunIdleOperation('loadImage', options)) return;
-        const context = this._getOperationContext('loadImage', options);
+        if (!this.canRunIdleOperation('loadImage', options)) return;
+        const callbackContext = this.getOperationContext('loadImage', options);
         const previousImage = this.originalImage;
-        const hadMasks = this._getMasks().length > 0;
-        this._emitOptionCallback('onImageLoadStart', [context]);
-        this._guard.beginLoading();
-        this._emitBusyChangeIfChanged(context);
-        this._updateUI();
+        const hadMasks = this.getMasks().length > 0;
+        this.emitOptionCallback('onImageLoadStart', [callbackContext]);
+        this.operationGuard.beginLoading();
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
 
         // Drop any stale label objects BEFORE the loader clears the
         // canvas. The loader does call `canvas.clear` itself, but the
-        // facade also tracks `mask.__label` references on the mask
+        // facade also tracks `mask.labelObject` references on the mask
         // objects and will leak those references onto stale objects
         // unless we hide them up-front.
-        this._hideAllMaskLabels();
+        this.hideAllMaskLabels();
 
         // Build the dependency bundle the loader consumes. Each closure
         // reads/writes the canonical facade state so the loader has no
         // class state of its own.
-        const ctx: LoadImageContext = {
-            fabric: this._fabric,
+        const loadImageContext: LoadImageContext = {
+            fabric: this.fabricModule,
             canvas: this.canvas,
             options: this.options,
             containerElement: this.containerElement,
             placeholderElement: this.placeholderElement,
-            viewportCache: this._viewportCache,
+            viewportCache: this.viewportCache,
 
             getOriginalImage: () => this.originalImage,
             setOriginalImage: (v) => {
@@ -750,9 +736,9 @@ export class ImageEditor {
             setIsImageLoadedToCanvas: (v) => {
                 this.isImageLoadedToCanvas = v;
             },
-            getLastSnapshot: () => this._lastSnapshot,
+            getLastSnapshot: () => this.lastSnapshot,
             setLastSnapshot: (v) => {
-                this._lastSnapshot = v;
+                this.lastSnapshot = v;
             },
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (v) => {
@@ -789,56 +775,53 @@ export class ImageEditor {
         };
 
         try {
-            await loadImageImpl(ctx, base64, options);
+            await loadImageImpl(loadImageContext, base64, options);
         } finally {
-            this._guard.endLoading();
-            this._emitBusyChangeIfChanged(context);
-            if (!this._disposed && this.canvas) this._updateUI();
+            this.operationGuard.endLoading();
+            this.emitBusyChangeIfChanged(callbackContext);
+            if (!this.isDisposed && this.canvas) this.updateUi();
         }
 
         // ── Facade-only post-commit bookkeeping ─────────────────────────
         // The loader owns canvas state, transform scalars, and
-        // _lastSnapshot. Everything below is facade-specific UI,
+        // lastSnapshot. Everything below is facade-specific UI,
         // lifecycle-callback, and mask-placement memo state that the
         // loader has no visibility into. The block runs only when the
         // load committed — a thrown error short-circuits it via the
         // `throw` above, which matches the loader's "no observable
         // change on rollback" contract.
-        this._lastMask = null;
+        this.lastMask = null;
 
-        this._updateInputs();
-        this._updateMaskList();
-        this._updateUI();
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateUi();
         if (previousImage && previousImage !== this.originalImage) {
-            this._emitOptionCallback('onImageCleared', [previousImage, context]);
+            this.emitOptionCallback('onImageCleared', [previousImage, callbackContext]);
         }
-        const imageInfo = this._getImageInfo();
+        const imageInfo = this.getImageInfo();
         if (imageInfo) {
-            this._emitOptionCallback('onImageLoaded', [imageInfo, context]);
+            this.emitOptionCallback('onImageLoaded', [imageInfo, callbackContext]);
         }
         if (hadMasks) {
-            this._emitMasksChanged(context);
+            this.emitMasksChanged(callbackContext);
         }
-        this._emitImageChanged(context);
+        this.emitImageChanged(callbackContext);
     }
 
-    /** @internal */
-    private _getInternalOperationToken(options?: object | null): OperationToken | null {
+    private getInternalOperationToken(options?: object | null): OperationToken | null {
         return (
             (options as InternalOperationOptions | null | undefined)?.[INTERNAL_OPERATION_TOKEN] ??
             null
         );
     }
 
-    /** @internal */
-    private _canRunDuringAnimationQueue(options?: object | null): boolean {
+    private canRunDuringAnimationQueue(options?: object | null): boolean {
         return !!(options as InternalOperationOptions | null | undefined)?.[
             INTERNAL_ALLOW_DURING_ANIMATION_QUEUE
         ];
     }
 
-    /** @internal */
-    private _withInternalOperationOptions<T extends object>(
+    private withInternalOperationOptions<T extends object>(
         token: OperationToken | null | undefined,
         options: T = {} as T,
     ): T & InternalOperationOptions {
@@ -848,49 +831,45 @@ export class ImageEditor {
         } as T & InternalOperationOptions;
     }
 
-    /** @internal */
-    private _withAnimationQueueBypass<T extends object>(options: T = {} as T): T {
+    private withAnimationQueueBypass<T extends object>(options: T = {} as T): T {
         return {
             ...options,
             [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
         } as T;
     }
 
-    /** @internal */
-    private _assertIdleForOperation(operationName: string, options?: object | null): void {
-        const token = this._getInternalOperationToken(options);
-        this._guard.assertIdleForOperation(operationName, token);
+    private assertIdleForOperation(operationName: string, options?: object | null): void {
+        const token = this.getInternalOperationToken(options);
+        this.operationGuard.assertIdleForOperation(operationName, token);
         if (
-            this._cropSession &&
-            !this._guard.isOwnOperation(token) &&
+            this.cropSession &&
+            !this.operationGuard.isOwnOperation(token) &&
             !CROP_SESSION_ALLOWED_OPERATIONS.has(operationName)
         ) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationName}" while crop mode is active.`,
             );
         }
-        if (this.animQueue.isBusy() && !this._canRunDuringAnimationQueue(options)) {
+        if (this.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationName}" while an animation is queued.`,
             );
         }
     }
 
-    /** @internal */
-    private _canRunIdleOperation(operationName: string, options?: object | null): boolean {
+    private canRunIdleOperation(operationName: string, options?: object | null): boolean {
         try {
-            this._assertIdleForOperation(operationName, options);
+            this.assertIdleForOperation(operationName, options);
             return true;
         } catch {
             return false;
         }
     }
 
-    /** @internal */
-    private _assertCanQueueAnimation(operationName: string, options?: object | null): void {
-        this._guard.assertCanQueueAnimation(
+    private assertCanQueueAnimation(operationName: string, options?: object | null): void {
+        this.operationGuard.assertCanQueueAnimation(
             operationName,
-            this._getInternalOperationToken(options),
+            this.getInternalOperationToken(options),
         );
     }
 
@@ -900,7 +879,7 @@ export class ImageEditor {
     isImageLoaded(): boolean {
         return !!(
             this.originalImage &&
-            this.originalImage instanceof this._fabric.FabricImage &&
+            this.originalImage instanceof this.fabricModule.FabricImage &&
             (this.originalImage.width ?? 0) > 0 &&
             (this.originalImage.height ?? 0) > 0
         );
@@ -910,32 +889,30 @@ export class ImageEditor {
      * Returns `true` while the editor is loading, animating, or in crop mode.
      */
     isBusy(): boolean {
-        return this._guard.isBusy() || this.animQueue.isBusy() || this._cropSession !== null;
+        return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
     }
 
-    /** @internal */
-    private _buildCallbackContext(
+    private buildCallbackContext(
         operation: ImageEditorOperation,
         isInternalOperation = false,
     ): ImageEditorCallbackContext {
         return { operation, isInternalOperation };
     }
 
-    /** @internal */
-    private _getOperationContext(
+    private getOperationContext(
         fallback: ImageEditorOperation,
         options?: object | null,
     ): ImageEditorCallbackContext {
-        const internal = this._getInternalOperationToken(options);
-        const activeOperation = this._guard.activeOperationName() as ImageEditorOperation | null;
+        const internal = this.getInternalOperationToken(options);
+        const activeOperation =
+            this.operationGuard.activeOperationName() as ImageEditorOperation | null;
         if (internal && activeOperation) {
-            return this._buildCallbackContext(activeOperation, true);
+            return this.buildCallbackContext(activeOperation, true);
         }
-        return this._buildCallbackContext(fallback, false);
+        return this.buildCallbackContext(fallback, false);
     }
 
-    /** @internal */
-    private _emitOptionCallback(
+    private emitOptionCallback(
         callbackName:
             | 'onImageLoadStart'
             | 'onImageLoaded'
@@ -958,8 +935,7 @@ export class ImageEditor {
         }
     }
 
-    /** @internal */
-    private _getImageInfo(): ImageInfo | null {
+    private getImageInfo(): ImageInfo | null {
         if (!this.canvas || !this.originalImage) return null;
         const canvasWidth = this.canvas.getWidth();
         const canvasHeight = this.canvas.getHeight();
@@ -994,32 +970,29 @@ export class ImageEditor {
         };
     }
 
-    /** @internal */
-    private _getMasks(): MaskObject[] {
+    private getMasks(): MaskObject[] {
         if (!this.canvas) return [];
         return this.canvas.getObjects().filter(isMaskObject).slice();
     }
 
-    /** @internal */
-    private _getMaskCollectionSignature(): string {
-        return this._getMasks()
+    private getMaskCollectionSignature(): string {
+        return this.getMasks()
             .map((mask) => `${mask.maskId}:${mask.maskName}`)
             .join('|');
     }
 
-    /** @internal */
-    private _getEditorState(): ImageEditorState {
+    private getEditorState(): ImageEditorState {
         const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
         const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
-        const image = this._getImageInfo();
+        const image = this.getImageInfo();
         return {
             hasImage: image !== null,
             image,
-            maskCount: this._getMasks().length,
+            maskCount: this.getMasks().length,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
             isBusy: this.isBusy(),
-            isCropMode: this._cropSession !== null,
+            isCropMode: this.cropSession !== null,
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),
             canvasWidth,
@@ -1027,26 +1000,22 @@ export class ImageEditor {
         };
     }
 
-    /** @internal */
-    private _emitImageChanged(context: ImageEditorCallbackContext): void {
-        this._emitOptionCallback('onImageChanged', [this._getEditorState(), context]);
+    private emitImageChanged(context: ImageEditorCallbackContext): void {
+        this.emitOptionCallback('onImageChanged', [this.getEditorState(), context]);
     }
 
-    /** @internal */
-    private _emitMasksChanged(context: ImageEditorCallbackContext): void {
-        this._emitOptionCallback('onMasksChanged', [this._getMasks(), context]);
+    private emitMasksChanged(context: ImageEditorCallbackContext): void {
+        this.emitOptionCallback('onMasksChanged', [this.getMasks(), context]);
     }
 
-    /** @internal */
-    private _emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void {
+    private emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void {
         const isBusy = this.isBusy();
-        if (this._lastEmittedBusyState === isBusy) return;
-        this._lastEmittedBusyState = isBusy;
-        this._emitOptionCallback('onBusyChange', [isBusy, context]);
+        if (this.lastEmittedIsBusy === isBusy) return;
+        this.lastEmittedIsBusy = isBusy;
+        this.emitOptionCallback('onBusyChange', [isBusy, context]);
     }
 
-    /** @internal */
-    private _buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection {
+    private buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection {
         const selectedMasks = selected.filter(isMaskObject);
         return {
             selectedMask: selectedMasks[0] ?? null,
@@ -1054,24 +1023,24 @@ export class ImageEditor {
         };
     }
 
-    /** @internal */
-    private _withSelectionChangeContext<T>(context: ImageEditorCallbackContext, fn: () => T): T {
-        const previous = this._nextSelectionChangeContext;
-        this._nextSelectionChangeContext = context;
+    private withSelectionChangeContext<T>(
+        context: ImageEditorCallbackContext,
+        callback: () => T,
+    ): T {
+        const previous = this.nextSelectionChangeContext;
+        this.nextSelectionChangeContext = context;
         try {
-            return fn();
+            return callback();
         } finally {
-            this._nextSelectionChangeContext = previous;
+            this.nextSelectionChangeContext = previous;
         }
     }
 
-    /** @internal */
-    private _isSupportedImageMimeType(mimeType: string | null): mimeType is ImageMimeType {
+    private isSupportedImageMimeType(mimeType: string | null): mimeType is ImageMimeType {
         return mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp';
     }
 
-    /** @internal */
-    private _inferCurrentImageMimeType(): ImageMimeType | null {
+    private inferCurrentImageMimeType(): ImageMimeType | null {
         const image = this.originalImage as
             | (FabricNS.FabricImage & {
                   getSrc?: () => string;
@@ -1087,7 +1056,7 @@ export class ImageEditor {
             source = null;
         }
         const mimeType = source ? detectSourceMimeType(source) : null;
-        return this._isSupportedImageMimeType(mimeType) ? mimeType : null;
+        return this.isSupportedImageMimeType(mimeType) ? mimeType : null;
     }
 
     /**
@@ -1097,11 +1066,10 @@ export class ImageEditor {
      * reflowed before the next paint — matching the contract enforced
      * across the rest of the layout pipeline (see
      * `image/layout-manager.ts`).
-     * @internal
      */
-    private _setCanvasSizeInt(w: number, h: number): void {
+    private setCanvasSizePx(widthPx: number, heightPx: number): void {
         if (!this.canvas) return;
-        applyCanvasDimensions(this.canvas, w, h, this.containerElement);
+        applyCanvasDimensions(this.canvas, widthPx, heightPx, this.containerElement);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1113,27 +1081,22 @@ export class ImageEditor {
      * object's `(left, top)` reference. Used by the transform pipeline's
      * `afterTransformSnap` hook to absorb floating-point drift on the
      * final animation tick.
-     * @internal
      */
-    private _alignObjectBoundingBoxToCanvasTopLeft(obj: FabricNS.FabricObject): void {
-        obj.setCoords();
-        const boundingRect = obj.getBoundingRect(); // v7: always absolute, no params
-        obj.set({
-            left: (obj.left ?? 0) - boundingRect.left,
-            top: (obj.top ?? 0) - boundingRect.top,
+    private alignObjectBoundingBoxToCanvasTopLeft(object: FabricNS.FabricObject): void {
+        object.setCoords();
+        const boundingRect = object.getBoundingRect(); // v7: always absolute, no params
+        object.set({
+            left: (object.left ?? 0) - boundingRect.left,
+            top: (object.top ?? 0) - boundingRect.top,
         });
-        obj.setCoords();
+        object.setCoords();
         // Flush the final snapped geometry before the transform promise
         // settles; callers may read layout immediately after awaiting it.
         this.canvas!.renderAll();
     }
 
-    /** @internal */
-    private _measureLayoutViewport(scrollbarSize?: {
-        width: number;
-        height: number;
-    }): ViewportSize {
-        return this._viewportCache.measure(
+    private measureLayoutViewport(scrollbarSize?: { width: number; height: number }): ViewportSize {
+        return this.viewportCache.measure(
             this.containerElement,
             {
                 width: this.options.canvasWidth,
@@ -1147,15 +1110,14 @@ export class ImageEditor {
      * Resize the canvas to fit the transformed image bounds. Used by the
      * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
      * image that exceeds the viewport gets a real scroll range.
-     * @internal
      */
-    private _updateCanvasSizeToImageBounds(): void {
+    private updateCanvasSizeToImageBounds(): void {
         if (!this.originalImage) return;
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
 
         const scrollbarSize = measureScrollbarSize(this.containerElement?.ownerDocument ?? null);
-        const viewport = this._measureLayoutViewport(scrollbarSize);
+        const viewport = this.measureLayoutViewport(scrollbarSize);
 
         if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
             const canvasSize = computeScrollableCanvasSize(
@@ -1164,28 +1126,27 @@ export class ImageEditor {
                 viewport,
                 scrollbarSize,
             );
-            this._setCanvasSizeInt(canvasSize.width, canvasSize.height);
+            this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
         }
 
         if (boundingRect.width <= viewport.width && boundingRect.height <= viewport.height) {
-            this._setCanvasSizeInt(viewport.width, viewport.height);
+            this.setCanvasSizePx(viewport.width, viewport.height);
             return;
         }
 
-        this._setCanvasSizeInt(
+        this.setCanvasSizePx(
             Math.max(viewport.width, Math.ceil(boundingRect.width)),
             Math.max(viewport.height, Math.ceil(boundingRect.height)),
         );
     }
 
-    /** @internal */
-    private _shouldNormalizeCanvasSizeAfterStateRestore(): boolean {
+    private shouldNormalizeCanvasSizeAfterStateRestore(): boolean {
         if (!this.canvas || !this.originalImage) return false;
 
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
-        const viewport = this._measureLayoutViewport(
+        const viewport = this.measureLayoutViewport(
             measureScrollbarSize(this.containerElement?.ownerDocument ?? null),
         );
         const canvasW = Math.ceil(this.canvas.getWidth());
@@ -1218,8 +1179,7 @@ export class ImageEditor {
         return clipsImage;
     }
 
-    /** @internal */
-    private _captureImageDisplayGeometry(): ImageDisplayGeometry | null {
+    private captureImageDisplayGeometry(): ImageDisplayGeometry | null {
         if (!this.canvas || !this.originalImage) return null;
         this.originalImage.setCoords();
         const boundingRect = this.originalImage.getBoundingRect();
@@ -1231,11 +1191,10 @@ export class ImageEditor {
         };
     }
 
-    /** @internal */
-    private _restoreMergedImageDisplayGeometry(geometry: ImageDisplayGeometry | null): void {
+    private restoreMergedImageDisplayGeometry(geometry: ImageDisplayGeometry | null): void {
         if (!geometry || !this.canvas || !this.originalImage) return;
 
-        this._setCanvasSizeInt(geometry.canvasWidth, geometry.canvasHeight);
+        this.setCanvasSizePx(geometry.canvasWidth, geometry.canvasHeight);
 
         const sourceW = Math.max(1, this.originalImage.width || geometry.imageDisplayWidth);
         const sourceH = Math.max(1, this.originalImage.height || geometry.imageDisplayHeight);
@@ -1263,7 +1222,7 @@ export class ImageEditor {
         this.currentScale = 1;
         this.currentRotation = 0;
         this.baseImageScale = scale;
-        this._lastSnapshot = this._captureSnapshot();
+        this.lastSnapshot = this.captureSnapshotInternal();
         this.canvas.renderAll();
     }
 
@@ -1274,12 +1233,12 @@ export class ImageEditor {
     /**
      * Build the {@link TransformContext} the controller reads/writes
      * through. The facade is the single owner of `currentScale`,
-     * `currentRotation`, `baseImageScale`, `_suppressSaveState`, and
+     * `currentRotation`, `baseImageScale`, `shouldSuppressSaveState`, and
      * the {@link OperationGuard}, so the context's accessors all bind
      * back to `this` rather than duplicating state.
      *
      * The `saveCanvasState` callback delegates to {@link saveState},
-     * which already honors `_suppressSaveState`. That lets
+     * which already honors `shouldSuppressSaveState`. That lets
      * {@link resetImageTransform} reuse the public scale and rotate paths
      * while suppressing intermediate saves and emitting one final history
      * entry.
@@ -1288,13 +1247,12 @@ export class ImageEditor {
      * expand-to-image canvas sizing, bounding-box re-alignment, and mask
      * label sync.
      *
-     * @internal
      */
-    private _buildTransformContext(): TransformContext {
+    private buildTransformContext(): TransformContext {
         return {
             canvas: this.canvas!,
             options: this.options,
-            guard: this._guard,
+            guard: this.operationGuard,
 
             getOriginalImage: () => this.originalImage,
 
@@ -1311,26 +1269,26 @@ export class ImageEditor {
             getBaseImageScale: () => this.baseImageScale,
 
             saveCanvasState: () => {
-                this._saveState(this._withAnimationQueueBypass());
+                this.saveStateInternal(this.withAnimationQueueBypass());
             },
             setSuppressSaveState: (suppress) => {
-                this._suppressSaveState = suppress;
+                this.shouldSuppressSaveState = suppress;
             },
 
             afterTransformSnap: () => {
-                if (this._disposed || !this.canvas || !this.originalImage) return;
+                if (this.isDisposed || !this.canvas || !this.originalImage) return;
                 if (
                     this.options.expandCanvasToImage ||
                     this.options.coverImageToCanvas ||
                     this.options.fitImageToCanvas
                 ) {
-                    this._updateCanvasSizeToImageBounds();
+                    this.updateCanvasSizeToImageBounds();
                 }
-                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
                     .filter(isMaskObject)
-                    .forEach((maskObject) => this._syncMaskLabel(maskObject));
+                    .forEach((maskObject) => this.syncMaskLabel(maskObject));
             },
         };
     }
@@ -1350,36 +1308,36 @@ export class ImageEditor {
      * `isAnimating` is `false` before this Promise settles
      * and calls {@link saveState} on success.
      *
-     * @returns Promise that resolves when the animation finishes.
+     * @returns A promise that resolves when the animation finishes.
      */
     scaleImage(factor: number): Promise<void> {
-        if (this._disposed || !this._transformController) return Promise.resolve();
+        if (this.isDisposed || !this.transformController) return Promise.resolve();
         if (!Number.isFinite(factor)) return Promise.resolve();
         try {
-            this._assertCanQueueAnimation('scaleImage');
+            this.assertCanQueueAnimation('scaleImage');
         } catch (error) {
             return Promise.reject(error);
         }
-        const controller = this._transformController;
-        const context = this._buildCallbackContext('scaleImage', false);
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('scaleImage', false);
         const job = this.animQueue.add(async () => {
-            if (this._disposed) return;
+            if (this.isDisposed) return;
             // Disable buttons up front so the toolbar reflects the
             // pending animation while it runs.
-            this._updateUI();
+            this.updateUi();
             try {
                 await controller.scaleImage(factor);
-                if (!this._disposed) this._emitImageChanged(context);
+                if (!this.isDisposed) this.emitImageChanged(context);
             } finally {
-                if (!this._disposed) {
-                    this._updateInputs();
+                if (!this.isDisposed) {
+                    this.updateInputs();
                 }
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
 
@@ -1390,35 +1348,35 @@ export class ImageEditor {
      * Non-finite input is a documented no-op; the controller
      * short-circuits without modifying canvas state.
      *
-     * @param degrees Target rotation angle in degrees.
-     * @returns Promise that resolves when the animation finishes.
+     * @param degrees - Target rotation angle in degrees.
+     * @returns A promise that resolves when the animation finishes.
      */
     rotateImage(degrees: number): Promise<void> {
-        if (this._disposed || !this._transformController) return Promise.resolve();
+        if (this.isDisposed || !this.transformController) return Promise.resolve();
         if (!Number.isFinite(degrees)) return Promise.resolve();
         try {
-            this._assertCanQueueAnimation('rotateImage');
+            this.assertCanQueueAnimation('rotateImage');
         } catch (error) {
             return Promise.reject(error);
         }
-        const controller = this._transformController;
-        const context = this._buildCallbackContext('rotateImage', false);
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('rotateImage', false);
         const job = this.animQueue.add(async () => {
-            if (this._disposed) return;
-            this._updateUI();
+            if (this.isDisposed) return;
+            this.updateUi();
             try {
                 await controller.rotateImage(degrees);
-                if (!this._disposed) this._emitImageChanged(context);
+                if (!this.isDisposed) this.emitImageChanged(context);
             } finally {
-                if (!this._disposed) {
-                    this._updateInputs();
+                if (!this.isDisposed) {
+                    this.updateInputs();
                 }
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
 
@@ -1429,46 +1387,45 @@ export class ImageEditor {
      * Routed through the {@link animQueue} so the chained
      * `scaleImage(1)` and `rotateImage(0)` sub-animations are serialized
      * with any other queued transform. The
-     * controller toggles `_suppressSaveState` around the chain so the
+     * controller toggles `shouldSuppressSaveState` around the chain so the
      * inner per-operation `saveState` calls collapse into a single
      * post-reset save.
      *
-     * @returns Promise that resolves when both sub-animations have
+     * @returns A promise that resolves when both sub-animations have
      *          settled and the single history entry has been recorded.
      */
     resetImageTransform(): Promise<void> {
-        if (this._disposed || !this._transformController) return Promise.resolve();
+        if (this.isDisposed || !this.transformController) return Promise.resolve();
         try {
-            this._assertCanQueueAnimation('resetImageTransform');
+            this.assertCanQueueAnimation('resetImageTransform');
         } catch (error) {
             return Promise.reject(error);
         }
-        const controller = this._transformController;
-        const context = this._buildCallbackContext('resetImageTransform', false);
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('resetImageTransform', false);
         const job = this.animQueue.add(async () => {
-            if (this._disposed) return;
-            this._updateUI();
+            if (this.isDisposed) return;
+            this.updateUi();
             try {
                 await controller.resetImageTransform();
-                if (!this._disposed) this._emitImageChanged(context);
+                if (!this.isDisposed) this.emitImageChanged(context);
             } finally {
-                if (!this._disposed) {
-                    this._updateInputs();
+                if (!this.isDisposed) {
+                    this.updateInputs();
                 }
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
 
-    /** @internal */
-    private _refreshUiAfterQueuedAnimation(): void {
-        if (this._disposed || !this.canvas) return;
-        this._updateInputs();
-        this._updateUI();
+    private refreshUiAfterQueuedAnimation(): void {
+        if (this.isDisposed || !this.canvas) return;
+        this.updateInputs();
+        this.updateUi();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1487,48 +1444,47 @@ export class ImageEditor {
      * promise rejects with the original error so the history manager
      * leaves `currentIndex` untouched on a failed undo/redo restore.
      *
-     * @param jsonString JSON string returned by `saveState` (or parsed object).
+     * @param jsonString - JSON string returned by `saveState` (or parsed object).
      */
-    async loadFromState(jsonString: string | CanvasJSON): Promise<void> {
-        return this._loadFromState(jsonString);
+    async loadFromState(jsonString: string | CanvasJson): Promise<void> {
+        return this.loadFromStateInternal(jsonString);
     }
 
-    /** @internal */
-    private async _loadFromState(
-        jsonString: string | CanvasJSON,
+    private async loadFromStateInternal(
+        jsonString: string | CanvasJson,
         options?: object | null,
     ): Promise<void> {
         if (!jsonString || !this.canvas) return;
         // After-dispose calls resolve as a no-op so a queued undo/redo
         // entry that fires post-dispose does not touch the canvas.
-        if (this._disposed) return;
-        if (!this._canRunIdleOperation('loadFromState', options)) return;
-        const activeRestoreOperation = this._activeStateRestoreOperation;
-        const context = this._buildCallbackContext(
+        if (this.isDisposed) return;
+        if (!this.canRunIdleOperation('loadFromState', options)) return;
+        const activeRestoreOperation = this.activeStateRestoreOperation;
+        const context = this.buildCallbackContext(
             activeRestoreOperation ?? 'loadFromState',
             activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo',
         );
         const previousImage = this.originalImage;
-        const previousMaskSignature = this._getMaskCollectionSignature();
+        const previousMaskSignature = this.getMaskCollectionSignature();
 
         try {
-            const result = await loadFromStateImpl({
+            const restoredState = await loadFromStateImpl({
                 canvas: this.canvas,
                 jsonString,
-                setCanvasSize: (w, h) => this._setCanvasSizeInt(w, h),
+                setCanvasSize: (widthPx, heightPx) => this.setCanvasSizePx(widthPx, heightPx),
             });
 
             // Defend against dispose racing with the awaited
             // `loadFromJSON`: the canvas may have been torn down between
             // the call and the resolution.
-            if (this._disposed || !this.canvas) return;
+            if (this.isDisposed || !this.canvas) return;
 
             // Drop any lingering label texts the snapshot did not filter.
             // The serializer's snapshot already excludes labels, but a
             // hand-built or older payload may include them.
-            this._hideAllMaskLabels();
+            this.hideAllMaskLabels();
 
-            this.originalImage = result.originalImage;
+            this.originalImage = restoredState.originalImage;
             if (this.originalImage) {
                 this.originalImage.set({
                     originX: 'left',
@@ -1541,19 +1497,19 @@ export class ImageEditor {
                 this.canvas.sendObjectToBack(this.originalImage);
             }
 
-            this.maskCounter = result.maxMaskId;
+            this.maskCounter = restoredState.maxMaskId;
 
-            const es = result.editorState;
-            if (es) {
-                this.currentScale = es.currentScale;
-                this.currentRotation = es.currentRotation;
-                this.baseImageScale = es.baseImageScale;
+            const editorState = restoredState.editorState;
+            if (editorState) {
+                this.currentScale = editorState.currentScale;
+                this.currentRotation = editorState.currentRotation;
+                this.baseImageScale = editorState.baseImageScale;
             }
             if (this.originalImage) {
                 this.currentImageMimeType =
-                    es && 'currentImageMimeType' in es
-                        ? (es.currentImageMimeType ?? null)
-                        : this._inferCurrentImageMimeType();
+                    editorState && 'currentImageMimeType' in editorState
+                        ? (editorState.currentImageMimeType ?? null)
+                        : this.inferCurrentImageMimeType();
             } else {
                 this.currentImageMimeType = null;
             }
@@ -1565,16 +1521,16 @@ export class ImageEditor {
                 (this.options.expandCanvasToImage ||
                     this.options.coverImageToCanvas ||
                     this.options.fitImageToCanvas) &&
-                this._shouldNormalizeCanvasSizeAfterStateRestore()
+                this.shouldNormalizeCanvasSizeAfterStateRestore()
             ) {
-                this._updateCanvasSizeToImageBounds();
-                this._alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
+                this.updateCanvasSizeToImageBounds();
+                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
 
             // Re-attach mouseover/mouseout hover handlers (Fabric never
             // serializes event listeners).
-            const restoredMasks = result.objects.filter(isMaskObject);
-            this._lastMask = restoredMasks.reduce<MaskObject | null>(
+            const restoredMasks = restoredState.objects.filter(isMaskObject);
+            this.lastMask = restoredMasks.reduce<MaskObject | null>(
                 (lastMask, maskObject) =>
                     !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask,
                 null,
@@ -1584,34 +1540,34 @@ export class ImageEditor {
                 reattachMaskHoverHandlers(maskObject);
             });
 
-            // Update _lastSnapshot so the NEXT saveState correctly
+            // Update lastSnapshot so the NEXT saveState correctly
             // uses the restored and layout-normalized state as its
             // "before" baseline.
-            this._lastSnapshot = this._captureSnapshot();
+            this.lastSnapshot = this.captureSnapshotInternal();
 
             // Undo/redo callers await this method and should settle after
             // Fabric has painted the restored state.
             this.canvas.renderAll();
-            this._updateInputs();
-            this._updateMaskList();
-            this._updateUI();
+            this.updateInputs();
+            this.updateMaskList();
+            this.updateUi();
             if (previousImage && previousImage !== this.originalImage) {
-                this._emitOptionCallback('onImageCleared', [previousImage, context]);
+                this.emitOptionCallback('onImageCleared', [previousImage, context]);
             }
-            if (previousMaskSignature !== this._getMaskCollectionSignature()) {
-                this._emitMasksChanged(context);
+            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
+                this.emitMasksChanged(context);
             }
-            this._emitImageChanged(context);
+            this.emitImageChanged(context);
 
-            const activeMaskId = es?.activeMaskId;
+            const activeMaskId = editorState?.activeMaskId;
             if (typeof activeMaskId === 'number') {
                 const activeMask = restoredMasks.find(
                     (maskObject) => maskObject.maskId === activeMaskId,
                 );
                 if (activeMask) {
-                    this._withSelectionChangeContext(context, () => {
+                    this.withSelectionChangeContext(context, () => {
                         this.canvas!.setActiveObject(activeMask);
-                        this._onSelectionChanged([activeMask]);
+                        this.handleSelectionChanged([activeMask]);
                     });
                 }
             }
@@ -1629,16 +1585,15 @@ export class ImageEditor {
      * Called automatically after transforms, mask operations, and crop.
      */
     saveState(): void {
-        this._saveState();
+        this.saveStateInternal();
     }
 
-    /** @internal */
-    private _saveState(options?: object | null): void {
-        if (!this.canvas || this._suppressSaveState) return;
-        if (!this._canRunIdleOperation('saveState', options)) return;
+    private saveStateInternal(options?: object | null): void {
+        if (!this.canvas || this.shouldSuppressSaveState) return;
+        if (!this.canRunIdleOperation('saveState', options)) return;
         const activeObj = this.canvas.getActiveObject();
-        const activeMask = this._activeMaskForSnapshot();
-        this._hideAllMaskLabels();
+        const activeMask = this.getActiveMaskForSnapshot();
+        this.hideAllMaskLabels();
 
         try {
             const after = saveStateImpl({
@@ -1649,7 +1604,7 @@ export class ImageEditor {
                 baseImageScale: this.baseImageScale,
                 currentImageMimeType: this.currentImageMimeType,
             });
-            const before = this._lastSnapshot ?? after;
+            const before = this.lastSnapshot ?? after;
             if (after === before) {
                 return;
             }
@@ -1663,27 +1618,26 @@ export class ImageEditor {
             const cmd = new Command(
                 async () => {
                     if (executedOnce) {
-                        await this._loadFromState(after, this._withAnimationQueueBypass());
+                        await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
                     }
                     executedOnce = true;
                 },
                 async () => {
-                    await this._loadFromState(before, this._withAnimationQueueBypass());
+                    await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
                 },
             );
 
             this.historyManager.execute(cmd);
-            this._lastSnapshot = after;
+            this.lastSnapshot = after;
         } catch (error) {
             reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
         } finally {
-            this._restoreActiveMaskAfterSnapshot(activeObj, activeMask);
-            this._updateUI();
+            this.restoreActiveMaskAfterSnapshot(activeObj, activeMask);
+            this.updateUi();
         }
     }
 
-    /** @internal */
-    private _restoreActiveMaskAfterSnapshot(
+    private restoreActiveMaskAfterSnapshot(
         activeObj: FabricNS.FabricObject | null | undefined,
         activeMask: MaskObject | null,
     ): void {
@@ -1691,8 +1645,8 @@ export class ImageEditor {
         const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
         if (!maskToRestore || !this.canvas.getObjects().includes(maskToRestore)) return;
         this.canvas.setActiveObject(maskToRestore);
-        this._showLabelForMask(maskToRestore);
-        this._updateMaskListSelection(maskToRestore);
+        this.showLabelForMask(maskToRestore);
+        this.updateMaskListSelection(maskToRestore);
     }
 
     /**
@@ -1700,7 +1654,7 @@ export class ImageEditor {
      *
      * Routed through {@link animQueue} so that undo is serialized with any
      * in-progress animation and rapid clicks cannot interleave canvas restores.
-     * The {@link HistoryManager._processing} lock provides a second line of
+     * The {@link HistoryManager.isProcessing} lock provides a second line of
      * defence inside the history layer itself.
      *
      * After {@link dispose} the call resolves without touching the canvas.
@@ -1709,22 +1663,22 @@ export class ImageEditor {
      * in the animation queue.
      */
     undo(): Promise<void> {
-        if (this._disposed) return Promise.resolve();
-        if (!this._canRunIdleOperation('undo')) return Promise.resolve();
-        const context = this._buildCallbackContext('undo', true);
+        if (this.isDisposed) return Promise.resolve();
+        if (!this.canRunIdleOperation('undo')) return Promise.resolve();
+        const context = this.buildCallbackContext('undo', true);
         const job = this.animQueue.add(async () => {
-            if (this._disposed) return;
-            this._activeStateRestoreOperation = 'undo';
+            if (this.isDisposed) return;
+            this.activeStateRestoreOperation = 'undo';
             try {
                 await this.historyManager.undo();
             } finally {
-                this._activeStateRestoreOperation = null;
+                this.activeStateRestoreOperation = null;
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
 
@@ -1734,22 +1688,22 @@ export class ImageEditor {
      * Same serialization and dispose guarantees as {@link undo}.
      */
     redo(): Promise<void> {
-        if (this._disposed) return Promise.resolve();
-        if (!this._canRunIdleOperation('redo')) return Promise.resolve();
-        const context = this._buildCallbackContext('redo', true);
+        if (this.isDisposed) return Promise.resolve();
+        if (!this.canRunIdleOperation('redo')) return Promise.resolve();
+        const context = this.buildCallbackContext('redo', true);
         const job = this.animQueue.add(async () => {
-            if (this._disposed) return;
-            this._activeStateRestoreOperation = 'redo';
+            if (this.isDisposed) return;
+            this.activeStateRestoreOperation = 'redo';
             try {
                 await this.historyManager.redo();
             } finally {
-                this._activeStateRestoreOperation = null;
+                this.activeStateRestoreOperation = null;
             }
         });
-        this._emitBusyChangeIfChanged(context);
+        this.emitBusyChangeIfChanged(context);
         return job.finally(() => {
-            this._refreshUiAfterQueuedAnimation();
-            this._emitBusyChangeIfChanged(context);
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
         });
     }
 
@@ -1765,10 +1719,9 @@ export class ImageEditor {
      * falsy-style preservation, monotonic `maskCounter` bookkeeping,
      * and the post-create ordering contract: add to canvas → update
      * list DOM → `setActiveObject` (when `selectable !== false`) →
-     * `saveState` → `config.onCreate(mask, canvas)`
-     * (19.1–19.5, 21.1, 21.2, 22.1, 22.2).
+     * `saveState` → `config.onCreate(mask, canvas)`.
      *
-     * @param config  Shape type, dimensions, position, style, and callbacks.
+     * @param config - Shape type, dimensions, position, style, and callbacks.
      * @returns The created mask object, or `null` if the canvas is unavailable.
      *
      * @example
@@ -1785,13 +1738,15 @@ export class ImageEditor {
      */
     createMask(config: MaskConfig = {}): MaskObject | null {
         if (!this.canvas) return null;
-        if (!this._canRunIdleOperation('createMask')) return null;
-        const context = this._buildCallbackContext('createMask', false);
-        const ctx = this._buildCreateMaskContext();
-        const mask = this._withSelectionChangeContext(context, () => createMaskImpl(ctx, config));
+        if (!this.canRunIdleOperation('createMask')) return null;
+        const callbackContext = this.buildCallbackContext('createMask', false);
+        const createMaskContext = this.buildCreateMaskContext();
+        const mask = this.withSelectionChangeContext(callbackContext, () =>
+            createMaskImpl(createMaskContext, config),
+        );
         if (mask) {
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
         return mask;
     }
@@ -1805,15 +1760,17 @@ export class ImageEditor {
      */
     removeSelectedMask(): void {
         if (!this.canvas) return;
-        if (!this._canRunIdleOperation('removeSelectedMask')) return;
-        const before = this._getMasks().length;
-        const context = this._buildCallbackContext('removeSelectedMask', false);
-        const ctx = this._buildRemoveMaskContext();
-        this._withSelectionChangeContext(context, () => removeSelectedMaskImpl(ctx));
-        this._updateUI();
-        if (this._getMasks().length !== before) {
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+        if (!this.canRunIdleOperation('removeSelectedMask')) return;
+        const before = this.getMasks().length;
+        const callbackContext = this.buildCallbackContext('removeSelectedMask', false);
+        const removeMaskContext = this.buildRemoveMaskContext();
+        this.withSelectionChangeContext(callbackContext, () =>
+            removeSelectedMaskImpl(removeMaskContext),
+        );
+        this.updateUi();
+        if (this.getMasks().length !== before) {
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
     }
 
@@ -1822,7 +1779,7 @@ export class ImageEditor {
      *
      * Delegates to {@link removeAllMasks} in `mask/mask-factory.ts`,
      * which removes every mask and label in canvas order, clears the
-     * `_lastMask` reference, re-renders the mask list
+     * `lastMask` reference, re-renders the mask list
      * DOM, and pushes a single history entry by default. Callers can
      * pass `{ saveHistory: false}` to skip the history push — used by
      * the merge and crop pipelines, which already record their own
@@ -1839,15 +1796,17 @@ export class ImageEditor {
         if (!this.canvas) return;
         // guarded operation. No DOM action while an
         // animation is in flight. Mirrors loadImage's silent-no-op shape.
-        if (!this._canRunIdleOperation('removeAllMasks', options)) return;
-        const before = this._getMasks().length;
-        const context = this._buildCallbackContext('removeAllMasks', false);
-        const ctx = this._buildRemoveMaskContext();
-        this._withSelectionChangeContext(context, () => removeAllMasksImpl(ctx, options));
-        this._updateUI();
-        if (this._getMasks().length !== before) {
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+        if (!this.canRunIdleOperation('removeAllMasks', options)) return;
+        const before = this.getMasks().length;
+        const callbackContext = this.buildCallbackContext('removeAllMasks', false);
+        const removeMaskContext = this.buildRemoveMaskContext();
+        this.withSelectionChangeContext(callbackContext, () =>
+            removeAllMasksImpl(removeMaskContext, options),
+        );
+        this.updateUi();
+        if (this.getMasks().length !== before) {
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         }
     }
 
@@ -1858,31 +1817,30 @@ export class ImageEditor {
     /**
      * Build the {@link CreateMaskContext} the mask factory reads/writes
      * through. The facade is the single owner of `maskCounter`,
-     * `_lastMask`, the canvas, and `saveState`, so the context's
+     * `lastMask`, the canvas, and `saveState`, so the context's
      * accessors all bind back to `this` rather than duplicating state.
-     * @internal
      */
-    private _buildCreateMaskContext(): CreateMaskContext {
+    private buildCreateMaskContext(): CreateMaskContext {
         return {
-            fabric: this._fabric,
+            fabric: this.fabricModule,
             canvas: this.canvas!,
             options: this.options,
-            getLastMask: () => this._lastMask,
+            getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
-                this._lastMask = maskObject;
+                this.lastMask = maskObject;
             },
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
                 this.maskCounter = n;
             },
             updateMaskList: () => {
-                this._updateMaskList();
+                this.updateMaskList();
             },
             saveCanvasState: () => {
                 this.saveState();
             },
-            expandCanvasIfNeeded: (w, h) => {
-                this._setCanvasSizeInt(w, h);
+            expandCanvasIfNeeded: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
             },
         };
     }
@@ -1891,24 +1849,23 @@ export class ImageEditor {
      * Build the {@link RemoveMaskContext} the mask factory reads/writes
      * through for `removeSelectedMask` / `removeAllMasks`. The facade
      * is the single owner of the canvas, mask label DOM, mask list
-     * DOM, history, and `_lastMask`, so the context's accessors bind
+     * DOM, history, and `lastMask`, so the context's accessors bind
      * back to `this`.
-     * @internal
      */
-    private _buildRemoveMaskContext(): RemoveMaskContext {
+    private buildRemoveMaskContext(): RemoveMaskContext {
         return {
             canvas: this.canvas!,
             removeLabelForMask: (mask) => {
-                this._removeLabelForMask(mask);
+                this.removeLabelForMask(mask);
             },
             updateMaskList: () => {
-                this._updateMaskList();
+                this.updateMaskList();
             },
             saveCanvasState: () => {
                 this.saveState();
             },
             setLastMask: (maskObject) => {
-                this._lastMask = maskObject;
+                this.lastMask = maskObject;
             },
         };
     }
@@ -1917,57 +1874,50 @@ export class ImageEditor {
     // PRIVATE — mask label helpers
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** @internal */
-    private _maskLabelContext(): MaskLabelManagerContext | null {
+    private buildMaskLabelContext(): MaskLabelManagerContext | null {
         if (!this.canvas) return null;
-        return { fabric: this._fabric, canvas: this.canvas, options: this.options };
+        return { fabric: this.fabricModule, canvas: this.canvas, options: this.options };
     }
 
-    /** @internal */
-    private _removeLabelForMask(mask: MaskObject): void {
-        const ctx = this._maskLabelContext();
-        if (!ctx) return;
-        removeLabelForMask(ctx, mask);
+    private removeLabelForMask(mask: MaskObject): void {
+        const context = this.buildMaskLabelContext();
+        if (!context) return;
+        removeLabelForMask(context, mask);
     }
 
-    /** @internal */
-    private _createLabelForMask(mask: MaskObject): void {
-        const ctx = this._maskLabelContext();
-        if (!ctx) return;
-        createLabelForMask(ctx, mask);
+    private createLabelForMask(mask: MaskObject): void {
+        const context = this.buildMaskLabelContext();
+        if (!context) return;
+        createLabelForMask(context, mask);
     }
 
-    /** @internal */
-    private _hideAllMaskLabels(): void {
-        const ctx = this._maskLabelContext();
-        if (!ctx) return;
-        hideAllMaskLabels(ctx);
+    private hideAllMaskLabels(): void {
+        const context = this.buildMaskLabelContext();
+        if (!context) return;
+        hideAllMaskLabels(context);
     }
 
-    /** @internal */
-    private _syncMaskLabel(mask: MaskObject): void {
-        const ctx = this._maskLabelContext();
-        if (!ctx) return;
-        syncMaskLabel(ctx, mask);
+    private syncMaskLabel(mask: MaskObject): void {
+        const context = this.buildMaskLabelContext();
+        if (!context) return;
+        syncMaskLabel(context, mask);
     }
 
-    /** @internal */
-    private _showLabelForMask(mask: MaskObject): void {
-        const ctx = this._maskLabelContext();
-        if (!ctx) return;
-        showLabelForMask(ctx, mask);
+    private showLabelForMask(mask: MaskObject): void {
+        const context = this.buildMaskLabelContext();
+        if (!context) return;
+        showLabelForMask(context, mask);
     }
 
-    /** @internal */
-    private _onSelectionChanged(selected: FabricNS.FabricObject[]): void {
+    private handleSelectionChanged(selected: FabricNS.FabricObject[]): void {
         if (!this.canvas) return;
         const selectedMask = selected.find(isMaskObject) ?? null;
         const masks = this.canvas.getObjects().filter(isMaskObject);
 
         masks.forEach((maskObject) => {
             if (maskObject !== selectedMask) {
-                if (maskObject.__label) {
-                    this._removeLabelForMask(maskObject);
+                if (maskObject.labelObject) {
+                    this.removeLabelForMask(maskObject);
                 }
                 applyMaskUnselectedStyle(maskObject);
             } else {
@@ -1975,41 +1925,38 @@ export class ImageEditor {
             }
         });
 
-        if (selectedMask) this._showLabelForMask(selectedMask);
-        this._updateMaskListSelection(selectedMask);
+        if (selectedMask) this.showLabelForMask(selectedMask);
+        this.updateMaskListSelection(selectedMask);
         this.canvas.requestRenderAll();
-        this._updateUI();
+        this.updateUi();
         const context =
-            this._nextSelectionChangeContext ??
-            this._buildCallbackContext(
-                (this._activeStateRestoreOperation as ImageEditorOperation | null) ?? 'createMask',
-                this._activeStateRestoreOperation === 'undo' ||
-                    this._activeStateRestoreOperation === 'redo',
+            this.nextSelectionChangeContext ??
+            this.buildCallbackContext(
+                (this.activeStateRestoreOperation as ImageEditorOperation | null) ?? 'createMask',
+                this.activeStateRestoreOperation === 'undo' ||
+                    this.activeStateRestoreOperation === 'redo',
             );
-        this._emitOptionCallback('onSelectionChange', [this._buildSelection(selected), context]);
+        this.emitOptionCallback('onSelectionChange', [this.buildSelection(selected), context]);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
     // PRIVATE — mask list DOM
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** @internal */
-    private _maskListContext(): MaskListContext {
+    private buildMaskListContext(): MaskListContext {
         return {
             canvas: this.canvas,
             getListElementId: () => this.elements.maskList,
-            onMaskSelected: (mask) => this._onSelectionChanged([mask]),
+            onMaskSelected: (mask) => this.handleSelectionChanged([mask]),
         };
     }
 
-    /** @internal */
-    private _updateMaskList(): void {
-        renderMaskList(this._maskListContext());
+    private updateMaskList(): void {
+        renderMaskList(this.buildMaskListContext());
     }
 
-    /** @internal */
-    private _updateMaskListSelection(selectedMask: MaskObject | null): void {
-        updateMaskListSelection(this._maskListContext(), selectedMask);
+    private updateMaskListSelection(selectedMask: MaskObject | null): void {
+        updateMaskListSelection(this.buildMaskListContext(), selectedMask);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2033,28 +1980,28 @@ export class ImageEditor {
      * On any failure it restores the pre-merge snapshot and rejects with
      * `MergeMasksError`.
      *
-     * @returns Promise that resolves when the merge is complete.
+     * @returns A promise that resolves when the merge is complete.
      */
     async mergeMasks(): Promise<void> {
         if (!this.canvas) return;
-        if (!this._canRunIdleOperation('mergeMasks')) return;
+        if (!this.canRunIdleOperation('mergeMasks')) return;
         const hasMasks = this.canvas.getObjects().some(isMaskObject);
         if (!hasMasks) return;
-        const context = this._buildCallbackContext('mergeMasks', false);
-        const operationToken = this._guard.beginBusyOperation('mergeMasks');
-        this._emitBusyChangeIfChanged(context);
-        this._updateUI();
+        const callbackContext = this.buildCallbackContext('mergeMasks', false);
+        const operationToken = this.operationGuard.beginBusyOperation('mergeMasks');
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
         try {
-            const ctx = this._buildMergeMasksContext(operationToken);
-            await mergeMasksImpl(ctx);
-            this._updateInputs();
-            this._updateMaskList();
-            this._emitMasksChanged(context);
-            this._emitImageChanged(context);
+            const mergeMasksContext = this.buildMergeMasksContext(operationToken);
+            await mergeMasksImpl(mergeMasksContext);
+            this.updateInputs();
+            this.updateMaskList();
+            this.emitMasksChanged(callbackContext);
+            this.emitImageChanged(callbackContext);
         } finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
-            this._updateUI();
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
+            this.updateUi();
         }
     }
 
@@ -2068,7 +2015,7 @@ export class ImageEditor {
      * which builds the data URL through the same pipeline used by
      * {@link exportImageBase64} and triggers the anchor-driven download.
      *
-     * @param fileName Filename for the downloaded file.
+     * @param fileName - Filename for the downloaded file.
      *   @default `options.defaultDownloadFileName`
      */
     downloadImage(fileName?: string): void {
@@ -2076,16 +2023,16 @@ export class ImageEditor {
         // guarded operation. Silent DOM-no-op shape
         // so a queued scale/rotate animation does not get its export
         // pipeline run concurrently.
-        if (!this._canRunIdleOperation('downloadImage')) return;
-        const context = this._buildCallbackContext('downloadImage', false);
-        const operationToken = this._guard.beginBusyOperation('downloadImage');
-        this._emitBusyChangeIfChanged(context);
-        const ctx = this._buildExportServiceContext();
+        if (!this.canRunIdleOperation('downloadImage')) return;
+        const callbackContext = this.buildCallbackContext('downloadImage', false);
+        const operationToken = this.operationGuard.beginBusyOperation('downloadImage');
+        this.emitBusyChangeIfChanged(callbackContext);
+        const exportContext = this.buildExportServiceContext();
         try {
-            downloadImageImpl(ctx, fileName);
+            downloadImageImpl(exportContext, fileName);
         } finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
         }
     }
 
@@ -2102,24 +2049,24 @@ export class ImageEditor {
      * the call resolves to an empty string so an in-flight scale/rotate
      * animation does not see a mid-frame export of the canvas.
      *
-     * @param options Export options.
-     * @returns Promise resolving to a data URL on success, or `''` when
+     * @param options - Export options.
+     * @returns A promise resolving to a data URL on success, or `''` when
      *          no image is loaded.
      */
     async exportImageBase64(options?: Base64ExportOptions): Promise<string> {
         if (!this.canvas) return '';
         // Guarded operation: the canvas, mask styles, and active-object
         // selection are left untouched while an animation is in flight.
-        if (!this._canRunIdleOperation('exportImageBase64', options)) return '';
-        const context = this._buildCallbackContext('exportImageBase64', false);
-        const operationToken = this._guard.beginBusyOperation('exportImageBase64');
-        this._emitBusyChangeIfChanged(context);
-        const ctx = this._buildExportServiceContext();
+        if (!this.canRunIdleOperation('exportImageBase64', options)) return '';
+        const callbackContext = this.buildCallbackContext('exportImageBase64', false);
+        const operationToken = this.operationGuard.beginBusyOperation('exportImageBase64');
+        this.emitBusyChangeIfChanged(callbackContext);
+        const exportContext = this.buildExportServiceContext();
         try {
-            return await exportImageBase64Impl(ctx, options);
+            return await exportImageBase64Impl(exportContext, options);
         } finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
         }
     }
 
@@ -2130,8 +2077,7 @@ export class ImageEditor {
      * which reuses the base64 pipeline, repaints through an offscreen
      * canvas only when the resulting MIME type does not match the
      * requested `fileType`, and resolves with a `File` whose `type`
-     * matches the requested format (25.4,
-     * 26.1–26.4).
+     * matches the requested format.
      *
      * Operation guard: while `isAnimating === true`
      * the call rejects via `OperationGuard.assertNotAnimating` because
@@ -2139,8 +2085,8 @@ export class ImageEditor {
      * embeds the operation label so callers can distinguish the guard
      * rejection from an underlying export failure.
      *
-     * @param options Export and file options.
-     * @returns Promise resolving to a `File`.
+     * @param options - Export and file options.
+     * @returns A promise resolving to a `File`.
      * @throws  `ExportNotReadyError` when no image is loaded.
      *
      * @example
@@ -2153,16 +2099,16 @@ export class ImageEditor {
     async exportImageFile(options?: ImageFileExportOptions): Promise<File> {
         // Guarded operation: `Promise<File>` has no empty no-op shape, so
         // the operation guard rejects without mutating canvas state.
-        this._assertIdleForOperation('exportImageFile', options);
-        const context = this._buildCallbackContext('exportImageFile', false);
-        const operationToken = this._guard.beginBusyOperation('exportImageFile');
-        this._emitBusyChangeIfChanged(context);
-        const ctx = this._buildExportServiceContext();
+        this.assertIdleForOperation('exportImageFile', options);
+        const callbackContext = this.buildCallbackContext('exportImageFile', false);
+        const operationToken = this.operationGuard.beginBusyOperation('exportImageFile');
+        this.emitBusyChangeIfChanged(callbackContext);
+        const exportContext = this.buildExportServiceContext();
         try {
-            return await exportImageFileImpl(ctx, options);
+            return await exportImageFileImpl(exportContext, options);
         } finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
         }
     }
 
@@ -2174,11 +2120,10 @@ export class ImageEditor {
      * Build the {@link ExportServiceContext} the export service reads
      * through. The facade is the single owner of the canvas, options,
      * and the `originalImage` reference.
-     * @internal
      */
-    private _buildExportServiceContext(): ExportServiceContext {
+    private buildExportServiceContext(): ExportServiceContext {
         return {
-            fabric: this._fabric,
+            fabric: this.fabricModule,
             canvas: this.canvas!,
             options: this.options,
             isImageLoaded: () => this.isImageLoaded(),
@@ -2192,33 +2137,32 @@ export class ImageEditor {
      * manager, container element, transactional `loadImage`, and the
      * `saveState`/`loadFromState`/`removeAllMasksNoHistory` callbacks
      * the merge needs.
-     * @internal
      */
-    private _buildMergeMasksContext(operationToken?: OperationToken): MergeMasksContext {
+    private buildMergeMasksContext(operationToken?: OperationToken): MergeMasksContext {
         return {
-            ...this._buildExportServiceContext(),
+            ...this.buildExportServiceContext(),
             historyManager: this.historyManager,
             containerElement: this.containerElement,
-            loadImage: async (base64, opts) => {
-                const geometry = this._captureImageDisplayGeometry();
+            loadImage: async (base64, providedOptions) => {
+                const geometry = this.captureImageDisplayGeometry();
                 await this.loadImage(
                     base64,
-                    this._withInternalOperationOptions(operationToken, opts),
+                    this.withInternalOperationOptions(operationToken, providedOptions),
                 );
-                this._restoreMergedImageDisplayGeometry(geometry);
+                this.restoreMergedImageDisplayGeometry(geometry);
             },
-            saveState: () => this._captureSnapshot(),
+            saveState: () => this.captureSnapshotInternal(),
             loadFromState: (snapshot) =>
-                this._loadFromState(
+                this.loadFromStateInternal(
                     snapshot,
-                    this._withInternalOperationOptions(
+                    this.withInternalOperationOptions(
                         operationToken,
-                        this._withAnimationQueueBypass(),
+                        this.withAnimationQueueBypass(),
                     ),
                 ),
             removeAllMasksNoHistory: () => {
-                const ctx = this._buildRemoveMaskContext();
-                removeAllMasksImpl(ctx, { saveHistory: false });
+                const context = this.buildRemoveMaskContext();
+                removeAllMasksImpl(context, { saveHistory: false });
             },
         };
     }
@@ -2231,13 +2175,12 @@ export class ImageEditor {
      *
      * Routes through `core/state-serializer.ts` so the snapshot wire
      * format has one production path. Does NOT push a history entry
-     * and does NOT update `_lastSnapshot`.
-     * @internal
+     * and does NOT update `lastSnapshot`.
      */
-    private _captureSnapshot(): string {
+    private captureSnapshotInternal(): string {
         if (!this.canvas) return '';
-        const activeMask = this._activeMaskForSnapshot();
-        this._hideAllMaskLabels();
+        const activeMask = this.getActiveMaskForSnapshot();
+        this.hideAllMaskLabels();
         return saveStateImpl({
             canvas: this.canvas,
             activeMaskId: activeMask?.maskId ?? null,
@@ -2248,16 +2191,16 @@ export class ImageEditor {
         });
     }
 
-    /** @internal */
-    private _activeMaskForSnapshot(): MaskObject | null {
+    private getActiveMaskForSnapshot(): MaskObject | null {
         if (!this.canvas) return null;
         const activeObject = this.canvas.getActiveObject();
         if (activeObject && isMaskObject(activeObject)) return activeObject;
         return (
             this.canvas
                 .getObjects()
-                .find((object): object is MaskObject => isMaskObject(object) && !!object.__label) ??
-            null
+                .find(
+                    (object): object is MaskObject => isMaskObject(object) && !!object.labelObject,
+                ) ?? null
         );
     }
 
@@ -2284,18 +2227,18 @@ export class ImageEditor {
      */
     enterCropMode(): void {
         if (!this.canvas || !this.originalImage) return;
-        if (this._cropSession) return;
+        if (this.cropSession) return;
         if (!this.isImageLoaded()) return;
         // guarded operation. No DOM action while an
         // animation is in flight: the canvas, selection state, and
         // pre-crop snapshot remain untouched.
-        if (!this._canRunIdleOperation('enterCropMode')) return;
-        const ctx = this._buildCropControllerContext();
-        enterCropModeImpl(ctx);
-        this._updateUI();
-        const context = this._buildCallbackContext('enterCropMode', false);
-        this._emitBusyChangeIfChanged(context);
-        this._emitImageChanged(context);
+        if (!this.canRunIdleOperation('enterCropMode')) return;
+        const cropControllerContext = this.buildCropControllerContext();
+        enterCropModeImpl(cropControllerContext);
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('enterCropMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
     }
 
     /**
@@ -2309,16 +2252,16 @@ export class ImageEditor {
      * pushing a history entry.
      */
     cancelCrop(): void {
-        if (!this.canvas || !this._cropSession) return;
-        if (!this._canRunIdleOperation('cancelCrop')) return;
-        const ctx = this._buildCropControllerContext();
-        cancelCropImpl(ctx);
-        this._cropSession = null;
-        this._updateUI();
+        if (!this.canvas || !this.cropSession) return;
+        if (!this.canRunIdleOperation('cancelCrop')) return;
+        const cropControllerContext = this.buildCropControllerContext();
+        cancelCropImpl(cropControllerContext);
+        this.cropSession = null;
+        this.updateUi();
         this.canvas.requestRenderAll();
-        const context = this._buildCallbackContext('cancelCrop', false);
-        this._emitBusyChangeIfChanged(context);
-        this._emitImageChanged(context);
+        const callbackContext = this.buildCallbackContext('cancelCrop', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
     }
 
     /**
@@ -2336,75 +2279,77 @@ export class ImageEditor {
      * exactly one history entry. On any failure it restores the
      * pre-crop snapshot and rejects with `CropApplyError`.
      *
-     * @returns Promise that resolves when the cropped image is loaded.
+     * @returns A promise that resolves when the cropped image is loaded.
      */
     async applyCrop(): Promise<void> {
-        if (!this.canvas || !this._cropSession) return;
+        if (!this.canvas || !this.cropSession) return;
         // guarded operation. Resolved-promise no-op
         // shape: leave the open crop session alone so the user can
         // re-issue `applyCrop` after the in-flight scale/rotate
         // animation settles. Do not call `cancelCrop` here: the guard must
         // leave editor state untouched.
-        if (!this._canRunIdleOperation('applyCrop')) return;
-        const context = this._buildCallbackContext('applyCrop', false);
-        const hadMasks = this._getMasks().length > 0;
-        const operationToken = this._guard.beginBusyOperation('applyCrop');
-        this._emitBusyChangeIfChanged(context);
-        this._updateUI();
+        if (!this.canRunIdleOperation('applyCrop')) return;
+        const callbackContext = this.buildCallbackContext('applyCrop', false);
+        const hadMasks = this.getMasks().length > 0;
+        const operationToken = this.operationGuard.beginBusyOperation('applyCrop');
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
         try {
-            const ctx = this._buildCropControllerContext(operationToken);
-            await applyCropImpl(ctx);
-            this._updateInputs();
-            this._updateMaskList();
-            if (hadMasks || this._getMasks().length > 0) {
-                this._emitMasksChanged(context);
+            const cropControllerContext = this.buildCropControllerContext(operationToken);
+            await applyCropImpl(cropControllerContext);
+            this.updateInputs();
+            this.updateMaskList();
+            if (hadMasks || this.getMasks().length > 0) {
+                this.emitMasksChanged(callbackContext);
             }
-            this._emitImageChanged(context);
+            this.emitImageChanged(callbackContext);
         } finally {
-            this._guard.endBusyOperation(operationToken);
-            this._emitBusyChangeIfChanged(context);
-            this._updateUI();
+            this.operationGuard.endBusyOperation(operationToken);
+            this.emitBusyChangeIfChanged(callbackContext);
+            this.updateUi();
         }
     }
 
     /**
      * Build the {@link CropControllerContext} the crop controller reads
      * through. The facade is the single owner of the live crop session
-     * pointer (`_cropSession`), the canvas, the resolved options, the
+     * pointer (`cropSession`), the canvas, the resolved options, the
      * history manager, and the transactional loader, so the context's
      * accessors all bind back to `this`.
-     * @internal
      */
-    private _buildCropControllerContext(operationToken?: OperationToken): CropControllerContext {
+    private buildCropControllerContext(operationToken?: OperationToken): CropControllerContext {
         return {
-            fabric: this._fabric,
+            fabric: this.fabricModule,
             canvas: this.canvas!,
             options: this.options,
             historyManager: this.historyManager,
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
             getCurrentImageMimeType: () => this.currentImageMimeType,
-            getCropSession: () => this._cropSession,
+            getCropSession: () => this.cropSession,
             setCropSession: (s) => {
-                this._cropSession = s;
+                this.cropSession = s;
             },
-            saveState: () => this._captureSnapshot(),
+            saveState: () => this.captureSnapshotInternal(),
             loadFromState: (snapshot) =>
-                this._loadFromState(
+                this.loadFromStateInternal(
                     snapshot,
-                    this._withInternalOperationOptions(
+                    this.withInternalOperationOptions(
                         operationToken,
-                        this._withAnimationQueueBypass(),
+                        this.withAnimationQueueBypass(),
                     ),
                 ),
-            loadImage: (base64, opts) =>
-                this.loadImage(base64, this._withInternalOperationOptions(operationToken, opts)),
+            loadImage: (base64, providedOptions) =>
+                this.loadImage(
+                    base64,
+                    this.withInternalOperationOptions(operationToken, providedOptions),
+                ),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
                 this.maskCounter = n;
             },
             updateMaskList: () => {
-                this._updateMaskList();
+                this.updateMaskList();
             },
         };
     }
@@ -2413,134 +2358,133 @@ export class ImageEditor {
     // PRIVATE — UI helpers
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** @internal */
-    private _updateInputs(): void {
+    private updateInputs(): void {
         const scaleId = this.elements.scalePercentageInput;
         if (!scaleId) return;
-        const scaleEl = document.getElementById(scaleId) as HTMLInputElement | null;
-        if (scaleEl) scaleEl.value = String(Math.round(this.currentScale * 100));
+        const scaleInputElement = document.getElementById(scaleId) as HTMLInputElement | null;
+        if (scaleInputElement)
+            scaleInputElement.value = String(Math.round(this.currentScale * 100));
     }
 
-    /** @internal */
-    private _updateUI(): void {
+    private updateUi(): void {
         if (!this.canvas) return;
 
-        const hasImg = !!this.originalImage;
-        const masks = hasImg ? this.canvas.getObjects().filter(isMaskObject) : [];
+        const hasImage = !!this.originalImage;
+        const masks = hasImage ? this.canvas.getObjects().filter(isMaskObject) : [];
         const hasMasks = masks.length > 0;
-        const active = this.canvas.getActiveObject();
-        const hasSelectedMask = !!(active && isMaskObject(active));
-        const isDefault = this.currentScale === 1 && this.currentRotation === 0;
+        const activeObject = this.canvas.getActiveObject();
+        const hasSelectedMask = !!(activeObject && isMaskObject(activeObject));
+        const isDefaultTransform = this.currentScale === 1 && this.currentRotation === 0;
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
-        const inCrop = this._cropSession !== null;
-        const isBusy = this._guard.isBusy() || this.animQueue.isBusy();
+        const isInCropMode = this.cropSession !== null;
+        const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
 
-        if (inCrop) {
+        if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                this._setDisabled(key, isBusy || !CROP_MODE_ENABLED_KEYS.includes(key));
+                this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
             });
             return;
         }
 
-        this._setDisabled('scalePercentageInput', !hasImg || isBusy);
-        this._setDisabled('rotateLeftDegreesInput', !hasImg || isBusy);
-        this._setDisabled('rotateRightDegreesInput', !hasImg || isBusy);
-        this._setDisabled(
+        this.setControlEnabled('scalePercentageInput', hasImage && !isBusy);
+        this.setControlEnabled('rotateLeftDegreesInput', hasImage && !isBusy);
+        this.setControlEnabled('rotateRightDegreesInput', hasImage && !isBusy);
+        this.setControlEnabled(
             'zoomInButton',
-            !hasImg || isBusy || this.currentScale >= this.options.maxScale,
+            hasImage && !isBusy && this.currentScale < this.options.maxScale,
         );
-        this._setDisabled(
+        this.setControlEnabled(
             'zoomOutButton',
-            !hasImg || isBusy || this.currentScale <= this.options.minScale,
+            hasImage && !isBusy && this.currentScale > this.options.minScale,
         );
-        this._setDisabled('rotateLeftButton', !hasImg || isBusy);
-        this._setDisabled('rotateRightButton', !hasImg || isBusy);
-        this._setDisabled('createMaskButton', !hasImg || isBusy);
-        this._setDisabled('removeSelectedMaskButton', !hasSelectedMask || isBusy);
-        this._setDisabled('removeAllMasksButton', !hasMasks || isBusy);
-        this._setDisabled('mergeMasksButton', !hasImg || !hasMasks || isBusy);
-        this._setDisabled('downloadImageButton', !hasImg || isBusy);
-        this._setDisabled('resetImageTransformButton', !hasImg || isDefault || isBusy);
-        this._setDisabled('undoButton', !hasImg || isBusy || !canUndo);
-        this._setDisabled('redoButton', !hasImg || isBusy || !canRedo);
-        this._setDisabled('enterCropModeButton', !hasImg || isBusy);
-        this._setDisabled('imageInput', isBusy);
-        this._setDisabled('applyCropButton', true);
-        this._setDisabled('cancelCropButton', true);
+        this.setControlEnabled('rotateLeftButton', hasImage && !isBusy);
+        this.setControlEnabled('rotateRightButton', hasImage && !isBusy);
+        this.setControlEnabled('createMaskButton', hasImage && !isBusy);
+        this.setControlEnabled('removeSelectedMaskButton', hasSelectedMask && !isBusy);
+        this.setControlEnabled('removeAllMasksButton', hasMasks && !isBusy);
+        this.setControlEnabled('mergeMasksButton', hasImage && hasMasks && !isBusy);
+        this.setControlEnabled('downloadImageButton', hasImage && !isBusy);
+        this.setControlEnabled(
+            'resetImageTransformButton',
+            hasImage && !isDefaultTransform && !isBusy,
+        );
+        this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
+        this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
+        this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
+        this.setControlEnabled('imageInput', !isBusy);
+        this.setControlEnabled('applyCropButton', false);
+        this.setControlEnabled('cancelCropButton', false);
     }
 
-    /** @internal */
-    private _setDisabled(key: ElementKey, disabled: boolean): void {
+    private setControlEnabled(key: ElementKey, isEnabled: boolean): void {
         const id = this.elements[key];
         if (!id) return;
-        const el = document.getElementById(id);
-        if (!el) return;
-        this._recordElementOriginalState(key, el);
-        if (el && 'disabled' in el) {
-            (el as HTMLButtonElement | HTMLInputElement).disabled = disabled;
+        const controlElement = document.getElementById(id);
+        if (!controlElement) return;
+        this.recordElementOriginalState(key, controlElement);
+        if ('disabled' in controlElement) {
+            (controlElement as HTMLButtonElement | HTMLInputElement).disabled = !isEnabled;
             return;
         }
-        if (disabled) {
-            el.setAttribute('aria-disabled', 'true');
-            el.style.pointerEvents = 'none';
+        if (!isEnabled) {
+            controlElement.setAttribute('aria-disabled', 'true');
+            controlElement.style.pointerEvents = 'none';
         } else {
-            const originalAria = this._elementOriginalAriaDisabled.get(key);
+            const originalAria = this.elementOriginalAriaDisabledMap.get(key);
             if (originalAria === null || originalAria === undefined) {
-                el.removeAttribute('aria-disabled');
+                controlElement.removeAttribute('aria-disabled');
             } else {
-                el.setAttribute('aria-disabled', originalAria);
+                controlElement.setAttribute('aria-disabled', originalAria);
             }
-            el.style.pointerEvents = this._elementOriginalPointerEvents.get(key) ?? '';
+            controlElement.style.pointerEvents =
+                this.elementOriginalPointerEventsMap.get(key) ?? '';
         }
     }
 
-    /** @internal */
-    private _recordElementOriginalState(key: ElementKey, el: HTMLElement): void {
-        if (!this._elementOriginalAriaDisabled.has(key)) {
-            this._elementOriginalAriaDisabled.set(key, el.getAttribute('aria-disabled'));
+    private recordElementOriginalState(key: ElementKey, element: HTMLElement): void {
+        if (!this.elementOriginalAriaDisabledMap.has(key)) {
+            this.elementOriginalAriaDisabledMap.set(key, element.getAttribute('aria-disabled'));
         }
-        if (!this._elementOriginalPointerEvents.has(key)) {
-            this._elementOriginalPointerEvents.set(key, el.style.pointerEvents || '');
+        if (!this.elementOriginalPointerEventsMap.has(key)) {
+            this.elementOriginalPointerEventsMap.set(key, element.style.pointerEvents || '');
         }
-        if ('disabled' in el && !this._elementOriginalDisabled.has(key)) {
-            this._elementOriginalDisabled.set(
+        if ('disabled' in element && !this.elementOriginalDisabledMap.has(key)) {
+            this.elementOriginalDisabledMap.set(
                 key,
-                !!(el as HTMLButtonElement | HTMLInputElement).disabled,
+                !!(element as HTMLButtonElement | HTMLInputElement).disabled,
             );
         }
     }
 
-    /** @internal */
-    private _restoreElementOriginalStates(): void {
+    private restoreElementOriginalStates(): void {
         for (const key of Object.keys(this.elements) as ElementKey[]) {
             const id = this.elements[key];
             if (!id) continue;
-            const el = document.getElementById(id);
-            if (!el) continue;
-            if ('disabled' in el && this._elementOriginalDisabled.has(key)) {
-                (el as HTMLButtonElement | HTMLInputElement).disabled =
-                    this._elementOriginalDisabled.get(key) ?? false;
+            const element = document.getElementById(id);
+            if (!element) continue;
+            if ('disabled' in element && this.elementOriginalDisabledMap.has(key)) {
+                (element as HTMLButtonElement | HTMLInputElement).disabled =
+                    this.elementOriginalDisabledMap.get(key) ?? false;
             }
-            if (this._elementOriginalAriaDisabled.has(key)) {
-                const originalAria = this._elementOriginalAriaDisabled.get(key);
+            if (this.elementOriginalAriaDisabledMap.has(key)) {
+                const originalAria = this.elementOriginalAriaDisabledMap.get(key);
                 if (originalAria === null || originalAria === undefined) {
-                    el.removeAttribute('aria-disabled');
+                    element.removeAttribute('aria-disabled');
                 } else {
-                    el.setAttribute('aria-disabled', originalAria);
+                    element.setAttribute('aria-disabled', originalAria);
                 }
             }
-            if (this._elementOriginalPointerEvents.has(key)) {
-                el.style.pointerEvents = this._elementOriginalPointerEvents.get(key) ?? '';
+            if (this.elementOriginalPointerEventsMap.has(key)) {
+                element.style.pointerEvents = this.elementOriginalPointerEventsMap.get(key) ?? '';
             }
         }
-        this._elementOriginalDisabled.clear();
-        this._elementOriginalAriaDisabled.clear();
-        this._elementOriginalPointerEvents.clear();
+        this.elementOriginalDisabledMap.clear();
+        this.elementOriginalAriaDisabledMap.clear();
+        this.elementOriginalPointerEventsMap.clear();
     }
 
-    /** @internal */
-    private _updatePlaceholderStatus(): void {
+    private updatePlaceholderStatus(): void {
         setPlaceholderVisibleImpl(
             this.placeholderElement,
             this.containerElement,
@@ -2558,11 +2502,11 @@ export class ImageEditor {
      *
      * Teardown sequence:
      *
-     * 1. Short-circuit on a second call so `dispose` is idempotent
-     *. This also guards against re-running
+     * 1. Short-circuit on a second call so `dispose` is idempotent. This
+     *    also guards against re-running
      *    the teardown path after the canvas reference has already been
      *    nulled.
-     * 2. Set `_disposed = true` so in-flight animation `onChange`/
+     * 2. Set `isDisposed = true` so in-flight animation `onChange`/
      *    `onComplete` callbacks bail before touching the canvas
      * and so disposed-aware DOM handlers
      *    exit early.
@@ -2579,8 +2523,8 @@ export class ImageEditor {
      */
     dispose(): void {
         // (1) Idempotent: a second `dispose` is a no-op.
-        if (this._disposed) return;
-        const context = this._buildCallbackContext('dispose', false);
+        if (this.isDisposed) return;
+        const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.originalImage;
 
         // (2) Signal in-flight animations and bound handlers to stop
@@ -2590,8 +2534,8 @@ export class ImageEditor {
         //     same flag so the transform controller and Fabric animation
         //     wrapper short-circuit through the shared guard
         //.
-        this._disposed = true;
-        this._guard.markDisposed();
+        this.isDisposed = true;
+        this.operationGuard.markDisposed();
 
         // (3) Settle every queued animation. `clear` resolves pending
         //     entries (no rejection reason — the orchestrator's own
@@ -2601,21 +2545,21 @@ export class ImageEditor {
 
         // (4) Detach every recorded DOM listener. The registry handles
         //     missing/already-detached elements internally.
-        this._bindings?.removeAll();
-        this._restoreElementOriginalStates();
+        this.domBindings?.removeAll();
+        this.restoreElementOriginalStates();
 
-        if (this._cropSession && this.canvas) {
+        if (this.cropSession && this.canvas) {
             // (5) Drop the crop session if one was open. The crop
             //     controller's teardownSession is best-effort because
             //     Fabric may have already disposed the rect during a
             //     `loadFromState` rollback.
             try {
-                const ctx = this._buildCropControllerContext();
-                cancelCropImpl(ctx);
+                const context = this.buildCropControllerContext();
+                cancelCropImpl(context);
             } catch {
                 /* ignore */
             }
-            this._cropSession = null;
+            this.cropSession = null;
         }
 
         if (this.canvas) {
@@ -2632,12 +2576,12 @@ export class ImageEditor {
         }
         this.originalImage = null;
         this.currentImageMimeType = null;
-        this._lastMask = null;
+        this.lastMask = null;
         this.maskCounter = 0;
         this.currentScale = 1;
         this.currentRotation = 0;
         this.baseImageScale = 1;
-        this._lastSnapshot = null;
+        this.lastSnapshot = null;
 
         // Drop the transform controller — the Fabric canvas reference
         // it captured via `TransformContext.canvas` is now disposed, so
@@ -2645,16 +2589,16 @@ export class ImageEditor {
         // after dispose. The animQueue.clear above already settles
         // pending entries, but null'ing the controller defends against
         // re-init paths that recreate state after dispose.
-        this._transformController = null;
+        this.transformController = null;
 
         // Clear the layout-manager viewport cache so a re-instantiation of
         // the editor on the same DOM does not inherit stale measurements.
-        this._viewportCache.clear();
+        this.viewportCache.clear();
         if (previousImage) {
-            this._emitOptionCallback('onImageCleared', [previousImage, context]);
+            this.emitOptionCallback('onImageCleared', [previousImage, context]);
         }
-        this._emitImageChanged(context);
-        this._emitBusyChangeIfChanged(context);
-        this._emitOptionCallback('onEditorDisposed', [context]);
+        this.emitImageChanged(context);
+        this.emitBusyChangeIfChanged(context);
+        this.emitOptionCallback('onEditorDisposed', [context]);
     }
 }

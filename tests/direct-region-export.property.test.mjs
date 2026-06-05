@@ -1,6 +1,4 @@
 /**
- * @file direct-region-export.property.test.mjs
- *
  * Type:
  *   Property test
  *
@@ -293,9 +291,9 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
                     !createdTags.includes('canvas'),
                     `region export must not allocate a <canvas> element; createElement tags = ${JSON.stringify(createdTags)} for rect ${JSON.stringify(rect)}`,
                 );
-                // Reinforces 27.2 — the data URL came from Fabric in
-                // a single call rather than re-rendered through an
-                // offscreen canvas.
+                // Reinforces the direct Fabric export contract: the data
+                // URL came from Fabric in a single call rather than being
+                // re-rendered through an offscreen canvas.
                 assert.equal(
                     canvas.toDataURLArgs.length,
                     1,

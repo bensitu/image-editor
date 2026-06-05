@@ -1,6 +1,4 @@
 /**
- * @file operation-guard.property.test.mjs
- *
  * Type:
  *   Property test
  *

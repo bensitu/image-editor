@@ -1,6 +1,4 @@
 /**
- * @file layout-conflict-warning.property.test.mjs
- *
  * Type:
  *   Property test
  *

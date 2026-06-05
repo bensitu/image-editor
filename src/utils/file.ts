@@ -54,7 +54,7 @@ export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_
  * 3. Otherwise, return `null` so the caller can skip the load without
  *    mutating editor state.
  *
- * @param file File selected via the upload control.
+ * @param file - File selected via the upload control.
  * @returns The resolved MIME type, or `null` when the file is not a
  *          supported image.
  */
@@ -73,20 +73,20 @@ export function inferImageMimeType(file: File): string | null {
  * The returned data URL is suitable for the transactional `loadImage`
  * pipeline: on failure the editor's existing
  * rollback bundle restores placeholder visibility, scroll, overflow,
- * `originalImage`, `_lastSnapshot`, and the canvas JSON snapshot.
+ * `originalImage`, `lastSnapshot`, and the canvas JSON snapshot.
  *
- * @param file File to read.
- * @returns Promise that resolves to the data URL string, or rejects when
+ * @param file - File to read.
+ * @returns A promise that resolves to the data URL string, or rejects when
  *          the underlying `FileReader` errors out or returns a non-string
  *          result.
  */
-export function readFileAsDataURL(file: File): Promise<string> {
+export function readFileAsDataUrl(file: File): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-            const result = reader.result;
-            if (typeof result === 'string') {
-                resolve(result);
+            const fileReaderResult = reader.result;
+            if (typeof fileReaderResult === 'string') {
+                resolve(fileReaderResult);
             } else {
                 reject(new Error('FileReader returned a non-string result'));
             }
@@ -111,7 +111,7 @@ export function readFileAsDataURL(file: File): Promise<string> {
  * a no-op so callers can pass the result of `document.getElementById`
  * without an extra null check.
  *
- * @param input File input element, or `null` when the element is not
+ * @param input - File input element, or `null` when the element is not
  *              present in the DOM.
  */
 export function resetFileInput(input: HTMLInputElement | null): void {

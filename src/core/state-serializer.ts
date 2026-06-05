@@ -1,9 +1,8 @@
 /**
- * @file state-serializer.ts
- * @description Serializer for the editor's history-and-restore snapshot
- *              wire format. Owns `saveState` and `loadFromState` so the
- *              serialization format and the position-based metadata restorer
- *              live in a single module.
+ * Serializer for the editor's history-and-restore snapshot
+ * wire format. Owns `saveState` and `loadFromState` so the
+ * serialization format and the position-based metadata restorer
+ * live in a single module.
  *
  * ## Owned contracts
  *
@@ -40,6 +39,8 @@
  * modules" table): this module is imported by `image-editor.ts`,
  * `crop/crop-controller.ts`, and `export/export-service.ts`. It is
  * intentionally NOT re-exported from `src/index.ts`.
+ *
+ * @module
  */
 
 import type * as FabricNS from 'fabric';
@@ -50,7 +51,7 @@ import { isMaskObject } from './public-types.js';
 // ─── Snapshot wire format ────────────────────────────────────────────────────
 
 /**
- * Per-object payload inside a {@link CanvasJSON} snapshot. Mirrors the
+ * Per-object payload inside a {@link CanvasJson} snapshot. Mirrors the
  * Pretty_Printer wire format used by the canvas serializer.
  *
  * The `isCropRect` and `maskLabel` markers are filtered out by
@@ -59,7 +60,7 @@ import { isMaskObject } from './public-types.js';
  * type. Custom mask metadata (`maskId`, `maskName`, `originalAlpha`) is
  * carried through verbatim.
  */
-export interface CanvasJSONObject {
+export interface CanvasJsonObject {
     /** Fabric shape type discriminator (`'rect'`, `'circle'`, `'image'`, etc.). */
     type?: string;
     /** Left-edge pixel coordinate (Fabric serializes `originX: 'left'` masks here). */
@@ -124,7 +125,7 @@ export interface EditorStateMeta {
  * Full snapshot envelope. Standard Fabric `toJSON` keys plus the editor
  * extension fields owned by this module.
  */
-export interface CanvasJSON {
+export interface CanvasJson {
     /** Fabric format version stamped by `canvas.toJSON`. */
     version?: string;
     /** Canvas pixel width — included by Fabric's `toJSON`. */
@@ -134,7 +135,7 @@ export interface CanvasJSON {
     /** Canvas CSS background — included by Fabric's `toJSON`. */
     background?: string;
     /** Per-object Fabric payloads, post-filter. */
-    objects?: CanvasJSONObject[];
+    objects?: CanvasJsonObject[];
     /** Editor transform metadata. */
     _editorState?: EditorStateMeta;
     /** Pass-through for any other Fabric-emitted top-level keys. */
@@ -176,7 +177,7 @@ export const SNAPSHOT_CUSTOM_KEYS = [
  */
 function copySnapshotCustomPropsFromCanvas(
     canvasObjects: FabricNS.FabricObject[],
-    jsonObjects: CanvasJSONObject[] | undefined,
+    jsonObjects: CanvasJsonObject[] | undefined,
 ): void {
     if (!Array.isArray(jsonObjects)) return;
 
@@ -293,7 +294,7 @@ export interface SaveStateInput {
  * `ActiveSelection` wrapper and preserves ordinary single-object selection
  * state.
  *
- * @param input The canvas plus the three transform fields to embed.
+ * @param input - The canvas plus the three transform fields to embed.
  * @returns The JSON snapshot string ready for the history stack.
  *
  */
@@ -321,9 +322,9 @@ export function saveState(input: SaveStateInput): string {
     //    each per-object payload.
     const jsonObj = (
         canvas as unknown as {
-            toJSON(propertiesToInclude: readonly string[]): CanvasJSON;
+            toJSON(propertiesToInclude: readonly string[]): CanvasJson;
         }
-    ).toJSON(SNAPSHOT_CUSTOM_KEYS) as CanvasJSON;
+    ).toJSON(SNAPSHOT_CUSTOM_KEYS) as CanvasJson;
 
     copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
 
@@ -360,13 +361,13 @@ export interface LoadFromStateInput {
     canvas: FabricNS.Canvas;
     /**
      * The snapshot to restore. May be the JSON string emitted by
-     * {@link saveState} or the already-parsed {@link CanvasJSON} object — both
+     * {@link saveState} or the already-parsed {@link CanvasJson} object — both
      * are accepted because callers occasionally hand in a pre-parsed object
      * (for example, when chaining through the crop session). The value is
      * always normalized to a string via `JSON.stringify` if necessary so the
      * returned `jsonString` is canonical.
      */
-    jsonString: string | CanvasJSON;
+    jsonString: string | CanvasJson;
     /**
      * Sets canvas pixel dimensions atomically. The pixel size is restored
      * before `loadFromJSON`.
@@ -378,7 +379,7 @@ export interface LoadFromStateInput {
  * Output of {@link loadFromState}. The state serializer performs the
  * snapshot-format-aware steps and returns the restored metadata so the
  * editor facade can finish wiring transient state (mask label hiding,
- * `originalImage` selectability, hover-handler re-attach, `_lastSnapshot`
+ * `originalImage` selectability, hover-handler re-attach, `lastSnapshot`
  * baseline, UI refresh) — those concerns belong to the facade, not to the
  * serializer.
  *
@@ -412,8 +413,8 @@ export interface LoadFromStateResult {
     objects: FabricNS.FabricObject[];
     /**
      * The canonical JSON string for the snapshot — equal to the input string
-     * if a string was passed, or `JSON.stringify(input)` if a `CanvasJSON`
-     * object was passed. The facade uses this as the `_lastSnapshot` baseline
+     * if a string was passed, or `JSON.stringify(input)` if a `CanvasJson`
+     * object was passed. The facade uses this as the `lastSnapshot` baseline
      * so the next `saveState` produces a correct `before` pointer.
      */
     jsonString: string;
@@ -426,13 +427,13 @@ export interface LoadFromStateResult {
  *
  * 1. Normalize the input to a JSON string and parse it. Both string and
  *    pre-parsed forms are accepted to support callers that already hold a
- *    `CanvasJSON` (for example, a crop-session snapshot).
+ *    `CanvasJson` (for example, a crop-session snapshot).
  * 2. Restore canvas pixel dimensions via `setCanvasSize` BEFORE calling
  *    `loadFromJSON`. Fabric's `loadFromJSON` may also touch width/height,
  *    but the explicit pre-call ensures the canvas matches the snapshot
  *    even if the fabric build skips that step.
  * 3. Await `canvas.loadFromJSON(json)` (Fabric v7 returns a Promise here,
- * 4. Run {@link restoreMaskPropsFromJSON} to position-match each JSON
+ * 4. Run {@link restoreMaskPropsFromJson} to position-match each JSON
  *    mask object against the freshly-loaded canvas objects by `maskUid`
  *    first, then by legacy `(type, left, top)`, and unconditionally re-apply the mask metadata
  *    (`maskId`, `maskName`, `originalAlpha`). Label-text objects are
@@ -445,7 +446,7 @@ export interface LoadFromStateResult {
  *    the restore.
  *
  * The function does NOT call `renderAll`, does NOT mutate `originalImage`
- * properties, and does NOT touch the editor's `_lastSnapshot` field —
+ * properties, and does NOT touch the editor's `lastSnapshot` field —
  * those are facade concerns. This keeps the serializer free of
  * editor-instance state and makes the round-trip property of
  * round-trip property testable in isolation.
@@ -454,7 +455,7 @@ export interface LoadFromStateResult {
  * `try/catch` and routes the error through the callback reporter so the
  * editor's `onError` handler still fires.
  *
- * @param input The canvas, the snapshot, and the size-restore callback.
+ * @param input - The canvas, the snapshot, and the size-restore callback.
  * @returns Resolves with the restored metadata bundle.
  *
  */
@@ -464,7 +465,7 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     // 1. Normalize the snapshot to a canonical JSON string and parse.
     const jsonString =
         typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
-    const json: CanvasJSON = JSON.parse(jsonString) as CanvasJSON;
+    const json: CanvasJson = JSON.parse(jsonString) as CanvasJson;
 
     // 2. restore canvas pixel dimensions before
     //    Fabric touches the canvas. Guard against malformed payloads
@@ -481,7 +482,7 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     // 3. Fabric v7 `loadFromJSON` returns a Promise.
     await (
         canvas as unknown as {
-            loadFromJSON(json: CanvasJSON): Promise<FabricNS.Canvas>;
+            loadFromJSON(json: CanvasJson): Promise<FabricNS.Canvas>;
         }
     ).loadFromJSON(json);
 
@@ -489,7 +490,7 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     //    matching, unconditionally overriding any value Fabric may or may
     //    not have applied during `_setOptions`.
     const objects = canvas.getObjects();
-    restoreMaskPropsFromJSON(objects, json.objects ?? []);
+    restoreMaskPropsFromJson(objects, json.objects ?? []);
 
     // 5a. forward `_editorState` for the facade to
     //     apply to its `currentScale` / `currentRotation` /
@@ -574,16 +575,16 @@ function isOriginalImageObject(object: FabricNS.FabricObject): boolean {
  * Label-text objects are matched in a separate index-based pass because
  * they often share `(type, left, top)` with overlapping labels and are
  * disposable — `mask-label-manager` removes them immediately after the
- * restore via `_hideAllMaskLabels`, so an occasional index mismatch is
+ * restore via `hideAllMaskLabels`, so an occasional index mismatch is
  * harmless.
  *
- * @param canvasObjs Live canvas objects produced by `loadFromJSON`.
- * @param jsonObjs   Per-object payloads from the snapshot.
+ * @param canvasObjs - Live canvas objects produced by `loadFromJSON`.
+ * @param jsonObjs - Per-object payloads from the snapshot.
  *
  */
-function restoreMaskPropsFromJSON(
+function restoreMaskPropsFromJson(
     canvasObjs: FabricNS.FabricObject[],
-    jsonObjs: CanvasJSONObject[],
+    jsonObjs: CanvasJsonObject[],
 ): void {
     // ── Pass 1: masks — match by maskUid, then legacy type + left + top ─
     const consumedCanvasIndexes = new Set<number>();
@@ -674,13 +675,13 @@ function restoreMaskPropsFromJSON(
         }
     }
 
-    // ── Pass 2: label texts — flag for `_hideAllMaskLabels` ──────────────
+    // ── Pass 2: label texts — flag for `hideAllMaskLabels` ──────────────
     // Labels are session-only and removed immediately after restore, so
     // index-based matching is sufficient — a stray flag on a non-label
     // object would only matter if the label-manager pass was skipped.
-    jsonObjs.forEach((jObj, idx) => {
+    jsonObjs.forEach((jObj, index) => {
         if (jObj.maskLabel !== true) return;
-        const canvasObj = canvasObjs[idx];
+        const canvasObj = canvasObjs[index];
         if (canvasObj) {
             (canvasObj as FabricNS.FabricObject & { maskLabel?: boolean }).maskLabel = true;
         }

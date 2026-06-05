@@ -1,6 +1,4 @@
 /**
- * @file downsample-mime.property.test.mjs
- *
  * Type:
  *   Property test
  *

@@ -1,6 +1,4 @@
 /**
- * @file fabric-adapter.test.mjs
- *
  * Type:
  *   Unit test
  *
@@ -76,7 +74,7 @@ test('detectFabric: explicit module form treats first arg as Fabric and second a
     const { calls, result } = withConsoleError(() => detectFabric(fakeFabric, userOptions));
 
     assert.equal(result.fabric, fakeFabric, 'fabric should be the explicit module');
-    assert.equal(result._fabricLoaded, true, '_fabricLoaded must be true on hit');
+    assert.equal(result.isFabricLoaded, true, 'isFabricLoaded must be true on hit');
     assert.deepEqual(result.options, userOptions, 'options must come from the second arg');
     assert.equal(result.options.canvasWidth, 100);
     assert.equal(calls.length, 0, 'no console.error on the explicit-module hit');
@@ -88,7 +86,7 @@ test('detectFabric: explicit module form normalizes missing options to {}', () =
     const { calls, result } = withConsoleError(() => detectFabric(fakeFabric, undefined));
 
     assert.equal(result.fabric, fakeFabric);
-    assert.equal(result._fabricLoaded, true);
+    assert.equal(result.isFabricLoaded, true);
     assert.deepEqual(result.options, {}, 'undefined options must collapse to {}');
     assert.equal(calls.length, 0);
 });
@@ -105,7 +103,7 @@ test('detectFabric: global form uses globalScope.fabric and treats first arg as 
     );
 
     assert.equal(result.fabric, fakeFabric, 'fabric must come from globalScope.fabric');
-    assert.equal(result._fabricLoaded, true);
+    assert.equal(result.isFabricLoaded, true);
     assert.deepEqual(result.options, userOptions, 'first arg must be the options partial');
     assert.equal(result.options.canvasWidth, 200);
     assert.equal(calls.length, 0, 'no console.error on the global-form hit');
@@ -118,7 +116,7 @@ test('detectFabric: global form accepts null first arg and yields empty options'
     const { calls, result } = withConsoleError(() => detectFabric(null, undefined, globalScope));
 
     assert.equal(result.fabric, fakeFabric);
-    assert.equal(result._fabricLoaded, true);
+    assert.equal(result.isFabricLoaded, true);
     assert.deepEqual(result.options, {}, 'null first arg must collapse to {}');
     assert.equal(calls.length, 0);
 });
@@ -132,14 +130,14 @@ test('detectFabric: global form accepts undefined first arg and yields empty opt
     );
 
     assert.equal(result.fabric, fakeFabric);
-    assert.equal(result._fabricLoaded, true);
+    assert.equal(result.isFabricLoaded, true);
     assert.deepEqual(result.options, {});
     assert.equal(calls.length, 0);
 });
 
 // ─── Branch 3: miss ─────────────────────────────────────
 
-test('detectFabric: miss returns null fabric, false _fabricLoaded, and logs once', () => {
+test('detectFabric: miss returns null fabric, false isFabricLoaded, and logs once', () => {
     const userOptions = {};
     const globalScope = {}; // no `fabric` attached
 
@@ -148,7 +146,7 @@ test('detectFabric: miss returns null fabric, false _fabricLoaded, and logs once
     );
 
     assert.equal(result.fabric, null, 'fabric must be null on miss');
-    assert.equal(result._fabricLoaded, false, '_fabricLoaded must be false on miss');
+    assert.equal(result.isFabricLoaded, false, 'isFabricLoaded must be false on miss');
     assert.deepEqual(result.options, userOptions, 'options must still pass through on miss');
 
     assert.equal(calls.length, 1, 'console.error must be called exactly once on miss');
@@ -167,7 +165,7 @@ test('detectFabric: miss with null first arg still yields empty options and one 
     const { calls, result } = withConsoleError(() => detectFabric(null, undefined, globalScope));
 
     assert.equal(result.fabric, null);
-    assert.equal(result._fabricLoaded, false);
+    assert.equal(result.isFabricLoaded, false);
     assert.deepEqual(result.options, {}, 'null first arg collapses to {} on miss too');
     assert.equal(calls.length, 1, 'console.error must be called exactly once on miss');
     assert.match(calls[0][0], /fabric\.js v7 is not available/);
@@ -182,7 +180,7 @@ test('detectFabric: miss when globalScope.fabric is present but lacks Canvas', (
     const { calls, result } = withConsoleError(() => detectFabric({}, undefined, globalScope));
 
     assert.equal(result.fabric, null);
-    assert.equal(result._fabricLoaded, false);
+    assert.equal(result.isFabricLoaded, false);
     assert.equal(calls.length, 1);
     assert.match(calls[0][0], /fabric\.js v7 is not available/);
 });

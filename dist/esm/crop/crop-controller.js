@@ -58,11 +58,11 @@ function getCropRectContentBounds(cropRect) {
         height: Math.max(0, (Number(cropRect.height) || 0) * Math.abs(Number(cropRect.scaleY) || 1)),
     };
 }
-function removeCropRect(ctx, session) {
+function removeCropRect(context, session) {
     for (const targetHandlers of session.handlers) {
-        for (const rec of targetHandlers.handlers) {
+        for (const record of targetHandlers.handlers) {
             try {
-                targetHandlers.target.off(rec.evt, rec.fn);
+                targetHandlers.target.off(record.eventName, record.callback);
             }
             catch {
             }
@@ -71,7 +71,7 @@ function removeCropRect(ctx, session) {
     session.handlers = [];
     if (session.cropRect) {
         try {
-            ctx.canvas.remove(session.cropRect);
+            context.canvas.remove(session.cropRect);
         }
         catch {
         }
@@ -79,9 +79,9 @@ function removeCropRect(ctx, session) {
     }
 }
 function restoreCropObjectState(session) {
-    for (const rec of session.prevEvented) {
+    for (const record of session.prevEvented) {
         try {
-            rec.obj.set({ evented: rec.evented, selectable: rec.selectable });
+            record.object.set({ evented: record.evented, selectable: record.selectable });
         }
         catch {
         }
@@ -94,12 +94,12 @@ function restoreCropMaskBackups(session) {
     }
     session.maskBackups = [];
 }
-function teardownSession(ctx, session) {
-    removeCropRect(ctx, session);
+function teardownSession(context, session) {
+    removeCropRect(context, session);
     restoreCropObjectState(session);
     restoreCropMaskBackups(session);
     try {
-        ctx.canvas.selection = !!session.prevSelection;
+        context.canvas.selection = !!session.prevSelection;
     }
     catch {
     }
@@ -114,7 +114,7 @@ function maskIntersectsRegion(mask, region) {
 function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     var _a;
     const records = [];
-    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.obj, backup]));
+    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.object, backup]));
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
         try {
@@ -139,11 +139,11 @@ function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     }
     return records;
 }
-function reapplyPreservedMasks(ctx, cropRegion, records) {
+function reapplyPreservedMasks(context, cropRegion, records) {
     var _a;
     if (records.length === 0)
         return;
-    const { canvas } = ctx;
+    const { canvas } = context;
     let maxRestoredId = 0;
     for (const record of records) {
         try {
@@ -167,28 +167,29 @@ function reapplyPreservedMasks(ctx, cropRegion, records) {
         catch {
         }
     }
-    if (typeof ctx.getMaskCounter === 'function' && typeof ctx.setMaskCounter === 'function') {
-        const liveCounter = Number(ctx.getMaskCounter());
+    if (typeof context.getMaskCounter === 'function' &&
+        typeof context.setMaskCounter === 'function') {
+        const liveCounter = Number(context.getMaskCounter());
         const safeCounter = Number.isFinite(liveCounter) ? liveCounter : 0;
-        ctx.setMaskCounter(Math.max(safeCounter, maxRestoredId));
+        context.setMaskCounter(Math.max(safeCounter, maxRestoredId));
     }
     try {
-        (_a = ctx.updateMaskList) === null || _a === void 0 ? void 0 : _a.call(ctx);
+        (_a = context.updateMaskList) === null || _a === void 0 ? void 0 : _a.call(context);
     }
     catch {
     }
 }
-export function enterCropMode(ctx) {
-    const { canvas, options } = ctx;
-    if (ctx.getCropSession())
+export function enterCropMode(context) {
+    const { canvas, options } = context;
+    if (context.getCropSession())
         return;
-    const originalImage = ctx.getOriginalImage();
+    const originalImage = context.getOriginalImage();
     if (!originalImage)
         return;
-    if (!ctx.isImageLoaded())
+    if (!context.isImageLoaded())
         return;
     canvas.discardActiveObject();
-    const beforeJson = ctx.saveState();
+    const beforeJson = context.saveState();
     const prevSelection = !!canvas.selection;
     canvas.selection = false;
     originalImage.setCoords();
@@ -207,7 +208,7 @@ export function enterCropMode(ctx) {
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
     const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
     const allowRotation = !!options.crop.allowRotationOfCropRect;
-    const cropRect = new ctx.fabric.Rect({
+    const cropRect = new context.fabric.Rect({
         left: rectLeft,
         top: rectTop,
         width: minCropWidth,
@@ -235,33 +236,33 @@ export function enterCropMode(ctx) {
     const hideMasks = !!options.crop.hideMasksDuringCrop;
     const maskBackups = [];
     if (hideMasks) {
-        canvas.getObjects().forEach((obj) => {
-            if (obj === cropRect)
+        canvas.getObjects().forEach((object) => {
+            if (object === cropRect)
                 return;
-            if (!isMaskObject(obj))
+            if (!isMaskObject(object))
                 return;
-            maskBackups.push(captureMaskStyleBackup(obj));
+            maskBackups.push(captureMaskStyleBackup(object));
         });
     }
     const prevEvented = [];
-    canvas.getObjects().forEach((obj) => {
+    canvas.getObjects().forEach((object) => {
         var _a, _b;
-        if (obj === cropRect)
+        if (object === cropRect)
             return;
         prevEvented.push({
-            obj,
-            evented: (_a = obj.evented) !== null && _a !== void 0 ? _a : true,
-            selectable: (_b = obj.selectable) !== null && _b !== void 0 ? _b : true,
+            object,
+            evented: (_a = object.evented) !== null && _a !== void 0 ? _a : true,
+            selectable: (_b = object.selectable) !== null && _b !== void 0 ? _b : true,
         });
         try {
-            obj.set({ evented: false, selectable: false });
+            object.set({ evented: false, selectable: false });
         }
         catch {
         }
     });
     if (hideMasks) {
         for (const backup of maskBackups) {
-            applyCropHideMaskStyle(backup.obj);
+            applyCropHideMaskStyle(backup.object);
         }
     }
     const handleCropRectModified = () => {
@@ -301,43 +302,43 @@ export function enterCropMode(ctx) {
             {
                 target: cropRect,
                 handlers: [
-                    { evt: 'modified', fn: handleCropRectModified },
-                    { evt: 'moving', fn: handleCropRectModified },
-                    { evt: 'scaling', fn: handleCropRectModified },
+                    { eventName: 'modified', callback: handleCropRectModified },
+                    { eventName: 'moving', callback: handleCropRectModified },
+                    { eventName: 'scaling', callback: handleCropRectModified },
                 ],
             },
         ],
     };
-    ctx.setCropSession(session);
+    context.setCropSession(session);
     canvas.renderAll();
 }
-export function cancelCrop(ctx) {
-    const session = ctx.getCropSession();
+export function cancelCrop(context) {
+    const session = context.getCropSession();
     if (!session)
         return;
-    ctx.canvas.discardActiveObject();
-    teardownSession(ctx, session);
-    ctx.setCropSession(null);
+    context.canvas.discardActiveObject();
+    teardownSession(context, session);
+    context.setCropSession(null);
     try {
-        ctx.canvas.renderAll();
+        context.canvas.renderAll();
     }
     catch {
     }
 }
-export async function applyCrop(ctx) {
+export async function applyCrop(context) {
     var _a, _b;
-    const session = ctx.getCropSession();
+    const session = context.getCropSession();
     if (!session || !session.cropRect)
         return;
-    const { canvas } = ctx;
+    const { canvas } = context;
     canvas.discardActiveObject();
     const beforeJson = session.beforeJson;
     const cropRect = session.cropRect;
-    const preserveMasks = !!ctx.options.crop.preserveMasksAfterCrop;
+    const preserveMasks = !!context.options.crop.preserveMasksAfterCrop;
     try {
         cropRect.setCoords();
         const cropAngle = Number(cropRect.angle) || 0;
-        if (!ctx.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
+        if (!context.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
             throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
         }
         const rectBounds = getCropRectContentBounds(cropRect);
@@ -349,13 +350,13 @@ export async function applyCrop(ctx) {
             ? capturePreservedMasks(canvas, cropRegion, session.maskBackups)
             : [];
         restoreCropObjectState(session);
-        removeCropRect(ctx, session);
+        removeCropRect(context, session);
         canvas.selection = !!session.prevSelection;
         const cropFormat = resolveCropExportFormat({
-            cropExportFileType: ctx.options.crop.exportFileType,
-            currentImageMimeType: (_b = (_a = ctx.getCurrentImageMimeType) === null || _a === void 0 ? void 0 : _a.call(ctx)) !== null && _b !== void 0 ? _b : null,
-            cropExportQuality: ctx.options.crop.exportQuality,
-            downsampleQuality: ctx.options.downsampleQuality,
+            cropExportFileType: context.options.crop.exportFileType,
+            currentImageMimeType: (_b = (_a = context.getCurrentImageMimeType) === null || _a === void 0 ? void 0 : _a.call(context)) !== null && _b !== void 0 ? _b : null,
+            cropExportQuality: context.options.crop.exportQuality,
+            downsampleQuality: context.options.downsampleQuality,
         });
         const exportOptions = {
             format: cropFormat.format,
@@ -369,22 +370,22 @@ export async function applyCrop(ctx) {
             exportOptions.quality = cropFormat.quality;
         }
         const croppedBase64 = canvas.toDataURL(exportOptions);
-        await ctx.loadImage(croppedBase64);
+        await context.loadImage(croppedBase64);
         if (preservedRecords.length > 0) {
-            reapplyPreservedMasks(ctx, cropRegion, preservedRecords);
+            reapplyPreservedMasks(context, cropRegion, preservedRecords);
             canvas.renderAll();
         }
-        const afterJson = ctx.saveState();
-        ctx.setCropSession(null);
+        const afterJson = context.saveState();
+        context.setCropSession(null);
         if (beforeJson && afterJson && beforeJson !== afterJson) {
-            ctx.historyManager.push(new Command(() => ctx.loadFromState(afterJson), () => ctx.loadFromState(beforeJson)));
+            context.historyManager.push(new Command(() => context.loadFromState(afterJson), () => context.loadFromState(beforeJson)));
         }
     }
     catch (error) {
-        teardownSession(ctx, session);
-        ctx.setCropSession(null);
+        teardownSession(context, session);
+        context.setCropSession(null);
         try {
-            await ctx.loadFromState(beforeJson);
+            await context.loadFromState(beforeJson);
         }
         catch (rollbackError) {
             console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);

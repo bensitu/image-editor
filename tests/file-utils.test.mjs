@@ -1,6 +1,4 @@
 /**
- * @file file-utils.test.mjs
- *
  * Type:
  *   Unit test
  *
@@ -13,7 +11,7 @@
  *   - inferImageMimeType accepts supported browser MIME types and rejects unsupported
  *     ones.
  *   - Empty file.type values fall back to supported file extensions.
- *   - readFileAsDataURL rejects when FileReader aborts and restores the original
+ *   - readFileAsDataUrl rejects when FileReader aborts and restores the original
  *     global FileReader after the test.
  *
  * Out of scope:
@@ -41,7 +39,7 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { inferImageMimeType, readFileAsDataURL } = await import('../src/utils/file.ts');
+const { inferImageMimeType, readFileAsDataUrl } = await import('../src/utils/file.ts');
 
 test('inferImageMimeType accepts supported browser MIME types', () => {
     for (const [name, type] of [
@@ -70,7 +68,7 @@ test('inferImageMimeType falls back to supported file extensions when MIME is em
     }
 });
 
-test('readFileAsDataURL rejects when FileReader aborts', async () => {
+test('readFileAsDataUrl rejects when FileReader aborts', async () => {
     const OriginalFileReader = globalThis.FileReader;
 
     class AbortFileReader {
@@ -90,7 +88,7 @@ test('readFileAsDataURL rejects when FileReader aborts', async () => {
     globalThis.FileReader = AbortFileReader;
     try {
         await assert.rejects(
-            readFileAsDataURL(new File(['x'], 'photo.png', { type: 'image/png' })),
+            readFileAsDataUrl(new File(['x'], 'photo.png', { type: 'image/png' })),
             /aborted/i,
         );
     } finally {

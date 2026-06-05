@@ -1,6 +1,4 @@
 /**
- * @file toolbar-animation-state.test.mjs
- *
  * Type:
  *   Unit test
  *
@@ -140,8 +138,8 @@ class FakeImage {
 
     getCenterPoint() {
         return {
-            x: (this.left || 0) + this._displayWidth() / 2,
-            y: (this.top || 0) + this._displayHeight() / 2,
+            x: (this.left || 0) + this.displayWidth() / 2,
+            y: (this.top || 0) + this.displayHeight() / 2,
         };
     }
 
@@ -152,8 +150,8 @@ class FakeImage {
 
     getBoundingRect() {
         const quarterTurn = Math.abs(Math.round((this.angle || 0) / 90)) % 2 === 1;
-        const width = quarterTurn ? this._displayHeight() : this._displayWidth();
-        const height = quarterTurn ? this._displayWidth() : this._displayHeight();
+        const width = quarterTurn ? this.displayHeight() : this.displayWidth();
+        const height = quarterTurn ? this.displayWidth() : this.displayHeight();
         return { left: this.left || 0, top: this.top || 0, width, height };
     }
 
@@ -166,11 +164,11 @@ class FakeImage {
         return [];
     }
 
-    _displayWidth() {
+    displayWidth() {
         return Math.abs((this.width || 0) * (this.scaleX || 1));
     }
 
-    _displayHeight() {
+    displayHeight() {
         return Math.abs((this.height || 0) * (this.scaleY || 1));
     }
 }
@@ -309,7 +307,7 @@ function makeEditor(options = {}, viewport = {}) {
     const image = new fabric.FabricImage();
     editor.originalImage = image;
     fabric.lastCanvas.add(image);
-    editor._updateUI();
+    editor.updateUi();
     return editor;
 }
 
@@ -354,7 +352,7 @@ test('undo after rotate restores the canvas size for the restored image bounds',
     image.scale(520 / image.height);
     editor.baseImageScale = image.scaleX;
     canvas.setDimensions({ width: 960, height: 520 });
-    editor._lastSnapshot = editor._captureSnapshot();
+    editor.lastSnapshot = editor.captureSnapshotInternal();
 
     await editor.rotateImage(90);
 
@@ -384,14 +382,14 @@ test('loadFromState normalizes stale cover canvas dimensions without shrinking v
     editor.baseImageScale = image.scaleX;
     canvas.setDimensions({ width: 960, height: 900 });
 
-    await editor.loadFromState(editor._captureSnapshot());
+    await editor.loadFromState(editor.captureSnapshotInternal());
 
     assert.equal(canvas.width, 960);
     assert.equal(canvas.height, 520);
 
     canvas.setDimensions({ width: 960, height: 520 });
 
-    await editor.loadFromState(editor._captureSnapshot());
+    await editor.loadFromState(editor.captureSnapshotInternal());
 
     assert.equal(canvas.width, 960);
     assert.equal(canvas.height, 520);
@@ -400,9 +398,9 @@ test('loadFromState normalizes stale cover canvas dimensions without shrinking v
 test('history and state APIs are guarded while crop mode owns the canvas', async () => {
     const editor = makeEditor();
     editor.currentRotation = 45;
-    const snapshot = editor._captureSnapshot();
+    const snapshot = editor.captureSnapshotInternal();
     editor.currentRotation = 90;
-    editor._cropSession = {};
+    editor.cropSession = {};
 
     editor.saveState();
     await editor.loadFromState(snapshot);
@@ -420,16 +418,16 @@ test('history and state APIs are guarded while crop mode owns the canvas', async
         'external saveState must not push history while crop mode is active',
     );
 
-    editor._cropSession = null;
+    editor.cropSession = null;
 });
 
 test('history and state APIs are guarded while another operation is active', async () => {
     const editor = makeEditor();
     editor.currentRotation = 45;
-    const snapshot = editor._captureSnapshot();
+    const snapshot = editor.captureSnapshotInternal();
     editor.currentRotation = 90;
 
-    const token = editor._guard.beginBusyOperation('exportImageBase64');
+    const token = editor.operationGuard.beginBusyOperation('exportImageBase64');
     try {
         editor.saveState();
         await editor.loadFromState(snapshot);
@@ -454,7 +452,7 @@ test('history and state APIs are guarded while another operation is active', asy
             'external saveState must not push history while another operation is active',
         );
     } finally {
-        editor._guard.endBusyOperation(token);
+        editor.operationGuard.endBusyOperation(token);
     }
 });
 
@@ -473,7 +471,7 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
     image.scale(0.5);
     editor.baseImageScale = 0.5;
     canvas.setDimensions({ width: 620, height: 400 });
-    editor._lastSnapshot = editor._captureSnapshot();
+    editor.lastSnapshot = editor.captureSnapshotInternal();
 
     editor.loadImage = async () => {
         const mergedImage = new image.constructor();
@@ -486,10 +484,10 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
         editor.baseImageScale = 1;
         editor.currentScale = 1;
         editor.currentRotation = 0;
-        editor._lastSnapshot = editor._captureSnapshot();
+        editor.lastSnapshot = editor.captureSnapshotInternal();
     };
 
-    const ctx = editor._buildMergeMasksContext();
+    const ctx = editor.buildMergeMasksContext();
 
     await ctx.loadImage('data:image/png;base64,MERGED', { preserveScroll: true });
 

@@ -37,16 +37,16 @@ export function clampQuality(quality, fallback) {
 }
 export function resolveExportFormat(options, downsampleQuality) {
     var _a;
-    const opts = options !== null && options !== void 0 ? options : {};
-    const fileType = opts.fileType;
-    const formatAlias = opts.format;
+    const providedOptions = options !== null && options !== void 0 ? options : {};
+    const fileType = providedOptions.fileType;
+    const formatAlias = providedOptions.format;
     const requested = fileType || formatAlias;
     const format = normalizeImageFormat(requested);
     const mimeType = mimeTypeFor(format);
     if (format === 'png') {
         return { format, mimeType, quality: undefined };
     }
-    const rawQuality = (_a = opts.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
+    const rawQuality = (_a = providedOptions.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
     const quality = clampQuality(rawQuality, downsampleQuality);
     return { format, mimeType, quality };
 }

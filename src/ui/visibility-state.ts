@@ -1,8 +1,7 @@
 /**
- * @file visibility-state.ts
- * @description Placeholder/canvas-container visibility helper. Owns the
- *              standard-DOM-state transition that the orchestrator's
- *              private `_setPlaceholderVisible` method delegates to.
+ * Placeholder/canvas-container visibility helper. Owns the
+ * standard-DOM-state transition that the orchestrator's
+ * private `_setPlaceholderVisible` method delegates to.
  *
  * ## Owned contracts
  *
@@ -31,6 +30,8 @@
  * the behavior unit-testable in isolation. This module is imported by
  * `image-editor.ts` only and is intentionally not re-exported from
  * `src/index.ts`.
+ *
+ * @module
  */
 
 /**
@@ -62,18 +63,15 @@
  * not wrap the canvas in a dedicated container), the placeholder side of
  * the transition still runs to completion. When
  * `placeholderElement` is `null` the function is a no-op for that side; the
- * orchestrator's `_updatePlaceholderStatus` already early-returns in that
+ * orchestrator's `updatePlaceholderStatus` already early-returns in that
  * case, but defending here keeps the helper safe to call from any future
  * code path.
  *
- * @param placeholderElement
- *   The placeholder DOM element shown when no image is loaded, or `null`
+ * @param placeholderElement - The placeholder DOM element shown when no image is loaded, or `null`
  *   when the host page omitted the placeholder slot from the `idMap`.
- * @param containerElement
- *   The canvas container DOM element wrapping the live `<canvas>`, or
+ * @param containerElement - The canvas container DOM element wrapping the live `<canvas>`, or
  *   `null` when no container is available.
- * @param show
- *   `true` to make the placeholder visible (and hide the canvas container);
+ * @param show - `true` to make the placeholder visible (and hide the canvas container);
  *   `false` to hide the placeholder (and show the canvas container).
  */
 export function setPlaceholderVisible(

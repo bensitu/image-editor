@@ -1,9 +1,8 @@
 /**
- * @file utils/number.ts
- * @description Pure helpers used by `mask/mask-factory.ts` to turn the
- *              flexible `MaskNumericProp` and `PolygonPoint` inputs of
- *              {@link MaskConfig} into concrete numbers and `{ x, y}`
- *              points before a Fabric.js shape is constructed.
+ * Pure helpers used by `mask/mask-factory.ts` to turn the
+ * flexible `MaskNumericProp` and `PolygonPoint` inputs of
+ * {@link MaskConfig} into concrete numbers and `{ x, y }`
+ * points before a Fabric.js shape is constructed.
  *
  * ## Owned contracts
  *
@@ -17,8 +16,8 @@
  *   SHALL be invoked with `(canvas, ResolvedOptions)` and the returned
  *   number used directly.
  * - Polygon point items SHALL be accepted in
- *   either `{ x, y}` object form or `[x, y]` tuple form and coerced to
- *   numeric `{ x, y}` internally.
+ *   either `{ x, y }` object form or `[x, y]` tuple form and coerced to
+ *   numeric `{ x, y }` internally.
  *
  * ## Why a dedicated module
  *
@@ -47,6 +46,8 @@
  * - This module does not coerce or round the output of factory functions
  *   (`(canvas, options) => number`); their return value is used verbatim
  *   so consumers retain full control over sub-pixel placement.
+ *
+ * @module
  */
 import type * as FabricNS from 'fabric';
 import type { MaskNumericProp, PolygonPoint, ResolvedOptions } from '../core/public-types.js';
@@ -80,39 +81,39 @@ export type Axis = 'x' | 'y';
  *
  * // Function form receives the live canvas and ResolvedOptions:
  * resolveNumeric(
- *   (c) => c.getWidth - 20,
+ *   (canvas) => canvas.getWidth() - 20,
  *   'x',
  *   0,
  *   canvas,
  *   options,
- *); // → canvas.getWidth - 20
+ * ); // → canvas.getWidth() - 20
  *
  * // Unrecognized input falls back:
  * resolveNumeric(undefined, 'x', 10, canvas, options); // → 10
  * ```
  *
- * @param val      The flexible mask numeric property to resolve.
- * @param axis     Which canvas dimension a percentage resolves against.
- * @param fallback Value returned when `val` cannot be resolved.
- * @param canvas   Live Fabric.js canvas; only `getWidth`/`getHeight`
+ * @param val - The flexible mask numeric property to resolve.
+ * @param axis - Which canvas dimension a percentage resolves against.
+ * @param fallback - Value returned when `val` cannot be resolved.
+ * @param canvas - Live Fabric.js canvas; only `getWidth`/`getHeight`
  *                 are read here, but the entire canvas is forwarded to
  *                 factory functions.
- * @param options  Fully-resolved editor options forwarded to factory
+ * @param options - Fully-resolved editor options forwarded to factory
  *                 functions.
  *
  * @returns The resolved pixel number, or `fallback` when no rule applies.
  */
 export declare function resolveNumeric(val: MaskNumericProp | undefined, axis: Axis, fallback: number, canvas: FabricNS.Canvas, options: ResolvedOptions): number;
 /**
- * Coerce a {@link PolygonPoint} into the canonical `{ x, y}` numeric
+ * Coerce a {@link PolygonPoint} into the canonical `{ x, y }` numeric
  * shape used by Fabric.js polygon construction.
  *
  * Both input forms are accepted so callers may write polygon points in
  * whichever style is most ergonomic at the call site:
  *
  * ```ts
- * coercePoint({ x: 10, y: 20});   // → { x: 10, y: 20}
- * coercePoint([10, 20]);           // → { x: 10, y: 20}
+ * coercePoint({ x: 10, y: 20 }); // → { x: 10, y: 20 }
+ * coercePoint([10, 20]); // → { x: 10, y: 20 }
  * ```
  *
  * Values are coerced via `Number(...)` so string-encoded coordinates
@@ -121,8 +122,8 @@ export declare function resolveNumeric(val: MaskNumericProp | undefined, axis: A
  * mask pipeline's tolerant input handling — callers that need stricter
  * validation should perform it before constructing the polygon.
  *
- * @param pt A polygon vertex in object or tuple form.
- * @returns  An `{ x, y}` numeric point.
+ * @param pt - A polygon vertex in object or tuple form.
+ * @returns An `{ x, y }` numeric point.
  */
 export declare function coercePoint(pt: PolygonPoint): {
     x: number;
