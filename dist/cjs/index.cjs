@@ -1371,6 +1371,10 @@ const CROP_RECT_DASH = [6, 4];
 const CROP_RECT_CORNER_SIZE = 8;
 const CROP_DEFAULT_PADDING = 10;
 const CROPPED_EXPORT_QUALITY_FALLBACK = 0.92;
+function finiteNumberOrFallback(value, fallback) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+}
 function imageMimeToFormat(mimeType) {
     if (mimeType === 'image/jpeg')
         return 'jpeg';
@@ -1485,11 +1489,11 @@ function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
                 const styleBackup = (_a = styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
                 records.push({
                     mask,
-                    left: Number(mask.left) || 0,
-                    top: Number(mask.top) || 0,
-                    angle: Number(mask.angle) || 0,
-                    scaleX: Number(mask.scaleX) || 1,
-                    scaleY: Number(mask.scaleY) || 1,
+                    left: finiteNumberOrFallback(mask.left, 0),
+                    top: finiteNumberOrFallback(mask.top, 0),
+                    angle: finiteNumberOrFallback(mask.angle, 0),
+                    scaleX: finiteNumberOrFallback(mask.scaleX, 1),
+                    scaleY: finiteNumberOrFallback(mask.scaleY, 1),
                     styleBackup,
                 });
             }

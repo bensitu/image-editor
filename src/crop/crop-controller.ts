@@ -326,6 +326,11 @@ interface ResolvedCropExportFormat {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function finiteNumberOrFallback(value: unknown, fallback: number): number {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+}
+
 /**
  * Clamp the cropped JPEG export quality to `[0, 1]`. Matches legacy's
  * `_normalizeQuality`. A non-finite input falls back to the constant
@@ -621,12 +626,12 @@ function capturePreservedMasks(
                     // canvas-pixel coordinates verbatim. The post-crop
                     // reapply step shifts these by `-cropRegion.left,
                     // -cropRegion.top` (matches legacy).
-                    left: Number(mask.left) || 0,
-                    top: Number(mask.top) || 0,
+                    left: finiteNumberOrFallback(mask.left, 0),
+                    top: finiteNumberOrFallback(mask.top, 0),
                     // preserve verbatim.
-                    angle: Number(mask.angle) || 0,
-                    scaleX: Number(mask.scaleX) || 1,
-                    scaleY: Number(mask.scaleY) || 1,
+                    angle: finiteNumberOrFallback(mask.angle, 0),
+                    scaleX: finiteNumberOrFallback(mask.scaleX, 1),
+                    scaleY: finiteNumberOrFallback(mask.scaleY, 1),
                     styleBackup,
                 });
             }

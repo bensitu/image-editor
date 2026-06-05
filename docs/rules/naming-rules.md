@@ -12,22 +12,22 @@ Reusable naming conventions for a TypeScript codebase. The goal is to keep names
 
 ## 2. Case Conventions
 
-| Target | Convention | Example |
-| --- | --- | --- |
-| Variables | `camelCase` | `selectedImage` |
-| Local `const` values | `camelCase` | `canvasWidth` |
-| Functions and methods | `camelCase` | `applyCrop()` |
-| Object properties | `camelCase` | `imageSource` |
-| Classes | `PascalCase` | `ImageEditor` |
-| Interfaces | `PascalCase` | `ImageEditorOptions` |
-| Type aliases | `PascalCase` | `CropMode` |
-| Enums | `PascalCase` | `ResizeMode` |
-| TypeScript enum members | `PascalCase` | `ResizeMode.Cover` |
-| Generic type parameters | `PascalCase` | `TInput`, `TOutput` |
-| True global constants | `UPPER_SNAKE_CASE` | `DEFAULT_CANVAS_WIDTH` |
-| Constant maps | `UPPER_SNAKE_CASE` variable name | `MIME_TYPES` |
-| File and directory names | `kebab-case` | `image-editor.ts` |
-| Test files | `kebab-case` + test suffix | `crop-mode.test.ts` |
+| Target                   | Convention                       | Example                |
+| ------------------------ | -------------------------------- | ---------------------- |
+| Variables                | `camelCase`                      | `selectedImage`        |
+| Local `const` values     | `camelCase`                      | `canvasWidth`          |
+| Functions and methods    | `camelCase`                      | `applyCrop()`          |
+| Object properties        | `camelCase`                      | `imageSource`          |
+| Classes                  | `PascalCase`                     | `ImageEditor`          |
+| Interfaces               | `PascalCase`                     | `ImageEditorOptions`   |
+| Type aliases             | `PascalCase`                     | `CropMode`             |
+| Enums                    | `PascalCase`                     | `ResizeMode`           |
+| TypeScript enum members  | `PascalCase`                     | `ResizeMode.Cover`     |
+| Generic type parameters  | `PascalCase`                     | `TInput`, `TOutput`    |
+| True global constants    | `UPPER_SNAKE_CASE`               | `DEFAULT_CANVAS_WIDTH` |
+| Constant maps            | `UPPER_SNAKE_CASE` variable name | `MIME_TYPES`           |
+| File and directory names | `kebab-case`                     | `image-editor.ts`      |
+| Test files               | `kebab-case` + test suffix       | `crop-mode.test.ts`    |
 
 ## 3. TypeScript Declarations
 
@@ -36,8 +36,11 @@ Use `PascalCase` for type-like declarations:
 ```ts
 class ImageEditor {}
 interface ImageEditorOptions {}
-type CropMode = "cover" | "contain";
-enum ResizeMode { Cover, Contain }
+type CropMode = 'cover' | 'contain';
+enum ResizeMode {
+    Cover,
+    Contain,
+}
 ```
 
 Do not prefix interfaces with `I`.
@@ -70,17 +73,17 @@ Use `interface` for object-shaped contracts, options, payloads, and extension po
 
 Use `T` for a simple generic value type. Use descriptive names when there are multiple type parameters or when meaning matters.
 
-| Generic | Meaning |
-| --- | --- |
-| `T` | Generic value type |
-| `TInput` | Input type |
-| `TOutput` | Output type |
-| `TOptions` | Options type |
-| `TEvent` | Event type |
-| `TKey` | Key type |
-| `TValue` | Value type |
-| `TItem` | Collection item type |
-| `TState` | State type |
+| Generic    | Meaning              |
+| ---------- | -------------------- |
+| `T`        | Generic value type   |
+| `TInput`   | Input type           |
+| `TOutput`  | Output type          |
+| `TOptions` | Options type         |
+| `TEvent`   | Event type           |
+| `TKey`     | Key type             |
+| `TValue`   | Value type           |
+| `TItem`    | Collection item type |
+| `TState`   | State type           |
 
 Examples: `Nullable<T>`, `Record<TKey, TValue>`, `Transformer<TInput, TOutput>`.
 
@@ -109,8 +112,8 @@ const DEFAULT_CANVAS_WIDTH = 800;
 const MAX_IMAGE_PIXELS = 12_000_000;
 
 const MIME_TYPES = {
-  PNG: "image/png",
-  JPEG: "image/jpeg",
+    PNG: 'image/png',
+    JPEG: 'image/jpeg',
 } as const;
 ```
 
@@ -127,16 +130,16 @@ For fixed value sets, prefer string literal unions or `as const` objects when th
 
 Boolean names should be positive and should use one of these prefixes:
 
-| Prefix | Example |
-| --- | --- |
-| `is` | `isReady` |
-| `has` | `hasSelection` |
-| `can` | `canUndo` |
-| `should` | `shouldRenderMask` |
-| `allow` | `allowRotation` |
-| `enable` | `enableHistory` |
-| `requires` | `requiresRedraw` |
-| `supports` | `supportsWebp` |
+| Prefix     | Example            |
+| ---------- | ------------------ |
+| `is`       | `isReady`          |
+| `has`      | `hasSelection`     |
+| `can`      | `canUndo`          |
+| `should`   | `shouldRenderMask` |
+| `allow`    | `allowRotation`    |
+| `enable`   | `enableHistory`    |
+| `requires` | `requiresRedraw`   |
+| `supports` | `supportsWebp`     |
 
 Avoid negative or double-negative names such as `isNotReady`, `noSelection`, `disableHistory`, or `preventRender`. For options and feature flags, prefer positive `enableXxx` names consistently.
 
@@ -146,15 +149,15 @@ Use plural names for arrays and iterable collections: `masks`, `selectedImages`,
 
 Use explicit suffixes for keyed collections:
 
-| Structure | Pattern | Example |
-| --- | --- | --- |
-| Array/List | plural noun | `masks` |
-| Record by key | `xxxByYyy` | `maskById` |
-| `Map` | `xxxMap` | `imageMap` |
-| `Set` | `xxxSet` | `selectedIdSet` |
-| Count | `xxxCount` | `maskCount` |
-| Index | `xxxIndex` | `selectedIndex` |
-| Length | `xxxLength` | `historyLength` |
+| Structure     | Pattern     | Example         |
+| ------------- | ----------- | --------------- |
+| Array/List    | plural noun | `masks`         |
+| Record by key | `xxxByYyy`  | `maskById`      |
+| `Map`         | `xxxMap`    | `imageMap`      |
+| `Set`         | `xxxSet`    | `selectedIdSet` |
+| Count         | `xxxCount`  | `maskCount`     |
+| Index         | `xxxIndex`  | `selectedIndex` |
+| Length        | `xxxLength` | `historyLength` |
 
 ## 9. DOM, UI, and Canvas Names
 
@@ -168,46 +171,46 @@ For component-based UI, use `PascalCase` for components, `useXxx` for hooks, `Xx
 
 Function and method names should start with verbs that describe behavior precisely.
 
-| Prefix | Meaning | Example |
-| --- | --- | --- |
-| `getXxx` | Pure accessor without side effects | `getActiveImage()` |
-| `setXxx` | Direct assignment or replacement | `setZoomRatio()` |
-| `updateXxx` | Modify existing state or UI | `updateToolbarState()` |
-| `createXxx` | Create a new object or value | `createMaskObject()` |
-| `buildXxx` | Assemble a complex object | `buildExportPayload()` |
-| `applyXxx` | Apply an operation | `applyCrop()` |
-| `clearXxx` | Remove content while keeping owner alive | `clearSelection()` |
-| `resetXxx` | Restore defaults or initial state | `resetCanvas()` |
-| `renderXxx` | Render UI or canvas output | `renderMaskList()` |
-| `exportXxx` | Produce external output | `exportImage()` |
-| `serializeXxx` | Convert to storable/string form | `serializeState()` |
-| `deserializeXxx` | Restore from stored/string form | `deserializeState()` |
-| `parseXxx` | Parse raw or string input | `parseCropMode()` |
-| `normalizeXxx` | Normalize input to internal form | `normalizeOptions()` |
-| `validateXxx` | Validate input | `validateOptions()` |
-| `resolveXxx` | Resolve from sources or fallbacks | `resolveImageSource()` |
-| `computeXxx` | Calculate a derived value | `computeCropBounds()` |
-| `toXxx` | Convert to another representation | `toCanvasPoint()` |
-| `fromXxx` | Create from another representation | `fromSerializedState()` |
-| `loadXxx` | Load local resource or file | `loadImageFile()` |
-| `fetchXxx` | Fetch over network | `fetchImageMetadata()` |
-| `saveXxx` | Persist data | `saveState()` |
-| `removeXxx` | Remove a specific item | `removeMask()` |
-| `deleteXxx` | Delete persisted or external data | `deleteSavedPreset()` |
-| `disposeXxx` | Release resources or listeners | `disposeCanvas()` |
-| `destroyXxx` | Permanently tear down an instance | `destroyEditor()` |
+| Prefix           | Meaning                                  | Example                 |
+| ---------------- | ---------------------------------------- | ----------------------- |
+| `getXxx`         | Pure accessor without side effects       | `getActiveImage()`      |
+| `setXxx`         | Direct assignment or replacement         | `setZoomRatio()`        |
+| `updateXxx`      | Modify existing state or UI              | `updateToolbarState()`  |
+| `createXxx`      | Create a new object or value             | `createMaskObject()`    |
+| `buildXxx`       | Assemble a complex object                | `buildExportPayload()`  |
+| `applyXxx`       | Apply an operation                       | `applyCrop()`           |
+| `clearXxx`       | Remove content while keeping owner alive | `clearSelection()`      |
+| `resetXxx`       | Restore defaults or initial state        | `resetCanvas()`         |
+| `renderXxx`      | Render UI or canvas output               | `renderMaskList()`      |
+| `exportXxx`      | Produce external output                  | `exportImage()`         |
+| `serializeXxx`   | Convert to storable/string form          | `serializeState()`      |
+| `deserializeXxx` | Restore from stored/string form          | `deserializeState()`    |
+| `parseXxx`       | Parse raw or string input                | `parseCropMode()`       |
+| `normalizeXxx`   | Normalize input to internal form         | `normalizeOptions()`    |
+| `validateXxx`    | Validate input                           | `validateOptions()`     |
+| `resolveXxx`     | Resolve from sources or fallbacks        | `resolveImageSource()`  |
+| `computeXxx`     | Calculate a derived value                | `computeCropBounds()`   |
+| `toXxx`          | Convert to another representation        | `toCanvasPoint()`       |
+| `fromXxx`        | Create from another representation       | `fromSerializedState()` |
+| `loadXxx`        | Load local resource or file              | `loadImageFile()`       |
+| `fetchXxx`       | Fetch over network                       | `fetchImageMetadata()`  |
+| `saveXxx`        | Persist data                             | `saveState()`           |
+| `removeXxx`      | Remove a specific item                   | `removeMask()`          |
+| `deleteXxx`      | Delete persisted or external data        | `deleteSavedPreset()`   |
+| `disposeXxx`     | Release resources or listeners           | `disposeCanvas()`       |
+| `destroyXxx`     | Permanently tear down an instance        | `destroyEditor()`       |
 
 Avoid generic behavior names such as `processData()`, `handleData()`, `doUpdate()`, or `manageState()`.
 
 ## 11. Events, Handlers, and Callbacks
 
-| Pattern | Meaning | Example |
-| --- | --- | --- |
-| `handleXxx` | Internal event handler | `handleUploadChange()` |
-| `onXxx` | Public callback option | `onImageLoad` |
-| `emitXxx` | Internal event/callback dispatch | `emitImageLoad()` |
-| `addXxxListener` | Listener registration | `addSelectionChangeListener()` |
-| `removeXxxListener` | Listener removal | `removeSelectionChangeListener()` |
+| Pattern             | Meaning                          | Example                           |
+| ------------------- | -------------------------------- | --------------------------------- |
+| `handleXxx`         | Internal event handler           | `handleUploadChange()`            |
+| `onXxx`             | Public callback option           | `onImageLoad`                     |
+| `emitXxx`           | Internal event/callback dispatch | `emitImageLoad()`                 |
+| `addXxxListener`    | Listener registration            | `addSelectionChangeListener()`    |
+| `removeXxxListener` | Listener removal                 | `removeSelectionChangeListener()` |
 
 ## 12. Type Guards, Assertions, and Errors
 
@@ -223,19 +226,19 @@ class ImageLoadError extends Error {}
 
 Include units when a number is ambiguous.
 
-| Suffix | Meaning | Example |
-| --- | --- | --- |
-| `Px` | CSS or canvas pixels | `widthPx` |
-| `Ms` | milliseconds | `timeoutMs` |
-| `Seconds` | seconds | `durationSeconds` |
-| `Ratio` | proportional value | `scaleRatio` |
-| `Percent` | 0-100 percentage | `progressPercent` |
-| `Degrees` | degrees | `rotationDegrees` |
-| `Radians` | radians | `angleRadians` |
-| `Count` | number of items | `maskCount` |
-| `Index` | zero-based index | `selectedIndex` |
-| `Id` | identifier | `imageId` |
-| `Url` | URL string | `imageUrl` |
+| Suffix    | Meaning              | Example           |
+| --------- | -------------------- | ----------------- |
+| `Px`      | CSS or canvas pixels | `widthPx`         |
+| `Ms`      | milliseconds         | `timeoutMs`       |
+| `Seconds` | seconds              | `durationSeconds` |
+| `Ratio`   | proportional value   | `scaleRatio`      |
+| `Percent` | 0-100 percentage     | `progressPercent` |
+| `Degrees` | degrees              | `rotationDegrees` |
+| `Radians` | radians              | `angleRadians`    |
+| `Count`   | number of items      | `maskCount`       |
+| `Index`   | zero-based index     | `selectedIndex`   |
+| `Id`      | identifier           | `imageId`         |
+| `Url`     | URL string           | `imageUrl`        |
 
 ## 14. Async Names
 
@@ -264,12 +267,12 @@ Convert external naming to internal naming as early as possible:
 
 ```ts
 interface RawBackendPayload {
-  image_url: string;
-  created_at: string;
+    image_url: string;
+    created_at: string;
 }
 
 interface ImagePayload {
-  imageUrl: string;
-  createdAt: Date;
+    imageUrl: string;
+    createdAt: Date;
 }
 ```
