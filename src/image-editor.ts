@@ -31,6 +31,7 @@ import type {
     ImageFileExportOptions,
     ImageInfo,
     ImageMimeType,
+    LayoutMode,
     LoadImageOptions,
     MaskConfig,
     MaskObject,
@@ -890,6 +891,39 @@ export class ImageEditor {
      */
     isBusy(): boolean {
         return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
+    }
+
+    /**
+     * Selects the layout strategy used by subsequent image loads.
+     *
+     * The mode maps to the existing layout flags as a mutually exclusive
+     * choice:
+     *
+     * - `'fit'` enables `fitImageToCanvas`.
+     * - `'cover'` enables `coverImageToCanvas`.
+     * - `'expand'` enables `expandCanvasToImage`.
+     *
+     * The current canvas is not re-laid out immediately; call this before
+     * `loadImage()` to choose how the next image is placed.
+     *
+     * @param mode - Layout mode to use for future image loads.
+     */
+    setLayoutMode(mode: LayoutMode): void {
+        if (mode !== 'fit' && mode !== 'cover' && mode !== 'expand') {
+            reportWarning(
+                this.options,
+                new TypeError(
+                    `[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
+                        'Expected "fit", "cover", or "expand".',
+                ),
+                'Ignored invalid layout mode.',
+            );
+            return;
+        }
+
+        this.options.fitImageToCanvas = mode === 'fit';
+        this.options.coverImageToCanvas = mode === 'cover';
+        this.options.expandCanvasToImage = mode === 'expand';
     }
 
     private buildCallbackContext(

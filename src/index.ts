@@ -33,6 +33,7 @@ export type {
     // Core options
     ImageEditorOptions,
     ResolvedOptions,
+    LayoutMode,
     // Sub-configs
     LabelConfig,
     CropConfig,

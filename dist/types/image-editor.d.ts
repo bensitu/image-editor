@@ -7,7 +7,7 @@
  * @module
  */
 import { type CanvasJson } from './core/state-serializer.js';
-import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LoadImageOptions, MaskConfig, MaskObject, RemoveAllMasksOptions } from './core/public-types.js';
+import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, RemoveAllMasksOptions } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
  * crop, undo/redo, and multi-format export.
@@ -217,6 +217,22 @@ export declare class ImageEditor {
      * Returns `true` while the editor is loading, animating, or in crop mode.
      */
     isBusy(): boolean;
+    /**
+     * Selects the layout strategy used by subsequent image loads.
+     *
+     * The mode maps to the existing layout flags as a mutually exclusive
+     * choice:
+     *
+     * - `'fit'` enables `fitImageToCanvas`.
+     * - `'cover'` enables `coverImageToCanvas`.
+     * - `'expand'` enables `expandCanvasToImage`.
+     *
+     * The current canvas is not re-laid out immediately; call this before
+     * `loadImage()` to choose how the next image is placed.
+     *
+     * @param mode - Layout mode to use for future image loads.
+     */
+    setLayoutMode(mode: LayoutMode): void;
     private buildCallbackContext;
     private getOperationContext;
     private emitOptionCallback;

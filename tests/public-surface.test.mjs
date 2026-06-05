@@ -53,6 +53,7 @@ const CANONICAL_METHODS = Object.freeze([
     'loadImage',
     'isImageLoaded',
     'isBusy',
+    'setLayoutMode',
     'scaleImage',
     'rotateImage',
     'resetImageTransform',

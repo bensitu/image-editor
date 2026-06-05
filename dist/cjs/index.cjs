@@ -4292,6 +4292,16 @@ class ImageEditor {
     isBusy() {
         return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
     }
+    setLayoutMode(mode) {
+        if (mode !== 'fit' && mode !== 'cover' && mode !== 'expand') {
+            reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
+                'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
+            return;
+        }
+        this.options.fitImageToCanvas = mode === 'fit';
+        this.options.coverImageToCanvas = mode === 'cover';
+        this.options.expandCanvasToImage = mode === 'expand';
+    }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
     }

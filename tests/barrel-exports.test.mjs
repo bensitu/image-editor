@@ -75,6 +75,7 @@ test('barrel re-exports documented public type names', async () => {
     const expectedTypeNames = [
         'ImageEditorOptions',
         'ResolvedOptions',
+        'LayoutMode',
         'LabelConfig',
         'CropConfig',
         'CropExportFileType',

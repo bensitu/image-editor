@@ -229,10 +229,20 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 | `loadImage(base64, options?)` | Load an image from a `data:image/...` URL. Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
 | `isImageLoaded()`             | Returns `true` if a valid image is currently loaded on the canvas.                                                                                              |
 | `isBusy()`                    | Returns `true` while the editor is loading, animating, or in crop mode.                                                                                         |
+| `setLayoutMode(mode)`         | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                 |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
 preserving the container's scroll position across both successful loads and
 rollback paths.
+
+Use `setLayoutMode()` instead of mutating internal options when a UI lets users
+choose how the next image should be placed:
+
+```ts
+editor.setLayoutMode('fit');
+editor.setLayoutMode('cover');
+editor.setLayoutMode('expand');
+```
 
 File-input helpers accept JPG, PNG, WebP, GIF, and BMP files. GIF and BMP are
 decoded as static raster input for canvas editing; GIF animation and BMP/GIF

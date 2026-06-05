@@ -513,17 +513,11 @@ function setOptions() {
     const coverCanvasRadio = getOptionalElement('coverCanvas');
     const expandCanvasRadio = getOptionalElement('expandCanvas');
     if (fitImageRadio?.checked || (!coverCanvasRadio?.checked && !expandCanvasRadio?.checked)) {
-        editor.options.fitImageToCanvas = true;
-        editor.options.coverImageToCanvas = false;
-        editor.options.expandCanvasToImage = false;
+        editor.setLayoutMode('fit');
     } else if (coverCanvasRadio?.checked) {
-        editor.options.fitImageToCanvas = false;
-        editor.options.coverImageToCanvas = true;
-        editor.options.expandCanvasToImage = false;
+        editor.setLayoutMode('cover');
     } else {
-        editor.options.fitImageToCanvas = false;
-        editor.options.coverImageToCanvas = false;
-        editor.options.expandCanvasToImage = true;
+        editor.setLayoutMode('expand');
     }
 }
 

@@ -22,6 +22,18 @@ import type * as FabricNS from 'fabric';
  */
 export type FabricModule = typeof FabricNS;
 
+// ─── Layout primitives ──────────────────────────────────────────────────────
+
+/**
+ * Mutually exclusive image layout mode used by {@link ImageEditor.setLayoutMode}.
+ *
+ * - `'fit'` scales the image down to fit inside the visible workspace.
+ * - `'cover'` scales large images down to cover the visible workspace and
+ *   keeps overflowing axes scrollable.
+ * - `'expand'` grows the canvas to fit the loaded image.
+ */
+export type LayoutMode = 'fit' | 'cover' | 'expand';
+
 // ─── Image format primitives ─────────────────────────────────────────────────
 
 /**
