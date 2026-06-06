@@ -303,6 +303,34 @@ const maskShapeConfigs = {
     },
 };
 
+const editorElementIds = {
+    canvas: 'canvas',
+    imagePlaceholder: 'imagePlaceholder',
+    scalePercentageInput: 'scalePercentageInput',
+    zoomInButton: 'zoomInButton',
+    zoomOutButton: 'zoomOutButton',
+    rotateLeftButton: 'rotateLeftButton',
+    rotateLeftDegreesInput: 'rotateLeftDegreesInput',
+    rotateRightButton: 'rotateRightButton',
+    rotateRightDegreesInput: 'rotateRightDegreesInput',
+    removeSelectedMaskButton: 'removeSelectedMaskButton',
+    removeAllMasksButton: 'removeAllMasksButton',
+    enterCropModeButton: 'enterCropModeButton',
+    applyCropButton: 'applyCropButton',
+    cancelCropButton: 'cancelCropButton',
+    mergeMasksButton: 'mergeMasksButton',
+    downloadImageButton: 'downloadImageButton',
+    undoButton: 'undoButton',
+    redoButton: 'redoButton',
+    resetImageTransformButton: 'resetImageTransformButton',
+    maskList: 'maskList',
+    // The demo handles these controls so it can support shape selection,
+    // Base64 loading, drag/drop, and localized error messages.
+    createMaskButton: null,
+    imageInput: null,
+    uploadArea: null,
+};
+
 function getOptionalElement(id) {
     return document.getElementById(id);
 }
@@ -312,15 +340,25 @@ function getGlobalFabricModule() {
 }
 
 function setGlobalFabricModule(fabricModule) {
-    if (fabricModule) {
-        window.fabric = fabricModule;
-        return;
+    const nextFabricModule = fabricModule || undefined;
+
+    try {
+        if (Reflect.deleteProperty(window, 'fabric')) {
+            if (nextFabricModule) window.fabric = nextFabricModule;
+            return;
+        }
+    } catch {
+        // Fall through to redefine the global below.
     }
 
     try {
-        delete window.fabric;
+        Object.defineProperty(window, 'fabric', {
+            configurable: true,
+            writable: true,
+            value: nextFabricModule,
+        });
     } catch {
-        window.fabric = undefined;
+        window.fabric = nextFabricModule;
     }
 }
 
@@ -354,7 +392,9 @@ async function runWithVersionLoadingOverlay(operation) {
 }
 
 function getImageEditorConstructor(imageEditorGlobal = window.ImageEditor) {
-    return (imageEditorGlobal && imageEditorGlobal.ImageEditor) || imageEditorGlobal || null;
+    const ImageEditor =
+        imageEditorGlobal?.ImageEditor || imageEditorGlobal?.default || imageEditorGlobal;
+    return typeof ImageEditor === 'function' ? ImageEditor : null;
 }
 
 function rememberCurrentDemoRuntime(versionKey) {
@@ -409,6 +449,7 @@ async function ensureDemoRuntime(versionKey) {
 
     try {
         if (!config.fabricGlobal) {
+            setGlobalFabricModule(null);
             await loadFirstAvailableScript(config.fabricSources());
             config.fabricGlobal = getGlobalFabricModule();
         }
@@ -521,24 +562,14 @@ function createEditorOptions() {
         animationDuration: 100,
         maskLabelOffset: 5,
         showPlaceholder: true,
-        // v2 uses `exportAreaByDefault`; v1 uses `exportImageAreaByDefault`.
         exportAreaByDefault: 'image',
-        exportImageAreaByDefault: true,
+        ...(activeDemoVersion === legacyDemoVersion ? { exportImageAreaByDefault: true } : {}),
         // Lifecycle callbacks are a convenient way for host pages to sync
         // their own controls with editor state without reaching into internals.
         onImageChanged: updateDemoControls,
         onBusyChange: updateDemoControls,
         onMasksChanged: updateDemoControls,
     };
-}
-
-function createEditorInstance(ImageEditorCtor, options) {
-    if (activeDemoVersion === modernDemoVersion) {
-        const fabricModule = getGlobalFabricModule();
-        if (fabricModule) return new ImageEditorCtor(fabricModule, options);
-    }
-
-    return new ImageEditorCtor(options);
 }
 
 async function switchDemoVersion(nextVersion) {
@@ -829,50 +860,16 @@ function initEditor() {
     rememberCurrentDemoRuntime(activeDemoVersion);
     applyDemoRuntime(activeDemoVersion);
 
-    // The UMD bundle exposes the constructor on `globalThis.ImageEditor`
-    // (Rollup `name: 'ImageEditor'`, `exports: 'named'`). Depending on the
-    // host environment, the global may be the bare constructor or a
-    // namespace object that re-exports it as `.ImageEditor`.
-    const ImageEditorCtor = getImageEditorConstructor();
-    if (!ImageEditorCtor) {
+    const ImageEditor = getImageEditorConstructor();
+    if (!ImageEditor) {
         console.error(
             'ImageEditor constructor not found. Make sure the UMD bundle is loaded before this script.',
         );
         return;
     }
 
-    // UMD form: when `globalThis.fabric` is present (loaded via the
-    // documented `<script>` tag) the constructor reads it automatically.
-    //
-    // In ESM applications the equivalent is:
-    // `new ImageEditor(fabric, { ...options })`.
-    editor = createEditorInstance(ImageEditorCtor, createEditorOptions());
-
-    // `init` wires optional DOM affordances by ID. Passing `null` disables a
-    // built-in binding so the host page can provide its own control, as this
-    // demo does for create-mask and file-upload interactions.
-    editor.init({
-        canvas: 'canvas',
-        imagePlaceholder: 'imagePlaceholder',
-        scalePercentageInput: 'scalePercentageInput',
-        rotateLeftButton: 'rotateLeftButton',
-        rotateRightButton: 'rotateRightButton',
-        rotateLeftDegreesInput: 'rotateLeftDegreesInput',
-        rotateRightDegreesInput: 'rotateRightDegreesInput',
-        createMaskButton: null,
-        removeSelectedMaskButton: 'removeSelectedMaskButton',
-        removeAllMasksButton: 'removeAllMasksButton',
-        mergeMasksButton: 'mergeMasksButton',
-        downloadImageButton: 'downloadImageButton',
-        maskList: 'maskList',
-        enterCropModeButton: 'enterCropModeButton',
-        applyCropButton: 'applyCropButton',
-        cancelCropButton: 'cancelCropButton',
-        resetImageTransformButton: 'resetImageTransformButton',
-        canvasContainer: null,
-        imageInput: null,
-        uploadArea: null,
-    });
+    editor = new ImageEditor(createEditorOptions());
+    editor.init(editorElementIds);
     updateDemoVersionToggle();
 }
 
