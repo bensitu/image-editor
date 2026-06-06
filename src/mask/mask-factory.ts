@@ -16,7 +16,7 @@
  * - For `'rect' | 'circle' | 'ellipse' | 'polygon'`
  *   the corresponding Fabric shape is built with explicit
  *   `originX: 'left'`, `originY: 'top'`, plus the resolved color, opacity,
- *   angle, and the user's `styles` block.
+ *   angle, and the merged `styles` block.
  * - When `config.fabricGenerator` is supplied it is
  *   called with `(resolvedConfig, canvas, options)` and its return value is
  *   used verbatim as the mask object.
@@ -25,13 +25,14 @@
  *   `saveState` → `config.onCreate(mask, canvas)`.
  * - `config.onCreate` is invoked exactly once,
  *   strictly after `saveState` has run.
- * - Falsy values supplied via `config.styles` (`0`,
- *   `false`, `null`, `''`, `NaN`) are applied verbatim. The factory does
- *   NOT use `??` to default stroke / strokeWidth / strokeDashArray when the
- *   key is explicitly present on `styles`.
- * - `hasControls`, `selectable`, `transparentCorners`,
- *   `strokeUniform` use the `'foo' in config ? … : default` pattern so that
- *   an explicit `false` is preserved.
+ * - Falsy values supplied via `options.defaultMaskConfig.styles` or
+ *   `config.styles` (`0`, `false`, `null`, `''`, `NaN`) are applied
+ *   verbatim. The factory does NOT use `??` to default stroke /
+ *   strokeWidth / strokeDashArray when the key is explicitly present on
+ *   the merged `styles`.
+ * - `hasControls`, `selectable`, `evented`, `transparentCorners`,
+ *   `strokeUniform` use the `'foo' in mergedConfig ? … : default` pattern
+ *   so that an explicit `false` is preserved.
  * - When a polygon mask is built, its visible
  *   bounding-box top-left SHALL equal the resolved `(left, top)`. Fabric
  *   v7's `Polygon` constructor positions the object so the polygon's
@@ -78,6 +79,7 @@
 
 import type * as FabricNS from 'fabric';
 import type {
+    DefaultMaskConfig,
     FabricModule,
     MaskConfig,
     MaskObject,
@@ -140,6 +142,29 @@ function isFabricObjectLike(value: unknown): value is FabricNS.FabricObject {
         on?: unknown;
     };
     return typeof candidate.set === 'function' && typeof candidate.on === 'function';
+}
+
+function isStyleObject(value: unknown): value is Partial<FabricNS.FabricObjectProps> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeMaskConfig(defaultMaskConfig: DefaultMaskConfig, config: MaskConfig): MaskConfig {
+    const safeDefaultConfig = { ...(defaultMaskConfig as Record<string, unknown>) };
+    const defaultStyles = safeDefaultConfig.styles;
+    delete safeDefaultConfig.onCreate;
+    delete safeDefaultConfig.fabricGenerator;
+    delete safeDefaultConfig.styles;
+    const configStyles = isStyleObject(config.styles) ? config.styles : {};
+    const safeDefaultStyles = isStyleObject(defaultStyles) ? defaultStyles : {};
+
+    return {
+        ...safeDefaultConfig,
+        ...config,
+        styles: {
+            ...safeDefaultStyles,
+            ...configStyles,
+        },
+    };
 }
 
 function warnInvalidMask(options: ResolvedOptions, reason: string): void {
@@ -248,19 +273,21 @@ function polygonArea(points: Array<{ x: number; y: number }>): number {
  *
  * Creation steps:
  *
- * 1. Resolve the config: apply defaults, then resolve placement
- *    (`left`/`top`) and dimensions (`width`/`height`/`rx`/`ry`/`radius`)
- *    via {@link resolveNumeric} so percentages and factory functions
- *    collapse to pixel numbers before Fabric shape construction.
+ * 1. Resolve the config: apply built-in defaults, legacy mask size options,
+ *    `options.defaultMaskConfig`, and per-call overrides, then resolve
+ *    placement (`left`/`top`) and dimensions
+ *    (`width`/`height`/`rx`/`ry`/`radius`) via {@link resolveNumeric} so
+ *    percentages and factory functions collapse to pixel numbers before
+ *    Fabric shape construction.
  * 2. Optionally expand the canvas if the placement would overflow.
- * 3. Build the Fabric shape — switch on `config.shape`, or call
- *    `config.fabricGenerator` if provided.
+ * 3. Build the Fabric shape — switch on the merged `shape`, or call the
+ *    per-call `config.fabricGenerator` if provided.
  * 4. Apply common mask properties. Falsy flags (`hasControls`,
- *    `selectable`, `transparentCorners`, `strokeUniform`) use the
- *    `'foo' in config ? … : default` pattern so an explicit `false` is
- *    preserved. Stroke / strokeWidth /
- *    strokeDashArray pulled out of `styles` use the same `in` check so
- *    `null` and `0` are preserved verbatim.
+ *    `selectable`, `evented`, `transparentCorners`, `strokeUniform`) use
+ *    the `'foo' in mergedConfig ? … : default` pattern so an explicit
+ *    `false` is preserved. Stroke / strokeWidth / strokeDashArray pulled
+ *    out of `styles` use the same `in` check so `null` and `0` are
+ *    preserved verbatim.
  * 5. Increment `maskCounter` and assign `maskId`, `maskName`,
  *    `originalAlpha`.
  * 6. Post-create order: add to canvas → `updateMaskList` →
@@ -275,12 +302,12 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     const { canvas, options, fabric: fabricModule } = context;
     if (!canvas) return null;
 
-    const shapeType = config.shape ?? 'rect';
-    if (!validateNumericInputs(options, config)) return null;
+    const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
+    const shapeType = mergedConfig.shape ?? 'rect';
+    if (!validateNumericInputs(options, mergedConfig)) return null;
 
     // ── Resolve config (defaults merged with the user overrides) ──────────
     const resolvedConfig: ResolvedMaskConfig = {
-        shape: shapeType,
         width: options.defaultMaskWidth,
         height: options.defaultMaskHeight,
         color: 'rgba(0,0,0,0.5)',
@@ -290,7 +317,8 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         top: undefined,
         angle: 0,
         selectable: true,
-        ...config,
+        ...mergedConfig,
+        shape: shapeType,
     } as ResolvedMaskConfig;
 
     const firstOffset = 10;
@@ -300,7 +328,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     let left: number;
     let top: number;
     const previousMask = context.getLastMask();
-    if (config.left === undefined && previousMask) {
+    if (mergedConfig.left === undefined && previousMask) {
         const previousRight =
             (previousMask.left ?? 0) +
             (typeof previousMask.getScaledWidth === 'function'
@@ -309,20 +337,20 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         left = Math.round(previousRight + (resolvedConfig.gap ?? 5));
         top = previousMask.top ?? firstOffset;
     } else {
-        left = resolveNumeric(config.left, 'x', firstOffset, canvas, options);
-        top = resolveNumeric(config.top, 'y', firstOffset, canvas, options);
+        left = resolveNumeric(mergedConfig.left, 'x', firstOffset, canvas, options);
+        top = resolveNumeric(mergedConfig.top, 'y', firstOffset, canvas, options);
     }
 
     // ── Resolve dimensions (axis-aware percentages) ──
     resolvedConfig.width = resolveNumeric(
-        config.width,
+        mergedConfig.width,
         'x',
         options.defaultMaskWidth,
         canvas,
         options,
     );
     resolvedConfig.height = resolveNumeric(
-        config.height,
+        mergedConfig.height,
         'y',
         options.defaultMaskHeight,
         canvas,
@@ -330,13 +358,17 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     );
 
     const rx =
-        config.rx !== undefined ? resolveNumeric(config.rx, 'x', 0, canvas, options) : undefined;
+        mergedConfig.rx !== undefined
+            ? resolveNumeric(mergedConfig.rx, 'x', 0, canvas, options)
+            : undefined;
     const ry =
-        config.ry !== undefined ? resolveNumeric(config.ry, 'y', 0, canvas, options) : undefined;
+        mergedConfig.ry !== undefined
+            ? resolveNumeric(mergedConfig.ry, 'y', 0, canvas, options)
+            : undefined;
     const radius =
         shapeType === 'circle'
             ? resolveNumeric(
-                  config.radius,
+                  mergedConfig.radius,
                   'x',
                   Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
                   canvas,
@@ -344,7 +376,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
               )
             : undefined;
     const polygonPoints =
-        shapeType === 'polygon' ? resolvePolygonPoints(options, config.points) : null;
+        shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
 
     if (
         !validateFiniteField(options, 'left', left) ||
@@ -386,12 +418,8 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     // ── Build the Fabric shape ──────────────────
     let mask: FabricNS.FabricObject;
 
-    if (typeof resolvedConfig.fabricGenerator === 'function') {
-        const generated = resolvedConfig.fabricGenerator(
-            resolvedConfig,
-            canvas,
-            options,
-        ) as unknown;
+    if (typeof config.fabricGenerator === 'function') {
+        const generated = config.fabricGenerator(resolvedConfig, canvas, options) as unknown;
         if (!isFabricObjectLike(generated)) {
             reportWarning(
                 options,
@@ -491,20 +519,21 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     }
 
     // ── Common mask properties ─────────────────────────
-    //    The four flags below use the `'foo' in config ? … : default`
+    //    The flags below use the `'foo' in mergedConfig ? … : default`
     //    pattern so that an explicit `false` is preserved as `false` and
     //    `undefined` falls back to the documented default.
     const maskObject = mask as MaskObject;
-    maskObject.selectable = 'selectable' in config ? !!config.selectable : true;
-    maskObject.evented = 'evented' in config ? !!config.evented : true;
-    maskObject.hasControls = 'hasControls' in config ? !!config.hasControls : true;
+    maskObject.selectable = 'selectable' in mergedConfig ? !!mergedConfig.selectable : true;
+    maskObject.evented = 'evented' in mergedConfig ? !!mergedConfig.evented : true;
+    maskObject.hasControls = 'hasControls' in mergedConfig ? !!mergedConfig.hasControls : true;
     maskObject.transparentCorners =
-        'transparentCorners' in config ? !!config.transparentCorners : false;
-    maskObject.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
+        'transparentCorners' in mergedConfig ? !!mergedConfig.transparentCorners : false;
+    maskObject.strokeUniform =
+        'strokeUniform' in mergedConfig ? !!mergedConfig.strokeUniform : true;
     maskObject.lockRotation = !options.maskRotatable;
-    maskObject.borderColor = config.borderColor ?? 'red';
-    maskObject.cornerColor = config.cornerColor ?? 'black';
-    maskObject.cornerSize = config.cornerSize ?? 8;
+    maskObject.borderColor = mergedConfig.borderColor ?? 'red';
+    maskObject.cornerColor = mergedConfig.cornerColor ?? 'black';
+    maskObject.cornerSize = mergedConfig.cornerSize ?? 8;
 
     // ── Stroke defaults — preserve falsy values from `styles` ─────────────
     //    `??` would replace `null` with the default. Use an `in` check so
@@ -556,9 +585,9 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     canvas.renderAll();
     context.saveCanvasState();
 
-    if (typeof resolvedConfig.onCreate === 'function') {
+    if (typeof config.onCreate === 'function') {
         try {
-            resolvedConfig.onCreate(maskObject, canvas);
+            config.onCreate(maskObject, canvas);
         } catch (error) {
             reportWarning(options, error, 'createMask onCreate callback threw.');
         }

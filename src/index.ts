@@ -46,6 +46,7 @@ export type {
     LoadImageOptions,
     RemoveAllMasksOptions,
     // Mask
+    DefaultMaskConfig,
     MaskConfig,
     MaskObject,
     MaskNumericProp,

@@ -1,3 +1,4 @@
+const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 export const DEFAULT_OPTIONS = {
     canvasWidth: 800,
     canvasHeight: 600,
@@ -24,6 +25,7 @@ export const DEFAULT_OPTIONS = {
     mergeMaskByDefault: true,
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
+    defaultMaskConfig: EMPTY_DEFAULT_MASK_CONFIG,
     maskRotatable: false,
     maskLabelOnSelect: true,
     maskLabelOffset: 3,
@@ -95,6 +97,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'mergeMaskByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
+    'defaultMaskConfig',
     'maskRotatable',
     'maskLabelOnSelect',
     'maskLabelOffset',
@@ -118,6 +121,33 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
+}
+function isConfigObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function copyDefaultMaskConfigValue(value) {
+    return Array.isArray(value) ? [...value] : value;
+}
+function normalizeDefaultMaskConfig(value) {
+    if (!isConfigObject(value))
+        return EMPTY_DEFAULT_MASK_CONFIG;
+    const normalized = {};
+    for (const [key, optionValue] of Object.entries(value)) {
+        if (key === 'onCreate' || key === 'fabricGenerator' || key === 'styles')
+            continue;
+        normalized[key] = copyDefaultMaskConfigValue(optionValue);
+    }
+    const styles = value.styles;
+    if (isConfigObject(styles)) {
+        const copiedStyles = {};
+        for (const [key, styleValue] of Object.entries(styles)) {
+            copiedStyles[key] = copyDefaultMaskConfigValue(styleValue);
+        }
+        Object.freeze(copiedStyles);
+        normalized.styles = copiedStyles;
+    }
+    Object.freeze(normalized);
+    return normalized;
 }
 function normalizePositiveInteger(value, fallback) {
     const numeric = Number(value);
@@ -260,6 +290,10 @@ export function resolveOptions(input) {
         }
         if (key === 'defaultMaskHeight') {
             resolved.defaultMaskHeight = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.defaultMaskHeight);
+            continue;
+        }
+        if (key === 'defaultMaskConfig') {
+            resolved.defaultMaskConfig = normalizeDefaultMaskConfig(value);
             continue;
         }
         if (key === 'maskLabelOffset') {

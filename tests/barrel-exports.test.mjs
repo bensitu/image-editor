@@ -79,6 +79,7 @@ test('barrel re-exports documented public type names', async () => {
         'LabelConfig',
         'CropConfig',
         'CropExportFileType',
+        'DefaultMaskConfig',
         'MaskConfig',
         'MaskObject',
         'MaskNumericProp',

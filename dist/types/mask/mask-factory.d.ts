@@ -16,7 +16,7 @@
  * - For `'rect' | 'circle' | 'ellipse' | 'polygon'`
  *   the corresponding Fabric shape is built with explicit
  *   `originX: 'left'`, `originY: 'top'`, plus the resolved color, opacity,
- *   angle, and the user's `styles` block.
+ *   angle, and the merged `styles` block.
  * - When `config.fabricGenerator` is supplied it is
  *   called with `(resolvedConfig, canvas, options)` and its return value is
  *   used verbatim as the mask object.
@@ -25,13 +25,14 @@
  *   `saveState` → `config.onCreate(mask, canvas)`.
  * - `config.onCreate` is invoked exactly once,
  *   strictly after `saveState` has run.
- * - Falsy values supplied via `config.styles` (`0`,
- *   `false`, `null`, `''`, `NaN`) are applied verbatim. The factory does
- *   NOT use `??` to default stroke / strokeWidth / strokeDashArray when the
- *   key is explicitly present on `styles`.
- * - `hasControls`, `selectable`, `transparentCorners`,
- *   `strokeUniform` use the `'foo' in config ? … : default` pattern so that
- *   an explicit `false` is preserved.
+ * - Falsy values supplied via `options.defaultMaskConfig.styles` or
+ *   `config.styles` (`0`, `false`, `null`, `''`, `NaN`) are applied
+ *   verbatim. The factory does NOT use `??` to default stroke /
+ *   strokeWidth / strokeDashArray when the key is explicitly present on
+ *   the merged `styles`.
+ * - `hasControls`, `selectable`, `evented`, `transparentCorners`,
+ *   `strokeUniform` use the `'foo' in mergedConfig ? … : default` pattern
+ *   so that an explicit `false` is preserved.
  * - When a polygon mask is built, its visible
  *   bounding-box top-left SHALL equal the resolved `(left, top)`. Fabric
  *   v7's `Polygon` constructor positions the object so the polygon's
@@ -117,19 +118,21 @@ export interface CreateMaskContext {
  *
  * Creation steps:
  *
- * 1. Resolve the config: apply defaults, then resolve placement
- *    (`left`/`top`) and dimensions (`width`/`height`/`rx`/`ry`/`radius`)
- *    via {@link resolveNumeric} so percentages and factory functions
- *    collapse to pixel numbers before Fabric shape construction.
+ * 1. Resolve the config: apply built-in defaults, legacy mask size options,
+ *    `options.defaultMaskConfig`, and per-call overrides, then resolve
+ *    placement (`left`/`top`) and dimensions
+ *    (`width`/`height`/`rx`/`ry`/`radius`) via {@link resolveNumeric} so
+ *    percentages and factory functions collapse to pixel numbers before
+ *    Fabric shape construction.
  * 2. Optionally expand the canvas if the placement would overflow.
- * 3. Build the Fabric shape — switch on `config.shape`, or call
- *    `config.fabricGenerator` if provided.
+ * 3. Build the Fabric shape — switch on the merged `shape`, or call the
+ *    per-call `config.fabricGenerator` if provided.
  * 4. Apply common mask properties. Falsy flags (`hasControls`,
- *    `selectable`, `transparentCorners`, `strokeUniform`) use the
- *    `'foo' in config ? … : default` pattern so an explicit `false` is
- *    preserved. Stroke / strokeWidth /
- *    strokeDashArray pulled out of `styles` use the same `in` check so
- *    `null` and `0` are preserved verbatim.
+ *    `selectable`, `evented`, `transparentCorners`, `strokeUniform`) use
+ *    the `'foo' in mergedConfig ? … : default` pattern so an explicit
+ *    `false` is preserved. Stroke / strokeWidth / strokeDashArray pulled
+ *    out of `styles` use the same `in` check so `null` and `0` are
+ *    preserved verbatim.
  * 5. Increment `maskCounter` and assign `maskId`, `maskName`,
  *    `originalAlpha`.
  * 6. Post-create order: add to canvas → `updateMaskList` →

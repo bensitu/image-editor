@@ -14,6 +14,7 @@
 
 import type {
     CropConfig,
+    DefaultMaskConfig,
     ExportArea,
     ImageEditorOptions,
     LabelConfig,
@@ -22,6 +23,8 @@ import type {
 } from './public-types.js';
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
+
+const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({}) as DefaultMaskConfig;
 
 /**
  * Documented defaults for every top-level option except the nested
@@ -71,6 +74,7 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
     // Mask defaults
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
+    defaultMaskConfig: EMPTY_DEFAULT_MASK_CONFIG,
     maskRotatable: false,
     maskLabelOnSelect: true,
     maskLabelOffset: 3,
@@ -171,6 +175,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'mergeMaskByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
+    'defaultMaskConfig',
     'maskRotatable',
     'maskLabelOnSelect',
     'maskLabelOffset',
@@ -201,6 +206,37 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
  */
 function normalizeCallback<F extends (...args: never[]) => unknown>(value: unknown): F | null {
     return typeof value === 'function' ? (value as F) : null;
+}
+
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function copyDefaultMaskConfigValue(value: unknown): unknown {
+    return Array.isArray(value) ? [...value] : value;
+}
+
+function normalizeDefaultMaskConfig(value: unknown): DefaultMaskConfig {
+    if (!isConfigObject(value)) return EMPTY_DEFAULT_MASK_CONFIG;
+
+    const normalized: Record<string, unknown> = {};
+    for (const [key, optionValue] of Object.entries(value)) {
+        if (key === 'onCreate' || key === 'fabricGenerator' || key === 'styles') continue;
+        normalized[key] = copyDefaultMaskConfigValue(optionValue);
+    }
+
+    const styles = value.styles;
+    if (isConfigObject(styles)) {
+        const copiedStyles: Record<string, unknown> = {};
+        for (const [key, styleValue] of Object.entries(styles)) {
+            copiedStyles[key] = copyDefaultMaskConfigValue(styleValue);
+        }
+        Object.freeze(copiedStyles);
+        normalized.styles = copiedStyles;
+    }
+
+    Object.freeze(normalized);
+    return normalized as DefaultMaskConfig;
 }
 
 function normalizePositiveInteger(value: unknown, fallback: number): number {
@@ -390,6 +426,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
                 value,
                 DEFAULT_OPTIONS.defaultMaskHeight,
             );
+            continue;
+        }
+        if (key === 'defaultMaskConfig') {
+            resolved.defaultMaskConfig = normalizeDefaultMaskConfig(value);
             continue;
         }
         if (key === 'maskLabelOffset') {

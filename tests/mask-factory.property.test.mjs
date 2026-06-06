@@ -413,6 +413,141 @@ test('evented option is applied with documented defaults', () => {
     }
 });
 
+test('defaultMaskConfig color and alpha are applied to createMask()', () => {
+    const ctx = makeContext({
+        options: {
+            defaultMaskConfig: {
+                color: 'rgba(255, 0, 0, 0.35)',
+                alpha: 0.35,
+            },
+        },
+    });
+
+    const mask = createMask(ctx);
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.fill, 'rgba(255, 0, 0, 0.35)');
+    assert.equal(mask.opacity, 0.35);
+    assert.equal(mask.originalAlpha, 0.35);
+});
+
+test('defaultMaskConfig styles are applied to createMask()', () => {
+    const ctx = makeContext({
+        options: {
+            defaultMaskConfig: {
+                styles: {
+                    stroke: '#ff0000',
+                    strokeWidth: 2,
+                    strokeDashArray: [6, 4],
+                },
+            },
+        },
+    });
+
+    const mask = createMask(ctx);
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.stroke, '#ff0000');
+    assert.equal(mask.strokeWidth, 2);
+    assert.deepEqual(mask.strokeDashArray, [6, 4]);
+});
+
+test('per-call createMask config overrides defaultMaskConfig', () => {
+    const ctx = makeContext({
+        options: {
+            defaultMaskConfig: {
+                color: 'rgba(255, 0, 0, 0.35)',
+                width: 120,
+                height: 90,
+                styles: {
+                    stroke: '#ff0000',
+                    strokeWidth: 2,
+                },
+            },
+        },
+    });
+
+    const mask = createMask(ctx, {
+        color: 'rgba(0, 128, 255, 0.35)',
+        width: 200,
+        styles: {
+            stroke: '#0080ff',
+        },
+    });
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.fill, 'rgba(0, 128, 255, 0.35)');
+    assert.equal(mask.width, 200);
+    assert.equal(mask.height, 90);
+    assert.equal(mask.stroke, '#0080ff');
+    assert.equal(mask.strokeWidth, 2);
+});
+
+test('legacy defaultMaskWidth and defaultMaskHeight still set mask size', () => {
+    const ctx = makeContext({
+        options: {
+            defaultMaskWidth: 51,
+            defaultMaskHeight: 82,
+        },
+    });
+
+    const mask = createMask(ctx);
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.width, 51);
+    assert.equal(mask.height, 82);
+});
+
+test('defaultMaskConfig width and height override legacy mask size options', () => {
+    const ctx = makeContext({
+        options: {
+            defaultMaskWidth: 50,
+            defaultMaskHeight: 80,
+            defaultMaskConfig: {
+                width: 120,
+                height: 90,
+            },
+        },
+    });
+
+    const mask = createMask(ctx);
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.width, 120);
+    assert.equal(mask.height, 90);
+});
+
+test('defaultMaskConfig preserves explicit falsy flags and styles', () => {
+    const ctx = makeContext({
+        options: {
+            defaultMaskConfig: {
+                selectable: false,
+                evented: false,
+                hasControls: false,
+                transparentCorners: false,
+                strokeUniform: false,
+                styles: {
+                    stroke: null,
+                    strokeWidth: 0,
+                    strokeDashArray: [],
+                },
+            },
+        },
+    });
+
+    const mask = createMask(ctx);
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.selectable, false);
+    assert.equal(mask.evented, false);
+    assert.equal(mask.hasControls, false);
+    assert.equal(mask.transparentCorners, false);
+    assert.equal(mask.strokeUniform, false);
+    assert.equal(mask.stroke, null);
+    assert.equal(mask.strokeWidth, 0);
+    assert.deepEqual(mask.strokeDashArray, []);
+});
+
 test('throwing onCreate callback is isolated after committed mask creation', () => {
     const callbackError = new Error('onCreate failed');
     const warnings = [];

@@ -93,7 +93,13 @@ const CALLBACK_KEYS = [
     'onWarning',
 ];
 
-const ALL_TOP_LEVEL_KEYS = [...TOP_LEVEL_SCALAR_KEYS, ...CALLBACK_KEYS, 'label', 'crop'];
+const ALL_TOP_LEVEL_KEYS = [
+    ...TOP_LEVEL_SCALAR_KEYS,
+    ...CALLBACK_KEYS,
+    'defaultMaskConfig',
+    'label',
+    'crop',
+];
 
 // Default text-option keys we expect to survive deep-merge. Pulled from
 // DEFAULT_LABEL.textOptions so the test stays in sync if defaults change.
@@ -447,6 +453,18 @@ test('options resolution completeness and deep-merge', () => {
                 true,
                 'resolved.label.textOptions must be frozen',
             );
+            assert.equal(
+                Object.isFrozen(resolved.defaultMaskConfig),
+                true,
+                'resolved.defaultMaskConfig must be frozen',
+            );
+            if (resolved.defaultMaskConfig.styles) {
+                assert.equal(
+                    Object.isFrozen(resolved.defaultMaskConfig.styles),
+                    true,
+                    'resolved.defaultMaskConfig.styles must be frozen',
+                );
+            }
             assert.equal(Object.isFrozen(resolved.crop), true, 'resolved.crop must be frozen');
 
             // Post-construction mutation of U, U.label, U.label.textOptions,
@@ -525,6 +543,59 @@ test('options resolution completeness and deep-merge', () => {
 test('downsampleQuality null falls back to the default quality', () => {
     const resolved = resolveOptions({ downsampleQuality: null });
     assert.equal(resolved.downsampleQuality, DEFAULT_OPTIONS.downsampleQuality);
+});
+
+test('defaultMaskConfig is copied, frozen, and filters per-call hooks', () => {
+    const onCreate = () => {};
+    const fabricGenerator = () => null;
+    const inputDefaultMaskConfig = {
+        width: 120,
+        color: 'rgba(255, 0, 0, 0.35)',
+        selectable: false,
+        onCreate,
+        fabricGenerator,
+        styles: {
+            stroke: null,
+            strokeWidth: 0,
+            strokeDashArray: [6, 4],
+        },
+    };
+
+    const resolved = resolveOptions({ defaultMaskConfig: inputDefaultMaskConfig });
+
+    assert.notEqual(resolved.defaultMaskConfig, inputDefaultMaskConfig);
+    assert.equal(resolved.defaultMaskConfig.width, 120);
+    assert.equal(resolved.defaultMaskConfig.color, 'rgba(255, 0, 0, 0.35)');
+    assert.equal(resolved.defaultMaskConfig.selectable, false);
+    assert.equal('onCreate' in resolved.defaultMaskConfig, false);
+    assert.equal('fabricGenerator' in resolved.defaultMaskConfig, false);
+    assert.notEqual(resolved.defaultMaskConfig.styles, inputDefaultMaskConfig.styles);
+    assert.equal(resolved.defaultMaskConfig.styles.stroke, null);
+    assert.equal(resolved.defaultMaskConfig.styles.strokeWidth, 0);
+    assert.deepEqual(resolved.defaultMaskConfig.styles.strokeDashArray, [6, 4]);
+    assert.notEqual(
+        resolved.defaultMaskConfig.styles.strokeDashArray,
+        inputDefaultMaskConfig.styles.strokeDashArray,
+    );
+    assert.equal(Object.isFrozen(resolved.defaultMaskConfig), true);
+    assert.equal(Object.isFrozen(resolved.defaultMaskConfig.styles), true);
+
+    inputDefaultMaskConfig.width = 999;
+    inputDefaultMaskConfig.styles.stroke = '#000000';
+    inputDefaultMaskConfig.styles.strokeDashArray.push(8);
+
+    assert.equal(resolved.defaultMaskConfig.width, 120);
+    assert.equal(resolved.defaultMaskConfig.styles.stroke, null);
+    assert.deepEqual(resolved.defaultMaskConfig.styles.strokeDashArray, [6, 4]);
+});
+
+test('invalid defaultMaskConfig values resolve to a frozen empty object', () => {
+    for (const defaultMaskConfig of [undefined, null, false, 123, 'mask', [], () => ({})]) {
+        const resolved = resolveOptions({ defaultMaskConfig });
+
+        assert.deepEqual(resolved.defaultMaskConfig, {});
+        assert.equal(Object.isFrozen(resolved.defaultMaskConfig), true);
+    }
 });
 
 // Boundary cases — the documented contract with no input at all.

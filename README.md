@@ -273,6 +273,27 @@ the JPEG, PNG, or WebP export options.
 `fabricGenerator`. Falsy values in `styles` (`0`, `false`, `null`, `''`,
 `NaN`) are applied verbatim.
 
+Use `defaultMaskConfig` to define constructor-level defaults for masks created
+through either `createMask()` or the built-in `createMaskButton`. Per-call
+`createMask(config)` values override `defaultMaskConfig`.
+
+```ts
+const editor = new ImageEditor(fabric, {
+    defaultMaskConfig: {
+        color: 'rgba(255, 0, 0, 0.35)',
+        alpha: 0.35,
+        styles: {
+            stroke: '#ff0000',
+            strokeWidth: 2,
+            strokeDashArray: [6, 4],
+        },
+    },
+});
+
+editor.createMask(); // Uses defaultMaskConfig.
+editor.createMask({ color: 'rgba(0, 128, 255, 0.35)' }); // Per-call override.
+```
+
 ### Crop
 
 | Method            | Description                                                                          |
@@ -352,6 +373,7 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 | `mergeMaskByDefault`      | `true`               | Default mask compositing behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                             |
 | `defaultMaskWidth`        | `50`                 | Default mask width.                                                                                                                                                                                                                                                            |
 | `defaultMaskHeight`       | `80`                 | Default mask height.                                                                                                                                                                                                                                                           |
+| `defaultMaskConfig`       | `{}`                 | Defaults applied by `createMask()` after `defaultMaskWidth` / `defaultMaskHeight` and before per-call config. Supports `MaskConfig` fields except `onCreate` and `fabricGenerator`.                                                                                            |
 | `maskRotatable`           | `false`              | Allow masks to be rotated by the user.                                                                                                                                                                                                                                         |
 | `maskLabelOnSelect`       | `true`               | Show a label above a selected mask.                                                                                                                                                                                                                                            |
 | `maskLabelOffset`         | `3`                  | Pixel offset of the label from the mask's top-left corner.                                                                                                                                                                                                                     |
@@ -449,6 +471,7 @@ import type {
     CropConfig,
     LoadImageOptions,
     RemoveAllMasksOptions,
+    DefaultMaskConfig,
     MaskConfig,
     MaskObject,
     MaskNumericProp,

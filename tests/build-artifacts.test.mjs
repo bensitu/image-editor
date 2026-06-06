@@ -219,3 +219,14 @@ test('public types declaration exports ResolvedMaskConfig', async () => {
             `the package root re-exports it and MaskConfig.fabricGenerator references it`,
     );
 });
+
+test('public types declaration exports DefaultMaskConfig', async () => {
+    if (!distIsBuilt) return;
+    const { text } = await readArtifact(ARTIFACTS.publicTypes);
+    assert.match(
+        text,
+        /\bexport\s+type\s+DefaultMaskConfig\b/,
+        `${ARTIFACTS.publicTypes} must export \`DefaultMaskConfig\` because ` +
+            `the package root re-exports it for constructor defaults`,
+    );
+});

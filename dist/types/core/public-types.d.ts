@@ -324,6 +324,13 @@ export interface MaskConfig {
     fabricGenerator?: (config: ResolvedMaskConfig, canvas: FabricNS.Canvas, options: ResolvedOptions) => FabricNS.FabricObject;
 }
 /**
+ * Constructor-level defaults applied to newly created masks.
+ *
+ * Uses the same shape as {@link MaskConfig}, except lifecycle hooks and custom
+ * Fabric object factories remain per-call only.
+ */
+export type DefaultMaskConfig = Omit<Partial<MaskConfig>, 'onCreate' | 'fabricGenerator'>;
+/**
  * Fully resolved mask config produced after defaults and percentage resolution
  * have been applied. Exposed because consumers may receive it via
  * `MaskConfig.fabricGenerator`.
@@ -570,6 +577,12 @@ export interface ImageEditorOptions {
     defaultMaskWidth?: number;
     /** Default height for new rect/ellipse masks. @default 80 */
     defaultMaskHeight?: number;
+    /**
+     * Global defaults used by {@link ImageEditor.createMask}.
+     *
+     * Per-call `createMask(config)` values override these defaults.
+     */
+    defaultMaskConfig?: DefaultMaskConfig;
     /** Allow masks to be rotated by the user. @default false */
     maskRotatable?: boolean;
     /** Show a name label above a selected mask. @default true */

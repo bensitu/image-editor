@@ -92,6 +92,7 @@ function reportError(options, error, message) {
     }
 }
 
+const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 const DEFAULT_OPTIONS = {
     canvasWidth: 800,
     canvasHeight: 600,
@@ -118,6 +119,7 @@ const DEFAULT_OPTIONS = {
     mergeMaskByDefault: true,
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
+    defaultMaskConfig: EMPTY_DEFAULT_MASK_CONFIG,
     maskRotatable: false,
     maskLabelOnSelect: true,
     maskLabelOffset: 3,
@@ -185,6 +187,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'mergeMaskByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
+    'defaultMaskConfig',
     'maskRotatable',
     'maskLabelOnSelect',
     'maskLabelOffset',
@@ -208,6 +211,33 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
+}
+function isConfigObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function copyDefaultMaskConfigValue(value) {
+    return Array.isArray(value) ? [...value] : value;
+}
+function normalizeDefaultMaskConfig(value) {
+    if (!isConfigObject(value))
+        return EMPTY_DEFAULT_MASK_CONFIG;
+    const normalized = {};
+    for (const [key, optionValue] of Object.entries(value)) {
+        if (key === 'onCreate' || key === 'fabricGenerator' || key === 'styles')
+            continue;
+        normalized[key] = copyDefaultMaskConfigValue(optionValue);
+    }
+    const styles = value.styles;
+    if (isConfigObject(styles)) {
+        const copiedStyles = {};
+        for (const [key, styleValue] of Object.entries(styles)) {
+            copiedStyles[key] = copyDefaultMaskConfigValue(styleValue);
+        }
+        Object.freeze(copiedStyles);
+        normalized.styles = copiedStyles;
+    }
+    Object.freeze(normalized);
+    return normalized;
 }
 function normalizePositiveInteger(value, fallback) {
     const numeric = Number(value);
@@ -350,6 +380,10 @@ function resolveOptions(input) {
         }
         if (key === 'defaultMaskHeight') {
             resolved.defaultMaskHeight = normalizePositiveFiniteNumber(value, DEFAULT_OPTIONS.defaultMaskHeight);
+            continue;
+        }
+        if (key === 'defaultMaskConfig') {
+            resolved.defaultMaskConfig = normalizeDefaultMaskConfig(value);
             continue;
         }
         if (key === 'maskLabelOffset') {
@@ -3093,6 +3127,26 @@ function isFabricObjectLike(value) {
     const candidate = value;
     return typeof candidate.set === 'function' && typeof candidate.on === 'function';
 }
+function isStyleObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function mergeMaskConfig(defaultMaskConfig, config) {
+    const safeDefaultConfig = { ...defaultMaskConfig };
+    const defaultStyles = safeDefaultConfig.styles;
+    delete safeDefaultConfig.onCreate;
+    delete safeDefaultConfig.fabricGenerator;
+    delete safeDefaultConfig.styles;
+    const configStyles = isStyleObject(config.styles) ? config.styles : {};
+    const safeDefaultStyles = isStyleObject(defaultStyles) ? defaultStyles : {};
+    return {
+        ...safeDefaultConfig,
+        ...config,
+        styles: {
+            ...safeDefaultStyles,
+            ...configStyles,
+        },
+    };
+}
 function warnInvalidMask(options, reason) {
     reportWarning(options, null, `createMask skipped: ${reason}.`);
 }
@@ -3178,11 +3232,11 @@ function createMask(context, config = {}) {
     const { canvas, options, fabric: fabricModule } = context;
     if (!canvas)
         return null;
-    const shapeType = (_a = config.shape) !== null && _a !== void 0 ? _a : 'rect';
-    if (!validateNumericInputs(options, config))
+    const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
+    const shapeType = (_a = mergedConfig.shape) !== null && _a !== void 0 ? _a : 'rect';
+    if (!validateNumericInputs(options, mergedConfig))
         return null;
     const resolvedConfig = {
-        shape: shapeType,
         width: options.defaultMaskWidth,
         height: options.defaultMaskHeight,
         color: 'rgba(0,0,0,0.5)',
@@ -3192,13 +3246,14 @@ function createMask(context, config = {}) {
         top: undefined,
         angle: 0,
         selectable: true,
-        ...config,
+        ...mergedConfig,
+        shape: shapeType,
     };
     const firstOffset = 10;
     let left;
     let top;
     const previousMask = context.getLastMask();
-    if (config.left === undefined && previousMask) {
+    if (mergedConfig.left === undefined && previousMask) {
         const previousRight = ((_b = previousMask.left) !== null && _b !== void 0 ? _b : 0) +
             (typeof previousMask.getScaledWidth === 'function'
                 ? previousMask.getScaledWidth()
@@ -3207,17 +3262,21 @@ function createMask(context, config = {}) {
         top = (_f = previousMask.top) !== null && _f !== void 0 ? _f : firstOffset;
     }
     else {
-        left = resolveNumeric(config.left, 'x', firstOffset, canvas, options);
-        top = resolveNumeric(config.top, 'y', firstOffset, canvas, options);
+        left = resolveNumeric(mergedConfig.left, 'x', firstOffset, canvas, options);
+        top = resolveNumeric(mergedConfig.top, 'y', firstOffset, canvas, options);
     }
-    resolvedConfig.width = resolveNumeric(config.width, 'x', options.defaultMaskWidth, canvas, options);
-    resolvedConfig.height = resolveNumeric(config.height, 'y', options.defaultMaskHeight, canvas, options);
-    const rx = config.rx !== undefined ? resolveNumeric(config.rx, 'x', 0, canvas, options) : undefined;
-    const ry = config.ry !== undefined ? resolveNumeric(config.ry, 'y', 0, canvas, options) : undefined;
-    const radius = shapeType === 'circle'
-        ? resolveNumeric(config.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options)
+    resolvedConfig.width = resolveNumeric(mergedConfig.width, 'x', options.defaultMaskWidth, canvas, options);
+    resolvedConfig.height = resolveNumeric(mergedConfig.height, 'y', options.defaultMaskHeight, canvas, options);
+    const rx = mergedConfig.rx !== undefined
+        ? resolveNumeric(mergedConfig.rx, 'x', 0, canvas, options)
         : undefined;
-    const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, config.points) : null;
+    const ry = mergedConfig.ry !== undefined
+        ? resolveNumeric(mergedConfig.ry, 'y', 0, canvas, options)
+        : undefined;
+    const radius = shapeType === 'circle'
+        ? resolveNumeric(mergedConfig.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options)
+        : undefined;
+    const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
     if (!validateFiniteField(options, 'left', left) ||
         !validateFiniteField(options, 'top', top) ||
         !validatePositiveField(options, 'width', resolvedConfig.width) ||
@@ -3248,8 +3307,8 @@ function createMask(context, config = {}) {
         }
     }
     let mask;
-    if (typeof resolvedConfig.fabricGenerator === 'function') {
-        const generated = resolvedConfig.fabricGenerator(resolvedConfig, canvas, options);
+    if (typeof config.fabricGenerator === 'function') {
+        const generated = config.fabricGenerator(resolvedConfig, canvas, options);
         if (!isFabricObjectLike(generated)) {
             reportWarning(options, generated, 'createMask skipped: fabricGenerator did not return a Fabric object.');
             return null;
@@ -3325,16 +3384,17 @@ function createMask(context, config = {}) {
         }
     }
     const maskObject = mask;
-    maskObject.selectable = 'selectable' in config ? !!config.selectable : true;
-    maskObject.evented = 'evented' in config ? !!config.evented : true;
-    maskObject.hasControls = 'hasControls' in config ? !!config.hasControls : true;
+    maskObject.selectable = 'selectable' in mergedConfig ? !!mergedConfig.selectable : true;
+    maskObject.evented = 'evented' in mergedConfig ? !!mergedConfig.evented : true;
+    maskObject.hasControls = 'hasControls' in mergedConfig ? !!mergedConfig.hasControls : true;
     maskObject.transparentCorners =
-        'transparentCorners' in config ? !!config.transparentCorners : false;
-    maskObject.strokeUniform = 'strokeUniform' in config ? !!config.strokeUniform : true;
+        'transparentCorners' in mergedConfig ? !!mergedConfig.transparentCorners : false;
+    maskObject.strokeUniform =
+        'strokeUniform' in mergedConfig ? !!mergedConfig.strokeUniform : true;
     maskObject.lockRotation = !options.maskRotatable;
-    maskObject.borderColor = (_o = config.borderColor) !== null && _o !== void 0 ? _o : 'red';
-    maskObject.cornerColor = (_p = config.cornerColor) !== null && _p !== void 0 ? _p : 'black';
-    maskObject.cornerSize = (_q = config.cornerSize) !== null && _q !== void 0 ? _q : 8;
+    maskObject.borderColor = (_o = mergedConfig.borderColor) !== null && _o !== void 0 ? _o : 'red';
+    maskObject.cornerColor = (_p = mergedConfig.cornerColor) !== null && _p !== void 0 ? _p : 'black';
+    maskObject.cornerSize = (_q = mergedConfig.cornerSize) !== null && _q !== void 0 ? _q : 8;
     const styles = ((_r = resolvedConfig.styles) !== null && _r !== void 0 ? _r : {});
     if ('stroke' in styles) {
         maskObject.stroke = styles.stroke;
@@ -3369,9 +3429,9 @@ function createMask(context, config = {}) {
     }
     canvas.renderAll();
     context.saveCanvasState();
-    if (typeof resolvedConfig.onCreate === 'function') {
+    if (typeof config.onCreate === 'function') {
         try {
-            resolvedConfig.onCreate(maskObject, canvas);
+            config.onCreate(maskObject, canvas);
         }
         catch (error) {
             reportWarning(options, error, 'createMask onCreate callback threw.');
