@@ -1,4 +1,5 @@
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
+const DEFAULT_LAYOUT_MODE = 'expand';
 export const DEFAULT_OPTIONS = {
     canvasWidth: 800,
     canvasHeight: 600,
@@ -8,9 +9,8 @@ export const DEFAULT_OPTIONS = {
     maxScale: 5.0,
     scaleStep: 0.05,
     rotationStep: 90,
-    expandCanvasToImage: true,
-    fitImageToCanvas: false,
-    coverImageToCanvas: false,
+    defaultLayoutMode: DEFAULT_LAYOUT_MODE,
+    layoutMode: DEFAULT_LAYOUT_MODE,
     downsampleOnLoad: true,
     downsampleMaxWidth: 4000,
     downsampleMaxHeight: 3000,
@@ -80,9 +80,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maxScale',
     'scaleStep',
     'rotationStep',
-    'expandCanvasToImage',
-    'fitImageToCanvas',
-    'coverImageToCanvas',
+    'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
     'downsampleMaxHeight',
@@ -121,6 +119,12 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
+}
+export function isLayoutMode(value) {
+    return value === 'fit' || value === 'cover' || value === 'expand';
+}
+function normalizeLayoutMode(value) {
+    return isLayoutMode(value) ? value : DEFAULT_LAYOUT_MODE;
 }
 function isConfigObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -238,6 +242,12 @@ export function resolveOptions(input) {
         }
         if (key === 'exportAreaByDefault') {
             resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
+        if (key === 'defaultLayoutMode') {
+            const layoutMode = normalizeLayoutMode(value);
+            resolved.defaultLayoutMode = layoutMode;
+            resolved.layoutMode = layoutMode;
             continue;
         }
         if (key === 'canvasWidth') {

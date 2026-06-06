@@ -11,7 +11,7 @@
  *
  * @module
  */
-import type { ImageEditorOptions, LabelConfig, ResolvedCropConfig, ResolvedOptions } from './public-types.js';
+import type { ImageEditorOptions, LabelConfig, LayoutMode, ResolvedCropConfig, ResolvedOptions } from './public-types.js';
 /**
  * Documented defaults for every top-level option except the nested
  * {@link LabelConfig} and {@link CropConfig} configs, which are owned by
@@ -32,6 +32,7 @@ export declare const DEFAULT_LABEL: LabelConfig;
  * Default {@link CropConfig}.
  */
 export declare const DEFAULT_CROP: ResolvedCropConfig;
+export declare function isLayoutMode(value: unknown): value is LayoutMode;
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.

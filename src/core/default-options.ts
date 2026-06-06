@@ -18,6 +18,7 @@ import type {
     ExportArea,
     ImageEditorOptions,
     LabelConfig,
+    LayoutMode,
     ResolvedCropConfig,
     ResolvedOptions,
 } from './public-types.js';
@@ -25,6 +26,7 @@ import type {
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({}) as DefaultMaskConfig;
+const DEFAULT_LAYOUT_MODE: LayoutMode = 'expand';
 
 /**
  * Documented defaults for every top-level option except the nested
@@ -48,10 +50,9 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
     scaleStep: 0.05,
     rotationStep: 90,
 
-    // Layout (precedence: fit > cover > expand)
-    expandCanvasToImage: true,
-    fitImageToCanvas: false,
-    coverImageToCanvas: false,
+    // Layout
+    defaultLayoutMode: DEFAULT_LAYOUT_MODE,
+    layoutMode: DEFAULT_LAYOUT_MODE,
 
     // Down-sampling
     downsampleOnLoad: true,
@@ -158,9 +159,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'maxScale',
     'scaleStep',
     'rotationStep',
-    'expandCanvasToImage',
-    'fitImageToCanvas',
-    'coverImageToCanvas',
+    'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
     'downsampleMaxHeight',
@@ -206,6 +205,14 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
  */
 function normalizeCallback<F extends (...args: never[]) => unknown>(value: unknown): F | null {
     return typeof value === 'function' ? (value as F) : null;
+}
+
+export function isLayoutMode(value: unknown): value is LayoutMode {
+    return value === 'fit' || value === 'cover' || value === 'expand';
+}
+
+function normalizeLayoutMode(value: unknown): LayoutMode {
+    return isLayoutMode(value) ? value : DEFAULT_LAYOUT_MODE;
 }
 
 function isConfigObject(value: unknown): value is Record<string, unknown> {
@@ -353,6 +360,12 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         }
         if (key === 'exportAreaByDefault') {
             resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
+        if (key === 'defaultLayoutMode') {
+            const layoutMode = normalizeLayoutMode(value);
+            resolved.defaultLayoutMode = layoutMode;
+            resolved.layoutMode = layoutMode;
             continue;
         }
         if (key === 'canvasWidth') {

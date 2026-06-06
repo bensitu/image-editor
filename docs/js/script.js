@@ -515,11 +515,9 @@ function initEditor() {
 
     editor = new ImageEditorCtor({
         backgroundColor: 'transparent',
-        // Layout options define the initial load behavior. The radio buttons
+        // defaultLayoutMode defines the initial load behavior. The radio buttons
         // below switch future loads via `editor.setLayoutMode(mode)`.
-        expandCanvasToImage: false,
-        fitImageToCanvas: true,
-        coverImageToCanvas: false,
+        defaultLayoutMode: 'fit',
         // Downsampling protects memory usage when users drop very large
         // source images into the demo.
         downsampleOnLoad: true,

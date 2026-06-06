@@ -38,27 +38,21 @@ const LAYOUT_MODES = [
     {
         name: 'expand',
         options: {
-            fitImageToCanvas: false,
-            coverImageToCanvas: false,
-            expandCanvasToImage: true,
+            defaultLayoutMode: 'expand',
         },
         dom: { containerWidth: 320, containerHeight: 240 },
     },
     {
         name: 'fit',
         options: {
-            fitImageToCanvas: true,
-            coverImageToCanvas: false,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'fit',
         },
         dom: { containerWidth: 180, containerHeight: 120 },
     },
     {
         name: 'cover',
         options: {
-            fitImageToCanvas: false,
-            coverImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'cover',
         },
         dom: { containerWidth: 180, containerHeight: 120 },
     },

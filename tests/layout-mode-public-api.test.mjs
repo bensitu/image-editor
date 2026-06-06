@@ -70,6 +70,27 @@ function assertApproximatelyEqual(actual, expected, epsilon = 1) {
     );
 }
 
+function assertFitGeometry(info) {
+    assert.equal(info.canvasWidth, 400);
+    assert.equal(info.canvasHeight, 300);
+    assertApproximatelyEqual(info.displayWidth, 375);
+    assertApproximatelyEqual(info.displayHeight, 300);
+}
+
+function assertCoverGeometry(info) {
+    assert.equal(info.canvasWidth, 401);
+    assert.equal(info.canvasHeight, 321);
+    assertApproximatelyEqual(info.displayWidth, 401);
+    assertApproximatelyEqual(info.displayHeight, 321);
+}
+
+function assertExpandGeometry(info) {
+    assert.equal(info.canvasWidth, SOURCE_IMAGE.width);
+    assert.equal(info.canvasHeight, SOURCE_IMAGE.height);
+    assertApproximatelyEqual(info.displayWidth, SOURCE_IMAGE.width);
+    assertApproximatelyEqual(info.displayHeight, SOURCE_IMAGE.height);
+}
+
 function getDataUrlDimensions(dataUrl) {
     return new Promise((resolve, reject) => {
         const image = new Image();
@@ -79,38 +100,72 @@ function getDataUrlDimensions(dataUrl) {
     });
 }
 
-test('setLayoutMode selects fit, cover, and expand behavior for future image loads', async (t) => {
-    const { editor, loadedInfos } = createSourceEditor({
-        fitImageToCanvas: false,
-        coverImageToCanvas: false,
-        expandCanvasToImage: true,
+test("defaultLayoutMode: 'fit' affects the first load", async (t) => {
+    const { editor, loadedInfos } = createSourceEditor({ defaultLayoutMode: 'fit' });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl(SOURCE_IMAGE));
+
+    assertFitGeometry(lastLoadedInfo(loadedInfos));
+});
+
+test("defaultLayoutMode: 'cover' affects the first load", async (t) => {
+    const { editor, loadedInfos } = createSourceEditor({ defaultLayoutMode: 'cover' });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl(SOURCE_IMAGE));
+
+    assertCoverGeometry(lastLoadedInfo(loadedInfos));
+});
+
+test("defaultLayoutMode: 'expand' affects the first load", async (t) => {
+    const { editor, loadedInfos } = createSourceEditor({ defaultLayoutMode: 'expand' });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl(SOURCE_IMAGE));
+
+    assertExpandGeometry(lastLoadedInfo(loadedInfos));
+});
+
+test('omitted defaultLayoutMode uses expand for the first load', async (t) => {
+    const { editor, loadedInfos } = createSourceEditor();
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl(SOURCE_IMAGE));
+
+    assertExpandGeometry(lastLoadedInfo(loadedInfos));
+});
+
+test('invalid defaultLayoutMode warns and falls back to expand for the first load', async (t) => {
+    const { editor, loadedInfos, warnings } = createSourceEditor({
+        defaultLayoutMode: 'stretch',
     });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl(SOURCE_IMAGE));
+
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].error instanceof TypeError);
+    assert.match(warnings[0].message, /defaultLayoutMode/i);
+    assertExpandGeometry(lastLoadedInfo(loadedInfos));
+});
+
+test('setLayoutMode selects fit, cover, and expand behavior for future image loads', async (t) => {
+    const { editor, loadedInfos } = createSourceEditor({ defaultLayoutMode: 'expand' });
     t.after(() => disposeEditor(editor));
     const imageBase64 = makeImageDataUrl(SOURCE_IMAGE);
 
     editor.setLayoutMode('fit');
     await editor.loadImage(imageBase64);
-    const fitInfo = lastLoadedInfo(loadedInfos);
-    assert.equal(fitInfo.canvasWidth, 400);
-    assert.equal(fitInfo.canvasHeight, 300);
-    assertApproximatelyEqual(fitInfo.displayWidth, 375);
-    assertApproximatelyEqual(fitInfo.displayHeight, 300);
+    assertFitGeometry(lastLoadedInfo(loadedInfos));
 
     editor.setLayoutMode('cover');
     await editor.loadImage(imageBase64);
-    const coverInfo = lastLoadedInfo(loadedInfos);
-    assert.equal(coverInfo.canvasWidth, 401);
-    assert.equal(coverInfo.canvasHeight, 321);
-    assertApproximatelyEqual(coverInfo.displayWidth, 401);
-    assertApproximatelyEqual(coverInfo.displayHeight, 321);
+    assertCoverGeometry(lastLoadedInfo(loadedInfos));
 
     editor.setLayoutMode('expand');
     await editor.loadImage(imageBase64);
-    const expandInfo = lastLoadedInfo(loadedInfos);
-    assert.equal(expandInfo.canvasWidth, SOURCE_IMAGE.width);
-    assert.equal(expandInfo.canvasHeight, SOURCE_IMAGE.height);
-    assertApproximatelyEqual(expandInfo.displayWidth, SOURCE_IMAGE.width);
-    assertApproximatelyEqual(expandInfo.displayHeight, SOURCE_IMAGE.height);
+    assertExpandGeometry(lastLoadedInfo(loadedInfos));
 });
 
 test('invalid setLayoutMode input warns and preserves the previous layout mode', async (t) => {
@@ -126,10 +181,7 @@ test('invalid setLayoutMode input warns and preserves the previous layout mode',
     assert.equal(warnings.length, 1);
     assert.ok(warnings[0].error instanceof TypeError);
     assert.match(warnings[0].message, /layout mode/i);
-    assert.equal(info.canvasWidth, 400);
-    assert.equal(info.canvasHeight, 300);
-    assertApproximatelyEqual(info.displayWidth, 375);
-    assertApproximatelyEqual(info.displayHeight, 300);
+    assertFitGeometry(info);
 });
 
 test('setLayoutMode does not immediately relayout an already loaded image', async (t) => {

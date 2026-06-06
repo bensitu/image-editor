@@ -297,9 +297,7 @@ function makeEditor(options = {}, viewport = {}) {
     const editor = new ImageEditor(fabric, {
         animationDuration: 0,
         showPlaceholder: false,
-        fitImageToCanvas: true,
-        coverImageToCanvas: false,
-        expandCanvasToImage: false,
+        defaultLayoutMode: 'fit',
         ...options,
     });
 
@@ -340,9 +338,7 @@ test('rotateImage re-enables transform toolbar controls after the queue settles'
 test('undo after rotate restores the canvas size for the restored image bounds', async () => {
     const editor = makeEditor(
         {
-            fitImageToCanvas: false,
-            coverImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'cover',
         },
         { containerWidth: 960, containerHeight: 520 },
     );
@@ -369,9 +365,7 @@ test('undo after rotate restores the canvas size for the restored image bounds',
 test('loadFromState normalizes stale cover canvas dimensions without shrinking valid snapshots', async () => {
     const editor = makeEditor(
         {
-            fitImageToCanvas: false,
-            coverImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'cover',
         },
         { containerWidth: 960, containerHeight: 520 },
     );
@@ -459,9 +453,7 @@ test('history and state APIs are guarded while another operation is active', asy
 test('merge load preserves the pre-merge displayed image geometry as the new baseline', async () => {
     const editor = makeEditor(
         {
-            fitImageToCanvas: false,
-            coverImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'cover',
         },
         { containerWidth: 960, containerHeight: 520 },
     );

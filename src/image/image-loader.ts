@@ -639,7 +639,7 @@ function computeLayout(context: LoadImageContext, fabricImage: FabricNS.FabricIm
         scrollbarSize,
     );
 
-    const strategy = selectLayoutStrategy(context.options);
+    const strategy = selectLayoutStrategy(context.options.layoutMode);
     if (strategy === 'fit') {
         return computeFitLayout(
             imageWidth,

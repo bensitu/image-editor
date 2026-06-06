@@ -35,8 +35,7 @@
  *   deterministic across canvas resizes.
  * - The helper does NOT clamp the result against canvas bounds; callers
  *   are responsible for any subsequent clamping (the mask factory may
- *   expand the canvas to accommodate larger placements when
- *   `expandCanvasToImage` is enabled).
+ *   expand the canvas to accommodate larger placements in expand layout mode).
  *
  * ## Non-goals
  *

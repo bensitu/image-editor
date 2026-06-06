@@ -126,8 +126,8 @@ export interface CreateMaskContext {
     /** Save canvas state to history. */
     saveCanvasState(): void;
     /**
-     * Optional canvas resize hook used when `options.expandCanvasToImage` is
-     * `true` and the placed mask would extend past the current canvas size.
+     * Optional canvas resize hook used when `options.layoutMode` is
+     * `'expand'` and the placed mask would extend past the current canvas size.
      * If omitted, the factory calls `canvas.setDimensions` directly. The
      * orchestrator typically passes `setCanvasSizePx` here so the scroll
      * container reflows synchronously with the new canvas size.
@@ -401,7 +401,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     // ── Expand canvas only when placement would overflow ─────────────────
     //    Never use viewport dimensions as a floor here — that would shrink a
     //    wider-than-viewport canvas (removing its scrollbar).
-    if (options.expandCanvasToImage) {
+    if (options.layoutMode === 'expand') {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);

@@ -55,8 +55,7 @@ async function getEdgeAverageLuminance(dataUrl, edge) {
 test('mergeMasks preserves the right edge when image width lands on a partial pixel', async (t) => {
     const { editor } = await createEditor(
         {
-            fitImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'fit',
             exportMultiplier: 1,
         },
         {
@@ -93,8 +92,7 @@ test('mergeMasks preserves the right edge when image width lands on a partial pi
 test('mergeMasks preserves the bottom edge when image height lands on a partial pixel', async (t) => {
     const { editor } = await createEditor(
         {
-            fitImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'fit',
             exportMultiplier: 1,
         },
         {
@@ -133,8 +131,7 @@ test('mergeMasks preserves the bottom edge when image height lands on a partial 
 test('JPEG export composites partial transparent edges without introducing black pixels', async (t) => {
     const { editor } = await createEditor(
         {
-            fitImageToCanvas: true,
-            expandCanvasToImage: false,
+            defaultLayoutMode: 'fit',
             exportMultiplier: 1,
         },
         {

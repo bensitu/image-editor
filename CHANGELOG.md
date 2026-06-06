@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-06-09
+
+### Breaking Changes
+
+- Replaced layout boolean options (`expandCanvasToImage`, `fitImageToCanvas`, `coverImageToCanvas`) with `defaultLayoutMode: 'fit' | 'cover' | 'expand'`.
+- Runtime layout changes should use `editor.setLayoutMode(mode)`.
+- Invalid constructor `defaultLayoutMode` values fall back to `'expand'`.
+- Invalid `setLayoutMode(mode)` calls are ignored and preserve the current layout mode.
+
+### Added
+
+- Add default mask configuration for new masks.
+
+### Changed
+
+- Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
+
 ## [2.0.0] - 2026-06-06
 
 This release is a behavior-preserving migration of the v1 image editor onto a TypeScript and Fabric.js v7 foundation, published in multiple module formats from a single source tree. On-screen behavior is carried forward from v1.5.2 — sizing, scroll, overflow, rollback, mask metadata, history snapshots, export framing, crop session lifecycle, and dispose ordering all match v1. The only intentional default change is `crop.preserveMasksAfterCrop` (see Changed). The public API is canonical to v2: every v1 alias introduced as deprecated in v1.3.0 has been removed.

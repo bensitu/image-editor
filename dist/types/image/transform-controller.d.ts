@@ -148,8 +148,7 @@ export interface TransformContext {
      * AFTER the controller commits the final value with `set` /
      * `setCoords` and BEFORE `saveCanvasState`. Used to:
      *
-     * - resize the canvas to image bounds when
-     *   `options.expandCanvasToImage` is `true`,
+     * - resize the canvas according to the current layout mode,
      * - re-align the image bounding box to the canvas top-left,
      * - re-sync mask label positions for visible labels.
      *

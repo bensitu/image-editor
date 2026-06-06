@@ -220,13 +220,6 @@ export declare class ImageEditor {
     /**
      * Selects the layout strategy used by subsequent image loads.
      *
-     * The mode maps to the existing layout flags as a mutually exclusive
-     * choice:
-     *
-     * - `'fit'` enables `fitImageToCanvas`.
-     * - `'cover'` enables `coverImageToCanvas`.
-     * - `'expand'` enables `expandCanvasToImage`.
-     *
      * The current canvas is not re-laid out immediately; call this before
      * `loadImage()` to choose how the next image is placed.
      *

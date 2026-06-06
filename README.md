@@ -239,14 +239,23 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 preserving the container's scroll position across both successful loads and
 rollback paths.
 
-Use `setLayoutMode()` instead of mutating internal options when a UI lets users
-choose how the next image should be placed:
+Use `defaultLayoutMode` to choose the initial image-load strategy, then call
+`setLayoutMode()` when a UI should change how future images are placed:
 
 ```ts
-editor.setLayoutMode('fit');
+const editor = new ImageEditor(fabric, {
+    defaultLayoutMode: 'fit',
+});
+
+await editor.loadImage(imageA);
+
+// Future loads use cover. The current image is not re-laid out immediately.
 editor.setLayoutMode('cover');
-editor.setLayoutMode('expand');
+await editor.loadImage(imageB);
 ```
+
+Invalid JavaScript `defaultLayoutMode` values fall back to `'expand'`.
+Invalid `setLayoutMode()` calls are ignored and preserve the current mode.
 
 File-input helpers accept JPG, PNG, WebP, GIF, and BMP files. GIF and BMP are
 decoded as static raster input for canvas editing; GIF animation and BMP/GIF
@@ -356,9 +365,7 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 | `maxScale`                | `5.0`                | Maximum scale factor.                                                                                                                                                                                                                                                          |
 | `scaleStep`               | `0.05`               | Scale delta per zoom step.                                                                                                                                                                                                                                                     |
 | `rotationStep`            | `90`                 | Rotation step in degrees.                                                                                                                                                                                                                                                      |
-| `expandCanvasToImage`     | `true`               | Grow the canvas to fit the loaded image (lowest layout precedence).                                                                                                                                                                                                            |
-| `fitImageToCanvas`        | `false`              | Fit the image inside the visible workspace viewport (highest layout precedence).                                                                                                                                                                                               |
-| `coverImageToCanvas`      | `false`              | Scale large images down to cover the visible workspace, cap at native size, and expand overflowing canvas axes so the container can scroll.                                                                                                                                    |
+| `defaultLayoutMode`       | `'expand'`           | Initial layout mode for image loads until changed by `setLayoutMode()`. Use `'fit'`, `'cover'`, or `'expand'`. Invalid runtime values fall back to `'expand'`.                                                                                                                 |
 | `downsampleOnLoad`        | `true`               | Downsample large images on load.                                                                                                                                                                                                                                               |
 | `downsampleMaxWidth`      | `4000`               | Max width before downsampling kicks in.                                                                                                                                                                                                                                        |
 | `downsampleMaxHeight`     | `3000`               | Max height before downsampling kicks in.                                                                                                                                                                                                                                       |

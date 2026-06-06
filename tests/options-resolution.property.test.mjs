@@ -53,9 +53,7 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'maxScale',
     'scaleStep',
     'rotationStep',
-    'expandCanvasToImage',
-    'fitImageToCanvas',
-    'coverImageToCanvas',
+    'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
     'downsampleMaxHeight',
@@ -96,6 +94,7 @@ const CALLBACK_KEYS = [
 const ALL_TOP_LEVEL_KEYS = [
     ...TOP_LEVEL_SCALAR_KEYS,
     ...CALLBACK_KEYS,
+    'layoutMode',
     'defaultMaskConfig',
     'label',
     'crop',
@@ -131,9 +130,7 @@ function topLevelScalarOverridesArb() {
             maxScale: fc.double({ min: 1, max: 10, noNaN: true, noDefaultInfinity: true }),
             scaleStep: fc.double({ min: 0.01, max: 0.5, noNaN: true, noDefaultInfinity: true }),
             rotationStep: fc.integer({ min: 1, max: 360 }),
-            expandCanvasToImage: fc.boolean(),
-            fitImageToCanvas: fc.boolean(),
-            coverImageToCanvas: fc.boolean(),
+            defaultLayoutMode: fc.constantFrom('fit', 'cover', 'expand'),
             downsampleOnLoad: fc.boolean(),
             downsampleMaxWidth: fc.integer({ min: 100, max: 10000 }),
             downsampleMaxHeight: fc.integer({ min: 100, max: 10000 }),
@@ -362,6 +359,11 @@ test('options resolution completeness and deep-merge', () => {
                     );
                 }
             }
+            assert.equal(
+                resolved.layoutMode,
+                resolved.defaultLayoutMode,
+                'resolved.layoutMode must initialize from resolved.defaultLayoutMode',
+            );
 
             // Non-function callbacks are normalized to null. Function
             // callbacks are preserved by identity so the public
@@ -543,6 +545,32 @@ test('options resolution completeness and deep-merge', () => {
 test('downsampleQuality null falls back to the default quality', () => {
     const resolved = resolveOptions({ downsampleQuality: null });
     assert.equal(resolved.downsampleQuality, DEFAULT_OPTIONS.downsampleQuality);
+});
+
+test('defaultLayoutMode normalizes invalid values to expand', () => {
+    for (const defaultLayoutMode of ['stretch', null, 123, false, {}, []]) {
+        const resolved = resolveOptions({ defaultLayoutMode });
+
+        assert.equal(resolved.defaultLayoutMode, 'expand');
+        assert.equal(resolved.layoutMode, 'expand');
+    }
+});
+
+test('removed layout boolean options are ignored', () => {
+    const removedExpandKey = 'expandCanvas' + 'ToImage';
+    const removedFitKey = 'fitImage' + 'ToCanvas';
+    const removedCoverKey = 'coverImage' + 'ToCanvas';
+    const resolved = resolveOptions({
+        [removedExpandKey]: false,
+        [removedFitKey]: true,
+        [removedCoverKey]: true,
+    });
+
+    assert.equal(removedExpandKey in resolved, false);
+    assert.equal(removedFitKey in resolved, false);
+    assert.equal(removedCoverKey in resolved, false);
+    assert.equal(resolved.defaultLayoutMode, 'expand');
+    assert.equal(resolved.layoutMode, 'expand');
 });
 
 test('defaultMaskConfig is copied, frozen, and filters per-call hooks', () => {

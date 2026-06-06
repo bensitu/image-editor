@@ -93,6 +93,7 @@ function reportError(options, error, message) {
 }
 
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
+const DEFAULT_LAYOUT_MODE = 'expand';
 const DEFAULT_OPTIONS = {
     canvasWidth: 800,
     canvasHeight: 600,
@@ -102,9 +103,8 @@ const DEFAULT_OPTIONS = {
     maxScale: 5.0,
     scaleStep: 0.05,
     rotationStep: 90,
-    expandCanvasToImage: true,
-    fitImageToCanvas: false,
-    coverImageToCanvas: false,
+    defaultLayoutMode: DEFAULT_LAYOUT_MODE,
+    layoutMode: DEFAULT_LAYOUT_MODE,
     downsampleOnLoad: true,
     downsampleMaxWidth: 4000,
     downsampleMaxHeight: 3000,
@@ -170,9 +170,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maxScale',
     'scaleStep',
     'rotationStep',
-    'expandCanvasToImage',
-    'fitImageToCanvas',
-    'coverImageToCanvas',
+    'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
     'downsampleMaxHeight',
@@ -211,6 +209,12 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
+}
+function isLayoutMode(value) {
+    return value === 'fit' || value === 'cover' || value === 'expand';
+}
+function normalizeLayoutMode(value) {
+    return isLayoutMode(value) ? value : DEFAULT_LAYOUT_MODE;
 }
 function isConfigObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -328,6 +332,12 @@ function resolveOptions(input) {
         }
         if (key === 'exportAreaByDefault') {
             resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
+        if (key === 'defaultLayoutMode') {
+            const layoutMode = normalizeLayoutMode(value);
+            resolved.defaultLayoutMode = layoutMode;
+            resolved.layoutMode = layoutMode;
             continue;
         }
         if (key === 'canvasWidth') {
@@ -2407,26 +2417,8 @@ function forceReflow(element) {
     void element.offsetWidth;
 }
 
-function selectLayoutStrategy(options) {
-    if (options.fitImageToCanvas)
-        return 'fit';
-    if (options.coverImageToCanvas)
-        return 'cover';
-    return 'expand';
-}
-function detectLayoutConflict(options) {
-    if (!options.fitImageToCanvas || !options.coverImageToCanvas)
-        return null;
-    const enabled = ['fit', 'cover'];
-    if (options.expandCanvasToImage)
-        enabled.push('expand');
-    const selected = selectLayoutStrategy(options);
-    return {
-        enabled,
-        selected,
-        message: `Layout flags ${enabled.map((s) => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
-            `Using precedence \`fit > cover > expand\`; selected \`${selected}\`.`,
-    };
+function selectLayoutStrategy(mode) {
+    return mode;
 }
 class ViewportCache {
     constructor() {
@@ -2867,7 +2859,7 @@ function computeLayout(context, fabricImage) {
         width: context.options.canvasWidth,
         height: context.options.canvasHeight,
     }, scrollbarSize);
-    const strategy = selectLayoutStrategy(context.options);
+    const strategy = selectLayoutStrategy(context.options.layoutMode);
     if (strategy === 'fit') {
         return computeFitLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
     }
@@ -3292,7 +3284,7 @@ function createMask(context, config = {}) {
         (shapeType === 'polygon' && polygonPoints === null)) {
         return null;
     }
-    if (options.expandCanvasToImage) {
+    if (options.layoutMode === 'expand') {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
@@ -3982,9 +3974,12 @@ class ImageEditor {
         this.fabricModule = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
         this.isFabricLoaded = detected.isFabricLoaded;
         this.options = resolveOptions(detected.options);
-        const layoutConflict = detectLayoutConflict(this.options);
-        if (layoutConflict) {
-            reportWarning(this.options, null, layoutConflict.message);
+        const rawDefaultLayoutMode = detected.options
+            .defaultLayoutMode;
+        if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
+            reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
+                `${JSON.stringify(rawDefaultLayoutMode)}. ` +
+                'Expected "fit", "cover", or "expand".'), 'Invalid defaultLayoutMode fell back to "expand".');
         }
         this.operationGuard = new OperationGuard();
         this.animQueue = new AnimationQueue();
@@ -4353,14 +4348,12 @@ class ImageEditor {
         return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
     }
     setLayoutMode(mode) {
-        if (mode !== 'fit' && mode !== 'cover' && mode !== 'expand') {
+        if (!isLayoutMode(mode)) {
             reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
-        this.options.fitImageToCanvas = mode === 'fit';
-        this.options.coverImageToCanvas = mode === 'cover';
-        this.options.expandCanvasToImage = mode === 'expand';
+        this.options.layoutMode = mode;
     }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
@@ -4523,7 +4516,7 @@ class ImageEditor {
         const boundingRect = this.originalImage.getBoundingRect();
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
-        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
             const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
             this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
@@ -4545,14 +4538,14 @@ class ImageEditor {
         const canvasH = Math.ceil(this.canvas.getHeight());
         const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
             boundingRect.height > canvasH + LAYOUT_EPSILON;
-        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
             const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
                 boundingRect.width <= viewport.width + LAYOUT_EPSILON;
             const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
                 boundingRect.height <= viewport.height + LAYOUT_EPSILON;
             return clipsImage || staleOverflowWidth || staleOverflowHeight;
         }
-        if (this.options.expandCanvasToImage) {
+        if (this.options.layoutMode === 'expand') {
             const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
             const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
             return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
@@ -4624,11 +4617,7 @@ class ImageEditor {
             afterTransformSnap: () => {
                 if (this.isDisposed || !this.canvas || !this.originalImage)
                     return;
-                if (this.options.expandCanvasToImage ||
-                    this.options.coverImageToCanvas ||
-                    this.options.fitImageToCanvas) {
-                    this.updateCanvasSizeToImageBounds();
-                }
+                this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
@@ -4796,11 +4785,7 @@ class ImageEditor {
                 this.currentImageMimeType = null;
             }
             this.isImageLoadedToCanvas = !!this.originalImage;
-            if (this.originalImage &&
-                (this.options.expandCanvasToImage ||
-                    this.options.coverImageToCanvas ||
-                    this.options.fitImageToCanvas) &&
-                this.shouldNormalizeCanvasSizeAfterStateRestore()) {
+            if (this.originalImage && this.shouldNormalizeCanvasSizeAfterStateRestore()) {
                 this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }

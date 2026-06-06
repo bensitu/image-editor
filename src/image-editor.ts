@@ -10,7 +10,7 @@
 import type * as FabricNS from 'fabric';
 import { AnimationQueue } from './animation/animation-queue.js';
 import { reportError, reportWarning } from './core/callback-reporter.js';
-import { resolveOptions } from './core/default-options.js';
+import { isLayoutMode, resolveOptions } from './core/default-options.js';
 import { OperationGuard, type OperationToken } from './core/operation-guard.js';
 import {
     loadFromState as loadFromStateImpl,
@@ -59,7 +59,6 @@ import {
     ViewportCache,
     applyCanvasDimensions,
     computeScrollableCanvasSize,
-    detectLayoutConflict,
     measureScrollbarSize,
     type ViewportSize,
 } from './image/layout-manager.js';
@@ -337,14 +336,18 @@ export class ImageEditor {
         // live editor.
         this.options = resolveOptions(detected.options);
 
-        // Surface mutually-exclusive layout flags through `onWarning`.
-        // The selected strategy still follows precedence
-        // (`fit > cover > expand`) inside `selectLayoutStrategy`; this
-        // surfaces the conflict so integrators can tell their `fit` and
-        // `cover` flags fight without silent suppression.
-        const layoutConflict = detectLayoutConflict(this.options);
-        if (layoutConflict) {
-            reportWarning(this.options, null, layoutConflict.message);
+        const rawDefaultLayoutMode = (detected.options as Record<string, unknown>)
+            .defaultLayoutMode;
+        if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
+            reportWarning(
+                this.options,
+                new TypeError(
+                    `[ImageEditor] Unsupported defaultLayoutMode ` +
+                        `${JSON.stringify(rawDefaultLayoutMode)}. ` +
+                        'Expected "fit", "cover", or "expand".',
+                ),
+                'Invalid defaultLayoutMode fell back to "expand".',
+            );
         }
 
         // ── Internal facade state ─────────────────────────────────────────
@@ -896,20 +899,13 @@ export class ImageEditor {
     /**
      * Selects the layout strategy used by subsequent image loads.
      *
-     * The mode maps to the existing layout flags as a mutually exclusive
-     * choice:
-     *
-     * - `'fit'` enables `fitImageToCanvas`.
-     * - `'cover'` enables `coverImageToCanvas`.
-     * - `'expand'` enables `expandCanvasToImage`.
-     *
      * The current canvas is not re-laid out immediately; call this before
      * `loadImage()` to choose how the next image is placed.
      *
      * @param mode - Layout mode to use for future image loads.
      */
     setLayoutMode(mode: LayoutMode): void {
-        if (mode !== 'fit' && mode !== 'cover' && mode !== 'expand') {
+        if (!isLayoutMode(mode)) {
             reportWarning(
                 this.options,
                 new TypeError(
@@ -921,9 +917,7 @@ export class ImageEditor {
             return;
         }
 
-        this.options.fitImageToCanvas = mode === 'fit';
-        this.options.coverImageToCanvas = mode === 'cover';
-        this.options.expandCanvasToImage = mode === 'expand';
+        this.options.layoutMode = mode;
     }
 
     private buildCallbackContext(
@@ -1153,7 +1147,7 @@ export class ImageEditor {
         const scrollbarSize = measureScrollbarSize(this.containerElement?.ownerDocument ?? null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
 
-        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
             const canvasSize = computeScrollableCanvasSize(
                 boundingRect.width,
                 boundingRect.height,
@@ -1190,7 +1184,7 @@ export class ImageEditor {
             boundingRect.width > canvasW + LAYOUT_EPSILON ||
             boundingRect.height > canvasH + LAYOUT_EPSILON;
 
-        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
             const staleOverflowWidth =
                 canvasW > viewport.width + LAYOUT_EPSILON &&
                 boundingRect.width <= viewport.width + LAYOUT_EPSILON;
@@ -1201,7 +1195,7 @@ export class ImageEditor {
             return clipsImage || staleOverflowWidth || staleOverflowHeight;
         }
 
-        if (this.options.expandCanvasToImage) {
+        if (this.options.layoutMode === 'expand') {
             const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
             const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
             return (
@@ -1311,13 +1305,7 @@ export class ImageEditor {
 
             afterTransformSnap: () => {
                 if (this.isDisposed || !this.canvas || !this.originalImage) return;
-                if (
-                    this.options.expandCanvasToImage ||
-                    this.options.coverImageToCanvas ||
-                    this.options.fitImageToCanvas
-                ) {
-                    this.updateCanvasSizeToImageBounds();
-                }
+                this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
@@ -1550,13 +1538,7 @@ export class ImageEditor {
 
             this.isImageLoadedToCanvas = !!this.originalImage;
 
-            if (
-                this.originalImage &&
-                (this.options.expandCanvasToImage ||
-                    this.options.coverImageToCanvas ||
-                    this.options.fitImageToCanvas) &&
-                this.shouldNormalizeCanvasSizeAfterStateRestore()
-            ) {
+            if (this.originalImage && this.shouldNormalizeCanvasSizeAfterStateRestore()) {
                 this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }

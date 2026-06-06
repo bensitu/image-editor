@@ -187,7 +187,7 @@ function computeLayout(context, fabricImage) {
         width: context.options.canvasWidth,
         height: context.options.canvasHeight,
     }, scrollbarSize);
-    const strategy = selectLayoutStrategy(context.options);
+    const strategy = selectLayoutStrategy(context.options.layoutMode);
     if (strategy === 'fit') {
         return computeFitLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
     }

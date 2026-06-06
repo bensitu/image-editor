@@ -179,7 +179,7 @@ export function createMask(context, config = {}) {
         (shapeType === 'polygon' && polygonPoints === null)) {
         return null;
     }
-    if (options.expandCanvasToImage) {
+    if (options.layoutMode === 'expand') {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);

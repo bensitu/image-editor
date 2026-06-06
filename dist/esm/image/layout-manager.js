@@ -1,24 +1,6 @@
 import { forceReflow } from '../utils/dom.js';
-export function selectLayoutStrategy(options) {
-    if (options.fitImageToCanvas)
-        return 'fit';
-    if (options.coverImageToCanvas)
-        return 'cover';
-    return 'expand';
-}
-export function detectLayoutConflict(options) {
-    if (!options.fitImageToCanvas || !options.coverImageToCanvas)
-        return null;
-    const enabled = ['fit', 'cover'];
-    if (options.expandCanvasToImage)
-        enabled.push('expand');
-    const selected = selectLayoutStrategy(options);
-    return {
-        enabled,
-        selected,
-        message: `Layout flags ${enabled.map((s) => `\`${s}\``).join(', ')} are enabled simultaneously. ` +
-            `Using precedence \`fit > cover > expand\`; selected \`${selected}\`.`,
-    };
+export function selectLayoutStrategy(mode) {
+    return mode;
 }
 export class ViewportCache {
     constructor() {

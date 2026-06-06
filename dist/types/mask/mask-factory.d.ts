@@ -104,8 +104,8 @@ export interface CreateMaskContext {
     /** Save canvas state to history. */
     saveCanvasState(): void;
     /**
-     * Optional canvas resize hook used when `options.expandCanvasToImage` is
-     * `true` and the placed mask would extend past the current canvas size.
+     * Optional canvas resize hook used when `options.layoutMode` is
+     * `'expand'` and the placed mask would extend past the current canvas size.
      * If omitted, the factory calls `canvas.setDimensions` directly. The
      * orchestrator typically passes `setCanvasSizePx` here so the scroll
      * container reflows synchronously with the new canvas size.

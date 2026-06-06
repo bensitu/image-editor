@@ -3,8 +3,7 @@
  * `image-loader` pipeline. The layout manager owns three concerns
  * used by the image-load pipeline:
  *
- * 1. Selecting exactly one layout strategy per load using the
- *    precedence `fit > cover > expand`.
+ * 1. Selecting the layout strategy from the current canonical layout mode.
  * 2. Computing canvas dimensions and image scale for the selected
  *    strategy.
  * 3. Measuring the visible container viewport with a hidden-tab cache
@@ -26,59 +25,16 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { ResolvedOptions } from '../core/public-types.js';
+import type { LayoutMode } from '../core/public-types.js';
 /**
  * Discriminator for the active layout strategy. Exactly one value is
  * returned by {@link selectLayoutStrategy} per `loadImage` call.
  */
-export type LayoutStrategy = 'fit' | 'cover' | 'expand';
+export type LayoutStrategy = LayoutMode;
 /**
- * Subset of {@link ResolvedOptions} consumed by strategy selection.
- *
- * The accepted boolean flags in precedence order are
- * `fitImageToCanvas`, `coverImageToCanvas`, and `expandCanvasToImage`.
+ * Choose the active layout strategy from the current layout mode.
  */
-export type LayoutFlags = Pick<ResolvedOptions, 'fitImageToCanvas' | 'coverImageToCanvas' | 'expandCanvasToImage'>;
-/**
- * Choose the active layout strategy using the documented precedence
- * `fit > cover > expand`.
- *
- * The selection is a pure function of the boolean flags — it is
- * independent of the order in which the option keys were declared,
- * of any prior load, and of any prior canvas state.
- *
- * When all three flags are `false` the function falls back to
- * `'expand'`. This matches the default-options resolution which sets
- * `expandCanvasToImage: true` by default, and gives a deterministic
- * answer even if a consumer disables every layout flag.
- *
- */
-export declare function selectLayoutStrategy(options: LayoutFlags): LayoutStrategy;
-/**
- * Inspect the layout flags and report whether `fitImageToCanvas` and
- * `coverImageToCanvas` are both enabled — the only pairing that is a
- * real conflict because both rescale the image to the canvas viewport
- * but with different aspect-ratio strategies. `expandCanvasToImage`
- * defaults to `true`, so combining it with one of the other two is
- * normal usage (the user providedOptions into a per-load override) and is not
- * flagged.
- *
- * The selected strategy still follows the precedence in
- * {@link selectLayoutStrategy}; this helper exists so the facade can
- * emit a single warning through the documented reporting path when a
- * real conflict is detected.
- *
- * `null` is returned when no conflict is present.
- */
-export interface LayoutConflict {
-    /** Strategies the caller had enabled simultaneously. */
-    readonly enabled: readonly LayoutStrategy[];
-    /** The strategy actually selected by `selectLayoutStrategy`. */
-    readonly selected: LayoutStrategy;
-    /** Human-readable summary suitable for `onWarning` consumers. */
-    readonly message: string;
-}
-export declare function detectLayoutConflict(options: LayoutFlags): LayoutConflict | null;
+export declare function selectLayoutStrategy(mode: LayoutMode): LayoutStrategy;
 /**
  * Two-axis viewport size in CSS pixels.
  *

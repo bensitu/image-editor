@@ -230,3 +230,26 @@ test('public types declaration exports DefaultMaskConfig', async () => {
             `the package root re-exports it for constructor defaults`,
     );
 });
+
+test('public types declaration exposes defaultLayoutMode and omits removed layout flags', async () => {
+    if (!distIsBuilt) return;
+    const { text } = await readArtifact(ARTIFACTS.publicTypes);
+    const removedLayoutKeys = [
+        'expandCanvas' + 'ToImage',
+        'fitImage' + 'ToCanvas',
+        'coverImage' + 'ToCanvas',
+    ];
+
+    assert.match(
+        text,
+        /\bdefaultLayoutMode\??:\s*LayoutMode\b/,
+        `${ARTIFACTS.publicTypes} must expose \`defaultLayoutMode\` on ImageEditorOptions`,
+    );
+    for (const removedKey of removedLayoutKeys) {
+        assert.equal(
+            text.includes(removedKey),
+            false,
+            `${ARTIFACTS.publicTypes} must not expose removed layout option ${removedKey}`,
+        );
+    }
+});

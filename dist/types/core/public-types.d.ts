@@ -507,18 +507,16 @@ export interface ImageEditorOptions {
     /** Rotation step in degrees. Non-finite values fall back to the default. @default 90 */
     rotationStep?: number;
     /**
-     * Expand the canvas to fit the loaded image (no scroll required for
-     * images smaller than their natural size). @default true
+     * Initial layout mode used for image loads until changed by
+     * {@link ImageEditor.setLayoutMode}.
+     *
+     * Invalid JavaScript runtime values fall back to `'expand'` during
+     * construction. Use `setLayoutMode()` to change the mode for future
+     * image loads.
+     *
+     * @default 'expand'
      */
-    expandCanvasToImage?: boolean;
-    /** Scale the image down to fit inside the visible workspace. @default false */
-    fitImageToCanvas?: boolean;
-    /**
-     * Scale large images down to cover the visible workspace, cap at native
-     * size, and expand overflowing canvas axes so the container can scroll.
-     * @default false
-     */
-    coverImageToCanvas?: boolean;
+    defaultLayoutMode?: LayoutMode;
     /** Downsample very large images on load. @default true */
     downsampleOnLoad?: boolean;
     /** Max pixel width before downsampling kicks in. @default 4000 */
@@ -645,6 +643,8 @@ export interface ImageEditorOptions {
 export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'onImageLoadStart' | 'onImageLoaded' | 'onImageCleared' | 'onImageChanged' | 'onBusyChange' | 'onEditorDisposed' | 'onMasksChanged' | 'onSelectionChange' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxExportPixels'>> {
     downsampleQuality: number;
     maxExportPixels: number;
+    /** Current layout mode used by future image loads. */
+    layoutMode: LayoutMode;
     label: LabelConfig;
     crop: ResolvedCropConfig;
     onImageLoadStart: ((context: ImageEditorCallbackContext) => void) | null;

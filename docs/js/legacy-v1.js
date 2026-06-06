@@ -326,19 +326,10 @@ function getSelectedLayoutMode() {
     return 'fit';
 }
 
-function getSelectedLayoutOptions() {
-    const layoutMode = getSelectedLayoutMode();
-    return {
-        expandCanvasToImage: layoutMode === 'expand',
-        fitImageToCanvas: layoutMode === 'fit',
-        coverImageToCanvas: layoutMode === 'cover',
-    };
-}
-
 function createEditorOptions() {
     return {
         backgroundColor: 'transparent',
-        ...getSelectedLayoutOptions(),
+        defaultLayoutMode: getSelectedLayoutMode(),
         // Downsampling protects memory usage when users drop very large
         // source images into the demo.
         downsampleOnLoad: true,

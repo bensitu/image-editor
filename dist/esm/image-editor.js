@@ -1,6 +1,6 @@
 import { AnimationQueue } from './animation/animation-queue.js';
 import { reportError, reportWarning } from './core/callback-reporter.js';
-import { resolveOptions } from './core/default-options.js';
+import { isLayoutMode, resolveOptions } from './core/default-options.js';
 import { OperationGuard } from './core/operation-guard.js';
 import { loadFromState as loadFromStateImpl, saveState as saveStateImpl, } from './core/state-serializer.js';
 import { Command, HistoryManager } from './history/history-manager.js';
@@ -9,7 +9,7 @@ import { isMaskObject } from './core/public-types.js';
 import { applyCrop as applyCropImpl, cancelCrop as cancelCropImpl, enterCropMode as enterCropModeImpl, } from './crop/crop-controller.js';
 import { downloadImage as downloadImageImpl, exportImageBase64 as exportImageBase64Impl, exportImageFile as exportImageFileImpl, mergeMasks as mergeMasksImpl, } from './export/export-service.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
-import { ViewportCache, applyCanvasDimensions, computeScrollableCanvasSize, detectLayoutConflict, measureScrollbarSize, } from './image/layout-manager.js';
+import { ViewportCache, applyCanvasDimensions, computeScrollableCanvasSize, measureScrollbarSize, } from './image/layout-manager.js';
 import { TransformController } from './image/transform-controller.js';
 import { createMask as createMaskImpl, removeAllMasks as removeAllMasksImpl, removeSelectedMask as removeSelectedMaskImpl, } from './mask/mask-factory.js';
 import { createLabelForMask, hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
@@ -244,9 +244,12 @@ export class ImageEditor {
         this.fabricModule = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
         this.isFabricLoaded = detected.isFabricLoaded;
         this.options = resolveOptions(detected.options);
-        const layoutConflict = detectLayoutConflict(this.options);
-        if (layoutConflict) {
-            reportWarning(this.options, null, layoutConflict.message);
+        const rawDefaultLayoutMode = detected.options
+            .defaultLayoutMode;
+        if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
+            reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
+                `${JSON.stringify(rawDefaultLayoutMode)}. ` +
+                'Expected "fit", "cover", or "expand".'), 'Invalid defaultLayoutMode fell back to "expand".');
         }
         this.operationGuard = new OperationGuard();
         this.animQueue = new AnimationQueue();
@@ -615,14 +618,12 @@ export class ImageEditor {
         return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
     }
     setLayoutMode(mode) {
-        if (mode !== 'fit' && mode !== 'cover' && mode !== 'expand') {
+        if (!isLayoutMode(mode)) {
             reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
-        this.options.fitImageToCanvas = mode === 'fit';
-        this.options.coverImageToCanvas = mode === 'cover';
-        this.options.expandCanvasToImage = mode === 'expand';
+        this.options.layoutMode = mode;
     }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
@@ -785,7 +786,7 @@ export class ImageEditor {
         const boundingRect = this.originalImage.getBoundingRect();
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
-        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
             const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
             this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
@@ -807,14 +808,14 @@ export class ImageEditor {
         const canvasH = Math.ceil(this.canvas.getHeight());
         const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
             boundingRect.height > canvasH + LAYOUT_EPSILON;
-        if (this.options.fitImageToCanvas || this.options.coverImageToCanvas) {
+        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
             const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
                 boundingRect.width <= viewport.width + LAYOUT_EPSILON;
             const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
                 boundingRect.height <= viewport.height + LAYOUT_EPSILON;
             return clipsImage || staleOverflowWidth || staleOverflowHeight;
         }
-        if (this.options.expandCanvasToImage) {
+        if (this.options.layoutMode === 'expand') {
             const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
             const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
             return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
@@ -886,11 +887,7 @@ export class ImageEditor {
             afterTransformSnap: () => {
                 if (this.isDisposed || !this.canvas || !this.originalImage)
                     return;
-                if (this.options.expandCanvasToImage ||
-                    this.options.coverImageToCanvas ||
-                    this.options.fitImageToCanvas) {
-                    this.updateCanvasSizeToImageBounds();
-                }
+                this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
                 this.canvas
                     .getObjects()
@@ -1058,11 +1055,7 @@ export class ImageEditor {
                 this.currentImageMimeType = null;
             }
             this.isImageLoadedToCanvas = !!this.originalImage;
-            if (this.originalImage &&
-                (this.options.expandCanvasToImage ||
-                    this.options.coverImageToCanvas ||
-                    this.options.fitImageToCanvas) &&
-                this.shouldNormalizeCanvasSizeAfterStateRestore()) {
+            if (this.originalImage && this.shouldNormalizeCanvasSizeAfterStateRestore()) {
                 this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
