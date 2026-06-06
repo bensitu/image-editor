@@ -44,6 +44,8 @@ const translations = {
         maskList: 'Mask list',
         noImageLoaded: 'No image loaded',
         darkMode: 'Dark mode',
+        legacyDemo: 'Legacy v1 demo',
+        usingLegacyDemo: 'Using v1',
         maskShapeRect: 'Rect',
         maskShapeCircle: 'Circle',
         maskShapeEllipse: 'Ellipse',
@@ -80,6 +82,8 @@ const translations = {
         maskList: '遮罩列表',
         noImageLoaded: '尚未加载图片',
         darkMode: '深色模式',
+        legacyDemo: '旧版 v1 演示',
+        usingLegacyDemo: '正在使用 v1',
         maskShapeRect: '矩形',
         maskShapeCircle: '圆形',
         maskShapeEllipse: '椭圆',
@@ -116,6 +120,8 @@ const translations = {
         maskList: 'マスクリスト',
         noImageLoaded: '画像が読み込まれていません',
         darkMode: 'ダークモード',
+        legacyDemo: '旧 v1 デモ',
+        usingLegacyDemo: 'v1 使用中',
         maskShapeRect: '長方形',
         maskShapeCircle: '円',
         maskShapeEllipse: '楕円',
@@ -152,6 +158,8 @@ const translations = {
         maskList: '마스크 목록',
         noImageLoaded: '이미지가 없습니다',
         darkMode: '다크 모드',
+        legacyDemo: '이전 v1 데모',
+        usingLegacyDemo: 'v1 사용 중',
         maskShapeRect: '사각형',
         maskShapeCircle: '원',
         maskShapeEllipse: '타원',
@@ -188,6 +196,8 @@ const translations = {
         maskList: 'Liste des masques',
         noImageLoaded: 'Aucune image chargée',
         darkMode: 'Mode sombre',
+        legacyDemo: 'Démo v1 historique',
+        usingLegacyDemo: 'Version v1 active',
         maskShapeRect: 'Rectangle',
         maskShapeCircle: 'Cercle',
         maskShapeEllipse: 'Ellipse',
@@ -224,6 +234,8 @@ const translations = {
         maskList: 'Lista de máscaras',
         noImageLoaded: 'No hay imagen cargada',
         darkMode: 'Modo oscuro',
+        legacyDemo: 'Demo v1 anterior',
+        usingLegacyDemo: 'Usando v1',
         maskShapeRect: 'Rectángulo',
         maskShapeCircle: 'Círculo',
         maskShapeEllipse: 'Elipse',
@@ -253,6 +265,102 @@ const maskShapeConfigs = {
 
 function getOptionalElement(id) {
     return document.getElementById(id);
+}
+
+function getImageEditorConstructor(imageEditorGlobal = window.ImageEditor) {
+    return (imageEditorGlobal && imageEditorGlobal.ImageEditor) || imageEditorGlobal || null;
+}
+
+function resetCanvasDom() {
+    const imageContainerElement = getOptionalElement('imageContainer');
+    let canvasElement = getOptionalElement('canvas');
+    const canvasCaptionElement = getOptionalElement('canvasCaption');
+    if (imageContainerElement) {
+        if (!canvasElement) {
+            canvasElement = document.createElement('canvas');
+            canvasElement.id = 'canvas';
+            imageContainerElement.insertBefore(canvasElement, canvasCaptionElement || null);
+        }
+
+        const canvasParent = canvasElement.parentElement;
+        if (canvasParent && canvasParent !== imageContainerElement) {
+            imageContainerElement.insertBefore(canvasElement, canvasCaptionElement || null);
+            canvasParent.remove();
+        }
+
+        Array.from(imageContainerElement.children).forEach(function (childElement) {
+            if (childElement !== canvasElement && childElement !== canvasCaptionElement) {
+                childElement.remove();
+            }
+        });
+
+        canvasElement.className = '';
+        canvasElement.removeAttribute('data-fabric');
+        canvasElement.removeAttribute('style');
+        canvasElement.width = 300;
+        canvasElement.height = 150;
+    }
+
+    const maskListElement = getOptionalElement('maskList');
+    if (maskListElement) maskListElement.innerHTML = '';
+}
+
+function disposeEditorInstance() {
+    if (editor && typeof editor.dispose === 'function') {
+        try {
+            editor.dispose();
+        } catch (error) {
+            console.warn('Editor dispose failed', error);
+        }
+    }
+    editor = null;
+    resetCanvasDom();
+}
+
+function getSelectedLayoutMode() {
+    const coverCanvasRadio = getOptionalElement('coverCanvas');
+    const expandCanvasRadio = getOptionalElement('expandCanvas');
+
+    if (coverCanvasRadio?.checked) return 'cover';
+    if (expandCanvasRadio?.checked) return 'expand';
+    return 'fit';
+}
+
+function getSelectedLayoutOptions() {
+    const layoutMode = getSelectedLayoutMode();
+    return {
+        expandCanvasToImage: layoutMode === 'expand',
+        fitImageToCanvas: layoutMode === 'fit',
+        coverImageToCanvas: layoutMode === 'cover',
+    };
+}
+
+function createEditorOptions() {
+    return {
+        backgroundColor: 'transparent',
+        ...getSelectedLayoutOptions(),
+        // Downsampling protects memory usage when users drop very large
+        // source images into the demo.
+        downsampleOnLoad: true,
+        initialImageBase64: null,
+        // Masks stay rotatable in this demo so the mask and crop examples
+        // exercise the richer Fabric object surface.
+        maskRotatable: true,
+        maskLabelOnSelect: true,
+        animationDuration: 100,
+        maskLabelOffset: 5,
+        showPlaceholder: true,
+        exportImageAreaByDefault: true,
+        // Lifecycle callbacks are a convenient way for host pages to sync
+        // their own controls with editor state without reaching into internals.
+        onImageChanged: updateDemoControls,
+        onBusyChange: updateDemoControls,
+        onMasksChanged: updateDemoControls,
+    };
+}
+
+function createEditorInstance(ImageEditorCtor, options) {
+    return new ImageEditorCtor(options);
 }
 
 function getMessage(error) {
@@ -503,50 +611,32 @@ function updateDynamicLocalizedText() {
 }
 
 function initEditor() {
-    const ImageEditorCtor =
-        window.ImageEditor?.ImageEditor || window.ImageEditor?.default || window.ImageEditor;
-
-    if (typeof ImageEditorCtor !== 'function') {
+    // The UMD bundle exposes the constructor on `globalThis.ImageEditor`
+    // (Rollup `name: 'ImageEditor'`, `exports: 'named'`). Depending on the
+    // host environment, the global may be the bare constructor or a
+    // namespace object that re-exports it as `.ImageEditor`.
+    const ImageEditorCtor = getImageEditorConstructor();
+    if (!ImageEditorCtor) {
         console.error(
             'ImageEditor constructor not found. Make sure the UMD bundle is loaded before this script.',
         );
         return;
     }
 
-    editor = new ImageEditorCtor({
-        backgroundColor: 'transparent',
-        // Layout options define the initial load behavior. The radio buttons
-        // below switch future loads via `editor.setLayoutMode(mode)`.
-        expandCanvasToImage: false,
-        fitImageToCanvas: true,
-        coverImageToCanvas: false,
-        // Downsampling protects memory usage when users drop very large
-        // source images into the demo.
-        downsampleOnLoad: true,
-        initialImageBase64: null,
-        // Masks stay rotatable in this demo so the mask and crop examples
-        // exercise the richer Fabric object surface.
-        maskRotatable: true,
-        maskLabelOnSelect: true,
-        animationDuration: 100,
-        maskLabelOffset: 5,
-        showPlaceholder: true,
-        // Export defaults apply when the demo calls `exportImageBase64()`
-        // without per-call options.
-        exportAreaByDefault: 'image',
-        // Lifecycle callbacks are a convenient way for host pages to sync
-        // their own controls with editor state without reaching into internals.
-        onImageChanged: updateDemoControls,
-        onBusyChange: updateDemoControls,
-        onMasksChanged: updateDemoControls,
-    });
+    // UMD form: when `globalThis.fabric` is present (loaded via the
+    // documented `<script>` tag) the constructor reads it automatically.
+    //
+    // In ESM applications the equivalent is:
+    // `new ImageEditor(fabric, { ...options })`.
+    editor = createEditorInstance(ImageEditorCtor, createEditorOptions());
 
+    // `init` wires optional DOM affordances by ID. Passing `null` disables a
+    // built-in binding so the host page can provide its own control, as this
+    // demo does for create-mask and file-upload interactions.
     editor.init({
         canvas: 'canvas',
         imagePlaceholder: 'imagePlaceholder',
         scalePercentageInput: 'scalePercentageInput',
-        zoomInButton: 'zoomInButton',
-        zoomOutButton: 'zoomOutButton',
         rotateLeftButton: 'rotateLeftButton',
         rotateRightButton: 'rotateRightButton',
         rotateLeftDegreesInput: 'rotateLeftDegreesInput',
@@ -560,9 +650,8 @@ function initEditor() {
         enterCropModeButton: 'enterCropModeButton',
         applyCropButton: 'applyCropButton',
         cancelCropButton: 'cancelCropButton',
-        undoButton: 'undoButton',
-        redoButton: 'redoButton',
         resetImageTransformButton: 'resetImageTransformButton',
+        canvasContainer: null,
         imageInput: null,
         uploadArea: null,
     });
@@ -576,23 +665,28 @@ if (document.readyState === 'loading') {
 
 function setOptions() {
     if (!editor) return;
-    const fitImageRadio = getOptionalElement('fitImage');
-    const coverCanvasRadio = getOptionalElement('coverCanvas');
-    const expandCanvasRadio = getOptionalElement('expandCanvas');
+    const layoutMode = getSelectedLayoutMode();
 
-    if (fitImageRadio?.checked || (!coverCanvasRadio?.checked && !expandCanvasRadio?.checked)) {
-        editor.setLayoutMode('fit');
-    } else if (coverCanvasRadio?.checked) {
-        editor.setLayoutMode('cover');
+    // `setLayoutMode` is the public API for changing how the NEXT image load
+    // is placed in v2. v1 has no equivalent setter, so this legacy page
+    // recreates the editor with the selected constructor options before loading.
+    if (typeof editor.setLayoutMode === 'function') {
+        editor.setLayoutMode(layoutMode);
     } else {
-        editor.setLayoutMode('expand');
+        disposeEditorInstance();
+        initEditor();
     }
+}
+
+function isEditorReady() {
+    return !!editor && typeof editor.isImageLoaded === 'function';
 }
 
 function isEditorBusy() {
     if (!editor) return false;
     if (demoLoading) return false;
-    return editor.isBusy();
+    if (typeof editor.isBusy === 'function') return editor.isBusy();
+    return !!editor.isAnimating;
 }
 
 function canLoadImage() {
@@ -603,7 +697,7 @@ function updateDemoControls() {
     // The editor owns controls passed to `init`, but this demo also has
     // host-page controls (`load`, shape select, upload area) that need to
     // follow the same busy/loaded state.
-    const hasLoadedImage = !!editor && editor.isImageLoaded();
+    const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
     const isBusy = isEditorBusy();
     const createMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
@@ -790,7 +884,8 @@ async function getBase64Action() {
         showMessage(new Error(getCurrentTranslations('errorEditorNotInitialized')));
         return;
     }
-    const hasLoadedImage = !!editor && editor.isImageLoaded();
+    const hasLoadedImage =
+        !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
     if (!hasLoadedImage) {
         showMessage(new Error(getCurrentTranslations('noImageLoaded')));
         return;

@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>ImageEditor - Demo</title>
+        <title>ImageEditor - Legacy v1 Demo</title>
         <link rel="icon" href="./favicon.ico" type="image/x-icon" />
         <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon" />
         <meta content="IE=edge" http-equiv="X-UA-Compatible" />
@@ -40,8 +40,14 @@
                     <p data-i18n="appSubtitle">Canvas mask, crop, transform, and export demo</p>
                 </div>
                 <div class="header-actions" aria-label="Demo preferences">
-                    <a class="btn legacy-demo-toggle" href="./legacy-v1.html" role="button">
-                        Legacy v1 demo
+                    <a
+                        class="btn legacy-demo-toggle"
+                        href="./"
+                        role="button"
+                        aria-pressed="true"
+                        data-i18n="usingLegacyDemo"
+                    >
+                        Using v1
                     </a>
                     <label class="theme-switch" for="darkModeToggle" title="Dark mode">
                         <input id="darkModeToggle" type="checkbox" aria-label="Dark mode" />
@@ -399,48 +405,9 @@
             </section>
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-        <!--
-        Fabric.js v7 dual entry-point: the package ships an ESM build for
-        bundlers and a UMD build for `<script>` tags. The UMD build below
-        publishes the Fabric module on `globalThis.fabric`, which is what
-        the ImageEditor v2 UMD bundle reads when constructed without an
-        explicit module argument.
-        -->
-        <script src="https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js"></script>
-        <script>
-            (function () {
-                // The published UMD bundle is the documented browser entry-point
-                // for `@bensitu/image-editor` v2 (registered global: `ImageEditor`).
-                const imageEditorSources = window.location.hostname.endsWith('github.io')
-                    ? [
-                          'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
-                      ]
-                    : [
-                          '../dist/umd/image-editor.umd.js',
-                          'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
-                      ];
-
-                function loadScript(src, onload, onerror) {
-                    const script = document.createElement('script');
-                    script.src = src;
-                    script.onload = onload;
-                    script.onerror = onerror;
-                    document.body.appendChild(script);
-                }
-
-                function loadDemoScript() {
-                    loadScript('js/script.js?v=2.0.0');
-                }
-
-                function loadImageEditor(index) {
-                    if (index >= imageEditorSources.length) return;
-                    loadScript(imageEditorSources[index], loadDemoScript, () =>
-                        loadImageEditor(index + 1),
-                    );
-                }
-
-                loadImageEditor(0);
-            })();
-        </script>
+        <!-- The legacy demo is isolated on its own page so Fabric v5 and v7 never share a global. -->
+        <script src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@1.5.2/dist/image-editor.min.js"></script>
+        <script src="js/legacy-v1.js?v=2.0.0"></script>
     </body>
 </html>
