@@ -106,10 +106,8 @@ interface ImageDisplayGeometry {
     imageDisplayHeight: number;
 }
 
-const INTERNAL_OPERATION_TOKEN: unique symbol = Symbol.for('ImageEditorInternalOperation') as never;
-const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE: unique symbol = Symbol.for(
-    'ImageEditorAllowDuringAnimationQueue',
-) as never;
+const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
+const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
 
 type InternalOperationOptions = {
     [INTERNAL_OPERATION_TOKEN]?: OperationToken;
@@ -143,6 +141,35 @@ const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
 const CROP_MODE_ENABLED_KEYS: readonly ElementKey[] = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
 
+const SCROLLBAR_SETTLE_EPSILON = 1;
+
+const IMAGE_EDITOR_OPERATIONS: ReadonlySet<ImageEditorOperation> = new Set([
+    'init',
+    'loadImage',
+    'loadFromState',
+    'saveState',
+    'scaleImage',
+    'rotateImage',
+    'resetImageTransform',
+    'createMask',
+    'removeSelectedMask',
+    'removeAllMasks',
+    'mergeMasks',
+    'enterCropMode',
+    'applyCrop',
+    'cancelCrop',
+    'undo',
+    'redo',
+    'exportImageBase64',
+    'exportImageFile',
+    'downloadImage',
+    'dispose',
+]);
+
+function isImageEditorOperation(value: string | null): value is ImageEditorOperation {
+    return value !== null && IMAGE_EDITOR_OPERATIONS.has(value as ImageEditorOperation);
+}
+
 // ─── ImageEditor ─────────────────────────────────────────────────────────────
 
 /**
@@ -172,6 +199,7 @@ export class ImageEditor {
 
     // ── Resolved options ────────────────────────────────────────────────────
     private readonly options: ResolvedOptions;
+    private currentLayoutMode: LayoutMode = 'expand';
 
     // ── Canvas / DOM ────────────────────────────────────────────────────────
     private canvas: FabricNS.Canvas | null = null;
@@ -335,6 +363,7 @@ export class ImageEditor {
         // mutation of `userInput.label.textOptions` cannot affect the
         // live editor.
         this.options = resolveOptions(detected.options);
+        this.currentLayoutMode = this.options.layoutMode;
 
         const rawDefaultLayoutMode = (detected.options as Record<string, unknown>)
             .defaultLayoutMode;
@@ -699,6 +728,16 @@ export class ImageEditor {
      *          disposed states resolve without observable mutation.
      */
     async loadImage(base64: string, options: LoadImageOptions = {}): Promise<void> {
+        return this.loadImageInternal(
+            base64,
+            options as LoadImageOptions & InternalOperationOptions,
+        );
+    }
+
+    private async loadImageInternal(
+        base64: string,
+        options: LoadImageOptions & InternalOperationOptions = {},
+    ): Promise<void> {
         // Fabric-unavailable and disposed gates mirror "init and
         // loadImage are no-ops" contract.
         if (!this.isFabricLoaded || !this.canvas) return;
@@ -727,7 +766,7 @@ export class ImageEditor {
         const loadImageContext: LoadImageContext = {
             fabric: this.fabricModule,
             canvas: this.canvas,
-            options: this.options,
+            options: this.getRuntimeOptions(),
             containerElement: this.containerElement,
             placeholderElement: this.placeholderElement,
             viewportCache: this.viewportCache,
@@ -835,11 +874,13 @@ export class ImageEditor {
         } as T & InternalOperationOptions;
     }
 
-    private withAnimationQueueBypass<T extends object>(options: T = {} as T): T {
+    private withAnimationQueueBypass<T extends object>(
+        options: T = {} as T,
+    ): T & InternalOperationOptions {
         return {
             ...options,
             [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
-        } as T;
+        } as T & InternalOperationOptions;
     }
 
     private assertIdleForOperation(operationName: string, options?: object | null): void {
@@ -865,9 +906,19 @@ export class ImageEditor {
         try {
             this.assertIdleForOperation(operationName, options);
             return true;
-        } catch {
+        } catch (error) {
+            if (!this.isExpectedIdleGuardError(error, operationName)) {
+                throw error;
+            }
             return false;
         }
+    }
+
+    private isExpectedIdleGuardError(error: unknown, operationName: string): boolean {
+        return (
+            error instanceof Error &&
+            error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `)
+        );
     }
 
     private assertCanQueueAnimation(operationName: string, options?: object | null): void {
@@ -917,7 +968,15 @@ export class ImageEditor {
             return;
         }
 
-        this.options.layoutMode = mode;
+        this.currentLayoutMode = mode;
+    }
+
+    private getRuntimeOptions(): ResolvedOptions {
+        if (this.currentLayoutMode === this.options.layoutMode) return this.options;
+        return Object.freeze({
+            ...this.options,
+            layoutMode: this.currentLayoutMode,
+        }) as ResolvedOptions;
     }
 
     private buildCallbackContext(
@@ -931,11 +990,13 @@ export class ImageEditor {
         fallback: ImageEditorOperation,
         options?: object | null,
     ): ImageEditorCallbackContext {
-        const internal = this.getInternalOperationToken(options);
-        const activeOperation =
-            this.operationGuard.activeOperationName() as ImageEditorOperation | null;
+        const internal = this.getInternalOperationToken(options as InternalOperationOptions | null);
+        const activeOperation = this.operationGuard.activeOperationName();
         if (internal && activeOperation) {
-            return this.buildCallbackContext(activeOperation, true);
+            return this.buildCallbackContext(
+                isImageEditorOperation(activeOperation) ? activeOperation : fallback,
+                true,
+            );
         }
         return this.buildCallbackContext(fallback, false);
     }
@@ -1147,7 +1208,7 @@ export class ImageEditor {
         const scrollbarSize = measureScrollbarSize(this.containerElement?.ownerDocument ?? null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
 
-        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
+        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
             const canvasSize = computeScrollableCanvasSize(
                 boundingRect.width,
                 boundingRect.height,
@@ -1184,7 +1245,7 @@ export class ImageEditor {
             boundingRect.width > canvasW + LAYOUT_EPSILON ||
             boundingRect.height > canvasH + LAYOUT_EPSILON;
 
-        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
+        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
             const staleOverflowWidth =
                 canvasW > viewport.width + LAYOUT_EPSILON &&
                 boundingRect.width <= viewport.width + LAYOUT_EPSILON;
@@ -1195,7 +1256,7 @@ export class ImageEditor {
             return clipsImage || staleOverflowWidth || staleOverflowHeight;
         }
 
-        if (this.options.layoutMode === 'expand') {
+        if (this.currentLayoutMode === 'expand') {
             const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
             const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
             return (
@@ -1205,6 +1266,42 @@ export class ImageEditor {
         }
 
         return clipsImage;
+    }
+
+    private settleFitCoverScrollbarsAfterStateRestore(): void {
+        if (
+            !this.canvas ||
+            !this.containerElement ||
+            (this.currentLayoutMode !== 'fit' && this.currentLayoutMode !== 'cover')
+        ) {
+            return;
+        }
+
+        const canvasW = Math.ceil(this.canvas.getWidth());
+        const canvasH = Math.ceil(this.canvas.getHeight());
+        if (canvasW <= 1 || canvasH <= 1) return;
+
+        const clientW = Math.floor(this.containerElement.clientWidth || 0);
+        const clientH = Math.floor(this.containerElement.clientHeight || 0);
+        if (clientW <= 0 || clientH <= 0) return;
+
+        const scrollW = Math.ceil(this.containerElement.scrollWidth || 0);
+        const scrollH = Math.ceil(this.containerElement.scrollHeight || 0);
+        const hasHorizontalScrollbar = scrollW > clientW + LAYOUT_EPSILON;
+        const hasVerticalScrollbar = scrollH > clientH + LAYOUT_EPSILON;
+        if (!hasHorizontalScrollbar && !hasVerticalScrollbar) return;
+
+        const nudgeWidth =
+            hasVerticalScrollbar && Math.abs(canvasW - clientW) <= SCROLLBAR_SETTLE_EPSILON;
+        const nudgeHeight =
+            hasHorizontalScrollbar && Math.abs(canvasH - clientH) <= SCROLLBAR_SETTLE_EPSILON;
+        if (!nudgeWidth && !nudgeHeight) return;
+
+        this.setCanvasSizePx(
+            nudgeWidth ? canvasW - 1 : canvasW,
+            nudgeHeight ? canvasH - 1 : canvasH,
+        );
+        this.setCanvasSizePx(canvasW, canvasH);
     }
 
     private captureImageDisplayGeometry(): ImageDisplayGeometry | null {
@@ -1474,7 +1571,7 @@ export class ImageEditor {
 
     private async loadFromStateInternal(
         jsonString: string | CanvasJson,
-        options?: object | null,
+        options?: InternalOperationOptions | null,
     ): Promise<void> {
         if (!jsonString || !this.canvas) return;
         // After-dispose calls resolve as a no-op so a queued undo/redo
@@ -1542,6 +1639,9 @@ export class ImageEditor {
                 this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
+            if (this.originalImage) {
+                this.settleFitCoverScrollbarsAfterStateRestore();
+            }
 
             // Re-attach mouseover/mouseout hover handlers (Fabric never
             // serializes event listeners).
@@ -1604,7 +1704,7 @@ export class ImageEditor {
         this.saveStateInternal();
     }
 
-    private saveStateInternal(options?: object | null): void {
+    private saveStateInternal(options?: InternalOperationOptions | null): void {
         if (!this.canvas || this.shouldSuppressSaveState) return;
         if (!this.canRunIdleOperation('saveState', options)) return;
         const activeObj = this.canvas.getActiveObject();
@@ -1624,26 +1724,17 @@ export class ImageEditor {
             if (after === before) {
                 return;
             }
-            let executedOnce = false;
 
-            // HistoryManager.execute() always invokes command.execute()
-            // before storing the command. saveState() is called after the
-            // canvas already reached `after`, so that first invocation only
-            // arms the latch. Later redo() calls use the same closure after
-            // an undo and must restore the captured `after` snapshot.
             const cmd = new Command(
                 async () => {
-                    if (executedOnce) {
-                        await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
-                    }
-                    executedOnce = true;
+                    await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
                 },
                 async () => {
                     await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
                 },
             );
 
-            this.historyManager.execute(cmd);
+            this.historyManager.push(cmd);
             this.lastSnapshot = after;
         } catch (error) {
             reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
@@ -1840,7 +1931,7 @@ export class ImageEditor {
         return {
             fabric: this.fabricModule,
             canvas: this.canvas!,
-            options: this.options,
+            options: this.getRuntimeOptions(),
             getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
                 this.lastMask = maskObject;
@@ -2161,9 +2252,9 @@ export class ImageEditor {
             containerElement: this.containerElement,
             loadImage: async (base64, providedOptions) => {
                 const geometry = this.captureImageDisplayGeometry();
-                await this.loadImage(
+                await this.loadImageInternal(
                     base64,
-                    this.withInternalOperationOptions(operationToken, providedOptions),
+                    this.withInternalOperationOptions(operationToken, providedOptions ?? {}),
                 );
                 this.restoreMergedImageDisplayGeometry(geometry);
             },
@@ -2194,7 +2285,11 @@ export class ImageEditor {
      * and does NOT update `lastSnapshot`.
      */
     private captureSnapshotInternal(): string {
-        if (!this.canvas) return '';
+        if (!this.canvas) {
+            throw new Error(
+                '[ImageEditor] Cannot capture canvas snapshot before init or after dispose.',
+            );
+        }
         const activeMask = this.getActiveMaskForSnapshot();
         this.hideAllMaskLabels();
         return saveStateImpl({
@@ -2211,13 +2306,10 @@ export class ImageEditor {
         if (!this.canvas) return null;
         const activeObject = this.canvas.getActiveObject();
         if (activeObject && isMaskObject(activeObject)) return activeObject;
-        return (
-            this.canvas
-                .getObjects()
-                .find(
-                    (object): object is MaskObject => isMaskObject(object) && !!object.labelObject,
-                ) ?? null
-        );
+        const labeledMasks = this.canvas
+            .getObjects()
+            .filter((object): object is MaskObject => isMaskObject(object) && !!object.labelObject);
+        return labeledMasks.length === 1 ? (labeledMasks[0] ?? null) : null;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2356,9 +2448,9 @@ export class ImageEditor {
                     ),
                 ),
             loadImage: (base64, providedOptions) =>
-                this.loadImage(
+                this.loadImageInternal(
                     base64,
-                    this.withInternalOperationOptions(operationToken, providedOptions),
+                    this.withInternalOperationOptions(operationToken, providedOptions ?? {}),
                 ),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {

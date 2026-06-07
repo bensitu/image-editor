@@ -32,6 +32,7 @@ export declare class ImageEditor {
     private fabricModule;
     private isFabricLoaded;
     private readonly options;
+    private currentLayoutMode;
     private canvas;
     private canvasElement;
     private containerElement;
@@ -202,12 +203,14 @@ export declare class ImageEditor {
      *          disposed states resolve without observable mutation.
      */
     loadImage(base64: string, options?: LoadImageOptions): Promise<void>;
+    private loadImageInternal;
     private getInternalOperationToken;
     private canRunDuringAnimationQueue;
     private withInternalOperationOptions;
     private withAnimationQueueBypass;
     private assertIdleForOperation;
     private canRunIdleOperation;
+    private isExpectedIdleGuardError;
     private assertCanQueueAnimation;
     /**
      * Returns `true` if a valid image is currently loaded on the canvas.
@@ -226,6 +229,7 @@ export declare class ImageEditor {
      * @param mode - Layout mode to use for future image loads.
      */
     setLayoutMode(mode: LayoutMode): void;
+    private getRuntimeOptions;
     private buildCallbackContext;
     private getOperationContext;
     private emitOptionCallback;
@@ -264,6 +268,7 @@ export declare class ImageEditor {
      */
     private updateCanvasSizeToImageBounds;
     private shouldNormalizeCanvasSizeAfterStateRestore;
+    private settleFitCoverScrollbarsAfterStateRestore;
     private captureImageDisplayGeometry;
     private restoreMergedImageDisplayGeometry;
     /**

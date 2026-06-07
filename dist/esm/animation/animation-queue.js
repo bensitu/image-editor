@@ -48,20 +48,27 @@ export class AnimationQueue {
         return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
     }
     async drainQueue() {
-        if (this.queue.length === 0) {
-            this.running = false;
+        if (this.running)
             return;
-        }
         this.running = true;
-        const entry = this.queue.shift();
         try {
-            await entry.run();
-            entry.resolve();
+            while (this.queue.length > 0) {
+                const entry = this.queue.shift();
+                try {
+                    await entry.run();
+                    entry.resolve();
+                }
+                catch (error) {
+                    entry.reject(error);
+                }
+            }
         }
-        catch (error) {
-            entry.reject(error);
+        finally {
+            this.running = false;
+            if (this.queue.length > 0) {
+                void this.drainQueue();
+            }
         }
-        void this.drainQueue();
     }
 }
 //# sourceMappingURL=animation-queue.js.map

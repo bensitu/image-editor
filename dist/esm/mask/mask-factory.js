@@ -3,10 +3,8 @@ import { reportWarning } from '../core/callback-reporter.js';
 import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 const POLYGON_AREA_EPSILON = 1e-6;
-let nextMaskUid = 0;
 function createMaskUid(maskId) {
-    nextMaskUid += 1;
-    return `mask-${maskId}-${nextMaskUid}`;
+    return `mask-${maskId}`;
 }
 function isFabricObjectLike(value) {
     if (!value || typeof value !== 'object')

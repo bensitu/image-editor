@@ -220,7 +220,7 @@ test('FIFO order, at most one running, all promises settle', async () => {
             );
 
             // Once everything has settled, the queue must be quiescent
-            // again. The recursive `drainQueue` empties the queue and
+            // again. The `drainQueue` loop empties the queue and
             // flips `running=false` on the next iteration.
             assert.equal(queue.isRunning(), false, 'queue must be idle once every task settles');
         }),

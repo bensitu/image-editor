@@ -401,12 +401,11 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
 }
 function dataUrlToBytes(dataUrl) {
     var _a;
-    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
-    if (!match || !((_a = match[1]) === null || _a === void 0 ? void 0 : _a.trim())) {
+    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+    const base64 = (_a = match === null || match === void 0 ? void 0 : match[1]) !== null && _a !== void 0 ? _a : '';
+    if (!base64) {
         throw new Error('exportImageFile received a malformed or empty image data URL.');
     }
-    const commaAt = dataUrl.indexOf(',');
-    const base64 = dataUrl.slice(commaAt + 1).replace(/\s/g, '');
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
         const buffer = new ArrayBuffer(binary.length);

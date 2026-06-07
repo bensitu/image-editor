@@ -52,20 +52,27 @@ class AnimationQueue {
         return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
     }
     async drainQueue() {
-        if (this.queue.length === 0) {
-            this.running = false;
+        if (this.running)
             return;
-        }
         this.running = true;
-        const entry = this.queue.shift();
         try {
-            await entry.run();
-            entry.resolve();
+            while (this.queue.length > 0) {
+                const entry = this.queue.shift();
+                try {
+                    await entry.run();
+                    entry.resolve();
+                }
+                catch (error) {
+                    entry.reject(error);
+                }
+            }
         }
-        catch (error) {
-            entry.reject(error);
+        finally {
+            this.running = false;
+            if (this.queue.length > 0) {
+                void this.drainQueue();
+            }
         }
-        void this.drainQueue();
     }
 }
 
@@ -447,11 +454,11 @@ function resolveOptions(input) {
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
-    return {
+    return Object.freeze({
         ...resolved,
         label,
         crop,
-    };
+    });
 }
 
 class OperationGuard {
@@ -486,6 +493,12 @@ class OperationGuard {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "animationAborters", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Set()
+        });
     }
     isAnimating() {
         return this.isAnimationActive;
@@ -514,6 +527,28 @@ class OperationGuard {
         this.isLoadingActive = false;
         this.currentOperationName = null;
         this.currentOperationToken = null;
+        for (const abort of this.animationAborters) {
+            try {
+                abort();
+            }
+            catch {
+            }
+        }
+        this.animationAborters.clear();
+    }
+    registerAnimationAborter(abort) {
+        if (this.isDisposedFlag) {
+            try {
+                abort();
+            }
+            catch {
+            }
+            return () => undefined;
+        }
+        this.animationAborters.add(abort);
+        return () => {
+            this.animationAborters.delete(abort);
+        };
     }
     beginLoading() {
         this.isLoadingActive = true;
@@ -665,9 +700,7 @@ function isActiveSelectionObject(object) {
         return true;
     const isType = object.isType;
     return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') ||
-            isType.call(object, 'activeSelection') ||
-            isType.call(object, 'activeselection')));
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
 }
 function saveState(input) {
     var _a, _b, _c;
@@ -1523,14 +1556,16 @@ function maskIntersectsRegion(mask, region) {
 function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     var _a;
     const records = [];
-    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.object, backup]));
+    const styleBackupByMask = maskBackups.length > 0
+        ? new Map(maskBackups.map((backup) => [backup.object, backup]))
+        : null;
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
         try {
             mask.setCoords();
             const intersects = maskIntersectsRegion(mask, cropRegion);
             if (intersects) {
-                const styleBackup = (_a = styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
+                const styleBackup = (_a = styleBackupByMask === null || styleBackupByMask === void 0 ? void 0 : styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
                 records.push({
                     mask,
                     left: finiteNumberOrFallback(mask.left, 0),
@@ -2202,12 +2237,11 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
 }
 function dataUrlToBytes(dataUrl) {
     var _a;
-    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
-    if (!match || !((_a = match[1]) === null || _a === void 0 ? void 0 : _a.trim())) {
+    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+    const base64 = (_a = match === null || match === void 0 ? void 0 : match[1]) !== null && _a !== void 0 ? _a : '';
+    if (!base64) {
         throw new Error('exportImageFile received a malformed or empty image data URL.');
     }
-    const commaAt = dataUrl.indexOf(',');
-    const base64 = dataUrl.slice(commaAt + 1).replace(/\s/g, '');
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
         const buffer = new ArrayBuffer(binary.length);
@@ -2687,14 +2721,10 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
     const containerScrollLeft = context.containerElement
         ? context.containerElement.scrollLeft
         : null;
-    const containerOverflow = context.containerElement
-        ? context.containerElement.style.overflow
-        : null;
     const bundle = {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
-        containerOverflow,
         originalImage: context.getOriginalImage(),
         isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
         lastSnapshot: context.getLastSnapshot(),
@@ -2874,14 +2904,6 @@ function serializeCanvas(canvas) {
     return JSON.stringify(json);
 }
 async function replayRollback(context, bundle) {
-    if (context.containerElement && bundle.containerOverflow !== null) {
-        try {
-            context.containerElement.style.overflow = bundle.containerOverflow;
-        }
-        catch (rollbackError) {
-            console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
-        }
-    }
     try {
         await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
         context.canvas.renderAll();
@@ -2915,16 +2937,56 @@ async function replayRollback(context, bundle) {
     }
 }
 
+const ANIMATION_SETTLE_GRACE_MS = 1000;
 function animateProps(object, props, options, guard) {
     return new Promise((resolve, reject) => {
         const propCount = Object.keys(props).length;
-        if (propCount === 0) {
+        if (propCount === 0 || guard.isDisposed()) {
             resolve();
             return;
         }
         let completed = 0;
+        let settled = false;
+        let aborters = [];
+        let timeoutId = null;
+        let unregisterAborter = null;
+        const cleanup = () => {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            unregisterAborter === null || unregisterAborter === void 0 ? void 0 : unregisterAborter();
+            unregisterAborter = null;
+        };
+        const settle = () => {
+            if (settled)
+                return;
+            settled = true;
+            cleanup();
+            resolve();
+        };
+        const fail = (error) => {
+            if (settled)
+                return;
+            settled = true;
+            cleanup();
+            reject(error);
+        };
+        const abortAndSettle = () => {
+            for (const abort of aborters) {
+                try {
+                    abort();
+                }
+                catch {
+                }
+            }
+            settle();
+        };
+        const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
+        timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
+        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
         try {
-            object.animate(props, {
+            const animationResult = object.animate(props, {
                 duration: options.duration,
                 onChange: () => {
                     var _a;
@@ -2934,13 +2996,25 @@ function animateProps(object, props, options, guard) {
                 },
                 onComplete: () => {
                     if (++completed >= propCount)
-                        resolve();
+                        settle();
                 },
             });
+            aborters = collectAnimationAborters(animationResult);
         }
         catch (error) {
-            reject(error);
+            fail(error);
         }
+    });
+}
+function collectAnimationAborters(animationResult) {
+    const handles = Array.isArray(animationResult)
+        ? animationResult
+        : animationResult && typeof animationResult === 'object'
+            ? Object.values(animationResult)
+            : [animationResult];
+    return handles.flatMap((handle) => {
+        const abort = handle === null || handle === void 0 ? void 0 : handle.abort;
+        return typeof abort === 'function' ? [() => abort.call(handle)] : [];
     });
 }
 function restoreOrigin(object, originX, originY) {
@@ -3108,10 +3182,8 @@ function coercePoint(pt) {
 }
 
 const POLYGON_AREA_EPSILON = 1e-6;
-let nextMaskUid = 0;
 function createMaskUid(maskId) {
-    nextMaskUid += 1;
-    return `mask-${maskId}-${nextMaskUid}`;
+    return `mask-${maskId}`;
 }
 function isFabricObjectLike(value) {
     if (!value || typeof value !== 'object')
@@ -3750,8 +3822,8 @@ function resetFileInput(input) {
 }
 
 const LAYOUT_EPSILON = 0.5;
-const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
-const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol.for('ImageEditorAllowDuringAnimationQueue');
+const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
+const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
 const CROP_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
     'rotateLeftDegreesInput',
@@ -3775,6 +3847,32 @@ const CROP_MODE_CONTROL_KEYS = [
 ];
 const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const SCROLLBAR_SETTLE_EPSILON = 1;
+const IMAGE_EDITOR_OPERATIONS = new Set([
+    'init',
+    'loadImage',
+    'loadFromState',
+    'saveState',
+    'scaleImage',
+    'rotateImage',
+    'resetImageTransform',
+    'createMask',
+    'removeSelectedMask',
+    'removeAllMasks',
+    'mergeMasks',
+    'enterCropMode',
+    'applyCrop',
+    'cancelCrop',
+    'undo',
+    'redo',
+    'exportImageBase64',
+    'exportImageFile',
+    'downloadImage',
+    'dispose',
+]);
+function isImageEditorOperation(value) {
+    return value !== null && IMAGE_EDITOR_OPERATIONS.has(value);
+}
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -3795,6 +3893,12 @@ class ImageEditor {
             configurable: true,
             writable: true,
             value: void 0
+        });
+        Object.defineProperty(this, "currentLayoutMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'expand'
         });
         Object.defineProperty(this, "canvas", {
             enumerable: true,
@@ -3974,6 +4078,7 @@ class ImageEditor {
         this.fabricModule = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
         this.isFabricLoaded = detected.isFabricLoaded;
         this.options = resolveOptions(detected.options);
+        this.currentLayoutMode = this.options.layoutMode;
         const rawDefaultLayoutMode = detected.options
             .defaultLayoutMode;
         if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
@@ -4210,6 +4315,9 @@ class ImageEditor {
         }
     }
     async loadImage(base64, options = {}) {
+        return this.loadImageInternal(base64, options);
+    }
+    async loadImageInternal(base64, options = {}) {
         if (!this.isFabricLoaded || !this.canvas)
             return;
         if (this.isDisposed)
@@ -4229,7 +4337,7 @@ class ImageEditor {
         const loadImageContext = {
             fabric: this.fabricModule,
             canvas: this.canvas,
-            options: this.options,
+            options: this.getRuntimeOptions(),
             containerElement: this.containerElement,
             placeholderElement: this.placeholderElement,
             viewportCache: this.viewportCache,
@@ -4330,9 +4438,16 @@ class ImageEditor {
             this.assertIdleForOperation(operationName, options);
             return true;
         }
-        catch {
+        catch (error) {
+            if (!this.isExpectedIdleGuardError(error, operationName)) {
+                throw error;
+            }
             return false;
         }
+    }
+    isExpectedIdleGuardError(error, operationName) {
+        return (error instanceof Error &&
+            error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
     }
     assertCanQueueAnimation(operationName, options) {
         this.operationGuard.assertCanQueueAnimation(operationName, this.getInternalOperationToken(options));
@@ -4353,7 +4468,15 @@ class ImageEditor {
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
-        this.options.layoutMode = mode;
+        this.currentLayoutMode = mode;
+    }
+    getRuntimeOptions() {
+        if (this.currentLayoutMode === this.options.layoutMode)
+            return this.options;
+        return Object.freeze({
+            ...this.options,
+            layoutMode: this.currentLayoutMode,
+        });
     }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
@@ -4362,7 +4485,7 @@ class ImageEditor {
         const internal = this.getInternalOperationToken(options);
         const activeOperation = this.operationGuard.activeOperationName();
         if (internal && activeOperation) {
-            return this.buildCallbackContext(activeOperation, true);
+            return this.buildCallbackContext(isImageEditorOperation(activeOperation) ? activeOperation : fallback, true);
         }
         return this.buildCallbackContext(fallback, false);
     }
@@ -4516,7 +4639,7 @@ class ImageEditor {
         const boundingRect = this.originalImage.getBoundingRect();
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
-        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
+        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
             const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
             this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
@@ -4538,20 +4661,47 @@ class ImageEditor {
         const canvasH = Math.ceil(this.canvas.getHeight());
         const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
             boundingRect.height > canvasH + LAYOUT_EPSILON;
-        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
+        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
             const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
                 boundingRect.width <= viewport.width + LAYOUT_EPSILON;
             const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
                 boundingRect.height <= viewport.height + LAYOUT_EPSILON;
             return clipsImage || staleOverflowWidth || staleOverflowHeight;
         }
-        if (this.options.layoutMode === 'expand') {
+        if (this.currentLayoutMode === 'expand') {
             const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
             const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
             return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
                 Math.abs(canvasH - expectedH) > LAYOUT_EPSILON);
         }
         return clipsImage;
+    }
+    settleFitCoverScrollbarsAfterStateRestore() {
+        if (!this.canvas ||
+            !this.containerElement ||
+            (this.currentLayoutMode !== 'fit' && this.currentLayoutMode !== 'cover')) {
+            return;
+        }
+        const canvasW = Math.ceil(this.canvas.getWidth());
+        const canvasH = Math.ceil(this.canvas.getHeight());
+        if (canvasW <= 1 || canvasH <= 1)
+            return;
+        const clientW = Math.floor(this.containerElement.clientWidth || 0);
+        const clientH = Math.floor(this.containerElement.clientHeight || 0);
+        if (clientW <= 0 || clientH <= 0)
+            return;
+        const scrollW = Math.ceil(this.containerElement.scrollWidth || 0);
+        const scrollH = Math.ceil(this.containerElement.scrollHeight || 0);
+        const hasHorizontalScrollbar = scrollW > clientW + LAYOUT_EPSILON;
+        const hasVerticalScrollbar = scrollH > clientH + LAYOUT_EPSILON;
+        if (!hasHorizontalScrollbar && !hasVerticalScrollbar)
+            return;
+        const nudgeWidth = hasVerticalScrollbar && Math.abs(canvasW - clientW) <= SCROLLBAR_SETTLE_EPSILON;
+        const nudgeHeight = hasHorizontalScrollbar && Math.abs(canvasH - clientH) <= SCROLLBAR_SETTLE_EPSILON;
+        if (!nudgeWidth && !nudgeHeight)
+            return;
+        this.setCanvasSizePx(nudgeWidth ? canvasW - 1 : canvasW, nudgeHeight ? canvasH - 1 : canvasH);
+        this.setCanvasSizePx(canvasW, canvasH);
     }
     captureImageDisplayGeometry() {
         if (!this.canvas || !this.originalImage)
@@ -4789,6 +4939,9 @@ class ImageEditor {
                 this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
+            if (this.originalImage) {
+                this.settleFitCoverScrollbarsAfterStateRestore();
+            }
             const restoredMasks = restoredState.objects.filter(isMaskObject);
             this.lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
             restoredMasks.forEach((maskObject) => {
@@ -4848,16 +5001,12 @@ class ImageEditor {
             if (after === before) {
                 return;
             }
-            let executedOnce = false;
             const cmd = new Command(async () => {
-                if (executedOnce) {
-                    await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
-                }
-                executedOnce = true;
+                await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
             }, async () => {
                 await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
             });
-            this.historyManager.execute(cmd);
+            this.historyManager.push(cmd);
             this.lastSnapshot = after;
         }
         catch (error) {
@@ -4972,7 +5121,7 @@ class ImageEditor {
         return {
             fabric: this.fabricModule,
             canvas: this.canvas,
-            options: this.options,
+            options: this.getRuntimeOptions(),
             getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
                 this.lastMask = maskObject;
@@ -5173,7 +5322,7 @@ class ImageEditor {
             containerElement: this.containerElement,
             loadImage: async (base64, providedOptions) => {
                 const geometry = this.captureImageDisplayGeometry();
-                await this.loadImage(base64, this.withInternalOperationOptions(operationToken, providedOptions));
+                await this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
                 this.restoreMergedImageDisplayGeometry(geometry);
             },
             saveState: () => this.captureSnapshotInternal(),
@@ -5186,8 +5335,9 @@ class ImageEditor {
     }
     captureSnapshotInternal() {
         var _a;
-        if (!this.canvas)
-            return '';
+        if (!this.canvas) {
+            throw new Error('[ImageEditor] Cannot capture canvas snapshot before init or after dispose.');
+        }
         const activeMask = this.getActiveMaskForSnapshot();
         this.hideAllMaskLabels();
         return saveState({
@@ -5206,9 +5356,10 @@ class ImageEditor {
         const activeObject = this.canvas.getActiveObject();
         if (activeObject && isMaskObject(activeObject))
             return activeObject;
-        return ((_a = this.canvas
+        const labeledMasks = this.canvas
             .getObjects()
-            .find((object) => isMaskObject(object) && !!object.labelObject)) !== null && _a !== void 0 ? _a : null);
+            .filter((object) => isMaskObject(object) && !!object.labelObject);
+        return labeledMasks.length === 1 ? ((_a = labeledMasks[0]) !== null && _a !== void 0 ? _a : null) : null;
     }
     enterCropMode() {
         if (!this.canvas || !this.originalImage)
@@ -5281,7 +5432,7 @@ class ImageEditor {
             },
             saveState: () => this.captureSnapshotInternal(),
             loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
-            loadImage: (base64, providedOptions) => this.loadImage(base64, this.withInternalOperationOptions(operationToken, providedOptions)),
+            loadImage: (base64, providedOptions) => this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
                 this.maskCounter = n;

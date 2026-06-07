@@ -20,8 +20,8 @@ import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibil
 import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from './utils/file.js';
 import { detectSourceMimeType } from './image/image-resampler.js';
 const LAYOUT_EPSILON = 0.5;
-const INTERNAL_OPERATION_TOKEN = Symbol.for('ImageEditorInternalOperation');
-const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol.for('ImageEditorAllowDuringAnimationQueue');
+const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
+const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
 const CROP_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
     'rotateLeftDegreesInput',
@@ -45,6 +45,32 @@ const CROP_MODE_CONTROL_KEYS = [
 ];
 const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const SCROLLBAR_SETTLE_EPSILON = 1;
+const IMAGE_EDITOR_OPERATIONS = new Set([
+    'init',
+    'loadImage',
+    'loadFromState',
+    'saveState',
+    'scaleImage',
+    'rotateImage',
+    'resetImageTransform',
+    'createMask',
+    'removeSelectedMask',
+    'removeAllMasks',
+    'mergeMasks',
+    'enterCropMode',
+    'applyCrop',
+    'cancelCrop',
+    'undo',
+    'redo',
+    'exportImageBase64',
+    'exportImageFile',
+    'downloadImage',
+    'dispose',
+]);
+function isImageEditorOperation(value) {
+    return value !== null && IMAGE_EDITOR_OPERATIONS.has(value);
+}
 export class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
@@ -65,6 +91,12 @@ export class ImageEditor {
             configurable: true,
             writable: true,
             value: void 0
+        });
+        Object.defineProperty(this, "currentLayoutMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'expand'
         });
         Object.defineProperty(this, "canvas", {
             enumerable: true,
@@ -244,6 +276,7 @@ export class ImageEditor {
         this.fabricModule = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
         this.isFabricLoaded = detected.isFabricLoaded;
         this.options = resolveOptions(detected.options);
+        this.currentLayoutMode = this.options.layoutMode;
         const rawDefaultLayoutMode = detected.options
             .defaultLayoutMode;
         if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
@@ -480,6 +513,9 @@ export class ImageEditor {
         }
     }
     async loadImage(base64, options = {}) {
+        return this.loadImageInternal(base64, options);
+    }
+    async loadImageInternal(base64, options = {}) {
         if (!this.isFabricLoaded || !this.canvas)
             return;
         if (this.isDisposed)
@@ -499,7 +535,7 @@ export class ImageEditor {
         const loadImageContext = {
             fabric: this.fabricModule,
             canvas: this.canvas,
-            options: this.options,
+            options: this.getRuntimeOptions(),
             containerElement: this.containerElement,
             placeholderElement: this.placeholderElement,
             viewportCache: this.viewportCache,
@@ -600,9 +636,16 @@ export class ImageEditor {
             this.assertIdleForOperation(operationName, options);
             return true;
         }
-        catch {
+        catch (error) {
+            if (!this.isExpectedIdleGuardError(error, operationName)) {
+                throw error;
+            }
             return false;
         }
+    }
+    isExpectedIdleGuardError(error, operationName) {
+        return (error instanceof Error &&
+            error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
     }
     assertCanQueueAnimation(operationName, options) {
         this.operationGuard.assertCanQueueAnimation(operationName, this.getInternalOperationToken(options));
@@ -623,7 +666,15 @@ export class ImageEditor {
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
-        this.options.layoutMode = mode;
+        this.currentLayoutMode = mode;
+    }
+    getRuntimeOptions() {
+        if (this.currentLayoutMode === this.options.layoutMode)
+            return this.options;
+        return Object.freeze({
+            ...this.options,
+            layoutMode: this.currentLayoutMode,
+        });
     }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
@@ -632,7 +683,7 @@ export class ImageEditor {
         const internal = this.getInternalOperationToken(options);
         const activeOperation = this.operationGuard.activeOperationName();
         if (internal && activeOperation) {
-            return this.buildCallbackContext(activeOperation, true);
+            return this.buildCallbackContext(isImageEditorOperation(activeOperation) ? activeOperation : fallback, true);
         }
         return this.buildCallbackContext(fallback, false);
     }
@@ -786,7 +837,7 @@ export class ImageEditor {
         const boundingRect = this.originalImage.getBoundingRect();
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
-        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
+        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
             const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
             this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
@@ -808,20 +859,47 @@ export class ImageEditor {
         const canvasH = Math.ceil(this.canvas.getHeight());
         const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
             boundingRect.height > canvasH + LAYOUT_EPSILON;
-        if (this.options.layoutMode === 'fit' || this.options.layoutMode === 'cover') {
+        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
             const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
                 boundingRect.width <= viewport.width + LAYOUT_EPSILON;
             const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
                 boundingRect.height <= viewport.height + LAYOUT_EPSILON;
             return clipsImage || staleOverflowWidth || staleOverflowHeight;
         }
-        if (this.options.layoutMode === 'expand') {
+        if (this.currentLayoutMode === 'expand') {
             const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
             const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
             return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
                 Math.abs(canvasH - expectedH) > LAYOUT_EPSILON);
         }
         return clipsImage;
+    }
+    settleFitCoverScrollbarsAfterStateRestore() {
+        if (!this.canvas ||
+            !this.containerElement ||
+            (this.currentLayoutMode !== 'fit' && this.currentLayoutMode !== 'cover')) {
+            return;
+        }
+        const canvasW = Math.ceil(this.canvas.getWidth());
+        const canvasH = Math.ceil(this.canvas.getHeight());
+        if (canvasW <= 1 || canvasH <= 1)
+            return;
+        const clientW = Math.floor(this.containerElement.clientWidth || 0);
+        const clientH = Math.floor(this.containerElement.clientHeight || 0);
+        if (clientW <= 0 || clientH <= 0)
+            return;
+        const scrollW = Math.ceil(this.containerElement.scrollWidth || 0);
+        const scrollH = Math.ceil(this.containerElement.scrollHeight || 0);
+        const hasHorizontalScrollbar = scrollW > clientW + LAYOUT_EPSILON;
+        const hasVerticalScrollbar = scrollH > clientH + LAYOUT_EPSILON;
+        if (!hasHorizontalScrollbar && !hasVerticalScrollbar)
+            return;
+        const nudgeWidth = hasVerticalScrollbar && Math.abs(canvasW - clientW) <= SCROLLBAR_SETTLE_EPSILON;
+        const nudgeHeight = hasHorizontalScrollbar && Math.abs(canvasH - clientH) <= SCROLLBAR_SETTLE_EPSILON;
+        if (!nudgeWidth && !nudgeHeight)
+            return;
+        this.setCanvasSizePx(nudgeWidth ? canvasW - 1 : canvasW, nudgeHeight ? canvasH - 1 : canvasH);
+        this.setCanvasSizePx(canvasW, canvasH);
     }
     captureImageDisplayGeometry() {
         if (!this.canvas || !this.originalImage)
@@ -1059,6 +1137,9 @@ export class ImageEditor {
                 this.updateCanvasSizeToImageBounds();
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
+            if (this.originalImage) {
+                this.settleFitCoverScrollbarsAfterStateRestore();
+            }
             const restoredMasks = restoredState.objects.filter(isMaskObject);
             this.lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
             restoredMasks.forEach((maskObject) => {
@@ -1118,16 +1199,12 @@ export class ImageEditor {
             if (after === before) {
                 return;
             }
-            let executedOnce = false;
             const cmd = new Command(async () => {
-                if (executedOnce) {
-                    await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
-                }
-                executedOnce = true;
+                await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
             }, async () => {
                 await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
             });
-            this.historyManager.execute(cmd);
+            this.historyManager.push(cmd);
             this.lastSnapshot = after;
         }
         catch (error) {
@@ -1242,7 +1319,7 @@ export class ImageEditor {
         return {
             fabric: this.fabricModule,
             canvas: this.canvas,
-            options: this.options,
+            options: this.getRuntimeOptions(),
             getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
                 this.lastMask = maskObject;
@@ -1443,7 +1520,7 @@ export class ImageEditor {
             containerElement: this.containerElement,
             loadImage: async (base64, providedOptions) => {
                 const geometry = this.captureImageDisplayGeometry();
-                await this.loadImage(base64, this.withInternalOperationOptions(operationToken, providedOptions));
+                await this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
                 this.restoreMergedImageDisplayGeometry(geometry);
             },
             saveState: () => this.captureSnapshotInternal(),
@@ -1456,8 +1533,9 @@ export class ImageEditor {
     }
     captureSnapshotInternal() {
         var _a;
-        if (!this.canvas)
-            return '';
+        if (!this.canvas) {
+            throw new Error('[ImageEditor] Cannot capture canvas snapshot before init or after dispose.');
+        }
         const activeMask = this.getActiveMaskForSnapshot();
         this.hideAllMaskLabels();
         return saveStateImpl({
@@ -1476,9 +1554,10 @@ export class ImageEditor {
         const activeObject = this.canvas.getActiveObject();
         if (activeObject && isMaskObject(activeObject))
             return activeObject;
-        return ((_a = this.canvas
+        const labeledMasks = this.canvas
             .getObjects()
-            .find((object) => isMaskObject(object) && !!object.labelObject)) !== null && _a !== void 0 ? _a : null);
+            .filter((object) => isMaskObject(object) && !!object.labelObject);
+        return labeledMasks.length === 1 ? ((_a = labeledMasks[0]) !== null && _a !== void 0 ? _a : null) : null;
     }
     enterCropMode() {
         if (!this.canvas || !this.originalImage)
@@ -1551,7 +1630,7 @@ export class ImageEditor {
             },
             saveState: () => this.captureSnapshotInternal(),
             loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
-            loadImage: (base64, providedOptions) => this.loadImage(base64, this.withInternalOperationOptions(operationToken, providedOptions)),
+            loadImage: (base64, providedOptions) => this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
             getMaskCounter: () => this.maskCounter,
             setMaskCounter: (n) => {
                 this.maskCounter = n;

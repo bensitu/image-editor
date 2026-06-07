@@ -239,9 +239,7 @@ function isActiveSelectionObject(object: FabricNS.FabricObject | null | undefine
     const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
     return (
         typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') ||
-            isType.call(object, 'activeSelection') ||
-            isType.call(object, 'activeselection'))
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection'))
     );
 }
 

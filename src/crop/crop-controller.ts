@@ -610,7 +610,10 @@ function capturePreservedMasks(
     maskBackups: MaskBackup[] = [],
 ): PreservedMaskRecord[] {
     const records: PreservedMaskRecord[] = [];
-    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.object, backup]));
+    const styleBackupByMask =
+        maskBackups.length > 0
+            ? new Map(maskBackups.map((backup) => [backup.object, backup]))
+            : null;
 
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
@@ -619,7 +622,7 @@ function capturePreservedMasks(
             const intersects = maskIntersectsRegion(mask, cropRegion);
 
             if (intersects) {
-                const styleBackup = styleBackupByMask.get(mask) ?? captureMaskStyleBackup(mask);
+                const styleBackup = styleBackupByMask?.get(mask) ?? captureMaskStyleBackup(mask);
                 records.push({
                     mask,
                     // capture pre-crop

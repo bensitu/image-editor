@@ -650,6 +650,19 @@ test('exportImageFile: rejects empty image data URLs', async () => {
     );
 });
 
+test('exportImageFile: rejects image data URLs with whitespace in base64 payload', async () => {
+    const canvas = makeMockCanvas('data:image/jpeg;base64,aGVs bG8=');
+    const ctx = makeContext({ canvas });
+
+    await assert.rejects(
+        () => exportImageFile(ctx, { fileType: 'jpeg' }),
+        (error) =>
+            error instanceof ExportError &&
+            /decode rendered data URL/.test(error.message) &&
+            /malformed or empty/.test(String(error.originalError?.message ?? '')),
+    );
+});
+
 test('exportImageFile: wraps atob decode failures in ExportError', async () => {
     const originalAtob = globalThis.atob;
     try {

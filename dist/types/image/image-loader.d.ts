@@ -21,12 +21,12 @@
  *   loader re-throws. The success path does NOT invoke `onError`.
  * - Strings that do not start with `data:image/`
  *   resolve without mutating placeholder visibility, scroll position,
- *   `overflow`, image state, or canvas state. The function returns before
+ *   image state, or canvas state. The function returns before
  *   capturing the rollback bundle, so no observable side effect occurs.
  * - On a valid `data:image/` URL, the loader captures
  *   the rollback bundle *before* mutating any of the fields it tracks
  *   (placeholder `hidden`, container `scrollTop`/`scrollLeft`, container
- *   inline `overflow`, `originalImage`, `lastSnapshot`, the canvas JSON
+ *   `originalImage`, `lastSnapshot`, the canvas JSON
  *   snapshot, plus the editor transform fields the rollback needs to
  *   restore the live canvas to a consistent state).
  * - Decode, Fabric, downsample, and timeout failures
@@ -114,8 +114,6 @@ export interface RollbackBundle {
     containerScrollTop: number | null;
     /** Container `scrollLeft` immediately before the loader started. */
     containerScrollLeft: number | null;
-    /** Container inline `style.overflow` value before any mutation. */
-    containerOverflow: string | null;
     /** The previously-committed `originalImage` reference, if any. */
     originalImage: FabricNS.FabricImage | null;
     /** Whether an image was already committed before this call. */

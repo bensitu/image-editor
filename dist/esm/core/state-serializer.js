@@ -77,9 +77,7 @@ function isActiveSelectionObject(object) {
         return true;
     const isType = object.isType;
     return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') ||
-            isType.call(object, 'activeSelection') ||
-            isType.call(object, 'activeselection')));
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
 }
 export function saveState(input) {
     var _a, _b, _c;

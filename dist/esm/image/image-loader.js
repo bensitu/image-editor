@@ -15,14 +15,10 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
     const containerScrollLeft = context.containerElement
         ? context.containerElement.scrollLeft
         : null;
-    const containerOverflow = context.containerElement
-        ? context.containerElement.style.overflow
-        : null;
     const bundle = {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
-        containerOverflow,
         originalImage: context.getOriginalImage(),
         isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
         lastSnapshot: context.getLastSnapshot(),
@@ -202,14 +198,6 @@ function serializeCanvas(canvas) {
     return JSON.stringify(json);
 }
 async function replayRollback(context, bundle) {
-    if (context.containerElement && bundle.containerOverflow !== null) {
-        try {
-            context.containerElement.style.overflow = bundle.containerOverflow;
-        }
-        catch (rollbackError) {
-            console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
-        }
-    }
     try {
         await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
         context.canvas.renderAll();

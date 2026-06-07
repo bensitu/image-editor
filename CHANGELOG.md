@@ -17,10 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add default mask configuration for new masks.
+- Add regression coverage for dispose-aborted Fabric animations, deterministic mask UIDs, strict export data URL decoding, and frozen resolved options.
 
 ### Changed
 
 - Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
+
+### Fixed
+
+- Make internal merge/crop snapshots fail fast when no canvas is available instead of producing an empty rollback snapshot that `loadFromState()` silently ignores.
+- Derive new mask `maskUid` values from the editor-owned `maskId` so identifiers are deterministic across editor instances, test runs, and page reloads.
+- Keep internal operation tokens module-local and route composite image loads through a private helper instead of carrying bypass tokens through the public `loadImage()` option shape.
+- Let unexpected idle-guard errors propagate while preserving documented no-op behavior for expected busy, crop, animation, and dispose guards.
+- Settle Fabric animation promises when `dispose()` aborts an in-flight animation, and drain the animation queue iteratively to avoid recursive promise-chain growth.
+- Freeze the top-level resolved options object and keep runtime layout mode in facade state instead of mutating resolved options.
+- Settle stale auto-scrollbars after Fit/Cover state restores so crop undo does not leave an extra scrollbar when a restored canvas axis exactly matches the visible viewport.
+- Record already-applied history snapshots with `HistoryManager.push()` instead of using a first-call no-op `execute()` latch.
+- Remove stale image-load rollback state for container `overflow`, reject whitespace-bearing base64 data URLs during file export, and avoid nondeterministic active-mask fallback when multiple labels are present.
 
 ## [2.0.0] - 2026-06-06
 

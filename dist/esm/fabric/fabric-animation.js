@@ -1,13 +1,53 @@
+const ANIMATION_SETTLE_GRACE_MS = 1000;
 export function animateProps(object, props, options, guard) {
     return new Promise((resolve, reject) => {
         const propCount = Object.keys(props).length;
-        if (propCount === 0) {
+        if (propCount === 0 || guard.isDisposed()) {
             resolve();
             return;
         }
         let completed = 0;
+        let settled = false;
+        let aborters = [];
+        let timeoutId = null;
+        let unregisterAborter = null;
+        const cleanup = () => {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            unregisterAborter === null || unregisterAborter === void 0 ? void 0 : unregisterAborter();
+            unregisterAborter = null;
+        };
+        const settle = () => {
+            if (settled)
+                return;
+            settled = true;
+            cleanup();
+            resolve();
+        };
+        const fail = (error) => {
+            if (settled)
+                return;
+            settled = true;
+            cleanup();
+            reject(error);
+        };
+        const abortAndSettle = () => {
+            for (const abort of aborters) {
+                try {
+                    abort();
+                }
+                catch {
+                }
+            }
+            settle();
+        };
+        const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
+        timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
+        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
         try {
-            object.animate(props, {
+            const animationResult = object.animate(props, {
                 duration: options.duration,
                 onChange: () => {
                     var _a;
@@ -17,13 +57,25 @@ export function animateProps(object, props, options, guard) {
                 },
                 onComplete: () => {
                     if (++completed >= propCount)
-                        resolve();
+                        settle();
                 },
             });
+            aborters = collectAnimationAborters(animationResult);
         }
         catch (error) {
-            reject(error);
+            fail(error);
         }
+    });
+}
+function collectAnimationAborters(animationResult) {
+    const handles = Array.isArray(animationResult)
+        ? animationResult
+        : animationResult && typeof animationResult === 'object'
+            ? Object.values(animationResult)
+            : [animationResult];
+    return handles.flatMap((handle) => {
+        const abort = handle === null || handle === void 0 ? void 0 : handle.abort;
+        return typeof abort === 'function' ? [() => abort.call(handle)] : [];
     });
 }
 export function restoreOrigin(object, originX, originY) {

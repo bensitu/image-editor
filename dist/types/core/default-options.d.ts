@@ -7,7 +7,8 @@
  * `crop` values merge with their defaults, callback values normalize to a
  * function or `null`, unknown top-level keys are ignored, top-level scalar
  * values remain internally mutable for controlled updates such as
- * `setLayoutMode()`, and returned nested config objects are frozen.
+ * `setLayoutMode()` stores its runtime mode separately, and returned
+ * option objects are frozen.
  *
  * @module
  */
@@ -47,9 +48,9 @@ export declare function isLayoutMode(value: unknown): value is LayoutMode;
  *  - Callback values are normalized: function values are kept, anything
  *    else becomes `null`.
  *  - Unknown top-level keys are silently dropped.
- *  - The returned `label` and `crop` references are frozen so that mutating
- *    `input.label`, `input.label.textOptions`, or `input.crop` after the call
- *    cannot affect the live editor.
+ *  - The returned options object plus its `label` and `crop` references
+ *    are frozen so mutating `input` after the call cannot affect the
+ *    live editor.
  *
  * @param input - Optional partial options object. Defaults to `{}`.
  */

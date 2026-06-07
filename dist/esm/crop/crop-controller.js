@@ -118,14 +118,16 @@ function maskIntersectsRegion(mask, region) {
 function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     var _a;
     const records = [];
-    const styleBackupByMask = new Map(maskBackups.map((backup) => [backup.object, backup]));
+    const styleBackupByMask = maskBackups.length > 0
+        ? new Map(maskBackups.map((backup) => [backup.object, backup]))
+        : null;
     const masks = canvas.getObjects().filter(isMaskObject);
     for (const mask of masks) {
         try {
             mask.setCoords();
             const intersects = maskIntersectsRegion(mask, cropRegion);
             if (intersects) {
-                const styleBackup = (_a = styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
+                const styleBackup = (_a = styleBackupByMask === null || styleBackupByMask === void 0 ? void 0 : styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
                 records.push({
                     mask,
                     left: finiteNumberOrFallback(mask.left, 0),

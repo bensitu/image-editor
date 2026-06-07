@@ -448,7 +448,8 @@ test('options resolution completeness and deep-merge', () => {
                 }
             }
 
-            // Nested label / textOptions / crop objects are frozen.
+            // Resolved options and nested config objects are frozen.
+            assert.equal(Object.isFrozen(resolved), true, 'resolved options must be frozen');
             assert.equal(Object.isFrozen(resolved.label), true, 'resolved.label must be frozen');
             assert.equal(
                 Object.isFrozen(resolved.label.textOptions),
@@ -640,6 +641,7 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         assert.equal(resolved.preserveSourceFormat, true);
         assert.equal(resolved.imageLoadTimeoutMs, 30000);
         assert.equal(resolved.crop.preserveMasksAfterCrop, false);
+        assert.equal(Object.isFrozen(resolved), true);
         assert.equal(Object.isFrozen(resolved.label), true);
         assert.equal(Object.isFrozen(resolved.label.textOptions), true);
         assert.equal(Object.isFrozen(resolved.crop), true);

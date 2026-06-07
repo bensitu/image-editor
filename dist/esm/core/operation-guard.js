@@ -30,6 +30,12 @@ export class OperationGuard {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "animationAborters", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Set()
+        });
     }
     isAnimating() {
         return this.isAnimationActive;
@@ -58,6 +64,28 @@ export class OperationGuard {
         this.isLoadingActive = false;
         this.currentOperationName = null;
         this.currentOperationToken = null;
+        for (const abort of this.animationAborters) {
+            try {
+                abort();
+            }
+            catch {
+            }
+        }
+        this.animationAborters.clear();
+    }
+    registerAnimationAborter(abort) {
+        if (this.isDisposedFlag) {
+            try {
+                abort();
+            }
+            catch {
+            }
+            return () => undefined;
+        }
+        this.animationAborters.add(abort);
+        return () => {
+            this.animationAborters.delete(abort);
+        };
     }
     beginLoading() {
         this.isLoadingActive = true;

@@ -50,6 +50,12 @@
 import type * as FabricNS from 'fabric';
 import type { OperationGuard } from '../core/operation-guard.js';
 
+const ANIMATION_SETTLE_GRACE_MS = 1000;
+
+type AbortableAnimation = {
+    abort?: () => void;
+};
+
 /**
  * Options accepted by {@link animateProps}.
  *
@@ -118,7 +124,7 @@ export function animateProps<T extends FabricNS.FabricObject>(
 ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const propCount = Object.keys(props).length;
-        if (propCount === 0) {
+        if (propCount === 0 || guard.isDisposed()) {
             // Nothing to animate — settle immediately so callers (the
             // animation queue) can advance to the next entry.
             resolve();
@@ -126,11 +132,54 @@ export function animateProps<T extends FabricNS.FabricObject>(
         }
 
         let completed = 0;
+        let settled = false;
+        let aborters: Array<() => void> = [];
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let unregisterAborter: (() => void) | null = null;
+
+        const cleanup = (): void => {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            unregisterAborter?.();
+            unregisterAborter = null;
+        };
+
+        const settle = (): void => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve();
+        };
+
+        const fail = (error: unknown): void => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(error);
+        };
+
+        const abortAndSettle = (): void => {
+            for (const abort of aborters) {
+                try {
+                    abort();
+                } catch {
+                    /* ignore */
+                }
+            }
+            settle();
+        };
+
+        const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
+        timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
+        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
+
         try {
             // v7: `animate` returns `Record<string, TAnimation>` (one
             // entry per property). Completion is signalled per-property
             // via `onComplete`, so we count callbacks before resolving.
-            object.animate(props, {
+            const animationResult = object.animate(props, {
                 duration: options.duration,
                 onChange: () => {
                     if (guard.isDisposed()) return;
@@ -141,16 +190,30 @@ export function animateProps<T extends FabricNS.FabricObject>(
                     // AnimationQueue does not hang. The orchestrator's
                     // post-animation snap (set/setCoords) already self-guards
                     // against `isDisposed`.
-                    if (++completed >= propCount) resolve();
+                    if (++completed >= propCount) settle();
                 },
             });
+            aborters = collectAnimationAborters(animationResult);
         } catch (error) {
             // `object.animate` is not documented to throw synchronously, but
             // a corrupted Fabric prototype or a bad property name could
             // throw. Reject so the queue moves on instead of waiting on
             // a callback that will never fire.
-            reject(error);
+            fail(error);
         }
+    });
+}
+
+function collectAnimationAborters(animationResult: unknown): Array<() => void> {
+    const handles = Array.isArray(animationResult)
+        ? animationResult
+        : animationResult && typeof animationResult === 'object'
+          ? Object.values(animationResult as Record<string, unknown>)
+          : [animationResult];
+
+    return handles.flatMap((handle): Array<() => void> => {
+        const abort = (handle as AbortableAnimation | null | undefined)?.abort;
+        return typeof abort === 'function' ? [() => abort.call(handle)] : [];
     });
 }
 

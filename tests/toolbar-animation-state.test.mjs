@@ -389,6 +389,66 @@ test('loadFromState normalizes stale cover canvas dimensions without shrinking v
     assert.equal(canvas.height, 520);
 });
 
+test('loadFromState settles a sticky cover scrollbar axis without changing restored size', async () => {
+    const editor = makeEditor(
+        {
+            defaultLayoutMode: 'cover',
+        },
+        { containerWidth: 960, containerHeight: 520 },
+    );
+    const canvas = editor.canvas;
+    const image = editor.originalImage;
+    const container = document.getElementById('canvasContainer');
+
+    image.scale(0.945);
+    editor.baseImageScale = image.scaleX;
+    canvas.setDimensions({ width: 945, height: 800 });
+    const snapshot = editor.captureSnapshotInternal();
+
+    let stickyHorizontalScrollbar = true;
+    const setDimensionCalls = [];
+    const originalSetDimensions = canvas.setDimensions.bind(canvas);
+    canvas.setDimensions = (dims) => {
+        setDimensionCalls.push({ width: dims.width, height: dims.height });
+        originalSetDimensions(dims);
+        if (dims.width < 945) stickyHorizontalScrollbar = false;
+    };
+
+    container.style.overflow = 'auto';
+    Object.defineProperty(container, 'clientWidth', {
+        configurable: true,
+        get: () => 945,
+    });
+    Object.defineProperty(container, 'clientHeight', {
+        configurable: true,
+        get: () => 520,
+    });
+    Object.defineProperty(container, 'scrollWidth', {
+        configurable: true,
+        get: () => (stickyHorizontalScrollbar ? 946 : canvas.width),
+    });
+    Object.defineProperty(container, 'scrollHeight', {
+        configurable: true,
+        get: () => canvas.height,
+    });
+
+    canvas.setDimensions({ width: 600, height: 400 });
+    stickyHorizontalScrollbar = true;
+    setDimensionCalls.length = 0;
+
+    await editor.loadFromState(snapshot);
+
+    assert.deepEqual(setDimensionCalls, [
+        { width: 945, height: 800 },
+        { width: 944, height: 800 },
+        { width: 945, height: 800 },
+    ]);
+    assert.equal(canvas.width, 945);
+    assert.equal(canvas.height, 800);
+    assert.equal(stickyHorizontalScrollbar, false);
+    assert.equal(container.scrollWidth > container.clientWidth + 0.5, false);
+});
+
 test('history and state APIs are guarded while crop mode owns the canvas', async () => {
     const editor = makeEditor();
     editor.currentRotation = 45;
@@ -465,7 +525,7 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
     canvas.setDimensions({ width: 620, height: 400 });
     editor.lastSnapshot = editor.captureSnapshotInternal();
 
-    editor.loadImage = async () => {
+    editor.loadImageInternal = async () => {
         const mergedImage = new image.constructor();
         mergedImage.width = 1000;
         mergedImage.height = 700;

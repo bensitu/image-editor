@@ -202,6 +202,19 @@ const strokeArb = fc.constantFrom('red', null, '', '#fff');
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
+test('maskUid is derived from editor-owned maskId instead of process-global state', () => {
+    const firstContext = makeContext();
+    const first = createMask(firstContext, { shape: 'rect' });
+    const second = createMask(firstContext, { shape: 'rect' });
+
+    const secondContext = makeContext();
+    const isolated = createMask(secondContext, { shape: 'rect' });
+
+    assert.equal(first.maskUid, 'mask-1');
+    assert.equal(second.maskUid, 'mask-2');
+    assert.equal(isolated.maskUid, 'mask-1');
+});
+
 test('invalid fabricGenerator result is rejected without canvas or history writes', () => {
     const warnings = [];
     const ctx = makeContext({

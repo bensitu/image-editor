@@ -21,12 +21,12 @@
  *   loader re-throws. The success path does NOT invoke `onError`.
  * - Strings that do not start with `data:image/`
  *   resolve without mutating placeholder visibility, scroll position,
- *   `overflow`, image state, or canvas state. The function returns before
+ *   image state, or canvas state. The function returns before
  *   capturing the rollback bundle, so no observable side effect occurs.
  * - On a valid `data:image/` URL, the loader captures
  *   the rollback bundle *before* mutating any of the fields it tracks
  *   (placeholder `hidden`, container `scrollTop`/`scrollLeft`, container
- *   inline `overflow`, `originalImage`, `lastSnapshot`, the canvas JSON
+ *   `originalImage`, `lastSnapshot`, the canvas JSON
  *   snapshot, plus the editor transform fields the rollback needs to
  *   restore the live canvas to a consistent state).
  * - Decode, Fabric, downsample, and timeout failures
@@ -142,8 +142,6 @@ export interface RollbackBundle {
     containerScrollTop: number | null;
     /** Container `scrollLeft` immediately before the loader started. */
     containerScrollLeft: number | null;
-    /** Container inline `style.overflow` value before any mutation. */
-    containerOverflow: string | null;
     /** The previously-committed `originalImage` reference, if any. */
     originalImage: FabricNS.FabricImage | null;
     /** Whether an image was already committed before this call. */
@@ -315,10 +313,7 @@ export async function loadImage(
         return;
     }
 
-    // 2. capture the rollback bundle BEFORE the first
-    //    mutation. Reads `style.overflow` (NOT computed style) so the
-    //    rollback restores the developer's inline value verbatim
-    //    (never invent a new inline style).
+    // 2. capture the rollback bundle BEFORE the first mutation.
     const placeholderHidden = context.placeholderElement
         ? !!context.placeholderElement.hidden
         : null;
@@ -326,15 +321,11 @@ export async function loadImage(
     const containerScrollLeft = context.containerElement
         ? context.containerElement.scrollLeft
         : null;
-    const containerOverflow = context.containerElement
-        ? context.containerElement.style.overflow
-        : null;
 
     const bundle: RollbackBundle = {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
-        containerOverflow,
         originalImage: context.getOriginalImage(),
         isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
         lastSnapshot: context.getLastSnapshot(),
@@ -693,17 +684,7 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
  * so a defective rollback cannot mask the cause.
  */
 async function replayRollback(context: LoadImageContext, bundle: RollbackBundle): Promise<void> {
-    // 1. Restore container `overflow` inline value first so subsequent
-    //    DOM reads (scroll metrics, layout) see the developer's CSS.
-    if (context.containerElement && bundle.containerOverflow !== null) {
-        try {
-            context.containerElement.style.overflow = bundle.containerOverflow;
-        } catch (rollbackError) {
-            console.warn('[ImageEditor] rollback: overflow restore failed', rollbackError);
-        }
-    }
-
-    // 2. Restore canvas JSON via Fabric's loadFromJSON. If this fails
+    // 1. Restore canvas JSON via Fabric's loadFromJSON. If this fails
     //    (malformed snapshot, dispose race) we log and continue — the
     //    facade's higher-level rollback paths cannot do better than
     //    surfacing the original error.
@@ -718,7 +699,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
         console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
     }
 
-    // 3. Restore editor scalar state. Done after the canvas restore so
+    // 2. Restore editor scalar state. Done after the canvas restore so
     //    handlers reading these fields during render see the rolled-back
     //    values.
     context.setOriginalImage(bundle.originalImage);
@@ -730,7 +711,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
     context.setBaseImageScale(bundle.baseImageScale);
     context.setCurrentImageMimeType(bundle.currentImageMimeType);
 
-    // 4. Restore container scroll. After `loadFromJSON` Fabric may have
+    // 3. Restore container scroll. After `loadFromJSON` Fabric may have
     //    resized the canvas, which itself can mutate scroll metrics on
     //    the container; restoring scroll last guarantees the captured
     //    values stick (will rely on the same ordering).
@@ -747,7 +728,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
         }
     }
 
-    // 5. Restore placeholder visibility. The visibility helper is total
+    // 4. Restore placeholder visibility. The visibility helper is total
     //    and never throws on null inputs.
     if (bundle.placeholderHidden !== null) {
         // `setPlaceholderVisible(show)` takes the *placeholder* visibility

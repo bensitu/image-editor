@@ -357,10 +357,10 @@ export function resolveOptions(input) {
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
-    return {
+    return Object.freeze({
         ...resolved,
         label,
         crop,
-    };
+    });
 }
 //# sourceMappingURL=default-options.js.map

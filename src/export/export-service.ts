@@ -751,20 +751,17 @@ async function convertDataUrlToOpaqueJpeg(
  * `new File([...]...)` consumes. Mirrors legacy's reverse-loop decode so
  * large data URLs do not allocate intermediate `Array.from` storage.
  *
- * Splits on the first comma rather than `.split(',')[1]` — some browsers
- * historically embedded base64 padding `=` characters that are safe but
- * not guaranteed to be comma-free in every consumer's downstream
- * pipeline; joining the tail back together preserves the full payload.
+ * The payload must be strict base64; embedded whitespace is rejected
+ * before the decoder runs.
  *
  * @throws DOMException if the data URL is malformed and `atob` rejects.
  */
 function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
-    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
-    if (!match || !match[1]?.trim()) {
+    const match = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+    const base64 = match?.[1] ?? '';
+    if (!base64) {
         throw new Error('exportImageFile received a malformed or empty image data URL.');
     }
-    const commaAt = dataUrl.indexOf(',');
-    const base64 = dataUrl.slice(commaAt + 1).replace(/\s/g, '');
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
         // Explicitly allocate a fresh ArrayBuffer so the resulting

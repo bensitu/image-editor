@@ -69,6 +69,7 @@ export class OperationGuard {
     private isLoadingActive = false;
     private currentOperationName: string | null = null;
     private currentOperationToken: OperationToken | null = null;
+    private readonly animationAborters = new Set<() => void>();
 
     /**
      * Returns `true` while an animation block is open (between
@@ -149,6 +150,30 @@ export class OperationGuard {
         this.isLoadingActive = false;
         this.currentOperationName = null;
         this.currentOperationToken = null;
+        for (const abort of this.animationAborters) {
+            try {
+                abort();
+            } catch {
+                /* ignore */
+            }
+        }
+        this.animationAborters.clear();
+    }
+
+    registerAnimationAborter(abort: () => void): () => void {
+        if (this.isDisposedFlag) {
+            try {
+                abort();
+            } catch {
+                /* ignore */
+            }
+            return () => undefined;
+        }
+
+        this.animationAborters.add(abort);
+        return () => {
+            this.animationAborters.delete(abort);
+        };
     }
 
     /**
