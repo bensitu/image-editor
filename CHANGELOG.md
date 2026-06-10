@@ -16,11 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add complete Mosaic mode with `defaultMosaicConfig`, runtime Mosaic config setters, optional DOM bindings, circular preview cursor, base-image pixel commits, and undo/redo support per successful click.
+- Add pure Mosaic pixelation and coordinate-conversion coverage, including scaled/translated/rotated image mapping.
 - Add default mask configuration for new masks.
 - Add regression coverage for dispose-aborted Fabric animations, deterministic mask UIDs, strict export data URL decoding, and frozen resolved options.
 
 ### Changed
 
+- Update README and the docs demo with Mosaic controls, examples, and public API documentation.
 - Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
 
 ### Fixed

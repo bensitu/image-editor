@@ -82,6 +82,15 @@ export type ExportArea = 'image' | 'canvas';
  */
 export type CropExportFileType = ImageFileType | 'source';
 
+/**
+ * Intermediate raster format used by Mosaic mode when committing edited
+ * pixels back into the base image.
+ *
+ * `'source'` preserves the current image MIME type when known, falling back
+ * to PNG otherwise.
+ */
+export type MosaicOutputFileType = ImageFileType | 'source';
+
 // ─── Mask object ─────────────────────────────────────────────────────────────
 
 /**
@@ -146,6 +155,13 @@ export type ImageEditorOperation =
     | 'enterCropMode'
     | 'applyCrop'
     | 'cancelCrop'
+    | 'enterMosaicMode'
+    | 'exitMosaicMode'
+    | 'applyMosaic'
+    | 'setMosaicConfig'
+    | 'resetMosaicConfig'
+    | 'setMosaicBrushSize'
+    | 'setMosaicBlockSize'
     | 'undo'
     | 'redo'
     | 'exportImageBase64'
@@ -191,6 +207,7 @@ export interface ImageEditorState {
     currentRotation: number;
     isBusy: boolean;
     isCropMode: boolean;
+    isMosaicMode: boolean;
     canUndo: boolean;
     canRedo: boolean;
     canvasWidth: number;
@@ -288,6 +305,81 @@ export interface CropConfig {
  */
 export type ResolvedCropConfig = Required<Omit<CropConfig, 'exportQuality'>> &
     Pick<CropConfig, 'exportQuality'>;
+
+/**
+ * Mosaic-mode configuration. Constructor-level `defaultMosaicConfig` uses
+ * this shape to initialize the editor's current Mosaic tool config; runtime
+ * setters update only the current config.
+ */
+export interface MosaicConfig {
+    /**
+     * Brush diameter in canvas pixels.
+     * The preview circle uses this diameter.
+     * @default 48
+     */
+    brushSize?: number;
+
+    /**
+     * Pixel block size in source-image pixels.
+     * Larger values produce chunkier mosaic.
+     * @default 8
+     */
+    blockSize?: number;
+
+    /**
+     * Stroke color for the brush preview circle.
+     * @default '#333'
+     */
+    previewStroke?: string;
+
+    /**
+     * Stroke width for the brush preview circle.
+     * @default 1
+     */
+    previewStrokeWidth?: number;
+
+    /**
+     * Optional dash pattern for the brush preview circle.
+     * @default [4, 4]
+     */
+    previewStrokeDashArray?: number[] | null;
+
+    /**
+     * Fill for the brush preview circle.
+     * @default 'rgba(0,0,0,0)'
+     */
+    previewFill?: string;
+
+    /**
+     * Output format used when committing the mosaiced base image.
+     *
+     * - 'source' preserves the current image MIME type when known.
+     * - image format values follow the same normalization rules as export.
+     *
+     * @default 'source'
+     */
+    outputFileType?: MosaicOutputFileType;
+
+    /**
+     * Lossy quality used when outputFileType resolves to jpeg/webp.
+     * Ignored for PNG. Defaults to options.downsampleQuality.
+     */
+    outputQuality?: number;
+}
+
+/**
+ * Mosaic config after defaults and normalization are applied.
+ */
+export interface ResolvedMosaicConfig {
+    brushSize: number;
+    blockSize: number;
+    previewStroke: string;
+    previewStrokeWidth: number;
+    previewStrokeDashArray: number[] | null;
+    previewFill: string;
+    outputFileType: MosaicOutputFileType;
+    outputQuality?: number;
+}
 
 // ─── Mask config primitives ──────────────────────────────────────────────────
 
@@ -511,6 +603,20 @@ export interface ElementIdMap {
     applyCropButton?: string | null;
     /** Cancel crop button. @default 'cancelCropButton' */
     cancelCropButton?: string | null;
+    /** Enter Mosaic mode button. @default 'enterMosaicModeButton' */
+    enterMosaicModeButton?: string | null;
+    /** Exit Mosaic mode button. @default 'exitMosaicModeButton' */
+    exitMosaicModeButton?: string | null;
+    /**
+     * Optional input/range control for Mosaic brush diameter.
+     * @default 'mosaicBrushSizeInput'
+     */
+    mosaicBrushSizeInput?: string | null;
+    /**
+     * Optional input/range control for Mosaic block size.
+     * @default 'mosaicBlockSizeInput'
+     */
+    mosaicBlockSizeInput?: string | null;
     /** Clickable upload area (delegates to imageInput). @default 'uploadArea' */
     uploadArea?: string | null;
 }
@@ -756,6 +862,13 @@ export interface ImageEditorOptions {
     label?: LabelConfig;
     /** Crop-mode configuration. */
     crop?: CropConfig;
+    /**
+     * Default Mosaic configuration used to initialize the current Mosaic tool config.
+     *
+     * Runtime calls such as setMosaicConfig(), setMosaicBrushSize(), and
+     * setMosaicBlockSize() update the current tool config only.
+     */
+    defaultMosaicConfig?: MosaicConfig;
 }
 
 // ─── Internal resolved options ───────────────────────────────────────────────
@@ -770,6 +883,7 @@ export interface ResolvedOptions extends Required<
         ImageEditorOptions,
         | 'label'
         | 'crop'
+        | 'defaultMosaicConfig'
         | 'onImageLoadStart'
         | 'onImageLoaded'
         | 'onImageCleared'
@@ -790,6 +904,7 @@ export interface ResolvedOptions extends Required<
     layoutMode: LayoutMode;
     label: LabelConfig;
     crop: ResolvedCropConfig;
+    defaultMosaicConfig: ResolvedMosaicConfig;
     onImageLoadStart: ((context: ImageEditorCallbackContext) => void) | null;
     onImageLoaded: ((imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void) | null;
     onImageCleared:

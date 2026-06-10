@@ -197,6 +197,14 @@ const transientObjArb = fc.oneof(
         opacity: fc.constant(1),
         maskLabel: fc.constant(true),
     }),
+    // Mosaic preview marker — must be filtered out before history.
+    fc.record({
+        type: fc.constant('circle'),
+        left: fc.integer({ min: 0, max: 600 }),
+        top: fc.integer({ min: 0, max: 500 }),
+        opacity: fc.constant(1),
+        isMosaicPreview: fc.constant(true),
+    }),
 );
 
 // Optional non-mask `'image'` object simulating the loaded photo. Used
@@ -333,8 +341,11 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
             );
             assert.ok(Array.isArray(j1.objects), 'snapshot must carry an objects array');
             assert.ok(
-                j1.objects.every((o) => o.isCropRect !== true && o.maskLabel !== true),
-                'the documented contract: session-only crop rect / mask labels must be filtered before history',
+                j1.objects.every(
+                    (o) =>
+                        o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true,
+                ),
+                'the documented contract: session-only crop rect / mask labels / Mosaic previews must be filtered before history',
             );
 
             // ── Restore into a fresh canvas ──────────────────────────
@@ -430,7 +441,10 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
             // because the snapshot they would have come from was already
             // filtered.
             assert.ok(
-                result.objects.every((o) => o.isCropRect !== true && o.maskLabel !== true),
+                result.objects.every(
+                    (o) =>
+                        o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true,
+                ),
                 'the documented contract: session-only objects must not appear after a round-trip',
             );
 
@@ -583,6 +597,7 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
         'maskName',
         'isCropRect',
         'maskLabel',
+        'isMosaicPreview',
         'originalAlpha',
         'originalStroke',
         'originalStrokeWidth',

@@ -40,6 +40,7 @@ import {
     DEFAULT_OPTIONS,
     DEFAULT_LABEL,
     DEFAULT_CROP,
+    DEFAULT_MOSAIC_CONFIG,
 } from '../src/core/default-options.ts';
 
 // ─── Documented option-key inventories ─────────────────────────────────────
@@ -98,6 +99,7 @@ const ALL_TOP_LEVEL_KEYS = [
     'defaultMaskConfig',
     'label',
     'crop',
+    'defaultMosaicConfig',
 ];
 
 // Default text-option keys we expect to survive deep-merge. Pulled from
@@ -114,6 +116,17 @@ const CROP_KEYS = [
     'exportFileType',
     'exportQuality',
 ];
+
+const MOSAIC_FORMAT_ALIASES = {
+    jpg: 'jpeg',
+    jpeg: 'jpeg',
+    'image/jpeg': 'jpeg',
+    png: 'png',
+    'image/png': 'png',
+    webp: 'webp',
+    'image/webp': 'webp',
+    source: 'source',
+};
 
 const UNKNOWN_KEY_PREFIX = '__fc_unknown_';
 
@@ -275,6 +288,44 @@ function cropArb() {
     );
 }
 
+function mosaicArb() {
+    return fc.record(
+        {
+            brushSize: fc.integer({ min: 1, max: 200 }),
+            blockSize: fc.double({ min: 1, max: 80, noNaN: true, noDefaultInfinity: true }),
+            previewStroke: fc.constantFrom('#333', '#f00', 'rgba(0,0,0,0.4)'),
+            previewStrokeWidth: fc.double({
+                min: 0,
+                max: 10,
+                noNaN: true,
+                noDefaultInfinity: true,
+            }),
+            previewStrokeDashArray: fc.option(
+                fc.array(fc.double({ min: 0, max: 20, noNaN: true, noDefaultInfinity: true }), {
+                    maxLength: 4,
+                }),
+                { nil: null },
+            ),
+            previewFill: fc.constantFrom('rgba(0,0,0,0)', 'rgba(255,0,0,0.1)'),
+            outputFileType: fc.constantFrom(
+                'source',
+                'png',
+                'jpeg',
+                'jpg',
+                'webp',
+                'image/png',
+                'image/jpeg',
+                'image/webp',
+            ),
+            outputQuality: fc.option(
+                fc.double({ min: 0, max: 1, noNaN: true, noDefaultInfinity: true }),
+                { nil: undefined },
+            ),
+        },
+        { requiredKeys: [] },
+    );
+}
+
 // Random unknown top-level keys, name-spaced so they cannot collide with the
 // documented top-level keys. They MUST be silently dropped.
 function unknownKeysArb() {
@@ -298,12 +349,14 @@ function partialOptionsArb() {
             callbacksArb(),
             fc.option(labelArb(), { nil: undefined }),
             fc.option(cropArb(), { nil: undefined }),
+            fc.option(mosaicArb(), { nil: undefined }),
             unknownKeysArb(),
         )
-        .map(([scalars, callbacks, label, crop, unknown]) => {
+        .map(([scalars, callbacks, label, crop, mosaic, unknown]) => {
             const u = { ...scalars, ...callbacks, ...unknown };
             if (label !== undefined) u.label = label;
             if (crop !== undefined) u.crop = crop;
+            if (mosaic !== undefined) u.defaultMosaicConfig = mosaic;
             return u;
         });
 }
@@ -437,6 +490,24 @@ test('options resolution completeness and deep-merge', () => {
                 );
             }
 
+            const userMosaic = input.defaultMosaicConfig ?? {};
+            assert.equal(
+                resolved.defaultMosaicConfig.brushSize,
+                'brushSize' in userMosaic ? userMosaic.brushSize : DEFAULT_MOSAIC_CONFIG.brushSize,
+            );
+            assert.equal(
+                resolved.defaultMosaicConfig.blockSize,
+                'blockSize' in userMosaic
+                    ? Math.max(1, Math.floor(userMosaic.blockSize))
+                    : DEFAULT_MOSAIC_CONFIG.blockSize,
+            );
+            assert.equal(
+                resolved.defaultMosaicConfig.outputFileType,
+                'outputFileType' in userMosaic
+                    ? MOSAIC_FORMAT_ALIASES[userMosaic.outputFileType]
+                    : DEFAULT_MOSAIC_CONFIG.outputFileType,
+            );
+
             // Unknown top-level keys are silently dropped.
             for (const k of Object.keys(input)) {
                 if (k.startsWith(UNKNOWN_KEY_PREFIX)) {
@@ -469,12 +540,25 @@ test('options resolution completeness and deep-merge', () => {
                 );
             }
             assert.equal(Object.isFrozen(resolved.crop), true, 'resolved.crop must be frozen');
+            assert.equal(
+                Object.isFrozen(resolved.defaultMosaicConfig),
+                true,
+                'resolved.defaultMosaicConfig must be frozen',
+            );
+            if (resolved.defaultMosaicConfig.previewStrokeDashArray) {
+                assert.equal(
+                    Object.isFrozen(resolved.defaultMosaicConfig.previewStrokeDashArray),
+                    true,
+                    'resolved.defaultMosaicConfig.previewStrokeDashArray must be frozen',
+                );
+            }
 
             // Post-construction mutation of U, U.label, U.label.textOptions,
             // and U.crop must NOT affect the live ResolvedOptions.
             const canvasWidthBefore = resolved.canvasWidth;
             const fontSizeBefore = resolved.label.textOptions.fontSize;
             const minWidthBefore = resolved.crop.minWidth;
+            const mosaicBrushBefore = resolved.defaultMosaicConfig.brushSize;
             const getTextBefore = resolved.label.getText;
 
             // Mutate every reachable corner of the user object. Mutations on
@@ -510,6 +594,14 @@ test('options resolution completeness and deep-merge', () => {
             } catch {
                 /* ignore */
             }
+            try {
+                if (input.defaultMosaicConfig && typeof input.defaultMosaicConfig === 'object') {
+                    input.defaultMosaicConfig.brushSize = 0xdeadbeef;
+                    input.defaultMosaicConfig.previewStrokeDashArray?.push(0xdeadbeef);
+                }
+            } catch {
+                /* ignore */
+            }
 
             assert.equal(
                 resolved.canvasWidth,
@@ -535,6 +627,11 @@ test('options resolution completeness and deep-merge', () => {
                 resolved.crop.minWidth,
                 minWidthBefore,
                 'mutating input.crop.minWidth must not affect resolved',
+            );
+            assert.equal(
+                resolved.defaultMosaicConfig.brushSize,
+                mosaicBrushBefore,
+                'mutating input.defaultMosaicConfig.brushSize must not affect resolved',
             );
 
             return true;
@@ -645,6 +742,7 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         assert.equal(Object.isFrozen(resolved.label), true);
         assert.equal(Object.isFrozen(resolved.label.textOptions), true);
         assert.equal(Object.isFrozen(resolved.crop), true);
+        assert.equal(Object.isFrozen(resolved.defaultMosaicConfig), true);
         for (const callbackKey of CALLBACK_KEYS) {
             assert.equal(resolved[callbackKey], null);
         }

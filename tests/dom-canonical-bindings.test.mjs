@@ -37,6 +37,10 @@ const CANONICAL_IDS = Object.freeze({
     enterCropModeButton: 'customEnterCropModeButton',
     applyCropButton: 'customApplyCropButton',
     cancelCropButton: 'customCancelCropButton',
+    enterMosaicModeButton: 'customEnterMosaicModeButton',
+    exitMosaicModeButton: 'customExitMosaicModeButton',
+    mosaicBrushSizeInput: 'customMosaicBrushSizeInput',
+    mosaicBlockSizeInput: 'customMosaicBlockSizeInput',
 });
 
 class MockCanvas {
@@ -100,6 +104,10 @@ function installDom() {
             <button id="${CANONICAL_IDS.enterCropModeButton}"></button>
             <button id="${CANONICAL_IDS.applyCropButton}"></button>
             <button id="${CANONICAL_IDS.cancelCropButton}"></button>
+            <button id="${CANONICAL_IDS.enterMosaicModeButton}"></button>
+            <button id="${CANONICAL_IDS.exitMosaicModeButton}"></button>
+            <input id="${CANONICAL_IDS.mosaicBrushSizeInput}" value="48">
+            <input id="${CANONICAL_IDS.mosaicBlockSizeInput}" value="8">
             <input id="${CANONICAL_IDS.imageInput}" type="file">
             <ul id="${CANONICAL_IDS.maskList}"></ul>
         </body></html>`,
@@ -174,6 +182,33 @@ test('optional DOM bindings accept null values without binding', () => {
         .dispatchEvent(new window.Event('click', { bubbles: true }));
 
     assert.equal(clicks, 0, 'nullable optional DOM keys must not install bindings');
+});
+
+test('Mosaic DOM buttons and size inputs call the public Mosaic API', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.enterMosaicMode = () => calls.push('enter');
+    editor.exitMosaicMode = () => calls.push('exit');
+    editor.setMosaicBrushSize = (value) => calls.push(['brush', value]);
+    editor.setMosaicBlockSize = (value) => calls.push(['block', value]);
+
+    document
+        .getElementById(CANONICAL_IDS.enterMosaicModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.exitMosaicModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    const brushInput = document.getElementById(CANONICAL_IDS.mosaicBrushSizeInput);
+    brushInput.value = '72';
+    brushInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    const blockInput = document.getElementById(CANONICAL_IDS.mosaicBlockSizeInput);
+    blockInput.value = '11';
+    blockInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    assert.deepEqual(calls, ['enter', 'exit', ['brush', 72], ['block', 11]]);
 });
 
 test('removed v1 DOM key names are ignored at runtime', () => {

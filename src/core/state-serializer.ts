@@ -99,6 +99,8 @@ export interface CanvasJsonObject {
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
     maskLabel?: boolean;
+    /** Marks a Mosaic preview circle; filtered before history push. */
+    isMosaicPreview?: boolean;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -165,6 +167,7 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'borderColor',
     'cornerColor',
     'cornerSize',
+    'isMosaicPreview',
 ] as const;
 
 /**
@@ -186,6 +189,7 @@ function copySnapshotCustomPropsFromCanvas(
             | (Partial<MaskObject> & {
                   isCropRect?: boolean;
                   maskLabel?: boolean;
+                  isMosaicPreview?: boolean;
               })
             | undefined;
         const jsonObject = jsonObjects[index];
@@ -227,6 +231,7 @@ function copySnapshotCustomPropsFromCanvas(
         }
         if (liveObject.isCropRect === true) jsonObject.isCropRect = true;
         if (liveObject.maskLabel === true) jsonObject.maskLabel = true;
+        if (liveObject.isMosaicPreview === true) jsonObject.isMosaicPreview = true;
     }
 }
 
@@ -330,7 +335,7 @@ export function saveState(input: SaveStateInput): string {
     //    rectangle, mask labels) before the snapshot enters history.
     if (Array.isArray(jsonObj.objects)) {
         jsonObj.objects = jsonObj.objects.filter(
-            (o) => o.isCropRect !== true && o.maskLabel !== true,
+            (o) => o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true,
         );
     }
 

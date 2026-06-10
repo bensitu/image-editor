@@ -7,7 +7,7 @@
  * @module
  */
 import { type CanvasJson } from './core/state-serializer.js';
-import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, RemoveAllMasksOptions } from './core/public-types.js';
+import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllMasksOptions, ResolvedMosaicConfig } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
  * crop, undo/redo, and multi-format export.
@@ -33,6 +33,8 @@ export declare class ImageEditor {
     private isFabricLoaded;
     private readonly options;
     private currentLayoutMode;
+    private readonly defaultMosaicConfig;
+    private currentMosaicConfig;
     private canvas;
     private canvasElement;
     private containerElement;
@@ -88,6 +90,7 @@ export declare class ImageEditor {
      * own and multiple editors on the same page do not share crop state.
      */
     private cropSession;
+    private mosaicSession;
     /**
      * Managed registry of DOM event listeners owned by this editor.
      *
@@ -557,6 +560,16 @@ export declare class ImageEditor {
      */
     private captureSnapshotInternal;
     private getActiveMaskForSnapshot;
+    enterMosaicMode(): void;
+    exitMosaicMode(): void;
+    isMosaicMode(): boolean;
+    getMosaicConfig(): Readonly<ResolvedMosaicConfig>;
+    setMosaicConfig(config: MosaicConfig): void;
+    resetMosaicConfig(): void;
+    setMosaicBrushSize(size: number): void;
+    setMosaicBlockSize(size: number): void;
+    private applyMosaicConfigPatch;
+    private buildMosaicControllerContext;
     /**
      * Enters crop mode: adds a resizable selection rect to the canvas.
      * All other controls are disabled until {@link applyCrop} or

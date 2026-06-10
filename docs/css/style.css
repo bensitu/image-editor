@@ -548,6 +548,30 @@ input[type='number']::-webkit-inner-spin-button {
     color: var(--text);
 }
 
+.mosaic-control {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    background: var(--panel-bg);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.mosaic-control input {
+    width: 92px;
+    accent-color: var(--accent);
+}
+
+.mosaic-control input:disabled {
+    cursor: not-allowed;
+}
+
 .workspace-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(185px, 230px);

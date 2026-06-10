@@ -27,5 +27,5 @@ import { ImageEditor } from './image-editor.js';
 export { ImageEditor };
 export default ImageEditor;
 export { isMaskObject } from './core/public-types.js';
-export type { ImageEditorOptions, ResolvedOptions, LayoutMode, LabelConfig, CropConfig, CropExportFileType, LoadImageOptions, RemoveAllMasksOptions, DefaultMaskConfig, MaskConfig, MaskObject, MaskNumericProp, ResolvedMaskConfig, ImageMimeType, ImageFileType, NormalizedImageFormat, ExportArea, Base64ExportOptions, ImageFileExportOptions, ImageInfo, ImageEditorState, ImageEditorSelection, ImageEditorCallbackContext, ImageEditorOperation, ElementIdMap, FabricModule, } from './core/public-types.js';
+export type { ImageEditorOptions, ResolvedOptions, LayoutMode, LabelConfig, CropConfig, CropExportFileType, MosaicConfig, ResolvedMosaicConfig, MosaicOutputFileType, LoadImageOptions, RemoveAllMasksOptions, DefaultMaskConfig, MaskConfig, MaskObject, MaskNumericProp, ResolvedMaskConfig, ImageMimeType, ImageFileType, NormalizedImageFormat, ExportArea, Base64ExportOptions, ImageFileExportOptions, ImageInfo, ImageEditorState, ImageEditorSelection, ImageEditorCallbackContext, ImageEditorOperation, ElementIdMap, FabricModule, } from './core/public-types.js';
 //# sourceMappingURL=index.d.cts.map

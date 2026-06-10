@@ -2,7 +2,7 @@
  * @author Ben Situ
  * @license MIT
  * Lightweight canvas-based image editor built on Fabric.js v7.
- * Provides masking, animated scale/rotate, crop, undo/redo, and export.
+ * Provides masking, animated scale/rotate, crop, mosaic, undo/redo, and export.
  *
  * @module
  */
@@ -10,7 +10,14 @@
 import type * as FabricNS from 'fabric';
 import { AnimationQueue } from './animation/animation-queue.js';
 import { reportError, reportWarning } from './core/callback-reporter.js';
-import { isLayoutMode, resolveOptions } from './core/default-options.js';
+import {
+    areResolvedMosaicConfigsEqual,
+    cloneResolvedMosaicConfig,
+    getInvalidMosaicConfigFields,
+    isLayoutMode,
+    mergeMosaicConfigPatch,
+    resolveOptions,
+} from './core/default-options.js';
 import { OperationGuard, type OperationToken } from './core/operation-guard.js';
 import {
     loadFromState as loadFromStateImpl,
@@ -35,7 +42,9 @@ import type {
     LoadImageOptions,
     MaskConfig,
     MaskObject,
+    MosaicConfig,
     RemoveAllMasksOptions,
+    ResolvedMosaicConfig,
     ResolvedOptions,
 } from './core/public-types.js';
 import { isMaskObject } from './core/public-types.js';
@@ -46,6 +55,13 @@ import {
     type CropControllerContext,
     type CropSession,
 } from './crop/crop-controller.js';
+import {
+    enterMosaicMode as enterMosaicModeImpl,
+    exitMosaicMode as exitMosaicModeImpl,
+    updateMosaicPreview,
+    type MosaicControllerContext,
+    type MosaicSession,
+} from './mosaic/mosaic-controller.js';
 import {
     downloadImage as downloadImageImpl,
     exportImageBase64 as exportImageBase64Impl,
@@ -136,10 +152,59 @@ const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
     'enterCropModeButton',
     'applyCropButton',
     'cancelCropButton',
+    'enterMosaicModeButton',
+    'exitMosaicModeButton',
+    'mosaicBrushSizeInput',
+    'mosaicBlockSizeInput',
 ];
 
 const CROP_MODE_ENABLED_KEYS: readonly ElementKey[] = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+
+// Mosaic mode owns pointer interaction on the canvas. While active, controls
+// that could replace objects, mutate masks, or restore history are disabled;
+// only Mosaic config controls and the exit action remain enabled.
+const MOSAIC_MODE_CONTROL_KEYS: readonly ElementKey[] = [
+    'scalePercentageInput',
+    'rotateLeftDegreesInput',
+    'rotateRightDegreesInput',
+    'rotateLeftButton',
+    'rotateRightButton',
+    'createMaskButton',
+    'removeSelectedMaskButton',
+    'removeAllMasksButton',
+    'mergeMasksButton',
+    'downloadImageButton',
+    'zoomInButton',
+    'zoomOutButton',
+    'resetImageTransformButton',
+    'undoButton',
+    'redoButton',
+    'imageInput',
+    'enterCropModeButton',
+    'applyCropButton',
+    'cancelCropButton',
+    'enterMosaicModeButton',
+    'exitMosaicModeButton',
+    'mosaicBrushSizeInput',
+    'mosaicBlockSizeInput',
+];
+
+const MOSAIC_MODE_ENABLED_KEYS: readonly ElementKey[] = [
+    'exitMosaicModeButton',
+    'mosaicBrushSizeInput',
+    'mosaicBlockSizeInput',
+];
+
+const MOSAIC_SESSION_ALLOWED_OPERATIONS = new Set([
+    'exitMosaicMode',
+    'applyMosaic',
+    'setMosaicConfig',
+    'resetMosaicConfig',
+    'setMosaicBrushSize',
+    'setMosaicBlockSize',
+    'saveState',
+]);
 
 const SCROLLBAR_SETTLE_EPSILON = 1;
 
@@ -158,6 +223,13 @@ const IMAGE_EDITOR_OPERATIONS: ReadonlySet<ImageEditorOperation> = new Set([
     'enterCropMode',
     'applyCrop',
     'cancelCrop',
+    'enterMosaicMode',
+    'exitMosaicMode',
+    'applyMosaic',
+    'setMosaicConfig',
+    'resetMosaicConfig',
+    'setMosaicBrushSize',
+    'setMosaicBlockSize',
     'undo',
     'redo',
     'exportImageBase64',
@@ -200,6 +272,8 @@ export class ImageEditor {
     // ── Resolved options ────────────────────────────────────────────────────
     private readonly options: ResolvedOptions;
     private currentLayoutMode: LayoutMode = 'expand';
+    private readonly defaultMosaicConfig: ResolvedMosaicConfig;
+    private currentMosaicConfig: ResolvedMosaicConfig;
 
     // ── Canvas / DOM ────────────────────────────────────────────────────────
     private canvas: FabricNS.Canvas | null = null;
@@ -269,6 +343,9 @@ export class ImageEditor {
      * own and multiple editors on the same page do not share crop state.
      */
     private cropSession: CropSession | null = null;
+
+    // ── Mosaic ──────────────────────────────────────────────────────────────
+    private mosaicSession: MosaicSession | null = null;
 
     // ── DOM event cleanup ───────────────────────────────────────────────────
     /**
@@ -364,6 +441,8 @@ export class ImageEditor {
         // live editor.
         this.options = resolveOptions(detected.options);
         this.currentLayoutMode = this.options.layoutMode;
+        this.defaultMosaicConfig = this.options.defaultMosaicConfig;
+        this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
 
         const rawDefaultLayoutMode = (detected.options as Record<string, unknown>)
             .defaultLayoutMode;
@@ -455,6 +534,10 @@ export class ImageEditor {
             enterCropModeButton: 'enterCropModeButton',
             applyCropButton: 'applyCropButton',
             cancelCropButton: 'cancelCropButton',
+            enterMosaicModeButton: 'enterMosaicModeButton',
+            exitMosaicModeButton: 'exitMosaicModeButton',
+            mosaicBrushSizeInput: 'mosaicBrushSizeInput',
+            mosaicBlockSizeInput: 'mosaicBlockSizeInput',
             uploadArea: 'uploadArea',
         };
 
@@ -635,6 +718,32 @@ export class ImageEditor {
         });
         this.bindElementIfExists('cancelCropButton', 'click', () => {
             this.cancelCrop();
+        });
+
+        this.bindElementIfExists('enterMosaicModeButton', 'click', () => {
+            this.enterMosaicMode();
+        });
+        this.bindElementIfExists('exitMosaicModeButton', 'click', () => {
+            this.exitMosaicMode();
+        });
+
+        const bindMosaicSizeInput = (
+            key: 'mosaicBrushSizeInput' | 'mosaicBlockSizeInput',
+            applyValue: (value: number) => void,
+        ): void => {
+            const handler: EventListener = (event) => {
+                const parsed = parseFloat((event.target as HTMLInputElement).value);
+                applyValue(parsed);
+            };
+            this.bindElementIfExists(key, 'input', handler);
+            this.bindElementIfExists(key, 'change', handler);
+        };
+
+        bindMosaicSizeInput('mosaicBrushSizeInput', (value) => {
+            this.setMosaicBrushSize(value);
+        });
+        bindMosaicSizeInput('mosaicBlockSizeInput', (value) => {
+            this.setMosaicBlockSize(value);
         });
     }
 
@@ -895,6 +1004,15 @@ export class ImageEditor {
                 `[ImageEditor] Cannot run "${operationName}" while crop mode is active.`,
             );
         }
+        if (
+            this.mosaicSession &&
+            !this.operationGuard.isOwnOperation(token) &&
+            !MOSAIC_SESSION_ALLOWED_OPERATIONS.has(operationName)
+        ) {
+            throw new Error(
+                `[ImageEditor] Cannot run "${operationName}" while mosaic mode is active.`,
+            );
+        }
         if (this.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
             throw new Error(
                 `[ImageEditor] Cannot run "${operationName}" while an animation is queued.`,
@@ -944,7 +1062,12 @@ export class ImageEditor {
      * Returns `true` while the editor is loading, animating, or in crop mode.
      */
     isBusy(): boolean {
-        return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
+        return (
+            this.operationGuard.isBusy() ||
+            this.animQueue.isBusy() ||
+            this.cropSession !== null ||
+            this.mosaicSession !== null
+        );
     }
 
     /**
@@ -1082,6 +1205,7 @@ export class ImageEditor {
             currentRotation: this.currentRotation,
             isBusy: this.isBusy(),
             isCropMode: this.cropSession !== null,
+            isMosaicMode: this.mosaicSession !== null,
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),
             canvasWidth,
@@ -2313,6 +2437,152 @@ export class ImageEditor {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // PUBLIC — mosaic mode
+    // ═══════════════════════════════════════════════════════════════════════
+
+    enterMosaicMode(): void {
+        if (!this.canvas || !this.originalImage) return;
+        if (this.mosaicSession) return;
+        if (!this.isImageLoaded()) return;
+        if (!this.canRunIdleOperation('enterMosaicMode')) return;
+
+        enterMosaicModeImpl(this.buildMosaicControllerContext());
+        this.updateInputs();
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('enterMosaicMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+
+    exitMosaicMode(): void {
+        if (!this.canvas || !this.mosaicSession) return;
+        if (!this.canRunIdleOperation('exitMosaicMode')) return;
+
+        exitMosaicModeImpl(this.buildMosaicControllerContext());
+        this.updateInputs();
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('exitMosaicMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+
+    isMosaicMode(): boolean {
+        return this.mosaicSession !== null;
+    }
+
+    getMosaicConfig(): Readonly<ResolvedMosaicConfig> {
+        return cloneResolvedMosaicConfig(this.currentMosaicConfig);
+    }
+
+    setMosaicConfig(config: MosaicConfig): void {
+        this.applyMosaicConfigPatch(config, 'setMosaicConfig');
+    }
+
+    resetMosaicConfig(): void {
+        if (this.isDisposed) return;
+        const nextConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
+        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig)) return;
+
+        this.currentMosaicConfig = nextConfig;
+        if (this.mosaicSession && this.canvas) {
+            updateMosaicPreview(this.buildMosaicControllerContext());
+        }
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext('resetMosaicConfig', false));
+    }
+
+    setMosaicBrushSize(size: number): void {
+        this.applyMosaicConfigPatch({ brushSize: size }, 'setMosaicBrushSize');
+    }
+
+    setMosaicBlockSize(size: number): void {
+        this.applyMosaicConfigPatch({ blockSize: size }, 'setMosaicBlockSize');
+    }
+
+    private applyMosaicConfigPatch(config: MosaicConfig, operation: ImageEditorOperation): void {
+        if (this.isDisposed) return;
+        if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+            reportWarning(
+                this.options,
+                new TypeError('[ImageEditor] Invalid Mosaic config object.'),
+                'Ignored invalid Mosaic config.',
+            );
+            return;
+        }
+
+        const invalidFields = getInvalidMosaicConfigFields(config);
+        if (invalidFields.length > 0) {
+            reportWarning(
+                this.options,
+                new TypeError(
+                    `[ImageEditor] Ignored invalid Mosaic config field(s): ` +
+                        `${invalidFields.join(', ')}.`,
+                ),
+                'Ignored invalid Mosaic config fields.',
+            );
+        }
+
+        const nextConfig = mergeMosaicConfigPatch(this.currentMosaicConfig, config);
+        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig)) return;
+
+        this.currentMosaicConfig = nextConfig;
+        if (this.mosaicSession && this.canvas) {
+            updateMosaicPreview(this.buildMosaicControllerContext());
+        }
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext(operation, false));
+    }
+
+    private buildMosaicControllerContext(): MosaicControllerContext {
+        return {
+            fabric: this.fabricModule,
+            canvas: this.canvas!,
+            options: this.options,
+            historyManager: this.historyManager,
+            getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
+            isImageLoaded: () => this.isImageLoaded(),
+            getOriginalImage: () => this.originalImage,
+            setOriginalImage: (image) => {
+                this.originalImage = image;
+            },
+            getCurrentImageMimeType: () => this.currentImageMimeType,
+            setCurrentImageMimeType: (mimeType) => {
+                this.currentImageMimeType = mimeType;
+            },
+            getLastSnapshot: () => this.lastSnapshot,
+            setLastSnapshot: (snapshot) => {
+                this.lastSnapshot = snapshot;
+            },
+            captureSnapshot: () => this.captureSnapshotInternal(),
+            loadFromState: (snapshot) =>
+                this.loadFromStateInternal(snapshot, this.withAnimationQueueBypass()),
+            updateUi: () => {
+                this.updateUi();
+            },
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            hideAllMaskLabels: () => {
+                this.hideAllMaskLabels();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+            buildCallbackContext: (operation, isInternal) =>
+                this.buildCallbackContext(operation, isInternal),
+            getMosaicSession: () => this.mosaicSession,
+            setMosaicSession: (session) => {
+                this.mosaicSession = session;
+            },
+        };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // PUBLIC — crop mode
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -2468,10 +2738,29 @@ export class ImageEditor {
 
     private updateInputs(): void {
         const scaleId = this.elements.scalePercentageInput;
-        if (!scaleId) return;
-        const scaleInputElement = document.getElementById(scaleId) as HTMLInputElement | null;
-        if (scaleInputElement)
-            scaleInputElement.value = String(Math.round(this.currentScale * 100));
+        if (scaleId) {
+            const scaleInputElement = document.getElementById(scaleId) as HTMLInputElement | null;
+            if (scaleInputElement) {
+                scaleInputElement.value = String(Math.round(this.currentScale * 100));
+            }
+        }
+
+        const mosaicConfig = this.getMosaicConfig();
+        const mosaicBrushSizeInputId = this.elements.mosaicBrushSizeInput;
+        if (mosaicBrushSizeInputId) {
+            const brushInput = document.getElementById(
+                mosaicBrushSizeInputId,
+            ) as HTMLInputElement | null;
+            if (brushInput) brushInput.value = String(mosaicConfig.brushSize);
+        }
+
+        const mosaicBlockSizeInputId = this.elements.mosaicBlockSizeInput;
+        if (mosaicBlockSizeInputId) {
+            const blockInput = document.getElementById(
+                mosaicBlockSizeInputId,
+            ) as HTMLInputElement | null;
+            if (blockInput) blockInput.value = String(mosaicConfig.blockSize);
+        }
     }
 
     private updateUi(): void {
@@ -2486,12 +2775,21 @@ export class ImageEditor {
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const isInCropMode = this.cropSession !== null;
+        const isInMosaicMode = this.mosaicSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
 
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
             });
+            return;
+        }
+
+        if (isInMosaicMode) {
+            MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && MOSAIC_MODE_ENABLED_KEYS.includes(key));
+            });
+            this.setControlEnabled('imageInput', false);
             return;
         }
 
@@ -2520,6 +2818,10 @@ export class ImageEditor {
         this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
         this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
         this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
+        this.setControlEnabled('enterMosaicModeButton', hasImage && !isBusy);
+        this.setControlEnabled('exitMosaicModeButton', false);
+        this.setControlEnabled('mosaicBrushSizeInput', !this.isDisposed);
+        this.setControlEnabled('mosaicBlockSizeInput', !this.isDisposed);
         this.setControlEnabled('imageInput', !isBusy);
         this.setControlEnabled('applyCropButton', false);
         this.setControlEnabled('cancelCropButton', false);
@@ -2668,6 +2970,15 @@ export class ImageEditor {
                 /* ignore */
             }
             this.cropSession = null;
+        }
+
+        if (this.mosaicSession && this.canvas) {
+            try {
+                exitMosaicModeImpl(this.buildMosaicControllerContext());
+            } catch {
+                /* ignore */
+            }
+            this.mosaicSession = null;
         }
 
         if (this.canvas) {

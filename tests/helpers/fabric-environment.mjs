@@ -127,6 +127,10 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         enterCropModeButton: `enterCropModeButton-${domCounter}`,
         applyCropButton: `applyCropButton-${domCounter}`,
         cancelCropButton: `cancelCropButton-${domCounter}`,
+        enterMosaicModeButton: `enterMosaicModeButton-${domCounter}`,
+        exitMosaicModeButton: `exitMosaicModeButton-${domCounter}`,
+        mosaicBrushSizeInput: `mosaicBrushSizeInput-${domCounter}`,
+        mosaicBlockSizeInput: `mosaicBlockSizeInput-${domCounter}`,
     };
 
     document.body.innerHTML = `
@@ -151,6 +155,10 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         <button id="${ids.enterCropModeButton}"></button>
         <button id="${ids.applyCropButton}"></button>
         <button id="${ids.cancelCropButton}"></button>
+        <button id="${ids.enterMosaicModeButton}"></button>
+        <button id="${ids.exitMosaicModeButton}"></button>
+        <input id="${ids.mosaicBrushSizeInput}" type="range" value="48">
+        <input id="${ids.mosaicBlockSizeInput}" type="range" value="8">
         <input id="${ids.imageInput}" type="file">
         <ul id="${ids.maskList}"></ul>
     `;

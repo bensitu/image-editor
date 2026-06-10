@@ -99,6 +99,59 @@ function reportError(options, error, message) {
     }
 }
 
+const FORMAT_ALIAS_TABLE = Object.freeze({
+    jpeg: 'jpeg',
+    jpg: 'jpeg',
+    'image/jpeg': 'jpeg',
+    png: 'png',
+    'image/png': 'png',
+    webp: 'webp',
+    'image/webp': 'webp',
+});
+const MIME_TABLE = Object.freeze({
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+});
+function normalizeImageFormat(input) {
+    var _a;
+    return (_a = tryNormalizeImageFormat(input)) !== null && _a !== void 0 ? _a : 'jpeg';
+}
+function tryNormalizeImageFormat(input) {
+    var _a;
+    if (!input)
+        return null;
+    const key = String(input).toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(FORMAT_ALIAS_TABLE, key)) {
+        return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : null;
+    }
+    return null;
+}
+function mimeTypeFor(format) {
+    return MIME_TABLE[format];
+}
+function clampQuality(quality, fallback) {
+    const numeric = Number(quality);
+    if (!Number.isFinite(numeric))
+        return fallback;
+    return Math.max(0, Math.min(1, numeric));
+}
+function resolveExportFormat(options, downsampleQuality) {
+    var _a;
+    const providedOptions = options !== null && options !== void 0 ? options : {};
+    const fileType = providedOptions.fileType;
+    const formatAlias = providedOptions.format;
+    const requested = fileType || formatAlias;
+    const format = normalizeImageFormat(requested);
+    const mimeType = mimeTypeFor(format);
+    if (format === 'png') {
+        return { format, mimeType, quality: undefined };
+    }
+    const rawQuality = (_a = providedOptions.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
+    const quality = clampQuality(rawQuality, downsampleQuality);
+    return { format, mimeType, quality };
+}
+
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 const DEFAULT_LAYOUT_MODE = 'expand';
 const DEFAULT_OPTIONS = {
@@ -168,6 +221,16 @@ const DEFAULT_CROP = {
     preserveMasksAfterCrop: false,
     allowRotationOfCropRect: false,
     exportFileType: 'source'};
+const DEFAULT_MOSAIC_CONFIG = Object.freeze({
+    brushSize: 48,
+    blockSize: 8,
+    previewStroke: '#333',
+    previewStrokeWidth: 1,
+    previewStrokeDashArray: Object.freeze([4, 4]),
+    previewFill: 'rgba(0,0,0,0)',
+    outputFileType: 'source',
+    outputQuality: undefined,
+});
 const KNOWN_TOP_LEVEL_KEYS = new Set([
     'canvasWidth',
     'canvasHeight',
@@ -213,6 +276,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'onWarning',
     'label',
     'crop',
+    'defaultMosaicConfig',
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
@@ -305,6 +369,151 @@ function normalizeOptionalQuality(value) {
         return undefined;
     return Math.max(0, Math.min(1, numeric));
 }
+function hasOwn(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
+}
+function isFiniteNumber$1(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+function normalizeMosaicPositiveNumber(value, fallback) {
+    return isFiniteNumber$1(value) && value > 0 ? value : fallback;
+}
+function normalizeMosaicBlockSize(value, fallback) {
+    return isFiniteNumber$1(value) && value > 0 ? Math.max(1, Math.floor(value)) : fallback;
+}
+function normalizeMosaicNonNegativeNumber(value, fallback) {
+    return isFiniteNumber$1(value) && value >= 0 ? value : fallback;
+}
+function normalizeMosaicDashArray(value, fallback) {
+    if (value === null)
+        return null;
+    if (Array.isArray(value) &&
+        value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0)) {
+        return [...value];
+    }
+    return fallback ? [...fallback] : null;
+}
+function normalizeMosaicOutputFileType(value, fallback) {
+    var _a;
+    if (value === 'source')
+        return 'source';
+    if (typeof value !== 'string')
+        return fallback;
+    return (_a = tryNormalizeImageFormat(value)) !== null && _a !== void 0 ? _a : fallback;
+}
+function normalizeMosaicOutputQuality(value, fallback) {
+    if (value === undefined || value === null)
+        return undefined;
+    if (!isFiniteNumber$1(value))
+        return fallback;
+    return Math.max(0, Math.min(1, value));
+}
+function cloneResolvedMosaicConfig(config) {
+    return {
+        ...config,
+        previewStrokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : null,
+    };
+}
+function normalizeMosaicConfig(input, fallback) {
+    if (!isConfigObject(input))
+        return cloneResolvedMosaicConfig(fallback);
+    return mergeMosaicConfigPatch(fallback, input);
+}
+function mergeMosaicConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedMosaicConfig(current);
+    if (hasOwn(raw, 'brushSize')) {
+        next.brushSize = normalizeMosaicPositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn(raw, 'blockSize')) {
+        next.blockSize = normalizeMosaicBlockSize(raw.blockSize, fallback.blockSize);
+    }
+    if (hasOwn(raw, 'previewStroke')) {
+        next.previewStroke =
+            typeof raw.previewStroke === 'string' ? raw.previewStroke : fallback.previewStroke;
+    }
+    if (hasOwn(raw, 'previewStrokeWidth')) {
+        next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
+    }
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
+        next.previewStrokeDashArray = normalizeMosaicDashArray(raw.previewStrokeDashArray, fallback.previewStrokeDashArray);
+    }
+    if (hasOwn(raw, 'previewFill')) {
+        next.previewFill =
+            typeof raw.previewFill === 'string' ? raw.previewFill : fallback.previewFill;
+    }
+    if (hasOwn(raw, 'outputFileType')) {
+        next.outputFileType = normalizeMosaicOutputFileType(raw.outputFileType, fallback.outputFileType);
+    }
+    if (hasOwn(raw, 'outputQuality')) {
+        next.outputQuality = normalizeMosaicOutputQuality(raw.outputQuality, fallback.outputQuality);
+    }
+    return next;
+}
+function getInvalidMosaicConfigFields(input) {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid = [];
+    if (hasOwn(raw, 'brushSize') &&
+        !(typeof raw.brushSize === 'number' && Number.isFinite(raw.brushSize) && raw.brushSize > 0)) {
+        invalid.push('brushSize');
+    }
+    if (hasOwn(raw, 'blockSize') &&
+        !(typeof raw.blockSize === 'number' && Number.isFinite(raw.blockSize) && raw.blockSize > 0)) {
+        invalid.push('blockSize');
+    }
+    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+        invalid.push('previewStroke');
+    }
+    if (hasOwn(raw, 'previewStrokeWidth') &&
+        !(typeof raw.previewStrokeWidth === 'number' &&
+            Number.isFinite(raw.previewStrokeWidth) &&
+            raw.previewStrokeWidth >= 0)) {
+        invalid.push('previewStrokeWidth');
+    }
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
+        const value = raw.previewStrokeDashArray;
+        const valid = value === null ||
+            (Array.isArray(value) &&
+                value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0));
+        if (!valid)
+            invalid.push('previewStrokeDashArray');
+    }
+    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+        invalid.push('previewFill');
+    }
+    if (hasOwn(raw, 'outputFileType')) {
+        const value = raw.outputFileType;
+        const valid = value === 'source' || (typeof value === 'string' && tryNormalizeImageFormat(value));
+        if (!valid)
+            invalid.push('outputFileType');
+    }
+    if (hasOwn(raw, 'outputQuality') &&
+        raw.outputQuality !== undefined &&
+        raw.outputQuality !== null &&
+        !(typeof raw.outputQuality === 'number' && Number.isFinite(raw.outputQuality))) {
+        invalid.push('outputQuality');
+    }
+    return invalid;
+}
+function areResolvedMosaicConfigsEqual(left, right) {
+    const leftDash = left.previewStrokeDashArray;
+    const rightDash = right.previewStrokeDashArray;
+    const dashEqual = leftDash === rightDash ||
+        (Array.isArray(leftDash) &&
+            Array.isArray(rightDash) &&
+            leftDash.length === rightDash.length &&
+            leftDash.every((value, index) => value === rightDash[index]));
+    return (left.brushSize === right.brushSize &&
+        left.blockSize === right.blockSize &&
+        left.previewStroke === right.previewStroke &&
+        left.previewStrokeWidth === right.previewStrokeWidth &&
+        dashEqual &&
+        left.previewFill === right.previewFill &&
+        left.outputFileType === right.outputFileType &&
+        left.outputQuality === right.outputQuality);
+}
 function resolveOptions(input) {
     var _a, _b, _c, _d;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -312,7 +521,7 @@ function resolveOptions(input) {
     for (const key of Object.keys(raw)) {
         if (!KNOWN_TOP_LEVEL_KEYS.has(key))
             continue;
-        if (key === 'label' || key === 'crop')
+        if (key === 'label' || key === 'crop' || key === 'defaultMosaicConfig')
             continue;
         if (key === 'onImageLoadStart' ||
             key === 'onImageLoaded' ||
@@ -454,10 +663,16 @@ function resolveOptions(input) {
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
+    const defaultMosaicConfig = normalizeMosaicConfig(raw.defaultMosaicConfig, DEFAULT_MOSAIC_CONFIG);
+    if (defaultMosaicConfig.previewStrokeDashArray) {
+        Object.freeze(defaultMosaicConfig.previewStrokeDashArray);
+    }
+    Object.freeze(defaultMosaicConfig);
     return Object.freeze({
         ...resolved,
         label,
         crop,
+        defaultMosaicConfig,
     });
 }
 
@@ -639,6 +854,7 @@ const SNAPSHOT_CUSTOM_KEYS = [
     'borderColor',
     'cornerColor',
     'cornerSize',
+    'isMosaicPreview',
 ];
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
@@ -690,6 +906,8 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
             jsonObject.isCropRect = true;
         if (liveObject.maskLabel === true)
             jsonObject.maskLabel = true;
+        if (liveObject.isMosaicPreview === true)
+            jsonObject.isMosaicPreview = true;
     }
 }
 function isActiveSelectionObject(object) {
@@ -717,7 +935,7 @@ function saveState(input) {
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {
-        jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true);
+        jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true);
     }
     jsonObj._editorState = {
         currentScale,
@@ -1389,59 +1607,6 @@ function getObjectBBox(object) {
     };
 }
 
-const FORMAT_ALIAS_TABLE = Object.freeze({
-    jpeg: 'jpeg',
-    jpg: 'jpeg',
-    'image/jpeg': 'jpeg',
-    png: 'png',
-    'image/png': 'png',
-    webp: 'webp',
-    'image/webp': 'webp',
-});
-const MIME_TABLE = Object.freeze({
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-});
-function normalizeImageFormat(input) {
-    var _a;
-    return (_a = tryNormalizeImageFormat(input)) !== null && _a !== void 0 ? _a : 'jpeg';
-}
-function tryNormalizeImageFormat(input) {
-    var _a;
-    if (!input)
-        return null;
-    const key = String(input).toLowerCase();
-    if (Object.prototype.hasOwnProperty.call(FORMAT_ALIAS_TABLE, key)) {
-        return (_a = FORMAT_ALIAS_TABLE[key]) !== null && _a !== void 0 ? _a : null;
-    }
-    return null;
-}
-function mimeTypeFor(format) {
-    return MIME_TABLE[format];
-}
-function clampQuality(quality, fallback) {
-    const numeric = Number(quality);
-    if (!Number.isFinite(numeric))
-        return fallback;
-    return Math.max(0, Math.min(1, numeric));
-}
-function resolveExportFormat(options, downsampleQuality) {
-    var _a;
-    const providedOptions = options !== null && options !== void 0 ? options : {};
-    const fileType = providedOptions.fileType;
-    const formatAlias = providedOptions.format;
-    const requested = fileType || formatAlias;
-    const format = normalizeImageFormat(requested);
-    const mimeType = mimeTypeFor(format);
-    if (format === 'png') {
-        return { format, mimeType, quality: undefined };
-    }
-    const rawQuality = (_a = providedOptions.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
-    const quality = clampQuality(rawQuality, downsampleQuality);
-    return { format, mimeType, quality };
-}
-
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
 const CROP_RECT_STROKE = '#00aaff';
 const CROP_RECT_DASH = [6, 4];
@@ -1839,6 +2004,671 @@ async function applyCrop(context) {
         const message = error instanceof Error ? `applyCrop failed: ${error.message}` : 'applyCrop failed';
         throw new CropApplyError(message, error);
     }
+}
+
+function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHeight) {
+    if (!isPositiveFinite$1(srcWidth) ||
+        !isPositiveFinite$1(srcHeight) ||
+        !isPositiveFinite$1(maxWidth) ||
+        !isPositiveFinite$1(maxHeight)) {
+        return {
+            width: Math.max(1, Math.round(srcWidth) || 1),
+            height: Math.max(1, Math.round(srcHeight) || 1),
+            needsResize: false,
+        };
+    }
+    const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
+    if (!needsResize) {
+        return { width: srcWidth, height: srcHeight, needsResize: false };
+    }
+    const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+    return {
+        width: Math.max(1, Math.round(srcWidth * ratio)),
+        height: Math.max(1, Math.round(srcHeight * ratio)),
+        needsResize: true,
+    };
+}
+function isPositiveFinite$1(value) {
+    return Number.isFinite(value) && value > 0;
+}
+function selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType) {
+    if (downsampleMimeType)
+        return downsampleMimeType;
+    if (preserveSourceFormat && (sourceMime === 'image/png' || sourceMime === 'image/webp')) {
+        return sourceMime;
+    }
+    return 'image/jpeg';
+}
+function detectSourceMimeType(dataUrl) {
+    const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
+    return match ? match[1].toLowerCase() : null;
+}
+function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
+    const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
+    const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    const context = offscreenCanvas.getContext('2d');
+    if (!context) {
+        throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
+    }
+    context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, width, height);
+    const dataUrl = mimeType === 'image/png'
+        ? offscreenCanvas.toDataURL(mimeType)
+        : offscreenCanvas.toDataURL(mimeType, quality);
+    return { dataUrl, width, height, mimeType };
+}
+
+function withTimeout(promise, ms, label) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const timeoutId = setTimeout(() => {
+            reject(new ImageLoadTimeoutError(label, Date.now() - start));
+        }, ms);
+        promise.then((value) => {
+            clearTimeout(timeoutId);
+            resolve(value);
+        }, (err) => {
+            clearTimeout(timeoutId);
+            reject(err);
+        });
+    });
+}
+
+function toMatrix2D(matrix) {
+    if (matrix.length < 6)
+        return null;
+    const a = matrix[0];
+    const b = matrix[1];
+    const c = matrix[2];
+    const d = matrix[3];
+    const e = matrix[4];
+    const f = matrix[5];
+    if (!Number.isFinite(a) ||
+        !Number.isFinite(b) ||
+        !Number.isFinite(c) ||
+        !Number.isFinite(d) ||
+        !Number.isFinite(e) ||
+        !Number.isFinite(f)) {
+        return null;
+    }
+    return { a: a, b: b, c: c, d: d, e: e, f: f };
+}
+function invertMatrix(matrix) {
+    const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+    if (!Number.isFinite(determinant) || Math.abs(determinant) < Number.EPSILON) {
+        return null;
+    }
+    return {
+        a: matrix.d / determinant,
+        b: -matrix.b / determinant,
+        c: -matrix.c / determinant,
+        d: matrix.a / determinant,
+        e: (matrix.c * matrix.f - matrix.d * matrix.e) / determinant,
+        f: (matrix.b * matrix.e - matrix.a * matrix.f) / determinant,
+    };
+}
+function transformPoint(point, matrix) {
+    return {
+        x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+        y: matrix.b * point.x + matrix.d * point.y + matrix.f,
+    };
+}
+function getSourceRadiusFromMatrix(matrix, canvasRadius) {
+    const scaleX = Math.hypot(matrix.a, matrix.b);
+    const scaleY = Math.hypot(matrix.c, matrix.d);
+    const minScale = Math.min(scaleX > Number.EPSILON ? scaleX : Number.POSITIVE_INFINITY, scaleY > Number.EPSILON ? scaleY : Number.POSITIVE_INFINITY);
+    if (!Number.isFinite(minScale) || minScale <= 0)
+        return canvasRadius;
+    return canvasRadius / minScale;
+}
+function getMosaicImagePoint(fabric, image, canvasPoint, brushDiameterCanvasPx) {
+    const width = Number(image.width) || 0;
+    const height = Number(image.height) || 0;
+    const brushDiameter = Number(brushDiameterCanvasPx);
+    if (width <= 0 ||
+        height <= 0 ||
+        !Number.isFinite(canvasPoint.x) ||
+        !Number.isFinite(canvasPoint.y) ||
+        !Number.isFinite(brushDiameter) ||
+        brushDiameter <= 0) {
+        return null;
+    }
+    const matrix = toMatrix2D(image.calcTransformMatrix());
+    if (!matrix)
+        return null;
+    const inverse = invertMatrix(matrix);
+    if (!inverse)
+        return null;
+    const localPoint = transformPoint(canvasPoint, inverse);
+    const sourceX = localPoint.x + width / 2;
+    const sourceY = localPoint.y + height / 2;
+    if (sourceX < 0 || sourceY < 0 || sourceX > width || sourceY > height) {
+        return null;
+    }
+    return {
+        sourceX,
+        sourceY,
+        sourceRadius: getSourceRadiusFromMatrix(matrix, brushDiameter / 2),
+    };
+}
+
+function normalizeBlockSize(value) {
+    return Number.isFinite(value) && value > 0 ? Math.max(1, Math.floor(value)) : 1;
+}
+function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
+    const dx = x - centerX;
+    const dy = y - centerY;
+    return dx * dx + dy * dy <= radiusSquared;
+}
+function pixelOffset(width, x, y) {
+    return (y * width + x) * 4;
+}
+function applyCircularMosaicToImageData(options) {
+    var _a, _b, _c, _d;
+    const { imageData } = options;
+    const { width, height, data } = imageData;
+    const centerX = Number(options.centerX);
+    const centerY = Number(options.centerY);
+    const radius = Number(options.radius);
+    if (!Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        width <= 0 ||
+        height <= 0) {
+        return false;
+    }
+    const blockSize = normalizeBlockSize(options.blockSize);
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
+    if (minX > maxX || minY > maxY)
+        return false;
+    const radiusSquared = radius * radius;
+    let processed = false;
+    for (let blockY = minY; blockY <= maxY; blockY += blockSize) {
+        for (let blockX = minX; blockX <= maxX; blockX += blockSize) {
+            const blockMaxX = Math.min(maxX, blockX + blockSize - 1);
+            const blockMaxY = Math.min(maxY, blockY + blockSize - 1);
+            let sampleOffset = -1;
+            for (let y = blockY; y <= blockMaxY && sampleOffset < 0; y += 1) {
+                for (let x = blockX; x <= blockMaxX; x += 1) {
+                    if (!isInsideCircle(x, y, centerX, centerY, radiusSquared))
+                        continue;
+                    sampleOffset = pixelOffset(width, x, y);
+                    break;
+                }
+            }
+            if (sampleOffset < 0)
+                continue;
+            const red = (_a = data[sampleOffset]) !== null && _a !== void 0 ? _a : 0;
+            const green = (_b = data[sampleOffset + 1]) !== null && _b !== void 0 ? _b : 0;
+            const blue = (_c = data[sampleOffset + 2]) !== null && _c !== void 0 ? _c : 0;
+            const alpha = (_d = data[sampleOffset + 3]) !== null && _d !== void 0 ? _d : 0;
+            for (let y = blockY; y <= blockMaxY; y += 1) {
+                for (let x = blockX; x <= blockMaxX; x += 1) {
+                    if (!isInsideCircle(x, y, centerX, centerY, radiusSquared))
+                        continue;
+                    const offset = pixelOffset(width, x, y);
+                    data[offset] = red;
+                    data[offset + 1] = green;
+                    data[offset + 2] = blue;
+                    data[offset + 3] = alpha;
+                    processed = true;
+                }
+            }
+        }
+    }
+    return processed;
+}
+
+function getCanvasDocument(context) {
+    var _a, _b, _c, _d, _e;
+    const element = (_b = (_a = context.canvas).getElement) === null || _b === void 0 ? void 0 : _b.call(_a);
+    return ((_e = (_c = element === null || element === void 0 ? void 0 : element.ownerDocument) !== null && _c !== void 0 ? _c : (_d = context.canvas.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
+}
+function isFinitePoint(value) {
+    const point = value;
+    return (!!point &&
+        typeof point.x === 'number' &&
+        Number.isFinite(point.x) &&
+        typeof point.y === 'number' &&
+        Number.isFinite(point.y));
+}
+function getPointerFromFabricEvent(canvas, event) {
+    const fabricEvent = event;
+    if (isFinitePoint(fabricEvent.scenePoint))
+        return fabricEvent.scenePoint;
+    if (isFinitePoint(fabricEvent.pointer))
+        return fabricEvent.pointer;
+    if (isFinitePoint(fabricEvent.absolutePointer))
+        return fabricEvent.absolutePointer;
+    if (fabricEvent.e && typeof canvas.getPointer === 'function') {
+        const pointer = canvas.getPointer(fabricEvent.e);
+        if (isFinitePoint(pointer))
+            return pointer;
+    }
+    return null;
+}
+function safeRender(canvas) {
+    try {
+        canvas.requestRenderAll();
+    }
+    catch {
+        try {
+            canvas.renderAll();
+        }
+        catch {
+        }
+    }
+}
+function createPreviewCircle(context) {
+    var _a;
+    const config = context.getMosaicConfig();
+    const circle = new context.fabric.Circle({
+        left: 0,
+        top: 0,
+        radius: config.brushSize / 2,
+        originX: 'center',
+        originY: 'center',
+        fill: config.previewFill,
+        stroke: config.previewStroke,
+        strokeWidth: config.previewStrokeWidth,
+        strokeDashArray: (_a = config.previewStrokeDashArray) !== null && _a !== void 0 ? _a : undefined,
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: false,
+    });
+    circle.isMosaicPreview = true;
+    return circle;
+}
+function ensurePreviewCircle(context, session) {
+    var _a;
+    const { canvas } = context;
+    const circle = (_a = session.previewCircle) !== null && _a !== void 0 ? _a : createPreviewCircle(context);
+    session.previewCircle = circle;
+    if (!canvas.getObjects().includes(circle)) {
+        canvas.add(circle);
+    }
+    canvas.bringObjectToFront(circle);
+    updateMosaicPreview(context);
+    return circle;
+}
+function removePreviewCircle(context, session) {
+    const circle = session.previewCircle;
+    if (!circle)
+        return;
+    try {
+        context.canvas.remove(circle);
+    }
+    catch {
+    }
+    session.previewCircle = null;
+}
+function hidePreview(context) {
+    var _a;
+    const circle = (_a = context.getMosaicSession()) === null || _a === void 0 ? void 0 : _a.previewCircle;
+    if (!circle)
+        return;
+    circle.set({ visible: false });
+    safeRender(context.canvas);
+}
+function movePreview(context, point) {
+    const session = context.getMosaicSession();
+    if (!session)
+        return;
+    const circle = ensurePreviewCircle(context, session);
+    circle.set({ left: point.x, top: point.y, visible: true });
+    safeRender(context.canvas);
+}
+function attachCanvasHandler(context, session, eventName, callback) {
+    context.canvas.on(eventName, callback);
+    session.handlers.push({ eventName, callback });
+}
+function detachCanvasHandlers(context, session) {
+    for (const record of session.handlers) {
+        try {
+            context.canvas.off(record.eventName, record.callback);
+        }
+        catch {
+        }
+    }
+    session.handlers = [];
+}
+function restoreObjectStates(session) {
+    for (const record of session.prevObjectStates) {
+        try {
+            record.object.set({ evented: record.evented, selectable: record.selectable });
+        }
+        catch {
+        }
+    }
+    session.prevObjectStates = [];
+}
+function getImageSource(image) {
+    var _a;
+    const imageWithSource = image;
+    try {
+        const src = (_a = imageWithSource.getSrc) === null || _a === void 0 ? void 0 : _a.call(imageWithSource);
+        if (typeof src === 'string' && src.length > 0)
+            return src;
+    }
+    catch {
+    }
+    return typeof imageWithSource.src === 'string' && imageWithSource.src.length > 0
+        ? imageWithSource.src
+        : null;
+}
+function imageDimension(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
+}
+function decodeImageSource(ownerDocument, source) {
+    return new Promise((resolve, reject) => {
+        const imageElement = ownerDocument.createElement('img');
+        const cleanup = () => {
+            if (typeof imageElement.removeEventListener === 'function') {
+                imageElement.removeEventListener('load', handleLoad);
+                imageElement.removeEventListener('error', handleError);
+            }
+            else {
+                imageElement.onload = null;
+                imageElement.onerror = null;
+            }
+        };
+        const handleLoad = () => {
+            const width = imageDimension(imageElement.naturalWidth || imageElement.width);
+            const height = imageDimension(imageElement.naturalHeight || imageElement.height);
+            cleanup();
+            if (width <= 0 || height <= 0) {
+                reject(new Error('Mosaic image decode failed: source image has no dimensions.'));
+                return;
+            }
+            resolve({ element: imageElement, width, height });
+        };
+        const handleError = (event) => {
+            cleanup();
+            const message = typeof event === 'string'
+                ? `Mosaic image decode failed: ${event}`
+                : 'Mosaic image decode failed.';
+            reject(new Error(message));
+        };
+        if (!source.startsWith('data:')) {
+            imageElement.crossOrigin = 'anonymous';
+        }
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
+        }
+        else {
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
+        }
+        imageElement.src = source;
+    });
+}
+function toSupportedMimeType(mimeType) {
+    return mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
+        ? mimeType
+        : null;
+}
+function mimeToFormat(mimeType) {
+    if (mimeType === 'image/jpeg')
+        return 'jpeg';
+    if (mimeType === 'image/webp')
+        return 'webp';
+    return 'png';
+}
+function resolveMosaicOutputFormat(context, source) {
+    var _a, _b, _c, _d;
+    const config = context.getMosaicConfig();
+    const requested = config.outputFileType;
+    const format = requested === 'source'
+        ? mimeToFormat((_b = (_a = context.getCurrentImageMimeType()) !== null && _a !== void 0 ? _a : toSupportedMimeType(detectSourceMimeType(source))) !== null && _b !== void 0 ? _b : 'image/png')
+        : ((_c = tryNormalizeImageFormat(String(requested))) !== null && _c !== void 0 ? _c : 'png');
+    const mimeType = mimeTypeFor(format);
+    if (format === 'png')
+        return { mimeType };
+    return {
+        mimeType,
+        quality: (_d = config.outputQuality) !== null && _d !== void 0 ? _d : context.options.downsampleQuality,
+    };
+}
+async function createFabricImageFromDataUrl(context, dataUrl) {
+    return await withTimeout(context.fabric.FabricImage.fromURL(dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'Mosaic FabricImage.fromURL');
+}
+function copyBaseImageProperties(target, source) {
+    target.set({
+        left: source.left,
+        top: source.top,
+        scaleX: source.scaleX,
+        scaleY: source.scaleY,
+        angle: source.angle,
+        skewX: source.skewX,
+        skewY: source.skewY,
+        flipX: source.flipX,
+        flipY: source.flipY,
+        originX: source.originX,
+        originY: source.originY,
+        selectable: source.selectable,
+        evented: source.evented,
+        hasControls: source.hasControls,
+        hoverCursor: source.hoverCursor,
+    });
+    target.setCoords();
+}
+function replaceBaseImage(context, oldImage, newImage, mimeType) {
+    const { canvas } = context;
+    let oldRemoved = false;
+    let newAdded = false;
+    try {
+        copyBaseImageProperties(newImage, oldImage);
+        canvas.remove(oldImage);
+        oldRemoved = true;
+        canvas.add(newImage);
+        newAdded = true;
+        canvas.sendObjectToBack(newImage);
+        context.setOriginalImage(newImage);
+        context.setCurrentImageMimeType(mimeType);
+        canvas.renderAll();
+    }
+    catch (error) {
+        try {
+            if (newAdded)
+                canvas.remove(newImage);
+            if (oldRemoved && !canvas.getObjects().includes(oldImage)) {
+                canvas.add(oldImage);
+                canvas.sendObjectToBack(oldImage);
+            }
+            context.setOriginalImage(oldImage);
+        }
+        catch {
+        }
+        throw error;
+    }
+}
+function pushMosaicHistory(context, after) {
+    var _a;
+    const before = (_a = context.getLastSnapshot()) !== null && _a !== void 0 ? _a : after;
+    if (!before || !after || before === after)
+        return;
+    context.historyManager.push(new Command(async () => {
+        await context.loadFromState(after);
+    }, async () => {
+        await context.loadFromState(before);
+    }));
+    context.setLastSnapshot(after);
+}
+async function applyMosaicAtPoint(context, canvasPoint) {
+    const session = context.getMosaicSession();
+    if (!session || session.isApplying)
+        return;
+    const originalImage = context.getOriginalImage();
+    if (!originalImage || !context.isImageLoaded())
+        return;
+    const config = context.getMosaicConfig();
+    const imagePoint = getMosaicImagePoint(context.fabric, originalImage, canvasPoint, config.brushSize);
+    if (!imagePoint)
+        return;
+    const source = getImageSource(originalImage);
+    if (!source) {
+        reportWarning(context.options, new Error('Mosaic cannot read the current image source.'), 'Mosaic skipped because the image source is unavailable.');
+        return;
+    }
+    session.isApplying = true;
+    const callbackContext = context.buildCallbackContext('applyMosaic', false);
+    try {
+        const ownerDocument = getCanvasDocument(context);
+        const decoded = await decodeImageSource(ownerDocument, source);
+        const offscreen = ownerDocument.createElement('canvas');
+        offscreen.width = decoded.width;
+        offscreen.height = decoded.height;
+        const renderingContext = offscreen.getContext('2d');
+        if (!renderingContext) {
+            reportError(context.options, new Error('Mosaic could not obtain a 2D canvas context.'), 'Mosaic apply failed.');
+            return;
+        }
+        renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
+        let imageData;
+        try {
+            imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
+        }
+        catch (error) {
+            reportError(context.options, error, 'Mosaic apply failed because the source image pixels could not be read.');
+            return;
+        }
+        const changed = applyCircularMosaicToImageData({
+            imageData,
+            centerX: imagePoint.sourceX,
+            centerY: imagePoint.sourceY,
+            radius: imagePoint.sourceRadius,
+            blockSize: config.blockSize,
+        });
+        if (!changed)
+            return;
+        renderingContext.putImageData(imageData, 0, 0);
+        const output = resolveMosaicOutputFormat(context, source);
+        const nextDataUrl = output.quality === undefined
+            ? offscreen.toDataURL(output.mimeType)
+            : offscreen.toDataURL(output.mimeType, output.quality);
+        const nextImage = await createFabricImageFromDataUrl(context, nextDataUrl);
+        removePreviewCircle(context, session);
+        try {
+            replaceBaseImage(context, originalImage, nextImage, output.mimeType);
+            const after = context.captureSnapshot();
+            pushMosaicHistory(context, after);
+        }
+        finally {
+            if (context.getMosaicSession() === session) {
+                ensurePreviewCircle(context, session);
+            }
+        }
+        context.updateInputs();
+        context.updateUi();
+        context.emitImageChanged(callbackContext);
+    }
+    finally {
+        if (context.getMosaicSession() === session) {
+            session.isApplying = false;
+        }
+        context.emitBusyChangeIfChanged(callbackContext);
+    }
+}
+function installMosaicHandlers(context, session) {
+    attachCanvasHandler(context, session, 'mouse:move', (event) => {
+        const pointer = getPointerFromFabricEvent(context.canvas, event);
+        if (!pointer) {
+            hidePreview(context);
+            return;
+        }
+        movePreview(context, pointer);
+    });
+    attachCanvasHandler(context, session, 'mouse:out', () => {
+        hidePreview(context);
+    });
+    attachCanvasHandler(context, session, 'mouse:down', (event) => {
+        const pointer = getPointerFromFabricEvent(context.canvas, event);
+        if (!pointer)
+            return;
+        void applyMosaicAtPoint(context, pointer).catch((error) => {
+            reportError(context.options, error, 'Mosaic apply failed.');
+        });
+    });
+}
+function enterMosaicMode(context) {
+    if (context.getMosaicSession())
+        return;
+    if (!context.isImageLoaded() || !context.getOriginalImage())
+        return;
+    const { canvas } = context;
+    context.hideAllMaskLabels();
+    canvas.discardActiveObject();
+    const prevSelection = !!canvas.selection;
+    const prevDefaultCursor = canvas.defaultCursor;
+    const prevObjectStates = canvas.getObjects().map((object) => {
+        var _a, _b;
+        return ({
+            object,
+            evented: (_a = object.evented) !== null && _a !== void 0 ? _a : true,
+            selectable: (_b = object.selectable) !== null && _b !== void 0 ? _b : true,
+        });
+    });
+    for (const record of prevObjectStates) {
+        try {
+            record.object.set({ evented: false, selectable: false });
+        }
+        catch {
+        }
+    }
+    canvas.selection = false;
+    canvas.defaultCursor = 'crosshair';
+    const session = {
+        previewCircle: null,
+        prevSelection,
+        prevDefaultCursor,
+        prevObjectStates,
+        handlers: [],
+        isApplying: false,
+    };
+    context.setMosaicSession(session);
+    ensurePreviewCircle(context, session);
+    installMosaicHandlers(context, session);
+    canvas.renderAll();
+}
+function exitMosaicMode(context) {
+    var _a;
+    const session = context.getMosaicSession();
+    if (!session)
+        return;
+    detachCanvasHandlers(context, session);
+    removePreviewCircle(context, session);
+    restoreObjectStates(session);
+    context.canvas.selection = !!session.prevSelection;
+    context.canvas.defaultCursor = (_a = session.prevDefaultCursor) !== null && _a !== void 0 ? _a : 'default';
+    context.setMosaicSession(null);
+    context.canvas.renderAll();
+}
+function updateMosaicPreview(context) {
+    var _a;
+    const session = context.getMosaicSession();
+    const circle = session === null || session === void 0 ? void 0 : session.previewCircle;
+    if (!session || !circle)
+        return;
+    const config = context.getMosaicConfig();
+    circle.set({
+        radius: config.brushSize / 2,
+        fill: config.previewFill,
+        stroke: config.previewStroke,
+        strokeWidth: config.previewStrokeWidth,
+        strokeDashArray: (_a = config.previewStrokeDashArray) !== null && _a !== void 0 ? _a : undefined,
+    });
+    context.canvas.bringObjectToFront(circle);
+    safeRender(context.canvas);
 }
 
 function resolveMultiplier(requested, fallback) {
@@ -2429,22 +3259,6 @@ async function mergeMasks(context) {
     }
 }
 
-function withTimeout(promise, ms, label) {
-    return new Promise((resolve, reject) => {
-        const start = Date.now();
-        const timeoutId = setTimeout(() => {
-            reject(new ImageLoadTimeoutError(label, Date.now() - start));
-        }, ms);
-        promise.then((value) => {
-            clearTimeout(timeoutId);
-            resolve(value);
-        }, (err) => {
-            clearTimeout(timeoutId);
-            reject(err);
-        });
-    });
-}
-
 function forceReflow(element) {
     if (!element)
         return;
@@ -2654,60 +3468,6 @@ function applyCanvasDimensions(canvas, width, height, containerElement) {
     const integerHeight = Math.max(1, Math.round(Number(height) || 1));
     canvas.setDimensions({ width: integerWidth, height: integerHeight });
     forceReflow(containerElement);
-}
-
-function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHeight) {
-    if (!isPositiveFinite$1(srcWidth) ||
-        !isPositiveFinite$1(srcHeight) ||
-        !isPositiveFinite$1(maxWidth) ||
-        !isPositiveFinite$1(maxHeight)) {
-        return {
-            width: Math.max(1, Math.round(srcWidth) || 1),
-            height: Math.max(1, Math.round(srcHeight) || 1),
-            needsResize: false,
-        };
-    }
-    const needsResize = srcWidth > maxWidth || srcHeight > maxHeight;
-    if (!needsResize) {
-        return { width: srcWidth, height: srcHeight, needsResize: false };
-    }
-    const ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-    return {
-        width: Math.max(1, Math.round(srcWidth * ratio)),
-        height: Math.max(1, Math.round(srcHeight * ratio)),
-        needsResize: true,
-    };
-}
-function isPositiveFinite$1(value) {
-    return Number.isFinite(value) && value > 0;
-}
-function selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType) {
-    if (downsampleMimeType)
-        return downsampleMimeType;
-    if (preserveSourceFormat && (sourceMime === 'image/png' || sourceMime === 'image/webp')) {
-        return sourceMime;
-    }
-    return 'image/jpeg';
-}
-function detectSourceMimeType(dataUrl) {
-    const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
-    return match ? match[1].toLowerCase() : null;
-}
-function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
-    const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
-    const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = width;
-    offscreenCanvas.height = height;
-    const context = offscreenCanvas.getContext('2d');
-    if (!context) {
-        throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
-    }
-    context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, width, height);
-    const dataUrl = mimeType === 'image/png'
-        ? offscreenCanvas.toDataURL(mimeType)
-        : offscreenCanvas.toDataURL(mimeType, quality);
-    return { dataUrl, width, height, mimeType };
 }
 
 async function loadImage(context, imageBase64, loadOptions = {}) {
@@ -3844,9 +4604,52 @@ const CROP_MODE_CONTROL_KEYS = [
     'enterCropModeButton',
     'applyCropButton',
     'cancelCropButton',
+    'enterMosaicModeButton',
+    'exitMosaicModeButton',
+    'mosaicBrushSizeInput',
+    'mosaicBlockSizeInput',
 ];
 const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const MOSAIC_MODE_CONTROL_KEYS = [
+    'scalePercentageInput',
+    'rotateLeftDegreesInput',
+    'rotateRightDegreesInput',
+    'rotateLeftButton',
+    'rotateRightButton',
+    'createMaskButton',
+    'removeSelectedMaskButton',
+    'removeAllMasksButton',
+    'mergeMasksButton',
+    'downloadImageButton',
+    'zoomInButton',
+    'zoomOutButton',
+    'resetImageTransformButton',
+    'undoButton',
+    'redoButton',
+    'imageInput',
+    'enterCropModeButton',
+    'applyCropButton',
+    'cancelCropButton',
+    'enterMosaicModeButton',
+    'exitMosaicModeButton',
+    'mosaicBrushSizeInput',
+    'mosaicBlockSizeInput',
+];
+const MOSAIC_MODE_ENABLED_KEYS = [
+    'exitMosaicModeButton',
+    'mosaicBrushSizeInput',
+    'mosaicBlockSizeInput',
+];
+const MOSAIC_SESSION_ALLOWED_OPERATIONS = new Set([
+    'exitMosaicMode',
+    'applyMosaic',
+    'setMosaicConfig',
+    'resetMosaicConfig',
+    'setMosaicBrushSize',
+    'setMosaicBlockSize',
+    'saveState',
+]);
 const SCROLLBAR_SETTLE_EPSILON = 1;
 const IMAGE_EDITOR_OPERATIONS = new Set([
     'init',
@@ -3863,6 +4666,13 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'enterCropMode',
     'applyCrop',
     'cancelCrop',
+    'enterMosaicMode',
+    'exitMosaicMode',
+    'applyMosaic',
+    'setMosaicConfig',
+    'resetMosaicConfig',
+    'setMosaicBrushSize',
+    'setMosaicBlockSize',
     'undo',
     'redo',
     'exportImageBase64',
@@ -3899,6 +4709,18 @@ class ImageEditor {
             configurable: true,
             writable: true,
             value: 'expand'
+        });
+        Object.defineProperty(this, "defaultMosaicConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentMosaicConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
         });
         Object.defineProperty(this, "canvas", {
             enumerable: true,
@@ -4038,6 +4860,12 @@ class ImageEditor {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "mosaicSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "domBindings", {
             enumerable: true,
             configurable: true,
@@ -4079,6 +4907,8 @@ class ImageEditor {
         this.isFabricLoaded = detected.isFabricLoaded;
         this.options = resolveOptions(detected.options);
         this.currentLayoutMode = this.options.layoutMode;
+        this.defaultMosaicConfig = this.options.defaultMosaicConfig;
+        this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
         const rawDefaultLayoutMode = detected.options
             .defaultLayoutMode;
         if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
@@ -4126,6 +4956,10 @@ class ImageEditor {
             enterCropModeButton: 'enterCropModeButton',
             applyCropButton: 'applyCropButton',
             cancelCropButton: 'cancelCropButton',
+            enterMosaicModeButton: 'enterMosaicModeButton',
+            exitMosaicModeButton: 'exitMosaicModeButton',
+            mosaicBrushSizeInput: 'mosaicBrushSizeInput',
+            mosaicBlockSizeInput: 'mosaicBlockSizeInput',
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
@@ -4280,6 +5114,26 @@ class ImageEditor {
         this.bindElementIfExists('cancelCropButton', 'click', () => {
             this.cancelCrop();
         });
+        this.bindElementIfExists('enterMosaicModeButton', 'click', () => {
+            this.enterMosaicMode();
+        });
+        this.bindElementIfExists('exitMosaicModeButton', 'click', () => {
+            this.exitMosaicMode();
+        });
+        const bindMosaicSizeInput = (key, applyValue) => {
+            const handler = (event) => {
+                const parsed = parseFloat(event.target.value);
+                applyValue(parsed);
+            };
+            this.bindElementIfExists(key, 'input', handler);
+            this.bindElementIfExists(key, 'change', handler);
+        };
+        bindMosaicSizeInput('mosaicBrushSizeInput', (value) => {
+            this.setMosaicBrushSize(value);
+        });
+        bindMosaicSizeInput('mosaicBlockSizeInput', (value) => {
+            this.setMosaicBlockSize(value);
+        });
     }
     bindElementIfExists(key, event, handler) {
         var _a;
@@ -4429,6 +5283,11 @@ class ImageEditor {
             !CROP_SESSION_ALLOWED_OPERATIONS.has(operationName)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while crop mode is active.`);
         }
+        if (this.mosaicSession &&
+            !this.operationGuard.isOwnOperation(token) &&
+            !MOSAIC_SESSION_ALLOWED_OPERATIONS.has(operationName)) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while mosaic mode is active.`);
+        }
         if (this.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
         }
@@ -4460,7 +5319,10 @@ class ImageEditor {
             ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
     }
     isBusy() {
-        return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.cropSession !== null;
+        return (this.operationGuard.isBusy() ||
+            this.animQueue.isBusy() ||
+            this.cropSession !== null ||
+            this.mosaicSession !== null);
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
@@ -4552,6 +5414,7 @@ class ImageEditor {
             currentRotation: this.currentRotation,
             isBusy: this.isBusy(),
             isCropMode: this.cropSession !== null,
+            isMosaicMode: this.mosaicSession !== null,
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),
             canvasWidth,
@@ -5361,6 +6224,130 @@ class ImageEditor {
             .filter((object) => isMaskObject(object) && !!object.labelObject);
         return labeledMasks.length === 1 ? ((_a = labeledMasks[0]) !== null && _a !== void 0 ? _a : null) : null;
     }
+    enterMosaicMode() {
+        if (!this.canvas || !this.originalImage)
+            return;
+        if (this.mosaicSession)
+            return;
+        if (!this.isImageLoaded())
+            return;
+        if (!this.canRunIdleOperation('enterMosaicMode'))
+            return;
+        enterMosaicMode(this.buildMosaicControllerContext());
+        this.updateInputs();
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('enterMosaicMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    exitMosaicMode() {
+        if (!this.canvas || !this.mosaicSession)
+            return;
+        if (!this.canRunIdleOperation('exitMosaicMode'))
+            return;
+        exitMosaicMode(this.buildMosaicControllerContext());
+        this.updateInputs();
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('exitMosaicMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    isMosaicMode() {
+        return this.mosaicSession !== null;
+    }
+    getMosaicConfig() {
+        return cloneResolvedMosaicConfig(this.currentMosaicConfig);
+    }
+    setMosaicConfig(config) {
+        this.applyMosaicConfigPatch(config, 'setMosaicConfig');
+    }
+    resetMosaicConfig() {
+        if (this.isDisposed)
+            return;
+        const nextConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
+        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig))
+            return;
+        this.currentMosaicConfig = nextConfig;
+        if (this.mosaicSession && this.canvas) {
+            updateMosaicPreview(this.buildMosaicControllerContext());
+        }
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext('resetMosaicConfig', false));
+    }
+    setMosaicBrushSize(size) {
+        this.applyMosaicConfigPatch({ brushSize: size }, 'setMosaicBrushSize');
+    }
+    setMosaicBlockSize(size) {
+        this.applyMosaicConfigPatch({ blockSize: size }, 'setMosaicBlockSize');
+    }
+    applyMosaicConfigPatch(config, operation) {
+        if (this.isDisposed)
+            return;
+        if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+            reportWarning(this.options, new TypeError('[ImageEditor] Invalid Mosaic config object.'), 'Ignored invalid Mosaic config.');
+            return;
+        }
+        const invalidFields = getInvalidMosaicConfigFields(config);
+        if (invalidFields.length > 0) {
+            reportWarning(this.options, new TypeError(`[ImageEditor] Ignored invalid Mosaic config field(s): ` +
+                `${invalidFields.join(', ')}.`), 'Ignored invalid Mosaic config fields.');
+        }
+        const nextConfig = mergeMosaicConfigPatch(this.currentMosaicConfig, config);
+        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig))
+            return;
+        this.currentMosaicConfig = nextConfig;
+        if (this.mosaicSession && this.canvas) {
+            updateMosaicPreview(this.buildMosaicControllerContext());
+        }
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext(operation, false));
+    }
+    buildMosaicControllerContext() {
+        return {
+            fabric: this.fabricModule,
+            canvas: this.canvas,
+            options: this.options,
+            historyManager: this.historyManager,
+            getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
+            isImageLoaded: () => this.isImageLoaded(),
+            getOriginalImage: () => this.originalImage,
+            setOriginalImage: (image) => {
+                this.originalImage = image;
+            },
+            getCurrentImageMimeType: () => this.currentImageMimeType,
+            setCurrentImageMimeType: (mimeType) => {
+                this.currentImageMimeType = mimeType;
+            },
+            getLastSnapshot: () => this.lastSnapshot,
+            setLastSnapshot: (snapshot) => {
+                this.lastSnapshot = snapshot;
+            },
+            captureSnapshot: () => this.captureSnapshotInternal(),
+            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withAnimationQueueBypass()),
+            updateUi: () => {
+                this.updateUi();
+            },
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            hideAllMaskLabels: () => {
+                this.hideAllMaskLabels();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+            buildCallbackContext: (operation, isInternal) => this.buildCallbackContext(operation, isInternal),
+            getMosaicSession: () => this.mosaicSession,
+            setMosaicSession: (session) => {
+                this.mosaicSession = session;
+            },
+        };
+    }
     enterCropMode() {
         if (!this.canvas || !this.originalImage)
             return;
@@ -5444,11 +6431,25 @@ class ImageEditor {
     }
     updateInputs() {
         const scaleId = this.elements.scalePercentageInput;
-        if (!scaleId)
-            return;
-        const scaleInputElement = document.getElementById(scaleId);
-        if (scaleInputElement)
-            scaleInputElement.value = String(Math.round(this.currentScale * 100));
+        if (scaleId) {
+            const scaleInputElement = document.getElementById(scaleId);
+            if (scaleInputElement) {
+                scaleInputElement.value = String(Math.round(this.currentScale * 100));
+            }
+        }
+        const mosaicConfig = this.getMosaicConfig();
+        const mosaicBrushSizeInputId = this.elements.mosaicBrushSizeInput;
+        if (mosaicBrushSizeInputId) {
+            const brushInput = document.getElementById(mosaicBrushSizeInputId);
+            if (brushInput)
+                brushInput.value = String(mosaicConfig.brushSize);
+        }
+        const mosaicBlockSizeInputId = this.elements.mosaicBlockSizeInput;
+        if (mosaicBlockSizeInputId) {
+            const blockInput = document.getElementById(mosaicBlockSizeInputId);
+            if (blockInput)
+                blockInput.value = String(mosaicConfig.blockSize);
+        }
     }
     updateUi() {
         if (!this.canvas)
@@ -5462,11 +6463,19 @@ class ImageEditor {
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const isInCropMode = this.cropSession !== null;
+        const isInMosaicMode = this.mosaicSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
             });
+            return;
+        }
+        if (isInMosaicMode) {
+            MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && MOSAIC_MODE_ENABLED_KEYS.includes(key));
+            });
+            this.setControlEnabled('imageInput', false);
             return;
         }
         this.setControlEnabled('scalePercentageInput', hasImage && !isBusy);
@@ -5485,6 +6494,10 @@ class ImageEditor {
         this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
         this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
         this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
+        this.setControlEnabled('enterMosaicModeButton', hasImage && !isBusy);
+        this.setControlEnabled('exitMosaicModeButton', false);
+        this.setControlEnabled('mosaicBrushSizeInput', !this.isDisposed);
+        this.setControlEnabled('mosaicBlockSizeInput', !this.isDisposed);
         this.setControlEnabled('imageInput', !isBusy);
         this.setControlEnabled('applyCropButton', false);
         this.setControlEnabled('cancelCropButton', false);
@@ -5581,6 +6594,14 @@ class ImageEditor {
             catch {
             }
             this.cropSession = null;
+        }
+        if (this.mosaicSession && this.canvas) {
+            try {
+                exitMosaicMode(this.buildMosaicControllerContext());
+            }
+            catch {
+            }
+            this.mosaicSession = null;
         }
         if (this.canvas) {
             try {

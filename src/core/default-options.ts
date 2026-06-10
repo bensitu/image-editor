@@ -20,9 +20,13 @@ import type {
     ImageEditorOptions,
     LabelConfig,
     LayoutMode,
+    MosaicConfig,
+    MosaicOutputFileType,
     ResolvedCropConfig,
+    ResolvedMosaicConfig,
     ResolvedOptions,
 } from './public-types.js';
+import { tryNormalizeImageFormat } from '../export/export-format.js';
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -38,7 +42,7 @@ const DEFAULT_LAYOUT_MODE: LayoutMode = 'expand';
  * Nested label and crop defaults are carried by {@link DEFAULT_LABEL} and
  * {@link DEFAULT_CROP}.
  */
-export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'> = {
+export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultMosaicConfig'> = {
     // Canvas size
     canvasWidth: 800,
     canvasHeight: 600,
@@ -145,6 +149,21 @@ export const DEFAULT_CROP: ResolvedCropConfig = {
     exportQuality: undefined,
 };
 
+/**
+ * Default Mosaic configuration used to seed each editor's current runtime
+ * Mosaic tool config.
+ */
+export const DEFAULT_MOSAIC_CONFIG: ResolvedMosaicConfig = Object.freeze({
+    brushSize: 48,
+    blockSize: 8,
+    previewStroke: '#333',
+    previewStrokeWidth: 1,
+    previewStrokeDashArray: Object.freeze([4, 4]) as unknown as number[],
+    previewFill: 'rgba(0,0,0,0)',
+    outputFileType: 'source',
+    outputQuality: undefined,
+});
+
 // ─── Resolver ────────────────────────────────────────────────────────────────
 
 /**
@@ -196,6 +215,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'onWarning',
     'label',
     'crop',
+    'defaultMosaicConfig',
 ]);
 
 /**
@@ -301,6 +321,223 @@ function normalizeOptionalQuality(value: unknown): number | undefined {
     return Math.max(0, Math.min(1, numeric));
 }
 
+function hasOwn(object: Record<string, unknown>, key: keyof MosaicConfig): boolean {
+    return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+
+function normalizeMosaicPositiveNumber(value: unknown, fallback: number): number {
+    return isFiniteNumber(value) && value > 0 ? value : fallback;
+}
+
+function normalizeMosaicBlockSize(value: unknown, fallback: number): number {
+    return isFiniteNumber(value) && value > 0 ? Math.max(1, Math.floor(value)) : fallback;
+}
+
+function normalizeMosaicNonNegativeNumber(value: unknown, fallback: number): number {
+    return isFiniteNumber(value) && value >= 0 ? value : fallback;
+}
+
+function normalizeMosaicDashArray(value: unknown, fallback: number[] | null): number[] | null {
+    if (value === null) return null;
+    if (
+        Array.isArray(value) &&
+        value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0)
+    ) {
+        return [...value];
+    }
+    return fallback ? [...fallback] : null;
+}
+
+function normalizeMosaicOutputFileType(
+    value: unknown,
+    fallback: MosaicOutputFileType,
+): MosaicOutputFileType {
+    if (value === 'source') return 'source';
+    if (typeof value !== 'string') return fallback;
+    return tryNormalizeImageFormat(value) ?? fallback;
+}
+
+function normalizeMosaicOutputQuality(
+    value: unknown,
+    fallback: number | undefined,
+): number | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (!isFiniteNumber(value)) return fallback;
+    return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * Return a mutable defensive copy of a resolved Mosaic config.
+ */
+export function cloneResolvedMosaicConfig(config: ResolvedMosaicConfig): ResolvedMosaicConfig {
+    return {
+        ...config,
+        previewStrokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : null,
+    };
+}
+
+/**
+ * Normalize a constructor-level Mosaic config against a resolved fallback.
+ */
+export function normalizeMosaicConfig(
+    input: unknown,
+    fallback: ResolvedMosaicConfig,
+): ResolvedMosaicConfig {
+    if (!isConfigObject(input)) return cloneResolvedMosaicConfig(fallback);
+    return mergeMosaicConfigPatch(fallback, input as MosaicConfig);
+}
+
+/**
+ * Merge a runtime Mosaic config patch into the current resolved config.
+ * Omitted fields remain unchanged; invalid fields fall back to `current`.
+ */
+export function mergeMosaicConfigPatch(
+    current: ResolvedMosaicConfig,
+    patch: MosaicConfig,
+    fallback: ResolvedMosaicConfig = current,
+): ResolvedMosaicConfig {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedMosaicConfig(current);
+
+    if (hasOwn(raw, 'brushSize')) {
+        next.brushSize = normalizeMosaicPositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn(raw, 'blockSize')) {
+        next.blockSize = normalizeMosaicBlockSize(raw.blockSize, fallback.blockSize);
+    }
+    if (hasOwn(raw, 'previewStroke')) {
+        next.previewStroke =
+            typeof raw.previewStroke === 'string' ? raw.previewStroke : fallback.previewStroke;
+    }
+    if (hasOwn(raw, 'previewStrokeWidth')) {
+        next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(
+            raw.previewStrokeWidth,
+            fallback.previewStrokeWidth,
+        );
+    }
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
+        next.previewStrokeDashArray = normalizeMosaicDashArray(
+            raw.previewStrokeDashArray,
+            fallback.previewStrokeDashArray,
+        );
+    }
+    if (hasOwn(raw, 'previewFill')) {
+        next.previewFill =
+            typeof raw.previewFill === 'string' ? raw.previewFill : fallback.previewFill;
+    }
+    if (hasOwn(raw, 'outputFileType')) {
+        next.outputFileType = normalizeMosaicOutputFileType(
+            raw.outputFileType,
+            fallback.outputFileType,
+        );
+    }
+    if (hasOwn(raw, 'outputQuality')) {
+        next.outputQuality = normalizeMosaicOutputQuality(
+            raw.outputQuality,
+            fallback.outputQuality,
+        );
+    }
+
+    return next;
+}
+
+/**
+ * Returns invalid Mosaic config field names for warning/reporting paths.
+ */
+export function getInvalidMosaicConfigFields(input: MosaicConfig): string[] {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid: string[] = [];
+
+    if (
+        hasOwn(raw, 'brushSize') &&
+        !(typeof raw.brushSize === 'number' && Number.isFinite(raw.brushSize) && raw.brushSize > 0)
+    ) {
+        invalid.push('brushSize');
+    }
+    if (
+        hasOwn(raw, 'blockSize') &&
+        !(typeof raw.blockSize === 'number' && Number.isFinite(raw.blockSize) && raw.blockSize > 0)
+    ) {
+        invalid.push('blockSize');
+    }
+    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+        invalid.push('previewStroke');
+    }
+    if (
+        hasOwn(raw, 'previewStrokeWidth') &&
+        !(
+            typeof raw.previewStrokeWidth === 'number' &&
+            Number.isFinite(raw.previewStrokeWidth) &&
+            raw.previewStrokeWidth >= 0
+        )
+    ) {
+        invalid.push('previewStrokeWidth');
+    }
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
+        const value = raw.previewStrokeDashArray;
+        const valid =
+            value === null ||
+            (Array.isArray(value) &&
+                value.every(
+                    (entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0,
+                ));
+        if (!valid) invalid.push('previewStrokeDashArray');
+    }
+    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+        invalid.push('previewFill');
+    }
+    if (hasOwn(raw, 'outputFileType')) {
+        const value = raw.outputFileType;
+        const valid =
+            value === 'source' || (typeof value === 'string' && tryNormalizeImageFormat(value));
+        if (!valid) invalid.push('outputFileType');
+    }
+    if (
+        hasOwn(raw, 'outputQuality') &&
+        raw.outputQuality !== undefined &&
+        raw.outputQuality !== null &&
+        !(typeof raw.outputQuality === 'number' && Number.isFinite(raw.outputQuality))
+    ) {
+        invalid.push('outputQuality');
+    }
+
+    return invalid;
+}
+
+/**
+ * Strict value equality for resolved Mosaic configs.
+ */
+export function areResolvedMosaicConfigsEqual(
+    left: ResolvedMosaicConfig,
+    right: ResolvedMosaicConfig,
+): boolean {
+    const leftDash = left.previewStrokeDashArray;
+    const rightDash = right.previewStrokeDashArray;
+    const dashEqual =
+        leftDash === rightDash ||
+        (Array.isArray(leftDash) &&
+            Array.isArray(rightDash) &&
+            leftDash.length === rightDash.length &&
+            leftDash.every((value, index) => value === rightDash[index]));
+
+    return (
+        left.brushSize === right.brushSize &&
+        left.blockSize === right.blockSize &&
+        left.previewStroke === right.previewStroke &&
+        left.previewStrokeWidth === right.previewStrokeWidth &&
+        dashEqual &&
+        left.previewFill === right.previewFill &&
+        left.outputFileType === right.outputFileType &&
+        left.outputQuality === right.outputQuality
+    );
+}
+
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.
@@ -331,8 +568,8 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
 
     for (const key of Object.keys(raw) as Array<keyof ImageEditorOptions>) {
         if (!KNOWN_TOP_LEVEL_KEYS.has(key)) continue;
-        // `label` and `crop` are handled separately below.
-        if (key === 'label' || key === 'crop') continue;
+        // Nested configs are handled separately below.
+        if (key === 'label' || key === 'crop' || key === 'defaultMosaicConfig') continue;
         // Callbacks are normalized after this loop.
         if (
             key === 'onImageLoadStart' ||
@@ -539,9 +776,20 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     };
     Object.freeze(crop);
 
+    // ── Mosaic ───────────────────────────────────────────
+    const defaultMosaicConfig = normalizeMosaicConfig(
+        raw.defaultMosaicConfig,
+        DEFAULT_MOSAIC_CONFIG,
+    );
+    if (defaultMosaicConfig.previewStrokeDashArray) {
+        Object.freeze(defaultMosaicConfig.previewStrokeDashArray);
+    }
+    Object.freeze(defaultMosaicConfig);
+
     return Object.freeze({
         ...resolved,
         label,
         crop,
+        defaultMosaicConfig,
     }) as ResolvedOptions;
 }

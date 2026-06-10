@@ -12,7 +12,7 @@
  *
  * @module
  */
-import type { ImageEditorOptions, LabelConfig, LayoutMode, ResolvedCropConfig, ResolvedOptions } from './public-types.js';
+import type { ImageEditorOptions, LabelConfig, LayoutMode, MosaicConfig, ResolvedCropConfig, ResolvedMosaicConfig, ResolvedOptions } from './public-types.js';
 /**
  * Documented defaults for every top-level option except the nested
  * {@link LabelConfig} and {@link CropConfig} configs, which are owned by
@@ -22,7 +22,7 @@ import type { ImageEditorOptions, LabelConfig, LayoutMode, ResolvedCropConfig, R
  * Nested label and crop defaults are carried by {@link DEFAULT_LABEL} and
  * {@link DEFAULT_CROP}.
  */
-export declare const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop'>;
+export declare const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultMosaicConfig'>;
 /**
  * Default {@link LabelConfig}. Consumers can override `getText`, supply a
  * `create` factory, or provide partial `textOptions` — unspecified keys fall
@@ -33,7 +33,33 @@ export declare const DEFAULT_LABEL: LabelConfig;
  * Default {@link CropConfig}.
  */
 export declare const DEFAULT_CROP: ResolvedCropConfig;
+/**
+ * Default Mosaic configuration used to seed each editor's current runtime
+ * Mosaic tool config.
+ */
+export declare const DEFAULT_MOSAIC_CONFIG: ResolvedMosaicConfig;
 export declare function isLayoutMode(value: unknown): value is LayoutMode;
+/**
+ * Return a mutable defensive copy of a resolved Mosaic config.
+ */
+export declare function cloneResolvedMosaicConfig(config: ResolvedMosaicConfig): ResolvedMosaicConfig;
+/**
+ * Normalize a constructor-level Mosaic config against a resolved fallback.
+ */
+export declare function normalizeMosaicConfig(input: unknown, fallback: ResolvedMosaicConfig): ResolvedMosaicConfig;
+/**
+ * Merge a runtime Mosaic config patch into the current resolved config.
+ * Omitted fields remain unchanged; invalid fields fall back to `current`.
+ */
+export declare function mergeMosaicConfigPatch(current: ResolvedMosaicConfig, patch: MosaicConfig, fallback?: ResolvedMosaicConfig): ResolvedMosaicConfig;
+/**
+ * Returns invalid Mosaic config field names for warning/reporting paths.
+ */
+export declare function getInvalidMosaicConfigFields(input: MosaicConfig): string[];
+/**
+ * Strict value equality for resolved Mosaic configs.
+ */
+export declare function areResolvedMosaicConfigsEqual(left: ResolvedMosaicConfig, right: ResolvedMosaicConfig): boolean;
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.

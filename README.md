@@ -6,14 +6,10 @@
 
 A lightweight, TypeScript-first canvas image editor built on top of
 [Fabric.js](https://fabricjs.com/) v7. `ImageEditor` wraps a Fabric canvas
-with image loading, scale and rotation, mask creation, crop, history
+with image loading, scale and rotation, mask creation, crop, Mosaic mode, history
 (undo/redo), and base64/file export — exposed as a single canonical class
 with a stable public surface.
 
-> **v2.0.0 is a behavior-preserving migration.** The v1 deprecated method
-> and property aliases have been removed in favor of the canonical names
-> documented below. See [`CHANGELOG.md`](./CHANGELOG.md) for the complete
-> rename map.
 
 ## Demo
 
@@ -33,6 +29,8 @@ with a stable public surface.
   interleave
 - Bounded history stack with idempotent dispose
 - Crop session with mask preservation toggle and atomic apply/cancel
+- Mosaic mode with circular brush preview, runtime brush/block controls, and
+  one undo step per successful pixelation click
 - Base64 and `File` exports with PNG/JPEG/WebP support, configurable
   multiplier, and mask compositing
 
@@ -135,6 +133,17 @@ resolve to `undefined`.
 <button id="applyCropButton">Apply Crop</button>
 <button id="cancelCropButton">Cancel Crop</button>
 
+<button id="enterMosaicModeButton">Mosaic</button>
+<button id="exitMosaicModeButton">Exit Mosaic</button>
+<label>
+    Brush size
+    <input id="mosaicBrushSizeInput" type="range" min="8" max="160" step="1" value="48" />
+</label>
+<label>
+    Block size
+    <input id="mosaicBlockSizeInput" type="range" min="2" max="40" step="1" value="8" />
+</label>
+
 <button id="mergeMasksButton">Merge</button>
 <button id="downloadImageButton">Download</button>
 <button id="undoButton">Undo</button>
@@ -156,6 +165,10 @@ const editor = new ImageEditor(fabric, {
     canvasWidth: 800,
     canvasHeight: 600,
     backgroundColor: '#ffffff',
+    defaultMosaicConfig: {
+        brushSize: 48,
+        blockSize: 8,
+    },
 } satisfies ImageEditorOptions);
 
 editor.init({
@@ -172,6 +185,10 @@ editor.init({
     enterCropModeButton: 'enterCropModeButton',
     applyCropButton: 'applyCropButton',
     cancelCropButton: 'cancelCropButton',
+    enterMosaicModeButton: 'enterMosaicModeButton',
+    exitMosaicModeButton: 'exitMosaicModeButton',
+    mosaicBrushSizeInput: 'mosaicBrushSizeInput',
+    mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     mergeMasksButton: 'mergeMasksButton',
     downloadImageButton: 'downloadImageButton',
     undoButton: 'undoButton',
@@ -232,7 +249,7 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `loadImage(base64, options?)` | Load an image from a `data:image/...` URL. Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
 | `isImageLoaded()`             | Returns `true` if a valid image is currently loaded on the canvas.                                                                                              |
-| `isBusy()`                    | Returns `true` while the editor is loading, animating, or in crop mode.                                                                                         |
+| `isBusy()`                    | Returns `true` while the editor is loading, animating, in crop mode, or in Mosaic mode.                                                                         |
 | `setLayoutMode(mode)`         | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                 |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
@@ -311,6 +328,53 @@ editor.createMask({ color: 'rgba(0, 128, 255, 0.35)' }); // Per-call override.
 | `applyCrop()`     | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.  |
 | `cancelCrop()`    | Cancel crop mode and restore the prior canvas state without pushing a history entry. |
 
+### Mosaic mode
+
+| Method                     | Description                                                            |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `enterMosaicMode()`        | Enter circular-brush Mosaic mode and show the hover preview on canvas. |
+| `exitMosaicMode()`         | Leave Mosaic mode and remove preview/session handlers.                 |
+| `isMosaicMode()`           | Returns `true` while a Mosaic session is active.                       |
+| `getMosaicConfig()`        | Returns a defensive copy of the current runtime Mosaic config.         |
+| `setMosaicConfig(config)`  | Patch current Mosaic config without creating a history entry.          |
+| `resetMosaicConfig()`      | Restore current Mosaic config from constructor defaults.               |
+| `setMosaicBrushSize(size)` | Set brush diameter in canvas pixels.                                   |
+| `setMosaicBlockSize(size)` | Set source-pixel block size; values are floored to integers.           |
+
+`defaultMosaicConfig` initializes the current runtime Mosaic config. Runtime
+setters update only the current config and never mutate constructor defaults.
+`resetMosaicConfig()` clones the constructor defaults back into the current
+config.
+
+```ts
+const editor = new ImageEditor(fabric, {
+    defaultMosaicConfig: {
+        brushSize: 48,
+        blockSize: 8,
+    },
+});
+
+editor.init({
+    canvas: 'canvas',
+    enterMosaicModeButton: 'enterMosaicModeButton',
+    exitMosaicModeButton: 'exitMosaicModeButton',
+    mosaicBrushSizeInput: 'mosaicBrushSizeInput',
+    mosaicBlockSizeInput: 'mosaicBlockSizeInput',
+});
+
+editor.enterMosaicMode();
+editor.setMosaicConfig({ brushSize: 64, blockSize: 12 });
+editor.resetMosaicConfig();
+```
+
+`brushSize` is the circular brush diameter in canvas pixels. `blockSize` is
+the source-image pixel block size; larger values produce chunkier pixelation.
+Clicking outside the image is a no-op. Each successful Mosaic click bakes the
+pixelated region into the base image and creates exactly one undo step. Because
+Mosaic edits replace base image pixels rather than adding Fabric overlay
+objects, exported images include the Mosaic naturally while the preview circle
+is never exported or saved in history.
+
 ### Merge and export
 
 | Method                        | Description                                                                                    |
@@ -381,6 +445,7 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 | `defaultMaskWidth`        | `50`                 | Default mask width.                                                                                                                                                                                                                                                            |
 | `defaultMaskHeight`       | `80`                 | Default mask height.                                                                                                                                                                                                                                                           |
 | `defaultMaskConfig`       | `{}`                 | Defaults applied by `createMask()` after `defaultMaskWidth` / `defaultMaskHeight` and before per-call config. Supports `MaskConfig` fields except `onCreate` and `fabricGenerator`.                                                                                            |
+| `defaultMosaicConfig`     | see source           | Defaults used to initialize the current Mosaic tool config. Supports `brushSize`, `blockSize`, preview circle styling, `outputFileType`, and `outputQuality`. Runtime Mosaic setters update the current config only.                                                           |
 | `maskRotatable`           | `false`              | Allow masks to be rotated by the user.                                                                                                                                                                                                                                         |
 | `maskLabelOnSelect`       | `true`               | Show a label above a selected mask.                                                                                                                                                                                                                                            |
 | `maskLabelOffset`         | `3`                  | Pixel offset of the label from the mask's top-left corner.                                                                                                                                                                                                                     |
@@ -408,12 +473,17 @@ lossless and ignores `crop.exportQuality`; JPEG/WebP use `crop.exportQuality`
 when finite, otherwise `downsampleQuality`, otherwise `0.92`. Choose JPEG/WebP
 only when smaller intermediate crop output is preferred.
 
+`defaultMosaicConfig.outputFileType` also defaults to `'source'`. Mosaic commits
+preserve the current image MIME type when known and fall back to PNG when the
+source format cannot be determined. JPEG/WebP commits use
+`defaultMosaicConfig.outputQuality` when finite, otherwise `downsampleQuality`.
+
 ## Example workflow
 
 1. Construct `ImageEditor` with options and call `init(idMap)` to wire it up.
 2. Load an image via `loadImage(base64)` or the bound file input.
-3. Adjust with `scaleImage`, `rotateImage`, `resetImageTransform`, and the
-   crop session.
+3. Adjust with `scaleImage`, `rotateImage`, `resetImageTransform`, the crop
+   session, or Mosaic mode.
 4. Add `createMask` calls and inspect via the `maskList` element.
 5. Use `mergeMasks` to bake masks into the image, then
    `exportImageBase64`, `exportImageFile`, or `downloadImage` to produce
@@ -476,6 +546,8 @@ import type {
     ResolvedOptions,
     LabelConfig,
     CropConfig,
+    MosaicConfig,
+    ResolvedMosaicConfig,
     LoadImageOptions,
     RemoveAllMasksOptions,
     DefaultMaskConfig,
@@ -488,6 +560,7 @@ import type {
     NormalizedImageFormat,
     ExportArea,
     CropExportFileType,
+    MosaicOutputFileType,
     Base64ExportOptions,
     ImageFileExportOptions,
     ImageInfo,

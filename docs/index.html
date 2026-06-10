@@ -339,6 +339,49 @@
                     </button>
                 </div>
 
+                <div class="tool-group" role="group" aria-label="Mosaic actions">
+                    <button
+                        id="enterMosaicModeButton"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="mosaic"
+                    >
+                        Mosaic
+                    </button>
+                    <button
+                        id="exitMosaicModeButton"
+                        class="btn tool-button"
+                        type="button"
+                        data-i18n="exitMosaic"
+                    >
+                        Exit Mosaic
+                    </button>
+                    <label class="mosaic-control">
+                        <span data-i18n="mosaicBrushSize">Brush</span>
+                        <input
+                            id="mosaicBrushSizeInput"
+                            type="range"
+                            min="8"
+                            max="160"
+                            step="1"
+                            value="48"
+                            aria-label="Mosaic brush size"
+                        />
+                    </label>
+                    <label class="mosaic-control">
+                        <span data-i18n="mosaicBlockSize">Block</span>
+                        <input
+                            id="mosaicBlockSizeInput"
+                            type="range"
+                            min="2"
+                            max="40"
+                            step="1"
+                            value="8"
+                            aria-label="Mosaic block size"
+                        />
+                    </label>
+                </div>
+
                 <div class="tool-group" role="group" aria-label="Export actions">
                     <button
                         id="mergeMasksButton"
@@ -429,7 +472,7 @@
                 }
 
                 function loadDemoScript() {
-                    loadScript('js/script.js?v=2.0.0');
+                    loadScript('js/script.js?v=2.1.0');
                 }
 
                 function loadImageEditor(index) {

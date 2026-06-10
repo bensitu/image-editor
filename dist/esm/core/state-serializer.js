@@ -16,6 +16,7 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'borderColor',
     'cornerColor',
     'cornerSize',
+    'isMosaicPreview',
 ];
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
@@ -67,6 +68,8 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
             jsonObject.isCropRect = true;
         if (liveObject.maskLabel === true)
             jsonObject.maskLabel = true;
+        if (liveObject.isMosaicPreview === true)
+            jsonObject.isMosaicPreview = true;
     }
 }
 function isActiveSelectionObject(object) {
@@ -94,7 +97,7 @@ export function saveState(input) {
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {
-        jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true);
+        jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true);
     }
     jsonObj._editorState = {
         currentScale,

@@ -1,3 +1,4 @@
+import { tryNormalizeImageFormat } from '../export/export-format.js';
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 const DEFAULT_LAYOUT_MODE = 'expand';
 export const DEFAULT_OPTIONS = {
@@ -71,6 +72,16 @@ export const DEFAULT_CROP = {
     exportFileType: 'source',
     exportQuality: undefined,
 };
+export const DEFAULT_MOSAIC_CONFIG = Object.freeze({
+    brushSize: 48,
+    blockSize: 8,
+    previewStroke: '#333',
+    previewStrokeWidth: 1,
+    previewStrokeDashArray: Object.freeze([4, 4]),
+    previewFill: 'rgba(0,0,0,0)',
+    outputFileType: 'source',
+    outputQuality: undefined,
+});
 const KNOWN_TOP_LEVEL_KEYS = new Set([
     'canvasWidth',
     'canvasHeight',
@@ -116,6 +127,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'onWarning',
     'label',
     'crop',
+    'defaultMosaicConfig',
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
@@ -208,6 +220,151 @@ function normalizeOptionalQuality(value) {
         return undefined;
     return Math.max(0, Math.min(1, numeric));
 }
+function hasOwn(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
+}
+function isFiniteNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+function normalizeMosaicPositiveNumber(value, fallback) {
+    return isFiniteNumber(value) && value > 0 ? value : fallback;
+}
+function normalizeMosaicBlockSize(value, fallback) {
+    return isFiniteNumber(value) && value > 0 ? Math.max(1, Math.floor(value)) : fallback;
+}
+function normalizeMosaicNonNegativeNumber(value, fallback) {
+    return isFiniteNumber(value) && value >= 0 ? value : fallback;
+}
+function normalizeMosaicDashArray(value, fallback) {
+    if (value === null)
+        return null;
+    if (Array.isArray(value) &&
+        value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0)) {
+        return [...value];
+    }
+    return fallback ? [...fallback] : null;
+}
+function normalizeMosaicOutputFileType(value, fallback) {
+    var _a;
+    if (value === 'source')
+        return 'source';
+    if (typeof value !== 'string')
+        return fallback;
+    return (_a = tryNormalizeImageFormat(value)) !== null && _a !== void 0 ? _a : fallback;
+}
+function normalizeMosaicOutputQuality(value, fallback) {
+    if (value === undefined || value === null)
+        return undefined;
+    if (!isFiniteNumber(value))
+        return fallback;
+    return Math.max(0, Math.min(1, value));
+}
+export function cloneResolvedMosaicConfig(config) {
+    return {
+        ...config,
+        previewStrokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : null,
+    };
+}
+export function normalizeMosaicConfig(input, fallback) {
+    if (!isConfigObject(input))
+        return cloneResolvedMosaicConfig(fallback);
+    return mergeMosaicConfigPatch(fallback, input);
+}
+export function mergeMosaicConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedMosaicConfig(current);
+    if (hasOwn(raw, 'brushSize')) {
+        next.brushSize = normalizeMosaicPositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn(raw, 'blockSize')) {
+        next.blockSize = normalizeMosaicBlockSize(raw.blockSize, fallback.blockSize);
+    }
+    if (hasOwn(raw, 'previewStroke')) {
+        next.previewStroke =
+            typeof raw.previewStroke === 'string' ? raw.previewStroke : fallback.previewStroke;
+    }
+    if (hasOwn(raw, 'previewStrokeWidth')) {
+        next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
+    }
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
+        next.previewStrokeDashArray = normalizeMosaicDashArray(raw.previewStrokeDashArray, fallback.previewStrokeDashArray);
+    }
+    if (hasOwn(raw, 'previewFill')) {
+        next.previewFill =
+            typeof raw.previewFill === 'string' ? raw.previewFill : fallback.previewFill;
+    }
+    if (hasOwn(raw, 'outputFileType')) {
+        next.outputFileType = normalizeMosaicOutputFileType(raw.outputFileType, fallback.outputFileType);
+    }
+    if (hasOwn(raw, 'outputQuality')) {
+        next.outputQuality = normalizeMosaicOutputQuality(raw.outputQuality, fallback.outputQuality);
+    }
+    return next;
+}
+export function getInvalidMosaicConfigFields(input) {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid = [];
+    if (hasOwn(raw, 'brushSize') &&
+        !(typeof raw.brushSize === 'number' && Number.isFinite(raw.brushSize) && raw.brushSize > 0)) {
+        invalid.push('brushSize');
+    }
+    if (hasOwn(raw, 'blockSize') &&
+        !(typeof raw.blockSize === 'number' && Number.isFinite(raw.blockSize) && raw.blockSize > 0)) {
+        invalid.push('blockSize');
+    }
+    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+        invalid.push('previewStroke');
+    }
+    if (hasOwn(raw, 'previewStrokeWidth') &&
+        !(typeof raw.previewStrokeWidth === 'number' &&
+            Number.isFinite(raw.previewStrokeWidth) &&
+            raw.previewStrokeWidth >= 0)) {
+        invalid.push('previewStrokeWidth');
+    }
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
+        const value = raw.previewStrokeDashArray;
+        const valid = value === null ||
+            (Array.isArray(value) &&
+                value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0));
+        if (!valid)
+            invalid.push('previewStrokeDashArray');
+    }
+    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+        invalid.push('previewFill');
+    }
+    if (hasOwn(raw, 'outputFileType')) {
+        const value = raw.outputFileType;
+        const valid = value === 'source' || (typeof value === 'string' && tryNormalizeImageFormat(value));
+        if (!valid)
+            invalid.push('outputFileType');
+    }
+    if (hasOwn(raw, 'outputQuality') &&
+        raw.outputQuality !== undefined &&
+        raw.outputQuality !== null &&
+        !(typeof raw.outputQuality === 'number' && Number.isFinite(raw.outputQuality))) {
+        invalid.push('outputQuality');
+    }
+    return invalid;
+}
+export function areResolvedMosaicConfigsEqual(left, right) {
+    const leftDash = left.previewStrokeDashArray;
+    const rightDash = right.previewStrokeDashArray;
+    const dashEqual = leftDash === rightDash ||
+        (Array.isArray(leftDash) &&
+            Array.isArray(rightDash) &&
+            leftDash.length === rightDash.length &&
+            leftDash.every((value, index) => value === rightDash[index]));
+    return (left.brushSize === right.brushSize &&
+        left.blockSize === right.blockSize &&
+        left.previewStroke === right.previewStroke &&
+        left.previewStrokeWidth === right.previewStrokeWidth &&
+        dashEqual &&
+        left.previewFill === right.previewFill &&
+        left.outputFileType === right.outputFileType &&
+        left.outputQuality === right.outputQuality);
+}
 export function resolveOptions(input) {
     var _a, _b, _c, _d;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -215,7 +372,7 @@ export function resolveOptions(input) {
     for (const key of Object.keys(raw)) {
         if (!KNOWN_TOP_LEVEL_KEYS.has(key))
             continue;
-        if (key === 'label' || key === 'crop')
+        if (key === 'label' || key === 'crop' || key === 'defaultMosaicConfig')
             continue;
         if (key === 'onImageLoadStart' ||
             key === 'onImageLoaded' ||
@@ -357,10 +514,16 @@ export function resolveOptions(input) {
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
+    const defaultMosaicConfig = normalizeMosaicConfig(raw.defaultMosaicConfig, DEFAULT_MOSAIC_CONFIG);
+    if (defaultMosaicConfig.previewStrokeDashArray) {
+        Object.freeze(defaultMosaicConfig.previewStrokeDashArray);
+    }
+    Object.freeze(defaultMosaicConfig);
     return Object.freeze({
         ...resolved,
         label,
         crop,
+        defaultMosaicConfig,
     });
 }
 //# sourceMappingURL=default-options.js.map

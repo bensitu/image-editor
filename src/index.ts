@@ -42,6 +42,9 @@ export type {
     LabelConfig,
     CropConfig,
     CropExportFileType,
+    MosaicConfig,
+    ResolvedMosaicConfig,
+    MosaicOutputFileType,
     // loadImage / removeAllMasks options
     LoadImageOptions,
     RemoveAllMasksOptions,
