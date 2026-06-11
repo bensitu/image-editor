@@ -1,7 +1,7 @@
 /**
  * Mosaic mode controller.
  *
- * Owns the Mosaic session lifecycle, preview circle, Fabric pointer handlers,
+ * Owns the Mosaic session lifecycle, preview objects, Fabric pointer handlers,
  * and the base-image pixel replacement pipeline. The ImageEditor facade owns
  * canonical editor state and passes it in through the context callbacks.
  *
@@ -10,11 +10,16 @@
 import type * as FabricNS from 'fabric';
 import type { FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, ResolvedMosaicConfig, ResolvedOptions } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';
+import { type MosaicImagePoint } from './mosaic-geometry.js';
 interface MosaicPreviewCircle extends FabricNS.Circle {
+    isMosaicPreview?: boolean;
+}
+interface MosaicPreviewImage extends FabricNS.FabricImage {
     isMosaicPreview?: boolean;
 }
 export interface MosaicSession {
     previewCircle: MosaicPreviewCircle | null;
+    previewImage: MosaicPreviewImage | null;
     prevSelection: boolean;
     prevDefaultCursor: string | undefined;
     prevObjectStates: Array<{
@@ -26,7 +31,16 @@ export interface MosaicSession {
         eventName: string;
         callback: (event: unknown) => void;
     }>;
+    rasterCache: MosaicRasterCache | null;
+    pendingCanvasPoints: Array<{
+        x: number;
+        y: number;
+    }>;
+    isPointerDown: boolean;
     isApplying: boolean;
+    commitRequested: boolean;
+    hasUncommittedChanges: boolean;
+    lastImagePoint: MosaicImagePoint | null;
 }
 export interface MosaicControllerContext {
     readonly fabric: FabricModule;
@@ -51,6 +65,14 @@ export interface MosaicControllerContext {
     buildCallbackContext(operation: ImageEditorOperation, isInternal?: boolean): ImageEditorCallbackContext;
     getMosaicSession(): MosaicSession | null;
     setMosaicSession(session: MosaicSession | null): void;
+}
+interface MosaicRasterCache {
+    offscreenCanvas: HTMLCanvasElement;
+    renderingContext: CanvasRenderingContext2D;
+    imageData: ImageData;
+    source: string;
+    width: number;
+    height: number;
 }
 export declare function enterMosaicMode(context: MosaicControllerContext): void;
 export declare function exitMosaicMode(context: MosaicControllerContext): void;

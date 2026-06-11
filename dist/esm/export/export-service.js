@@ -273,7 +273,7 @@ function loadImageElement(dataUrl) {
         imageElement.src = dataUrl;
     });
 }
-async function sealPartialTransparentEdges(dataUrl, edges) {
+async function sealPartialTransparentEdges(dataUrl, edges, target) {
     if (!hasPartialEdges(edges))
         return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
@@ -321,7 +321,9 @@ async function sealPartialTransparentEdges(dataUrl, edges) {
             sealPixel(x, height - 1, x, height - 2);
     }
     canvasContext.putImageData(imageData, 0, 0);
-    return offscreenCanvas.toDataURL('image/png');
+    return target.quality === undefined
+        ? offscreenCanvas.toDataURL(target.mimeType)
+        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function getJpegBackgroundColor(backgroundColor) {
     return resolveCanvasFillStyle(backgroundColor);
@@ -357,6 +359,11 @@ function createColorValidationContext() {
     catch {
         return null;
     }
+}
+function getCanvasDocument(canvas) {
+    var _a, _b, _c, _d, _e;
+    const canvasLike = canvas;
+    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
 }
 function isTransparentCssColor(value) {
     const normalized = value.trim().toLowerCase();
@@ -464,7 +471,10 @@ export async function exportImageBase64(context, options) {
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
         let dataUrl = await withMaskExportState(context, resolved.mergeMask, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region));
         if (region) {
-            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
+            const sealedFormat = resolved.format.format === 'jpeg'
+                ? { format: 'png', mimeType: 'image/png', quality: undefined }
+                : resolved.format;
+            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat);
             if (resolved.format.format === 'jpeg') {
                 dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality);
             }
@@ -520,15 +530,17 @@ export function downloadImage(context, fileName) {
         .then((dataUrl) => {
         if (!dataUrl)
             return;
-        const link = document.createElement('a');
+        const ownerDocument = getCanvasDocument(context.canvas);
+        const link = ownerDocument.createElement('a');
         link.download = resolvedFileName;
         link.href = dataUrl;
-        document.body.appendChild(link);
+        const body = ownerDocument.body;
+        body.appendChild(link);
         try {
             link.click();
         }
         finally {
-            document.body.removeChild(link);
+            body.removeChild(link);
         }
     })
         .catch((error) => {

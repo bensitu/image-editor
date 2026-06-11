@@ -93,7 +93,7 @@ export interface CanvasJsonObject {
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
     maskLabel?: boolean;
-    /** Marks a Mosaic preview circle; filtered before history push. */
+    /** Marks Mosaic preview objects; filtered before history push. */
     isMosaicPreview?: boolean;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;

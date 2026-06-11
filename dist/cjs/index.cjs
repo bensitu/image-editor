@@ -2043,10 +2043,15 @@ function detectSourceMimeType(dataUrl) {
     const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
     return match ? match[1].toLowerCase() : null;
 }
-function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
+function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality, ownerDocument) {
+    var _a;
     const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const offscreenCanvas = document.createElement('canvas');
+    const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
+    if (!documentForCanvas) {
+        throw new DownsampleError('Failed to obtain an owner document for downsampling.');
+    }
+    const offscreenCanvas = documentForCanvas.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const context = offscreenCanvas.getContext('2d');
@@ -2076,6 +2081,8 @@ function withTimeout(promise, ms, label) {
     });
 }
 
+const MATRIX_DETERMINANT_EPSILON = 1e-8;
+const MATRIX_SCALE_EPSILON = 1e-8;
 function toMatrix2D(matrix) {
     if (matrix.length < 6)
         return null;
@@ -2097,7 +2104,7 @@ function toMatrix2D(matrix) {
 }
 function invertMatrix(matrix) {
     const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-    if (!Number.isFinite(determinant) || Math.abs(determinant) < Number.EPSILON) {
+    if (!Number.isFinite(determinant) || Math.abs(determinant) < MATRIX_DETERMINANT_EPSILON) {
         return null;
     }
     return {
@@ -2118,7 +2125,7 @@ function transformPoint(point, matrix) {
 function getSourceRadiusFromMatrix(matrix, canvasRadius) {
     const scaleX = Math.hypot(matrix.a, matrix.b);
     const scaleY = Math.hypot(matrix.c, matrix.d);
-    const minScale = Math.min(scaleX > Number.EPSILON ? scaleX : Number.POSITIVE_INFINITY, scaleY > Number.EPSILON ? scaleY : Number.POSITIVE_INFINITY);
+    const minScale = Math.min(scaleX > MATRIX_SCALE_EPSILON ? scaleX : Number.POSITIVE_INFINITY, scaleY > MATRIX_SCALE_EPSILON ? scaleY : Number.POSITIVE_INFINITY);
     if (!Number.isFinite(minScale) || minScale <= 0)
         return canvasRadius;
     return canvasRadius / minScale;
@@ -2225,7 +2232,8 @@ function applyCircularMosaicToImageData(options) {
     return processed;
 }
 
-function getCanvasDocument(context) {
+const MAX_PENDING_MOSAIC_POINTS = 4096;
+function getCanvasDocument$2(context) {
     var _a, _b, _c, _d, _e;
     const element = (_b = (_a = context.canvas).getElement) === null || _b === void 0 ? void 0 : _b.call(_a);
     return ((_e = (_c = element === null || element === void 0 ? void 0 : element.ownerDocument) !== null && _c !== void 0 ? _c : (_d = context.canvas.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
@@ -2309,6 +2317,73 @@ function removePreviewCircle(context, session) {
     catch {
     }
     session.previewCircle = null;
+}
+function createPreviewImage(context, sourceImage, rasterCache) {
+    const image = new context.fabric.FabricImage(rasterCache.offscreenCanvas, {
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: true,
+    });
+    copyBaseImageProperties(image, sourceImage);
+    image.set({
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: true,
+    });
+    image.isMosaicPreview = true;
+    return image;
+}
+function placePreviewImageAfterBase(context, previewImage, sourceImage) {
+    var _a, _b;
+    const sourceIndex = context.canvas.getObjects().indexOf(sourceImage);
+    if (sourceIndex < 0)
+        return;
+    try {
+        (_b = (_a = context.canvas).moveObjectTo) === null || _b === void 0 ? void 0 : _b.call(_a, previewImage, sourceIndex + 1);
+    }
+    catch {
+    }
+}
+function ensurePreviewImage(context, session, sourceImage) {
+    var _a;
+    const rasterCache = session.rasterCache;
+    if (!rasterCache)
+        return null;
+    const previewImage = (_a = session.previewImage) !== null && _a !== void 0 ? _a : createPreviewImage(context, sourceImage, rasterCache);
+    session.previewImage = previewImage;
+    copyBaseImageProperties(previewImage, sourceImage);
+    previewImage.set({
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: true,
+    });
+    previewImage.dirty = true;
+    if (!context.canvas.getObjects().includes(previewImage)) {
+        context.canvas.add(previewImage);
+    }
+    placePreviewImageAfterBase(context, previewImage, sourceImage);
+    const circle = session.previewCircle;
+    if (circle && context.canvas.getObjects().includes(circle)) {
+        context.canvas.bringObjectToFront(circle);
+    }
+    return previewImage;
+}
+function removePreviewImage(context, session) {
+    const image = session.previewImage;
+    if (!image)
+        return;
+    try {
+        context.canvas.remove(image);
+    }
+    catch {
+    }
+    session.previewImage = null;
 }
 function hidePreview(context) {
     var _a;
@@ -2504,80 +2579,194 @@ function pushMosaicHistory(context, after) {
     }));
     context.setLastSnapshot(after);
 }
-async function applyMosaicAtPoint(context, canvasPoint) {
+async function getOrCreateRasterCache(context, session, source) {
+    if (session.rasterCache)
+        return session.rasterCache;
+    const ownerDocument = getCanvasDocument$2(context);
+    const decoded = await decodeImageSource(ownerDocument, source);
+    const offscreenCanvas = ownerDocument.createElement('canvas');
+    offscreenCanvas.width = decoded.width;
+    offscreenCanvas.height = decoded.height;
+    const renderingContext = offscreenCanvas.getContext('2d');
+    if (!renderingContext) {
+        reportError(context.options, new Error('Mosaic could not obtain a 2D canvas context.'), 'Mosaic apply failed.');
+        return null;
+    }
+    renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
+    let imageData;
+    try {
+        imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
+    }
+    catch (error) {
+        reportError(context.options, error, 'Mosaic apply failed because the source image pixels could not be read.');
+        return null;
+    }
+    const rasterCache = {
+        offscreenCanvas,
+        renderingContext,
+        imageData,
+        source,
+        width: decoded.width,
+        height: decoded.height,
+    };
+    session.rasterCache = rasterCache;
+    return rasterCache;
+}
+function applyMosaicImagePoint(context, session, sourceImage, imagePoint) {
+    const rasterCache = session.rasterCache;
+    if (!rasterCache)
+        return false;
+    const config = context.getMosaicConfig();
+    const previousPoint = session.lastImagePoint;
+    const points = previousPoint
+        ? interpolateMosaicPoints(previousPoint, imagePoint)
+        : [imagePoint];
+    let changed = false;
+    for (const point of points) {
+        changed =
+            applyCircularMosaicToImageData({
+                imageData: rasterCache.imageData,
+                centerX: point.sourceX,
+                centerY: point.sourceY,
+                radius: point.sourceRadius,
+                blockSize: config.blockSize,
+            }) || changed;
+    }
+    session.lastImagePoint = imagePoint;
+    if (changed) {
+        session.hasUncommittedChanges = true;
+        rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+        ensurePreviewImage(context, session, sourceImage);
+        safeRender(context.canvas);
+    }
+    return changed;
+}
+function interpolateMosaicPoints(start, end) {
+    const dx = end.sourceX - start.sourceX;
+    const dy = end.sourceY - start.sourceY;
+    const distance = Math.hypot(dx, dy);
+    const minRadius = Math.min(start.sourceRadius, end.sourceRadius);
+    const spacing = Math.max(1, minRadius / 2);
+    const steps = Math.max(1, Math.ceil(distance / spacing));
+    const points = [];
+    for (let index = 1; index <= steps; index += 1) {
+        const t = index / steps;
+        points.push({
+            sourceX: start.sourceX + dx * t,
+            sourceY: start.sourceY + dy * t,
+            sourceRadius: start.sourceRadius + (end.sourceRadius - start.sourceRadius) * t,
+        });
+    }
+    return points;
+}
+async function applyMosaicPointToCache(context, expectedSession, canvasPoint) {
     const session = context.getMosaicSession();
-    if (!session || session.isApplying)
+    if (!session || session !== expectedSession)
         return;
     const originalImage = context.getOriginalImage();
     if (!originalImage || !context.isImageLoaded())
         return;
     const config = context.getMosaicConfig();
     const imagePoint = getMosaicImagePoint(context.fabric, originalImage, canvasPoint, config.brushSize);
-    if (!imagePoint)
+    if (!imagePoint) {
+        session.lastImagePoint = null;
         return;
+    }
     const source = getImageSource(originalImage);
     if (!source) {
         reportWarning(context.options, new Error('Mosaic cannot read the current image source.'), 'Mosaic skipped because the image source is unavailable.');
         return;
     }
+    const rasterCache = await getOrCreateRasterCache(context, session, source);
+    if (!rasterCache)
+        return;
+    applyMosaicImagePoint(context, session, originalImage, imagePoint);
+}
+async function commitMosaicChanges(context, session, callbackContext) {
+    var _a;
+    session.commitRequested = false;
+    session.lastImagePoint = null;
+    if (!session.hasUncommittedChanges || !session.rasterCache)
+        return;
+    const originalImage = context.getOriginalImage();
+    if (!originalImage || !context.isImageLoaded())
+        return;
+    const source = (_a = getImageSource(originalImage)) !== null && _a !== void 0 ? _a : session.rasterCache.source;
+    const rasterCache = session.rasterCache;
+    rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+    const output = resolveMosaicOutputFormat(context, source);
+    const nextDataUrl = output.quality === undefined
+        ? rasterCache.offscreenCanvas.toDataURL(output.mimeType)
+        : rasterCache.offscreenCanvas.toDataURL(output.mimeType, output.quality);
+    const nextImage = await createFabricImageFromDataUrl(context, nextDataUrl);
+    removePreviewCircle(context, session);
+    removePreviewImage(context, session);
+    try {
+        replaceBaseImage(context, originalImage, nextImage, output.mimeType);
+        const after = context.captureSnapshot();
+        pushMosaicHistory(context, after);
+        rasterCache.source = nextDataUrl;
+        session.hasUncommittedChanges = false;
+    }
+    finally {
+        if (context.getMosaicSession() === session) {
+            ensurePreviewCircle(context, session);
+        }
+    }
+    context.updateInputs();
+    context.updateUi();
+    context.emitImageChanged(callbackContext);
+}
+async function drainMosaicQueue(context, expectedSession) {
+    const session = context.getMosaicSession();
+    if (!session || session !== expectedSession || session.isApplying)
+        return;
     session.isApplying = true;
     const callbackContext = context.buildCallbackContext('applyMosaic', false);
+    context.emitBusyChangeIfChanged(callbackContext);
+    context.updateUi();
     try {
-        const ownerDocument = getCanvasDocument(context);
-        const decoded = await decodeImageSource(ownerDocument, source);
-        const offscreen = ownerDocument.createElement('canvas');
-        offscreen.width = decoded.width;
-        offscreen.height = decoded.height;
-        const renderingContext = offscreen.getContext('2d');
-        if (!renderingContext) {
-            reportError(context.options, new Error('Mosaic could not obtain a 2D canvas context.'), 'Mosaic apply failed.');
-            return;
-        }
-        renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
-        let imageData;
-        try {
-            imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
-        }
-        catch (error) {
-            reportError(context.options, error, 'Mosaic apply failed because the source image pixels could not be read.');
-            return;
-        }
-        const changed = applyCircularMosaicToImageData({
-            imageData,
-            centerX: imagePoint.sourceX,
-            centerY: imagePoint.sourceY,
-            radius: imagePoint.sourceRadius,
-            blockSize: config.blockSize,
-        });
-        if (!changed)
-            return;
-        renderingContext.putImageData(imageData, 0, 0);
-        const output = resolveMosaicOutputFormat(context, source);
-        const nextDataUrl = output.quality === undefined
-            ? offscreen.toDataURL(output.mimeType)
-            : offscreen.toDataURL(output.mimeType, output.quality);
-        const nextImage = await createFabricImageFromDataUrl(context, nextDataUrl);
-        removePreviewCircle(context, session);
-        try {
-            replaceBaseImage(context, originalImage, nextImage, output.mimeType);
-            const after = context.captureSnapshot();
-            pushMosaicHistory(context, after);
-        }
-        finally {
-            if (context.getMosaicSession() === session) {
-                ensurePreviewCircle(context, session);
+        while (context.getMosaicSession() === session && session.pendingCanvasPoints.length > 0) {
+            const point = session.pendingCanvasPoints.shift();
+            if (point) {
+                await applyMosaicPointToCache(context, session, point);
             }
         }
-        context.updateInputs();
-        context.updateUi();
-        context.emitImageChanged(callbackContext);
+        if (context.getMosaicSession() === session && session.commitRequested) {
+            await commitMosaicChanges(context, session, callbackContext);
+        }
     }
     finally {
         if (context.getMosaicSession() === session) {
             session.isApplying = false;
         }
         context.emitBusyChangeIfChanged(callbackContext);
+        context.updateUi();
+        if (context.getMosaicSession() === session &&
+            (session.pendingCanvasPoints.length > 0 || session.commitRequested)) {
+            void drainMosaicQueue(context, session).catch((error) => {
+                reportError(context.options, error, 'Mosaic apply failed.');
+            });
+        }
     }
+}
+function enqueueMosaicPoint(context, canvasPoint) {
+    const session = context.getMosaicSession();
+    if (!session)
+        return;
+    session.pendingCanvasPoints.push(canvasPoint);
+    if (session.pendingCanvasPoints.length > MAX_PENDING_MOSAIC_POINTS) {
+        session.pendingCanvasPoints.splice(0, session.pendingCanvasPoints.length - MAX_PENDING_MOSAIC_POINTS);
+    }
+    void drainMosaicQueue(context, session).catch((error) => {
+        reportError(context.options, error, 'Mosaic apply failed.');
+    });
+}
+function requestMosaicCommit(context, session) {
+    session.commitRequested = true;
+    void drainMosaicQueue(context, session).catch((error) => {
+        reportError(context.options, error, 'Mosaic apply failed.');
+    });
 }
 function installMosaicHandlers(context, session) {
     attachCanvasHandler(context, session, 'mouse:move', (event) => {
@@ -2587,17 +2776,41 @@ function installMosaicHandlers(context, session) {
             return;
         }
         movePreview(context, pointer);
+        const currentSession = context.getMosaicSession();
+        if (currentSession === null || currentSession === void 0 ? void 0 : currentSession.isPointerDown) {
+            enqueueMosaicPoint(context, pointer);
+        }
     });
     attachCanvasHandler(context, session, 'mouse:out', () => {
         hidePreview(context);
+        const currentSession = context.getMosaicSession();
+        if (currentSession === null || currentSession === void 0 ? void 0 : currentSession.isPointerDown) {
+            currentSession.isPointerDown = false;
+            requestMosaicCommit(context, currentSession);
+        }
     });
     attachCanvasHandler(context, session, 'mouse:down', (event) => {
         const pointer = getPointerFromFabricEvent(context.canvas, event);
         if (!pointer)
             return;
-        void applyMosaicAtPoint(context, pointer).catch((error) => {
-            reportError(context.options, error, 'Mosaic apply failed.');
-        });
+        const currentSession = context.getMosaicSession();
+        if (!currentSession)
+            return;
+        currentSession.isPointerDown = true;
+        currentSession.lastImagePoint = null;
+        enqueueMosaicPoint(context, pointer);
+    });
+    attachCanvasHandler(context, session, 'mouse:up', (event) => {
+        const currentSession = context.getMosaicSession();
+        if (!currentSession)
+            return;
+        const pointer = getPointerFromFabricEvent(context.canvas, event);
+        if (pointer) {
+            movePreview(context, pointer);
+            enqueueMosaicPoint(context, pointer);
+        }
+        currentSession.isPointerDown = false;
+        requestMosaicCommit(context, currentSession);
     });
 }
 function enterMosaicMode(context) {
@@ -2629,11 +2842,18 @@ function enterMosaicMode(context) {
     canvas.defaultCursor = 'crosshair';
     const session = {
         previewCircle: null,
+        previewImage: null,
         prevSelection,
         prevDefaultCursor,
         prevObjectStates,
         handlers: [],
+        rasterCache: null,
+        pendingCanvasPoints: [],
+        isPointerDown: false,
         isApplying: false,
+        commitRequested: false,
+        hasUncommittedChanges: false,
+        lastImagePoint: null,
     };
     context.setMosaicSession(session);
     ensurePreviewCircle(context, session);
@@ -2647,6 +2867,7 @@ function exitMosaicMode(context) {
         return;
     detachCanvasHandlers(context, session);
     removePreviewCircle(context, session);
+    removePreviewImage(context, session);
     restoreObjectStates(session);
     context.canvas.selection = !!session.prevSelection;
     context.canvas.defaultCursor = (_a = session.prevDefaultCursor) !== null && _a !== void 0 ? _a : 'default';
@@ -2939,7 +3160,7 @@ function loadImageElement(dataUrl) {
         imageElement.src = dataUrl;
     });
 }
-async function sealPartialTransparentEdges(dataUrl, edges) {
+async function sealPartialTransparentEdges(dataUrl, edges, target) {
     if (!hasPartialEdges(edges))
         return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
@@ -2987,7 +3208,9 @@ async function sealPartialTransparentEdges(dataUrl, edges) {
             sealPixel(x, height - 1, x, height - 2);
     }
     canvasContext.putImageData(imageData, 0, 0);
-    return offscreenCanvas.toDataURL('image/png');
+    return target.quality === undefined
+        ? offscreenCanvas.toDataURL(target.mimeType)
+        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function getJpegBackgroundColor(backgroundColor) {
     return resolveCanvasFillStyle(backgroundColor);
@@ -3023,6 +3246,11 @@ function createColorValidationContext() {
     catch {
         return null;
     }
+}
+function getCanvasDocument$1(canvas) {
+    var _a, _b, _c, _d, _e;
+    const canvasLike = canvas;
+    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
 }
 function isTransparentCssColor(value) {
     const normalized = value.trim().toLowerCase();
@@ -3130,7 +3358,10 @@ async function exportImageBase64(context, options) {
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
         let dataUrl = await withMaskExportState(context, resolved.mergeMask, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region));
         if (region) {
-            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
+            const sealedFormat = resolved.format.format === 'jpeg'
+                ? { format: 'png', mimeType: 'image/png', quality: undefined }
+                : resolved.format;
+            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat);
             if (resolved.format.format === 'jpeg') {
                 dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality);
             }
@@ -3186,15 +3417,17 @@ function downloadImage(context, fileName) {
         .then((dataUrl) => {
         if (!dataUrl)
             return;
-        const link = document.createElement('a');
+        const ownerDocument = getCanvasDocument$1(context.canvas);
+        const link = ownerDocument.createElement('a');
         link.download = resolvedFileName;
         link.href = dataUrl;
-        document.body.appendChild(link);
+        const body = ownerDocument.body;
+        body.appendChild(link);
         try {
             link.click();
         }
         finally {
-            document.body.removeChild(link);
+            body.removeChild(link);
         }
     })
         .catch((error) => {
@@ -3506,7 +3739,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
             decode.cleanup(true);
             throw error;
         }
-        const loadSource = maybeDownsample(imageElement, imageBase64, context.options);
+        const loadSource = maybeDownsample(imageElement, imageBase64, context.options, getCanvasDocument(context.canvas));
         const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
         context.canvas.discardActiveObject();
         context.canvas.clear();
@@ -3618,7 +3851,7 @@ function toSupportedImageMimeType(mimeType) {
         ? mimeType
         : null;
 }
-function maybeDownsample(imageElement, originalDataUrl, options) {
+function maybeDownsample(imageElement, originalDataUrl, options, ownerDocument) {
     const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
     if (!options.downsampleOnLoad) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
@@ -3633,12 +3866,17 @@ function maybeDownsample(imageElement, originalDataUrl, options) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    const resampledImage = resampleImage(imageElement, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
+    const resampledImage = resampleImage(imageElement, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality, ownerDocument);
     const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(resampledImage.dataUrl));
     return {
         dataUrl: resampledImage.dataUrl,
         mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : resampledImage.mimeType,
     };
+}
+function getCanvasDocument(canvas) {
+    var _a, _b, _c, _d, _e;
+    const canvasLike = canvas;
+    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : (typeof document !== 'undefined' ? document : undefined));
 }
 function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;
@@ -4411,11 +4649,17 @@ function hideAllMaskLabels(context) {
     });
 }
 
+function getMaskListDocument(context) {
+    var _a, _b, _c, _d, _e;
+    const canvasLike = context.canvas;
+    return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
+}
 function renderMaskList(context) {
     const listId = context.getListElementId();
     if (!listId)
         return;
-    const listEl = document.getElementById(listId);
+    const ownerDocument = getMaskListDocument(context);
+    const listEl = ownerDocument.getElementById(listId);
     if (!listEl || !context.canvas)
         return;
     listEl.innerHTML = '';
@@ -4424,7 +4668,7 @@ function renderMaskList(context) {
         .getObjects()
         .filter(isMaskObject)
         .forEach((mask) => {
-        const listItemElement = document.createElement('li');
+        const listItemElement = ownerDocument.createElement('li');
         listItemElement.className = 'list-group-item mask-item';
         listItemElement.textContent = mask.maskName;
         listItemElement.dataset.maskId = String(mask.maskId);
@@ -4447,7 +4691,7 @@ function updateMaskListSelection(context, selectedMask) {
     const listId = context.getListElementId();
     if (!listId)
         return;
-    const listEl = document.getElementById(listId);
+    const listEl = getMaskListDocument(context).getElementById(listId);
     if (!listEl)
         return;
     const selectedId = selectedMask ? String(selectedMask.maskId) : null;
@@ -4458,7 +4702,7 @@ function updateMaskListSelection(context, selectedMask) {
 }
 
 class DomBindings {
-    constructor(resolveElementId, isDisposed) {
+    constructor(resolveElementId, isDisposed, resolveDocument = () => document) {
         Object.defineProperty(this, "registry", {
             enumerable: true,
             configurable: true,
@@ -4477,14 +4721,21 @@ class DomBindings {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "resolveDocument", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         this.resolveElementId = resolveElementId;
         this.isDisposed = isDisposed;
+        this.resolveDocument = resolveDocument;
     }
     bindIfExists(key, eventType, handler) {
         const id = this.resolveElementId(key);
         if (!id)
             return false;
-        const element = document.getElementById(id);
+        const element = this.resolveDocument().getElementById(id);
         if (!element)
             return false;
         const wrapped = (event) => {
@@ -4501,7 +4752,7 @@ class DomBindings {
             const id = this.resolveElementId(entry.elementKey);
             if (!id)
                 continue;
-            const element = document.getElementById(id);
+            const element = this.resolveDocument().getElementById(id);
             if (!element)
                 continue;
             try {
@@ -4963,7 +5214,7 @@ class ImageEditor {
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
-        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed);
+        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
         this.initCanvas();
         this.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
@@ -6452,6 +6703,7 @@ class ImageEditor {
         }
     }
     updateUi() {
+        var _a;
         if (!this.canvas)
             return;
         const hasImage = !!this.originalImage;
@@ -6465,6 +6717,7 @@ class ImageEditor {
         const isInCropMode = this.cropSession !== null;
         const isInMosaicMode = this.mosaicSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
+        const isMosaicApplying = ((_a = this.mosaicSession) === null || _a === void 0 ? void 0 : _a.isApplying) === true;
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
@@ -6473,7 +6726,7 @@ class ImageEditor {
         }
         if (isInMosaicMode) {
             MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && MOSAIC_MODE_ENABLED_KEYS.includes(key));
+                this.setControlEnabled(key, !isBusy && !isMosaicApplying && MOSAIC_MODE_ENABLED_KEYS.includes(key));
             });
             this.setControlEnabled('imageInput', false);
             return;

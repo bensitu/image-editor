@@ -402,7 +402,7 @@ export class ImageEditor {
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
-        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed);
+        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
         this.initCanvas();
         this.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
@@ -1891,6 +1891,7 @@ export class ImageEditor {
         }
     }
     updateUi() {
+        var _a;
         if (!this.canvas)
             return;
         const hasImage = !!this.originalImage;
@@ -1904,6 +1905,7 @@ export class ImageEditor {
         const isInCropMode = this.cropSession !== null;
         const isInMosaicMode = this.mosaicSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
+        const isMosaicApplying = ((_a = this.mosaicSession) === null || _a === void 0 ? void 0 : _a.isApplying) === true;
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
@@ -1912,7 +1914,7 @@ export class ImageEditor {
         }
         if (isInMosaicMode) {
             MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && MOSAIC_MODE_ENABLED_KEYS.includes(key));
+                this.setControlEnabled(key, !isBusy && !isMosaicApplying && MOSAIC_MODE_ENABLED_KEYS.includes(key));
             });
             this.setControlEnabled('imageInput', false);
             return;

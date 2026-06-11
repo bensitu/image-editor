@@ -36,10 +36,15 @@ export function detectSourceMimeType(dataUrl) {
     const match = /^data:(image\/[a-z0-9+\-.]+)\s*;/i.exec(dataUrl);
     return match ? match[1].toLowerCase() : null;
 }
-export function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality) {
+export function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSourceFormat, downsampleMimeType, quality, ownerDocument) {
+    var _a;
     const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const offscreenCanvas = document.createElement('canvas');
+    const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
+    if (!documentForCanvas) {
+        throw new DownsampleError('Failed to obtain an owner document for downsampling.');
+    }
+    const offscreenCanvas = documentForCanvas.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const context = offscreenCanvas.getContext('2d');

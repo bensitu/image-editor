@@ -361,7 +361,12 @@ export async function loadImage(
         //    throws DownsampleError when the offscreen canvas cannot get
         //    a 2D context; the surrounding catch routes that through the
         //    rollback path.
-        const loadSource = maybeDownsample(imageElement, imageBase64, context.options);
+        const loadSource = maybeDownsample(
+            imageElement,
+            imageBase64,
+            context.options,
+            getCanvasDocument(context.canvas),
+        );
 
         // 6. Fabric image creation under the same
         //    timeout. Cross-origin is requested so canvases stay
@@ -567,6 +572,7 @@ function maybeDownsample(
     imageElement: HTMLImageElement,
     originalDataUrl: string,
     options: ResolvedOptions,
+    ownerDocument: Document | undefined,
 ): { dataUrl: string; mimeType: ImageMimeType | null } {
     const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
     if (!options.downsampleOnLoad) {
@@ -604,12 +610,25 @@ function maybeDownsample(
         options.preserveSourceFormat,
         options.downsampleMimeType,
         options.downsampleQuality,
+        ownerDocument,
     );
     const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(resampledImage.dataUrl));
     return {
         dataUrl: resampledImage.dataUrl,
         mimeType: actualMimeType ?? resampledImage.mimeType,
     };
+}
+
+function getCanvasDocument(canvas: FabricNS.Canvas): Document | undefined {
+    const canvasLike = canvas as FabricNS.Canvas & {
+        getElement?: () => HTMLCanvasElement | undefined;
+        lowerCanvasEl?: HTMLCanvasElement;
+    };
+    return (
+        canvasLike.getElement?.()?.ownerDocument ??
+        canvasLike.lowerCanvasEl?.ownerDocument ??
+        (typeof document !== 'undefined' ? document : undefined)
+    );
 }
 
 /**

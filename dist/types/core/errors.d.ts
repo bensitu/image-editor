@@ -6,7 +6,7 @@
  * callers can discriminate via `instanceof` or `error.name` checks. The
  * hierarchy is intentionally flat — there is no shared `ImageEditorError`
  * base class — to keep `name`/message contracts independent per pipeline
- * and to keep name/message contracts independent per pipeline.
+ * and avoid coupling unrelated error contracts.
  *
  * These classes are internal to the package and are NOT re-exported from
  * `src/index.ts`. Consumers see them via promise rejections from public

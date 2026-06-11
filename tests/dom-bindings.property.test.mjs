@@ -367,3 +367,31 @@ test('bindIfExists returns false and leaves the registry unchanged when the elem
         { numRuns: 100 },
     );
 });
+
+test('bindIfExists resolves elements from the supplied owner document', () => {
+    const globalDom = new JSDOM('<!DOCTYPE html><body></body>');
+    const ownerDom = new JSDOM('<!DOCTYPE html><body><button id="zoomInButton"></button></body>');
+    globalThis.document = globalDom.window.document;
+
+    const ownerDocument = ownerDom.window.document;
+    const ownerEvent = ownerDom.window.Event;
+    let calls = 0;
+    const registry = new DomBindings(
+        (key) => key,
+        () => false,
+        () => ownerDocument,
+    );
+
+    assert.equal(
+        registry.bindIfExists('zoomInButton', 'click', () => {
+            calls += 1;
+        }),
+        true,
+    );
+    ownerDocument.getElementById('zoomInButton').dispatchEvent(new ownerEvent('click'));
+    assert.equal(calls, 1);
+
+    registry.removeAll();
+    ownerDocument.getElementById('zoomInButton').dispatchEvent(new ownerEvent('click'));
+    assert.equal(calls, 1, 'removeAll must detach from the owner document element');
+});

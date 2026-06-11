@@ -45,6 +45,16 @@ function getPreviewObjects(editor) {
     return editor.canvas.getObjects().filter((object) => object.isMosaicPreview === true);
 }
 
+function isImageObject(object) {
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'image') return true;
+    return typeof object.isType === 'function' && object.isType('image');
+}
+
+function getPreviewImageObjects(editor) {
+    return getPreviewObjects(editor).filter(isImageObject);
+}
+
 function getImageCenter(editor) {
     const image = editor.originalImage;
     if (typeof image.getCenterPoint === 'function') return image.getCenterPoint();
@@ -119,6 +129,7 @@ test('Mosaic click commits pixels into the base image and supports undo/redo', a
 
         editor.enterMosaicMode();
         editor.canvas.fire('mouse:down', { scenePoint: getImageCenter(editor) });
+        editor.canvas.fire('mouse:up', { scenePoint: getImageCenter(editor) });
         await waitForCanvasCallbacks(250);
 
         const afterSource = editor.originalImage.getSrc();
@@ -149,8 +160,99 @@ test('Mosaic click outside the image is a no-op with no history entry', async ()
 
         editor.enterMosaicMode();
         editor.canvas.fire('mouse:down', { scenePoint: { x: -100, y: -100 } });
+        editor.canvas.fire('mouse:up', { scenePoint: { x: -100, y: -100 } });
         await waitForCanvasCallbacks(100);
 
+        assert.equal(editor.originalImage.getSrc(), beforeSource);
+        assert.equal(editor.historyManager.canUndo(), false);
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('Mosaic drag shows live preview before mouseup commits the stroke', async () => {
+    const operations = [];
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 14, blockSize: 4 },
+        onImageChanged: (_state, context) => operations.push(context.operation),
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 48, height: 48 }));
+        const beforeSource = editor.originalImage.getSrc();
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        editor.canvas.fire('mouse:down', { scenePoint: center });
+        await waitForCanvasCallbacks(250);
+
+        assert.equal(editor.originalImage.getSrc(), beforeSource);
+        assert.equal(editor.historyManager.canUndo(), false);
+        assert.equal(getPreviewImageObjects(editor).length, 1);
+        assert.equal(
+            operations.filter((operation) => operation === 'applyMosaic').length,
+            0,
+            'live preview must not emit a committed image change',
+        );
+
+        editor.canvas.fire('mouse:move', {
+            scenePoint: { x: center.x + 24, y: center.y + 4 },
+        });
+        await waitForCanvasCallbacks(120);
+        assert.equal(getPreviewImageObjects(editor).length, 1);
+
+        editor.canvas.fire('mouse:up', {
+            scenePoint: { x: center.x + 24, y: center.y + 4 },
+        });
+        await waitForCanvasCallbacks(350);
+
+        assert.notEqual(editor.originalImage.getSrc(), beforeSource);
+        assert.equal(getPreviewImageObjects(editor).length, 0);
+        assert.equal(editor.historyManager.canUndo(), true);
+        assert.equal(
+            operations.filter((operation) => operation === 'applyMosaic').length,
+            1,
+            'mouseup should commit the live preview as one image change',
+        );
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('Mosaic drag commits one undoable stroke after mouseup', async () => {
+    const operations = [];
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 14, blockSize: 4 },
+        onImageChanged: (_state, context) => operations.push(context.operation),
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 48, height: 48 }));
+        const beforeSource = editor.originalImage.getSrc();
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        editor.canvas.fire('mouse:down', { scenePoint: center });
+        editor.canvas.fire('mouse:move', {
+            scenePoint: { x: center.x + 20, y: center.y },
+        });
+        editor.canvas.fire('mouse:move', {
+            scenePoint: { x: center.x + 40, y: center.y + 8 },
+        });
+        editor.canvas.fire('mouse:up', {
+            scenePoint: { x: center.x + 60, y: center.y + 8 },
+        });
+        await waitForCanvasCallbacks(350);
+
+        const afterSource = editor.originalImage.getSrc();
+        assert.notEqual(afterSource, beforeSource);
+        assert.equal(
+            operations.filter((operation) => operation === 'applyMosaic').length,
+            1,
+            'a drag stroke should commit once',
+        );
+        assert.equal(editor.historyManager.canUndo(), true);
+
+        editor.exitMosaicMode();
+        await editor.undo();
         assert.equal(editor.originalImage.getSrc(), beforeSource);
         assert.equal(editor.historyManager.canUndo(), false);
     } finally {

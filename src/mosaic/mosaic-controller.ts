@@ -1,7 +1,7 @@
 /**
  * Mosaic mode controller.
  *
- * Owns the Mosaic session lifecycle, preview circle, Fabric pointer handlers,
+ * Owns the Mosaic session lifecycle, preview objects, Fabric pointer handlers,
  * and the base-image pixel replacement pipeline. The ImageEditor facade owns
  * canonical editor state and passes it in through the context callbacks.
  *
@@ -23,15 +23,20 @@ import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js
 import { Command, type HistoryManager } from '../history/history-manager.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
 import { withTimeout } from '../utils/timeout.js';
-import { getMosaicImagePoint } from './mosaic-geometry.js';
+import { getMosaicImagePoint, type MosaicImagePoint } from './mosaic-geometry.js';
 import { applyCircularMosaicToImageData } from './mosaic-pixelate.js';
 
 interface MosaicPreviewCircle extends FabricNS.Circle {
     isMosaicPreview?: boolean;
 }
 
+interface MosaicPreviewImage extends FabricNS.FabricImage {
+    isMosaicPreview?: boolean;
+}
+
 export interface MosaicSession {
     previewCircle: MosaicPreviewCircle | null;
+    previewImage: MosaicPreviewImage | null;
     prevSelection: boolean;
     prevDefaultCursor: string | undefined;
     prevObjectStates: Array<{
@@ -43,7 +48,13 @@ export interface MosaicSession {
         eventName: string;
         callback: (event: unknown) => void;
     }>;
+    rasterCache: MosaicRasterCache | null;
+    pendingCanvasPoints: Array<{ x: number; y: number }>;
+    isPointerDown: boolean;
     isApplying: boolean;
+    commitRequested: boolean;
+    hasUncommittedChanges: boolean;
+    lastImagePoint: MosaicImagePoint | null;
 }
 
 export interface MosaicControllerContext {
@@ -81,10 +92,21 @@ interface DecodedImage {
     height: number;
 }
 
+interface MosaicRasterCache {
+    offscreenCanvas: HTMLCanvasElement;
+    renderingContext: CanvasRenderingContext2D;
+    imageData: ImageData;
+    source: string;
+    width: number;
+    height: number;
+}
+
 interface MosaicOutputFormat {
     mimeType: ImageMimeType;
     quality?: number;
 }
+
+const MAX_PENDING_MOSAIC_POINTS = 4096;
 
 function getCanvasDocument(context: MosaicControllerContext): Document {
     const element = (
@@ -195,6 +217,91 @@ function removePreviewCircle(context: MosaicControllerContext, session: MosaicSe
         /* ignore */
     }
     session.previewCircle = null;
+}
+
+function createPreviewImage(
+    context: MosaicControllerContext,
+    sourceImage: FabricNS.FabricImage,
+    rasterCache: MosaicRasterCache,
+): MosaicPreviewImage {
+    const image = new context.fabric.FabricImage(rasterCache.offscreenCanvas, {
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: true,
+    } as Partial<FabricNS.ImageProps>) as MosaicPreviewImage;
+    copyBaseImageProperties(image, sourceImage);
+    image.set({
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: true,
+    } as Partial<FabricNS.ImageProps>);
+    image.isMosaicPreview = true;
+    return image;
+}
+
+function placePreviewImageAfterBase(
+    context: MosaicControllerContext,
+    previewImage: MosaicPreviewImage,
+    sourceImage: FabricNS.FabricImage,
+): void {
+    const sourceIndex = context.canvas.getObjects().indexOf(sourceImage);
+    if (sourceIndex < 0) return;
+    try {
+        (
+            context.canvas as FabricNS.Canvas & {
+                moveObjectTo?: (object: FabricNS.FabricObject, index: number) => boolean;
+            }
+        ).moveObjectTo?.(previewImage, sourceIndex + 1);
+    } catch {
+        /* best-effort layer ordering */
+    }
+}
+
+function ensurePreviewImage(
+    context: MosaicControllerContext,
+    session: MosaicSession,
+    sourceImage: FabricNS.FabricImage,
+): MosaicPreviewImage | null {
+    const rasterCache = session.rasterCache;
+    if (!rasterCache) return null;
+
+    const previewImage =
+        session.previewImage ?? createPreviewImage(context, sourceImage, rasterCache);
+    session.previewImage = previewImage;
+    copyBaseImageProperties(previewImage, sourceImage);
+    previewImage.set({
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: true,
+    } as Partial<FabricNS.ImageProps>);
+    (previewImage as MosaicPreviewImage & { dirty?: boolean }).dirty = true;
+
+    if (!context.canvas.getObjects().includes(previewImage)) {
+        context.canvas.add(previewImage);
+    }
+    placePreviewImageAfterBase(context, previewImage, sourceImage);
+    const circle = session.previewCircle;
+    if (circle && context.canvas.getObjects().includes(circle)) {
+        context.canvas.bringObjectToFront(circle);
+    }
+    return previewImage;
+}
+
+function removePreviewImage(context: MosaicControllerContext, session: MosaicSession): void {
+    const image = session.previewImage;
+    if (!image) return;
+    try {
+        context.canvas.remove(image);
+    } catch {
+        /* ignore */
+    }
+    session.previewImage = null;
 }
 
 function hidePreview(context: MosaicControllerContext): void {
@@ -439,12 +546,121 @@ function pushMosaicHistory(context: MosaicControllerContext, after: string): voi
     context.setLastSnapshot(after);
 }
 
-async function applyMosaicAtPoint(
+async function getOrCreateRasterCache(
     context: MosaicControllerContext,
+    session: MosaicSession,
+    source: string,
+): Promise<MosaicRasterCache | null> {
+    if (session.rasterCache) return session.rasterCache;
+
+    const ownerDocument = getCanvasDocument(context);
+    const decoded = await decodeImageSource(ownerDocument, source);
+    const offscreenCanvas = ownerDocument.createElement('canvas');
+    offscreenCanvas.width = decoded.width;
+    offscreenCanvas.height = decoded.height;
+    const renderingContext = offscreenCanvas.getContext('2d');
+    if (!renderingContext) {
+        reportError(
+            context.options,
+            new Error('Mosaic could not obtain a 2D canvas context.'),
+            'Mosaic apply failed.',
+        );
+        return null;
+    }
+
+    renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
+
+    let imageData: ImageData;
+    try {
+        imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
+    } catch (error) {
+        reportError(
+            context.options,
+            error,
+            'Mosaic apply failed because the source image pixels could not be read.',
+        );
+        return null;
+    }
+
+    const rasterCache: MosaicRasterCache = {
+        offscreenCanvas,
+        renderingContext,
+        imageData,
+        source,
+        width: decoded.width,
+        height: decoded.height,
+    };
+    session.rasterCache = rasterCache;
+    return rasterCache;
+}
+
+function applyMosaicImagePoint(
+    context: MosaicControllerContext,
+    session: MosaicSession,
+    sourceImage: FabricNS.FabricImage,
+    imagePoint: MosaicImagePoint,
+): boolean {
+    const rasterCache = session.rasterCache;
+    if (!rasterCache) return false;
+
+    const config = context.getMosaicConfig();
+    const previousPoint = session.lastImagePoint;
+    const points = previousPoint
+        ? interpolateMosaicPoints(previousPoint, imagePoint)
+        : [imagePoint];
+
+    let changed = false;
+    for (const point of points) {
+        changed =
+            applyCircularMosaicToImageData({
+                imageData: rasterCache.imageData,
+                centerX: point.sourceX,
+                centerY: point.sourceY,
+                radius: point.sourceRadius,
+                blockSize: config.blockSize,
+            }) || changed;
+    }
+
+    session.lastImagePoint = imagePoint;
+    if (changed) {
+        session.hasUncommittedChanges = true;
+        rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+        ensurePreviewImage(context, session, sourceImage);
+        safeRender(context.canvas);
+    }
+    return changed;
+}
+
+function interpolateMosaicPoints(
+    start: MosaicImagePoint,
+    end: MosaicImagePoint,
+): MosaicImagePoint[] {
+    const dx = end.sourceX - start.sourceX;
+    const dy = end.sourceY - start.sourceY;
+    const distance = Math.hypot(dx, dy);
+    const minRadius = Math.min(start.sourceRadius, end.sourceRadius);
+    const spacing = Math.max(1, minRadius / 2);
+    const steps = Math.max(1, Math.ceil(distance / spacing));
+    const points: MosaicImagePoint[] = [];
+
+    for (let index = 1; index <= steps; index += 1) {
+        const t = index / steps;
+        points.push({
+            sourceX: start.sourceX + dx * t,
+            sourceY: start.sourceY + dy * t,
+            sourceRadius: start.sourceRadius + (end.sourceRadius - start.sourceRadius) * t,
+        });
+    }
+    return points;
+}
+
+async function applyMosaicPointToCache(
+    context: MosaicControllerContext,
+    expectedSession: MosaicSession,
     canvasPoint: { x: number; y: number },
 ): Promise<void> {
     const session = context.getMosaicSession();
-    if (!session || session.isApplying) return;
+    if (!session || session !== expectedSession) return;
     const originalImage = context.getOriginalImage();
     if (!originalImage || !context.isImageLoaded()) return;
 
@@ -455,7 +671,10 @@ async function applyMosaicAtPoint(
         canvasPoint,
         config.brushSize,
     );
-    if (!imagePoint) return;
+    if (!imagePoint) {
+        session.lastImagePoint = null;
+        return;
+    }
 
     const source = getImageSource(originalImage);
     if (!source) {
@@ -467,75 +686,116 @@ async function applyMosaicAtPoint(
         return;
     }
 
+    const rasterCache = await getOrCreateRasterCache(context, session, source);
+    if (!rasterCache) return;
+    applyMosaicImagePoint(context, session, originalImage, imagePoint);
+}
+
+async function commitMosaicChanges(
+    context: MosaicControllerContext,
+    session: MosaicSession,
+    callbackContext: ImageEditorCallbackContext,
+): Promise<void> {
+    session.commitRequested = false;
+    session.lastImagePoint = null;
+    if (!session.hasUncommittedChanges || !session.rasterCache) return;
+
+    const originalImage = context.getOriginalImage();
+    if (!originalImage || !context.isImageLoaded()) return;
+
+    const source = getImageSource(originalImage) ?? session.rasterCache.source;
+    const rasterCache = session.rasterCache;
+    rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+    const output = resolveMosaicOutputFormat(context, source);
+    const nextDataUrl =
+        output.quality === undefined
+            ? rasterCache.offscreenCanvas.toDataURL(output.mimeType)
+            : rasterCache.offscreenCanvas.toDataURL(output.mimeType, output.quality);
+    const nextImage = await createFabricImageFromDataUrl(context, nextDataUrl);
+
+    removePreviewCircle(context, session);
+    removePreviewImage(context, session);
+    try {
+        replaceBaseImage(context, originalImage, nextImage, output.mimeType);
+        const after = context.captureSnapshot();
+        pushMosaicHistory(context, after);
+        rasterCache.source = nextDataUrl;
+        session.hasUncommittedChanges = false;
+    } finally {
+        if (context.getMosaicSession() === session) {
+            ensurePreviewCircle(context, session);
+        }
+    }
+
+    context.updateInputs();
+    context.updateUi();
+    context.emitImageChanged(callbackContext);
+}
+
+async function drainMosaicQueue(
+    context: MosaicControllerContext,
+    expectedSession: MosaicSession,
+): Promise<void> {
+    const session = context.getMosaicSession();
+    if (!session || session !== expectedSession || session.isApplying) return;
+
     session.isApplying = true;
     const callbackContext = context.buildCallbackContext('applyMosaic', false);
+    context.emitBusyChangeIfChanged(callbackContext);
+    context.updateUi();
     try {
-        const ownerDocument = getCanvasDocument(context);
-        const decoded = await decodeImageSource(ownerDocument, source);
-        const offscreen = ownerDocument.createElement('canvas');
-        offscreen.width = decoded.width;
-        offscreen.height = decoded.height;
-        const renderingContext = offscreen.getContext('2d');
-        if (!renderingContext) {
-            reportError(
-                context.options,
-                new Error('Mosaic could not obtain a 2D canvas context.'),
-                'Mosaic apply failed.',
-            );
-            return;
-        }
-
-        renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
-
-        let imageData: ImageData;
-        try {
-            imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
-        } catch (error) {
-            reportError(
-                context.options,
-                error,
-                'Mosaic apply failed because the source image pixels could not be read.',
-            );
-            return;
-        }
-
-        const changed = applyCircularMosaicToImageData({
-            imageData,
-            centerX: imagePoint.sourceX,
-            centerY: imagePoint.sourceY,
-            radius: imagePoint.sourceRadius,
-            blockSize: config.blockSize,
-        });
-        if (!changed) return;
-
-        renderingContext.putImageData(imageData, 0, 0);
-        const output = resolveMosaicOutputFormat(context, source);
-        const nextDataUrl =
-            output.quality === undefined
-                ? offscreen.toDataURL(output.mimeType)
-                : offscreen.toDataURL(output.mimeType, output.quality);
-        const nextImage = await createFabricImageFromDataUrl(context, nextDataUrl);
-
-        removePreviewCircle(context, session);
-        try {
-            replaceBaseImage(context, originalImage, nextImage, output.mimeType);
-            const after = context.captureSnapshot();
-            pushMosaicHistory(context, after);
-        } finally {
-            if (context.getMosaicSession() === session) {
-                ensurePreviewCircle(context, session);
+        while (context.getMosaicSession() === session && session.pendingCanvasPoints.length > 0) {
+            const point = session.pendingCanvasPoints.shift();
+            if (point) {
+                await applyMosaicPointToCache(context, session, point);
             }
         }
 
-        context.updateInputs();
-        context.updateUi();
-        context.emitImageChanged(callbackContext);
+        if (context.getMosaicSession() === session && session.commitRequested) {
+            await commitMosaicChanges(context, session, callbackContext);
+        }
     } finally {
         if (context.getMosaicSession() === session) {
             session.isApplying = false;
         }
         context.emitBusyChangeIfChanged(callbackContext);
+        context.updateUi();
+        if (
+            context.getMosaicSession() === session &&
+            (session.pendingCanvasPoints.length > 0 || session.commitRequested)
+        ) {
+            void drainMosaicQueue(context, session).catch((error) => {
+                reportError(context.options, error, 'Mosaic apply failed.');
+            });
+        }
     }
+}
+
+function enqueueMosaicPoint(
+    context: MosaicControllerContext,
+    canvasPoint: { x: number; y: number },
+): void {
+    const session = context.getMosaicSession();
+    if (!session) return;
+
+    session.pendingCanvasPoints.push(canvasPoint);
+    if (session.pendingCanvasPoints.length > MAX_PENDING_MOSAIC_POINTS) {
+        session.pendingCanvasPoints.splice(
+            0,
+            session.pendingCanvasPoints.length - MAX_PENDING_MOSAIC_POINTS,
+        );
+    }
+
+    void drainMosaicQueue(context, session).catch((error) => {
+        reportError(context.options, error, 'Mosaic apply failed.');
+    });
+}
+
+function requestMosaicCommit(context: MosaicControllerContext, session: MosaicSession): void {
+    session.commitRequested = true;
+    void drainMosaicQueue(context, session).catch((error) => {
+        reportError(context.options, error, 'Mosaic apply failed.');
+    });
 }
 
 function installMosaicHandlers(context: MosaicControllerContext, session: MosaicSession): void {
@@ -546,16 +806,38 @@ function installMosaicHandlers(context: MosaicControllerContext, session: Mosaic
             return;
         }
         movePreview(context, pointer);
+        const currentSession = context.getMosaicSession();
+        if (currentSession?.isPointerDown) {
+            enqueueMosaicPoint(context, pointer);
+        }
     });
     attachCanvasHandler(context, session, 'mouse:out', () => {
         hidePreview(context);
+        const currentSession = context.getMosaicSession();
+        if (currentSession?.isPointerDown) {
+            currentSession.isPointerDown = false;
+            requestMosaicCommit(context, currentSession);
+        }
     });
     attachCanvasHandler(context, session, 'mouse:down', (event) => {
         const pointer = getPointerFromFabricEvent(context.canvas, event);
         if (!pointer) return;
-        void applyMosaicAtPoint(context, pointer).catch((error) => {
-            reportError(context.options, error, 'Mosaic apply failed.');
-        });
+        const currentSession = context.getMosaicSession();
+        if (!currentSession) return;
+        currentSession.isPointerDown = true;
+        currentSession.lastImagePoint = null;
+        enqueueMosaicPoint(context, pointer);
+    });
+    attachCanvasHandler(context, session, 'mouse:up', (event) => {
+        const currentSession = context.getMosaicSession();
+        if (!currentSession) return;
+        const pointer = getPointerFromFabricEvent(context.canvas, event);
+        if (pointer) {
+            movePreview(context, pointer);
+            enqueueMosaicPoint(context, pointer);
+        }
+        currentSession.isPointerDown = false;
+        requestMosaicCommit(context, currentSession);
     });
 }
 
@@ -588,11 +870,18 @@ export function enterMosaicMode(context: MosaicControllerContext): void {
 
     const session: MosaicSession = {
         previewCircle: null,
+        previewImage: null,
         prevSelection,
         prevDefaultCursor,
         prevObjectStates,
         handlers: [],
+        rasterCache: null,
+        pendingCanvasPoints: [],
+        isPointerDown: false,
         isApplying: false,
+        commitRequested: false,
+        hasUncommittedChanges: false,
+        lastImagePoint: null,
     };
     context.setMosaicSession(session);
     ensurePreviewCircle(context, session);
@@ -606,6 +895,7 @@ export function exitMosaicMode(context: MosaicControllerContext): void {
 
     detachCanvasHandlers(context, session);
     removePreviewCircle(context, session);
+    removePreviewImage(context, session);
     restoreObjectStates(session);
     context.canvas.selection = !!session.prevSelection;
     context.canvas.defaultCursor = session.prevDefaultCursor ?? 'default';

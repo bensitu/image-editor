@@ -238,6 +238,31 @@ test('renderMaskList renders one <li> per mask in canvas order with data-mask-id
     );
 });
 
+test('renderMaskList uses the canvas ownerDocument', () => {
+    const globalDom = new JSDOM('<!DOCTYPE html><body></body>');
+    const ownerDom = new JSDOM(
+        '<!DOCTYPE html><body><canvas id="c"></canvas><ul id="maskList"></ul></body>',
+    );
+    globalThis.document = globalDom.window.document;
+
+    const mask = makeMask(7, 'mask7');
+    const canvas = makeCanvas([mask]);
+    canvas.getElement = () => ownerDom.window.document.getElementById('c');
+    const ctx = {
+        canvas,
+        getListElementId: () => 'maskList',
+        onMaskSelected: () => {},
+    };
+
+    renderMaskList(ctx);
+
+    const ownerItems = ownerDom.window.document.querySelectorAll('li.mask-item');
+    const globalItems = globalThis.document.querySelectorAll('li.mask-item');
+    assert.equal(ownerItems.length, 1);
+    assert.equal(ownerItems[0].dataset.maskId, '7');
+    assert.equal(globalItems.length, 0);
+});
+
 // ─── clicking selects by maskId regardless of list ordering ─
 
 test('clicking a <li> selects by maskId lookup regardless of list ordering', () => {

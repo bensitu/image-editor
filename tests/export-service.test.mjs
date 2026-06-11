@@ -41,6 +41,7 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
 
 const { exportImageBase64, exportImageFile, downloadImage } =
     await import('../src/export/export-service.ts');
@@ -569,6 +570,23 @@ test('exportImageBase64: JPEG background keeps valid canvas colors', async () =>
     });
 });
 
+test('exportImageBase64: WebP image-area edge sealing preserves WebP output', async () => {
+    await withFakeCanvasDom(async () => {
+        const canvas = makeMockCanvas(
+            'data:image/webp;base64,' + Buffer.from('webp').toString('base64'),
+        );
+        const ctx = makeContext({
+            canvas,
+            getOriginalImage: () =>
+                makeFakeOriginalImage({ left: 10.25, top: 20, width: 30, height: 40 }),
+        });
+
+        const result = await exportImageBase64(ctx, { exportArea: 'image', fileType: 'webp' });
+
+        assert.match(result, /^data:image\/webp;base64,/);
+    });
+});
+
 test('exportImageBase64: exportArea and mergeMask are independent', async () => {
     const cases = [
         {
@@ -764,4 +782,46 @@ test('downloadImage reports asynchronous export failures through onError', async
     assert.equal(errors.length, 1);
     assert.match(errors[0].message, /downloadImage failed/);
     assert.match(String(errors[0].error?.message ?? ''), /render failed/);
+});
+
+test('downloadImage appends the anchor to the canvas ownerDocument', async () => {
+    const previousDocument = globalThis.document;
+    const globalDom = new JSDOM('<!doctype html><body></body>');
+    const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
+    globalThis.document = globalDom.window.document;
+
+    const ownerDocument = ownerDom.window.document;
+    const canvasElement = ownerDocument.getElementById('c');
+    const clicked = [];
+    const createElement = ownerDocument.createElement.bind(ownerDocument);
+    ownerDocument.createElement = (tagName, options) => {
+        const element = createElement(tagName, options);
+        if (String(tagName).toLowerCase() === 'a') {
+            element.click = () => clicked.push(element);
+        }
+        return element;
+    };
+
+    try {
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
+        );
+        canvas.getElement = () => canvasElement;
+        const ctx = makeContext({ canvas });
+
+        downloadImage(ctx, 'owner-doc.jpg');
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.equal(clicked.length, 1);
+        assert.equal(clicked[0].ownerDocument, ownerDocument);
+        assert.equal(clicked[0].download, 'owner-doc.jpg');
+        assert.equal(ownerDocument.body.querySelectorAll('a').length, 0);
+        assert.equal(globalThis.document.body.querySelectorAll('a').length, 0);
+    } finally {
+        if (previousDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = previousDocument;
+        }
+    }
 });

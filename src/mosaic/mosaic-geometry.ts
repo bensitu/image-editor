@@ -27,6 +27,9 @@ interface Matrix2D {
     f: number;
 }
 
+const MATRIX_DETERMINANT_EPSILON = 1e-8;
+const MATRIX_SCALE_EPSILON = 1e-8;
+
 function toMatrix2D(matrix: number[]): Matrix2D | null {
     if (matrix.length < 6) return null;
     const a = matrix[0];
@@ -50,7 +53,7 @@ function toMatrix2D(matrix: number[]): Matrix2D | null {
 
 function invertMatrix(matrix: Matrix2D): Matrix2D | null {
     const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-    if (!Number.isFinite(determinant) || Math.abs(determinant) < Number.EPSILON) {
+    if (!Number.isFinite(determinant) || Math.abs(determinant) < MATRIX_DETERMINANT_EPSILON) {
         return null;
     }
 
@@ -78,8 +81,8 @@ function getSourceRadiusFromMatrix(matrix: Matrix2D, canvasRadius: number): numb
     const scaleX = Math.hypot(matrix.a, matrix.b);
     const scaleY = Math.hypot(matrix.c, matrix.d);
     const minScale = Math.min(
-        scaleX > Number.EPSILON ? scaleX : Number.POSITIVE_INFINITY,
-        scaleY > Number.EPSILON ? scaleY : Number.POSITIVE_INFINITY,
+        scaleX > MATRIX_SCALE_EPSILON ? scaleX : Number.POSITIVE_INFINITY,
+        scaleY > MATRIX_SCALE_EPSILON ? scaleY : Number.POSITIVE_INFINITY,
     );
     if (!Number.isFinite(minScale) || minScale <= 0) return canvasRadius;
     return canvasRadius / minScale;

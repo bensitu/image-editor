@@ -551,6 +551,7 @@ export class ImageEditor {
         this.domBindings = new DomBindings(
             (key) => this.elements[key],
             () => this.isDisposed,
+            () => this.canvasElement?.ownerDocument ?? document,
         );
 
         this.initCanvas();
@@ -2777,6 +2778,7 @@ export class ImageEditor {
         const isInCropMode = this.cropSession !== null;
         const isInMosaicMode = this.mosaicSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
+        const isMosaicApplying = this.mosaicSession?.isApplying === true;
 
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
@@ -2787,7 +2789,10 @@ export class ImageEditor {
 
         if (isInMosaicMode) {
             MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && MOSAIC_MODE_ENABLED_KEYS.includes(key));
+                this.setControlEnabled(
+                    key,
+                    !isBusy && !isMosaicApplying && MOSAIC_MODE_ENABLED_KEYS.includes(key),
+                );
             });
             this.setControlEnabled('imageInput', false);
             return;

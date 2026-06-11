@@ -2,7 +2,7 @@
  * @author Ben Situ
  * @license MIT
  * Lightweight canvas-based image editor built on Fabric.js v7.
- * Provides masking, animated scale/rotate, crop, undo/redo, and export.
+ * Provides masking, animated scale/rotate, crop, mosaic, undo/redo, and export.
  *
  * @module
  */

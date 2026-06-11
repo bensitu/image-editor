@@ -17,17 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add complete Mosaic mode with `defaultMosaicConfig`, runtime Mosaic config setters, optional DOM bindings, circular preview cursor, base-image pixel commits, and undo/redo support per successful click.
+- Add Mosaic drag painting with live in-canvas preview by caching decoded pixels during a Mosaic session, processing queued pointer points, and committing each completed stroke as one undoable history entry.
 - Add pure Mosaic pixelation and coordinate-conversion coverage, including scaled/translated/rotated image mapping.
 - Add default mask configuration for new masks.
 - Add regression coverage for dispose-aborted Fabric animations, deterministic mask UIDs, strict export data URL decoding, and frozen resolved options.
 
 ### Changed
 
-- Update README and the docs demo with Mosaic controls, examples, and public API documentation.
+- Update docs demo with Mosaic controls, examples, and public API documentation.
 - Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
 
 ### Fixed
 
+- Preserve requested WebP output for image-area exports after partial transparent edge sealing instead of silently returning PNG.
+- Avoid repeated full-image decode/replacement work for every Mosaic pointer point, and stop dropping fast Mosaic clicks while a previous point is still being processed.
+- Use the canvas or control `ownerDocument` for downsampling canvases, download anchors, DOM bindings, and mask-list rendering so iframe and multi-document integrations work correctly.
+- Reject near-singular Mosaic transform matrices with a practical pixel-scale threshold instead of `Number.EPSILON`.
+- Remove duplicate wording from the internal error module comments.
 - Make internal merge/crop snapshots fail fast when no canvas is available instead of producing an empty rollback snapshot that `loadFromState()` silently ignores.
 - Derive new mask `maskUid` values from the editor-owned `maskId` so identifiers are deterministic across editor instances, test runs, and page reloads.
 - Keep internal operation tokens module-local and route composite image loads through a private helper instead of carrying bypass tokens through the public `loadImage()` option shape.

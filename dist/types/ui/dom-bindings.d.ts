@@ -64,6 +64,7 @@ export declare class DomBindings {
     private registry;
     private readonly resolveElementId;
     private readonly isDisposed;
+    private readonly resolveDocument;
     /**
      * @param resolveElementId - Returns the resolved DOM element ID for a given logical key, or a
      *   falsy value when the integrator omitted that key from the `idMap`.
@@ -71,8 +72,9 @@ export declare class DomBindings {
      * @param isDisposed - Returns the editor's current `isDisposed` flag. Bound handlers
      *   consult this on every dispatch and exit early when it returns
      *   `true`.
+     * @param resolveDocument - Returns the document that owns the bound controls.
      */
-    constructor(resolveElementId: (key: ElementKey) => string | null | undefined, isDisposed: () => boolean);
+    constructor(resolveElementId: (key: ElementKey) => string | null | undefined, isDisposed: () => boolean, resolveDocument?: () => Document);
     /**
      * Look up the element registered under `key`. If it exists, attach
      * `handler` for `eventType` and record the binding so `removeAll` can

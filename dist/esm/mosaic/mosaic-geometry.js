@@ -1,3 +1,5 @@
+const MATRIX_DETERMINANT_EPSILON = 1e-8;
+const MATRIX_SCALE_EPSILON = 1e-8;
 function toMatrix2D(matrix) {
     if (matrix.length < 6)
         return null;
@@ -19,7 +21,7 @@ function toMatrix2D(matrix) {
 }
 function invertMatrix(matrix) {
     const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-    if (!Number.isFinite(determinant) || Math.abs(determinant) < Number.EPSILON) {
+    if (!Number.isFinite(determinant) || Math.abs(determinant) < MATRIX_DETERMINANT_EPSILON) {
         return null;
     }
     return {
@@ -40,7 +42,7 @@ function transformPoint(point, matrix) {
 function getSourceRadiusFromMatrix(matrix, canvasRadius) {
     const scaleX = Math.hypot(matrix.a, matrix.b);
     const scaleY = Math.hypot(matrix.c, matrix.d);
-    const minScale = Math.min(scaleX > Number.EPSILON ? scaleX : Number.POSITIVE_INFINITY, scaleY > Number.EPSILON ? scaleY : Number.POSITIVE_INFINITY);
+    const minScale = Math.min(scaleX > MATRIX_SCALE_EPSILON ? scaleX : Number.POSITIVE_INFINITY, scaleY > MATRIX_SCALE_EPSILON ? scaleY : Number.POSITIVE_INFINITY);
     if (!Number.isFinite(minScale) || minScale <= 0)
         return canvasRadius;
     return canvasRadius / minScale;

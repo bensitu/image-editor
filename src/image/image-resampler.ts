@@ -205,6 +205,7 @@ export function resampleImage(
     preserveSourceFormat: boolean,
     downsampleMimeType: ImageMimeType | null | undefined,
     quality: number,
+    ownerDocument?: Document,
 ): ResampleResult {
     const { width, height } = computeDownsampleDimensions(
         imageElement.naturalWidth,
@@ -218,7 +219,15 @@ export function resampleImage(
     // Offscreen raster. We use a plain detached <canvas> rather than
     // `OffscreenCanvas` for broader browser support; the failure semantics
     // (null context => DownsampleError) are identical either way.
-    const offscreenCanvas = document.createElement('canvas');
+    const documentForCanvas =
+        ownerDocument ??
+        imageElement.ownerDocument ??
+        (typeof document !== 'undefined' ? document : null);
+    if (!documentForCanvas) {
+        throw new DownsampleError('Failed to obtain an owner document for downsampling.');
+    }
+
+    const offscreenCanvas = documentForCanvas.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
 

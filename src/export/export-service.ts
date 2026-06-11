@@ -613,6 +613,7 @@ function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
 async function sealPartialTransparentEdges(
     dataUrl: string,
     edges: PartialExportEdges | null,
+    target: ResolvedExportFormat,
 ): Promise<string> {
     if (!hasPartialEdges(edges)) return dataUrl;
 
@@ -659,7 +660,9 @@ async function sealPartialTransparentEdges(
     }
 
     canvasContext.putImageData(imageData, 0, 0);
-    return offscreenCanvas.toDataURL('image/png');
+    return target.quality === undefined
+        ? offscreenCanvas.toDataURL(target.mimeType)
+        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 
 function getJpegBackgroundColor(backgroundColor: unknown): string {
@@ -696,6 +699,18 @@ function createColorValidationContext(): CanvasRenderingContext2D | null {
     } catch {
         return null;
     }
+}
+
+function getCanvasDocument(canvas: FabricNS.Canvas): Document {
+    const canvasLike = canvas as FabricNS.Canvas & {
+        getElement?: () => HTMLCanvasElement | undefined;
+        lowerCanvasEl?: HTMLCanvasElement;
+    };
+    return (
+        canvasLike.getElement?.()?.ownerDocument ??
+        canvasLike.lowerCanvasEl?.ownerDocument ??
+        document
+    );
 }
 
 function isTransparentCssColor(value: string): boolean {
@@ -911,7 +926,11 @@ export async function exportImageBase64(
             ),
         );
         if (region) {
-            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges);
+            const sealedFormat =
+                resolved.format.format === 'jpeg'
+                    ? ({ format: 'png', mimeType: 'image/png', quality: undefined } as const)
+                    : resolved.format;
+            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat);
             if (resolved.format.format === 'jpeg') {
                 dataUrl = await convertDataUrlToOpaqueJpeg(
                     dataUrl,
@@ -1032,14 +1051,16 @@ export function downloadImage(context: ExportServiceContext, fileName?: string):
     })
         .then((dataUrl) => {
             if (!dataUrl) return; // already warned by `exportImageBase64`
-            const link = document.createElement('a');
+            const ownerDocument = getCanvasDocument(context.canvas);
+            const link = ownerDocument.createElement('a');
             link.download = resolvedFileName;
             link.href = dataUrl;
-            document.body.appendChild(link);
+            const body = ownerDocument.body;
+            body.appendChild(link);
             try {
                 link.click();
             } finally {
-                document.body.removeChild(link);
+                body.removeChild(link);
             }
         })
         .catch((error: unknown) => {

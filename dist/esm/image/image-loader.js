@@ -40,7 +40,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
             decode.cleanup(true);
             throw error;
         }
-        const loadSource = maybeDownsample(imageElement, imageBase64, context.options);
+        const loadSource = maybeDownsample(imageElement, imageBase64, context.options, getCanvasDocument(context.canvas));
         const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
         context.canvas.discardActiveObject();
         context.canvas.clear();
@@ -152,7 +152,7 @@ function toSupportedImageMimeType(mimeType) {
         ? mimeType
         : null;
 }
-function maybeDownsample(imageElement, originalDataUrl, options) {
+function maybeDownsample(imageElement, originalDataUrl, options, ownerDocument) {
     const originalMimeType = toSupportedImageMimeType(detectSourceMimeType(originalDataUrl));
     if (!options.downsampleOnLoad) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
@@ -167,12 +167,17 @@ function maybeDownsample(imageElement, originalDataUrl, options) {
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
     const sourceMime = detectSourceMimeType(originalDataUrl);
-    const resampledImage = resampleImage(imageElement, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality);
+    const resampledImage = resampleImage(imageElement, options.downsampleMaxWidth, options.downsampleMaxHeight, sourceMime, options.preserveSourceFormat, options.downsampleMimeType, options.downsampleQuality, ownerDocument);
     const actualMimeType = toSupportedImageMimeType(detectSourceMimeType(resampledImage.dataUrl));
     return {
         dataUrl: resampledImage.dataUrl,
         mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : resampledImage.mimeType,
     };
+}
+function getCanvasDocument(canvas) {
+    var _a, _b, _c, _d, _e;
+    const canvasLike = canvas;
+    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : (typeof document !== 'undefined' ? document : undefined));
 }
 function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;

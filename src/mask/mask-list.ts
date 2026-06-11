@@ -91,6 +91,20 @@ export interface MaskListContext {
     onMaskSelected(mask: MaskObject): void;
 }
 
+function getMaskListDocument(context: MaskListContext): Document {
+    const canvasLike = context.canvas as
+        | (FabricNS.Canvas & {
+              getElement?: () => HTMLCanvasElement | undefined;
+              lowerCanvasEl?: HTMLCanvasElement;
+          })
+        | null;
+    return (
+        canvasLike?.getElement?.()?.ownerDocument ??
+        canvasLike?.lowerCanvasEl?.ownerDocument ??
+        document
+    );
+}
+
 /**
  * Re-render the mask list DOM from `canvas.getObjects`.
  *
@@ -127,7 +141,8 @@ export interface MaskListContext {
 export function renderMaskList(context: MaskListContext): void {
     const listId = context.getListElementId();
     if (!listId) return;
-    const listEl = document.getElementById(listId);
+    const ownerDocument = getMaskListDocument(context);
+    const listEl = ownerDocument.getElementById(listId);
     if (!listEl || !context.canvas) return;
 
     // Drop the previous DOM (and, by detaching the nodes, every onclick
@@ -141,7 +156,7 @@ export function renderMaskList(context: MaskListContext): void {
         .getObjects()
         .filter(isMaskObject)
         .forEach((mask) => {
-            const listItemElement = document.createElement('li');
+            const listItemElement = ownerDocument.createElement('li');
             // Class names are part of the documented DOM contract so existing
             // CSS / theme overrides keep working.
             listItemElement.className = 'list-group-item mask-item';
@@ -193,7 +208,7 @@ export function updateMaskListSelection(
 ): void {
     const listId = context.getListElementId();
     if (!listId) return;
-    const listEl = document.getElementById(listId);
+    const listEl = getMaskListDocument(context).getElementById(listId);
     if (!listEl) return;
 
     const selectedId = selectedMask ? String(selectedMask.maskId) : null;

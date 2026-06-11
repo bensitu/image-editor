@@ -71,6 +71,14 @@ test('pointer outside image source bounds returns null', () => {
     assert.equal(point, null);
 });
 
+test('near-singular transform matrices are rejected', () => {
+    const image = makeImage({ matrix: [1e-10, 0, 0, 1, 50, 25] });
+
+    const point = getMosaicImagePoint({}, image, { x: 50, y: 25 }, 20);
+
+    assert.equal(point, null);
+});
+
 test('non-uniform scale uses conservative larger source radius', () => {
     const image = makeImage({ matrix: [2, 0, 0, 4, 100, 100] });
 
