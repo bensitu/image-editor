@@ -27,6 +27,10 @@ const translations = {
         base64Input: 'Base64 input',
         base64Placeholder: 'Paste data:image/jpeg;base64,...',
         loadImage: 'Load',
+        zoomOut: 'Zoom Out',
+        zoomIn: 'Zoom In',
+        rotateLeft: 'Rotate Left',
+        rotateRight: 'Rotate Right',
         resetTransform: 'Reset',
         undo: 'Undo',
         redo: 'Redo',
@@ -67,6 +71,10 @@ const translations = {
         base64Input: 'Base64 输入',
         base64Placeholder: '粘贴 data:image/jpeg;base64,...',
         loadImage: '加载',
+        zoomOut: '缩小',
+        zoomIn: '放大',
+        rotateLeft: '向左旋转',
+        rotateRight: '向右旋转',
         resetTransform: '重置',
         undo: '撤销',
         redo: '重做',
@@ -107,6 +115,10 @@ const translations = {
         base64Input: 'Base64 入力',
         base64Placeholder: 'data:image/jpeg;base64,... を貼り付け',
         loadImage: '読み込み',
+        zoomOut: '縮小',
+        zoomIn: '拡大',
+        rotateLeft: '左回転',
+        rotateRight: '右回転',
         resetTransform: 'リセット',
         undo: '元に戻す',
         redo: 'やり直す',
@@ -147,6 +159,10 @@ const translations = {
         base64Input: 'Base64 입력',
         base64Placeholder: 'data:image/jpeg;base64,... 붙여넣기',
         loadImage: '불러오기',
+        zoomOut: '축소',
+        zoomIn: '확대',
+        rotateLeft: '왼쪽 회전',
+        rotateRight: '오른쪽 회전',
         resetTransform: '초기화',
         undo: '실행 취소',
         redo: '다시 실행',
@@ -187,6 +203,10 @@ const translations = {
         base64Input: 'Entrée Base64',
         base64Placeholder: 'Collez data:image/jpeg;base64,...',
         loadImage: 'Charger',
+        zoomOut: 'Zoom arrière',
+        zoomIn: 'Zoom avant',
+        rotateLeft: 'Rotation gauche',
+        rotateRight: 'Rotation droite',
         resetTransform: 'Réinitialiser',
         undo: 'Annuler',
         redo: 'Rétablir',
@@ -227,6 +247,10 @@ const translations = {
         base64Input: 'Entrada Base64',
         base64Placeholder: 'Pega data:image/jpeg;base64,...',
         loadImage: 'Cargar',
+        zoomOut: 'Alejar',
+        zoomIn: 'Acercar',
+        rotateLeft: 'Girar a la izquierda',
+        rotateRight: 'Girar a la derecha',
         resetTransform: 'Restablecer',
         undo: 'Deshacer',
         redo: 'Rehacer',
@@ -488,8 +512,29 @@ function applyLanguage(language) {
         buttonElement.classList.toggle('active', buttonElement.dataset.language === nextLanguage);
     });
 
+    syncToolButtonLabels();
     updateDynamicLocalizedText();
     setStoredValue('imageEditorDemoLanguage', nextLanguage);
+}
+
+function syncToolButtonLabels() {
+    document.querySelectorAll('.tool-button').forEach(function (buttonElement) {
+        const labelElement = buttonElement.querySelector('.tool-label');
+        const labelText = labelElement?.textContent?.trim();
+        if (!labelText) return;
+        buttonElement.setAttribute('aria-label', labelText);
+        buttonElement.setAttribute('title', labelText);
+    });
+}
+
+function renderDemoIcons() {
+    if (!window.lucide || typeof window.lucide.createIcons !== 'function') return;
+    window.lucide.createIcons({
+        attrs: {
+            'aria-hidden': 'true',
+            focusable: 'false',
+        },
+    });
 }
 
 function getCurrentTranslations(key) {
@@ -802,6 +847,7 @@ if (darkModeToggleElement) {
 }
 
 applyLanguage(getInitialLanguage());
+renderDemoIcons();
 updateDemoControls();
 
 if (window.matchMedia) {

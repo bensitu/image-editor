@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rework the v2 demo workspace into a Photoshop-style side-toolbar layout, compact icon controls, and a narrower mask list to avoid toolbar overflow.
 - Update docs demo with Mosaic controls, examples, and public API documentation.
 - Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
 
