@@ -12,6 +12,9 @@ on:
 permissions:
     contents: read
 
+env:
+    PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
 concurrency:
     group: pages
     cancel-in-progress: true
@@ -31,6 +34,7 @@ jobs:
             - name: Upload Pages artifact
               uses: actions/upload-pages-artifact@v5
               with:
+                  name: ${{ env.PAGES_ARTIFACT_NAME }}
                   path: docs
 
     deploy:
@@ -48,3 +52,5 @@ jobs:
             - name: Deploy to GitHub Pages
               id: deployment
               uses: actions/deploy-pages@v5
+              with:
+                  artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}
