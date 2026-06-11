@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] - 2026-06-09
+## [2.1.0] - 2026-06-12
 
 ### Breaking Changes
 
@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rework the v2 demo workspace into a Photoshop-style side-toolbar layout, compact icon controls, and a narrower mask list to avoid toolbar overflow.
+- Rework the v2 demo workspace into a side-toolbar layout, compact icon controls, and a narrower mask list to avoid toolbar overflow.
 - Update docs demo with Mosaic controls, examples, and public API documentation.
 - Update demo page scripts and merge/isolate the legacy v1 demo page in the docs.
 

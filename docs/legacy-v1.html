@@ -29,7 +29,7 @@
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
         />
-        <link rel="stylesheet" href="css/style.css?v=2.0.0" />
+        <link rel="stylesheet" href="css/style.css?v=2.1.0" />
     </head>
 
     <body>
@@ -198,182 +198,178 @@
             <section id="messagePanel" class="message-panel" aria-label="Messages" hidden>
                 <div id="demoMessage" class="demo-message" role="alert" hidden></div>
             </section>
-            <section class="tool-panel" aria-label="Editor controls">
-                <div class="tool-group" role="group" aria-label="Zoom actions">
-                    <button
-                        class="btn tool-button icon-button"
-                        id="zoomOutButton"
-                        type="button"
-                        title="Zoom Out"
-                        aria-label="Zoom Out"
-                    >
-                        -
-                    </button>
-                    <div class="scale-readout">
-                        <input
-                            id="scalePercentageInput"
-                            value="100"
-                            readonly
-                            aria-label="Scale percent"
-                        />
-                        <span>%</span>
-                    </div>
-                    <button
-                        class="btn tool-button icon-button"
-                        id="zoomInButton"
-                        type="button"
-                        title="Zoom In"
-                        aria-label="Zoom In"
-                    >
-                        +
-                    </button>
-                </div>
-
-                <div class="tool-group" role="group" aria-label="Rotation actions">
-                    <button
-                        class="btn tool-button icon-button"
-                        id="rotateLeftButton"
-                        type="button"
-                        title="Rotate Left"
-                        aria-label="Rotate Left"
-                    >
-                        &#10226;
-                    </button>
-                    <input
-                        id="rotateLeftDegreesInput"
-                        class="tool-input"
-                        value="90"
-                        type="number"
-                        aria-label="Rotate left degrees"
-                    />
-                    <button
-                        class="btn tool-button icon-button"
-                        id="rotateRightButton"
-                        type="button"
-                        title="Rotate Right"
-                        aria-label="Rotate Right"
-                    >
-                        &#10227;
-                    </button>
-                    <input
-                        id="rotateRightDegreesInput"
-                        class="tool-input"
-                        value="90"
-                        type="number"
-                        aria-label="Rotate right degrees"
-                    />
-                </div>
-
-                <div class="tool-group" role="group" aria-label="History actions">
-                    <button
-                        class="btn tool-button"
-                        id="resetImageTransformButton"
-                        type="button"
-                        data-i18n="resetTransform"
-                    >
-                        Reset
-                    </button>
-                    <button id="undoButton" class="btn tool-button" type="button" data-i18n="undo">
-                        Undo
-                    </button>
-                    <button id="redoButton" class="btn tool-button" type="button" data-i18n="redo">
-                        Redo
-                    </button>
-                </div>
-
-                <div class="tool-group" role="group" aria-label="Mask actions">
-                    <select
-                        id="maskShapeSelect"
-                        class="tool-select form-select form-select-sm"
-                        aria-label="Mask shape"
-                    >
-                        <option value="rect" data-i18n="maskShapeRect">Rect</option>
-                        <option value="circle" data-i18n="maskShapeCircle">Circle</option>
-                        <option value="ellipse" data-i18n="maskShapeEllipse">Ellipse</option>
-                        <option value="polygon" data-i18n="maskShapePolygon">Polygon</option>
-                    </select>
-                    <button
-                        class="btn tool-button"
-                        id="createMaskButton"
-                        type="button"
-                        data-i18n="createMask"
-                    >
-                        Create Mask
-                    </button>
-                    <button
-                        class="btn tool-button"
-                        id="removeSelectedMaskButton"
-                        type="button"
-                        data-i18n="removeMask"
-                    >
-                        Remove
-                    </button>
-                    <button
-                        class="btn tool-button"
-                        id="removeAllMasksButton"
-                        type="button"
-                        data-i18n="removeAllMasks"
-                    >
-                        Remove All
-                    </button>
-                </div>
-
-                <div class="tool-group" role="group" aria-label="Crop actions">
-                    <button
-                        id="enterCropModeButton"
-                        class="btn tool-button"
-                        type="button"
-                        data-i18n="crop"
-                    >
-                        Crop
-                    </button>
-                    <button
-                        id="applyCropButton"
-                        class="btn tool-button"
-                        type="button"
-                        data-i18n="apply"
-                    >
-                        Apply
-                    </button>
-                    <button
-                        id="cancelCropButton"
-                        class="btn tool-button"
-                        type="button"
-                        data-i18n="cancel"
-                    >
-                        Cancel
-                    </button>
-                </div>
-
-                <div class="tool-group" role="group" aria-label="Export actions">
-                    <button
-                        id="mergeMasksButton"
-                        class="btn tool-button"
-                        type="button"
-                        data-i18n="mergeMasks"
-                    >
-                        Merge
-                    </button>
-                    <button
-                        id="downloadImageButton"
-                        class="btn tool-button"
-                        type="button"
-                        data-i18n="download"
-                    >
-                        Download
-                    </button>
-                    <button
-                        id="base64Button"
-                        class="btn tool-button"
-                        type="button"
-                        data-i18n="consoleBase64"
-                    >
-                        Console Base64
-                    </button>
-                </div>
-            </section>
-
             <section class="workspace-grid" aria-label="Canvas workspace">
+                <nav
+                    class="tool-panel"
+                    aria-label="Editor controls"
+                    role="toolbar"
+                    aria-orientation="vertical"
+                >
+                    <div class="tool-group zoom-group" role="group" aria-label="Zoom actions">
+                        <button
+                            class="btn tool-button icon-button"
+                            id="zoomOutButton"
+                            type="button"
+                            title="Zoom Out"
+                            aria-label="Zoom Out"
+                        >
+                            <span class="tool-icon" data-lucide="zoom-out" aria-hidden="true"
+                                >-</span
+                            >
+                            <span class="tool-label" data-i18n="zoomOut">Zoom Out</span>
+                        </button>
+                        <div class="scale-readout">
+                            <input
+                                id="scalePercentageInput"
+                                value="100"
+                                readonly
+                                aria-label="Scale percent"
+                            />
+                            <span>%</span>
+                        </div>
+                        <button
+                            class="btn tool-button icon-button"
+                            id="zoomInButton"
+                            type="button"
+                            title="Zoom In"
+                            aria-label="Zoom In"
+                        >
+                            <span class="tool-icon" data-lucide="zoom-in" aria-hidden="true"
+                                >+</span
+                            >
+                            <span class="tool-label" data-i18n="zoomIn">Zoom In</span>
+                        </button>
+                    </div>
+
+                    <div
+                        class="tool-group rotation-group"
+                        role="group"
+                        aria-label="Rotation actions"
+                    >
+                        <button
+                            class="btn tool-button icon-button"
+                            id="rotateLeftButton"
+                            type="button"
+                            title="Rotate Left"
+                            aria-label="Rotate Left"
+                        >
+                            <span class="tool-icon" data-lucide="rotate-ccw" aria-hidden="true"
+                                >&#10226;</span
+                            >
+                            <span class="tool-label" data-i18n="rotateLeft">Rotate Left</span>
+                        </button>
+                        <input
+                            id="rotateLeftDegreesInput"
+                            class="tool-input"
+                            value="90"
+                            type="number"
+                            aria-label="Rotate left degrees"
+                        />
+                        <button
+                            class="btn tool-button icon-button"
+                            id="rotateRightButton"
+                            type="button"
+                            title="Rotate Right"
+                            aria-label="Rotate Right"
+                        >
+                            <span class="tool-icon" data-lucide="rotate-cw" aria-hidden="true"
+                                >&#10227;</span
+                            >
+                            <span class="tool-label" data-i18n="rotateRight">Rotate Right</span>
+                        </button>
+                        <input
+                            id="rotateRightDegreesInput"
+                            class="tool-input"
+                            value="90"
+                            type="number"
+                            aria-label="Rotate right degrees"
+                        />
+                    </div>
+
+                    <div class="tool-group history-group" role="group" aria-label="History actions">
+                        <button
+                            class="btn tool-button"
+                            id="resetImageTransformButton"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="refresh-cw" aria-hidden="true"
+                                >R</span
+                            >
+                            <span class="tool-label" data-i18n="resetTransform">Reset</span>
+                        </button>
+                        <button id="undoButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="undo-2" aria-hidden="true">U</span>
+                            <span class="tool-label" data-i18n="undo">Undo</span>
+                        </button>
+                        <button id="redoButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="redo-2" aria-hidden="true">R</span>
+                            <span class="tool-label" data-i18n="redo">Redo</span>
+                        </button>
+                    </div>
+
+                    <div class="tool-group mask-group" role="group" aria-label="Mask actions">
+                        <select
+                            id="maskShapeSelect"
+                            class="tool-select form-select form-select-sm"
+                            aria-label="Mask shape"
+                        >
+                            <option value="rect" data-i18n="maskShapeRect">Rect</option>
+                            <option value="circle" data-i18n="maskShapeCircle">Circle</option>
+                            <option value="ellipse" data-i18n="maskShapeEllipse">Ellipse</option>
+                            <option value="polygon" data-i18n="maskShapePolygon">Polygon</option>
+                        </select>
+                        <button class="btn tool-button" id="createMaskButton" type="button">
+                            <span class="tool-icon" data-lucide="square-plus" aria-hidden="true"
+                                >+</span
+                            >
+                            <span class="tool-label" data-i18n="createMask">Create Mask</span>
+                        </button>
+                        <button class="btn tool-button" id="removeSelectedMaskButton" type="button">
+                            <span class="tool-icon" data-lucide="trash-2" aria-hidden="true"
+                                >-</span
+                            >
+                            <span class="tool-label" data-i18n="removeMask">Remove</span>
+                        </button>
+                        <button class="btn tool-button" id="removeAllMasksButton" type="button">
+                            <span class="tool-icon" data-lucide="trash" aria-hidden="true">X</span>
+                            <span class="tool-label" data-i18n="removeAllMasks">Remove All</span>
+                        </button>
+                    </div>
+
+                    <div class="tool-group crop-group" role="group" aria-label="Crop actions">
+                        <button id="enterCropModeButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="crop" aria-hidden="true">C</span>
+                            <span class="tool-label" data-i18n="crop">Crop</span>
+                        </button>
+                        <button id="applyCropButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="check" aria-hidden="true">OK</span>
+                            <span class="tool-label" data-i18n="apply">Apply</span>
+                        </button>
+                        <button id="cancelCropButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="x" aria-hidden="true">X</span>
+                            <span class="tool-label" data-i18n="cancel">Cancel</span>
+                        </button>
+                    </div>
+
+                    <div class="tool-group export-group" role="group" aria-label="Export actions">
+                        <button id="mergeMasksButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="layers" aria-hidden="true">M</span>
+                            <span class="tool-label" data-i18n="mergeMasks">Merge</span>
+                        </button>
+                        <button id="downloadImageButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="download" aria-hidden="true"
+                                >D</span
+                            >
+                            <span class="tool-label" data-i18n="download">Download</span>
+                        </button>
+                        <button id="base64Button" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="terminal" aria-hidden="true"
+                                >64</span
+                            >
+                            <span class="tool-label" data-i18n="consoleBase64">Console Base64</span>
+                        </button>
+                    </div>
+                </nav>
                 <div id="canvasWrapper" class="canvas-shell">
                     <figure
                         id="imagePlaceholder"
@@ -405,9 +401,10 @@
             </section>
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/lucide@1.17.0/dist/umd/lucide.min.js"></script>
         <!-- The legacy demo is isolated on its own page so Fabric v5 and v7 never share a global. -->
         <script src="https://cdn.jsdelivr.net/npm/fabric@5.5.2/dist/fabric.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor@1.5.2/dist/image-editor.min.js"></script>
-        <script src="js/legacy-v1.js?v=2.0.0"></script>
+        <script src="js/legacy-v1.js?v=2.1.0"></script>
     </body>
 </html>
