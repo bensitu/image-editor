@@ -10,7 +10,6 @@ with image loading, scale and rotation, mask creation, crop, Mosaic mode, histor
 (undo/redo), and base64/file export — exposed as a single canonical class
 with a stable public surface.
 
-
 ## Demo
 
 [https://bensitu.github.io/image-editor/](https://bensitu.github.io/image-editor/)
