@@ -1,4 +1,6 @@
 import { isMaskObject } from '../core/public-types.js';
+import { markMaskObject } from '../core/editor-object-kind.js';
+import { placeMaskObject } from '../core/layer-order.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
@@ -296,18 +298,19 @@ export function createMask(context, config = {}) {
     if ('strokeDashArray' in styles) {
         maskObject.strokeDashArray = styles.strokeDashArray;
     }
-    maskObject.originalAlpha = resolvedConfig.alpha;
-    maskObject.originalStroke = maskObject.stroke;
-    maskObject.originalStrokeWidth = maskObject.strokeWidth;
-    attachMaskHoverHandlers(maskObject);
     const nextId = context.getMaskCounter() + 1;
     context.setMaskCounter(nextId);
-    maskObject.maskId = nextId;
-    maskObject.maskUid = createMaskUid(nextId);
-    maskObject.maskName = `${options.maskName}${nextId}`;
+    markMaskObject(maskObject, {
+        maskId: nextId,
+        maskUid: createMaskUid(nextId),
+        maskName: `${options.maskName}${nextId}`,
+        originalAlpha: resolvedConfig.alpha,
+        originalStroke: maskObject.stroke,
+        originalStrokeWidth: maskObject.strokeWidth,
+    });
+    attachMaskHoverHandlers(maskObject);
     context.setLastMask(maskObject);
-    canvas.add(maskObject);
-    canvas.bringObjectToFront(maskObject);
+    placeMaskObject(canvas, maskObject);
     context.updateMaskList();
     if (resolvedConfig.selectable !== false) {
         canvas.setActiveObject(maskObject);
@@ -324,13 +327,35 @@ export function createMask(context, config = {}) {
     }
     return maskObject;
 }
+function isActiveSelectionObject(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
+}
+function getSelectedMaskObjects(canvas) {
+    const active = canvas.getActiveObject();
+    if (!active)
+        return [];
+    if (!isActiveSelectionObject(active))
+        return isMaskObject(active) ? [active] : [];
+    const getObjects = active.getObjects;
+    const objects = typeof getObjects === 'function' ? getObjects.call(active) : [];
+    return objects.filter(isMaskObject);
+}
 export function removeSelectedMask(context) {
-    const active = context.canvas.getActiveObject();
-    if (!active || !isMaskObject(active))
+    const selectedMasks = getSelectedMaskObjects(context.canvas);
+    if (selectedMasks.length === 0)
         return;
-    context.removeLabelForMask(active);
-    detachMaskHoverHandlers(active);
-    context.canvas.remove(active);
+    for (const mask of selectedMasks) {
+        context.removeLabelForMask(mask);
+        detachMaskHoverHandlers(mask);
+        context.canvas.remove(mask);
+    }
     context.canvas.discardActiveObject();
     context.updateMaskList();
     context.canvas.renderAll();

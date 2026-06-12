@@ -1,5 +1,6 @@
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
+import { markSessionObject } from '../core/editor-object-kind.js';
 export function removeLabelForMask(context, mask) {
     if (!context.canvas || !mask.labelObject)
         return;
@@ -53,6 +54,7 @@ export function createLabelForMask(context, mask) {
         };
         labelTextObject = new fabricModule.FabricText(labelText, textOptions);
     }
+    markSessionObject(labelTextObject, 'maskLabel');
     labelTextObject.maskLabel = true;
     mask.labelObject = labelTextObject;
     canvas.add(labelTextObject);

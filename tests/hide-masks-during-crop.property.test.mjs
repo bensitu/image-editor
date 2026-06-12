@@ -179,8 +179,11 @@ function makeOriginalImage() {
  */
 function makeMockMask(maskId, styleSeed) {
     const mask = {
+        editorObjectKind: 'mask',
         type: 'rect',
         maskId,
+        maskUid: `mask-${maskId}`,
+        maskName: `mask${maskId}`,
         // Pre-crop live style — backs this set up on entry
         // and restores it on cancel.
         opacity: styleSeed.opacity,
@@ -305,8 +308,7 @@ const maskStyleArb = fc.record({
 
 /**
  * A small collection of masks, identified by sequential `maskId` so
- * `isMaskObject` (`'maskId' in obj && typeof maskId === 'number'`)
- * matches all of them. Cardinality is bounded at 5 to keep the property
+ * `isMaskObject` matches all of them. Cardinality is bounded at 5 to keep the property
  * fast while still exercising the per-mask loop more than once.
  */
 const maskSetArb = fc

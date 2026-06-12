@@ -125,6 +125,7 @@
 import type * as FabricNS from 'fabric';
 
 import { CropApplyError } from '../core/errors.js';
+import { markSessionObject } from '../core/editor-object-kind.js';
 import type {
     CropHandler,
     CropPrevEvented,
@@ -858,6 +859,7 @@ export function enterCropMode(context: CropControllerContext): void {
     canvas.add(cropRect);
     // Tag the rect so the state serializer's session-only filter
     // excludes it from snapshots taken while the session is open.
+    markSessionObject(cropRect, 'cropRect');
     (cropRect as FabricNS.Rect & { isCropRect?: boolean }).isCropRect = true;
     canvas.bringObjectToFront(cropRect);
     canvas.setActiveObject(cropRect);

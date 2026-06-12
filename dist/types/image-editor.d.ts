@@ -7,7 +7,7 @@
  * @module
  */
 import { type CanvasJson } from './core/state-serializer.js';
-import type { Base64ExportOptions, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllMasksOptions, ResolvedMosaicConfig } from './core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, Base64ExportOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
  * crop, undo/redo, and multi-format export.
@@ -35,6 +35,10 @@ export declare class ImageEditor {
     private currentLayoutMode;
     private readonly defaultMosaicConfig;
     private currentMosaicConfig;
+    private readonly defaultTextConfig;
+    private currentTextConfig;
+    private readonly defaultDrawConfig;
+    private currentDrawConfig;
     private canvas;
     private canvasElement;
     private containerElement;
@@ -51,6 +55,7 @@ export declare class ImageEditor {
     private currentImageMimeType;
     private maskCounter;
     private lastMask;
+    private annotationCounter;
     private lastSnapshot;
     private readonly historyManager;
     /**
@@ -91,6 +96,8 @@ export declare class ImageEditor {
      */
     private cropSession;
     private mosaicSession;
+    private textSession;
+    private drawSession;
     /**
      * Managed registry of DOM event listeners owned by this editor.
      *
@@ -101,6 +108,8 @@ export declare class ImageEditor {
      * `isDisposed === true`.
      */
     private domBindings;
+    private keyboardDocument;
+    private keyboardHandler;
     private isDisposed;
     /**
      * When `true`, {@link saveState} is a no-op.  Used by
@@ -162,6 +171,11 @@ export declare class ImageEditor {
     private initCanvas;
     private bindDomEvents;
     private bindElementIfExists;
+    private bindKeyboardEvents;
+    private isNativeTextInputActive;
+    private isFabricTextEditingActive;
+    private handleKeyboardEvent;
+    private finalizeActiveTextEditingIfNeeded;
     /**
      * Read a `File` selected via the upload control as a base64 data URL
      * and route it through the transactional `loadImage` pipeline.
@@ -238,10 +252,15 @@ export declare class ImageEditor {
     private emitOptionCallback;
     private getImageInfo;
     private getMasks;
+    getAnnotations(): AnnotationObject[];
     private getMaskCollectionSignature;
+    private getAnnotationCollectionSignature;
+    private getActiveToolMode;
+    private isToolModeActive;
     private getEditorState;
     private emitImageChanged;
     private emitMasksChanged;
+    private emitAnnotationsChanged;
     private emitBusyChangeIfChanged;
     private buildSelection;
     private withSelectionChangeContext;
@@ -356,7 +375,7 @@ export declare class ImageEditor {
      */
     saveState(): void;
     private saveStateInternal;
-    private restoreActiveMaskAfterSnapshot;
+    private restoreActiveObjectAfterSnapshot;
     /**
      * Undoes the last recorded action.
      *
@@ -451,10 +470,52 @@ export declare class ImageEditor {
     private hideAllMaskLabels;
     private syncMaskLabel;
     private showLabelForMask;
+    private handleObjectMovingScalingRotating;
+    private handleObjectModified;
     private handleSelectionChanged;
     private buildMaskListContext;
     private updateMaskList;
     private updateMaskListSelection;
+    enterTextMode(): void;
+    exitTextMode(): void;
+    isTextMode(): boolean;
+    createTextAnnotation(config?: TextAnnotationConfig): TextAnnotationObject | null;
+    enterDrawMode(): void;
+    exitDrawMode(): void;
+    isDrawMode(): boolean;
+    getTextConfig(): Readonly<ResolvedTextAnnotationConfig>;
+    setTextConfig(config: TextAnnotationConfig): void;
+    resetTextConfig(): void;
+    setTextColor(color: string): void;
+    setTextFontSize(size: number): void;
+    getDrawConfig(): Readonly<ResolvedDrawConfig>;
+    setDrawConfig(config: DrawConfig): void;
+    resetDrawConfig(): void;
+    setDrawColor(color: string): void;
+    setDrawBrushSize(size: number): void;
+    removeSelectedAnnotation(): void;
+    removeAllAnnotations(options?: RemoveAllAnnotationsOptions): void;
+    updateAnnotation(annotationId: number, config: AnnotationUpdateConfig): void;
+    updateSelectedAnnotation(config: AnnotationUpdateConfig): void;
+    deleteSelectedObject(): void;
+    bringSelectedObjectForward(): void;
+    sendSelectedObjectBackward(): void;
+    bringSelectedObjectToFront(): void;
+    sendSelectedObjectToBack(): void;
+    private buildAnnotationManagerContext;
+    private buildAnnotationListContext;
+    private updateAnnotationList;
+    private updateAnnotationListSelection;
+    private buildTextControllerContext;
+    private buildDrawControllerContext;
+    private applyTextConfigPatch;
+    private applyDrawConfigPatch;
+    private applyTextColorInput;
+    private applyTextFontSizeInput;
+    private applyDrawColorInput;
+    private applyDrawBrushSizeInput;
+    private getSelectedCanvasObjects;
+    private moveSelectedEditableObject;
     /**
      * Bakes all current masks into the image:
      * exports the masked image, removes the masks, and re-imports the result
@@ -528,7 +589,7 @@ export declare class ImageEditor {
      *
      * @example
      * ```ts
-     * const file = await editor.exportImageFile({ fileType: 'png', mergeMask: false});
+     * const file = await editor.exportImageFile({ fileType: 'png', mergeMasks: false});
      * const formData = new FormData;
      * formData.append('image', file);
      * ```
@@ -548,6 +609,7 @@ export declare class ImageEditor {
      * the merge needs.
      */
     private buildMergeMasksContext;
+    private buildMergeAnnotationsContext;
     /**
      * Capture a snapshot string suitable for `loadFromState` without
      * pushing it onto the history stack. Used by the merge and crop
@@ -560,6 +622,7 @@ export declare class ImageEditor {
      */
     private captureSnapshotInternal;
     private getActiveMaskForSnapshot;
+    private getActiveAnnotationForSnapshot;
     enterMosaicMode(): void;
     exitMosaicMode(): void;
     isMosaicMode(): boolean;
@@ -626,6 +689,7 @@ export declare class ImageEditor {
      */
     private buildCropControllerContext;
     private updateInputs;
+    mergeAnnotations(): Promise<void>;
     private updateUi;
     private setControlEnabled;
     private recordElementOriginalState;

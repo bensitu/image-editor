@@ -1,4 +1,5 @@
 import { reportError, reportWarning } from '../core/callback-reporter.js';
+import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -24,6 +25,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         lastSnapshot: context.getLastSnapshot(),
         canvasJson: serializeCanvas(context.canvas),
         maskCounter: context.getMaskCounter(),
+        annotationCounter: getAnnotationCounter(context),
         currentScale: context.getCurrentScale(),
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
@@ -45,23 +47,25 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         context.canvas.discardActiveObject();
         context.canvas.clear();
         context.canvas.backgroundColor = context.options.backgroundColor;
-        fabricImage.set({
+        const baseImage = markBaseImageObject(fabricImage);
+        baseImage.set({
             originX: 'left',
             originY: 'top',
             selectable: false,
             evented: false,
         });
-        const layout = computeLayout(context, fabricImage);
+        const layout = computeLayout(context, baseImage);
         applyCanvasDimensions(context.canvas, layout.canvasWidth, layout.canvasHeight, context.containerElement);
-        fabricImage.set({ left: layout.imageLeft, top: layout.imageTop });
-        fabricImage.scale(layout.imageScale);
-        context.canvas.add(fabricImage);
-        context.canvas.sendObjectToBack(fabricImage);
-        context.setOriginalImage(fabricImage);
+        baseImage.set({ left: layout.imageLeft, top: layout.imageTop });
+        baseImage.scale(layout.imageScale);
+        context.canvas.add(baseImage);
+        context.canvas.sendObjectToBack(baseImage);
+        context.setOriginalImage(baseImage);
         context.setBaseImageScale(layout.baseImageScale);
         context.setCurrentScale(1);
         context.setCurrentRotation(0);
         context.setMaskCounter(0);
+        setAnnotationCounter(context, 0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
         context.canvas.renderAll();
@@ -202,6 +206,15 @@ function serializeCanvas(canvas) {
     const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     return JSON.stringify(json);
 }
+function getAnnotationCounter(context) {
+    const getter = context.getAnnotationCounter;
+    return typeof getter === 'function' ? getter.call(context) : 0;
+}
+function setAnnotationCounter(context, value) {
+    const setter = context.setAnnotationCounter;
+    if (typeof setter === 'function')
+        setter.call(context, value);
+}
 async function replayRollback(context, bundle) {
     try {
         await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
@@ -214,6 +227,7 @@ async function replayRollback(context, bundle) {
     context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
     context.setLastSnapshot(bundle.lastSnapshot);
     context.setMaskCounter(bundle.maskCounter);
+    setAnnotationCounter(context, bundle.annotationCounter);
     context.setCurrentScale(bundle.currentScale);
     context.setCurrentRotation(bundle.currentRotation);
     context.setBaseImageScale(bundle.baseImageScale);

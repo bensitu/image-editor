@@ -23,7 +23,8 @@ export const DEFAULT_OPTIONS = {
     exportMultiplier: 1,
     maxExportPixels: 50000000,
     exportAreaByDefault: 'image',
-    mergeMaskByDefault: true,
+    mergeMasksByDefault: true,
+    mergeAnnotationsByDefault: true,
     defaultMaskWidth: 50,
     defaultMaskHeight: 80,
     defaultMaskConfig: EMPTY_DEFAULT_MASK_CONFIG,
@@ -31,6 +32,8 @@ export const DEFAULT_OPTIONS = {
     maskLabelOnSelect: true,
     maskLabelOffset: 3,
     maskName: 'mask',
+    textAnnotationName: 'text',
+    drawAnnotationName: 'draw',
     groupSelection: false,
     showPlaceholder: true,
     initialImageBase64: null,
@@ -42,6 +45,7 @@ export const DEFAULT_OPTIONS = {
     onBusyChange: null,
     onEditorDisposed: null,
     onMasksChanged: null,
+    onAnnotationsChanged: null,
     onSelectionChange: null,
     onError: null,
     onWarning: null,
@@ -82,6 +86,37 @@ export const DEFAULT_MOSAIC_CONFIG = Object.freeze({
     outputFileType: 'source',
     outputQuality: undefined,
 });
+export const DEFAULT_TEXT_ANNOTATION_CONFIG = Object.freeze({
+    text: 'Text',
+    left: undefined,
+    top: undefined,
+    width: 200,
+    fontSize: 32,
+    fontFamily: 'sans-serif',
+    fontWeight: 'normal',
+    fill: '#ff0000',
+    backgroundColor: 'rgba(255,255,255,0)',
+    textAlign: 'left',
+    angle: 0,
+    selectable: true,
+    evented: true,
+    editable: true,
+    enterEditing: true,
+    annotationHidden: false,
+    annotationLocked: false,
+    styles: Object.freeze({}),
+});
+export const DEFAULT_DRAW_CONFIG = Object.freeze({
+    brushSize: 8,
+    color: '#ff0000',
+    opacity: 1,
+    lineCap: 'round',
+    lineJoin: 'round',
+    selectable: true,
+    evented: true,
+    annotationHidden: false,
+    annotationLocked: false,
+});
 const KNOWN_TOP_LEVEL_KEYS = new Set([
     'canvasWidth',
     'canvasHeight',
@@ -103,7 +138,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'exportMultiplier',
     'maxExportPixels',
     'exportAreaByDefault',
-    'mergeMaskByDefault',
+    'mergeMasksByDefault',
+    'mergeAnnotationsByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
     'defaultMaskConfig',
@@ -111,6 +147,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maskLabelOnSelect',
     'maskLabelOffset',
     'maskName',
+    'textAnnotationName',
+    'drawAnnotationName',
     'groupSelection',
     'showPlaceholder',
     'initialImageBase64',
@@ -122,12 +160,15 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'onBusyChange',
     'onEditorDisposed',
     'onMasksChanged',
+    'onAnnotationsChanged',
     'onSelectionChange',
     'onError',
     'onWarning',
     'label',
     'crop',
     'defaultMosaicConfig',
+    'defaultTextConfig',
+    'defaultDrawConfig',
 ]);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
@@ -365,6 +406,180 @@ export function areResolvedMosaicConfigsEqual(left, right) {
         left.outputFileType === right.outputFileType &&
         left.outputQuality === right.outputQuality);
 }
+export function cloneResolvedTextAnnotationConfig(config) {
+    return {
+        ...config,
+        styles: { ...config.styles },
+    };
+}
+export function cloneResolvedDrawConfig(config) {
+    return { ...config };
+}
+function normalizeTextAlign(value, fallback) {
+    return value === 'left' || value === 'center' || value === 'right' || value === 'justify'
+        ? value
+        : fallback;
+}
+function normalizePositiveNumber(value, fallback) {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+function normalizeBoolean(value, fallback) {
+    return typeof value === 'boolean' ? value : fallback;
+}
+function normalizeString(value, fallback) {
+    return typeof value === 'string' ? value : fallback;
+}
+function normalizeTextLeftTop(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+function normalizeTextboxStyles(value) {
+    if (!isConfigObject(value))
+        return {};
+    return { ...value };
+}
+export function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedTextAnnotationConfig(current);
+    if (hasOwn(raw, 'text'))
+        next.text = normalizeString(raw.text, fallback.text);
+    if (hasOwn(raw, 'left'))
+        next.left = normalizeTextLeftTop(raw.left);
+    if (hasOwn(raw, 'top'))
+        next.top = normalizeTextLeftTop(raw.top);
+    if (hasOwn(raw, 'width'))
+        next.width = normalizePositiveNumber(raw.width, fallback.width);
+    if (hasOwn(raw, 'fontSize')) {
+        next.fontSize = normalizePositiveNumber(raw.fontSize, fallback.fontSize);
+    }
+    if (hasOwn(raw, 'fontFamily')) {
+        next.fontFamily = normalizeString(raw.fontFamily, fallback.fontFamily);
+    }
+    if (hasOwn(raw, 'fontWeight')) {
+        next.fontWeight =
+            typeof raw.fontWeight === 'string' || typeof raw.fontWeight === 'number'
+                ? raw.fontWeight
+                : fallback.fontWeight;
+    }
+    if (hasOwn(raw, 'fill'))
+        next.fill = normalizeString(raw.fill, fallback.fill);
+    if (hasOwn(raw, 'backgroundColor')) {
+        next.backgroundColor = normalizeString(raw.backgroundColor, fallback.backgroundColor);
+    }
+    if (hasOwn(raw, 'textAlign'))
+        next.textAlign = normalizeTextAlign(raw.textAlign, fallback.textAlign);
+    if (hasOwn(raw, 'angle'))
+        next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
+    if (hasOwn(raw, 'selectable'))
+        next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
+    if (hasOwn(raw, 'evented'))
+        next.evented = normalizeBoolean(raw.evented, fallback.evented);
+    if (hasOwn(raw, 'editable'))
+        next.editable = normalizeBoolean(raw.editable, fallback.editable);
+    if (hasOwn(raw, 'enterEditing')) {
+        next.enterEditing = normalizeBoolean(raw.enterEditing, fallback.enterEditing);
+    }
+    if (hasOwn(raw, 'annotationHidden')) {
+        next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
+    }
+    if (hasOwn(raw, 'annotationLocked')) {
+        next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
+    }
+    if (hasOwn(raw, 'styles')) {
+        next.styles = {
+            ...next.styles,
+            ...normalizeTextboxStyles(raw.styles),
+        };
+    }
+    return next;
+}
+export function normalizeTextAnnotationConfig(input, fallback) {
+    if (!isConfigObject(input))
+        return cloneResolvedTextAnnotationConfig(fallback);
+    return mergeTextAnnotationConfigPatch(fallback, input);
+}
+function normalizeLineCap(value, fallback) {
+    return value === 'butt' || value === 'round' || value === 'square' ? value : fallback;
+}
+function normalizeLineJoin(value, fallback) {
+    return value === 'bevel' || value === 'round' || value === 'miter' ? value : fallback;
+}
+function normalizeOpacity(value, fallback) {
+    if (typeof value !== 'number' || !Number.isFinite(value))
+        return fallback;
+    return Math.max(0, Math.min(1, value));
+}
+export function mergeDrawConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedDrawConfig(current);
+    if (hasOwn(raw, 'brushSize')) {
+        next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn(raw, 'color'))
+        next.color = normalizeString(raw.color, fallback.color);
+    if (hasOwn(raw, 'opacity'))
+        next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
+    if (hasOwn(raw, 'lineCap'))
+        next.lineCap = normalizeLineCap(raw.lineCap, fallback.lineCap);
+    if (hasOwn(raw, 'lineJoin'))
+        next.lineJoin = normalizeLineJoin(raw.lineJoin, fallback.lineJoin);
+    if (hasOwn(raw, 'selectable'))
+        next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
+    if (hasOwn(raw, 'evented'))
+        next.evented = normalizeBoolean(raw.evented, fallback.evented);
+    if (hasOwn(raw, 'annotationHidden')) {
+        next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
+    }
+    if (hasOwn(raw, 'annotationLocked')) {
+        next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
+    }
+    return next;
+}
+export function normalizeDrawConfig(input, fallback) {
+    if (!isConfigObject(input))
+        return cloneResolvedDrawConfig(fallback);
+    return mergeDrawConfigPatch(fallback, input);
+}
+export function areResolvedTextAnnotationConfigsEqual(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+}
+export function areResolvedDrawConfigsEqual(left, right) {
+    return (left.brushSize === right.brushSize &&
+        left.color === right.color &&
+        left.opacity === right.opacity &&
+        left.lineCap === right.lineCap &&
+        left.lineJoin === right.lineJoin &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked);
+}
+export function getInvalidTextAnnotationConfigFields(input) {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid = [];
+    if (hasOwn(raw, 'text') && typeof raw.text !== 'string')
+        invalid.push('text');
+    if (hasOwn(raw, 'width') && !isFiniteNumber(raw.width))
+        invalid.push('width');
+    if (hasOwn(raw, 'fontSize') && !isFiniteNumber(raw.fontSize))
+        invalid.push('fontSize');
+    if (hasOwn(raw, 'fontFamily') && typeof raw.fontFamily !== 'string')
+        invalid.push('fontFamily');
+    if (hasOwn(raw, 'fill') && typeof raw.fill !== 'string') {
+        invalid.push('fill');
+    }
+    return invalid;
+}
+export function getInvalidDrawConfigFields(input) {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid = [];
+    if (hasOwn(raw, 'brushSize') && !isFiniteNumber(raw.brushSize))
+        invalid.push('brushSize');
+    if (hasOwn(raw, 'color') && typeof raw.color !== 'string')
+        invalid.push('color');
+    if (hasOwn(raw, 'opacity') && !isFiniteNumber(raw.opacity))
+        invalid.push('opacity');
+    return invalid;
+}
 export function resolveOptions(input) {
     var _a, _b, _c, _d;
     const raw = input !== null && input !== void 0 ? input : {};
@@ -372,8 +587,13 @@ export function resolveOptions(input) {
     for (const key of Object.keys(raw)) {
         if (!KNOWN_TOP_LEVEL_KEYS.has(key))
             continue;
-        if (key === 'label' || key === 'crop' || key === 'defaultMosaicConfig')
+        if (key === 'label' ||
+            key === 'crop' ||
+            key === 'defaultMosaicConfig' ||
+            key === 'defaultTextConfig' ||
+            key === 'defaultDrawConfig') {
             continue;
+        }
         if (key === 'onImageLoadStart' ||
             key === 'onImageLoaded' ||
             key === 'onImageCleared' ||
@@ -381,6 +601,7 @@ export function resolveOptions(input) {
             key === 'onBusyChange' ||
             key === 'onEditorDisposed' ||
             key === 'onMasksChanged' ||
+            key === 'onAnnotationsChanged' ||
             key === 'onSelectionChange' ||
             key === 'onError' ||
             key === 'onWarning') {
@@ -476,6 +697,7 @@ export function resolveOptions(input) {
     resolved.onBusyChange = normalizeCallback(raw.onBusyChange);
     resolved.onEditorDisposed = normalizeCallback(raw.onEditorDisposed);
     resolved.onMasksChanged = normalizeCallback(raw.onMasksChanged);
+    resolved.onAnnotationsChanged = normalizeCallback(raw.onAnnotationsChanged);
     resolved.onSelectionChange = normalizeCallback(raw.onSelectionChange);
     resolved.onError = normalizeCallback(raw.onError);
     resolved.onWarning = normalizeCallback(raw.onWarning);
@@ -519,11 +741,18 @@ export function resolveOptions(input) {
         Object.freeze(defaultMosaicConfig.previewStrokeDashArray);
     }
     Object.freeze(defaultMosaicConfig);
+    const defaultTextConfig = normalizeTextAnnotationConfig(raw.defaultTextConfig, DEFAULT_TEXT_ANNOTATION_CONFIG);
+    Object.freeze(defaultTextConfig.styles);
+    Object.freeze(defaultTextConfig);
+    const defaultDrawConfig = normalizeDrawConfig(raw.defaultDrawConfig, DEFAULT_DRAW_CONFIG);
+    Object.freeze(defaultDrawConfig);
     return Object.freeze({
         ...resolved,
         label,
         crop,
         defaultMosaicConfig,
+        defaultTextConfig,
+        defaultDrawConfig,
     });
 }
 //# sourceMappingURL=default-options.js.map

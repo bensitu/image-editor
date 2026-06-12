@@ -56,7 +56,10 @@ const { exportImageBase64 } = await import('../src/export/export-service.ts');
  */
 function makeMockMask({ maskId, opacity, fill, stroke, strokeWidth, selectable, lockRotation }) {
     return {
+        editorObjectKind: 'mask',
         maskId,
+        maskUid: `mask-${maskId}`,
+        maskName: `mask${maskId}`,
         opacity,
         fill,
         stroke,
@@ -127,7 +130,8 @@ function makeContext(canvas, originalImage) {
             downsampleQuality: 0.92,
             exportMultiplier: 1,
             exportAreaByDefault: 'image',
-            mergeMaskByDefault: true,
+            mergeMasksByDefault: true,
+            mergeAnnotationsByDefault: true,
         },
         fabric: {},
         isImageLoaded: () => true,
@@ -213,7 +217,7 @@ const maskListArb = fc
 
 // ─── — successful export restores live styles ─────────────────
 
-test("after a successful exportImageBase64({exportArea:'image', mergeMask:true}), every mask style equals the pre-export value", async () => {
+test("after a successful exportImageBase64({exportArea:'image', mergeMasks:true}), every mask style equals the pre-export value", async () => {
     await fc.assert(
         fc.asyncProperty(maskListArb, async (masks) => {
             const pre = snapshotMaskStyles(masks);
@@ -232,7 +236,7 @@ test("after a successful exportImageBase64({exportArea:'image', mergeMask:true})
 
             await exportImageBase64(ctx, {
                 exportArea: 'image',
-                mergeMask: true,
+                mergeMasks: true,
                 fileType: 'png',
             });
 
@@ -312,7 +316,7 @@ test('when canvas.toDataURL throws, exportImageBase64 still restores every mask 
             // restore has run.
             const rejection = await exportImageBase64(ctx, {
                 exportArea: 'image',
-                mergeMask: true,
+                mergeMasks: true,
             }).then(
                 (value) => ({ kind: 'resolved', value }),
                 (error) => ({ kind: 'rejected', error }),

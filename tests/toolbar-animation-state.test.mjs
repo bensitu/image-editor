@@ -103,6 +103,7 @@ function installDom({ containerWidth = 800, containerHeight = 600 } = {}) {
 
 class FakeImage {
     constructor() {
+        this.editorObjectKind = 'baseImage';
         this.type = 'image';
         this.width = 1000;
         this.height = 700;

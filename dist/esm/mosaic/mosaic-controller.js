@@ -1,4 +1,5 @@
 import { reportError, reportWarning } from '../core/callback-reporter.js';
+import { markBaseImageObject, markSessionObject } from '../core/editor-object-kind.js';
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
 import { Command } from '../history/history-manager.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
@@ -65,6 +66,7 @@ function createPreviewCircle(context) {
         objectCaching: false,
         visible: false,
     });
+    markSessionObject(circle, 'mosaicPreviewCircle');
     circle.isMosaicPreview = true;
     return circle;
 }
@@ -107,6 +109,7 @@ function createPreviewImage(context, sourceImage, rasterCache) {
         objectCaching: false,
         visible: true,
     });
+    markSessionObject(image, 'mosaicPreviewImage');
     image.isMosaicPreview = true;
     return image;
 }
@@ -321,7 +324,7 @@ function replaceBaseImage(context, oldImage, newImage, mimeType) {
         canvas.add(newImage);
         newAdded = true;
         canvas.sendObjectToBack(newImage);
-        context.setOriginalImage(newImage);
+        context.setOriginalImage(markBaseImageObject(newImage));
         context.setCurrentImageMimeType(mimeType);
         canvas.renderAll();
     }

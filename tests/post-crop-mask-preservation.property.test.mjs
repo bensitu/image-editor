@@ -235,8 +235,10 @@ function makeMockMask({
     lockRotation = false,
 }) {
     const mask = {
+        editorObjectKind: 'mask',
         type: 'rect',
         maskId,
+        maskUid: `mask-${maskId}`,
         maskName: `mask${maskId}`,
         originalAlpha: opacity,
         originalStroke: stroke,

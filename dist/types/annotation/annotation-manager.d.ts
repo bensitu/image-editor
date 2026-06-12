@@ -1,0 +1,24 @@
+import type * as FabricNS from 'fabric';
+import { type AnnotationObject, type AnnotationUpdateConfig, type RemoveAllAnnotationsOptions } from '../core/public-types.js';
+export interface AnnotationManagerContext {
+    canvas: FabricNS.Canvas;
+    saveCanvasState(): void;
+    updateUi(): void;
+}
+export interface AnnotationListContext {
+    canvas: FabricNS.Canvas | null;
+    getListElementId(): string | null | undefined;
+    onAnnotationSelected(annotation: AnnotationObject): void;
+}
+export declare function getActiveSelectionObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[];
+export declare function getAnnotations(canvas: FabricNS.Canvas): AnnotationObject[];
+export declare function getSelectedAnnotations(canvas: FabricNS.Canvas): AnnotationObject[];
+export declare function updateAnnotationObject(annotation: AnnotationObject, config: AnnotationUpdateConfig): boolean;
+export declare function updateAnnotation(context: AnnotationManagerContext, annotationId: number, config: AnnotationUpdateConfig): boolean;
+export declare function updateSelectedAnnotation(context: AnnotationManagerContext, config: AnnotationUpdateConfig): boolean;
+export declare function removeAnnotationObjects(context: AnnotationManagerContext, objects: AnnotationObject[], options?: RemoveAllAnnotationsOptions): number;
+export declare function removeSelectedAnnotation(context: AnnotationManagerContext): number;
+export declare function removeAllAnnotations(context: AnnotationManagerContext, options?: RemoveAllAnnotationsOptions): number;
+export declare function renderAnnotationList(context: AnnotationListContext): void;
+export declare function updateAnnotationListSelection(context: AnnotationListContext, selectedAnnotation: AnnotationObject | null): void;
+//# sourceMappingURL=annotation-manager.d.ts.map

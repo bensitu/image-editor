@@ -9,7 +9,7 @@
  *
  * Scope:
  *   - ImageEditor is exported as both default and named export.
- *   - isMaskObject is the only additional runtime export.
+ *   - Editor object guards are the only additional runtime exports.
  *   - Public type exports are present and internal helpers do not leak through the
  *     barrel.
  *
@@ -59,14 +59,20 @@ test('barrel exports ImageEditor as both named and default', async () => {
     );
 });
 
-test('barrel exports isMaskObject', async () => {
+test('barrel exports editor object runtime guards', async () => {
     const source = await readBarrel();
 
-    assert.match(
-        source,
-        /export\s*\{\s*isMaskObject\s*\}/,
-        'barrel must contain `export { isMaskObject }`',
-    );
+    for (const guard of [
+        'isAnnotationObject',
+        'isBaseImageObject',
+        'isDrawAnnotationObject',
+        'isEditableOverlayObject',
+        'isMaskObject',
+        'isSessionObject',
+        'isTextAnnotationObject',
+    ]) {
+        assert.match(source, new RegExp(`\\b${guard}\\b`), `barrel must export \`${guard}\``);
+    }
 });
 
 test('barrel re-exports documented public type names', async () => {
@@ -76,17 +82,33 @@ test('barrel re-exports documented public type names', async () => {
         'ImageEditorOptions',
         'ResolvedOptions',
         'LayoutMode',
+        'EditorObjectKind',
+        'EditorToolMode',
+        'AnnotationType',
+        'SessionObjectType',
+        'EditorObjectMeta',
         'LabelConfig',
         'CropConfig',
         'CropExportFileType',
         'MosaicConfig',
         'ResolvedMosaicConfig',
         'MosaicOutputFileType',
+        'TextAnnotationConfig',
+        'ResolvedTextAnnotationConfig',
+        'DrawConfig',
+        'ResolvedDrawConfig',
         'DefaultMaskConfig',
         'MaskConfig',
         'MaskObject',
         'MaskNumericProp',
         'ResolvedMaskConfig',
+        'BaseImageObject',
+        'SessionObject',
+        'AnnotationObject',
+        'TextAnnotationObject',
+        'DrawAnnotationObject',
+        'AnnotationUpdateConfig',
+        'RemoveAllAnnotationsOptions',
         'ExportArea',
         'ImageInfo',
         'ImageEditorState',

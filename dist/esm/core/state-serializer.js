@@ -1,5 +1,8 @@
-import { isMaskObject } from './public-types.js';
+import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
+import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 export const SNAPSHOT_CUSTOM_KEYS = [
+    'editorObjectKind',
+    'sessionObjectType',
     'maskId',
     'maskUid',
     'maskName',
@@ -17,6 +20,11 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'cornerColor',
     'cornerSize',
     'isMosaicPreview',
+    'annotationId',
+    'annotationType',
+    'annotationName',
+    'annotationHidden',
+    'annotationLocked',
 ];
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
@@ -26,6 +34,12 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         const jsonObject = jsonObjects[index];
         if (!liveObject || !jsonObject)
             continue;
+        if (typeof liveObject.editorObjectKind === 'string') {
+            jsonObject.editorObjectKind = liveObject.editorObjectKind;
+        }
+        if (typeof liveObject.sessionObjectType === 'string') {
+            jsonObject.sessionObjectType = liveObject.sessionObjectType;
+        }
         if (typeof liveObject.maskId === 'number')
             jsonObject.maskId = liveObject.maskId;
         if (typeof liveObject.maskUid === 'string')
@@ -70,6 +84,21 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
             jsonObject.maskLabel = true;
         if (liveObject.isMosaicPreview === true)
             jsonObject.isMosaicPreview = true;
+        if (typeof liveObject.annotationId === 'number') {
+            jsonObject.annotationId = liveObject.annotationId;
+        }
+        if (typeof liveObject.annotationType === 'string') {
+            jsonObject.annotationType = liveObject.annotationType;
+        }
+        if (typeof liveObject.annotationName === 'string') {
+            jsonObject.annotationName = liveObject.annotationName;
+        }
+        if (typeof liveObject.annotationHidden === 'boolean') {
+            jsonObject.annotationHidden = liveObject.annotationHidden;
+        }
+        if (typeof liveObject.annotationLocked === 'boolean') {
+            jsonObject.annotationLocked = liveObject.annotationLocked;
+        }
     }
 }
 function isActiveSelectionObject(object) {
@@ -91,22 +120,34 @@ export function saveState(input) {
         : typeof input.activeMaskId === 'number'
             ? input.activeMaskId
             : null;
+    const activeAnnotationId = activeObject && isAnnotationObject(activeObject)
+        ? activeObject.annotationId
+        : typeof input.activeAnnotationId === 'number'
+            ? input.activeAnnotationId
+            : null;
     if (isActiveSelectionObject(activeObject)) {
         canvas.discardActiveObject();
     }
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
     if (Array.isArray(jsonObj.objects)) {
-        jsonObj.objects = jsonObj.objects.filter((o) => o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true);
+        jsonObj.objects = jsonObj.objects.filter((o) => o.editorObjectKind !== 'session' &&
+            o.isCropRect !== true &&
+            o.maskLabel !== true &&
+            o.isMosaicPreview !== true);
     }
     jsonObj._editorState = {
         currentScale,
         currentRotation,
         baseImageScale,
         currentImageMimeType: (_c = input.currentImageMimeType) !== null && _c !== void 0 ? _c : null,
+        activeObjectKind: activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
     };
     if (activeMaskId !== null)
         jsonObj._editorState.activeMaskId = activeMaskId;
+    if (activeAnnotationId !== null) {
+        jsonObj._editorState.activeAnnotationId = activeAnnotationId;
+    }
     return JSON.stringify(jsonObj);
 }
 export async function loadFromState(input) {
@@ -122,7 +163,7 @@ export async function loadFromState(input) {
     }
     await canvas.loadFromJSON(json);
     const objects = canvas.getObjects();
-    restoreMaskPropsFromJson(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
+    restoreEditorObjectPropsFromJson(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -139,6 +180,16 @@ export async function loadFromState(input) {
     if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
         editorState.activeMaskId = json._editorState.activeMaskId;
     }
+    if (editorState &&
+        json._editorState &&
+        typeof json._editorState.activeAnnotationId === 'number') {
+        editorState.activeAnnotationId = json._editorState.activeAnnotationId;
+    }
+    if (editorState && json._editorState && 'activeObjectKind' in json._editorState) {
+        const kind = json._editorState.activeObjectKind;
+        editorState.activeObjectKind =
+            kind === 'mask' || kind === 'annotation' || kind === null ? kind : null;
+    }
     if (editorState && json._editorState && 'currentImageMimeType' in json._editorState) {
         const mimeType = json._editorState.currentImageMimeType;
         editorState.currentImageMimeType =
@@ -149,29 +200,54 @@ export async function loadFromState(input) {
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
-    const originalImage = ((_b = objects.find(isOriginalImageObject)) !== null && _b !== void 0 ? _b : null);
+    const maxAnnotationId = objects
+        .filter(isAnnotationObject)
+        .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
+    const masks = objects.filter(isMaskObject);
+    const annotations = objects.filter(isAnnotationObject);
+    const originalImage = (_b = objects.find(isBaseImageObject)) !== null && _b !== void 0 ? _b : null;
     return {
         editorState,
         maxMaskId,
+        maxAnnotationId,
         originalImage,
         objects,
+        masks,
+        annotations,
         jsonString,
     };
 }
-function isOriginalImageObject(object) {
-    if (isMaskObject(object))
-        return false;
-    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
-    if (type === 'image')
-        return true;
-    const isType = object.isType;
-    return typeof isType === 'function' && isType.call(object, 'image');
-}
-function restoreMaskPropsFromJson(canvasObjs, jsonObjs) {
-    var _a, _b, _c, _d, _e;
+function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
+    var _a, _b, _c, _d;
+    jsonObjs.forEach((jObj, index) => {
+        const canvasObj = canvasObjs[index];
+        if (!canvasObj)
+            return;
+        if (jObj.editorObjectKind === 'baseImage') {
+            markBaseImageObject(canvasObj);
+            return;
+        }
+        if (jObj.editorObjectKind === 'annotation' &&
+            typeof jObj.annotationId === 'number' &&
+            typeof jObj.annotationType === 'string' &&
+            typeof jObj.annotationName === 'string') {
+            markAnnotationObject(canvasObj, {
+                annotationId: jObj.annotationId,
+                annotationType: jObj.annotationType === 'draw' ? 'draw' : 'text',
+                annotationName: jObj.annotationName,
+                annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
+                annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
+            });
+            return;
+        }
+        if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
+            canvasObj.editorObjectKind = 'session';
+            canvasObj.sessionObjectType = jObj.sessionObjectType;
+        }
+    });
     const consumedCanvasIndexes = new Set();
     for (const jObj of jsonObjs) {
-        if (typeof jObj.maskId !== 'number')
+        if (jObj.editorObjectKind !== 'mask' || typeof jObj.maskId !== 'number')
             continue;
         const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
         const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
@@ -200,15 +276,19 @@ function restoreMaskPropsFromJson(canvasObjs, jsonObjs) {
         consumedCanvasIndexes.add(matchIndex);
         const match = canvasObjs[matchIndex];
         const maskObject = match;
-        maskObject.maskId = jObj.maskId;
-        if (typeof jObj.maskUid === 'string') {
-            maskObject.maskUid = jObj.maskUid;
-        }
-        maskObject.maskName = String((_d = jObj.maskName) !== null && _d !== void 0 ? _d : '');
-        maskObject.originalAlpha =
-            typeof jObj.originalAlpha === 'number'
+        const originalStroke = 'originalStroke' in jObj
+            ? jObj.originalStroke
+            : undefined;
+        markMaskObject(maskObject, {
+            maskId: jObj.maskId,
+            maskUid: typeof jObj.maskUid === 'string' ? jObj.maskUid : `mask-${jObj.maskId}`,
+            maskName: typeof jObj.maskName === 'string' ? jObj.maskName : '',
+            originalAlpha: typeof jObj.originalAlpha === 'number'
                 ? jObj.originalAlpha
-                : ((_e = maskObject.opacity) !== null && _e !== void 0 ? _e : 0.5);
+                : ((_d = maskObject.opacity) !== null && _d !== void 0 ? _d : 0.5),
+            originalStroke,
+            originalStrokeWidth: typeof jObj.originalStrokeWidth === 'number' ? jObj.originalStrokeWidth : undefined,
+        });
         if ('originalStroke' in jObj) {
             maskObject.originalStroke = jObj.originalStroke;
         }

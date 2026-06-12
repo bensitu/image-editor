@@ -101,7 +101,8 @@ function makeContext(overrides = {}) {
         exportMultiplier: 1,
         maxExportPixels: 50000000,
         exportAreaByDefault: 'image',
-        mergeMaskByDefault: true,
+        mergeMasksByDefault: true,
+        mergeAnnotationsByDefault: true,
         backgroundColor: 'transparent',
         ...(overrides.options ?? {}),
     };
@@ -126,14 +127,35 @@ function makeFakeOriginalImage(rect = { left: 10, top: 20, width: 30, height: 40
 
 function makeMask() {
     return {
+        editorObjectKind: 'mask',
         type: 'rect',
         maskId: 1,
+        maskUid: 'mask-1',
+        maskName: 'mask1',
         opacity: 0.5,
         fill: '#ff0000',
         stroke: '#00ff00',
         strokeWidth: 2,
         selectable: true,
         lockRotation: false,
+        visible: true,
+        set(patch) {
+            Object.assign(this, patch);
+            return this;
+        },
+        setCoords() {
+            return this;
+        },
+    };
+}
+
+function makeAnnotation({ id, hidden = false }) {
+    return {
+        editorObjectKind: 'annotation',
+        annotationId: id,
+        annotationType: 'text',
+        annotationName: `text${id}`,
+        annotationHidden: hidden,
         visible: true,
         set(patch) {
             Object.assign(this, patch);
@@ -371,8 +393,11 @@ test('exportImageBase64: hides mask labels during export and restores them after
         },
     };
     const mask = {
+        editorObjectKind: 'mask',
         type: 'rect',
         maskId: 1,
+        maskUid: 'mask-1',
+        maskName: 'mask1',
         labelObject: label,
         set(patch) {
             Object.assign(this, patch);
@@ -587,28 +612,28 @@ test('exportImageBase64: WebP image-area edge sealing preserves WebP output', as
     });
 });
 
-test('exportImageBase64: exportArea and mergeMask are independent', async () => {
+test('exportImageBase64: exportArea and mergeMasks are independent', async () => {
     const cases = [
         {
-            options: { exportArea: 'image', mergeMask: true, fileType: 'png' },
+            options: { exportArea: 'image', mergeMasks: true, fileType: 'png' },
             hasRegion: true,
             expectedMaskVisible: true,
             expectedBaked: true,
         },
         {
-            options: { exportArea: 'image', mergeMask: false, fileType: 'png' },
+            options: { exportArea: 'image', mergeMasks: false, fileType: 'png' },
             hasRegion: true,
             expectedMaskVisible: false,
             expectedBaked: false,
         },
         {
-            options: { exportArea: 'canvas', mergeMask: true, fileType: 'png' },
+            options: { exportArea: 'canvas', mergeMasks: true, fileType: 'png' },
             hasRegion: false,
             expectedMaskVisible: true,
             expectedBaked: true,
         },
         {
-            options: { exportArea: 'canvas', mergeMask: false, fileType: 'png' },
+            options: { exportArea: 'canvas', mergeMasks: false, fileType: 'png' },
             hasRegion: false,
             expectedMaskVisible: false,
             expectedBaked: false,
@@ -635,6 +660,80 @@ test('exportImageBase64: exportArea and mergeMask are independent', async () => 
         assert.equal(mask.stroke, '#00ff00', 'mask stroke must be restored');
         assert.equal(mask.strokeWidth, 2, 'mask strokeWidth must be restored');
         assert.equal(mask.selectable, true, 'mask selectable must be restored');
+    }
+});
+
+test('exportImageBase64: mergeMasks and mergeAnnotations independently control rendered overlays', async () => {
+    const cases = [
+        {
+            options: { mergeMasks: true, mergeAnnotations: true },
+            maskVisible: true,
+            visibleAnnotation: true,
+        },
+        {
+            options: { mergeMasks: false, mergeAnnotations: true },
+            maskVisible: false,
+            visibleAnnotation: true,
+        },
+        {
+            options: { mergeMasks: true, mergeAnnotations: false },
+            maskVisible: true,
+            visibleAnnotation: false,
+        },
+        {
+            options: { mergeMasks: false, mergeAnnotations: false },
+            maskVisible: false,
+            visibleAnnotation: false,
+        },
+    ];
+
+    for (const testCase of cases) {
+        const mask = makeMask();
+        const visibleAnnotation = makeAnnotation({ id: 1 });
+        const hiddenAnnotation = makeAnnotation({ id: 2, hidden: true });
+        const session = {
+            editorObjectKind: 'session',
+            sessionObjectType: 'cropRect',
+            visible: true,
+            set(patch) {
+                Object.assign(this, patch);
+            },
+        };
+        const canvas = {
+            ...makeMockCanvas(),
+            objects: [mask, visibleAnnotation, hiddenAnnotation, session],
+            getObjects() {
+                return this.objects;
+            },
+            toDataURL(options) {
+                assert.equal(mask.visible, testCase.maskVisible, 'mask visibility during render');
+                assert.equal(
+                    visibleAnnotation.visible,
+                    testCase.visibleAnnotation,
+                    'annotation visibility during render',
+                );
+                assert.equal(hiddenAnnotation.visible, false, 'hidden annotation stays hidden');
+                assert.equal(session.visible, false, 'session object is never rendered');
+                this.callOrder.push('toDataURL');
+                this.toDataURLArgs.push(options);
+                return 'data:image/png;base64,' + Buffer.from('export').toString('base64');
+            },
+        };
+        const ctx = makeContext({
+            canvas,
+            getOriginalImage: () => makeFakeOriginalImage(),
+        });
+
+        await exportImageBase64(ctx, {
+            exportArea: 'canvas',
+            fileType: 'png',
+            ...testCase.options,
+        });
+
+        assert.equal(mask.visible, true);
+        assert.equal(visibleAnnotation.visible, true);
+        assert.equal(hiddenAnnotation.visible, true);
+        assert.equal(session.visible, true);
     }
 });
 
@@ -738,7 +837,7 @@ test('exportImageFile: discards ActiveSelection before toDataURL', async () => {
     assert.ok(firstDiscard < firstRender);
 });
 
-test('exportImageFile: forwards exportArea and mergeMask independently', async () => {
+test('exportImageFile: forwards exportArea and mergeMasks independently', async () => {
     const { canvas, mask } = makeCanvasWithMask({
         expectedMaskVisible: false,
         expectedBaked: false,
@@ -750,7 +849,7 @@ test('exportImageFile: forwards exportArea and mergeMask independently', async (
 
     const file = await exportImageFile(ctx, {
         exportArea: 'canvas',
-        mergeMask: false,
+        mergeMasks: false,
         fileType: 'jpeg',
         fileName: 'canvas.jpg',
     });

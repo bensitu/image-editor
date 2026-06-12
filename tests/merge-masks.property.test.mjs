@@ -54,8 +54,10 @@ const { HistoryManager } = await import('../src/history/history-manager.ts');
  */
 function makeMockMask(maskId) {
     return {
+        editorObjectKind: 'mask',
         type: 'rect',
         maskId,
+        maskUid: `mask-${maskId}`,
         maskName: `mask_${maskId}`,
         opacity: 1,
         fill: '#ff0000',
@@ -145,7 +147,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
     // first (call 1) and the post-merge snapshot second (call 2).
     let snapshotCounter = 0;
     const saveStateCalls = [];
-    const saveState = () => {
+    const captureSnapshot = () => {
         snapshotCounter += 1;
         const snap = `snapshot:${snapshotCounter}`;
         saveStateCalls.push({
@@ -180,6 +182,12 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
         }
     };
 
+    const exportImageBase64Calls = [];
+    const exportImageBase64 = async (options) => {
+        exportImageBase64Calls.push(options);
+        return canvas.toDataURL(options);
+    };
+
     const removeAllMasksCalls = [];
     const removeAllMasksNoHistory = () => {
         removeAllMasksCalls.push(canvas.callOrder.length);
@@ -194,15 +202,21 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
             downsampleQuality: 0.92,
             exportMultiplier: 1,
             exportAreaByDefault: 'image',
-            mergeMaskByDefault: true,
+            mergeMasksByDefault: true,
+            mergeAnnotationsByDefault: true,
         },
         isImageLoaded: () => true,
         getOriginalImage: () => null,
         historyManager,
         containerElement,
         loadImage,
-        saveState,
+        captureSnapshot,
         loadFromState,
+        exportImageBase64,
+        updateUi() {},
+        updateInputs() {},
+        getAnnotations: () => [],
+        restoreAnnotations() {},
         removeAllMasksNoHistory,
     };
 
@@ -214,6 +228,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
         saveStateCalls,
         loadFromStateCalls,
         loadImageCalls,
+        exportImageBase64Calls,
         removeAllMasksCalls,
     };
 }

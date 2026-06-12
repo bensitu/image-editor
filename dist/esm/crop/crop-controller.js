@@ -1,4 +1,5 @@
 import { CropApplyError } from '../core/errors.js';
+import { markSessionObject } from '../core/editor-object-kind.js';
 import { isMaskObject } from '../core/public-types.js';
 import { Command } from '../history/history-manager.js';
 import { applyCropHideMaskStyle, captureMaskStyleBackup, reattachMaskHoverHandlers, restoreMaskStyleBackup, } from '../mask/mask-style.js';
@@ -236,6 +237,7 @@ export function enterCropMode(context) {
         cropRect.setControlVisible('mtr', false);
     }
     canvas.add(cropRect);
+    markSessionObject(cropRect, 'cropRect');
     cropRect.isCropRect = true;
     canvas.bringObjectToFront(cropRect);
     canvas.setActiveObject(cropRect);

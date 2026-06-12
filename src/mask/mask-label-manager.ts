@@ -58,6 +58,7 @@ import type * as FabricNS from 'fabric';
 import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
+import { markSessionObject } from '../core/editor-object-kind.js';
 
 /**
  * State the label helpers read from the `ImageEditor` orchestrator.
@@ -196,6 +197,7 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
 
     // Mark as session-only so the Pretty_Printer filter excludes it from
     // history snapshots.
+    markSessionObject(labelTextObject, 'maskLabel');
     (labelTextObject as LabelText).maskLabel = true;
 
     mask.labelObject = labelTextObject;

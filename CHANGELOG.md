@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-15
+
+### Breaking Changes
+
+- Require `editorObjectKind` metadata on every editor-owned Fabric object.
+- Make `isMaskObject()` strict: masks now require `editorObjectKind: 'mask'`, `maskId`, `maskUid`, and `maskName`.
+- Make `MaskObject.maskUid` required.
+- Stop migrating legacy serialized states that do not include `editorObjectKind`.
+- Rename export option mergeMask to `mergeMasks`.
+- Rename constructor default mergeMaskByDefault to `mergeMasksByDefault`.
+
+### Added
+
+- Add public editor object guards for base images, masks, annotations, text annotations, draw annotations, session objects, and editable overlays.
+- Add Text annotations with runtime text config, direct creation, Text mode, editing cleanup, annotation list rendering, hidden/locked state, and update/delete APIs.
+- Add Draw mode with runtime brush config and one annotation object per created Fabric path.
+- Add `mergeAnnotations()`, annotation callbacks, annotation DOM bindings, keyboard cleanup, selected-object deletion, and layer operation APIs.
+- Add centralized layer ordering for base image, editable overlays, and session objects.
+- Add shared overlay merge transactions so `mergeMasks()` preserves annotations and `mergeAnnotations()` preserves masks.
+
+### Changed
+
+- Export options now use independent `mergeMasks` and `mergeAnnotations` flags that affect rendered output only.
+- Serializer snapshots now preserve base/mask/annotation metadata, active mask or annotation identity, and filter session objects.
+- Update docs demo for Text, Draw, annotation controls, layer controls, export toggles, and merge annotations.
+
 ## [2.1.0] - 2026-06-12
 
 ### Breaking Changes

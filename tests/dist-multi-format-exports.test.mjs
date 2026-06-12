@@ -10,7 +10,7 @@
  * Scope:
  *   - ImageEditor is exposed as default and named export where the format supports
  *     both.
- *   - isMaskObject is present in every format.
+ *   - Editor object guards are present in every format.
  *   - Internal helpers remain absent from all root export shapes; missing dist/
  *     artifacts are treated as clean-tree skips.
  *
@@ -88,7 +88,17 @@ const FORBIDDEN_INTERNAL_NAMES = Object.freeze([
  * so the UMD assertion uses a slightly different shape (covered
  * below).
  */
-const CANONICAL_RUNTIME_EXPORTS = Object.freeze(['ImageEditor', 'default', 'isMaskObject']);
+const CANONICAL_RUNTIME_EXPORTS = Object.freeze([
+    'ImageEditor',
+    'default',
+    'isAnnotationObject',
+    'isBaseImageObject',
+    'isDrawAnnotationObject',
+    'isEditableOverlayObject',
+    'isMaskObject',
+    'isSessionObject',
+    'isTextAnnotationObject',
+]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 

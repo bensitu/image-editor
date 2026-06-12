@@ -45,8 +45,14 @@
 
 import type * as FabricNS from 'fabric';
 
-import type { ImageMimeType, MaskObject } from './public-types.js';
-import { isMaskObject } from './public-types.js';
+import type {
+    AnnotationObject,
+    BaseImageObject,
+    ImageMimeType,
+    MaskObject,
+} from './public-types.js';
+import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
+import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 
 // ─── Snapshot wire format ────────────────────────────────────────────────────
 
@@ -63,6 +69,10 @@ import { isMaskObject } from './public-types.js';
 export interface CanvasJsonObject {
     /** Fabric shape type discriminator (`'rect'`, `'circle'`, `'image'`, etc.). */
     type?: string;
+    /** Editor-owned object discriminator. */
+    editorObjectKind?: string;
+    /** Session object subtype discriminator. */
+    sessionObjectType?: string;
     /** Left-edge pixel coordinate (Fabric serializes `originX: 'left'` masks here). */
     left?: number;
     /** Top-edge pixel coordinate. */
@@ -101,6 +111,16 @@ export interface CanvasJsonObject {
     maskLabel?: boolean;
     /** Marks Mosaic preview objects; filtered before history push. */
     isMosaicPreview?: boolean;
+    /** Annotation identifier. */
+    annotationId?: number;
+    /** Annotation subtype. */
+    annotationType?: string;
+    /** Annotation display name. */
+    annotationName?: string;
+    /** Business-level annotation visibility. */
+    annotationHidden?: boolean;
+    /** Business-level annotation lock state. */
+    annotationLocked?: boolean;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -119,8 +139,12 @@ export interface EditorStateMeta {
     baseImageScale: number;
     /** MIME type of the currently committed image, when known. */
     currentImageMimeType?: ImageMimeType | null;
+    /** Active editor-owned object kind when the snapshot was captured, if any. */
+    activeObjectKind?: 'mask' | 'annotation' | null;
     /** Mask selected when the snapshot was captured, if any. */
     activeMaskId?: number;
+    /** Annotation selected when the snapshot was captured, if any. */
+    activeAnnotationId?: number;
 }
 
 /**
@@ -151,6 +175,8 @@ export interface CanvasJson {
  *
  */
 export const SNAPSHOT_CUSTOM_KEYS = [
+    'editorObjectKind',
+    'sessionObjectType',
     'maskId',
     'maskUid',
     'maskName',
@@ -168,6 +194,11 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'cornerColor',
     'cornerSize',
     'isMosaicPreview',
+    'annotationId',
+    'annotationType',
+    'annotationName',
+    'annotationHidden',
+    'annotationLocked',
 ] as const;
 
 /**
@@ -187,14 +218,27 @@ function copySnapshotCustomPropsFromCanvas(
     for (let index = 0; index < jsonObjects.length; index += 1) {
         const liveObject = canvasObjects[index] as
             | (Partial<MaskObject> & {
+                  editorObjectKind?: string;
+                  sessionObjectType?: string;
                   isCropRect?: boolean;
                   maskLabel?: boolean;
                   isMosaicPreview?: boolean;
+                  annotationId?: number;
+                  annotationType?: string;
+                  annotationName?: string;
+                  annotationHidden?: boolean;
+                  annotationLocked?: boolean;
               })
             | undefined;
         const jsonObject = jsonObjects[index];
         if (!liveObject || !jsonObject) continue;
 
+        if (typeof liveObject.editorObjectKind === 'string') {
+            jsonObject.editorObjectKind = liveObject.editorObjectKind;
+        }
+        if (typeof liveObject.sessionObjectType === 'string') {
+            jsonObject.sessionObjectType = liveObject.sessionObjectType;
+        }
         if (typeof liveObject.maskId === 'number') jsonObject.maskId = liveObject.maskId;
         if (typeof liveObject.maskUid === 'string') jsonObject.maskUid = liveObject.maskUid;
         if (typeof liveObject.maskName === 'string') jsonObject.maskName = liveObject.maskName;
@@ -232,6 +276,21 @@ function copySnapshotCustomPropsFromCanvas(
         if (liveObject.isCropRect === true) jsonObject.isCropRect = true;
         if (liveObject.maskLabel === true) jsonObject.maskLabel = true;
         if (liveObject.isMosaicPreview === true) jsonObject.isMosaicPreview = true;
+        if (typeof liveObject.annotationId === 'number') {
+            jsonObject.annotationId = liveObject.annotationId;
+        }
+        if (typeof liveObject.annotationType === 'string') {
+            jsonObject.annotationType = liveObject.annotationType;
+        }
+        if (typeof liveObject.annotationName === 'string') {
+            jsonObject.annotationName = liveObject.annotationName;
+        }
+        if (typeof liveObject.annotationHidden === 'boolean') {
+            jsonObject.annotationHidden = liveObject.annotationHidden;
+        }
+        if (typeof liveObject.annotationLocked === 'boolean') {
+            jsonObject.annotationLocked = liveObject.annotationLocked;
+        }
     }
 }
 
@@ -259,6 +318,8 @@ export interface SaveStateInput {
     canvas: FabricNS.Canvas;
     /** Active mask id supplied by the facade when Fabric active state is unavailable. */
     activeMaskId?: number | null;
+    /** Active annotation id supplied by the facade when Fabric active state is unavailable. */
+    activeAnnotationId?: number | null;
     /** Current image zoom factor (mirrored into `_editorState.currentScale`). */
     currentScale: number;
     /** Current image rotation in degrees (mirrored into `_editorState.currentRotation`). */
@@ -312,6 +373,12 @@ export function saveState(input: SaveStateInput): string {
             : typeof input.activeMaskId === 'number'
               ? input.activeMaskId
               : null;
+    const activeAnnotationId =
+        activeObject && isAnnotationObject(activeObject)
+            ? activeObject.annotationId
+            : typeof input.activeAnnotationId === 'number'
+              ? input.activeAnnotationId
+              : null;
 
     // 1. discard ActiveSelection before serializing, while preserving ordinary
     // single-object selection state so mask control styles do not churn during
@@ -335,7 +402,11 @@ export function saveState(input: SaveStateInput): string {
     //    rectangle, mask labels) before the snapshot enters history.
     if (Array.isArray(jsonObj.objects)) {
         jsonObj.objects = jsonObj.objects.filter(
-            (o) => o.isCropRect !== true && o.maskLabel !== true && o.isMosaicPreview !== true,
+            (o) =>
+                o.editorObjectKind !== 'session' &&
+                o.isCropRect !== true &&
+                o.maskLabel !== true &&
+                o.isMosaicPreview !== true,
         );
     }
 
@@ -345,8 +416,13 @@ export function saveState(input: SaveStateInput): string {
         currentRotation,
         baseImageScale,
         currentImageMimeType: input.currentImageMimeType ?? null,
+        activeObjectKind:
+            activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
     };
     if (activeMaskId !== null) jsonObj._editorState.activeMaskId = activeMaskId;
+    if (activeAnnotationId !== null) {
+        jsonObj._editorState.activeAnnotationId = activeAnnotationId;
+    }
 
     // 5. emit the JSON string used by loadFromState.
     return JSON.stringify(jsonObj);
@@ -401,19 +477,25 @@ export interface LoadFromStateResult {
      * `createMask` calls do not collide with restored IDs.
      */
     maxMaskId: number;
+    /** Highest `annotationId` observed on restored annotation objects. */
+    maxAnnotationId: number;
     /**
      * The first `'image'` object that is NOT a mask, or `null`. Used by the
      * facade to set `selectable: false`, `evented: false`, and to send the
      * image to the back of the stacking order. The serializer does not
      * mutate the object itself.
      */
-    originalImage: FabricNS.FabricImage | null;
+    originalImage: BaseImageObject | null;
     /**
      * All canvas objects after restore, in `getObjects` order. The facade
      * uses this list to re-attach mask hover handlers and to drive the
      * `isImageLoadedToCanvas` flag.
      */
     objects: FabricNS.FabricObject[];
+    /** Restored mask objects. */
+    masks: MaskObject[];
+    /** Restored annotation objects. */
+    annotations: AnnotationObject[];
     /**
      * The canonical JSON string for the snapshot — equal to the input string
      * if a string was passed, or `JSON.stringify(input)` if a `CanvasJson`
@@ -493,7 +575,7 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     //    matching, unconditionally overriding any value Fabric may or may
     //    not have applied during `_setOptions`.
     const objects = canvas.getObjects();
-    restoreMaskPropsFromJson(objects, json.objects ?? []);
+    restoreEditorObjectPropsFromJson(objects, json.objects ?? []);
 
     // 5a. forward `_editorState` for the facade to
     //     apply to its `currentScale` / `currentRotation` /
@@ -518,6 +600,18 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
         editorState.activeMaskId = json._editorState.activeMaskId;
     }
+    if (
+        editorState &&
+        json._editorState &&
+        typeof json._editorState.activeAnnotationId === 'number'
+    ) {
+        editorState.activeAnnotationId = json._editorState.activeAnnotationId;
+    }
+    if (editorState && json._editorState && 'activeObjectKind' in json._editorState) {
+        const kind = json._editorState.activeObjectKind;
+        editorState.activeObjectKind =
+            kind === 'mask' || kind === 'annotation' || kind === null ? kind : null;
+    }
     if (editorState && json._editorState && 'currentImageMimeType' in json._editorState) {
         const mimeType = json._editorState.currentImageMimeType;
         editorState.currentImageMimeType =
@@ -531,30 +625,24 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
+    const maxAnnotationId = objects
+        .filter(isAnnotationObject)
+        .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
 
-    // 5c. The first non-mask image object is the editor's
-    //     `originalImage`. Returning `null` when missing keeps the facade
-    //     free of "did the snapshot have an image?" guesses.
-    const originalImage = (objects.find(isOriginalImageObject) ??
-        null) as FabricNS.FabricImage | null;
+    const masks = objects.filter(isMaskObject);
+    const annotations = objects.filter(isAnnotationObject);
+    const originalImage = objects.find(isBaseImageObject) ?? null;
 
     return {
         editorState,
         maxMaskId,
+        maxAnnotationId,
         originalImage,
         objects,
+        masks,
+        annotations,
         jsonString,
     };
-}
-
-function isOriginalImageObject(object: FabricNS.FabricObject): boolean {
-    if (isMaskObject(object)) return false;
-
-    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
-    if (type === 'image') return true;
-
-    const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
-    return typeof isType === 'function' && isType.call(object, 'image');
 }
 
 /**
@@ -585,15 +673,50 @@ function isOriginalImageObject(object: FabricNS.FabricObject): boolean {
  * @param jsonObjs - Per-object payloads from the snapshot.
  *
  */
-function restoreMaskPropsFromJson(
+function restoreEditorObjectPropsFromJson(
     canvasObjs: FabricNS.FabricObject[],
     jsonObjs: CanvasJsonObject[],
 ): void {
-    // ── Pass 1: masks — match by maskUid, then legacy type + left + top ─
+    // ── Pass 0: base images, annotations, and sessions by serialized order ─
+    jsonObjs.forEach((jObj, index) => {
+        const canvasObj = canvasObjs[index];
+        if (!canvasObj) return;
+        if (jObj.editorObjectKind === 'baseImage') {
+            markBaseImageObject(canvasObj as FabricNS.FabricImage);
+            return;
+        }
+        if (
+            jObj.editorObjectKind === 'annotation' &&
+            typeof jObj.annotationId === 'number' &&
+            typeof jObj.annotationType === 'string' &&
+            typeof jObj.annotationName === 'string'
+        ) {
+            markAnnotationObject(canvasObj, {
+                annotationId: jObj.annotationId,
+                annotationType: jObj.annotationType === 'draw' ? 'draw' : 'text',
+                annotationName: jObj.annotationName,
+                annotationHidden:
+                    typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
+                annotationLocked:
+                    typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
+            });
+            return;
+        }
+        if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
+            (
+                canvasObj as { editorObjectKind?: string; sessionObjectType?: string }
+            ).editorObjectKind = 'session';
+            (
+                canvasObj as { editorObjectKind?: string; sessionObjectType?: string }
+            ).sessionObjectType = jObj.sessionObjectType;
+        }
+    });
+
+    // ── Pass 1: masks — match by maskUid, then type + left + top ─
     const consumedCanvasIndexes = new Set<number>();
 
     for (const jObj of jsonObjs) {
-        if (typeof jObj.maskId !== 'number') continue;
+        if (jObj.editorObjectKind !== 'mask' || typeof jObj.maskId !== 'number') continue;
 
         const jType = String(jObj.type ?? '');
         const jLeft = Number(jObj.left ?? 0);
@@ -637,15 +760,22 @@ function restoreMaskPropsFromJson(
             cornerSize?: number;
             opacity?: number;
         };
-        maskObject.maskId = jObj.maskId;
-        if (typeof jObj.maskUid === 'string') {
-            maskObject.maskUid = jObj.maskUid;
-        }
-        maskObject.maskName = String(jObj.maskName ?? '');
-        maskObject.originalAlpha =
-            typeof jObj.originalAlpha === 'number'
-                ? jObj.originalAlpha
-                : (maskObject.opacity ?? 0.5);
+        const originalStroke =
+            'originalStroke' in jObj
+                ? (jObj.originalStroke as FabricNS.TFiller | string | null)
+                : undefined;
+        markMaskObject(maskObject, {
+            maskId: jObj.maskId,
+            maskUid: typeof jObj.maskUid === 'string' ? jObj.maskUid : `mask-${jObj.maskId}`,
+            maskName: typeof jObj.maskName === 'string' ? jObj.maskName : '',
+            originalAlpha:
+                typeof jObj.originalAlpha === 'number'
+                    ? jObj.originalAlpha
+                    : (maskObject.opacity ?? 0.5),
+            originalStroke,
+            originalStrokeWidth:
+                typeof jObj.originalStrokeWidth === 'number' ? jObj.originalStrokeWidth : undefined,
+        });
         if ('originalStroke' in jObj) {
             maskObject.originalStroke = jObj.originalStroke;
         }

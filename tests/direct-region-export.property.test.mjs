@@ -105,7 +105,7 @@ function makeContext(canvas, image) {
             downsampleQuality: 0.92,
             exportMultiplier: 1,
             exportAreaByDefault: 'image',
-            mergeMaskByDefault: true,
+            mergeMasksByDefault: true,
         },
         fabric: {},
         isImageLoaded: () => true,
@@ -172,7 +172,7 @@ test('exportImageBase64 forwards floor(getObjectBBox(originalImage)) to canvas.t
 
             await exportImageBase64(ctx, {
                 exportArea: 'image',
-                mergeMask: true,
+                mergeMasks: true,
                 fileType: 'png',
             });
 
@@ -281,7 +281,7 @@ test('exportImageBase64 region path does not allocate an intermediate <canvas> e
 
                 await exportImageBase64(ctx, {
                     exportArea: 'image',
-                    mergeMask: true,
+                    mergeMasks: true,
                     fileType: 'png',
                 });
 

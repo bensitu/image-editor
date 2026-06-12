@@ -222,11 +222,13 @@ test('saveState discards ActiveSelection before serializing', () => {
 
 test('saveState preserves a single active mask while serializing', () => {
     const activeMask = {
+        editorObjectKind: 'mask',
         type: 'rect',
         left: 10,
         top: 20,
         opacity: 0.5,
         maskId: 7,
+        maskUid: 'mask-7',
         maskName: 'mask7',
     };
     const canvas = new MockCanvas(activeMask);

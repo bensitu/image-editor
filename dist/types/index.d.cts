@@ -3,7 +3,7 @@
  *
  * The package surface consists of:
  * - `ImageEditor` (default and named export) — the only public class.
- * - `isMaskObject` — runtime type guard for mask objects.
+ * - Editor object runtime type guards.
  * - The documented public types listed below.
  *
  * Internal helpers (animation queue, command, history manager, controllers,
@@ -26,6 +26,6 @@
 import { ImageEditor } from './image-editor.js';
 export { ImageEditor };
 export default ImageEditor;
-export { isMaskObject } from './core/public-types.js';
-export type { ImageEditorOptions, ResolvedOptions, LayoutMode, LabelConfig, CropConfig, CropExportFileType, MosaicConfig, ResolvedMosaicConfig, MosaicOutputFileType, LoadImageOptions, RemoveAllMasksOptions, DefaultMaskConfig, MaskConfig, MaskObject, MaskNumericProp, ResolvedMaskConfig, ImageMimeType, ImageFileType, NormalizedImageFormat, ExportArea, Base64ExportOptions, ImageFileExportOptions, ImageInfo, ImageEditorState, ImageEditorSelection, ImageEditorCallbackContext, ImageEditorOperation, ElementIdMap, FabricModule, } from './core/public-types.js';
+export { isAnnotationObject, isBaseImageObject, isDrawAnnotationObject, isEditableOverlayObject, isMaskObject, isSessionObject, isTextAnnotationObject, } from './core/public-types.js';
+export type { ImageEditorOptions, ResolvedOptions, LayoutMode, EditorObjectKind, EditorToolMode, AnnotationType, SessionObjectType, EditorObjectMeta, LabelConfig, CropConfig, CropExportFileType, MosaicConfig, ResolvedMosaicConfig, MosaicOutputFileType, TextAnnotationConfig, ResolvedTextAnnotationConfig, DrawConfig, ResolvedDrawConfig, LoadImageOptions, RemoveAllMasksOptions, RemoveAllAnnotationsOptions, DefaultMaskConfig, MaskConfig, MaskObject, MaskNumericProp, ResolvedMaskConfig, BaseImageObject, SessionObject, AnnotationObject, TextAnnotationObject, DrawAnnotationObject, AnnotationUpdateConfig, ImageMimeType, ImageFileType, NormalizedImageFormat, ExportArea, Base64ExportOptions, ImageFileExportOptions, ImageInfo, ImageEditorState, ImageEditorSelection, ImageEditorCallbackContext, ImageEditorOperation, ElementIdMap, FabricModule, } from './core/public-types.js';
 //# sourceMappingURL=index.d.cts.map

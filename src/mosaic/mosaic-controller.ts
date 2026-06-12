@@ -11,7 +11,9 @@
 import type * as FabricNS from 'fabric';
 
 import { reportError, reportWarning } from '../core/callback-reporter.js';
+import { markBaseImageObject, markSessionObject } from '../core/editor-object-kind.js';
 import type {
+    BaseImageObject,
     FabricModule,
     ImageEditorCallbackContext,
     ImageEditorOperation,
@@ -65,8 +67,8 @@ export interface MosaicControllerContext {
 
     getMosaicConfig(): ResolvedMosaicConfig;
     isImageLoaded(): boolean;
-    getOriginalImage(): FabricNS.FabricImage | null;
-    setOriginalImage(image: FabricNS.FabricImage | null): void;
+    getOriginalImage(): BaseImageObject | null;
+    setOriginalImage(image: BaseImageObject | null): void;
     getCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
     getLastSnapshot(): string | null;
@@ -189,6 +191,7 @@ function createPreviewCircle(context: MosaicControllerContext): MosaicPreviewCir
         objectCaching: false,
         visible: false,
     } as Partial<FabricNS.CircleProps>) as MosaicPreviewCircle;
+    markSessionObject(circle, 'mosaicPreviewCircle');
     circle.isMosaicPreview = true;
     return circle;
 }
@@ -239,6 +242,7 @@ function createPreviewImage(
         objectCaching: false,
         visible: true,
     } as Partial<FabricNS.ImageProps>);
+    markSessionObject(image, 'mosaicPreviewImage');
     image.isMosaicPreview = true;
     return image;
 }
@@ -496,7 +500,7 @@ function copyBaseImageProperties(target: FabricNS.FabricImage, source: FabricNS.
 
 function replaceBaseImage(
     context: MosaicControllerContext,
-    oldImage: FabricNS.FabricImage,
+    oldImage: BaseImageObject,
     newImage: FabricNS.FabricImage,
     mimeType: ImageMimeType,
 ): void {
@@ -511,7 +515,7 @@ function replaceBaseImage(
         canvas.add(newImage);
         newAdded = true;
         canvas.sendObjectToBack(newImage);
-        context.setOriginalImage(newImage);
+        context.setOriginalImage(markBaseImageObject(newImage));
         context.setCurrentImageMimeType(mimeType);
         canvas.renderAll();
     } catch (error) {

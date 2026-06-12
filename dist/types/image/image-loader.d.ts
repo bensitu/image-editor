@@ -93,7 +93,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import type { BaseImageObject, FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
 import { type ViewportCache } from './layout-manager.js';
 /**
  * Snapshot of every field the loader is about to mutate, captured before
@@ -115,7 +115,7 @@ export interface RollbackBundle {
     /** Container `scrollLeft` immediately before the loader started. */
     containerScrollLeft: number | null;
     /** The previously-committed `originalImage` reference, if any. */
-    originalImage: FabricNS.FabricImage | null;
+    originalImage: BaseImageObject | null;
     /** Whether an image was already committed before this call. */
     isImageLoadedToCanvas: boolean;
     /** Snapshot string used as the history baseline before the call. */
@@ -127,6 +127,8 @@ export interface RollbackBundle {
     canvasJson: string;
     /** Mask counter value before the loader reset it to 0. */
     maskCounter: number;
+    /** Annotation counter value before the loader reset it to 0. */
+    annotationCounter: number;
     /** Image scale factor before the loader reset it to 1. */
     currentScale: number;
     /** Image rotation in degrees before the loader reset it to 0. */
@@ -166,9 +168,9 @@ export interface LoadImageContext {
     /** Hidden-container viewport cache shared with the layout manager. */
     viewportCache: ViewportCache;
     /** Reads the previously-committed `originalImage`. */
-    getOriginalImage(): FabricNS.FabricImage | null;
+    getOriginalImage(): BaseImageObject | null;
     /** Writes `originalImage` (used both on commit and on rollback). */
-    setOriginalImage(imageObject: FabricNS.FabricImage | null): void;
+    setOriginalImage(imageObject: BaseImageObject | null): void;
     /** Reads `isImageLoadedToCanvas`. */
     getIsImageLoadedToCanvas(): boolean;
     /** Writes `isImageLoadedToCanvas`. */
@@ -181,6 +183,10 @@ export interface LoadImageContext {
     getMaskCounter(): number;
     /** Writes `maskCounter`. */
     setMaskCounter(n: number): void;
+    /** Reads `annotationCounter`. */
+    getAnnotationCounter(): number;
+    /** Writes `annotationCounter`. */
+    setAnnotationCounter(n: number): void;
     /** Reads `currentScale`. */
     getCurrentScale(): number;
     /** Writes `currentScale`. */

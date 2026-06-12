@@ -132,8 +132,18 @@ function makeCanvas() {
         getHeight() {
             return 600;
         },
+        getObjects() {
+            return this.objects;
+        },
         add(o) {
             this.objects.push(o);
+        },
+        remove(o) {
+            const index = this.objects.indexOf(o);
+            if (index >= 0) this.objects.splice(index, 1);
+        },
+        insertAt(index, o) {
+            this.objects.splice(index, 0, o);
         },
         bringObjectToFront() {},
         setActiveObject() {},
@@ -183,12 +193,24 @@ const pointObjArb = fc.record({
     y: fc.integer({ min: -200, max: 200 }),
 });
 
+function polygonArea(points) {
+    let area = 0;
+    for (let index = 0; index < points.length; index += 1) {
+        const current = points[index];
+        const next = points[(index + 1) % points.length];
+        area += current.x * next.y - next.x * current.y;
+    }
+    return Math.abs(area) / 2;
+}
+
 /**
  * 3 to 6 vertices is enough to cover degenerate-ish (3-vertex) polygons
  * up through the typical concave hexagons users draw with the polygon
  * tool, while keeping the geometry compact.
  */
-const polygonPointsArb = fc.array(pointObjArb, { minLength: 3, maxLength: 6 });
+const polygonPointsArb = fc
+    .array(pointObjArb, { minLength: 3, maxLength: 6 })
+    .filter((points) => polygonArea(points) > 1e-6);
 
 /**
  * Target placement coordinates. The window is wide enough to exercise

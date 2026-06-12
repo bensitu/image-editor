@@ -12,7 +12,7 @@
  *
  * @module
  */
-import type { ImageEditorOptions, LabelConfig, LayoutMode, MosaicConfig, ResolvedCropConfig, ResolvedMosaicConfig, ResolvedOptions } from './public-types.js';
+import type { DrawConfig, ImageEditorOptions, LabelConfig, LayoutMode, MosaicConfig, ResolvedCropConfig, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedOptions, ResolvedTextAnnotationConfig, TextAnnotationConfig } from './public-types.js';
 /**
  * Documented defaults for every top-level option except the nested
  * {@link LabelConfig} and {@link CropConfig} configs, which are owned by
@@ -22,7 +22,7 @@ import type { ImageEditorOptions, LabelConfig, LayoutMode, MosaicConfig, Resolve
  * Nested label and crop defaults are carried by {@link DEFAULT_LABEL} and
  * {@link DEFAULT_CROP}.
  */
-export declare const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultMosaicConfig'>;
+export declare const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig'>;
 /**
  * Default {@link LabelConfig}. Consumers can override `getText`, supply a
  * `create` factory, or provide partial `textOptions` — unspecified keys fall
@@ -38,6 +38,8 @@ export declare const DEFAULT_CROP: ResolvedCropConfig;
  * Mosaic tool config.
  */
 export declare const DEFAULT_MOSAIC_CONFIG: ResolvedMosaicConfig;
+export declare const DEFAULT_TEXT_ANNOTATION_CONFIG: ResolvedTextAnnotationConfig;
+export declare const DEFAULT_DRAW_CONFIG: ResolvedDrawConfig;
 export declare function isLayoutMode(value: unknown): value is LayoutMode;
 /**
  * Return a mutable defensive copy of a resolved Mosaic config.
@@ -60,6 +62,16 @@ export declare function getInvalidMosaicConfigFields(input: MosaicConfig): strin
  * Strict value equality for resolved Mosaic configs.
  */
 export declare function areResolvedMosaicConfigsEqual(left: ResolvedMosaicConfig, right: ResolvedMosaicConfig): boolean;
+export declare function cloneResolvedTextAnnotationConfig(config: ResolvedTextAnnotationConfig): ResolvedTextAnnotationConfig;
+export declare function cloneResolvedDrawConfig(config: ResolvedDrawConfig): ResolvedDrawConfig;
+export declare function mergeTextAnnotationConfigPatch(current: ResolvedTextAnnotationConfig, patch: TextAnnotationConfig, fallback?: ResolvedTextAnnotationConfig): ResolvedTextAnnotationConfig;
+export declare function normalizeTextAnnotationConfig(input: unknown, fallback: ResolvedTextAnnotationConfig): ResolvedTextAnnotationConfig;
+export declare function mergeDrawConfigPatch(current: ResolvedDrawConfig, patch: DrawConfig, fallback?: ResolvedDrawConfig): ResolvedDrawConfig;
+export declare function normalizeDrawConfig(input: unknown, fallback: ResolvedDrawConfig): ResolvedDrawConfig;
+export declare function areResolvedTextAnnotationConfigsEqual(left: ResolvedTextAnnotationConfig, right: ResolvedTextAnnotationConfig): boolean;
+export declare function areResolvedDrawConfigsEqual(left: ResolvedDrawConfig, right: ResolvedDrawConfig): boolean;
+export declare function getInvalidTextAnnotationConfigFields(input: TextAnnotationConfig): string[];
+export declare function getInvalidDrawConfigFields(input: DrawConfig): string[];
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.

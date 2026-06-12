@@ -29,7 +29,7 @@
             rel="stylesheet"
             href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
         />
-        <link rel="stylesheet" href="css/style.css?v=2.1.0" />
+        <link rel="stylesheet" href="css/style.css?v=2.2.0" />
     </head>
 
     <body>
@@ -384,11 +384,145 @@
                         </label>
                     </div>
 
+                    <div
+                        class="tool-group annotation-group"
+                        role="group"
+                        aria-label="Annotation actions"
+                    >
+                        <button id="enterTextModeButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="type" aria-hidden="true">T</span>
+                            <span class="tool-label">Text</span>
+                        </button>
+                        <button id="exitTextModeButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="x" aria-hidden="true">X</span>
+                            <span class="tool-label">Exit Text</span>
+                        </button>
+                        <label class="mosaic-control">
+                            <span>Text color</span>
+                            <input id="textColorInput" type="color" value="#ff0000" />
+                        </label>
+                        <label class="mosaic-control">
+                            <span>Text size</span>
+                            <input
+                                id="textFontSizeInput"
+                                type="number"
+                                min="8"
+                                max="160"
+                                value="32"
+                            />
+                        </label>
+                        <button id="enterDrawModeButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="pencil" aria-hidden="true">D</span>
+                            <span class="tool-label">Draw</span>
+                        </button>
+                        <button id="exitDrawModeButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="x" aria-hidden="true">X</span>
+                            <span class="tool-label">Exit Draw</span>
+                        </button>
+                        <label class="mosaic-control">
+                            <span>Draw color</span>
+                            <input id="drawColorInput" type="color" value="#ff0000" />
+                        </label>
+                        <label class="mosaic-control">
+                            <span>Brush</span>
+                            <input
+                                id="drawBrushSizeInput"
+                                type="range"
+                                min="1"
+                                max="80"
+                                value="8"
+                            />
+                        </label>
+                        <button
+                            id="removeSelectedAnnotationButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="trash-2" aria-hidden="true"
+                                >A</span
+                            >
+                            <span class="tool-label">Remove Annotation</span>
+                        </button>
+                        <button
+                            id="removeAllAnnotationsButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="trash" aria-hidden="true">AA</span>
+                            <span class="tool-label">Remove All Annotations</span>
+                        </button>
+                        <button
+                            id="deleteSelectedObjectButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="trash" aria-hidden="true">D</span>
+                            <span class="tool-label">Delete Selected</span>
+                        </button>
+                    </div>
+
+                    <div class="tool-group layer-group" role="group" aria-label="Layer actions">
+                        <button
+                            id="bringSelectedObjectForwardButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="bring-to-front" aria-hidden="true"
+                                >F</span
+                            >
+                            <span class="tool-label">Forward</span>
+                        </button>
+                        <button
+                            id="sendSelectedObjectBackwardButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="send-to-back" aria-hidden="true"
+                                >B</span
+                            >
+                            <span class="tool-label">Backward</span>
+                        </button>
+                        <button
+                            id="bringSelectedObjectToFrontButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="layers" aria-hidden="true"
+                                >TF</span
+                            >
+                            <span class="tool-label">To Front</span>
+                        </button>
+                        <button
+                            id="sendSelectedObjectToBackButton"
+                            class="btn tool-button"
+                            type="button"
+                        >
+                            <span class="tool-icon" data-lucide="layers" aria-hidden="true"
+                                >TB</span
+                            >
+                            <span class="tool-label">To Back</span>
+                        </button>
+                    </div>
+
                     <div class="tool-group export-group" role="group" aria-label="Export actions">
                         <button id="mergeMasksButton" class="btn tool-button" type="button">
                             <span class="tool-icon" data-lucide="layers" aria-hidden="true">M</span>
-                            <span class="tool-label" data-i18n="mergeMasks">Merge</span>
+                            <span class="tool-label" data-i18n="mergeMasks">Bake Masks</span>
                         </button>
+                        <button id="mergeAnnotationsButton" class="btn tool-button" type="button">
+                            <span class="tool-icon" data-lucide="combine" aria-hidden="true"
+                                >A</span
+                            >
+                            <span class="tool-label">Bake Annotations</span>
+                        </button>
+                        <label class="mosaic-control">
+                            <input id="exportMergeMasksInput" type="checkbox" checked />
+                            <span>Export masks</span>
+                        </label>
+                        <label class="mosaic-control">
+                            <input id="exportMergeAnnotationsInput" type="checkbox" checked />
+                            <span>Export annotations</span>
+                        </label>
                         <button id="downloadImageButton" class="btn tool-button" type="button">
                             <span class="tool-icon" data-lucide="download" aria-hidden="true"
                                 >D</span
@@ -430,6 +564,8 @@
                 <aside class="maskListContainer">
                     <h2 data-i18n="maskList">Mask list</h2>
                     <ul id="maskList" class="list-group"></ul>
+                    <h2>Annotation list</h2>
+                    <ul id="annotationList" class="list-group"></ul>
                 </aside>
             </section>
         </main>
@@ -465,7 +601,7 @@
                 }
 
                 function loadDemoScript() {
-                    loadScript('js/script.js?v=2.1.0');
+                    loadScript('js/script.js?v=2.2.0');
                 }
 
                 function loadImageEditor(index) {

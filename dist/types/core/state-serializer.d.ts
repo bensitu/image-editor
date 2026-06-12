@@ -43,7 +43,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { ImageMimeType } from './public-types.js';
+import type { AnnotationObject, BaseImageObject, ImageMimeType, MaskObject } from './public-types.js';
 /**
  * Per-object payload inside a {@link CanvasJson} snapshot. Mirrors the
  * Pretty_Printer wire format used by the canvas serializer.
@@ -57,6 +57,10 @@ import type { ImageMimeType } from './public-types.js';
 export interface CanvasJsonObject {
     /** Fabric shape type discriminator (`'rect'`, `'circle'`, `'image'`, etc.). */
     type?: string;
+    /** Editor-owned object discriminator. */
+    editorObjectKind?: string;
+    /** Session object subtype discriminator. */
+    sessionObjectType?: string;
     /** Left-edge pixel coordinate (Fabric serializes `originX: 'left'` masks here). */
     left?: number;
     /** Top-edge pixel coordinate. */
@@ -95,6 +99,16 @@ export interface CanvasJsonObject {
     maskLabel?: boolean;
     /** Marks Mosaic preview objects; filtered before history push. */
     isMosaicPreview?: boolean;
+    /** Annotation identifier. */
+    annotationId?: number;
+    /** Annotation subtype. */
+    annotationType?: string;
+    /** Annotation display name. */
+    annotationName?: string;
+    /** Business-level annotation visibility. */
+    annotationHidden?: boolean;
+    /** Business-level annotation lock state. */
+    annotationLocked?: boolean;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -112,8 +126,12 @@ export interface EditorStateMeta {
     baseImageScale: number;
     /** MIME type of the currently committed image, when known. */
     currentImageMimeType?: ImageMimeType | null;
+    /** Active editor-owned object kind when the snapshot was captured, if any. */
+    activeObjectKind?: 'mask' | 'annotation' | null;
     /** Mask selected when the snapshot was captured, if any. */
     activeMaskId?: number;
+    /** Annotation selected when the snapshot was captured, if any. */
+    activeAnnotationId?: number;
 }
 /**
  * Full snapshot envelope. Standard Fabric `toJSON` keys plus the editor
@@ -141,7 +159,7 @@ export interface CanvasJson {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "isMosaicPreview"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "isMosaicPreview", "annotationId", "annotationType", "annotationName", "annotationHidden", "annotationLocked"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.
@@ -151,6 +169,8 @@ export interface SaveStateInput {
     canvas: FabricNS.Canvas;
     /** Active mask id supplied by the facade when Fabric active state is unavailable. */
     activeMaskId?: number | null;
+    /** Active annotation id supplied by the facade when Fabric active state is unavailable. */
+    activeAnnotationId?: number | null;
     /** Current image zoom factor (mirrored into `_editorState.currentScale`). */
     currentScale: number;
     /** Current image rotation in degrees (mirrored into `_editorState.currentRotation`). */
@@ -239,19 +259,25 @@ export interface LoadFromStateResult {
      * `createMask` calls do not collide with restored IDs.
      */
     maxMaskId: number;
+    /** Highest `annotationId` observed on restored annotation objects. */
+    maxAnnotationId: number;
     /**
      * The first `'image'` object that is NOT a mask, or `null`. Used by the
      * facade to set `selectable: false`, `evented: false`, and to send the
      * image to the back of the stacking order. The serializer does not
      * mutate the object itself.
      */
-    originalImage: FabricNS.FabricImage | null;
+    originalImage: BaseImageObject | null;
     /**
      * All canvas objects after restore, in `getObjects` order. The facade
      * uses this list to re-attach mask hover handlers and to drive the
      * `isImageLoadedToCanvas` flag.
      */
     objects: FabricNS.FabricObject[];
+    /** Restored mask objects. */
+    masks: MaskObject[];
+    /** Restored annotation objects. */
+    annotations: AnnotationObject[];
     /**
      * The canonical JSON string for the snapshot — equal to the input string
      * if a string was passed, or `JSON.stringify(input)` if a `CanvasJson`

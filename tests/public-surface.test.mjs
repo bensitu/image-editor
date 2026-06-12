@@ -9,7 +9,7 @@
  *
  * Scope:
  *   - ImageEditor default and named exports resolve to the same class.
- *   - isMaskObject is the only additional runtime value exposed from the barrel.
+ *   - Editor object guards are the additional runtime values exposed from the barrel.
  *   - The documented public method set exists on ImageEditor.prototype and internal
  *     helpers stay hidden.
  *
@@ -38,7 +38,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const barrel = await import('../src/index.ts');
-const { ImageEditor: NamedImageEditor, isMaskObject } = barrel;
+const { ImageEditor: NamedImageEditor } = barrel;
 const DefaultImageEditor = barrel.default;
 
 // ─── Constants from the documented contract ─────────────────────────────────────────
@@ -60,6 +60,12 @@ const CANONICAL_METHODS = Object.freeze([
     'createMask',
     'removeSelectedMask',
     'removeAllMasks',
+    'getAnnotations',
+    'removeSelectedAnnotation',
+    'removeAllAnnotations',
+    'updateAnnotation',
+    'updateSelectedAnnotation',
+    'deleteSelectedObject',
     'enterCropMode',
     'cancelCrop',
     'applyCrop',
@@ -71,7 +77,29 @@ const CANONICAL_METHODS = Object.freeze([
     'resetMosaicConfig',
     'setMosaicBrushSize',
     'setMosaicBlockSize',
+    'enterTextMode',
+    'exitTextMode',
+    'isTextMode',
+    'createTextAnnotation',
+    'getTextConfig',
+    'setTextConfig',
+    'resetTextConfig',
+    'setTextColor',
+    'setTextFontSize',
+    'enterDrawMode',
+    'exitDrawMode',
+    'isDrawMode',
+    'getDrawConfig',
+    'setDrawConfig',
+    'resetDrawConfig',
+    'setDrawColor',
+    'setDrawBrushSize',
+    'bringSelectedObjectForward',
+    'sendSelectedObjectBackward',
+    'bringSelectedObjectToFront',
+    'sendSelectedObjectToBack',
     'mergeMasks',
+    'mergeAnnotations',
     'exportImageBase64',
     'exportImageFile',
     'downloadImage',
@@ -132,14 +160,25 @@ test('barrel exposes ImageEditor as default and named export, both pointing to t
     assert.equal(NamedImageEditor.name, 'ImageEditor', 'class name must be `ImageEditor`');
 });
 
-// ─── 2. isMaskObject is exported ────────────────────────
+const CANONICAL_RUNTIME_EXPORTS = Object.freeze([
+    'ImageEditor',
+    'default',
+    'isAnnotationObject',
+    'isBaseImageObject',
+    'isDrawAnnotationObject',
+    'isEditableOverlayObject',
+    'isMaskObject',
+    'isSessionObject',
+    'isTextAnnotationObject',
+]);
 
-test('barrel exposes isMaskObject as a runtime function', () => {
-    assert.equal(
-        typeof isMaskObject,
-        'function',
-        '`isMaskObject` must be a runtime export from the barrel',
-    );
+// ─── 2. Runtime guards are exported ────────────────────────
+
+test('barrel exposes editor object guards as runtime functions', () => {
+    for (const key of CANONICAL_RUNTIME_EXPORTS) {
+        if (key === 'ImageEditor' || key === 'default') continue;
+        assert.equal(typeof barrel[key], 'function', `\`${key}\` must be a runtime export`);
+    }
 });
 
 // ─── 3. Canonical methods on ImageEditor.prototype ──────
@@ -183,14 +222,14 @@ test('package barrel does not re-export internal helpers as runtime values', () 
     }
 });
 
-test('package barrel runtime value exports are exactly { ImageEditor, default, isMaskObject }', () => {
+test('package barrel runtime value exports match the v2.2.0 object guard surface', () => {
     // `default` is the ESM default export and shows up as an own
     // property of the namespace object alongside the named exports. The
     // canonical set of runtime values from `src/index.ts` is small and
     // intentional; pinning it here catches accidental re-exports of
     // implementation modules in future refactors.
     const exportedKeys = Object.keys(barrel).sort();
-    const expectedKeys = ['ImageEditor', 'default', 'isMaskObject'].sort();
+    const expectedKeys = [...CANONICAL_RUNTIME_EXPORTS].sort();
     assert.deepEqual(
         exportedKeys,
         expectedKeys,

@@ -41,6 +41,8 @@ import {
     DEFAULT_LABEL,
     DEFAULT_CROP,
     DEFAULT_MOSAIC_CONFIG,
+    DEFAULT_TEXT_ANNOTATION_CONFIG,
+    DEFAULT_DRAW_CONFIG,
 } from '../src/core/default-options.ts';
 
 // ─── Documented option-key inventories ─────────────────────────────────────
@@ -66,13 +68,16 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'exportMultiplier',
     'maxExportPixels',
     'exportAreaByDefault',
-    'mergeMaskByDefault',
+    'mergeMasksByDefault',
+    'mergeAnnotationsByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
     'maskRotatable',
     'maskLabelOnSelect',
     'maskLabelOffset',
     'maskName',
+    'textAnnotationName',
+    'drawAnnotationName',
     'groupSelection',
     'showPlaceholder',
     'initialImageBase64',
@@ -87,6 +92,7 @@ const CALLBACK_KEYS = [
     'onBusyChange',
     'onEditorDisposed',
     'onMasksChanged',
+    'onAnnotationsChanged',
     'onSelectionChange',
     'onError',
     'onWarning',
@@ -100,6 +106,8 @@ const ALL_TOP_LEVEL_KEYS = [
     'label',
     'crop',
     'defaultMosaicConfig',
+    'defaultTextConfig',
+    'defaultDrawConfig',
 ];
 
 // Default text-option keys we expect to survive deep-merge. Pulled from
@@ -163,13 +171,16 @@ function topLevelScalarOverridesArb() {
             }),
             maxExportPixels: fc.integer({ min: 1, max: 100000000 }),
             exportAreaByDefault: fc.constantFrom('image', 'canvas'),
-            mergeMaskByDefault: fc.boolean(),
+            mergeMasksByDefault: fc.boolean(),
+            mergeAnnotationsByDefault: fc.boolean(),
             defaultMaskWidth: fc.integer({ min: 1, max: 1000 }),
             defaultMaskHeight: fc.integer({ min: 1, max: 1000 }),
             maskRotatable: fc.boolean(),
             maskLabelOnSelect: fc.boolean(),
             maskLabelOffset: fc.integer({ min: 0, max: 100 }),
             maskName: fc.string(),
+            textAnnotationName: fc.string(),
+            drawAnnotationName: fc.string(),
             groupSelection: fc.boolean(),
             showPlaceholder: fc.boolean(),
             initialImageBase64: fc.option(fc.string(), { nil: null }),
@@ -210,6 +221,7 @@ function callbacksArb() {
             onBusyChange: callbackArb('onBusyChange'),
             onEditorDisposed: callbackArb('onEditorDisposed'),
             onMasksChanged: callbackArb('onMasksChanged'),
+            onAnnotationsChanged: callbackArb('onAnnotationsChanged'),
             onSelectionChange: callbackArb('onSelectionChange'),
             onError: callbackArb('onError'),
             onWarning: callbackArb('onWarning'),
@@ -507,6 +519,16 @@ test('options resolution completeness and deep-merge', () => {
                     ? MOSAIC_FORMAT_ALIASES[userMosaic.outputFileType]
                     : DEFAULT_MOSAIC_CONFIG.outputFileType,
             );
+            assert.deepEqual(
+                resolved.defaultTextConfig,
+                DEFAULT_TEXT_ANNOTATION_CONFIG,
+                'default text annotation config must apply when not overridden',
+            );
+            assert.deepEqual(
+                resolved.defaultDrawConfig,
+                DEFAULT_DRAW_CONFIG,
+                'default draw config must apply when not overridden',
+            );
 
             // Unknown top-level keys are silently dropped.
             for (const k of Object.keys(input)) {
@@ -544,6 +566,16 @@ test('options resolution completeness and deep-merge', () => {
                 Object.isFrozen(resolved.defaultMosaicConfig),
                 true,
                 'resolved.defaultMosaicConfig must be frozen',
+            );
+            assert.equal(
+                Object.isFrozen(resolved.defaultTextConfig),
+                true,
+                'resolved.defaultTextConfig must be frozen',
+            );
+            assert.equal(
+                Object.isFrozen(resolved.defaultDrawConfig),
+                true,
+                'resolved.defaultDrawConfig must be frozen',
             );
             if (resolved.defaultMosaicConfig.previewStrokeDashArray) {
                 assert.equal(
@@ -743,6 +775,8 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         assert.equal(Object.isFrozen(resolved.label.textOptions), true);
         assert.equal(Object.isFrozen(resolved.crop), true);
         assert.equal(Object.isFrozen(resolved.defaultMosaicConfig), true);
+        assert.equal(Object.isFrozen(resolved.defaultTextConfig), true);
+        assert.equal(Object.isFrozen(resolved.defaultDrawConfig), true);
         for (const callbackKey of CALLBACK_KEYS) {
             assert.equal(resolved[callbackKey], null);
         }

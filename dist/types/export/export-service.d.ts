@@ -42,7 +42,7 @@
  *   No intermediate `<canvas>` element is created, and sub-pixel
  *   width/height values are floored to integer pixels through the
  *   {@link floorRegion} helper before Fabric receives the region.
- * - When `mergeMask` is
+ * - When `mergeMasks` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
  *   mutator forces the bake-in style (`opacity: 1, fill: '#000',
@@ -91,8 +91,9 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { Base64ExportOptions, FabricModule, ImageFileExportOptions, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
-import { type HistoryManager } from '../history/history-manager.js';
+import type { Base64ExportOptions, FabricModule, ImageFileExportOptions, LoadImageOptions, AnnotationObject, MaskObject, ResolvedOptions } from '../core/public-types.js';
+import type { HistoryManager } from '../history/history-manager.js';
+import { type OverlayMergeTransactionContext } from './overlay-merge-service.js';
 /**
  * Dependency bundle passed by the `ImageEditor` facade into every export
  * entry point. The service has no class state of its own — every editor
@@ -150,7 +151,7 @@ export interface ExportServiceContext {
  * 6. **Render** through {@link withMaskExportState} so mask styles are
  *    captured, the export bake-in (`opacity: 1, fill: '#000',
  *    strokeWidth: 0, stroke: null, selectable: false`) is applied for
- *    `mergeMask === true` exports, and the live styles are
+ *    `mergeMasks === true` exports, and the live styles are
  *    restored in a `finally` block whether the render resolved or
  *    threw. The inner step is a single
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
@@ -229,7 +230,7 @@ export declare function downloadImage(context: ExportServiceContext, fileName?: 
  * this bundle from its own state.
  *
  */
-export interface MergeMasksContext extends ExportServiceContext {
+export interface MergeMasksContext extends ExportServiceContext, OverlayMergeTransactionContext {
     /** History manager that records the single merge command. */
     readonly historyManager: HistoryManager;
     /**
@@ -247,12 +248,6 @@ export interface MergeMasksContext extends ExportServiceContext {
      */
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     /**
-     * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
-     * orchestrator's `lastSnapshot`-producing path so the merge stores
-     * exactly the same wire format used by `undo` / `redo`.
-     */
-    saveState(): string;
-    /**
      * Restore a snapshot produced by {@link saveStateFn}. Used both as
      * the `undo` callback of the merge command and
      * as the rollback step on any merge-pipeline failure.
@@ -265,6 +260,18 @@ export interface MergeMasksContext extends ExportServiceContext {
      * of its own history push.
      */
     removeAllMasksNoHistory(): void;
+    getAnnotations(): AnnotationObject[];
+    restoreAnnotations(objects: AnnotationObject[]): void | Promise<void>;
+}
+export interface MergeAnnotationsContext extends ExportServiceContext, OverlayMergeTransactionContext {
+    readonly historyManager: HistoryManager;
+    readonly containerElement: HTMLElement | null;
+    loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
+    captureSnapshot(): string;
+    loadFromState(snapshot: string): Promise<void>;
+    removeAllAnnotationsNoHistory(): void;
+    getMasks(): MaskObject[];
+    restoreMasks(objects: MaskObject[]): void | Promise<void>;
 }
 /**
  * Flatten every mask into the base image and reload the flattened
@@ -330,4 +337,5 @@ export interface MergeMasksContext extends ExportServiceContext {
  *
  */
 export declare function mergeMasks(context: MergeMasksContext): Promise<void>;
+export declare function mergeAnnotations(context: MergeAnnotationsContext): Promise<void>;
 //# sourceMappingURL=export-service.d.ts.map

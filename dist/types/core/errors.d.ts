@@ -94,6 +94,16 @@ export declare class MergeMasksError extends Error {
     constructor(message?: string, originalError?: unknown);
 }
 /**
+ * Raised when flattening annotations into the base image fails. The
+ * pre-merge snapshot is restored before the rejection.
+ */
+export declare class MergeAnnotationsError extends Error {
+    readonly name = "MergeAnnotationsError";
+    /** Original error thrown during the merge pipeline. */
+    readonly originalError: unknown;
+    constructor(message?: string, originalError?: unknown);
+}
+/**
  * Raised by `crop/crop-controller.ts.applyCrop` on any failure during the
  * crop pipeline (crop computation, cropped-image load via the loader, or
  * any post-merge step). The pre-crop snapshot is restored, the

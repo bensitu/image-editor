@@ -930,7 +930,7 @@ async function getBase64Action() {
 
     try {
         // With no per-call options, `exportImageBase64` uses the constructor
-        // defaults above (`exportAreaByDefault`, `mergeMaskByDefault`,
+        // defaults above (`exportAreaByDefault`, `mergeMasksByDefault`,
         // output format, multiplier, and quality).
         const imageBase64 = await editor.exportImageBase64();
         showBase64Summary(imageBase64);

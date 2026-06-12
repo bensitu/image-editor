@@ -88,6 +88,8 @@ import type {
     ResolvedOptions,
 } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
+import { markMaskObject } from '../core/editor-object-kind.js';
+import { placeMaskObject } from '../core/layer-order.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
@@ -551,24 +553,24 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         maskObject.strokeDashArray = styles.strokeDashArray as number[];
     }
 
-    maskObject.originalAlpha = resolvedConfig.alpha;
-    maskObject.originalStroke = maskObject.stroke;
-    maskObject.originalStrokeWidth = maskObject.strokeWidth;
-    attachMaskHoverHandlers(maskObject);
-
     // ── Counter and identity ──────────────────────────
     const nextId = context.getMaskCounter() + 1;
     context.setMaskCounter(nextId);
-    maskObject.maskId = nextId;
-    maskObject.maskUid = createMaskUid(nextId);
-    maskObject.maskName = `${options.maskName}${nextId}`;
+    markMaskObject(maskObject, {
+        maskId: nextId,
+        maskUid: createMaskUid(nextId),
+        maskName: `${options.maskName}${nextId}`,
+        originalAlpha: resolvedConfig.alpha,
+        originalStroke: maskObject.stroke,
+        originalStrokeWidth: maskObject.strokeWidth,
+    });
+    attachMaskHoverHandlers(maskObject);
 
     context.setLastMask(maskObject);
 
     // ── Post-create order ───────────────────────
     //    add → updateMaskList → setActiveObject → saveCanvasState → onCreate.
-    canvas.add(maskObject);
-    canvas.bringObjectToFront(maskObject);
+    placeMaskObject(canvas, maskObject);
 
     context.updateMaskList();
 
@@ -648,6 +650,26 @@ export interface RemoveMaskContext {
     setLastMask(mask: MaskObject | null): void;
 }
 
+function isActiveSelectionObject(object: FabricNS.FabricObject | null | undefined): boolean {
+    if (!object) return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection') return true;
+    const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
+    return (
+        typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection'))
+    );
+}
+
+function getSelectedMaskObjects(canvas: FabricNS.Canvas): MaskObject[] {
+    const active = canvas.getActiveObject();
+    if (!active) return [];
+    if (!isActiveSelectionObject(active)) return isMaskObject(active) ? [active] : [];
+    const getObjects = (active as { getObjects?: () => FabricNS.FabricObject[] }).getObjects;
+    const objects = typeof getObjects === 'function' ? getObjects.call(active) : [];
+    return objects.filter(isMaskObject);
+}
+
 /**
  * Remove the currently selected mask (if it is a {@link MaskObject}).
  *
@@ -662,11 +684,13 @@ export interface RemoveMaskContext {
  * @param context - Orchestration context — see {@link RemoveMaskContext}.
  */
 export function removeSelectedMask(context: RemoveMaskContext): void {
-    const active = context.canvas.getActiveObject();
-    if (!active || !isMaskObject(active)) return;
-    context.removeLabelForMask(active);
-    detachMaskHoverHandlers(active);
-    context.canvas.remove(active);
+    const selectedMasks = getSelectedMaskObjects(context.canvas);
+    if (selectedMasks.length === 0) return;
+    for (const mask of selectedMasks) {
+        context.removeLabelForMask(mask);
+        detachMaskHoverHandlers(mask);
+        context.canvas.remove(mask);
+    }
     context.canvas.discardActiveObject();
     context.updateMaskList();
     // Removal helpers are synchronous APIs; callers should observe the

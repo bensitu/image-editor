@@ -42,7 +42,7 @@
  *   No intermediate `<canvas>` element is created, and sub-pixel
  *   width/height values are floored to integer pixels through the
  *   {@link floorRegion} helper before Fabric receives the region.
- * - When `mergeMask` is
+ * - When `mergeMasks` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
  *   mutator forces the bake-in style (`opacity: 1, fill: '#000',
@@ -93,7 +93,7 @@
 
 import type * as FabricNS from 'fabric';
 
-import { isMaskObject } from '../core/public-types.js';
+import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/public-types.js';
 import { reportError } from '../core/callback-reporter.js';
 import type {
     Base64ExportOptions,
@@ -101,12 +101,13 @@ import type {
     FabricModule,
     ImageFileExportOptions,
     LoadImageOptions,
+    AnnotationObject,
     MaskObject,
     NormalizedImageFormat,
     ResolvedOptions,
 } from '../core/public-types.js';
-import { ExportError, ExportNotReadyError, MergeMasksError } from '../core/errors.js';
-import { Command, type HistoryManager } from '../history/history-manager.js';
+import { ExportError, ExportNotReadyError } from '../core/errors.js';
+import type { HistoryManager } from '../history/history-manager.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import {
     getClampedCanvasRegion,
@@ -117,6 +118,10 @@ import {
     type PartialExportEdges,
 } from '../utils/canvas-region.js';
 import { resolveExportFormat, type ResolvedExportFormat } from './export-format.js';
+import {
+    flattenOverlayGroupToBaseImage,
+    type OverlayMergeTransactionContext,
+} from './overlay-merge-service.js';
 
 type LabelBackup = {
     readonly mask: MaskObject;
@@ -132,13 +137,14 @@ type CanvasWithSelection = FabricNS.Canvas & {
 
 interface ResolvedExportOptions {
     exportArea: ExportArea;
-    mergeMask: boolean;
+    mergeMasks: boolean;
+    mergeAnnotations: boolean;
     multiplier: number;
     format: ResolvedExportFormat;
 }
 
-type MaskVisibilityBackup = {
-    readonly mask: MaskObject;
+type VisibilityBackup = {
+    readonly object: FabricNS.FabricObject;
     readonly visible: unknown;
 };
 
@@ -216,10 +222,14 @@ function resolveExportOptions(
             providedOptions.exportArea,
             context.options.exportAreaByDefault,
         ),
-        mergeMask:
-            typeof providedOptions.mergeMask === 'boolean'
-                ? providedOptions.mergeMask
-                : context.options.mergeMaskByDefault,
+        mergeMasks:
+            typeof providedOptions.mergeMasks === 'boolean'
+                ? providedOptions.mergeMasks
+                : context.options.mergeMasksByDefault,
+        mergeAnnotations:
+            typeof providedOptions.mergeAnnotations === 'boolean'
+                ? providedOptions.mergeAnnotations
+                : context.options.mergeAnnotationsByDefault,
         multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
     };
@@ -334,10 +344,10 @@ function computeExportRegion(
  * export-only bake-in style, runs `callback`, and restores the captured live
  * styles inside a `finally` block — even if `callback` rejected.
  *
- * Bake-in is applied when `mergeMask === true`, matching the merge path's
- * mergeMask path where the rendered raster needs solid black masks so
+ * Bake-in is applied when `mergeMasks === true`, matching the merge path's
+ * mask merge path where the rendered raster needs solid black masks so
  * the masked-out regions are flattened into the JPEG/PNG output. When
- * When `mergeMask === false`, masks are hidden for the render and restored.
+ * When `mergeMasks === false`, masks are hidden for the render and restored.
  *
  * For each mask the bake-in mutator forces:
  *
@@ -354,7 +364,7 @@ function computeExportRegion(
  *
  * @param context - Export context — supplies the live canvas to
  *                         the canonical backup helper.
- * @param mergeMask - Resolved mask compositing flag. `true` triggers
+ * @param mergeMasks - Resolved mask compositing flag. `true` triggers
  *                         bake-in; `false` hides masks during render.
  * @param callback - The async data-URL rendering step. Already
  *                         knows the resolved format/quality/multiplier
@@ -365,10 +375,12 @@ function computeExportRegion(
  */
 async function withMaskExportState<T>(
     context: ExportServiceContext,
-    mergeMask: boolean,
+    mergeMasks: boolean,
     callback: () => Promise<T>,
 ): Promise<T> {
-    if (!mergeMask) return withMasksHidden(context, callback);
+    if (!mergeMasks) {
+        return withObjectsHidden(context.canvas, isMaskObject, callback);
+    }
     return withMaskStyleBackup(
         { canvas: context.canvas, options: context.options },
         applyExportBakeInStyle,
@@ -376,23 +388,24 @@ async function withMaskExportState<T>(
     );
 }
 
-async function withMasksHidden<T>(
-    context: ExportServiceContext,
+async function withObjectsHidden<T>(
+    canvas: FabricNS.Canvas,
+    predicate: (object: FabricNS.FabricObject) => boolean,
     callback: () => Promise<T>,
 ): Promise<T> {
-    const backups: MaskVisibilityBackup[] = getCanvasObjects(context.canvas)
-        .filter(isMaskObject)
-        .map((mask) => ({
-            mask,
-            visible: (mask as { visible?: unknown }).visible,
+    const backups: VisibilityBackup[] = getCanvasObjects(canvas)
+        .filter(predicate)
+        .map((object) => ({
+            object,
+            visible: (object as { visible?: unknown }).visible,
         }));
 
     for (const backup of backups) {
         try {
-            if (typeof backup.mask.set === 'function') {
-                backup.mask.set({ visible: false });
+            if (typeof backup.object.set === 'function') {
+                backup.object.set({ visible: false });
             } else {
-                (backup.mask as { visible?: unknown }).visible = false;
+                (backup.object as { visible?: unknown }).visible = false;
             }
         } catch {
             /* ignore — export restoration remains best-effort */
@@ -404,16 +417,47 @@ async function withMasksHidden<T>(
     } finally {
         for (const backup of backups) {
             try {
-                if (typeof backup.mask.set === 'function') {
-                    backup.mask.set({ visible: backup.visible });
+                if (typeof backup.object.set === 'function') {
+                    backup.object.set({ visible: backup.visible });
                 } else {
-                    (backup.mask as { visible?: unknown }).visible = backup.visible;
+                    (backup.object as { visible?: unknown }).visible = backup.visible;
                 }
             } catch {
                 /* ignore — do not mask the export result */
             }
         }
+        requestRender(canvas);
     }
+}
+
+async function withSessionObjectsHidden<T>(
+    context: ExportServiceContext,
+    callback: () => Promise<T>,
+): Promise<T> {
+    return withObjectsHidden(
+        context.canvas,
+        (object) =>
+            isSessionObject(object) ||
+            (object as { isCropRect?: unknown }).isCropRect === true ||
+            (object as { maskLabel?: unknown }).maskLabel === true ||
+            (object as { isMosaicPreview?: unknown }).isMosaicPreview === true,
+        callback,
+    );
+}
+
+async function withAnnotationsExportState<T>(
+    context: ExportServiceContext,
+    mergeAnnotations: boolean,
+    callback: () => Promise<T>,
+): Promise<T> {
+    if (!mergeAnnotations) {
+        return withObjectsHidden(context.canvas, isAnnotationObject, callback);
+    }
+    return withObjectsHidden(
+        context.canvas,
+        (object) => isAnnotationObject(object) && object.annotationHidden === true,
+        callback,
+    );
 }
 
 function getCanvasObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[] {
@@ -509,7 +553,7 @@ function requestRender(canvas: FabricNS.Canvas): void {
 
 /**
  * Mutator passed to {@link withMaskStyleBackup} that forces a single
- * mask to the export bake-in style. Matches legacy's mergeMask path
+ * mask to the export bake-in style. Matches the mask merge path
  * literal-for-literal (`#000` ≡ `#000000` once Fabric normalizes the
  * fill). Wrapped in `try/catch` so a stale Fabric reference does not
  * break the iteration over a multi-mask canvas — the surrounding
@@ -880,7 +924,7 @@ function warnNoImageLoaded(operation: string): void {
  * 6. **Render** through {@link withMaskExportState} so mask styles are
  *    captured, the export bake-in (`opacity: 1, fill: '#000',
  *    strokeWidth: 0, stroke: null, selectable: false`) is applied for
- *    `mergeMask === true` exports, and the live styles are
+ *    `mergeMasks === true` exports, and the live styles are
  *    restored in a `finally` block whether the render resolved or
  *    threw. The inner step is a single
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
@@ -916,13 +960,17 @@ export async function exportImageBase64(
             region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
 
-        let dataUrl = await withMaskExportState(context, resolved.mergeMask, async () =>
-            renderCanvasToDataUrl(
-                context.canvas,
-                renderFormat,
-                renderQuality,
-                resolved.multiplier,
-                region,
+        let dataUrl = await withSessionObjectsHidden(context, async () =>
+            withMaskExportState(context, resolved.mergeMasks, async () =>
+                withAnnotationsExportState(context, resolved.mergeAnnotations, async () =>
+                    renderCanvasToDataUrl(
+                        context.canvas,
+                        renderFormat,
+                        renderQuality,
+                        resolved.multiplier,
+                        region,
+                    ),
+                ),
             ),
         );
         if (region) {
@@ -984,7 +1032,8 @@ export async function exportImageFile(
     // defined once.
     const base64 = await exportImageBase64(context, {
         exportArea: providedOptions.exportArea,
-        mergeMask: providedOptions.mergeMask,
+        mergeMasks: providedOptions.mergeMasks,
+        mergeAnnotations: providedOptions.mergeAnnotations,
         multiplier: providedOptions.multiplier,
         quality: providedOptions.quality,
         fileType: providedOptions.fileType,
@@ -1046,7 +1095,8 @@ export function downloadImage(context: ExportServiceContext, fileName?: string):
     // (notably Firefox) ignore programmatic clicks on detached nodes.
     void exportImageBase64(context, {
         exportArea: context.options.exportAreaByDefault,
-        mergeMask: context.options.mergeMaskByDefault,
+        mergeMasks: context.options.mergeMasksByDefault,
+        mergeAnnotations: context.options.mergeAnnotationsByDefault,
         multiplier: context.options.exportMultiplier,
     })
         .then((dataUrl) => {
@@ -1096,7 +1146,7 @@ export function downloadImage(context: ExportServiceContext, fileName?: string):
  * this bundle from its own state.
  *
  */
-export interface MergeMasksContext extends ExportServiceContext {
+export interface MergeMasksContext extends ExportServiceContext, OverlayMergeTransactionContext {
     /** History manager that records the single merge command. */
     readonly historyManager: HistoryManager;
     /**
@@ -1116,13 +1166,6 @@ export interface MergeMasksContext extends ExportServiceContext {
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
 
     /**
-     * Capture a snapshot suitable for {@link loadFromStateFn}. Reads the
-     * orchestrator's `lastSnapshot`-producing path so the merge stores
-     * exactly the same wire format used by `undo` / `redo`.
-     */
-    saveState(): string;
-
-    /**
      * Restore a snapshot produced by {@link saveStateFn}. Used both as
      * the `undo` callback of the merge command and
      * as the rollback step on any merge-pipeline failure.
@@ -1136,6 +1179,20 @@ export interface MergeMasksContext extends ExportServiceContext {
      * of its own history push.
      */
     removeAllMasksNoHistory(): void;
+    getAnnotations(): AnnotationObject[];
+    restoreAnnotations(objects: AnnotationObject[]): void | Promise<void>;
+}
+
+export interface MergeAnnotationsContext
+    extends ExportServiceContext, OverlayMergeTransactionContext {
+    readonly historyManager: HistoryManager;
+    readonly containerElement: HTMLElement | null;
+    loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
+    captureSnapshot(): string;
+    loadFromState(snapshot: string): Promise<void>;
+    removeAllAnnotationsNoHistory(): void;
+    getMasks(): MaskObject[];
+    restoreMasks(objects: MaskObject[]): void | Promise<void>;
 }
 
 /**
@@ -1202,124 +1259,39 @@ export interface MergeMasksContext extends ExportServiceContext {
  *
  */
 export async function mergeMasks(context: MergeMasksContext): Promise<void> {
-    // 1. No-op gates — match legacy's `if (!this.originalImage) return; …
-    //    if (!masks.length) return;`. These run before the snapshot is
-    //    captured so a no-op merge does not produce an empty history
-    //    entry.
-    if (!context.isImageLoaded()) return;
-
-    const masks = context.canvas
-        .getObjects()
-        .filter(
-            (o): o is MaskObject =>
-                'maskId' in o && typeof (o as { maskId?: unknown }).maskId === 'number',
-        );
-    if (masks.length === 0) return;
-
-    // 2. capture a snapshot suitable for
-    //    `loadFromState`. The snapshot is the single source of truth
-    //    for both the rollback path and the merge
-    //    command's `undo`. Capture before the explicit discard below
-    //    so the serializer can record the active mask id and the facade
-    //    can rebuild the transient label/list selection on undo.
-    const beforeSnapshot = context.saveState();
-
-    // 3. drop any active selection BEFORE computing
-    //    the merged bitmap. `discardActiveObject` is a no-op when no
-    //    selection is active. `context.saveState` already discarded once;
-    //    the duplicate call is harmless and keeps this function
-    //    readable as a self-contained pipeline.
-    context.canvas.discardActiveObject();
-    context.canvas.renderAll();
-
-    // 4. Capture pre-merge container scroll. Read
-    //    BEFORE any mutation so the values reflect the user's pre-merge
-    //    viewport, not the post-merge canvas size.
-    const preScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
-    const preScrollLeft = context.containerElement ? context.containerElement.scrollLeft : null;
-
-    try {
-        // 5. Render the merged bitmap. `exportImageBase64` runs the
-        //    bake-in/restore bracket internally.
-        const merged = await exportImageBase64(context, {
+    await flattenOverlayGroupToBaseImage(context, {
+        operation: 'mergeMasks',
+        exportOptions: {
             exportArea: 'image',
-            mergeMask: true,
+            mergeMasks: true,
+            mergeAnnotations: false,
             multiplier: context.options.exportMultiplier,
             fileType: 'png',
-        });
-        if (!merged) {
-            // `exportImageBase64` only resolves to '' when no image is
-            // loaded. The `isImageLoaded` gate at the top should
-            // prevent this branch, but a defensive throw keeps the
-            // pipeline total even if the orchestrator's predicate
-            // disagrees with the bake-in step about image presence.
-            throw new MergeMasksError('mergeMasks: exportImageBase64 returned an empty data URL.');
-        }
+        },
+        getTargets: () => context.canvas.getObjects().filter(isMaskObject),
+        getPreservedObjects: () => context.getAnnotations(),
+        removeTargetsNoHistory: () => {
+            context.removeAllMasksNoHistory();
+        },
+        restorePreservedObjects: (objects) => context.restoreAnnotations(objects),
+    });
+}
 
-        // 6. Remove every mask WITHOUT pushing a history entry. The
-        //    merge owns the single enclosing entry.
-        context.removeAllMasksNoHistory();
-
-        // 7. Reload the merged image through the transactional loader
-        //    so a decode/Fabric/timeout failure propagates back here
-        //    and the rollback path catches it. `preserveScroll: true`
-        //    nudges the loader to preserve scroll for the layouts that
-        //    honor it; the explicit step 9 below handles the layouts
-        //    that don't.
-        await context.loadImage(merged, { preserveScroll: true });
-
-        // 8. Capture the post-merge snapshot for the merge command's
-        //    `execute` (used on redo).
-        const afterSnapshot = context.saveState();
-
-        // 9. Defensive scroll restore — even when
-        //    the inner `loadImage` honored `preserveScroll`, the layout
-        //    strategy may have resized the canvas in a way that
-        //    altered scroll metrics. Writing the captured values back
-        //    here guarantees the user's view does not jump regardless
-        //    of which layout strategy was selected for the merged
-        //    image.
-        if (context.containerElement) {
-            try {
-                if (preScrollTop !== null) {
-                    context.containerElement.scrollTop = preScrollTop;
-                }
-                if (preScrollLeft !== null) {
-                    context.containerElement.scrollLeft = preScrollLeft;
-                }
-            } catch (scrollError) {
-                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollError);
-            }
-        }
-
-        // 10. push exactly one history entry. Use
-        //     `push` (not `execute`) because the merged state is
-        //     already on the canvas; the first `redo` after an `undo`
-        //     should re-run the merged-state restore via the
-        //     command's `execute`.
-        if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
-            context.historyManager.push(
-                new Command(
-                    () => context.loadFromState(afterSnapshot),
-                    () => context.loadFromState(beforeSnapshot),
-                ),
-            );
-        }
-    } catch (error) {
-        // restore the pre-merge snapshot and
-        // reject with `MergeMasksError`. A failure inside the rollback
-        // itself is logged but does NOT mask the original error.
-        try {
-            await context.loadFromState(beforeSnapshot);
-        } catch (rollbackError) {
-            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
-        }
-        // If the inner step already raised a `MergeMasksError`, keep
-        // it; otherwise wrap so the public surface always reports a
-        // consistent error type.
-        if (error instanceof MergeMasksError) throw error;
-        const message =
-            error instanceof Error ? `mergeMasks failed: ${error.message}` : 'mergeMasks failed';
-        throw new MergeMasksError(message, error);
-    }
+export async function mergeAnnotations(context: MergeAnnotationsContext): Promise<void> {
+    await flattenOverlayGroupToBaseImage(context, {
+        operation: 'mergeAnnotations',
+        exportOptions: {
+            exportArea: 'image',
+            mergeMasks: false,
+            mergeAnnotations: true,
+            multiplier: context.options.exportMultiplier,
+            fileType: 'png',
+        },
+        getTargets: () => context.canvas.getObjects().filter(isAnnotationObject),
+        getPreservedObjects: () => context.getMasks(),
+        removeTargetsNoHistory: () => {
+            context.removeAllAnnotationsNoHistory();
+        },
+        restorePreservedObjects: (objects) => context.restoreMasks(objects),
+    });
 }

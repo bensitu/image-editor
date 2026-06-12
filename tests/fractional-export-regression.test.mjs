@@ -75,7 +75,7 @@ test('mergeMasks preserves the right edge when image width lands on a partial pi
     await editor.mergeMasks();
     const exportedAfterMerge = await editor.exportImageBase64({
         exportArea: 'image',
-        mergeMask: true,
+        mergeMasks: true,
         fileType: 'png',
         multiplier: 1,
     });
@@ -114,7 +114,7 @@ test('mergeMasks preserves the bottom edge when image height lands on a partial 
     await editor.mergeMasks();
     const exportedAfterMerge = await editor.exportImageBase64({
         exportArea: 'image',
-        mergeMask: true,
+        mergeMasks: true,
         fileType: 'png',
         multiplier: 1,
     });
@@ -150,7 +150,7 @@ test('JPEG export composites partial transparent edges without introducing black
 
     const exported = await editor.exportImageBase64({
         exportArea: 'image',
-        mergeMask: true,
+        mergeMasks: true,
         fileType: 'jpeg',
         multiplier: 1,
         quality: 0.92,

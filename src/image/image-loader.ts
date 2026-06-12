@@ -96,12 +96,14 @@
 import type * as FabricNS from 'fabric';
 
 import type {
+    BaseImageObject,
     FabricModule,
     ImageMimeType,
     LoadImageOptions,
     ResolvedOptions,
 } from '../core/public-types.js';
 import { reportError, reportWarning } from '../core/callback-reporter.js';
+import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -143,7 +145,7 @@ export interface RollbackBundle {
     /** Container `scrollLeft` immediately before the loader started. */
     containerScrollLeft: number | null;
     /** The previously-committed `originalImage` reference, if any. */
-    originalImage: FabricNS.FabricImage | null;
+    originalImage: BaseImageObject | null;
     /** Whether an image was already committed before this call. */
     isImageLoadedToCanvas: boolean;
     /** Snapshot string used as the history baseline before the call. */
@@ -155,6 +157,8 @@ export interface RollbackBundle {
     canvasJson: string;
     /** Mask counter value before the loader reset it to 0. */
     maskCounter: number;
+    /** Annotation counter value before the loader reset it to 0. */
+    annotationCounter: number;
     /** Image scale factor before the loader reset it to 1. */
     currentScale: number;
     /** Image rotation in degrees before the loader reset it to 0. */
@@ -198,9 +202,9 @@ export interface LoadImageContext {
     viewportCache: ViewportCache;
 
     /** Reads the previously-committed `originalImage`. */
-    getOriginalImage(): FabricNS.FabricImage | null;
+    getOriginalImage(): BaseImageObject | null;
     /** Writes `originalImage` (used both on commit and on rollback). */
-    setOriginalImage(imageObject: FabricNS.FabricImage | null): void;
+    setOriginalImage(imageObject: BaseImageObject | null): void;
 
     /** Reads `isImageLoadedToCanvas`. */
     getIsImageLoadedToCanvas(): boolean;
@@ -216,6 +220,11 @@ export interface LoadImageContext {
     getMaskCounter(): number;
     /** Writes `maskCounter`. */
     setMaskCounter(n: number): void;
+
+    /** Reads `annotationCounter`. */
+    getAnnotationCounter(): number;
+    /** Writes `annotationCounter`. */
+    setAnnotationCounter(n: number): void;
 
     /** Reads `currentScale`. */
     getCurrentScale(): number;
@@ -331,6 +340,7 @@ export async function loadImage(
         lastSnapshot: context.getLastSnapshot(),
         canvasJson: serializeCanvas(context.canvas),
         maskCounter: context.getMaskCounter(),
+        annotationCounter: getAnnotationCounter(context),
         currentScale: context.getCurrentScale(),
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
@@ -386,32 +396,34 @@ export async function loadImage(
         context.canvas.clear();
         context.canvas.backgroundColor = context.options.backgroundColor;
 
-        fabricImage.set({
+        const baseImage = markBaseImageObject(fabricImage);
+        baseImage.set({
             originX: 'left',
             originY: 'top',
             selectable: false,
             evented: false,
         });
 
-        const layout = computeLayout(context, fabricImage);
+        const layout = computeLayout(context, baseImage);
         applyCanvasDimensions(
             context.canvas,
             layout.canvasWidth,
             layout.canvasHeight,
             context.containerElement,
         );
-        fabricImage.set({ left: layout.imageLeft, top: layout.imageTop });
-        fabricImage.scale(layout.imageScale);
+        baseImage.set({ left: layout.imageLeft, top: layout.imageTop });
+        baseImage.scale(layout.imageScale);
 
-        context.canvas.add(fabricImage);
-        context.canvas.sendObjectToBack(fabricImage);
+        context.canvas.add(baseImage);
+        context.canvas.sendObjectToBack(baseImage);
 
         // 8. commit editor scalar state.
-        context.setOriginalImage(fabricImage);
+        context.setOriginalImage(baseImage);
         context.setBaseImageScale(layout.baseImageScale);
         context.setCurrentScale(1);
         context.setCurrentRotation(0);
         context.setMaskCounter(0);
+        setAnnotationCounter(context, 0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
 
@@ -695,6 +707,16 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
     return JSON.stringify(json);
 }
 
+function getAnnotationCounter(context: LoadImageContext): number {
+    const getter = (context as { getAnnotationCounter?: () => number }).getAnnotationCounter;
+    return typeof getter === 'function' ? getter.call(context) : 0;
+}
+
+function setAnnotationCounter(context: LoadImageContext, value: number): void {
+    const setter = (context as { setAnnotationCounter?: (n: number) => void }).setAnnotationCounter;
+    if (typeof setter === 'function') setter.call(context, value);
+}
+
 /**
  * Replay the rollback bundle in the documented reverse-of-capture order.
  *
@@ -725,6 +747,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
     context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
     context.setLastSnapshot(bundle.lastSnapshot);
     context.setMaskCounter(bundle.maskCounter);
+    setAnnotationCounter(context, bundle.annotationCounter);
     context.setCurrentScale(bundle.currentScale);
     context.setCurrentRotation(bundle.currentRotation);
     context.setBaseImageScale(bundle.baseImageScale);

@@ -605,11 +605,22 @@ function initEditor() {
         // Export defaults apply when the demo calls `exportImageBase64()`
         // without per-call options.
         exportAreaByDefault: 'image',
+        mergeMasksByDefault: true,
+        mergeAnnotationsByDefault: true,
+        defaultTextConfig: {
+            fill: '#ff0000',
+            fontSize: 32,
+        },
+        defaultDrawConfig: {
+            color: '#ff0000',
+            brushSize: 8,
+        },
         // Lifecycle callbacks are a convenient way for host pages to sync
         // their own controls with editor state without reaching into internals.
         onImageChanged: updateDemoControls,
         onBusyChange: updateDemoControls,
         onMasksChanged: updateDemoControls,
+        onAnnotationsChanged: updateDemoControls,
     });
 
     editor.init({
@@ -626,8 +637,10 @@ function initEditor() {
         removeSelectedMaskButton: 'removeSelectedMaskButton',
         removeAllMasksButton: 'removeAllMasksButton',
         mergeMasksButton: 'mergeMasksButton',
+        mergeAnnotationsButton: 'mergeAnnotationsButton',
         downloadImageButton: 'downloadImageButton',
         maskList: 'maskList',
+        annotationList: 'annotationList',
         enterCropModeButton: 'enterCropModeButton',
         applyCropButton: 'applyCropButton',
         cancelCropButton: 'cancelCropButton',
@@ -635,6 +648,21 @@ function initEditor() {
         exitMosaicModeButton: 'exitMosaicModeButton',
         mosaicBrushSizeInput: 'mosaicBrushSizeInput',
         mosaicBlockSizeInput: 'mosaicBlockSizeInput',
+        enterTextModeButton: 'enterTextModeButton',
+        exitTextModeButton: 'exitTextModeButton',
+        textColorInput: 'textColorInput',
+        textFontSizeInput: 'textFontSizeInput',
+        enterDrawModeButton: 'enterDrawModeButton',
+        exitDrawModeButton: 'exitDrawModeButton',
+        drawColorInput: 'drawColorInput',
+        drawBrushSizeInput: 'drawBrushSizeInput',
+        removeSelectedAnnotationButton: 'removeSelectedAnnotationButton',
+        removeAllAnnotationsButton: 'removeAllAnnotationsButton',
+        deleteSelectedObjectButton: 'deleteSelectedObjectButton',
+        bringSelectedObjectForwardButton: 'bringSelectedObjectForwardButton',
+        sendSelectedObjectBackwardButton: 'sendSelectedObjectBackwardButton',
+        bringSelectedObjectToFrontButton: 'bringSelectedObjectToFrontButton',
+        sendSelectedObjectToBackButton: 'sendSelectedObjectToBackButton',
         undoButton: 'undoButton',
         redoButton: 'redoButton',
         resetImageTransformButton: 'resetImageTransformButton',
@@ -683,10 +711,15 @@ function updateDemoControls() {
     const createMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadImageButtonElement = getOptionalElement('loadImageButton');
+    const exportMergeMasksInput = getOptionalElement('exportMergeMasksInput');
+    const exportMergeAnnotationsInput = getOptionalElement('exportMergeAnnotationsInput');
 
     if (createMaskButtonElement) createMaskButtonElement.disabled = !hasLoadedImage || isBusy;
     if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
     if (loadImageButtonElement) loadImageButtonElement.disabled = isBusy;
+    if (exportMergeMasksInput) exportMergeMasksInput.disabled = !hasLoadedImage || isBusy;
+    if (exportMergeAnnotationsInput)
+        exportMergeAnnotationsInput.disabled = !hasLoadedImage || isBusy;
     if (imageInputElement) imageInputElement.disabled = isBusy;
     if (uploadAreaElement) {
         uploadAreaElement.classList.toggle('disabled', isBusy);
@@ -873,10 +906,12 @@ async function getBase64Action() {
     }
 
     try {
-        // With no per-call options, `exportImageBase64` uses the constructor
-        // defaults above (`exportAreaByDefault`, `mergeMaskByDefault`,
-        // output format, multiplier, and quality).
-        const imageBase64 = await editor.exportImageBase64();
+        // The export toggles affect rendered output only. They do not
+        // remove masks or annotations and do not push history entries.
+        const imageBase64 = await editor.exportImageBase64({
+            mergeMasks: getOptionalElement('exportMergeMasksInput')?.checked !== false,
+            mergeAnnotations: getOptionalElement('exportMergeAnnotationsInput')?.checked !== false,
+        });
         showBase64Summary(imageBase64);
     } catch (error) {
         showMessage(error);

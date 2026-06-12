@@ -16,6 +16,7 @@
 import type {
     CropConfig,
     DefaultMaskConfig,
+    DrawConfig,
     ExportArea,
     ImageEditorOptions,
     LabelConfig,
@@ -23,8 +24,11 @@ import type {
     MosaicConfig,
     MosaicOutputFileType,
     ResolvedCropConfig,
+    ResolvedDrawConfig,
     ResolvedMosaicConfig,
     ResolvedOptions,
+    ResolvedTextAnnotationConfig,
+    TextAnnotationConfig,
 } from './public-types.js';
 import { tryNormalizeImageFormat } from '../export/export-format.js';
 
@@ -42,7 +46,10 @@ const DEFAULT_LAYOUT_MODE: LayoutMode = 'expand';
  * Nested label and crop defaults are carried by {@link DEFAULT_LABEL} and
  * {@link DEFAULT_CROP}.
  */
-export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultMosaicConfig'> = {
+export const DEFAULT_OPTIONS: Omit<
+    ResolvedOptions,
+    'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig'
+> = {
     // Canvas size
     canvasWidth: 800,
     canvasHeight: 600,
@@ -75,7 +82,8 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultM
     exportMultiplier: 1,
     maxExportPixels: 50000000,
     exportAreaByDefault: 'image',
-    mergeMaskByDefault: true,
+    mergeMasksByDefault: true,
+    mergeAnnotationsByDefault: true,
 
     // Mask defaults
     defaultMaskWidth: 50,
@@ -85,6 +93,8 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultM
     maskLabelOnSelect: true,
     maskLabelOffset: 3,
     maskName: 'mask',
+    textAnnotationName: 'text',
+    drawAnnotationName: 'draw',
 
     groupSelection: false,
 
@@ -103,6 +113,7 @@ export const DEFAULT_OPTIONS: Omit<ResolvedOptions, 'label' | 'crop' | 'defaultM
     onBusyChange: null,
     onEditorDisposed: null,
     onMasksChanged: null,
+    onAnnotationsChanged: null,
     onSelectionChange: null,
     onError: null,
     onWarning: null,
@@ -164,6 +175,39 @@ export const DEFAULT_MOSAIC_CONFIG: ResolvedMosaicConfig = Object.freeze({
     outputQuality: undefined,
 });
 
+export const DEFAULT_TEXT_ANNOTATION_CONFIG: ResolvedTextAnnotationConfig = Object.freeze({
+    text: 'Text',
+    left: undefined,
+    top: undefined,
+    width: 200,
+    fontSize: 32,
+    fontFamily: 'sans-serif',
+    fontWeight: 'normal',
+    fill: '#ff0000',
+    backgroundColor: 'rgba(255,255,255,0)',
+    textAlign: 'left',
+    angle: 0,
+    selectable: true,
+    evented: true,
+    editable: true,
+    enterEditing: true,
+    annotationHidden: false,
+    annotationLocked: false,
+    styles: Object.freeze({}) as Partial<import('fabric').TextboxProps>,
+});
+
+export const DEFAULT_DRAW_CONFIG: ResolvedDrawConfig = Object.freeze({
+    brushSize: 8,
+    color: '#ff0000',
+    opacity: 1,
+    lineCap: 'round',
+    lineJoin: 'round',
+    selectable: true,
+    evented: true,
+    annotationHidden: false,
+    annotationLocked: false,
+});
+
 // ─── Resolver ────────────────────────────────────────────────────────────────
 
 /**
@@ -191,7 +235,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'exportMultiplier',
     'maxExportPixels',
     'exportAreaByDefault',
-    'mergeMaskByDefault',
+    'mergeMasksByDefault',
+    'mergeAnnotationsByDefault',
     'defaultMaskWidth',
     'defaultMaskHeight',
     'defaultMaskConfig',
@@ -199,6 +244,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'maskLabelOnSelect',
     'maskLabelOffset',
     'maskName',
+    'textAnnotationName',
+    'drawAnnotationName',
     'groupSelection',
     'showPlaceholder',
     'initialImageBase64',
@@ -210,12 +257,15 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'onBusyChange',
     'onEditorDisposed',
     'onMasksChanged',
+    'onAnnotationsChanged',
     'onSelectionChange',
     'onError',
     'onWarning',
     'label',
     'crop',
     'defaultMosaicConfig',
+    'defaultTextConfig',
+    'defaultDrawConfig',
 ]);
 
 /**
@@ -321,7 +371,7 @@ function normalizeOptionalQuality(value: unknown): number | undefined {
     return Math.max(0, Math.min(1, numeric));
 }
 
-function hasOwn(object: Record<string, unknown>, key: keyof MosaicConfig): boolean {
+function hasOwn(object: Record<string, unknown>, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(object, key);
 }
 
@@ -538,6 +588,206 @@ export function areResolvedMosaicConfigsEqual(
     );
 }
 
+export function cloneResolvedTextAnnotationConfig(
+    config: ResolvedTextAnnotationConfig,
+): ResolvedTextAnnotationConfig {
+    return {
+        ...config,
+        styles: { ...config.styles },
+    };
+}
+
+export function cloneResolvedDrawConfig(config: ResolvedDrawConfig): ResolvedDrawConfig {
+    return { ...config };
+}
+
+function normalizeTextAlign(
+    value: unknown,
+    fallback: ResolvedTextAnnotationConfig['textAlign'],
+): ResolvedTextAnnotationConfig['textAlign'] {
+    return value === 'left' || value === 'center' || value === 'right' || value === 'justify'
+        ? value
+        : fallback;
+}
+
+function normalizePositiveNumber(value: unknown, fallback: number): number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+    return typeof value === 'boolean' ? value : fallback;
+}
+
+function normalizeString(value: unknown, fallback: string): string {
+    return typeof value === 'string' ? value : fallback;
+}
+
+function normalizeTextLeftTop(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeTextboxStyles(value: unknown): Partial<import('fabric').TextboxProps> {
+    if (!isConfigObject(value)) return {};
+    return { ...value } as Partial<import('fabric').TextboxProps>;
+}
+
+export function mergeTextAnnotationConfigPatch(
+    current: ResolvedTextAnnotationConfig,
+    patch: TextAnnotationConfig,
+    fallback: ResolvedTextAnnotationConfig = current,
+): ResolvedTextAnnotationConfig {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedTextAnnotationConfig(current);
+
+    if (hasOwn(raw, 'text')) next.text = normalizeString(raw.text, fallback.text);
+    if (hasOwn(raw, 'left')) next.left = normalizeTextLeftTop(raw.left);
+    if (hasOwn(raw, 'top')) next.top = normalizeTextLeftTop(raw.top);
+    if (hasOwn(raw, 'width')) next.width = normalizePositiveNumber(raw.width, fallback.width);
+    if (hasOwn(raw, 'fontSize')) {
+        next.fontSize = normalizePositiveNumber(raw.fontSize, fallback.fontSize);
+    }
+    if (hasOwn(raw, 'fontFamily')) {
+        next.fontFamily = normalizeString(raw.fontFamily, fallback.fontFamily);
+    }
+    if (hasOwn(raw, 'fontWeight')) {
+        next.fontWeight =
+            typeof raw.fontWeight === 'string' || typeof raw.fontWeight === 'number'
+                ? raw.fontWeight
+                : fallback.fontWeight;
+    }
+    if (hasOwn(raw, 'fill')) next.fill = normalizeString(raw.fill, fallback.fill);
+    if (hasOwn(raw, 'backgroundColor')) {
+        next.backgroundColor = normalizeString(raw.backgroundColor, fallback.backgroundColor);
+    }
+    if (hasOwn(raw, 'textAlign'))
+        next.textAlign = normalizeTextAlign(raw.textAlign, fallback.textAlign);
+    if (hasOwn(raw, 'angle')) next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
+    if (hasOwn(raw, 'selectable'))
+        next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
+    if (hasOwn(raw, 'evented')) next.evented = normalizeBoolean(raw.evented, fallback.evented);
+    if (hasOwn(raw, 'editable')) next.editable = normalizeBoolean(raw.editable, fallback.editable);
+    if (hasOwn(raw, 'enterEditing')) {
+        next.enterEditing = normalizeBoolean(raw.enterEditing, fallback.enterEditing);
+    }
+    if (hasOwn(raw, 'annotationHidden')) {
+        next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
+    }
+    if (hasOwn(raw, 'annotationLocked')) {
+        next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
+    }
+    if (hasOwn(raw, 'styles')) {
+        next.styles = {
+            ...next.styles,
+            ...normalizeTextboxStyles(raw.styles),
+        };
+    }
+
+    return next;
+}
+
+export function normalizeTextAnnotationConfig(
+    input: unknown,
+    fallback: ResolvedTextAnnotationConfig,
+): ResolvedTextAnnotationConfig {
+    if (!isConfigObject(input)) return cloneResolvedTextAnnotationConfig(fallback);
+    return mergeTextAnnotationConfigPatch(fallback, input as TextAnnotationConfig);
+}
+
+function normalizeLineCap(value: unknown, fallback: CanvasLineCap): CanvasLineCap {
+    return value === 'butt' || value === 'round' || value === 'square' ? value : fallback;
+}
+
+function normalizeLineJoin(value: unknown, fallback: CanvasLineJoin): CanvasLineJoin {
+    return value === 'bevel' || value === 'round' || value === 'miter' ? value : fallback;
+}
+
+function normalizeOpacity(value: unknown, fallback: number): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+    return Math.max(0, Math.min(1, value));
+}
+
+export function mergeDrawConfigPatch(
+    current: ResolvedDrawConfig,
+    patch: DrawConfig,
+    fallback: ResolvedDrawConfig = current,
+): ResolvedDrawConfig {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedDrawConfig(current);
+
+    if (hasOwn(raw, 'brushSize')) {
+        next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn(raw, 'color')) next.color = normalizeString(raw.color, fallback.color);
+    if (hasOwn(raw, 'opacity')) next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
+    if (hasOwn(raw, 'lineCap')) next.lineCap = normalizeLineCap(raw.lineCap, fallback.lineCap);
+    if (hasOwn(raw, 'lineJoin')) next.lineJoin = normalizeLineJoin(raw.lineJoin, fallback.lineJoin);
+    if (hasOwn(raw, 'selectable'))
+        next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
+    if (hasOwn(raw, 'evented')) next.evented = normalizeBoolean(raw.evented, fallback.evented);
+    if (hasOwn(raw, 'annotationHidden')) {
+        next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
+    }
+    if (hasOwn(raw, 'annotationLocked')) {
+        next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
+    }
+
+    return next;
+}
+
+export function normalizeDrawConfig(
+    input: unknown,
+    fallback: ResolvedDrawConfig,
+): ResolvedDrawConfig {
+    if (!isConfigObject(input)) return cloneResolvedDrawConfig(fallback);
+    return mergeDrawConfigPatch(fallback, input as DrawConfig);
+}
+
+export function areResolvedTextAnnotationConfigsEqual(
+    left: ResolvedTextAnnotationConfig,
+    right: ResolvedTextAnnotationConfig,
+): boolean {
+    return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function areResolvedDrawConfigsEqual(
+    left: ResolvedDrawConfig,
+    right: ResolvedDrawConfig,
+): boolean {
+    return (
+        left.brushSize === right.brushSize &&
+        left.color === right.color &&
+        left.opacity === right.opacity &&
+        left.lineCap === right.lineCap &&
+        left.lineJoin === right.lineJoin &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked
+    );
+}
+
+export function getInvalidTextAnnotationConfigFields(input: TextAnnotationConfig): string[] {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid: string[] = [];
+    if (hasOwn(raw, 'text') && typeof raw.text !== 'string') invalid.push('text');
+    if (hasOwn(raw, 'width') && !isFiniteNumber(raw.width)) invalid.push('width');
+    if (hasOwn(raw, 'fontSize') && !isFiniteNumber(raw.fontSize)) invalid.push('fontSize');
+    if (hasOwn(raw, 'fontFamily') && typeof raw.fontFamily !== 'string') invalid.push('fontFamily');
+    if (hasOwn(raw, 'fill') && typeof raw.fill !== 'string') {
+        invalid.push('fill');
+    }
+    return invalid;
+}
+
+export function getInvalidDrawConfigFields(input: DrawConfig): string[] {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid: string[] = [];
+    if (hasOwn(raw, 'brushSize') && !isFiniteNumber(raw.brushSize)) invalid.push('brushSize');
+    if (hasOwn(raw, 'color') && typeof raw.color !== 'string') invalid.push('color');
+    if (hasOwn(raw, 'opacity') && !isFiniteNumber(raw.opacity)) invalid.push('opacity');
+    return invalid;
+}
+
 /**
  * Resolves a partial {@link ImageEditorOptions} into a fully populated
  * {@link ResolvedOptions} object.
@@ -569,7 +819,15 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     for (const key of Object.keys(raw) as Array<keyof ImageEditorOptions>) {
         if (!KNOWN_TOP_LEVEL_KEYS.has(key)) continue;
         // Nested configs are handled separately below.
-        if (key === 'label' || key === 'crop' || key === 'defaultMosaicConfig') continue;
+        if (
+            key === 'label' ||
+            key === 'crop' ||
+            key === 'defaultMosaicConfig' ||
+            key === 'defaultTextConfig' ||
+            key === 'defaultDrawConfig'
+        ) {
+            continue;
+        }
         // Callbacks are normalized after this loop.
         if (
             key === 'onImageLoadStart' ||
@@ -579,6 +837,7 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
             key === 'onBusyChange' ||
             key === 'onEditorDisposed' ||
             key === 'onMasksChanged' ||
+            key === 'onAnnotationsChanged' ||
             key === 'onSelectionChange' ||
             key === 'onError' ||
             key === 'onWarning'
@@ -718,6 +977,9 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     resolved.onMasksChanged = normalizeCallback<NonNullable<ImageEditorOptions['onMasksChanged']>>(
         raw.onMasksChanged,
     );
+    resolved.onAnnotationsChanged = normalizeCallback<
+        NonNullable<ImageEditorOptions['onAnnotationsChanged']>
+    >(raw.onAnnotationsChanged);
     resolved.onSelectionChange = normalizeCallback<
         NonNullable<ImageEditorOptions['onSelectionChange']>
     >(raw.onSelectionChange);
@@ -786,10 +1048,24 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     }
     Object.freeze(defaultMosaicConfig);
 
+    // ── Text annotation ─────────────────────────────────────────────────
+    const defaultTextConfig = normalizeTextAnnotationConfig(
+        raw.defaultTextConfig,
+        DEFAULT_TEXT_ANNOTATION_CONFIG,
+    );
+    Object.freeze(defaultTextConfig.styles);
+    Object.freeze(defaultTextConfig);
+
+    // ── Draw annotation ─────────────────────────────────────────────────
+    const defaultDrawConfig = normalizeDrawConfig(raw.defaultDrawConfig, DEFAULT_DRAW_CONFIG);
+    Object.freeze(defaultDrawConfig);
+
     return Object.freeze({
         ...resolved,
         label,
         crop,
         defaultMosaicConfig,
+        defaultTextConfig,
+        defaultDrawConfig,
     }) as ResolvedOptions;
 }

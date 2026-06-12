@@ -80,7 +80,9 @@ function installDom() {
  */
 function makeMask(id, name) {
     return {
+        editorObjectKind: 'mask',
         maskId: id,
+        maskUid: `mask-${id}`,
         maskName: name,
         angle: 0,
         getCoords() {

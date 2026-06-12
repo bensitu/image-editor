@@ -212,6 +212,7 @@ const transientObjArb = fc.oneof(
 // (sub-).
 const originalImageArb = fc.option(
     fc.record({
+        editorObjectKind: fc.constant('baseImage'),
         type: fc.constant('image'),
         left: fc.integer({ min: 0, max: 100 }),
         top: fc.integer({ min: 0, max: 100 }),
@@ -238,6 +239,7 @@ const scenarioArb = fc
     )
     .map(([dims, editorState, blueprints, transients, originalImage, maskIdPool]) => {
         const masks = blueprints.map((b, i) => ({
+            editorObjectKind: 'mask',
             ...b,
             maskId: maskIdPool[i],
             maskUid: `uid-${maskIdPool[i]}`,
@@ -301,7 +303,7 @@ function assertSnapshotsEquivalent(s1, s2, scenario) {
     );
     assert.deepEqual(
         j1._editorState,
-        scenario.editorState,
+        { ...scenario.editorState, activeObjectKind: null },
         'the documented contract: _editorState content must equal the source editor metadata',
     );
 
@@ -371,7 +373,7 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
             // the documented contract: editor metadata is forwarded to the facade.
             assert.deepEqual(
                 result.editorState,
-                scenario.editorState,
+                { ...scenario.editorState, activeObjectKind: null },
                 'the documented contract: editorState returned by loadFromState must match the source',
             );
 
@@ -465,13 +467,13 @@ test('saveState→loadFromState→saveState produces an identical snapshot', asy
     );
 });
 
-test('loadFromState detects Fabric image objects regardless of type casing', async () => {
+test('loadFromState restores strictly marked base image objects', async () => {
     const canvas = new MockCanvas();
     const snapshot = JSON.stringify({
         version: '7.0.0',
         width: 640,
         height: 480,
-        objects: [{ type: 'Image', left: 0, top: 0, opacity: 1 }],
+        objects: [{ editorObjectKind: 'baseImage', type: 'Image', left: 0, top: 0, opacity: 1 }],
         _editorState: {
             currentScale: 1,
             currentRotation: 0,
@@ -486,7 +488,7 @@ test('loadFromState detects Fabric image objects regardless of type casing', asy
         setCanvasSize: makeSetCanvasSize(canvas),
     });
 
-    assert.ok(result.originalImage, 'capitalized Fabric image type must be detected');
+    assert.ok(result.originalImage, 'strict base image metadata must be detected');
     assert.equal(result.originalImage.type, 'Image');
 });
 
@@ -495,6 +497,7 @@ test('saveState copies mask custom metadata when Fabric omits propertiesToInclud
     canvas.width = 320;
     canvas.height = 240;
     const mask = {
+        editorObjectKind: 'mask',
         type: 'rect',
         left: 10,
         top: 12,
@@ -593,6 +596,8 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
     // the round-trip assertions above stop being meaningful.
     for (const k of [
         'maskId',
+        'editorObjectKind',
+        'sessionObjectType',
         'maskUid',
         'maskName',
         'isCropRect',
@@ -609,6 +614,11 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
         'borderColor',
         'cornerColor',
         'cornerSize',
+        'annotationId',
+        'annotationType',
+        'annotationName',
+        'annotationHidden',
+        'annotationLocked',
     ]) {
         assert.ok(SNAPSHOT_CUSTOM_KEYS.includes(k), `SNAPSHOT_CUSTOM_KEYS must include '${k}'`);
     }
@@ -621,6 +631,7 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
         height: 240,
         objects: [
             {
+                editorObjectKind: 'mask',
                 type: 'rect',
                 left: 20,
                 top: 30,
@@ -632,6 +643,7 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
                 originalStrokeWidth: 4,
             },
             {
+                editorObjectKind: 'mask',
                 type: 'rect',
                 left: 20,
                 top: 30,

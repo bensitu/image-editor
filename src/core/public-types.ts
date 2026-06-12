@@ -74,6 +74,35 @@ export type NormalizedImageFormat = 'jpeg' | 'png' | 'webp';
  */
 export type ExportArea = 'image' | 'canvas';
 
+// ─── Editor-owned object primitives ─────────────────────────────────────────
+
+export type EditorObjectKind = 'baseImage' | 'mask' | 'annotation' | 'session';
+
+export type AnnotationType = 'text' | 'draw';
+
+export type SessionObjectType =
+    | 'cropRect'
+    | 'maskLabel'
+    | 'mosaicPreviewCircle'
+    | 'mosaicPreviewImage'
+    | 'textPreview'
+    | 'drawPreview';
+
+export type EditorToolMode = 'crop' | 'mosaic' | 'text' | 'draw';
+
+export interface EditorObjectMeta {
+    editorObjectKind: EditorObjectKind;
+}
+
+export interface BaseImageObject extends FabricNS.FabricImage {
+    editorObjectKind: 'baseImage';
+}
+
+export interface SessionObject extends FabricNS.FabricObject {
+    editorObjectKind: 'session';
+    sessionObjectType: SessionObjectType;
+}
+
 /**
  * Intermediate raster format used by `applyCrop`.
  *
@@ -103,10 +132,11 @@ export type MosaicOutputFileType = ImageFileType | 'source';
  * history snapshots by the state serializer.
  */
 export interface MaskObject extends FabricNS.FabricObject {
+    editorObjectKind: 'mask';
     /** Unique numeric identifier assigned at creation time. */
     maskId: number;
     /** Stable internal identifier used to restore overlapping masks deterministically. */
-    maskUid?: string;
+    maskUid: string;
     /** Human-readable label shown in the mask list (`maskName` option + id). */
     maskName: string;
     /** Original opacity stored to support hover highlight / restore. */
@@ -117,13 +147,23 @@ export interface MaskObject extends FabricNS.FabricObject {
     originalStrokeWidth?: number;
     /** Active label overlay object, if currently displayed. */
     labelObject?: FabricNS.FabricObject;
-    /** Marker flag — `true` only on the crop rectangle, never on real masks. */
-    isCropRect?: boolean;
-    /**
-     * Marker flag set on label-overlay text objects so the state serializer
-     * can exclude them from history snapshots.
-     */
-    maskLabel?: boolean;
+}
+
+export interface AnnotationObject extends FabricNS.FabricObject {
+    editorObjectKind: 'annotation';
+    annotationId: number;
+    annotationType: AnnotationType;
+    annotationName: string;
+    annotationHidden?: boolean;
+    annotationLocked?: boolean;
+}
+
+export interface TextAnnotationObject extends AnnotationObject {
+    annotationType: 'text';
+}
+
+export interface DrawAnnotationObject extends AnnotationObject {
+    annotationType: 'draw';
 }
 
 /**
@@ -131,8 +171,55 @@ export interface MaskObject extends FabricNS.FabricObject {
  * (`maskId: number`) so consumers can filter `canvas.getObjects`
  * deterministically.
  */
-export function isMaskObject(object: FabricNS.FabricObject): object is MaskObject {
-    return 'maskId' in object && typeof (object as MaskObject).maskId === 'number';
+export function isBaseImageObject(object: unknown): object is BaseImageObject {
+    return (
+        !!object &&
+        typeof object === 'object' &&
+        (object as { editorObjectKind?: unknown }).editorObjectKind === 'baseImage'
+    );
+}
+
+export function isMaskObject(object: unknown): object is MaskObject {
+    const candidate = object as Partial<MaskObject> | null | undefined;
+    return (
+        !!candidate &&
+        candidate.editorObjectKind === 'mask' &&
+        typeof candidate.maskId === 'number' &&
+        typeof candidate.maskUid === 'string' &&
+        typeof candidate.maskName === 'string'
+    );
+}
+
+export function isAnnotationObject(object: unknown): object is AnnotationObject {
+    const candidate = object as Partial<AnnotationObject> | null | undefined;
+    return (
+        !!candidate &&
+        candidate.editorObjectKind === 'annotation' &&
+        typeof candidate.annotationId === 'number' &&
+        typeof candidate.annotationType === 'string' &&
+        typeof candidate.annotationName === 'string'
+    );
+}
+
+export function isTextAnnotationObject(object: unknown): object is TextAnnotationObject {
+    return isAnnotationObject(object) && object.annotationType === 'text';
+}
+
+export function isDrawAnnotationObject(object: unknown): object is DrawAnnotationObject {
+    return isAnnotationObject(object) && object.annotationType === 'draw';
+}
+
+export function isSessionObject(object: unknown): object is SessionObject {
+    const candidate = object as Partial<SessionObject> | null | undefined;
+    return (
+        !!candidate &&
+        candidate.editorObjectKind === 'session' &&
+        typeof candidate.sessionObjectType === 'string'
+    );
+}
+
+export function isEditableOverlayObject(object: unknown): object is MaskObject | AnnotationObject {
+    return isMaskObject(object) || isAnnotationObject(object);
 }
 
 // ─── Lifecycle callbacks ───────────────────────────────────────────────────
@@ -152,6 +239,29 @@ export type ImageEditorOperation =
     | 'removeSelectedMask'
     | 'removeAllMasks'
     | 'mergeMasks'
+    | 'createTextAnnotation'
+    | 'enterTextMode'
+    | 'exitTextMode'
+    | 'setTextConfig'
+    | 'resetTextConfig'
+    | 'setTextColor'
+    | 'setTextFontSize'
+    | 'enterDrawMode'
+    | 'exitDrawMode'
+    | 'setDrawConfig'
+    | 'resetDrawConfig'
+    | 'setDrawColor'
+    | 'setDrawBrushSize'
+    | 'updateSelectedAnnotation'
+    | 'updateAnnotation'
+    | 'removeSelectedAnnotation'
+    | 'removeAllAnnotations'
+    | 'deleteSelectedObject'
+    | 'mergeAnnotations'
+    | 'bringSelectedObjectForward'
+    | 'sendSelectedObjectBackward'
+    | 'bringSelectedObjectToFront'
+    | 'sendSelectedObjectToBack'
     | 'enterCropMode'
     | 'applyCrop'
     | 'cancelCrop'
@@ -203,11 +313,15 @@ export interface ImageEditorState {
     hasImage: boolean;
     image: ImageInfo | null;
     maskCount: number;
+    annotationCount: number;
     currentScale: number;
     currentRotation: number;
     isBusy: boolean;
+    activeToolMode: EditorToolMode | null;
     isCropMode: boolean;
     isMosaicMode: boolean;
+    isTextMode: boolean;
+    isDrawMode: boolean;
     canUndo: boolean;
     canRedo: boolean;
     canvasWidth: number;
@@ -220,6 +334,9 @@ export interface ImageEditorState {
 export interface ImageEditorSelection {
     selectedMask: MaskObject | null;
     selectedMasks: MaskObject[];
+    selectedAnnotation: AnnotationObject | null;
+    selectedAnnotations: AnnotationObject[];
+    selectedObjectKind: 'mask' | 'annotation' | null;
 }
 
 // ─── Label and crop sub-configs ──────────────────────────────────────────────
@@ -380,6 +497,103 @@ export interface ResolvedMosaicConfig {
     outputFileType: MosaicOutputFileType;
     outputQuality?: number;
 }
+
+// ─── Annotation config primitives ───────────────────────────────────────────
+
+export interface TextAnnotationConfig {
+    text?: string;
+    left?: MaskNumericProp;
+    top?: MaskNumericProp;
+    width?: number;
+    fontSize?: number;
+    fontFamily?: string;
+    fontWeight?: string | number;
+    fill?: string;
+    backgroundColor?: string;
+    textAlign?: 'left' | 'center' | 'right' | 'justify';
+    angle?: number;
+    selectable?: boolean;
+    evented?: boolean;
+    editable?: boolean;
+    enterEditing?: boolean;
+    annotationHidden?: boolean;
+    annotationLocked?: boolean;
+    styles?: Partial<FabricNS.TextboxProps>;
+}
+
+export interface ResolvedTextAnnotationConfig {
+    text: string;
+    left?: number;
+    top?: number;
+    width: number;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: string | number;
+    fill: string;
+    backgroundColor: string;
+    textAlign: 'left' | 'center' | 'right' | 'justify';
+    angle: number;
+    selectable: boolean;
+    evented: boolean;
+    editable: boolean;
+    enterEditing: boolean;
+    annotationHidden: boolean;
+    annotationLocked: boolean;
+    styles: Partial<FabricNS.TextboxProps>;
+}
+
+export interface DrawConfig {
+    brushSize?: number;
+    color?: string;
+    opacity?: number;
+    lineCap?: CanvasLineCap;
+    lineJoin?: CanvasLineJoin;
+    selectable?: boolean;
+    evented?: boolean;
+    annotationHidden?: boolean;
+    annotationLocked?: boolean;
+}
+
+export interface ResolvedDrawConfig {
+    brushSize: number;
+    color: string;
+    opacity: number;
+    lineCap: CanvasLineCap;
+    lineJoin: CanvasLineJoin;
+    selectable: boolean;
+    evented: boolean;
+    annotationHidden: boolean;
+    annotationLocked: boolean;
+}
+
+export interface CommonAnnotationUpdateConfig {
+    annotationHidden?: boolean;
+    annotationLocked?: boolean;
+    selectable?: boolean;
+    evented?: boolean;
+}
+
+export interface TextAnnotationUpdateConfig extends CommonAnnotationUpdateConfig {
+    text?: string;
+    fontSize?: number;
+    fontFamily?: string;
+    fontWeight?: string | number;
+    fill?: string;
+    backgroundColor?: string;
+    textAlign?: 'left' | 'center' | 'right' | 'justify';
+    width?: number;
+}
+
+export interface DrawAnnotationUpdateConfig extends CommonAnnotationUpdateConfig {
+    stroke?: string;
+    strokeWidth?: number;
+    opacity?: number;
+}
+
+export type AnnotationUpdateConfig =
+    | TextAnnotationUpdateConfig
+    | DrawAnnotationUpdateConfig
+    | CommonAnnotationUpdateConfig;
 
 // ─── Mask config primitives ──────────────────────────────────────────────────
 
@@ -545,6 +759,14 @@ export interface RemoveAllMasksOptions {
     saveHistory?: boolean;
 }
 
+/**
+ * Options accepted by `ImageEditor.removeAllAnnotations(options?)`.
+ */
+export interface RemoveAllAnnotationsOptions {
+    saveHistory?: boolean;
+    force?: boolean;
+}
+
 // ─── Element ID map ──────────────────────────────────────────────────────────
 
 /**
@@ -581,6 +803,40 @@ export interface ElementIdMap {
     removeAllMasksButton?: string | null;
     /** Merge masks into image button. @default 'mergeMasksButton' */
     mergeMasksButton?: string | null;
+    /** Annotation list container (`<ul>` or `<ol>`). @default 'annotationList' */
+    annotationList?: string | null;
+    /** Enter Text mode button. @default 'enterTextModeButton' */
+    enterTextModeButton?: string | null;
+    /** Exit Text mode button. @default 'exitTextModeButton' */
+    exitTextModeButton?: string | null;
+    /** Text color input. @default 'textColorInput' */
+    textColorInput?: string | null;
+    /** Text font-size input. @default 'textFontSizeInput' */
+    textFontSizeInput?: string | null;
+    /** Enter Draw mode button. @default 'enterDrawModeButton' */
+    enterDrawModeButton?: string | null;
+    /** Exit Draw mode button. @default 'exitDrawModeButton' */
+    exitDrawModeButton?: string | null;
+    /** Draw color input. @default 'drawColorInput' */
+    drawColorInput?: string | null;
+    /** Draw brush-size input. @default 'drawBrushSizeInput' */
+    drawBrushSizeInput?: string | null;
+    /** Remove selected annotation button. @default 'removeSelectedAnnotationButton' */
+    removeSelectedAnnotationButton?: string | null;
+    /** Remove all annotations button. @default 'removeAllAnnotationsButton' */
+    removeAllAnnotationsButton?: string | null;
+    /** Delete selected mask or annotation button. @default 'deleteSelectedObjectButton' */
+    deleteSelectedObjectButton?: string | null;
+    /** Merge annotations into image button. @default 'mergeAnnotationsButton' */
+    mergeAnnotationsButton?: string | null;
+    /** Move selected editable overlay one layer forward. */
+    bringSelectedObjectForwardButton?: string | null;
+    /** Move selected editable overlay one layer backward. */
+    sendSelectedObjectBackwardButton?: string | null;
+    /** Move selected editable overlay to the front of overlays. */
+    bringSelectedObjectToFrontButton?: string | null;
+    /** Move selected editable overlay to the back of overlays. */
+    sendSelectedObjectToBackButton?: string | null;
     /** Download image button. @default 'downloadImageButton' */
     downloadImageButton?: string | null;
     /** Mask list container (`<ul>` or `<ol>`). @default 'maskList' */
@@ -623,18 +879,29 @@ export interface ElementIdMap {
 
 // ─── Export options ──────────────────────────────────────────────────────────
 
+export interface OverlayExportOptions {
+    /**
+     * Render masks into the exported output. This does not mutate editor state.
+     * @default options.mergeMasksByDefault
+     */
+    mergeMasks?: boolean;
+    /**
+     * Render annotations into the exported output. This does not mutate editor state.
+     * @default options.mergeAnnotationsByDefault
+     */
+    mergeAnnotations?: boolean;
+}
+
 /**
  * Options for {@link ImageEditor.exportImageBase64}.
  *
  * Both `fileType` and `format` are accepted — when both are provided,
- * `fileType` wins. The export pipeline normalizes `'jpg'` to `'jpeg'`,
- * derives the MIME type via `export/export-format.ts`, and clamps `quality`
- * to `[0, 1]`. PNG ignores `quality` because it is
- * lossless.
+ * `fileType` wins. The export pipeline normalizes `'jpg'` to
+ * `'jpeg'`, derives the MIME type via `export/export-format.ts`,
+ * and clamps `quality` to `[0, 1]`. PNG ignores `quality` because it
+ * is lossless.
  */
-export interface Base64ExportOptions {
-    /** Whether masks are flattened into the exported result. @default true */
-    mergeMask?: boolean;
+export interface Base64ExportOptions extends OverlayExportOptions {
     /**
      * Which region to export. `'image'` clips to the image bounding box;
      * `'canvas'` exports the full canvas.
@@ -661,9 +928,7 @@ export interface Base64ExportOptions {
  * `fileType` follows the same normalization rules as
  * {@link Base64ExportOptions}.
  */
-export interface ImageFileExportOptions {
-    /** Bake masks into the exported image. @default true */
-    mergeMask?: boolean;
+export interface ImageFileExportOptions extends OverlayExportOptions {
     /**
      * Which region to export. `'image'` clips to the image bounding box;
      * `'canvas'` exports the full canvas.
@@ -781,7 +1046,13 @@ export interface ImageEditorOptions {
      * exportImageBase64/exportImageFile/downloadImage.
      * @default true
      */
-    mergeMaskByDefault?: boolean;
+    mergeMasksByDefault?: boolean;
+    /**
+     * Default annotation compositing behavior for
+     * exportImageBase64/exportImageFile/downloadImage.
+     * @default true
+     */
+    mergeAnnotationsByDefault?: boolean;
 
     // Mask defaults
     /** Default width for new rect/ellipse masks. @default 50 */
@@ -802,6 +1073,10 @@ export interface ImageEditorOptions {
     maskLabelOffset?: number;
     /** Name prefix for auto-generated mask names. @default 'mask' */
     maskName?: string;
+    /** Name prefix for auto-generated text annotations. @default 'text' */
+    textAnnotationName?: string;
+    /** Name prefix for auto-generated draw annotations. @default 'draw' */
+    drawAnnotationName?: string;
 
     /** Allow multi-object group selection on the canvas. @default false */
     groupSelection?: boolean;
@@ -837,6 +1112,11 @@ export interface ImageEditorOptions {
     onEditorDisposed?: (context: ImageEditorCallbackContext) => void;
     /** Called after the mask collection changes. */
     onMasksChanged?: (masks: MaskObject[], context: ImageEditorCallbackContext) => void;
+    /** Called after the annotation collection changes. */
+    onAnnotationsChanged?: (
+        annotations: AnnotationObject[],
+        context: ImageEditorCallbackContext,
+    ) => void;
     /** Called after mask selection changes. */
     onSelectionChange?: (
         selection: ImageEditorSelection,
@@ -869,6 +1149,10 @@ export interface ImageEditorOptions {
      * setMosaicBlockSize() update the current tool config only.
      */
     defaultMosaicConfig?: MosaicConfig;
+    /** Default Text annotation configuration. */
+    defaultTextConfig?: TextAnnotationConfig;
+    /** Default Draw mode configuration. */
+    defaultDrawConfig?: DrawConfig;
 }
 
 // ─── Internal resolved options ───────────────────────────────────────────────
@@ -884,6 +1168,8 @@ export interface ResolvedOptions extends Required<
         | 'label'
         | 'crop'
         | 'defaultMosaicConfig'
+        | 'defaultTextConfig'
+        | 'defaultDrawConfig'
         | 'onImageLoadStart'
         | 'onImageLoaded'
         | 'onImageCleared'
@@ -891,6 +1177,7 @@ export interface ResolvedOptions extends Required<
         | 'onBusyChange'
         | 'onEditorDisposed'
         | 'onMasksChanged'
+        | 'onAnnotationsChanged'
         | 'onSelectionChange'
         | 'onError'
         | 'onWarning'
@@ -905,6 +1192,8 @@ export interface ResolvedOptions extends Required<
     label: LabelConfig;
     crop: ResolvedCropConfig;
     defaultMosaicConfig: ResolvedMosaicConfig;
+    defaultTextConfig: ResolvedTextAnnotationConfig;
+    defaultDrawConfig: ResolvedDrawConfig;
     onImageLoadStart: ((context: ImageEditorCallbackContext) => void) | null;
     onImageLoaded: ((imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void) | null;
     onImageCleared:
@@ -917,6 +1206,9 @@ export interface ResolvedOptions extends Required<
     onBusyChange: ((isBusy: boolean, context: ImageEditorCallbackContext) => void) | null;
     onEditorDisposed: ((context: ImageEditorCallbackContext) => void) | null;
     onMasksChanged: ((masks: MaskObject[], context: ImageEditorCallbackContext) => void) | null;
+    onAnnotationsChanged:
+        | ((annotations: AnnotationObject[], context: ImageEditorCallbackContext) => void)
+        | null;
     onSelectionChange:
         | ((selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void)
         | null;

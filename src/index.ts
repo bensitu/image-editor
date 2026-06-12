@@ -3,7 +3,7 @@
  *
  * The package surface consists of:
  * - `ImageEditor` (default and named export) — the only public class.
- * - `isMaskObject` — runtime type guard for mask objects.
+ * - Editor object runtime type guards.
  * - The documented public types listed below.
  *
  * Internal helpers (animation queue, command, history manager, controllers,
@@ -29,7 +29,15 @@ import { ImageEditor } from './image-editor.js';
 export { ImageEditor };
 export default ImageEditor;
 
-export { isMaskObject } from './core/public-types.js';
+export {
+    isAnnotationObject,
+    isBaseImageObject,
+    isDrawAnnotationObject,
+    isEditableOverlayObject,
+    isMaskObject,
+    isSessionObject,
+    isTextAnnotationObject,
+} from './core/public-types.js';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -38,6 +46,11 @@ export type {
     ImageEditorOptions,
     ResolvedOptions,
     LayoutMode,
+    EditorObjectKind,
+    EditorToolMode,
+    AnnotationType,
+    SessionObjectType,
+    EditorObjectMeta,
     // Sub-configs
     LabelConfig,
     CropConfig,
@@ -45,15 +58,27 @@ export type {
     MosaicConfig,
     ResolvedMosaicConfig,
     MosaicOutputFileType,
+    TextAnnotationConfig,
+    ResolvedTextAnnotationConfig,
+    DrawConfig,
+    ResolvedDrawConfig,
     // loadImage / removeAllMasks options
     LoadImageOptions,
     RemoveAllMasksOptions,
+    RemoveAllAnnotationsOptions,
     // Mask
     DefaultMaskConfig,
     MaskConfig,
     MaskObject,
     MaskNumericProp,
     ResolvedMaskConfig,
+    // Objects and annotations
+    BaseImageObject,
+    SessionObject,
+    AnnotationObject,
+    TextAnnotationObject,
+    DrawAnnotationObject,
+    AnnotationUpdateConfig,
     // Image format primitives
     ImageMimeType,
     ImageFileType,

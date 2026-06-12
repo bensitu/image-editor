@@ -1,10 +1,10 @@
-import { isMaskObject } from '../core/public-types.js';
+import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/public-types.js';
 import { reportError } from '../core/callback-reporter.js';
-import { ExportError, ExportNotReadyError, MergeMasksError } from '../core/errors.js';
-import { Command } from '../history/history-manager.js';
+import { ExportError, ExportNotReadyError } from '../core/errors.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox, getPartialExportEdges, hasMeaningfulCanvasRegion, } from '../utils/canvas-region.js';
 import { resolveExportFormat } from './export-format.js';
+import { flattenOverlayGroupToBaseImage, } from './overlay-merge-service.js';
 function resolveMultiplier(requested, fallback) {
     const num = Number(requested);
     if (Number.isFinite(num) && num > 0)
@@ -21,9 +21,12 @@ function resolveExportOptions(context, options) {
     const providedOptions = options !== null && options !== void 0 ? options : {};
     return {
         exportArea: resolveExportArea(providedOptions.exportArea, context.options.exportAreaByDefault),
-        mergeMask: typeof providedOptions.mergeMask === 'boolean'
-            ? providedOptions.mergeMask
-            : context.options.mergeMaskByDefault,
+        mergeMasks: typeof providedOptions.mergeMasks === 'boolean'
+            ? providedOptions.mergeMasks
+            : context.options.mergeMasksByDefault,
+        mergeAnnotations: typeof providedOptions.mergeAnnotations === 'boolean'
+            ? providedOptions.mergeAnnotations
+            : context.options.mergeAnnotationsByDefault,
         multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
     };
@@ -67,25 +70,26 @@ function computeExportRegion(context, exportArea) {
         partialEdges: getPartialExportEdges(bounds, Number(originalImage.angle) || 0),
     };
 }
-async function withMaskExportState(context, mergeMask, callback) {
-    if (!mergeMask)
-        return withMasksHidden(context, callback);
+async function withMaskExportState(context, mergeMasks, callback) {
+    if (!mergeMasks) {
+        return withObjectsHidden(context.canvas, isMaskObject, callback);
+    }
     return withMaskStyleBackup({ canvas: context.canvas, options: context.options }, applyExportBakeInStyle, callback);
 }
-async function withMasksHidden(context, callback) {
-    const backups = getCanvasObjects(context.canvas)
-        .filter(isMaskObject)
-        .map((mask) => ({
-        mask,
-        visible: mask.visible,
+async function withObjectsHidden(canvas, predicate, callback) {
+    const backups = getCanvasObjects(canvas)
+        .filter(predicate)
+        .map((object) => ({
+        object,
+        visible: object.visible,
     }));
     for (const backup of backups) {
         try {
-            if (typeof backup.mask.set === 'function') {
-                backup.mask.set({ visible: false });
+            if (typeof backup.object.set === 'function') {
+                backup.object.set({ visible: false });
             }
             else {
-                backup.mask.visible = false;
+                backup.object.visible = false;
             }
         }
         catch {
@@ -97,17 +101,30 @@ async function withMasksHidden(context, callback) {
     finally {
         for (const backup of backups) {
             try {
-                if (typeof backup.mask.set === 'function') {
-                    backup.mask.set({ visible: backup.visible });
+                if (typeof backup.object.set === 'function') {
+                    backup.object.set({ visible: backup.visible });
                 }
                 else {
-                    backup.mask.visible = backup.visible;
+                    backup.object.visible = backup.visible;
                 }
             }
             catch {
             }
         }
+        requestRender(canvas);
     }
+}
+async function withSessionObjectsHidden(context, callback) {
+    return withObjectsHidden(context.canvas, (object) => isSessionObject(object) ||
+        object.isCropRect === true ||
+        object.maskLabel === true ||
+        object.isMosaicPreview === true, callback);
+}
+async function withAnnotationsExportState(context, mergeAnnotations, callback) {
+    if (!mergeAnnotations) {
+        return withObjectsHidden(context.canvas, isAnnotationObject, callback);
+    }
+    return withObjectsHidden(context.canvas, (object) => isAnnotationObject(object) && object.annotationHidden === true, callback);
 }
 function getCanvasObjects(canvas) {
     try {
@@ -469,7 +486,7 @@ export async function exportImageBase64(context, options) {
         assertExportPixelBudget(context, resolved.multiplier, region);
         const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
-        let dataUrl = await withMaskExportState(context, resolved.mergeMask, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region));
+        let dataUrl = await withSessionObjectsHidden(context, async () => withMaskExportState(context, resolved.mergeMasks, async () => withAnnotationsExportState(context, resolved.mergeAnnotations, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region))));
         if (region) {
             const sealedFormat = resolved.format.format === 'jpeg'
                 ? { format: 'png', mimeType: 'image/png', quality: undefined }
@@ -498,7 +515,8 @@ export async function exportImageFile(context, options) {
     const resolved = resolveExportFormat(providedOptions, context.options.downsampleQuality);
     const base64 = await exportImageBase64(context, {
         exportArea: providedOptions.exportArea,
-        mergeMask: providedOptions.mergeMask,
+        mergeMasks: providedOptions.mergeMasks,
+        mergeAnnotations: providedOptions.mergeAnnotations,
         multiplier: providedOptions.multiplier,
         quality: providedOptions.quality,
         fileType: providedOptions.fileType,
@@ -524,7 +542,8 @@ export function downloadImage(context, fileName) {
     const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : context.options.defaultDownloadFileName;
     void exportImageBase64(context, {
         exportArea: context.options.exportAreaByDefault,
-        mergeMask: context.options.mergeMaskByDefault,
+        mergeMasks: context.options.mergeMasksByDefault,
+        mergeAnnotations: context.options.mergeAnnotationsByDefault,
         multiplier: context.options.exportMultiplier,
     })
         .then((dataUrl) => {
@@ -549,59 +568,39 @@ export function downloadImage(context, fileName) {
     });
 }
 export async function mergeMasks(context) {
-    if (!context.isImageLoaded())
-        return;
-    const masks = context.canvas
-        .getObjects()
-        .filter((o) => 'maskId' in o && typeof o.maskId === 'number');
-    if (masks.length === 0)
-        return;
-    const beforeSnapshot = context.saveState();
-    context.canvas.discardActiveObject();
-    context.canvas.renderAll();
-    const preScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
-    const preScrollLeft = context.containerElement ? context.containerElement.scrollLeft : null;
-    try {
-        const merged = await exportImageBase64(context, {
+    await flattenOverlayGroupToBaseImage(context, {
+        operation: 'mergeMasks',
+        exportOptions: {
             exportArea: 'image',
-            mergeMask: true,
+            mergeMasks: true,
+            mergeAnnotations: false,
             multiplier: context.options.exportMultiplier,
             fileType: 'png',
-        });
-        if (!merged) {
-            throw new MergeMasksError('mergeMasks: exportImageBase64 returned an empty data URL.');
-        }
-        context.removeAllMasksNoHistory();
-        await context.loadImage(merged, { preserveScroll: true });
-        const afterSnapshot = context.saveState();
-        if (context.containerElement) {
-            try {
-                if (preScrollTop !== null) {
-                    context.containerElement.scrollTop = preScrollTop;
-                }
-                if (preScrollLeft !== null) {
-                    context.containerElement.scrollLeft = preScrollLeft;
-                }
-            }
-            catch (scrollError) {
-                console.warn('[ImageEditor] mergeMasks: scroll restore failed', scrollError);
-            }
-        }
-        if (beforeSnapshot && afterSnapshot && beforeSnapshot !== afterSnapshot) {
-            context.historyManager.push(new Command(() => context.loadFromState(afterSnapshot), () => context.loadFromState(beforeSnapshot)));
-        }
-    }
-    catch (error) {
-        try {
-            await context.loadFromState(beforeSnapshot);
-        }
-        catch (rollbackError) {
-            console.warn('[ImageEditor] mergeMasks: rollback failed', rollbackError);
-        }
-        if (error instanceof MergeMasksError)
-            throw error;
-        const message = error instanceof Error ? `mergeMasks failed: ${error.message}` : 'mergeMasks failed';
-        throw new MergeMasksError(message, error);
-    }
+        },
+        getTargets: () => context.canvas.getObjects().filter(isMaskObject),
+        getPreservedObjects: () => context.getAnnotations(),
+        removeTargetsNoHistory: () => {
+            context.removeAllMasksNoHistory();
+        },
+        restorePreservedObjects: (objects) => context.restoreAnnotations(objects),
+    });
+}
+export async function mergeAnnotations(context) {
+    await flattenOverlayGroupToBaseImage(context, {
+        operation: 'mergeAnnotations',
+        exportOptions: {
+            exportArea: 'image',
+            mergeMasks: false,
+            mergeAnnotations: true,
+            multiplier: context.options.exportMultiplier,
+            fileType: 'png',
+        },
+        getTargets: () => context.canvas.getObjects().filter(isAnnotationObject),
+        getPreservedObjects: () => context.getMasks(),
+        removeTargetsNoHistory: () => {
+            context.removeAllAnnotationsNoHistory();
+        },
+        restorePreservedObjects: (objects) => context.restoreMasks(objects),
+    });
 }
 //# sourceMappingURL=export-service.js.map

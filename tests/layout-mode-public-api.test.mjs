@@ -195,7 +195,7 @@ test('setLayoutMode does not immediately relayout an already loaded image', asyn
         await editor.exportImageBase64({
             exportArea: 'canvas',
             fileType: 'png',
-            mergeMask: false,
+            mergeMasks: false,
         }),
     );
 
@@ -204,7 +204,7 @@ test('setLayoutMode does not immediately relayout an already loaded image', asyn
         await editor.exportImageBase64({
             exportArea: 'canvas',
             fileType: 'png',
-            mergeMask: false,
+            mergeMasks: false,
         }),
     );
 

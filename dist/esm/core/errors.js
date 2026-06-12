@@ -96,6 +96,25 @@ export class MergeMasksError extends Error {
         fixPrototype(this, MergeMasksError);
     }
 }
+export class MergeAnnotationsError extends Error {
+    constructor(message = 'Failed to merge annotations into the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'MergeAnnotationsError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, MergeAnnotationsError);
+    }
+}
 export class CropApplyError extends Error {
     constructor(message = 'Failed to apply crop to the image.', originalError = null) {
         super(message);
