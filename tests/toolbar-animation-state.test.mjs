@@ -326,6 +326,25 @@ test('scaleImage re-enables transform toolbar controls after the queue settles',
     assert.equal(control('scalePercentageInput').value, '105');
 });
 
+test('scaleImage leaves a stable no-scrollbar canvas when the image is smaller than the viewport', async () => {
+    for (const mode of ['fit', 'cover', 'expand']) {
+        const editor = makeEditor(
+            {
+                defaultLayoutMode: mode,
+            },
+            { containerWidth: 960, containerHeight: 520 },
+        );
+        const canvas = editor.canvas;
+        editor.currentLayoutMode = mode;
+        canvas.setDimensions({ width: 1400, height: 900 });
+
+        await editor.scaleImage(0.3);
+
+        assert.equal(canvas.width, 959, `${mode}: canvas width should stay below viewport`);
+        assert.equal(canvas.height, 519, `${mode}: canvas height should stay below viewport`);
+    }
+});
+
 test('rotateImage re-enables transform toolbar controls after the queue settles', async () => {
     const editor = makeEditor();
 

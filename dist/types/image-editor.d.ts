@@ -283,6 +283,7 @@ export declare class ImageEditor {
      */
     private alignObjectBoundingBoxToCanvasTopLeft;
     private measureLayoutViewport;
+    private getScrollbarStableViewportCanvasSize;
     /**
      * Resize the canvas to fit the transformed image bounds. Used by the
      * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale

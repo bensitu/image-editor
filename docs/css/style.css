@@ -545,8 +545,9 @@ input[type='number']::-webkit-inner-spin-button {
     border: 0;
     background: var(--panel-bg);
     color: var(--text);
-    text-align: right;
+    text-align: center;
     pointer-events: none;
+    font-size: .8em;
 }
 
 .scale-readout span {
@@ -567,7 +568,8 @@ input[type='number']::-webkit-inner-spin-button {
     border-radius: 6px;
     background: var(--panel-bg);
     color: var(--text);
-    text-align: right;
+    text-align: center;
+    font-size: .9em;
 }
 
 .tool-select {
@@ -593,14 +595,40 @@ input[type='number']::-webkit-inner-spin-button {
     color: var(--muted);
     font-size: 12px;
     font-weight: 700;
-    white-space: nowrap;
+    line-height: 1.15;
+}
+
+.mosaic-control > span {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
 }
 
 .mosaic-control input {
-    width: auto;
     min-width: 0;
-    flex: 1 1 auto;
     accent-color: var(--accent);
+}
+
+.mosaic-control input[type='range'] {
+    flex: 1 1 58px;
+}
+
+.mosaic-control input[type='number'] {
+    width: 52px;
+    flex: 0 0 52px;
+}
+
+.mosaic-control input[type='color'] {
+    width: 36px;
+    height: 28px;
+    flex: 0 0 36px;
+    padding: 2px;
+}
+
+.mosaic-control input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
 }
 
 .mosaic-control input:disabled {
@@ -701,14 +729,19 @@ input[type='number']::-webkit-inner-spin-button {
     font-weight: 700;
 }
 
-#maskList {
+#maskList,
+#annotationList {
     min-width: 0;
+    min-height: 0;
+    flex: 1 1 0;
+    margin-bottom: 0;
     overflow: auto;
     border: 0;
     border-radius: 0;
 }
 
-.mask-item {
+.mask-item,
+.annotation-item {
     cursor: pointer;
     padding: 8px 10px;
     border: 0;
@@ -722,13 +755,16 @@ input[type='number']::-webkit-inner-spin-button {
         color 0.12s ease;
 }
 
-.mask-item:hover {
+.mask-item:hover,
+.annotation-item:hover {
     background: var(--accent-soft);
     color: var(--accent-strong);
 }
 
 .mask-item.selected,
-.mask-item.active {
+.mask-item.active,
+.annotation-item.selected,
+.annotation-item.active {
     background: var(--accent);
     color: #ffffff;
 }

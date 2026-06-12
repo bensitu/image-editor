@@ -59,6 +59,11 @@ type TextWithEditTag = TextAnnotationObject & {
     exitEditing?: () => void;
     isEditing?: boolean;
     text?: string;
+    selectAll?: () => void;
+    selectionStart?: number;
+    selectionEnd?: number;
+    setSelectionStart?: (index: number) => void;
+    setSelectionEnd?: (index: number) => void;
 };
 
 function getPointerFromFabricEvent(
@@ -193,6 +198,29 @@ export function attachTextEditingHandlers(
     textObject.imageEditorTextEditingHandlers = { entered, exited };
 }
 
+function selectAllText(annotation: TextAnnotationObject): void {
+    const textObject = annotation as TextWithEditTag;
+    const textLength = String(textObject.text ?? '').length;
+    if (textLength <= 0) return;
+
+    if (typeof textObject.selectAll === 'function') {
+        textObject.selectAll();
+        return;
+    }
+
+    if (
+        typeof textObject.setSelectionStart === 'function' &&
+        typeof textObject.setSelectionEnd === 'function'
+    ) {
+        textObject.setSelectionStart(0);
+        textObject.setSelectionEnd(textLength);
+        return;
+    }
+
+    textObject.selectionStart = 0;
+    textObject.selectionEnd = textLength;
+}
+
 export function createTextAnnotation(
     context: TextControllerContext,
     config: TextAnnotationConfig = {},
@@ -239,6 +267,7 @@ export function createTextAnnotation(
     context.emitImageChanged(callbackContext);
     if (resolved.enterEditing && annotation.annotationLocked !== true) {
         (annotation as TextWithEditTag).enterEditing?.();
+        selectAllText(annotation);
     }
     return annotation;
 }

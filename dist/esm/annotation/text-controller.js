@@ -100,6 +100,25 @@ export function attachTextEditingHandlers(context, annotation) {
     textObject.on('editing:exited', exited);
     textObject.imageEditorTextEditingHandlers = { entered, exited };
 }
+function selectAllText(annotation) {
+    var _a;
+    const textObject = annotation;
+    const textLength = String((_a = textObject.text) !== null && _a !== void 0 ? _a : '').length;
+    if (textLength <= 0)
+        return;
+    if (typeof textObject.selectAll === 'function') {
+        textObject.selectAll();
+        return;
+    }
+    if (typeof textObject.setSelectionStart === 'function' &&
+        typeof textObject.setSelectionEnd === 'function') {
+        textObject.setSelectionStart(0);
+        textObject.setSelectionEnd(textLength);
+        return;
+    }
+    textObject.selectionStart = 0;
+    textObject.selectionEnd = textLength;
+}
 export function createTextAnnotation(context, config = {}) {
     var _a, _b;
     if (!context.isImageLoaded())
@@ -145,6 +164,7 @@ export function createTextAnnotation(context, config = {}) {
     context.emitImageChanged(callbackContext);
     if (resolved.enterEditing && annotation.annotationLocked !== true) {
         (_b = (_a = annotation).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
+        selectAllText(annotation);
     }
     return annotation;
 }

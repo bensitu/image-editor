@@ -1248,7 +1248,13 @@ export class ImageEditor {
             height: this.options.canvasHeight,
         }, scrollbarSize);
     }
-    updateCanvasSizeToImageBounds() {
+    getScrollbarStableViewportCanvasSize(viewport) {
+        return {
+            width: Math.max(1, viewport.width - 1),
+            height: Math.max(1, viewport.height - 1),
+        };
+    }
+    updateCanvasSizeToImageBounds(options = {}) {
         var _a, _b;
         if (!this.originalImage)
             return;
@@ -1256,13 +1262,26 @@ export class ImageEditor {
         const boundingRect = this.originalImage.getBoundingRect();
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
         const viewport = this.measureLayoutViewport(scrollbarSize);
+        const shouldStabilizeContainedViewport = options.stabilizeContainedViewport !== false;
+        const imageFitsViewport = boundingRect.width <= viewport.width + LAYOUT_EPSILON &&
+            boundingRect.height <= viewport.height + LAYOUT_EPSILON;
         if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
+            if (imageFitsViewport) {
+                const canvasSize = shouldStabilizeContainedViewport
+                    ? this.getScrollbarStableViewportCanvasSize(viewport)
+                    : viewport;
+                this.setCanvasSizePx(canvasSize.width, canvasSize.height);
+                return;
+            }
             const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
             this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
         }
-        if (boundingRect.width <= viewport.width && boundingRect.height <= viewport.height) {
-            this.setCanvasSizePx(viewport.width, viewport.height);
+        if (imageFitsViewport) {
+            const canvasSize = shouldStabilizeContainedViewport
+                ? this.getScrollbarStableViewportCanvasSize(viewport)
+                : viewport;
+            this.setCanvasSizePx(canvasSize.width, canvasSize.height);
             return;
         }
         this.setCanvasSizePx(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
@@ -1555,7 +1574,7 @@ export class ImageEditor {
             }
             this.isImageLoadedToCanvas = !!this.originalImage;
             if (this.originalImage && this.shouldNormalizeCanvasSizeAfterStateRestore()) {
-                this.updateCanvasSizeToImageBounds();
+                this.updateCanvasSizeToImageBounds({ stabilizeContainedViewport: false });
                 this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
             }
             if (this.originalImage) {
