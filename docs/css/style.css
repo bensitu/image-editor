@@ -547,7 +547,7 @@ input[type='number']::-webkit-inner-spin-button {
     color: var(--text);
     text-align: center;
     pointer-events: none;
-    font-size: .8em;
+    font-size: 0.8em;
 }
 
 .scale-readout span {
@@ -569,7 +569,7 @@ input[type='number']::-webkit-inner-spin-button {
     background: var(--panel-bg);
     color: var(--text);
     text-align: center;
-    font-size: .9em;
+    font-size: 0.9em;
 }
 
 .tool-select {
