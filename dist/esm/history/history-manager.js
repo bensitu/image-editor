@@ -44,8 +44,8 @@ export class HistoryManager {
         });
         this.maxSize = maxSize;
     }
-    execute(command) {
-        void command.execute();
+    async execute(command) {
+        await command.execute();
         this.pushAndTrim(command);
     }
     push(command) {

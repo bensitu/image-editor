@@ -1,3 +1,28 @@
+/**
+ * Type:
+ *   Unit test
+ *
+ * Purpose:
+ *   Verifies image resampling creates offscreen canvases from the correct
+ *   document owner.
+ *
+ * Scope:
+ *   - An explicit ownerDocument takes precedence over image and global documents.
+ *   - The image element ownerDocument is used before global document fallback.
+ *
+ * Out of scope:
+ *   - resampling quality
+ *   - MIME selection behavior
+ *   - image loader rollback behavior
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - document/canvas recorder stubs
+ *
+ * Run:
+ *   node --test tests/image-resampler-dom.test.mjs
+ */
+
 import { register } from 'node:module';
 
 register('./helpers/ts-resolve-hook.mjs', import.meta.url);

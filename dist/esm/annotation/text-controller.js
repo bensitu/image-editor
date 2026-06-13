@@ -4,36 +4,10 @@ import { isEditableOverlayObject, isTextAnnotationObject, } from '../core/public
 import { mergeTextAnnotationConfigPatch } from '../core/default-options.js';
 import { getObjectBBox } from '../utils/canvas-region.js';
 import { resolveNumeric } from '../utils/number.js';
+import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
-function getPointerFromFabricEvent(canvas, event) {
-    const fabricEvent = event;
-    for (const value of [
-        fabricEvent.scenePoint,
-        fabricEvent.pointer,
-        fabricEvent.absolutePointer,
-    ]) {
-        const point = value;
-        if (point &&
-            typeof point.x === 'number' &&
-            Number.isFinite(point.x) &&
-            typeof point.y === 'number' &&
-            Number.isFinite(point.y)) {
-            return { x: point.x, y: point.y };
-        }
-    }
-    if (fabricEvent.e && typeof canvas.getPointer === 'function') {
-        const pointer = canvas.getPointer(fabricEvent.e);
-        if (pointer &&
-            typeof pointer.x === 'number' &&
-            Number.isFinite(pointer.x) &&
-            typeof pointer.y === 'number' &&
-            Number.isFinite(pointer.y)) {
-            return { x: pointer.x, y: pointer.y };
-        }
-    }
-    return null;
-}
+import { isAnnotationUnlocked } from './annotation-lock.js';
 function resolveDefaultTextPosition(context) {
     const image = context.getOriginalImage();
     if (image) {
@@ -153,7 +127,7 @@ export function createTextAnnotation(context, config = {}) {
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
     placeAnnotationObject(context.canvas, annotation);
-    if (resolved.selectable !== false && annotation.annotationLocked !== true) {
+    if (resolved.selectable !== false && isAnnotationUnlocked(annotation)) {
         context.canvas.setActiveObject(annotation);
     }
     context.canvas.renderAll();
@@ -162,7 +136,7 @@ export function createTextAnnotation(context, config = {}) {
     const callbackContext = context.buildCallbackContext('createTextAnnotation');
     context.emitAnnotationsChanged(callbackContext);
     context.emitImageChanged(callbackContext);
-    if (resolved.enterEditing && annotation.annotationLocked !== true) {
+    if (resolved.enterEditing && isAnnotationUnlocked(annotation)) {
         (_b = (_a = annotation).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         selectAllText(annotation);
     }
@@ -173,7 +147,7 @@ function handleTextModePointer(context, event) {
     const fabricEvent = event;
     const target = fabricEvent.target;
     if (target) {
-        if (isTextAnnotationObject(target) && target.annotationLocked !== true) {
+        if (isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
             context.canvas.setActiveObject(target);
             (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         }

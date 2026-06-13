@@ -1,3 +1,11 @@
+/**
+ * Layer-order helpers for editor-owned Fabric objects.
+ *
+ * The invariant is base images at the bottom, host objects next, editable
+ * overlays above them, and session-only objects at the top.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type AnnotationObject, type BaseImageObject, type MaskObject, type SessionObject } from './public-types.js';
 export declare function normalizeLayerOrder(canvas: FabricNS.Canvas): void;

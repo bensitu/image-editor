@@ -1,3 +1,31 @@
+/**
+ * Type:
+ *   Regression test
+ *
+ * Purpose:
+ *   Verifies fractional image bounds do not drop edge pixels during merge and
+ *   export flows.
+ *
+ * Scope:
+ *   - mergeMasks preserves right and bottom edge pixels when image bounds land
+ *     on partial pixels.
+ *   - JPEG image-area export seals partial transparent edges before compositing.
+ *   - ImageEditor blocks mutating operations while a load operation is active.
+ *
+ * Out of scope:
+ *   - general export format normalization
+ *   - mask style restoration
+ *   - browser UI behavior
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - Fabric/canvas test environment
+ *   - fixture image loading helpers
+ *
+ * Run:
+ *   node --test tests/fractional-export-regression.test.mjs
+ */
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 

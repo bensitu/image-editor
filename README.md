@@ -508,27 +508,30 @@ base image below overlays and session objects above overlays.
 | `mergeAnnotations()`          | Bake annotations into the base image atomically. Returns `Promise<void>`.                      |
 | `exportImageBase64(options?)` | Returns `Promise<string>` (data URL). Resolves to `''` with a warning when no image is loaded. |
 | `exportImageFile(options?)`   | Returns `Promise<File>`. Rejects when no image is loaded.                                      |
-| `downloadImage(fileName?)`    | Triggers a browser download. No-op when no image is loaded.                                    |
+| `downloadImage(options?)`     | Triggers a browser download. Also accepts a filename string. No-op when no image is loaded.    |
 
 `Base64ExportOptions` and `ImageFileExportOptions` separate overlay rendering
-from export region selection:
+from export region selection. `DownloadImageOptions` supports the same overlay
+rendering flags plus `fileName`:
 
-| Option             | Default   | Description                                                                 |
-| ------------------ | --------- | --------------------------------------------------------------------------- |
-| `mergeMasks`       | `true`    | Render masks into exported pixels. Mask labels are never exported.          |
-| `mergeAnnotations` | `true`    | Render non-hidden annotations into exported pixels.                         |
-| `exportArea`       | `'image'` | `'image'` clips to the image bounding box; `'canvas'` exports the canvas.   |
-| `fileType`         | `'jpeg'`  | `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, or matching full MIME strings.        |
-| `format`           | `'jpeg'`  | Alias for `fileType` on `exportImageBase64`; `fileType` wins when both set. |
-| `quality`          | `0.92`    | Lossy quality clamped to `[0, 1]`; ignored for PNG.                         |
-| `multiplier`       | `1`       | Output resolution multiplier.                                               |
-| `fileName`         | option    | `ImageFileExportOptions` only. Defaults to `defaultDownloadFileName`.       |
+| Option             | Default   | Description                                                                                 |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------- |
+| `mergeMasks`       | `true`    | Render masks into exported pixels. Mask labels are never exported.                          |
+| `mergeAnnotations` | `true`    | Render non-hidden annotations into exported pixels.                                         |
+| `exportArea`       | `'image'` | `'image'` clips to the image bounding box; `'canvas'` exports the canvas.                   |
+| `fileType`         | `'jpeg'`  | `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, or matching full MIME strings.                        |
+| `format`           | `'jpeg'`  | Alias for `fileType` on `exportImageBase64`; `fileType` wins when both set.                 |
+| `quality`          | `0.92`    | Lossy quality clamped to `[0, 1]`; ignored for PNG.                                         |
+| `multiplier`       | `1`       | Output resolution multiplier.                                                               |
+| `fileName`         | option    | `ImageFileExportOptions` and `DownloadImageOptions`. Defaults to `defaultDownloadFileName`. |
 
 ```ts
 await editor.exportImageBase64({ mergeMasks: true, mergeAnnotations: true });
 await editor.exportImageBase64({ mergeMasks: false, mergeAnnotations: true });
 await editor.exportImageBase64({ mergeMasks: true, mergeAnnotations: false });
 await editor.exportImageBase64({ mergeMasks: false, mergeAnnotations: false });
+editor.downloadImage({ mergeMasks: false, mergeAnnotations: false });
+editor.downloadImage('edited_image.jpg'); // Backwards-compatible filename shorthand.
 ```
 
 `mergeMasks` and `mergeAnnotations` in export options affect the rendered output

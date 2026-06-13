@@ -1,18 +1,19 @@
 /**
  * Per-mask label overlay creation, positioning, show/hide, and
- * removal. Owns the legacy `createLabelForMask`, `syncMaskLabel`,
- * `showLabelForMask`, `hideAllMaskLabels`, and
- * `removeLabelForMask` logic that was inlined on the editor
- * in legacy and is now extracted into pure(ish) helpers that take a
- * {@link MaskLabelManagerContext}.
+ * removal.
+ *
+ * The ImageEditor facade owns the canvas and resolved options; this module
+ * receives those dependencies through {@link MaskLabelManagerContext} so
+ * label behavior can be tested without the full facade.
  *
  * ## Owned contracts
  *
  * - Label text is computed via
  *   `options.label.getText(mask, mask.maskId - 1)`. The index argument is
  *   the stable creation index (`maskId - 1`), NOT the live canvas list
- *   position. legacy passed `this.maskCounter` here, which drifted whenever
- *   masks were added or removed; the current contract pins the index to the
+ *   position. Earlier implementations passed `this.maskCounter` here,
+ *   which drifted whenever masks were added or removed; the current
+ *   contract pins the index to the
  *   mask's own identity so labels stay consistent across
  *   `createMask` / `removeSelectedMask` / `removeAllMasks` / `undo`/`redo`.
  *
@@ -23,7 +24,7 @@
  *   re-asserts them on every sync so an externally-mutated label still
  *   honors the contract.
  *
- * - **Pretty_Printer filter** — Every label object is
+ * - **State serializer filter** — Every label object is
  *   tagged with `maskLabel = true` so `core/state-serializer.ts` can
  *   exclude it from history snapshots. Labels are session-only and never
  *   persisted.
@@ -65,7 +66,7 @@ import { markSessionObject } from '../core/editor-object-kind.js';
  *
  * The module does NOT own any of these slots — it only reads them so
  * ownership of the canvas, Fabric module, and resolved options stays on the
- * orchestrator (where legacy left them).
+ * orchestrator.
  */
 export interface MaskLabelManagerContext {
     /** Injected Fabric.js v7 module used to construct the label text. */
@@ -195,8 +196,8 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
         labelTextObject = new fabricModule.FabricText(labelText, textOptions);
     }
 
-    // Mark as session-only so the Pretty_Printer filter excludes it from
-    // history snapshots.
+    // Mark as session-only so the state serializer excludes it from history
+    // snapshots.
     markSessionObject(labelTextObject, 'maskLabel');
     (labelTextObject as LabelText).maskLabel = true;
 

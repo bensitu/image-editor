@@ -304,7 +304,7 @@ export interface MosaicConfig {
      * Optional dash pattern for the brush preview circle.
      * @default [4, 4]
      */
-    previewStrokeDashArray?: number[] | null;
+    previewStrokeDashArray?: readonly number[] | null;
     /**
      * Fill for the brush preview circle.
      * @default 'rgba(0,0,0,0)'
@@ -333,7 +333,7 @@ export interface ResolvedMosaicConfig {
     blockSize: number;
     previewStroke: string;
     previewStrokeWidth: number;
-    previewStrokeDashArray: number[] | null;
+    previewStrokeDashArray: readonly number[] | null;
     previewFill: string;
     outputFileType: MosaicOutputFileType;
     outputQuality?: number;
@@ -737,6 +737,17 @@ export interface ImageFileExportOptions extends OverlayExportOptions {
     /** Resolution multiplier. @default `options.exportMultiplier` */
     multiplier?: number;
     /** Filename for the resulting `File` object. */
+    fileName?: string;
+}
+/**
+ * Options for {@link ImageEditor.downloadImage}.
+ *
+ * `mergeMasks` and `mergeAnnotations` match the Base64/File export behavior:
+ * omitted values fall back to `mergeMasksByDefault` and
+ * `mergeAnnotationsByDefault`.
+ */
+export interface DownloadImageOptions extends OverlayExportOptions {
+    /** Filename used by the generated download link. */
     fileName?: string;
 }
 /**

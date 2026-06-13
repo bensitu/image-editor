@@ -4,7 +4,7 @@
  *
  * Purpose:
  *   Verifies Text annotation creation behavior that should feel natural in
- *   the demo and in host applications.
+ *   host applications.
  *
  * Scope:
  *   - createTextAnnotation enters edit mode for new text.
@@ -13,6 +13,9 @@
  * Environment:
  *   - Node.js ESM
  *   - focused Fabric/canvas stubs
+ *
+ * Run:
+ *   node --test tests/text-annotation.test.mjs
  */
 
 import { register } from 'node:module';

@@ -34,7 +34,7 @@
  *   original error.
  * - On success, `isImageLoadedToCanvas` is set to
  *   `true`, `lastSnapshot` is replaced with a fresh snapshot derived from
- *   the new canvas, and `maskCounter` is reset to `0`.
+ *   the new canvas, and both overlay counters are reset to `0`.
  * - Either the new image is committed fully, or the
  *   prior committed state is restored fully. No partial state is observable
  *   after the returned promise settles.
@@ -47,7 +47,7 @@
  * - The 2D-context failure inside
  *   {@link resampleImage} surfaces as {@link DownsampleError}; the loader
  *   catches it and routes through the rollback path.
- * - On success, `maskCounter` is reset to `0`.
+ * - On success, `maskCounter` and `annotationCounter` are reset to `0`.
  *
  * ## Implementation notes
  *
@@ -56,15 +56,14 @@
  * facade owns all editor state (the canvas reference, the placeholder
  * element, the editor scalar fields), so the loader must read and write
  * that state through a small set of getter/setter callbacks. The class
- * shape of legacy was a side effect of the monolith; current keeps the loader
- * stateless so the rollback bundle is the single source of truth for what
- * the operation has captured.
+ * shape stays on the facade; the loader remains stateless so the rollback
+ * bundle is the single source of truth for what the operation has captured.
  *
  * The rollback bundle is built before the loader hides the placeholder or
  * touches the canvas. It captures *every* field listed in the documented
  * RollbackBundle definition plus the editor scalar fields
- * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
- * `currentRotation`, `baseImageScale`) the success path mutates. Restoring
+ * (`isImageLoadedToCanvas`, `maskCounter`, `annotationCounter`,
+ * `currentScale`, `currentRotation`, `baseImageScale`) the success path mutates. Restoring
  * those scalars is required for atomic rollback — without them, a failed
  * load that ran past the scalar reset would leave the editor with
  * `currentScale = 1` and `currentRotation = 0` even though
@@ -76,7 +75,7 @@
  * `loadOptions.preserveScroll === true`; on rollback the bundle is replayed
  * unconditionally, which the rollback contract already requires for
  * transactional rewind. When `preserveScroll` is omitted or `false`, the
- * success path leaves the container scroll untouched, so legacy's documented
+ * success path leaves the container scroll untouched, so the documented
  * scroll/viewport behavior for the selected layout mode prevails.
  *
  * The loader does not invoke public success callbacks. It owns
@@ -102,9 +101,9 @@ import { type ViewportCache } from './layout-manager.js';
  *
  * Mirrors the documented `RollbackBundle` definition with the addition of
  * the editor scalar fields the success path also rewrites
- * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
- * `currentRotation`, `baseImageScale`). Those scalars must be restored
- * together with the canvas JSON for atomic rewind.
+ * (`isImageLoadedToCanvas`, `maskCounter`, `annotationCounter`,
+ * `currentScale`, `currentRotation`, `baseImageScale`). Those scalars must
+ * be restored together with the canvas JSON for atomic rewind.
  *
  */
 export interface RollbackBundle {
@@ -232,8 +231,8 @@ export interface LoadImageContext {
  * 7. **Layout** — pick a strategy via {@link selectLayoutStrategy} and
  *    apply via {@link applyCanvasDimensions}.
  * 8. **Commit** — set `isImageLoadedToCanvas`,
- *    reset `maskCounter` to 0, reset transforms, and emit a fresh
- *    `lastSnapshot` via {@link saveState}.
+ *    reset both overlay counters to 0, reset transforms, and emit a
+ *    fresh `lastSnapshot` via {@link saveState}.
  *
  * Any rejection between step 3 and step 8 routes through {@link replayRollback}
  * before re-throwing the original error. On the rollback

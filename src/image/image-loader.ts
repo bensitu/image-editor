@@ -34,7 +34,7 @@
  *   original error.
  * - On success, `isImageLoadedToCanvas` is set to
  *   `true`, `lastSnapshot` is replaced with a fresh snapshot derived from
- *   the new canvas, and `maskCounter` is reset to `0`.
+ *   the new canvas, and both overlay counters are reset to `0`.
  * - Either the new image is committed fully, or the
  *   prior committed state is restored fully. No partial state is observable
  *   after the returned promise settles.
@@ -47,7 +47,7 @@
  * - The 2D-context failure inside
  *   {@link resampleImage} surfaces as {@link DownsampleError}; the loader
  *   catches it and routes through the rollback path.
- * - On success, `maskCounter` is reset to `0`.
+ * - On success, `maskCounter` and `annotationCounter` are reset to `0`.
  *
  * ## Implementation notes
  *
@@ -56,15 +56,14 @@
  * facade owns all editor state (the canvas reference, the placeholder
  * element, the editor scalar fields), so the loader must read and write
  * that state through a small set of getter/setter callbacks. The class
- * shape of legacy was a side effect of the monolith; current keeps the loader
- * stateless so the rollback bundle is the single source of truth for what
- * the operation has captured.
+ * shape stays on the facade; the loader remains stateless so the rollback
+ * bundle is the single source of truth for what the operation has captured.
  *
  * The rollback bundle is built before the loader hides the placeholder or
  * touches the canvas. It captures *every* field listed in the documented
  * RollbackBundle definition plus the editor scalar fields
- * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
- * `currentRotation`, `baseImageScale`) the success path mutates. Restoring
+ * (`isImageLoadedToCanvas`, `maskCounter`, `annotationCounter`,
+ * `currentScale`, `currentRotation`, `baseImageScale`) the success path mutates. Restoring
  * those scalars is required for atomic rollback — without them, a failed
  * load that ran past the scalar reset would leave the editor with
  * `currentScale = 1` and `currentRotation = 0` even though
@@ -76,7 +75,7 @@
  * `loadOptions.preserveScroll === true`; on rollback the bundle is replayed
  * unconditionally, which the rollback contract already requires for
  * transactional rewind. When `preserveScroll` is omitted or `false`, the
- * success path leaves the container scroll untouched, so legacy's documented
+ * success path leaves the container scroll untouched, so the documented
  * scroll/viewport behavior for the selected layout mode prevails.
  *
  * The loader does not invoke public success callbacks. It owns
@@ -106,6 +105,7 @@ import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
+import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { withTimeout } from '../utils/timeout.js';
 import {
     computeCoverLayout,
@@ -132,9 +132,9 @@ import {
  *
  * Mirrors the documented `RollbackBundle` definition with the addition of
  * the editor scalar fields the success path also rewrites
- * (`isImageLoadedToCanvas`, `maskCounter`, `currentScale`,
- * `currentRotation`, `baseImageScale`). Those scalars must be restored
- * together with the canvas JSON for atomic rewind.
+ * (`isImageLoadedToCanvas`, `maskCounter`, `annotationCounter`,
+ * `currentScale`, `currentRotation`, `baseImageScale`). Those scalars must
+ * be restored together with the canvas JSON for atomic rewind.
  *
  */
 export interface RollbackBundle {
@@ -278,8 +278,8 @@ export interface LoadImageContext {
  * 7. **Layout** — pick a strategy via {@link selectLayoutStrategy} and
  *    apply via {@link applyCanvasDimensions}.
  * 8. **Commit** — set `isImageLoadedToCanvas`,
- *    reset `maskCounter` to 0, reset transforms, and emit a fresh
- *    `lastSnapshot` via {@link saveState}.
+ *    reset both overlay counters to 0, reset transforms, and emit a
+ *    fresh `lastSnapshot` via {@link saveState}.
  *
  * Any rejection between step 3 and step 8 routes through {@link replayRollback}
  * before re-throwing the original error. On the rollback
@@ -340,7 +340,7 @@ export async function loadImage(
         lastSnapshot: context.getLastSnapshot(),
         canvasJson: serializeCanvas(context.canvas),
         maskCounter: context.getMaskCounter(),
-        annotationCounter: getAnnotationCounter(context),
+        annotationCounter: context.getAnnotationCounter(),
         currentScale: context.getCurrentScale(),
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
@@ -423,7 +423,7 @@ export async function loadImage(
         context.setCurrentScale(1);
         context.setCurrentRotation(0);
         context.setMaskCounter(0);
-        setAnnotationCounter(context, 0);
+        context.setAnnotationCounter(0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
 
@@ -502,55 +502,16 @@ interface ImageDecodeHandle {
 }
 
 function startImageDecode(dataUrl: string): ImageDecodeHandle {
-    const imageElement = new Image();
-    const cleanup = (clearSource = false): void => {
-        if (typeof imageElement.removeEventListener === 'function') {
-            imageElement.removeEventListener('load', handleLoad);
-            imageElement.removeEventListener('error', handleError);
-        } else {
-            imageElement.onload = null;
-            imageElement.onerror = null;
-        }
-        if (clearSource) {
-            imageElement.src = '';
-        }
-    };
-
-    const handleLoad = (): void => {
-        if (!hasNaturalImageDimensions(imageElement)) {
-            cleanup(true);
-            rejectImage(
-                new ImageDecodeError(
-                    'Failed to decode image data URL: image has no natural dimensions.',
-                    null,
-                ),
-            );
-            return;
-        }
-        cleanup(false);
-        resolveImage(imageElement);
-    };
-    const handleError = (e: Event | string): void => {
-        cleanup(true);
-        rejectImage(new ImageDecodeError('Failed to decode image data URL.', e));
-    };
-    let resolveImage!: (imageElement: HTMLImageElement) => void;
-    let rejectImage!: (error: Error) => void;
-
-    const promise = new Promise<HTMLImageElement>((resolve, reject) => {
-        resolveImage = resolve;
-        rejectImage = reject;
-        if (typeof imageElement.addEventListener === 'function') {
-            imageElement.addEventListener('load', handleLoad, { once: true });
-            imageElement.addEventListener('error', handleError, { once: true });
-        } else {
-            imageElement.onload = handleLoad;
-            imageElement.onerror = handleError;
-        }
-        imageElement.src = dataUrl;
+    return startImageElementLoad(dataUrl, {
+        validate: (imageElement) =>
+            hasNaturalImageDimensions(imageElement)
+                ? null
+                : new ImageDecodeError(
+                      'Failed to decode image data URL: image has no natural dimensions.',
+                      null,
+                  ),
+        createError: (event) => new ImageDecodeError('Failed to decode image data URL.', event),
     });
-
-    return { promise, cleanup };
 }
 
 function hasNaturalImageDimensions(imageElement: HTMLImageElement): boolean {
@@ -707,16 +668,6 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
     return JSON.stringify(json);
 }
 
-function getAnnotationCounter(context: LoadImageContext): number {
-    const getter = (context as { getAnnotationCounter?: () => number }).getAnnotationCounter;
-    return typeof getter === 'function' ? getter.call(context) : 0;
-}
-
-function setAnnotationCounter(context: LoadImageContext, value: number): void {
-    const setter = (context as { setAnnotationCounter?: (n: number) => void }).setAnnotationCounter;
-    if (typeof setter === 'function') setter.call(context, value);
-}
-
 /**
  * Replay the rollback bundle in the documented reverse-of-capture order.
  *
@@ -747,7 +698,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
     context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
     context.setLastSnapshot(bundle.lastSnapshot);
     context.setMaskCounter(bundle.maskCounter);
-    setAnnotationCounter(context, bundle.annotationCounter);
+    context.setAnnotationCounter(bundle.annotationCounter);
     context.setCurrentScale(bundle.currentScale);
     context.setCurrentRotation(bundle.currentRotation);
     context.setBaseImageScale(bundle.baseImageScale);

@@ -4,11 +4,11 @@
  *
  * Behavior contract:
  *
- *  • {@link HistoryManager.execute} and {@link HistoryManager.push} are
- *  **synchronous** for the history-push step so callers can immediately
- *  inspect {@link HistoryManager.canUndo} / {@link HistoryManager.canRedo}
- *  on the next line (e.g. `updateUi` calls that immediately follow
- *  `saveState`).
+ *  • {@link HistoryManager.push} is **synchronous** for the history-push
+ *  step so callers can immediately inspect {@link HistoryManager.canUndo} /
+ *  {@link HistoryManager.canRedo} on the next line (e.g. `updateUi` calls
+ *  that immediately follow `saveState`). {@link HistoryManager.execute}
+ *  awaits the command before pushing it.
  *
  *  • {@link HistoryManager.undo} and {@link HistoryManager.redo} are
  *  **async** and protected by an internal `isProcessing` lock. Overlapping
@@ -50,7 +50,7 @@
  *     await canvas.loadFromJSON(beforeJson);
  *   },
  * );
- * historyManager.execute(cmd);
+ * await historyManager.execute(cmd);
  * ```
  */
 export declare class Command {
@@ -76,16 +76,13 @@ export declare class HistoryManager {
      */
     constructor(maxSize?: number);
     /**
-     * Records a command on the history stack **and** fires its `execute`
-     * (fire-and-forget).
+     * Awaits a command's `execute` closure and records it on the history stack
+     * only after the closure succeeds.
      *
-     * The history push is synchronous so that {@link canUndo} /
-     * {@link canRedo} reflect the new state on the next line. In the
-     * `saveState` pattern, `command.execute` is a no-op on its first
-     * invocation (guarded by an `executedOnce` flag inside the closure), so
-     * the fire-and-forget is safe and produces no canvas side-effect.
+     * Use {@link push} when the operation has already been performed and
+     * should become undoable synchronously.
      */
-    execute(command: Command): void;
+    execute(command: Command): Promise<void>;
     /**
      * Pushes a command onto the history stack **without** calling
      * `execute`. Use this when the operation has already been performed

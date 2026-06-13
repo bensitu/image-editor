@@ -2,12 +2,13 @@
  * @author Ben Situ
  * @license MIT
  * Lightweight canvas-based image editor built on Fabric.js v7.
- * Provides masking, animated scale/rotate, crop, mosaic, undo/redo, and export.
+ * Provides masks, annotations, animated transforms, crop, mosaic, undo/redo,
+ * serialization, and export.
  *
  * @module
  */
 import { type CanvasJson } from './core/state-serializer.js';
-import type { AnnotationObject, AnnotationUpdateConfig, Base64ExportOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, Base64ExportOptions, DownloadImageOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
  * crop, undo/redo, and multi-format export.
@@ -169,6 +170,7 @@ export declare class ImageEditor {
      */
     init(idMap?: ElementIdMap): void;
     private initCanvas;
+    private getLiveCanvasOrThrow;
     private bindDomEvents;
     private bindElementIfExists;
     private bindKeyboardEvents;
@@ -547,10 +549,10 @@ export declare class ImageEditor {
      * which builds the data URL through the same pipeline used by
      * {@link exportImageBase64} and triggers the anchor-driven download.
      *
-     * @param fileName - Filename for the downloaded file.
-     *   @default `options.defaultDownloadFileName`
+     * @param options - Filename string or download options. String input is
+     *   treated as a filename for backwards compatibility.
      */
-    downloadImage(fileName?: string): void;
+    downloadImage(options?: DownloadImageOptions | string): void;
     /**
      * Exports the canvas as a Base64-encoded data URL.
      *
@@ -689,6 +691,7 @@ export declare class ImageEditor {
      * accessors all bind back to `this`.
      */
     private buildCropControllerContext;
+    private syncInputValue;
     private updateInputs;
     mergeAnnotations(): Promise<void>;
     private updateUi;

@@ -87,6 +87,7 @@ export type {
     ExportArea,
     Base64ExportOptions,
     ImageFileExportOptions,
+    DownloadImageOptions,
     // Lifecycle callbacks
     ImageInfo,
     ImageEditorState,

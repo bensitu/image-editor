@@ -3,6 +3,7 @@ import { markBaseImageObject, markSessionObject } from '../core/editor-object-ki
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
 import { Command } from '../history/history-manager.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
+import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { withTimeout } from '../utils/timeout.js';
 import { getMosaicImagePoint } from './mosaic-geometry.js';
 import { applyCircularMosaicToImageData } from './mosaic-pixelate.js';
@@ -11,29 +12,6 @@ function getCanvasDocument(context) {
     var _a, _b, _c, _d, _e;
     const element = (_b = (_a = context.canvas).getElement) === null || _b === void 0 ? void 0 : _b.call(_a);
     return ((_e = (_c = element === null || element === void 0 ? void 0 : element.ownerDocument) !== null && _c !== void 0 ? _c : (_d = context.canvas.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
-}
-function isFinitePoint(value) {
-    const point = value;
-    return (!!point &&
-        typeof point.x === 'number' &&
-        Number.isFinite(point.x) &&
-        typeof point.y === 'number' &&
-        Number.isFinite(point.y));
-}
-function getPointerFromFabricEvent(canvas, event) {
-    const fabricEvent = event;
-    if (isFinitePoint(fabricEvent.scenePoint))
-        return fabricEvent.scenePoint;
-    if (isFinitePoint(fabricEvent.pointer))
-        return fabricEvent.pointer;
-    if (isFinitePoint(fabricEvent.absolutePointer))
-        return fabricEvent.absolutePointer;
-    if (fabricEvent.e && typeof canvas.getPointer === 'function') {
-        const pointer = canvas.getPointer(fabricEvent.e);
-        if (isFinitePoint(pointer))
-            return pointer;
-    }
-    return null;
 }
 function safeRender(canvas) {
     try {
@@ -48,7 +26,6 @@ function safeRender(canvas) {
     }
 }
 function createPreviewCircle(context) {
-    var _a;
     const config = context.getMosaicConfig();
     const circle = new context.fabric.Circle({
         left: 0,
@@ -59,7 +36,9 @@ function createPreviewCircle(context) {
         fill: config.previewFill,
         stroke: config.previewStroke,
         strokeWidth: config.previewStrokeWidth,
-        strokeDashArray: (_a = config.previewStrokeDashArray) !== null && _a !== void 0 ? _a : undefined,
+        strokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : undefined,
         selectable: false,
         evented: false,
         excludeFromExport: true,
@@ -160,6 +139,18 @@ function removePreviewImage(context, session) {
     catch {
     }
     session.previewImage = null;
+}
+function releaseMosaicRasterCache(session) {
+    const cache = session.rasterCache;
+    if (!cache)
+        return;
+    try {
+        cache.offscreenCanvas.width = 0;
+        cache.offscreenCanvas.height = 0;
+    }
+    catch {
+    }
+    session.rasterCache = null;
 }
 function hidePreview(context) {
     var _a;
@@ -644,6 +635,7 @@ export function exitMosaicMode(context) {
     detachCanvasHandlers(context, session);
     removePreviewCircle(context, session);
     removePreviewImage(context, session);
+    releaseMosaicRasterCache(session);
     restoreObjectStates(session);
     context.canvas.selection = !!session.prevSelection;
     context.canvas.defaultCursor = (_a = session.prevDefaultCursor) !== null && _a !== void 0 ? _a : 'default';
@@ -651,7 +643,6 @@ export function exitMosaicMode(context) {
     context.canvas.renderAll();
 }
 export function updateMosaicPreview(context) {
-    var _a;
     const session = context.getMosaicSession();
     const circle = session === null || session === void 0 ? void 0 : session.previewCircle;
     if (!session || !circle)
@@ -662,7 +653,9 @@ export function updateMosaicPreview(context) {
         fill: config.previewFill,
         stroke: config.previewStroke,
         strokeWidth: config.previewStrokeWidth,
-        strokeDashArray: (_a = config.previewStrokeDashArray) !== null && _a !== void 0 ? _a : undefined,
+        strokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : undefined,
     });
     context.canvas.bringObjectToFront(circle);
     safeRender(context.canvas);

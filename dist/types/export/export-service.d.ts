@@ -21,7 +21,7 @@
  * - `exportImageFile(options?: ImageFileExportOptions)`
  *   resolves to a `File` whose name comes from `options.fileName` or the
  *   editor's `defaultDownloadFileName`.
- * - `downloadImage(fileName?: string)` triggers a
+ * - `downloadImage(options?: DownloadImageOptions | string)` triggers a
  *   browser download with the resolved filename. The bytes match the same
  *   pipeline used by `exportImageBase64`.
  * - When `isImageLoaded` is `false`, the three
@@ -91,7 +91,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { Base64ExportOptions, FabricModule, ImageFileExportOptions, LoadImageOptions, AnnotationObject, MaskObject, ResolvedOptions } from '../core/public-types.js';
+import type { Base64ExportOptions, DownloadImageOptions, FabricModule, ImageFileExportOptions, LoadImageOptions, AnnotationObject, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import type { HistoryManager } from '../history/history-manager.js';
 import { type OverlayMergeTransactionContext } from './overlay-merge-service.js';
 /**
@@ -200,11 +200,12 @@ export declare function exportImageFile(context: ExportServiceContext, options?:
  * `void` and there is no caller-visible promise to reject.
  *
  * @param context - Export context bundle.
- * @param fileName - Optional filename override. Defaults to
- *                  `options.defaultDownloadFileName`.
+ * @param options - Optional filename or {@link DownloadImageOptions}.
+ *                  String input is treated as a filename for backwards
+ *                  compatibility.
  *
  */
-export declare function downloadImage(context: ExportServiceContext, fileName?: string): void;
+export declare function downloadImage(context: ExportServiceContext, options?: DownloadImageOptions | string): void;
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link mergeMasks}. Extends {@link ExportServiceContext} with the

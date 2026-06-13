@@ -1,0 +1,1 @@
+{"version":3,"file":"annotation-lock.d.ts","sourceRoot":"","sources":["../../../src/annotation/annotation-lock.ts"],"names":[],"mappings":"AAAA;;;;;;;GAOG;AAEH,OAAO,KAAK,EAAE,gBAAgB,EAAE,MAAM,yBAAyB,CAAC;AAEhE,wBAAgB,kBAAkB,CAC9B,UAAU,EAAE,IAAI,CAAC,gBAAgB,EAAE,kBAAkB,CAAC,GACvD,OAAO,CAET;AAED,wBAAgB,oBAAoB,CAChC,UAAU,EAAE,IAAI,CAAC,gBAAgB,EAAE,kBAAkB,CAAC,GACvD,OAAO,CAET"}

@@ -2,7 +2,7 @@
  * Crop session lifecycle owner. Implements the
  * `enterCropMode → applyCrop` and
  * `enterCropMode → cancelCrop` transitions atop the
- * legacy crop pipeline, plus the dedicated crop rectangle
+ * crop export/load pipeline, plus the dedicated crop rectangle
  * shape, its drag/scale clamps, and the per-object
  * `evented`/`selectable` freeze that keeps only the crop
  * rectangle interactive while a session is open.
@@ -66,10 +66,9 @@
  *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
  *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
  *   the visible mask shape does not change size or orientation. The
- *   cropRegion-relative shift matches legacy's
+ *   cropRegion-relative shift preserves the historical
  *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
- *   -cropRegion.sourceY)` and is the documented legacy behavior to
- *   preserve. Because shifting `left` / `top` by a constant translates
+ *   -cropRegion.sourceY)` behavior. Because shifting `left` / `top` by a constant translates
  *   the entire object (including its rotated visual) by the same
  *   constant in canvas pixels, the post-crop position relative to the
  *   new image bounding box matches the pre-crop position relative to
@@ -87,7 +86,7 @@
  * before export and re-adds the masks shifted by
  * `-cropRegion.left, -cropRegion.top` after
  * `context.loadImage(croppedBase64)` commits. The intersection filter
- * drops masks that do not overlap the crop region, matching legacy
+ * drops masks that do not overlap the crop region, matching the documented
  * observable behavior: masks fully outside the cropped region are
  * removed, while intersecting masks are preserved.
  *
@@ -97,7 +96,7 @@
  *   {@link CropControllerContext}. The `ImageEditor` facade keeps
  *   ownership of the canonical session pointer (`getCropSession` /
  *   `setCropSession`) so multiple editors on the same page do not share
- *   crop state and a sub-agent unit test can exercise the controller
+ *   crop state and unit tests can exercise the controller
  *   without instantiating the full facade.
  * - The crop rectangle's drag/scale handlers clamp `scaleX` / `scaleY`
  *   so the rect cannot grow past the available image bounding box and
@@ -111,7 +110,7 @@
  * - The pre-crop snapshot is captured once, in `enterCropMode`, and
  *   reused by `applyCrop`'s history command and rollback path. This
  *   avoids a re-serialization right before the crop, and — more
- *   importantly — avoids the legacy fragility of filtering `isCropRect`
+ *   importantly — avoids the historical fragility of filtering `isCropRect`
  *   objects out of a post-rect snapshot when Fabric's custom-key
  *   serializer occasionally drops the marker.
  *

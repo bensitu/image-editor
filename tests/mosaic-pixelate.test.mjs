@@ -1,3 +1,30 @@
+/**
+ * Type:
+ *   Unit test
+ *
+ * Purpose:
+ *   Verifies the circular Mosaic pixelation algorithm mutates only intended
+ *   source pixels and handles boundary inputs safely.
+ *
+ * Scope:
+ *   - Pixels inside the circular brush region are sampled into mosaic blocks.
+ *   - Pixels outside the brush region remain unchanged.
+ *   - Brushes partially outside image bounds are clipped safely.
+ *   - Block size and alpha edge cases are handled without throwing.
+ *
+ * Out of scope:
+ *   - canvas event handling
+ *   - ImageEditor mode lifecycle
+ *   - undo/redo integration
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - ImageData-like typed array fixtures
+ *
+ * Run:
+ *   node --test tests/mosaic-pixelate.test.mjs
+ */
+
 import { register } from 'node:module';
 
 register('./helpers/ts-resolve-hook.mjs', import.meta.url);

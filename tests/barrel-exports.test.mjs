@@ -110,6 +110,7 @@ test('barrel re-exports documented public type names', async () => {
         'AnnotationUpdateConfig',
         'RemoveAllAnnotationsOptions',
         'ExportArea',
+        'DownloadImageOptions',
         'ImageInfo',
         'ImageEditorState',
         'ImageEditorSelection',

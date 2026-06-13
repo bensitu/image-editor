@@ -179,7 +179,7 @@ export function detectSourceMimeType(dataUrl: string): string | null {
  *
  * Failure mode: when `<canvas>.getContext('2d')` returns
  * `null`, this function throws {@link DownsampleError} so
- * `image/image-loader.ts` can replay its Transactional_Load rollback bundle
+ * `image/image-loader.ts` can replay its rollback bundle
  * before rejecting the public `loadImage` promise.
  *
  * @param imageElement - Decoded source image element.

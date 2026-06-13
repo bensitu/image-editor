@@ -280,6 +280,10 @@ function makeStateHolder(initial) {
         setMaskCounter: (v) => {
             state.maskCounter = v;
         },
+        getAnnotationCounter: () => state.annotationCounter,
+        setAnnotationCounter: (v) => {
+            state.annotationCounter = v;
+        },
         getCurrentScale: () => state.currentScale,
         setCurrentScale: (v) => {
             state.currentScale = v;
@@ -319,6 +323,7 @@ function makeContext({ failFromUrl = false } = {}) {
         isImageLoadedToCanvas: false,
         lastSnapshot: null,
         maskCounter: 7, // non-zero so the success path update is observable
+        annotationCounter: 11, // non-zero so the success path update is observable
         currentScale: 1.5, // non-default so the success path update is observable
         currentRotation: 45,
         baseImageScale: 0.8,
@@ -418,6 +423,7 @@ test('non-data:image strings cause zero mutation', async () => {
                         isImageLoadedToCanvas: holder.state.isImageLoadedToCanvas,
                         lastSnapshot: holder.state.lastSnapshot,
                         maskCounter: holder.state.maskCounter,
+                        annotationCounter: holder.state.annotationCounter,
                         currentScale: holder.state.currentScale,
                         currentRotation: holder.state.currentRotation,
                         baseImageScale: holder.state.baseImageScale,
@@ -455,6 +461,11 @@ test('success commits the new-image state', async () => {
                 holder.state.maskCounter,
                 0,
                 'the documented contract: success must set maskCounter to 0',
+            );
+            assert.equal(
+                holder.state.annotationCounter,
+                0,
+                'the documented contract: success must set annotationCounter to 0',
             );
             assert.equal(
                 holder.state.currentScale,
@@ -533,6 +544,7 @@ test('failure restores editor scalar state', async () => {
                     isImageLoadedToCanvas: holder.state.isImageLoadedToCanvas,
                     lastSnapshot: holder.state.lastSnapshot,
                     maskCounter: holder.state.maskCounter,
+                    annotationCounter: holder.state.annotationCounter,
                     currentScale: holder.state.currentScale,
                     currentRotation: holder.state.currentRotation,
                     baseImageScale: holder.state.baseImageScale,
@@ -561,6 +573,7 @@ test('failure restores current image MIME', async () => {
             );
 
             assert.equal(holder.state.currentImageMimeType, initial.currentImageMimeType);
+            assert.equal(holder.state.annotationCounter, initial.annotationCounter);
         }),
         { numRuns: 30 },
     );
@@ -578,6 +591,7 @@ test('completed zero-dimension image load rejects and rolls back', async () => {
             isImageLoadedToCanvas: holder.state.isImageLoadedToCanvas,
             lastSnapshot: holder.state.lastSnapshot,
             maskCounter: holder.state.maskCounter,
+            annotationCounter: holder.state.annotationCounter,
             currentScale: holder.state.currentScale,
             currentRotation: holder.state.currentRotation,
             baseImageScale: holder.state.baseImageScale,

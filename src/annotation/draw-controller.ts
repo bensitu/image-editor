@@ -1,3 +1,12 @@
+/**
+ * Draw annotation mode controller.
+ *
+ * Owns Fabric free-drawing setup, draw-session teardown, and conversion of
+ * completed paths into editor-owned annotation objects.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { markAnnotationObject } from '../core/editor-object-kind.js';

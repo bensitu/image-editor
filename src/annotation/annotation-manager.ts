@@ -1,3 +1,13 @@
+/**
+ * Annotation CRUD, selection, list rendering, and update helpers.
+ *
+ * The ImageEditor facade owns canvas state and passes a small context bundle
+ * into these helpers so Text and Draw annotations share one removal/update
+ * implementation.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {
@@ -11,6 +21,7 @@ import {
     type TextAnnotationObject,
 } from '../core/public-types.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
+import { isAnnotationLocked, isAnnotationUnlocked } from './annotation-lock.js';
 
 export interface AnnotationManagerContext {
     canvas: FabricNS.Canvas;
@@ -147,7 +158,7 @@ export function updateAnnotationObject(
         annotation.annotationLocked = raw.annotationLocked;
     }
 
-    const lockedAfter = annotation.annotationLocked === true;
+    const lockedAfter = isAnnotationLocked(annotation);
     if (!lockedAfter) {
         if (typeof raw.selectable === 'boolean') annotation.selectable = raw.selectable;
         if (typeof raw.evented === 'boolean') annotation.evented = raw.evented;
@@ -198,7 +209,7 @@ export function removeAnnotationObjects(
     options: RemoveAllAnnotationsOptions = {},
 ): number {
     const force = options.force === true;
-    const removable = objects.filter((annotation) => force || annotation.annotationLocked !== true);
+    const removable = objects.filter((annotation) => force || isAnnotationUnlocked(annotation));
     if (removable.length === 0) return 0;
 
     for (const annotation of removable) {

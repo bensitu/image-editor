@@ -1,37 +1,9 @@
 /**
- * Pure helpers that normalize the user-facing
- * `Base64ExportOptions` / `ImageFileExportOptions` surface into the
- * canvas-/Fabric-shaped values consumed by `export/export-service.ts`.
+ * Export format normalization helpers.
  *
- * The module owns three small, individually testable building blocks plus
- * one orchestrating function, mirroring the shape of
- * `image/image-resampler.ts`:
- *
- * - {@link normalizeImageFormat} — collapses `'jpg'` to `'jpeg'`, strips
- *   the `image/` MIME prefix, and falls back to `'jpeg'` for unknown or
- *   omitted input.
- * - {@link mimeTypeFor}          — derives the matching `image/...` MIME
- *   for a normalized format token.
- * - {@link clampQuality}         — coerces input to a finite number and
- *   clamps it into `[0, 1]`, falling back to a caller-supplied default
- *   when the input is not finite.
- * - {@link resolveExportFormat}  — composes the above with the documented
- *   `fileType`-wins-over-`format` precedence and drops `quality` for PNG
- *   output.
- *
- * legacy parity:
- * - The format mapping table mirrors `_normalizeImageFormat` from
- *   `src/image-editor.js@legacy.4.0`, including the lowercase lookup and the
- *   `'jpeg'` default for unknown input.
- * - The quality clamp mirrors `_normalizeQuality` from the same legacy file:
- *   non-finite input falls back to `options.downsampleQuality`, finite
- *   input is clamped to `[0, 1]`.
- *
- * This module is internal — it is NOT re-exported from `src/index.ts`.
- *
- *    Fabric.
- *    lossless.
- *    `quality` defaulting to `options.downsampleQuality`.
+ * Converts public `Base64ExportOptions` and `ImageFileExportOptions` values
+ * into the normalized format, MIME type, and quality values consumed by
+ * `export/export-service.ts`.
  *
  * @module
  */

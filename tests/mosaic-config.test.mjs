@@ -1,3 +1,31 @@
+/**
+ * Type:
+ *   Unit test
+ *
+ * Purpose:
+ *   Verifies Mosaic configuration defaults, normalization, runtime patching, and
+ *   defensive copy behavior.
+ *
+ * Scope:
+ *   - Constructor defaults and defaultMosaicConfig overrides are normalized.
+ *   - Runtime setters patch current Mosaic config without mutating constructor
+ *     defaults.
+ *   - Invalid Mosaic runtime values warn and leave current config unchanged.
+ *   - Dash arrays are defensively copied for public reads and config merges.
+ *
+ * Out of scope:
+ *   - Mosaic pixel processing
+ *   - Mosaic pointer geometry
+ *   - canvas preview rendering
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - focused Fabric stubs
+ *
+ * Run:
+ *   node --test tests/mosaic-config.test.mjs
+ */
+
 import { register } from 'node:module';
 
 register('./helpers/ts-resolve-hook.mjs', import.meta.url);

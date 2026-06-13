@@ -1,4 +1,5 @@
 import { isTextAnnotationObject, } from '../core/public-types.js';
+import { isAnnotationLocked } from './annotation-lock.js';
 function setObjectProps(object, props) {
     try {
         object.set(props);
@@ -14,7 +15,7 @@ function syncTextEditability(annotation, editable) {
 export function syncAnnotationRuntimeState(annotation) {
     var _a;
     const hidden = annotation.annotationHidden === true;
-    const locked = annotation.annotationLocked === true;
+    const locked = isAnnotationLocked(annotation);
     setObjectProps(annotation, {
         visible: !hidden,
         selectable: locked ? false : true,

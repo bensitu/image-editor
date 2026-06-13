@@ -1,3 +1,30 @@
+/**
+ * Type:
+ *   Integration test
+ *
+ * Purpose:
+ *   Verifies Mosaic mode lifecycle, preview objects, pixel commits, and history
+ *   integration through the ImageEditor facade.
+ *
+ * Scope:
+ *   - Entering Mosaic mode without an image is a no-op.
+ *   - Preview objects are created, updated, and removed idempotently.
+ *   - Click and drag gestures commit mosaic pixels with undo/redo support.
+ *   - Exiting Mosaic mode releases the raster cache.
+ *
+ * Out of scope:
+ *   - standalone pixelation algorithm details
+ *   - configuration normalization
+ *   - browser UI control binding
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - Fabric/canvas test environment
+ *
+ * Run:
+ *   node --test tests/mosaic-mode.test.mjs
+ */
+
 import { register } from 'node:module';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -213,6 +240,35 @@ test('Mosaic drag shows live preview before mouseup commits the stroke', async (
             1,
             'mouseup should commit the live preview as one image change',
         );
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('exitMosaicMode releases the raster cache', async () => {
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 14, blockSize: 4 },
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 48, height: 48 }));
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        editor.canvas.fire('mouse:down', { scenePoint: center });
+        await waitForCanvasCallbacks(250);
+
+        const session = editor.mosaicSession;
+        assert.ok(session?.rasterCache, 'mosaic stroke should create a raster cache');
+        const offscreenCanvas = session.rasterCache.offscreenCanvas;
+        assert.ok(offscreenCanvas.width > 0);
+        assert.ok(offscreenCanvas.height > 0);
+
+        editor.exitMosaicMode();
+
+        assert.equal(editor.isMosaicMode(), false);
+        assert.equal(session.rasterCache, null);
+        assert.equal(offscreenCanvas.width, 0);
+        assert.equal(offscreenCanvas.height, 0);
     } finally {
         disposeEditor(editor);
     }

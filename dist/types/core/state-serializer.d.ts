@@ -45,8 +45,7 @@
 import type * as FabricNS from 'fabric';
 import type { AnnotationObject, BaseImageObject, ImageMimeType, MaskObject } from './public-types.js';
 /**
- * Per-object payload inside a {@link CanvasJson} snapshot. Mirrors the
- * Pretty_Printer wire format used by the canvas serializer.
+ * Per-object payload inside a {@link CanvasJson} snapshot.
  *
  * The `isCropRect` and `maskLabel` markers are filtered out by
  * {@link saveState}, so a snapshot pushed to history will never contain

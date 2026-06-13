@@ -116,7 +116,7 @@ const smallDelayArb = fc.integer({ min: 0, max: 5 });
 
 // ─── Properties ────────────────────────────────────────────────────────────
 
-test('synchronous execute/push monotonicity and overflow window', async () => {
+test('execute/push monotonicity and overflow window', async () => {
     await fc.assert(
         fc.asyncProperty(maxSizeArb, syncStepsArb, async (maxSize, steps) => {
             const hm = new HistoryManager(maxSize);
@@ -135,7 +135,7 @@ test('synchronous execute/push monotonicity and overflow window', async () => {
             for (let i = 0; i < steps.length; i++) {
                 const cmd = makeTrackedCommand(i, tracker);
                 if (steps[i].kind === 'execute') {
-                    hm.execute(cmd);
+                    await hm.execute(cmd);
                 } else {
                     hm.push(cmd);
                 }
@@ -210,6 +210,28 @@ test('synchronous execute/push monotonicity and overflow window', async () => {
         }),
         { numRuns: 100 },
     );
+});
+
+test('execute awaits command success before pushing and rejected commands are not recorded', async () => {
+    const hm = new HistoryManager(5);
+    const tracker = freshTracker();
+
+    await hm.execute(makeTrackedCommand(1, tracker));
+    assert.equal(hm.history.length, 1);
+    assert.equal(hm.currentIndex, 0);
+    assert.equal(hm.canUndo(), true);
+    assert.deepEqual(tracker.executes, [1]);
+
+    await assert.rejects(
+        () => hm.execute(makeTrackedCommand(2, tracker, { executeRejects: true })),
+        /execute 2 rejected/,
+    );
+
+    assert.equal(hm.history.length, 1, 'rejected execute must not push a command');
+    assert.equal(hm.currentIndex, 0, 'rejected execute must leave currentIndex unchanged');
+    assert.equal(hm.canUndo(), true);
+    assert.equal(hm.canRedo(), false);
+    assert.deepEqual(tracker.executes, [1, 2]);
 });
 
 test('async undo/redo move currentIndex by exactly ±1 per successful awaited call', async () => {

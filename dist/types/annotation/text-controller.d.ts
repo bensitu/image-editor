@@ -1,3 +1,11 @@
+/**
+ * Text annotation creation and Text mode controller.
+ *
+ * Owns default text placement, inline editing setup, Text mode click handling,
+ * and conversion of Fabric text objects into editor-owned annotations.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type AnnotationObject, type FabricModule, type ImageEditorCallbackContext, type ResolvedOptions, type ResolvedTextAnnotationConfig, type TextAnnotationConfig, type TextAnnotationObject } from '../core/public-types.js';
 export interface TextSession {

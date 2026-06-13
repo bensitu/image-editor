@@ -169,7 +169,7 @@ export const DEFAULT_MOSAIC_CONFIG: ResolvedMosaicConfig = Object.freeze({
     blockSize: 8,
     previewStroke: '#333',
     previewStrokeWidth: 1,
-    previewStrokeDashArray: Object.freeze([4, 4]) as unknown as number[],
+    previewStrokeDashArray: Object.freeze([4, 4]),
     previewFill: 'rgba(0,0,0,0)',
     outputFileType: 'source',
     outputQuality: undefined,
@@ -391,7 +391,10 @@ function normalizeMosaicNonNegativeNumber(value: unknown, fallback: number): num
     return isFiniteNumber(value) && value >= 0 ? value : fallback;
 }
 
-function normalizeMosaicDashArray(value: unknown, fallback: number[] | null): number[] | null {
+function normalizeMosaicDashArray(
+    value: unknown,
+    fallback: readonly number[] | null,
+): number[] | null {
     if (value === null) return null;
     if (
         Array.isArray(value) &&

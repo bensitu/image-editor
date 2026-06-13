@@ -1,5 +1,27 @@
 /**
- * Verifies initialImageBase64 failures are reported without unhandled rejections.
+ * Type:
+ *   Regression test
+ *
+ * Purpose:
+ *   Verifies initialImageBase64 failures are reported without unhandled
+ *   promise rejections.
+ *
+ * Scope:
+ *   - Image decode failure during init is reported through onError once.
+ *   - The failed initial load does not create an unhandled rejection.
+ *
+ * Out of scope:
+ *   - successful initial image loading
+ *   - canvas rendering output
+ *   - user interaction through DOM controls
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - JSDOM
+ *   - mocked Image and Fabric canvas primitives
+ *
+ * Run:
+ *   node --test tests/initial-image-init.test.mjs
  */
 
 import { register } from 'node:module';

@@ -24,6 +24,12 @@ function ensureOnCanvas(canvas, object) {
         canvas.add(object);
     }
 }
+function withoutObject(canvas, object) {
+    return canvas.getObjects().filter((candidate) => candidate !== object);
+}
+function findFirstSessionIndex(objects) {
+    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
+}
 function getOrderedGroups(canvas) {
     const baseImages = [];
     const overlays = [];
@@ -59,19 +65,24 @@ export function normalizeLayerOrder(canvas) {
 }
 export function placeBaseImageObject(canvas, image) {
     ensureOnCanvas(canvas, image);
-    normalizeLayerOrder(canvas);
+    const targetIndex = withoutObject(canvas, image).filter(isBaseImageObject).length;
+    moveObjectTo(canvas, image, targetIndex);
 }
 export function placeMaskObject(canvas, mask) {
     ensureOnCanvas(canvas, mask);
-    normalizeLayerOrder(canvas);
+    const objects = withoutObject(canvas, mask);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 export function placeAnnotationObject(canvas, annotation) {
     ensureOnCanvas(canvas, annotation);
-    normalizeLayerOrder(canvas);
+    const objects = withoutObject(canvas, annotation);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 export function placeSessionObject(canvas, sessionObject) {
     ensureOnCanvas(canvas, sessionObject);
-    normalizeLayerOrder(canvas);
+    moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 }
 export function getEditableOverlayRange(canvas) {
     const objects = canvas.getObjects();

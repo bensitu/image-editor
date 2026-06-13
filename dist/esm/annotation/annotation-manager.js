@@ -1,5 +1,6 @@
 import { isAnnotationObject, isDrawAnnotationObject, isTextAnnotationObject, } from '../core/public-types.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
+import { isAnnotationLocked, isAnnotationUnlocked } from './annotation-lock.js';
 function isActiveSelectionObject(object) {
     if (!object)
         return false;
@@ -107,7 +108,7 @@ export function updateAnnotationObject(annotation, config) {
     if (typeof raw.annotationLocked === 'boolean') {
         annotation.annotationLocked = raw.annotationLocked;
     }
-    const lockedAfter = annotation.annotationLocked === true;
+    const lockedAfter = isAnnotationLocked(annotation);
     if (!lockedAfter) {
         if (typeof raw.selectable === 'boolean')
             annotation.selectable = raw.selectable;
@@ -149,7 +150,7 @@ export function updateSelectedAnnotation(context, config) {
 }
 export function removeAnnotationObjects(context, objects, options = {}) {
     const force = options.force === true;
-    const removable = objects.filter((annotation) => force || annotation.annotationLocked !== true);
+    const removable = objects.filter((annotation) => force || isAnnotationUnlocked(annotation));
     if (removable.length === 0)
         return 0;
     for (const annotation of removable) {

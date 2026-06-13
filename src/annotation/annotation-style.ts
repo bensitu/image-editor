@@ -1,3 +1,13 @@
+/**
+ * Runtime Fabric flag synchronization for editor-owned annotations.
+ *
+ * The metadata fields `annotationHidden` and `annotationLocked` are the
+ * durable source of truth; this module projects them onto Fabric visibility,
+ * selectability, event handling, and text editability.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {
@@ -5,6 +15,7 @@ import {
     type AnnotationObject,
     type TextAnnotationObject,
 } from '../core/public-types.js';
+import { isAnnotationLocked } from './annotation-lock.js';
 
 function setObjectProps(
     object: FabricNS.FabricObject,
@@ -24,7 +35,7 @@ function syncTextEditability(annotation: TextAnnotationObject, editable: boolean
 
 export function syncAnnotationRuntimeState(annotation: AnnotationObject): void {
     const hidden = annotation.annotationHidden === true;
-    const locked = annotation.annotationLocked === true;
+    const locked = isAnnotationLocked(annotation);
 
     setObjectProps(annotation, {
         visible: !hidden,

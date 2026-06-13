@@ -59,14 +59,12 @@
  *
  * ## Why a class with a context bundle?
  *
- * The legacy monolithic `ImageEditor` owned all transform state. This module keeps that
- * state on the facade so `currentScale`, `currentRotation`,
- * `baseImageScale`, and `shouldSuppressSaveState` remain on a single owner
- * (these are part of the snapshot wire format). The
- * controller therefore reads and writes through the
+ * This module keeps transform state on the facade so `currentScale`,
+ * `currentRotation`, `baseImageScale`, and `shouldSuppressSaveState`
+ * remain on a single owner (these are part of the snapshot wire format).
+ * The controller therefore reads and writes through the
  * {@link TransformContext} accessor pairs rather than duplicating the
- * fields. Mirrors the same pattern used by
- * `LoadImageContext`.
+ * fields. It mirrors the same pattern used by `LoadImageContext`.
  *
  * Owner module references (per the documented "Mapping Contracts to
  * modules" table): this module is imported by `image-editor.ts`. It is

@@ -9,6 +9,7 @@ import { isAnnotationObject, isDrawAnnotationObject, isEditableOverlayObject, is
 import { getAnnotations as getAnnotationsImpl, removeAllAnnotations as removeAllAnnotationsImpl, removeAnnotationObjects, removeSelectedAnnotation as removeSelectedAnnotationImpl, renderAnnotationList, updateAnnotation as updateAnnotationImpl, updateAnnotationListSelection, updateSelectedAnnotation as updateSelectedAnnotationImpl, } from './annotation/annotation-manager.js';
 import { attachTextEditingHandlersToAnnotations, createTextAnnotation as createTextAnnotationImpl, enterTextMode as enterTextModeImpl, exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
 import { enterDrawMode as enterDrawModeImpl, exitDrawMode as exitDrawModeImpl, updateDrawBrush, } from './annotation/draw-controller.js';
+import { isAnnotationLocked, isAnnotationUnlocked } from './annotation/annotation-lock.js';
 import { syncAnnotationRuntimeStates } from './annotation/annotation-style.js';
 import { normalizeLayerOrder, getEditableOverlayRange } from './core/layer-order.js';
 import { applyCrop as applyCropImpl, cancelCrop as cancelCropImpl, enterCropMode as enterCropModeImpl, } from './crop/crop-controller.js';
@@ -71,6 +72,16 @@ const CROP_MODE_CONTROL_KEYS = [
 ];
 const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const TEXT_MODE_ENABLED_KEYS = [
+    'exitTextModeButton',
+    'textColorInput',
+    'textFontSizeInput',
+];
+const DRAW_MODE_ENABLED_KEYS = [
+    'exitDrawModeButton',
+    'drawColorInput',
+    'drawBrushSizeInput',
+];
 const MOSAIC_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
     'rotateLeftDegreesInput',
@@ -558,8 +569,8 @@ export class ImageEditor {
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
-        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
         this.initCanvas();
+        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
         this.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
@@ -627,6 +638,12 @@ export class ImageEditor {
         this.canvas.on('object:scaling', onObjectEvent);
         this.canvas.on('object:rotating', onObjectEvent);
         this.canvas.on('object:modified', onObjectModified);
+    }
+    getLiveCanvasOrThrow(operationName) {
+        if (this.isDisposed || !this.canvas) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
+        }
+        return this.canvas;
     }
     bindDomEvents() {
         this.bindElementIfExists('uploadArea', 'click', () => {
@@ -1232,7 +1249,7 @@ export class ImageEditor {
         applyCanvasDimensions(this.canvas, widthPx, heightPx, this.containerElement);
     }
     alignObjectBoundingBoxToCanvasTopLeft(object) {
-        var _a, _b;
+        var _a, _b, _c;
         object.setCoords();
         const boundingRect = object.getBoundingRect();
         object.set({
@@ -1240,7 +1257,7 @@ export class ImageEditor {
             top: ((_b = object.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
         });
         object.setCoords();
-        this.canvas.renderAll();
+        (_c = this.canvas) === null || _c === void 0 ? void 0 : _c.renderAll();
     }
     measureLayoutViewport(scrollbarSize) {
         return this.viewportCache.measure(this.containerElement, {
@@ -1381,7 +1398,7 @@ export class ImageEditor {
     }
     buildTransformContext() {
         return {
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('buildTransformContext'),
             options: this.options,
             guard: this.operationGuard,
             getOriginalImage: () => this.originalImage,
@@ -1604,13 +1621,14 @@ export class ImageEditor {
                 this.emitAnnotationsChanged(context);
             }
             this.emitImageChanged(context);
+            const canvas = this.getLiveCanvasOrThrow('loadFromState');
             const activeMaskId = editorState === null || editorState === void 0 ? void 0 : editorState.activeMaskId;
             const activeAnnotationId = editorState === null || editorState === void 0 ? void 0 : editorState.activeAnnotationId;
             if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'mask' && typeof activeMaskId === 'number') {
                 const activeMask = restoredMasks.find((maskObject) => maskObject.maskId === activeMaskId);
                 if (activeMask) {
                     this.withSelectionChangeContext(context, () => {
-                        this.canvas.setActiveObject(activeMask);
+                        canvas.setActiveObject(activeMask);
                         this.handleSelectionChanged([activeMask]);
                     });
                 }
@@ -1620,7 +1638,7 @@ export class ImageEditor {
                 const activeAnnotation = restoredState.annotations.find((annotation) => annotation.annotationId === activeAnnotationId);
                 if (activeAnnotation) {
                     this.withSelectionChangeContext(context, () => {
-                        this.canvas.setActiveObject(activeAnnotation);
+                        canvas.setActiveObject(activeAnnotation);
                         this.handleSelectionChanged([activeAnnotation]);
                     });
                 }
@@ -1785,7 +1803,7 @@ export class ImageEditor {
     buildCreateMaskContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('createMask'),
             options: this.getRuntimeOptions(),
             getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
@@ -1808,7 +1826,7 @@ export class ImageEditor {
     }
     buildRemoveMaskContext() {
         return {
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('removeMask'),
             removeLabelForMask: (mask) => {
                 this.removeLabelForMask(mask);
             },
@@ -1873,7 +1891,7 @@ export class ImageEditor {
             return;
         }
         if (isAnnotationObject(target)) {
-            if (target.annotationLocked === true)
+            if (isAnnotationLocked(target))
                 return;
             const context = this.buildCallbackContext('updateAnnotation', false);
             this.saveState();
@@ -2077,21 +2095,22 @@ export class ImageEditor {
         this.finalizeActiveTextEditingIfNeeded();
         const selectedObjects = this.getSelectedCanvasObjects();
         const selectedMasks = selectedObjects.filter(isMaskObject);
-        const selectedAnnotations = selectedObjects.filter((object) => isAnnotationObject(object) && object.annotationLocked !== true);
+        const selectedAnnotations = selectedObjects.filter((object) => isAnnotationObject(object) && isAnnotationUnlocked(object));
         if (selectedMasks.length === 0 && selectedAnnotations.length === 0)
             return;
+        const canvas = this.getLiveCanvasOrThrow('deleteSelectedObject');
         const callbackContext = this.buildCallbackContext('deleteSelectedObject', false);
         this.withSelectionChangeContext(callbackContext, () => {
             for (const mask of selectedMasks) {
                 this.removeLabelForMask(mask);
-                this.canvas.remove(mask);
+                canvas.remove(mask);
             }
             removeAnnotationObjects(this.buildAnnotationManagerContext(), selectedAnnotations, {
                 saveHistory: false,
                 force: true,
             });
-            this.canvas.discardActiveObject();
-            this.canvas.renderAll();
+            canvas.discardActiveObject();
+            canvas.renderAll();
             this.saveState();
         });
         this.updateMaskList();
@@ -2117,7 +2136,7 @@ export class ImageEditor {
     }
     buildAnnotationManagerContext() {
         return {
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('annotationManager'),
             saveCanvasState: () => this.saveState(),
             updateUi: () => this.updateUi(),
         };
@@ -2138,7 +2157,7 @@ export class ImageEditor {
     buildTextControllerContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('textController'),
             options: this.options,
             getOriginalImage: () => this.originalImage,
             getTextConfig: () => this.currentTextConfig,
@@ -2162,7 +2181,7 @@ export class ImageEditor {
     buildDrawControllerContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('drawController'),
             options: this.options,
             getDrawConfig: () => this.currentDrawConfig,
             isImageLoaded: () => this.isImageLoaded(),
@@ -2215,6 +2234,10 @@ export class ImageEditor {
     }
     applyTextColorInput(color) {
         var _a;
+        if (this.isTextMode()) {
+            this.setTextColor(color);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isTextAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ fill: color });
@@ -2224,6 +2247,10 @@ export class ImageEditor {
     }
     applyTextFontSizeInput(size) {
         var _a;
+        if (this.isTextMode()) {
+            this.setTextFontSize(size);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isTextAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ fontSize: size });
@@ -2233,6 +2260,10 @@ export class ImageEditor {
     }
     applyDrawColorInput(color) {
         var _a;
+        if (this.isDrawMode()) {
+            this.setDrawColor(color);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isDrawAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ stroke: color });
@@ -2242,6 +2273,10 @@ export class ImageEditor {
     }
     applyDrawBrushSizeInput(size) {
         var _a;
+        if (this.isDrawMode()) {
+            this.setDrawBrushSize(size);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isDrawAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ strokeWidth: size });
@@ -2350,7 +2385,7 @@ export class ImageEditor {
             this.updateUi();
         }
     }
-    downloadImage(fileName) {
+    downloadImage(options) {
         if (!this.canvas)
             return;
         if (!this.canRunIdleOperation('downloadImage'))
@@ -2361,7 +2396,7 @@ export class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         const exportContext = this.buildExportServiceContext();
         try {
-            downloadImageImpl(exportContext, fileName);
+            downloadImageImpl(exportContext, options);
         }
         finally {
             this.operationGuard.endBusyOperation(operationToken);
@@ -2404,7 +2439,7 @@ export class ImageEditor {
     buildExportServiceContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('export'),
             options: this.options,
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
@@ -2431,8 +2466,9 @@ export class ImageEditor {
             },
             getAnnotations: () => this.getAnnotations(),
             restoreAnnotations: (objects) => {
+                const canvas = this.getLiveCanvasOrThrow('restoreAnnotations');
                 objects.forEach((annotation) => {
-                    this.canvas.add(annotation);
+                    canvas.add(annotation);
                 });
                 syncAnnotationRuntimeStates(objects);
                 attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), objects);
@@ -2464,8 +2500,9 @@ export class ImageEditor {
             },
             getMasks: () => this.getMasks(),
             restoreMasks: (objects) => {
+                const canvas = this.getLiveCanvasOrThrow('restoreMasks');
                 objects.forEach((mask) => {
-                    this.canvas.add(mask);
+                    canvas.add(mask);
                     reattachMaskHoverHandlers(mask);
                 });
                 this.lastMask = objects.reduce((lastMask, mask) => !lastMask || mask.maskId > lastMask.maskId ? mask : lastMask, null);
@@ -2593,7 +2630,7 @@ export class ImageEditor {
     buildMosaicControllerContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('mosaicController'),
             options: this.options,
             historyManager: this.historyManager,
             getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
@@ -2693,7 +2730,7 @@ export class ImageEditor {
     buildCropControllerContext(operationToken) {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('cropController'),
             options: this.options,
             historyManager: this.historyManager,
             isImageLoaded: () => this.isImageLoaded(),
@@ -2715,52 +2752,53 @@ export class ImageEditor {
             },
         };
     }
+    syncInputValue(inputElement, value) {
+        if (!inputElement)
+            return;
+        const ownerDocument = inputElement.ownerDocument;
+        if (ownerDocument.activeElement === inputElement && !inputElement.readOnly)
+            return;
+        if (inputElement.value !== value)
+            inputElement.value = value;
+    }
     updateInputs() {
         const scaleId = this.elements.scalePercentageInput;
         if (scaleId) {
             const scaleInputElement = document.getElementById(scaleId);
-            if (scaleInputElement) {
-                scaleInputElement.value = String(Math.round(this.currentScale * 100));
-            }
+            this.syncInputValue(scaleInputElement, String(Math.round(this.currentScale * 100)));
         }
         const mosaicConfig = this.getMosaicConfig();
         const mosaicBrushSizeInputId = this.elements.mosaicBrushSizeInput;
         if (mosaicBrushSizeInputId) {
             const brushInput = document.getElementById(mosaicBrushSizeInputId);
-            if (brushInput)
-                brushInput.value = String(mosaicConfig.brushSize);
+            this.syncInputValue(brushInput, String(mosaicConfig.brushSize));
         }
         const mosaicBlockSizeInputId = this.elements.mosaicBlockSizeInput;
         if (mosaicBlockSizeInputId) {
             const blockInput = document.getElementById(mosaicBlockSizeInputId);
-            if (blockInput)
-                blockInput.value = String(mosaicConfig.blockSize);
+            this.syncInputValue(blockInput, String(mosaicConfig.blockSize));
         }
         const textConfig = this.getTextConfig();
         const textColorInputId = this.elements.textColorInput;
         if (textColorInputId) {
             const textColorInput = document.getElementById(textColorInputId);
-            if (textColorInput)
-                textColorInput.value = textConfig.fill;
+            this.syncInputValue(textColorInput, textConfig.fill);
         }
         const textFontSizeInputId = this.elements.textFontSizeInput;
         if (textFontSizeInputId) {
             const fontInput = document.getElementById(textFontSizeInputId);
-            if (fontInput)
-                fontInput.value = String(textConfig.fontSize);
+            this.syncInputValue(fontInput, String(textConfig.fontSize));
         }
         const drawConfig = this.getDrawConfig();
         const drawColorInputId = this.elements.drawColorInput;
         if (drawColorInputId) {
             const drawColorInput = document.getElementById(drawColorInputId);
-            if (drawColorInput)
-                drawColorInput.value = drawConfig.color;
+            this.syncInputValue(drawColorInput, drawConfig.color);
         }
         const drawBrushSizeInputId = this.elements.drawBrushSizeInput;
         if (drawBrushSizeInputId) {
             const brushInput = document.getElementById(drawBrushSizeInputId);
-            if (brushInput)
-                brushInput.value = String(drawConfig.brushSize);
+            this.syncInputValue(brushInput, String(drawConfig.brushSize));
         }
     }
     async mergeAnnotations() {
@@ -2821,17 +2859,15 @@ export class ImageEditor {
             return;
         }
         if (isInTextMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => this.setControlEnabled(key, false));
-            this.setControlEnabled('exitTextModeButton', !isBusy);
-            this.setControlEnabled('textColorInput', !isBusy);
-            this.setControlEnabled('textFontSizeInput', !isBusy);
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && TEXT_MODE_ENABLED_KEYS.includes(key));
+            });
             return;
         }
         if (isInDrawMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => this.setControlEnabled(key, false));
-            this.setControlEnabled('exitDrawModeButton', !isBusy);
-            this.setControlEnabled('drawColorInput', !isBusy);
-            this.setControlEnabled('drawBrushSizeInput', !isBusy);
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && DRAW_MODE_ENABLED_KEYS.includes(key));
+            });
             return;
         }
         if (isInMosaicMode) {
@@ -2891,7 +2927,10 @@ export class ImageEditor {
             return;
         this.recordElementOriginalState(key, controlElement);
         if ('disabled' in controlElement) {
-            controlElement.disabled = !isEnabled;
+            const formControl = controlElement;
+            const nextDisabled = !isEnabled;
+            if (formControl.disabled !== nextDisabled)
+                formControl.disabled = nextDisabled;
             return;
         }
         if (!isEnabled) {

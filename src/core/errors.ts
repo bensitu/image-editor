@@ -109,7 +109,7 @@ export class ImageLoadTimeoutError extends Error {
  * returns `null`).
  *
  * Surfaces to consumer as: rejection of the `loadImage` promise. The
- * Transactional_Load rollback runs before the rejection.
+ * image-loader rollback runs before the rejection.
  *
  */
 export class DownsampleError extends Error {

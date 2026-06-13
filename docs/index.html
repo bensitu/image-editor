@@ -653,87 +653,33 @@
         </main>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/lucide@1.17.0/dist/umd/lucide.min.js"></script>
-        <!--
-        Fabric.js v7 publishes an ESM browser build. The demo imports it
-        explicitly and assigns it to `window.fabric` before loading the
-        ImageEditor UMD bundle.
-        -->
-        <script type="module">
+        <script>
             (async function () {
-                const fabricSources = window.location.hostname.endsWith('github.io')
-                    ? ['https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.mjs']
-                    : [
-                          '../node_modules/fabric/dist/index.min.mjs',
-                          'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.mjs',
-                      ];
-                // The published UMD bundle is the documented browser entry-point
-                // for `@bensitu/image-editor` v2 (registered global: `ImageEditor`).
-                const imageEditorSources = window.location.hostname.endsWith('github.io')
-                    ? [
-                          'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
-                      ]
-                    : [
-                          '../dist/umd/image-editor.umd.js',
-                          'https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js',
-                      ];
-
-                window.__imageEditorDemoLoaderErrors = [];
-                function recordLoaderError(kind, src, error) {
-                    window.__imageEditorDemoLoaderErrors.push({
-                        kind,
-                        src,
-                        name: error?.name,
-                        message: error?.message ?? String(error),
-                    });
-                    console.warn(`[ImageEditor demo] ${kind} source failed`, src, error);
-                }
-
-                async function importFirst(sources) {
-                    for (const src of sources) {
-                        try {
-                            return await import(src);
-                        } catch (error) {
-                            recordLoaderError('Fabric', src, error);
-                        }
-                    }
-                    return null;
-                }
+                const isGitHubPages = window.location.hostname.endsWith('github.io');
+                const fabricSrc = isGitHubPages
+                    ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
+                    : '../node_modules/fabric/dist/index.min.js';
+                const imageEditorSrc = isGitHubPages
+                    ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@2.2.0/dist/umd/image-editor.umd.js'
+                    : '../dist/umd/image-editor.umd.js';
 
                 function loadScript(src) {
                     return new Promise((resolve, reject) => {
                         const script = document.createElement('script');
                         script.src = src;
                         script.onload = resolve;
-                        script.onerror = reject;
+                        script.onerror = () => reject(new Error(`Failed to load ${src}`));
                         document.body.appendChild(script);
                     });
                 }
 
-                async function loadFirstScript(sources) {
-                    for (const src of sources) {
-                        try {
-                            await loadScript(src);
-                            return true;
-                        } catch (error) {
-                            recordLoaderError('script', src, error);
-                        }
-                    }
-                    return false;
+                try {
+                    await loadScript(fabricSrc);
+                    await loadScript(imageEditorSrc);
+                    await loadScript('js/script.js?v=2.2.0');
+                } catch (error) {
+                    console.error('[ImageEditor demo] Failed to load dependencies.', error);
                 }
-
-                if (!window.fabric) {
-                    const fabricModule = await importFirst(fabricSources);
-                    if (fabricModule) {
-                        window.fabric = fabricModule;
-                        window.__imageEditorDemoFabricKeys = Object.keys(fabricModule);
-                    }
-                }
-                if (!window.fabric) {
-                    console.error('[ImageEditor demo] Fabric could not be loaded.');
-                }
-
-                await loadFirstScript(imageEditorSources);
-                await loadScript('js/script.js');
             })();
         </script>
     </body>

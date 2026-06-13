@@ -1,5 +1,28 @@
 /**
- * Verifies v2 canonical ElementIdMap names at the ImageEditor facade boundary.
+ * Type:
+ *   Integration test
+ *
+ * Purpose:
+ *   Verifies canonical ElementIdMap wiring at the ImageEditor facade boundary.
+ *
+ * Scope:
+ *   - Canonical DOM keys bind controls to public ImageEditor API methods.
+ *   - Optional and null DOM bindings are tolerated.
+ *   - Removed v1 DOM key names do not attach handlers in v2.
+ *   - Fabric global detection is rechecked at init time.
+ *
+ * Out of scope:
+ *   - visual layout and styling
+ *   - browser rendering behavior
+ *   - image processing correctness
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - JSDOM
+ *   - mocked Fabric canvas primitives
+ *
+ * Run:
+ *   node --test tests/dom-canonical-bindings.test.mjs
  */
 
 import { register } from 'node:module';
@@ -41,6 +64,8 @@ const CANONICAL_IDS = Object.freeze({
     exitMosaicModeButton: 'customExitMosaicModeButton',
     mosaicBrushSizeInput: 'customMosaicBrushSizeInput',
     mosaicBlockSizeInput: 'customMosaicBlockSizeInput',
+    textFontSizeInput: 'customTextFontSizeInput',
+    drawBrushSizeInput: 'customDrawBrushSizeInput',
 });
 
 class MockCanvas {
@@ -54,6 +79,12 @@ class MockCanvas {
     }
     getActiveObject() {
         return this.activeObject;
+    }
+    getWidth() {
+        return 800;
+    }
+    getHeight() {
+        return 600;
     }
     discardActiveObject() {
         this.activeObject = null;
@@ -75,6 +106,11 @@ function makeFabricStub() {
         FabricText: class FakeFabricText {},
     };
     fabric.Canvas = class CapturingCanvas extends MockCanvas {};
+    fabric.PencilBrush = class FakePencilBrush {
+        constructor(canvas) {
+            this.canvas = canvas;
+        }
+    };
     return fabric;
 }
 
@@ -108,6 +144,8 @@ function installDom() {
             <button id="${CANONICAL_IDS.exitMosaicModeButton}"></button>
             <input id="${CANONICAL_IDS.mosaicBrushSizeInput}" value="48">
             <input id="${CANONICAL_IDS.mosaicBlockSizeInput}" value="8">
+            <input id="${CANONICAL_IDS.textFontSizeInput}" value="32">
+            <input id="${CANONICAL_IDS.drawBrushSizeInput}" value="8">
             <input id="${CANONICAL_IDS.imageInput}" type="file">
             <ul id="${CANONICAL_IDS.maskList}"></ul>
         </body></html>`,
@@ -209,6 +247,51 @@ test('Mosaic DOM buttons and size inputs call the public Mosaic API', () => {
     blockInput.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     assert.deepEqual(calls, ['enter', 'exit', ['brush', 72], ['block', 11]]);
+});
+
+test('Text mode size input updates live config without overwriting active typing', () => {
+    const window = installDom();
+    const editor = createEditor();
+
+    editor.textSession = { mode: 'text' };
+    editor.canvas.activeObject = {
+        editorObjectKind: 'annotation',
+        annotationId: 1,
+        annotationType: 'text',
+        annotationName: 'text1',
+    };
+    const textSizeInput = document.getElementById(CANONICAL_IDS.textFontSizeInput);
+    textSizeInput.focus();
+    textSizeInput.value = '44.';
+    textSizeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    assert.equal(editor.getTextConfig().fontSize, 44);
+    assert.equal(textSizeInput.value, '44.');
+    assert.equal(document.activeElement, textSizeInput);
+    assert.equal(textSizeInput.disabled, false);
+});
+
+test('Draw mode size input updates live config without overwriting active dragging', () => {
+    const window = installDom();
+    const editor = createEditor();
+
+    editor.drawSession = { mode: 'draw' };
+    editor.canvas.activeObject = {
+        editorObjectKind: 'annotation',
+        annotationId: 2,
+        annotationType: 'draw',
+        annotationName: 'draw2',
+    };
+    const drawSizeInput = document.getElementById(CANONICAL_IDS.drawBrushSizeInput);
+    drawSizeInput.focus();
+    drawSizeInput.value = '18.';
+    drawSizeInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    assert.equal(editor.getDrawConfig().brushSize, 18);
+    assert.equal(drawSizeInput.value, '18.');
+    assert.equal(document.activeElement, drawSizeInput);
+    assert.equal(drawSizeInput.disabled, false);
+    assert.equal(editor.canvas.freeDrawingBrush.width, 18);
 });
 
 test('removed v1 DOM key names are ignored at runtime', () => {

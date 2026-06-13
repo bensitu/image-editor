@@ -88,10 +88,10 @@ function makeFabricImageMock(initial) {
             }
         },
         setCoords() {
-            // No-op — placement math is not part of .
+            // No-op — placement math is not part of the reset history property.
         },
         setPositionByOrigin() {
-            // No-op — only cares about history entry count
+            // No-op — this suite only cares about history entry count
             // and final scale/rotation values.
         },
         getCenterPoint() {

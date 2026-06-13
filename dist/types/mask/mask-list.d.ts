@@ -1,7 +1,8 @@
 /**
- * Mask list DOM rendering — owns the legacy `updateMaskList` and
- * `_handleMaskListClick` logic that was inlined on the editor in
- * legacy and is now extracted into pure(ish) helpers that take a
+ * Mask list DOM rendering and click-to-select behavior.
+ *
+ * The ImageEditor facade owns canvas selection state; this module rebuilds
+ * the list from the current canvas objects and reports user selection through
  * {@link MaskListContext}.
  *
  * ## Owned contracts
@@ -15,7 +16,7 @@
  * - Every `<li>` carries a `data-mask-id` attribute
  *   (via `dataset.maskId`) equal to the mask's `maskId`. Clients keying off
  *   the list (the click handler below, the test suite under
- *   `tests/properties/mask-list-dom.test.mjs`) MUST use this attribute and
+ *   `tests/mask-list-dom.property.test.mjs`) MUST use this attribute and
  *   never the visible label text — the label may be rewritten by the
  *   integrator via `options.label.getText`, so it is NOT a stable key.
  *
@@ -44,8 +45,8 @@
  *   tested in isolation against a stub Fabric environment plus a JSDOM
  *   container.
  * - The DOM contract — `<li class="list-group-item mask-item">` with a
- *   `dataset.maskId` — matches legacy verbatim so existing CSS, theme overrides,
- *   and integrator selectors continue to work unchanged.
+ *   `dataset.maskId` — is stable so existing CSS, theme overrides, and
+ *   integrator selectors continue to work unchanged.
  * - Each render replaces the container's `innerHTML`. That is intentional:
  *   it guarantees the DOM mirrors `canvas.getObjects` exactly, and the
  *   Fabric event handlers (`object:added`, `object:removed`, `selection:*`)
@@ -62,8 +63,7 @@ import type { MaskObject } from '../core/public-types.js';
  *
  * The module does NOT own any of these slots — it only reads them so
  * ownership of the canvas, the resolved DOM element ID map, and the
- * selection-changed pipeline stays on the orchestrator (where legacy left
- * them).
+ * selection-changed pipeline stays on the orchestrator.
  */
 export interface MaskListContext {
     /**
@@ -82,8 +82,7 @@ export interface MaskListContext {
      * Invoked by the click handler after `setActiveObject(mask)` has run,
      * so the orchestrator can drive its selection-changed pipeline (label
      * overlay, hover/selection styling, list highlight) the same way it
-     * does for canvas-originated selections. Mirrors legacy's
-     * `_handleSelectionChanged([mask])` call from `_handleMaskListClick`.
+     * does for canvas-originated selections.
      */
     onMaskSelected(mask: MaskObject): void;
 }
@@ -105,8 +104,8 @@ export interface MaskListContext {
  *    listener bookkeeping to track separately.
  * 3. For each {@link MaskObject} returned by `canvas.getObjects` (in
  *    canvas object order), build a fresh `<li>`:
- *      - class `list-group-item mask-item` (matches legacy verbatim so
- *        existing CSS keeps working);
+ *      - class `list-group-item mask-item` (part of the stable DOM
+ *        contract so existing CSS keeps working);
  *      - `textContent` set to `mask.maskName` (the label-text contract
  *        owned by `mask/mask-label-manager.ts`; this list shows the same
  *        identifier);

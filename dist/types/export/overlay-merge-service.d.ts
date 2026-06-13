@@ -1,3 +1,11 @@
+/**
+ * Shared transaction service for baking editable overlays into the base image.
+ *
+ * Mask and annotation merges use the same snapshot, export, reload, restore,
+ * history, and rollback flow while preserving the opposite overlay group.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import type { AnnotationObject, Base64ExportOptions, LoadImageOptions, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';

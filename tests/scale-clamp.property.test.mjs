@@ -103,7 +103,7 @@ function makeFabricImageMock() {
             // cache but our mock has no cache to invalidate.
         },
         setPositionByOrigin() {
-            // No-op — placement math is not part of .
+            // No-op — placement math is not part of the scale clamping property.
         },
         getCenterPoint() {
             return { x: 50, y: 50 };

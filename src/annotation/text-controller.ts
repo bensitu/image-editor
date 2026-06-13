@@ -1,3 +1,12 @@
+/**
+ * Text annotation creation and Text mode controller.
+ *
+ * Owns default text placement, inline editing setup, Text mode click handling,
+ * and conversion of Fabric text objects into editor-owned annotations.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { markAnnotationObject } from '../core/editor-object-kind.js';
@@ -16,8 +25,10 @@ import {
 import { mergeTextAnnotationConfigPatch } from '../core/default-options.js';
 import { getObjectBBox } from '../utils/canvas-region.js';
 import { resolveNumeric } from '../utils/number.js';
+import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
+import { isAnnotationUnlocked } from './annotation-lock.js';
 
 export interface TextSession {
     mode: 'text';
@@ -65,49 +76,6 @@ type TextWithEditTag = TextAnnotationObject & {
     setSelectionStart?: (index: number) => void;
     setSelectionEnd?: (index: number) => void;
 };
-
-function getPointerFromFabricEvent(
-    canvas: FabricNS.Canvas,
-    event: unknown,
-): { x: number; y: number } | null {
-    const fabricEvent = event as {
-        scenePoint?: unknown;
-        pointer?: unknown;
-        absolutePointer?: unknown;
-        e?: Event;
-    };
-    for (const value of [
-        fabricEvent.scenePoint,
-        fabricEvent.pointer,
-        fabricEvent.absolutePointer,
-    ]) {
-        const point = value as { x?: unknown; y?: unknown } | null | undefined;
-        if (
-            point &&
-            typeof point.x === 'number' &&
-            Number.isFinite(point.x) &&
-            typeof point.y === 'number' &&
-            Number.isFinite(point.y)
-        ) {
-            return { x: point.x, y: point.y };
-        }
-    }
-    if (fabricEvent.e && typeof (canvas as { getPointer?: unknown }).getPointer === 'function') {
-        const pointer = (canvas as unknown as { getPointer(e: Event): unknown }).getPointer(
-            fabricEvent.e,
-        ) as { x?: unknown; y?: unknown };
-        if (
-            pointer &&
-            typeof pointer.x === 'number' &&
-            Number.isFinite(pointer.x) &&
-            typeof pointer.y === 'number' &&
-            Number.isFinite(pointer.y)
-        ) {
-            return { x: pointer.x, y: pointer.y };
-        }
-    }
-    return null;
-}
 
 function resolveDefaultTextPosition(context: TextControllerContext): { left: number; top: number } {
     const image = context.getOriginalImage();
@@ -256,7 +224,7 @@ export function createTextAnnotation(
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
     placeAnnotationObject(context.canvas, annotation);
-    if (resolved.selectable !== false && annotation.annotationLocked !== true) {
+    if (resolved.selectable !== false && isAnnotationUnlocked(annotation)) {
         context.canvas.setActiveObject(annotation);
     }
     context.canvas.renderAll();
@@ -265,7 +233,7 @@ export function createTextAnnotation(
     const callbackContext = context.buildCallbackContext('createTextAnnotation');
     context.emitAnnotationsChanged(callbackContext);
     context.emitImageChanged(callbackContext);
-    if (resolved.enterEditing && annotation.annotationLocked !== true) {
+    if (resolved.enterEditing && isAnnotationUnlocked(annotation)) {
         (annotation as TextWithEditTag).enterEditing?.();
         selectAllText(annotation);
     }
@@ -276,7 +244,7 @@ function handleTextModePointer(context: TextControllerContext, event: unknown): 
     const fabricEvent = event as { target?: FabricNS.FabricObject };
     const target = fabricEvent.target;
     if (target) {
-        if (isTextAnnotationObject(target) && target.annotationLocked !== true) {
+        if (isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
             context.canvas.setActiveObject(target);
             (target as TextWithEditTag).enterEditing?.();
         } else if (isEditableOverlayObject(target)) {

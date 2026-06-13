@@ -3,6 +3,7 @@ import { reportError } from '../core/callback-reporter.js';
 import { ExportError, ExportNotReadyError } from '../core/errors.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox, getPartialExportEdges, hasMeaningfulCanvasRegion, } from '../utils/canvas-region.js';
+import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { resolveExportFormat } from './export-format.js';
 import { flattenOverlayGroupToBaseImage, } from './overlay-merge-service.js';
 function resolveMultiplier(requested, fallback) {
@@ -29,6 +30,21 @@ function resolveExportOptions(context, options) {
             : context.options.mergeAnnotationsByDefault,
         multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
+    };
+}
+function resolveDownloadOptions(context, options) {
+    var _a;
+    const providedOptions = typeof options === 'string'
+        ? { fileName: options }
+        : (options !== null && options !== void 0 ? options : {});
+    return {
+        fileName: (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName,
+        exportOptions: {
+            exportArea: context.options.exportAreaByDefault,
+            mergeMasks: providedOptions.mergeMasks,
+            mergeAnnotations: providedOptions.mergeAnnotations,
+            multiplier: context.options.exportMultiplier,
+        },
     };
 }
 function readCanvasDimension(canvas, getterName, propertyName) {
@@ -258,44 +274,17 @@ function getImageDimensions(imageElement) {
     };
 }
 function loadImageElement(dataUrl) {
-    return new Promise((resolve, reject) => {
-        const imageElement = new Image();
-        imageElement.crossOrigin = 'anonymous';
-        const cleanup = () => {
-            if (typeof imageElement.removeEventListener === 'function') {
-                imageElement.removeEventListener('load', handleLoad);
-                imageElement.removeEventListener('error', handleError);
-            }
-            else {
-                imageElement.onload = null;
-                imageElement.onerror = null;
-            }
-        };
-        const handleLoad = () => {
-            cleanup();
-            resolve(imageElement);
-        };
-        const handleError = () => {
-            cleanup();
-            reject(new Error('Failed to decode export data URL'));
-        };
-        if (typeof imageElement.addEventListener === 'function') {
-            imageElement.addEventListener('load', handleLoad, { once: true });
-            imageElement.addEventListener('error', handleError, { once: true });
-        }
-        else {
-            imageElement.onload = handleLoad;
-            imageElement.onerror = handleError;
-        }
-        imageElement.src = dataUrl;
-    });
+    return startImageElementLoad(dataUrl, {
+        crossOrigin: 'anonymous',
+        createError: () => new Error('Failed to decode export data URL'),
+    }).promise;
 }
-async function sealPartialTransparentEdges(dataUrl, edges, target) {
+async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument) {
     if (!hasPartialEdges(edges))
         return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
@@ -342,14 +331,14 @@ async function sealPartialTransparentEdges(dataUrl, edges, target) {
         ? offscreenCanvas.toDataURL(target.mimeType)
         : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
-function getJpegBackgroundColor(backgroundColor) {
-    return resolveCanvasFillStyle(backgroundColor);
+function getJpegBackgroundColor(backgroundColor, ownerDocument) {
+    return resolveCanvasFillStyle(backgroundColor, ownerDocument);
 }
-function resolveCanvasFillStyle(backgroundColor, fallback = '#ffffff') {
+function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#ffffff') {
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
         return '#ffffff';
-    const context = createColorValidationContext();
+    const context = createColorValidationContext(ownerDocument);
     if (!context)
         return fallback;
     context.fillStyle = '#000001';
@@ -366,21 +355,23 @@ function resolveCanvasFillStyle(backgroundColor, fallback = '#ffffff') {
         return secondResolved;
     return fallback;
 }
-function createColorValidationContext() {
+function createColorValidationContext(ownerDocument) {
     try {
-        if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
-            return null;
-        }
-        return document.createElement('canvas').getContext('2d');
+        return ownerDocument.createElement('canvas').getContext('2d');
     }
     catch {
         return null;
     }
 }
 function getCanvasDocument(canvas) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     const canvasLike = canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
+    const ownerDocument = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument;
+    if (ownerDocument)
+        return ownerDocument;
+    if (typeof document !== 'undefined')
+        return document;
+    throw new Error('Document is unavailable for export canvas creation.');
 }
 function isTransparentCssColor(value) {
     const normalized = value.trim().toLowerCase();
@@ -409,16 +400,16 @@ function isZeroCssAlpha(value) {
     const numericAlpha = Number.parseFloat(alpha);
     return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
-async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
+async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality, ownerDocument) {
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
     if (!canvasContext)
         throw new Error('2D canvas context is unavailable');
-    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
     canvasContext.fillRect(0, 0, width, height);
     canvasContext.drawImage(imageElement, 0, 0, width, height);
     return offscreenCanvas.toDataURL('image/jpeg', quality);
@@ -449,13 +440,14 @@ function dataUrlToBytes(dataUrl) {
     }
     throw new Error('No base64 decoder is available for exportImageFile.');
 }
-async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
+async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas) {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
         return sourceDataUrl;
     }
     const imageElement = await loadImageElement(sourceDataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const ownerDocument = getCanvasDocument(canvas);
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
@@ -463,7 +455,7 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
         throw new Error('Unable to acquire 2D context for export conversion');
     }
     if (target.format === 'jpeg') {
-        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
         canvasContext.fillRect(0, 0, width, height);
     }
     canvasContext.drawImage(imageElement, 0, 0, width, height);
@@ -491,9 +483,11 @@ export async function exportImageBase64(context, options) {
             const sealedFormat = resolved.format.format === 'jpeg'
                 ? { format: 'png', mimeType: 'image/png', quality: undefined }
                 : resolved.format;
-            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat);
+            if (hasPartialEdges(partialEdges)) {
+                dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat, getCanvasDocument(context.canvas));
+            }
             if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality);
+                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality, getCanvasDocument(context.canvas));
             }
         }
         return dataUrl;
@@ -524,7 +518,7 @@ export async function exportImageFile(context, options) {
     if (!base64) {
         throw new ExportNotReadyError('exportImageFile');
     }
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor);
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor, context.canvas);
     let bytes;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -534,24 +528,19 @@ export async function exportImageFile(context, options) {
     }
     return new File([bytes], fileName, { type: resolved.mimeType });
 }
-export function downloadImage(context, fileName) {
+export function downloadImage(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
-    const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : context.options.defaultDownloadFileName;
-    void exportImageBase64(context, {
-        exportArea: context.options.exportAreaByDefault,
-        mergeMasks: context.options.mergeMasksByDefault,
-        mergeAnnotations: context.options.mergeAnnotationsByDefault,
-        multiplier: context.options.exportMultiplier,
-    })
+    const resolved = resolveDownloadOptions(context, options);
+    void exportImageBase64(context, resolved.exportOptions)
         .then((dataUrl) => {
         if (!dataUrl)
             return;
         const ownerDocument = getCanvasDocument(context.canvas);
         const link = ownerDocument.createElement('a');
-        link.download = resolvedFileName;
+        link.download = resolved.fileName;
         link.href = dataUrl;
         const body = ownerDocument.body;
         body.appendChild(link);

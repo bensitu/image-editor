@@ -21,7 +21,7 @@
  * - `exportImageFile(options?: ImageFileExportOptions)`
  *   resolves to a `File` whose name comes from `options.fileName` or the
  *   editor's `defaultDownloadFileName`.
- * - `downloadImage(fileName?: string)` triggers a
+ * - `downloadImage(options?: DownloadImageOptions | string)` triggers a
  *   browser download with the resolved filename. The bytes match the same
  *   pipeline used by `exportImageBase64`.
  * - When `isImageLoaded` is `false`, the three
@@ -97,6 +97,7 @@ import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/publi
 import { reportError } from '../core/callback-reporter.js';
 import type {
     Base64ExportOptions,
+    DownloadImageOptions,
     ExportArea,
     FabricModule,
     ImageFileExportOptions,
@@ -117,6 +118,7 @@ import {
     type IntegerRegion,
     type PartialExportEdges,
 } from '../utils/canvas-region.js';
+import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { resolveExportFormat, type ResolvedExportFormat } from './export-format.js';
 import {
     flattenOverlayGroupToBaseImage,
@@ -141,6 +143,11 @@ interface ResolvedExportOptions {
     mergeAnnotations: boolean;
     multiplier: number;
     format: ResolvedExportFormat;
+}
+
+interface ResolvedDownloadOptions {
+    fileName: string;
+    exportOptions: Base64ExportOptions;
 }
 
 type VisibilityBackup = {
@@ -232,6 +239,25 @@ function resolveExportOptions(
                 : context.options.mergeAnnotationsByDefault,
         multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
+    };
+}
+
+function resolveDownloadOptions(
+    context: ExportServiceContext,
+    options?: DownloadImageOptions | string | null,
+): ResolvedDownloadOptions {
+    const providedOptions: DownloadImageOptions =
+        typeof options === 'string'
+            ? ({ fileName: options } satisfies DownloadImageOptions)
+            : (options ?? {});
+    return {
+        fileName: providedOptions.fileName ?? context.options.defaultDownloadFileName,
+        exportOptions: {
+            exportArea: context.options.exportAreaByDefault,
+            mergeMasks: providedOptions.mergeMasks,
+            mergeAnnotations: providedOptions.mergeAnnotations,
+            multiplier: context.options.exportMultiplier,
+        },
     };
 }
 
@@ -621,49 +647,23 @@ function getImageDimensions(imageElement: HTMLImageElement): { width: number; he
 }
 
 function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
-    return new Promise<HTMLImageElement>((resolve, reject) => {
-        const imageElement = new Image();
-        imageElement.crossOrigin = 'anonymous';
-
-        const cleanup = (): void => {
-            if (typeof imageElement.removeEventListener === 'function') {
-                imageElement.removeEventListener('load', handleLoad);
-                imageElement.removeEventListener('error', handleError);
-            } else {
-                imageElement.onload = null;
-                imageElement.onerror = null;
-            }
-        };
-        const handleLoad = (): void => {
-            cleanup();
-            resolve(imageElement);
-        };
-        const handleError = (): void => {
-            cleanup();
-            reject(new Error('Failed to decode export data URL'));
-        };
-
-        if (typeof imageElement.addEventListener === 'function') {
-            imageElement.addEventListener('load', handleLoad, { once: true });
-            imageElement.addEventListener('error', handleError, { once: true });
-        } else {
-            imageElement.onload = handleLoad;
-            imageElement.onerror = handleError;
-        }
-        imageElement.src = dataUrl;
-    });
+    return startImageElementLoad(dataUrl, {
+        crossOrigin: 'anonymous',
+        createError: () => new Error('Failed to decode export data URL'),
+    }).promise;
 }
 
 async function sealPartialTransparentEdges(
     dataUrl: string,
     edges: PartialExportEdges | null,
     target: ResolvedExportFormat,
+    ownerDocument: Document,
 ): Promise<string> {
     if (!hasPartialEdges(edges)) return dataUrl;
 
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
@@ -709,14 +709,18 @@ async function sealPartialTransparentEdges(
         : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 
-function getJpegBackgroundColor(backgroundColor: unknown): string {
-    return resolveCanvasFillStyle(backgroundColor);
+function getJpegBackgroundColor(backgroundColor: unknown, ownerDocument: Document): string {
+    return resolveCanvasFillStyle(backgroundColor, ownerDocument);
 }
 
-function resolveCanvasFillStyle(backgroundColor: unknown, fallback = '#ffffff'): string {
+function resolveCanvasFillStyle(
+    backgroundColor: unknown,
+    ownerDocument: Document,
+    fallback = '#ffffff',
+): string {
     const value = String(backgroundColor ?? '').trim();
     if (!value || isTransparentCssColor(value)) return '#ffffff';
-    const context = createColorValidationContext();
+    const context = createColorValidationContext(ownerDocument);
     if (!context) return fallback;
 
     context.fillStyle = '#000001';
@@ -734,12 +738,9 @@ function resolveCanvasFillStyle(backgroundColor: unknown, fallback = '#ffffff'):
     return fallback;
 }
 
-function createColorValidationContext(): CanvasRenderingContext2D | null {
+function createColorValidationContext(ownerDocument: Document): CanvasRenderingContext2D | null {
     try {
-        if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
-            return null;
-        }
-        return document.createElement('canvas').getContext('2d');
+        return ownerDocument.createElement('canvas').getContext('2d');
     } catch {
         return null;
     }
@@ -750,11 +751,11 @@ function getCanvasDocument(canvas: FabricNS.Canvas): Document {
         getElement?: () => HTMLCanvasElement | undefined;
         lowerCanvasEl?: HTMLCanvasElement;
     };
-    return (
-        canvasLike.getElement?.()?.ownerDocument ??
-        canvasLike.lowerCanvasEl?.ownerDocument ??
-        document
-    );
+    const ownerDocument =
+        canvasLike.getElement?.()?.ownerDocument ?? canvasLike.lowerCanvasEl?.ownerDocument;
+    if (ownerDocument) return ownerDocument;
+    if (typeof document !== 'undefined') return document;
+    throw new Error('Document is unavailable for export canvas creation.');
 }
 
 function isTransparentCssColor(value: string): boolean {
@@ -791,15 +792,16 @@ async function convertDataUrlToOpaqueJpeg(
     dataUrl: string,
     backgroundColor: unknown,
     quality: number | undefined,
+    ownerDocument: Document,
 ): Promise<string> {
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
     if (!canvasContext) throw new Error('2D canvas context is unavailable');
-    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
     canvasContext.fillRect(0, 0, width, height);
     canvasContext.drawImage(imageElement, 0, 0, width, height);
     return offscreenCanvas.toDataURL('image/jpeg', quality);
@@ -868,6 +870,7 @@ async function reencodeDataUrlAs(
     sourceDataUrl: string,
     target: ResolvedExportFormat,
     backgroundColor: unknown,
+    canvas: FabricNS.Canvas,
 ): Promise<string> {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
         return sourceDataUrl;
@@ -875,8 +878,9 @@ async function reencodeDataUrlAs(
 
     const imageElement = await loadImageElement(sourceDataUrl);
     const { width, height } = getImageDimensions(imageElement);
+    const ownerDocument = getCanvasDocument(canvas);
 
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
 
@@ -886,7 +890,7 @@ async function reencodeDataUrlAs(
     }
 
     if (target.format === 'jpeg') {
-        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
         canvasContext.fillRect(0, 0, width, height);
     }
 
@@ -978,12 +982,20 @@ export async function exportImageBase64(
                 resolved.format.format === 'jpeg'
                     ? ({ format: 'png', mimeType: 'image/png', quality: undefined } as const)
                     : resolved.format;
-            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat);
+            if (hasPartialEdges(partialEdges)) {
+                dataUrl = await sealPartialTransparentEdges(
+                    dataUrl,
+                    partialEdges,
+                    sealedFormat,
+                    getCanvasDocument(context.canvas),
+                );
+            }
             if (resolved.format.format === 'jpeg') {
                 dataUrl = await convertDataUrlToOpaqueJpeg(
                     dataUrl,
                     context.options.backgroundColor,
                     resolved.format.quality,
+                    getCanvasDocument(context.canvas),
                 );
             }
         }
@@ -1048,7 +1060,12 @@ export async function exportImageFile(
         throw new ExportNotReadyError('exportImageFile');
     }
 
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor);
+    const finalDataUrl = await reencodeDataUrlAs(
+        base64,
+        resolved,
+        context.options.backgroundColor,
+        context.canvas,
+    );
     let bytes: Uint8Array<ArrayBuffer>;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -1077,33 +1094,32 @@ export async function exportImageFile(
  * `void` and there is no caller-visible promise to reject.
  *
  * @param context - Export context bundle.
- * @param fileName - Optional filename override. Defaults to
- *                  `options.defaultDownloadFileName`.
+ * @param options - Optional filename or {@link DownloadImageOptions}.
+ *                  String input is treated as a filename for backwards
+ *                  compatibility.
  *
  */
-export function downloadImage(context: ExportServiceContext, fileName?: string): void {
+export function downloadImage(
+    context: ExportServiceContext,
+    options?: DownloadImageOptions | string,
+): void {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
 
-    const resolvedFileName = fileName ?? context.options.defaultDownloadFileName;
+    const resolved = resolveDownloadOptions(context, options);
 
     // The download path mirrors legacy: an anchor with `download` and an
     // `href` set to the data URL emitted by `exportImageBase64`. The
     // anchor is appended to `document.body` because some browsers
     // (notably Firefox) ignore programmatic clicks on detached nodes.
-    void exportImageBase64(context, {
-        exportArea: context.options.exportAreaByDefault,
-        mergeMasks: context.options.mergeMasksByDefault,
-        mergeAnnotations: context.options.mergeAnnotationsByDefault,
-        multiplier: context.options.exportMultiplier,
-    })
+    void exportImageBase64(context, resolved.exportOptions)
         .then((dataUrl) => {
             if (!dataUrl) return; // already warned by `exportImageBase64`
             const ownerDocument = getCanvasDocument(context.canvas);
             const link = ownerDocument.createElement('a');
-            link.download = resolvedFileName;
+            link.download = resolved.fileName;
             link.href = dataUrl;
             const body = ownerDocument.body;
             body.appendChild(link);

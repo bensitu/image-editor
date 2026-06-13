@@ -1,3 +1,30 @@
+/**
+ * Type:
+ *   Unit test
+ *
+ * Purpose:
+ *   Verifies Mosaic pointer geometry maps canvas-space brush events into source
+ *   image coordinates.
+ *
+ * Scope:
+ *   - Untransformed, translated, scaled, and rotated image transforms are handled.
+ *   - Pointers outside source bounds return null.
+ *   - Near-singular transforms are rejected.
+ *   - Non-uniform scale chooses a conservative source radius.
+ *
+ * Out of scope:
+ *   - pixel mutation
+ *   - mode lifecycle behavior
+ *   - Fabric event extraction
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - matrix-only image stubs
+ *
+ * Run:
+ *   node --test tests/mosaic-geometry.test.mjs
+ */
+
 import { register } from 'node:module';
 
 register('./helpers/ts-resolve-hook.mjs', import.meta.url);

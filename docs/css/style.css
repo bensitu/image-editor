@@ -623,6 +623,8 @@ input[type='number']::-webkit-inner-spin-button {
     height: 28px;
     flex: 0 0 36px;
     padding: 2px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
 }
 
 .mosaic-control input[type='checkbox'] {

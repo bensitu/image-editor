@@ -1,3 +1,12 @@
+/**
+ * Annotation CRUD, selection, list rendering, and update helpers.
+ *
+ * The ImageEditor facade owns canvas state and passes a small context bundle
+ * into these helpers so Text and Draw annotations share one removal/update
+ * implementation.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type AnnotationObject, type AnnotationUpdateConfig, type RemoveAllAnnotationsOptions } from '../core/public-types.js';
 export interface AnnotationManagerContext {

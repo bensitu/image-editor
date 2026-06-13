@@ -2,6 +2,7 @@ import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
+import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { withTimeout } from '../utils/timeout.js';
 import { computeCoverLayout, computeExpandLayout, computeFitLayout, selectLayoutStrategy, applyCanvasDimensions, measureScrollbarSize, } from './layout-manager.js';
 import { computeDownsampleDimensions, detectSourceMimeType, resampleImage, } from './image-resampler.js';
@@ -25,7 +26,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         lastSnapshot: context.getLastSnapshot(),
         canvasJson: serializeCanvas(context.canvas),
         maskCounter: context.getMaskCounter(),
-        annotationCounter: getAnnotationCounter(context),
+        annotationCounter: context.getAnnotationCounter(),
         currentScale: context.getCurrentScale(),
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
@@ -65,7 +66,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         context.setCurrentScale(1);
         context.setCurrentRotation(0);
         context.setMaskCounter(0);
-        setAnnotationCounter(context, 0);
+        context.setAnnotationCounter(0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
         context.canvas.renderAll();
@@ -98,49 +99,12 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
     }
 }
 function startImageDecode(dataUrl) {
-    const imageElement = new Image();
-    const cleanup = (clearSource = false) => {
-        if (typeof imageElement.removeEventListener === 'function') {
-            imageElement.removeEventListener('load', handleLoad);
-            imageElement.removeEventListener('error', handleError);
-        }
-        else {
-            imageElement.onload = null;
-            imageElement.onerror = null;
-        }
-        if (clearSource) {
-            imageElement.src = '';
-        }
-    };
-    const handleLoad = () => {
-        if (!hasNaturalImageDimensions(imageElement)) {
-            cleanup(true);
-            rejectImage(new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null));
-            return;
-        }
-        cleanup(false);
-        resolveImage(imageElement);
-    };
-    const handleError = (e) => {
-        cleanup(true);
-        rejectImage(new ImageDecodeError('Failed to decode image data URL.', e));
-    };
-    let resolveImage;
-    let rejectImage;
-    const promise = new Promise((resolve, reject) => {
-        resolveImage = resolve;
-        rejectImage = reject;
-        if (typeof imageElement.addEventListener === 'function') {
-            imageElement.addEventListener('load', handleLoad, { once: true });
-            imageElement.addEventListener('error', handleError, { once: true });
-        }
-        else {
-            imageElement.onload = handleLoad;
-            imageElement.onerror = handleError;
-        }
-        imageElement.src = dataUrl;
+    return startImageElementLoad(dataUrl, {
+        validate: (imageElement) => hasNaturalImageDimensions(imageElement)
+            ? null
+            : new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null),
+        createError: (event) => new ImageDecodeError('Failed to decode image data URL.', event),
     });
-    return { promise, cleanup };
 }
 function hasNaturalImageDimensions(imageElement) {
     return (Number.isFinite(imageElement.naturalWidth) &&
@@ -206,15 +170,6 @@ function serializeCanvas(canvas) {
     const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     return JSON.stringify(json);
 }
-function getAnnotationCounter(context) {
-    const getter = context.getAnnotationCounter;
-    return typeof getter === 'function' ? getter.call(context) : 0;
-}
-function setAnnotationCounter(context, value) {
-    const setter = context.setAnnotationCounter;
-    if (typeof setter === 'function')
-        setter.call(context, value);
-}
 async function replayRollback(context, bundle) {
     try {
         await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
@@ -227,7 +182,7 @@ async function replayRollback(context, bundle) {
     context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
     context.setLastSnapshot(bundle.lastSnapshot);
     context.setMaskCounter(bundle.maskCounter);
-    setAnnotationCounter(context, bundle.annotationCounter);
+    context.setAnnotationCounter(bundle.annotationCounter);
     context.setCurrentScale(bundle.currentScale);
     context.setCurrentRotation(bundle.currentRotation);
     context.setBaseImageScale(bundle.baseImageScale);

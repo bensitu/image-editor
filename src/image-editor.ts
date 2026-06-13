@@ -2,7 +2,8 @@
  * @author Ben Situ
  * @license MIT
  * Lightweight canvas-based image editor built on Fabric.js v7.
- * Provides masking, animated scale/rotate, crop, mosaic, undo/redo, and export.
+ * Provides masks, annotations, animated transforms, crop, mosaic, undo/redo,
+ * serialization, and export.
  *
  * @module
  */
@@ -39,6 +40,7 @@ import type {
     AnnotationUpdateConfig,
     BaseImageObject,
     Base64ExportOptions,
+    DownloadImageOptions,
     DrawConfig,
     EditorToolMode,
     ElementIdMap,
@@ -100,6 +102,7 @@ import {
     type DrawControllerContext,
     type DrawSession,
 } from './annotation/draw-controller.js';
+import { isAnnotationLocked, isAnnotationUnlocked } from './annotation/annotation-lock.js';
 import { syncAnnotationRuntimeStates } from './annotation/annotation-style.js';
 import { normalizeLayerOrder, getEditableOverlayRange } from './core/layer-order.js';
 import {
@@ -232,6 +235,16 @@ const CROP_MODE_CONTROL_KEYS: readonly ElementKey[] = [
 
 const CROP_MODE_ENABLED_KEYS: readonly ElementKey[] = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const TEXT_MODE_ENABLED_KEYS: readonly ElementKey[] = [
+    'exitTextModeButton',
+    'textColorInput',
+    'textFontSizeInput',
+];
+const DRAW_MODE_ENABLED_KEYS: readonly ElementKey[] = [
+    'exitDrawModeButton',
+    'drawColorInput',
+    'drawBrushSizeInput',
+];
 
 // Mosaic mode owns pointer interaction on the canvas. While active, controls
 // that could replace objects, mutate masks, or restore history are disabled;
@@ -706,7 +719,9 @@ export class ImageEditor {
 
         this.elements = { ...defaults, ...idMap } as ResolvedElementIdMap;
 
-        // Construct the bindings registry now that `elements` is populated.
+        this.initCanvas();
+        // Construct the bindings registry after `initCanvas` so document
+        // resolution is anchored to the actual canvas owner document.
         // The resolver closes over `this.elements` so subsequent ID-map
         // mutations are reflected without rebuilding the registry; the
         // disposed-flag closure routes through the operation guard's single
@@ -716,8 +731,6 @@ export class ImageEditor {
             () => this.isDisposed,
             () => this.canvasElement?.ownerDocument ?? document,
         );
-
-        this.initCanvas();
         // Construct the transform controller now that the Fabric canvas
         // is available. The context binds back to facade fields so the
         // controller does not duplicate state.
@@ -795,6 +808,13 @@ export class ImageEditor {
         this.canvas.on('object:scaling', onObjectEvent);
         this.canvas.on('object:rotating', onObjectEvent);
         this.canvas.on('object:modified', onObjectModified);
+    }
+
+    private getLiveCanvasOrThrow(operationName: string): FabricNS.Canvas {
+        if (this.isDisposed || !this.canvas) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
+        }
+        return this.canvas;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1629,7 +1649,7 @@ export class ImageEditor {
         object.setCoords();
         // Flush the final snapped geometry before the transform promise
         // settles; callers may read layout immediately after awaiting it.
-        this.canvas!.renderAll();
+        this.canvas?.renderAll();
     }
 
     private measureLayoutViewport(scrollbarSize?: { width: number; height: number }): ViewportSize {
@@ -1847,7 +1867,7 @@ export class ImageEditor {
      */
     private buildTransformContext(): TransformContext {
         return {
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('buildTransformContext'),
             options: this.options,
             guard: this.operationGuard,
 
@@ -2158,6 +2178,7 @@ export class ImageEditor {
             }
             this.emitImageChanged(context);
 
+            const canvas = this.getLiveCanvasOrThrow('loadFromState');
             const activeMaskId = editorState?.activeMaskId;
             const activeAnnotationId = editorState?.activeAnnotationId;
             if (editorState?.activeObjectKind === 'mask' && typeof activeMaskId === 'number') {
@@ -2166,7 +2187,7 @@ export class ImageEditor {
                 );
                 if (activeMask) {
                     this.withSelectionChangeContext(context, () => {
-                        this.canvas!.setActiveObject(activeMask);
+                        canvas.setActiveObject(activeMask);
                         this.handleSelectionChanged([activeMask]);
                     });
                 }
@@ -2179,7 +2200,7 @@ export class ImageEditor {
                 );
                 if (activeAnnotation) {
                     this.withSelectionChangeContext(context, () => {
-                        this.canvas!.setActiveObject(activeAnnotation);
+                        canvas.setActiveObject(activeAnnotation);
                         this.handleSelectionChanged([activeAnnotation]);
                     });
                 }
@@ -2440,7 +2461,7 @@ export class ImageEditor {
     private buildCreateMaskContext(): CreateMaskContext {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('createMask'),
             options: this.getRuntimeOptions(),
             getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
@@ -2471,7 +2492,7 @@ export class ImageEditor {
      */
     private buildRemoveMaskContext(): RemoveMaskContext {
         return {
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('removeMask'),
             removeLabelForMask: (mask) => {
                 this.removeLabelForMask(mask);
             },
@@ -2542,7 +2563,7 @@ export class ImageEditor {
             return;
         }
         if (isAnnotationObject(target)) {
-            if (target.annotationLocked === true) return;
+            if (isAnnotationLocked(target)) return;
             const context = this.buildCallbackContext('updateAnnotation', false);
             this.saveState();
             this.emitAnnotationsChanged(context);
@@ -2766,21 +2787,22 @@ export class ImageEditor {
         const selectedMasks = selectedObjects.filter(isMaskObject);
         const selectedAnnotations = selectedObjects.filter(
             (object): object is AnnotationObject =>
-                isAnnotationObject(object) && object.annotationLocked !== true,
+                isAnnotationObject(object) && isAnnotationUnlocked(object),
         );
         if (selectedMasks.length === 0 && selectedAnnotations.length === 0) return;
+        const canvas = this.getLiveCanvasOrThrow('deleteSelectedObject');
         const callbackContext = this.buildCallbackContext('deleteSelectedObject', false);
         this.withSelectionChangeContext(callbackContext, () => {
             for (const mask of selectedMasks) {
                 this.removeLabelForMask(mask);
-                this.canvas!.remove(mask);
+                canvas.remove(mask);
             }
             removeAnnotationObjects(this.buildAnnotationManagerContext(), selectedAnnotations, {
                 saveHistory: false,
                 force: true,
             });
-            this.canvas!.discardActiveObject();
-            this.canvas!.renderAll();
+            canvas.discardActiveObject();
+            canvas.renderAll();
             this.saveState();
         });
         this.updateMaskList();
@@ -2809,7 +2831,7 @@ export class ImageEditor {
 
     private buildAnnotationManagerContext(): AnnotationManagerContext {
         return {
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('annotationManager'),
             saveCanvasState: () => this.saveState(),
             updateUi: () => this.updateUi(),
         };
@@ -2834,7 +2856,7 @@ export class ImageEditor {
     private buildTextControllerContext(): TextControllerContext {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('textController'),
             options: this.options,
             getOriginalImage: () => this.originalImage,
             getTextConfig: () => this.currentTextConfig,
@@ -2859,7 +2881,7 @@ export class ImageEditor {
     private buildDrawControllerContext(): DrawControllerContext {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('drawController'),
             options: this.options,
             getDrawConfig: () => this.currentDrawConfig,
             isImageLoaded: () => this.isImageLoaded(),
@@ -2925,6 +2947,10 @@ export class ImageEditor {
     }
 
     private applyTextColorInput(color: string): void {
+        if (this.isTextMode()) {
+            this.setTextColor(color);
+            return;
+        }
         const selected = this.canvas?.getActiveObject();
         if (selected && isTextAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ fill: color });
@@ -2934,6 +2960,10 @@ export class ImageEditor {
     }
 
     private applyTextFontSizeInput(size: number): void {
+        if (this.isTextMode()) {
+            this.setTextFontSize(size);
+            return;
+        }
         const selected = this.canvas?.getActiveObject();
         if (selected && isTextAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ fontSize: size });
@@ -2943,6 +2973,10 @@ export class ImageEditor {
     }
 
     private applyDrawColorInput(color: string): void {
+        if (this.isDrawMode()) {
+            this.setDrawColor(color);
+            return;
+        }
         const selected = this.canvas?.getActiveObject();
         if (selected && isDrawAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ stroke: color });
@@ -2952,6 +2986,10 @@ export class ImageEditor {
     }
 
     private applyDrawBrushSizeInput(size: number): void {
+        if (this.isDrawMode()) {
+            this.setDrawBrushSize(size);
+            return;
+        }
         const selected = this.canvas?.getActiveObject();
         if (selected && isDrawAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ strokeWidth: size });
@@ -3091,10 +3129,10 @@ export class ImageEditor {
      * which builds the data URL through the same pipeline used by
      * {@link exportImageBase64} and triggers the anchor-driven download.
      *
-     * @param fileName - Filename for the downloaded file.
-     *   @default `options.defaultDownloadFileName`
+     * @param options - Filename string or download options. String input is
+     *   treated as a filename for backwards compatibility.
      */
-    downloadImage(fileName?: string): void {
+    downloadImage(options?: DownloadImageOptions | string): void {
         if (!this.canvas) return;
         // guarded operation. Silent DOM-no-op shape
         // so a queued scale/rotate animation does not get its export
@@ -3106,7 +3144,7 @@ export class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         const exportContext = this.buildExportServiceContext();
         try {
-            downloadImageImpl(exportContext, fileName);
+            downloadImageImpl(exportContext, options);
         } finally {
             this.operationGuard.endBusyOperation(operationToken);
             this.emitBusyChangeIfChanged(callbackContext);
@@ -3203,7 +3241,7 @@ export class ImageEditor {
     private buildExportServiceContext(): ExportServiceContext {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('export'),
             options: this.options,
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
@@ -3249,8 +3287,9 @@ export class ImageEditor {
             },
             getAnnotations: () => this.getAnnotations(),
             restoreAnnotations: (objects) => {
+                const canvas = this.getLiveCanvasOrThrow('restoreAnnotations');
                 objects.forEach((annotation) => {
-                    this.canvas!.add(annotation);
+                    canvas.add(annotation);
                 });
                 syncAnnotationRuntimeStates(objects);
                 attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), objects);
@@ -3298,8 +3337,9 @@ export class ImageEditor {
             },
             getMasks: () => this.getMasks(),
             restoreMasks: (objects) => {
+                const canvas = this.getLiveCanvasOrThrow('restoreMasks');
                 objects.forEach((mask) => {
-                    this.canvas!.add(mask);
+                    canvas.add(mask);
                     reattachMaskHoverHandlers(mask);
                 });
                 this.lastMask = objects.reduce<MaskObject | null>(
@@ -3465,7 +3505,7 @@ export class ImageEditor {
     private buildMosaicControllerContext(): MosaicControllerContext {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('mosaicController'),
             options: this.options,
             historyManager: this.historyManager,
             getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
@@ -3625,7 +3665,7 @@ export class ImageEditor {
     private buildCropControllerContext(operationToken?: OperationToken): CropControllerContext {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas!,
+            canvas: this.getLiveCanvasOrThrow('cropController'),
             options: this.options,
             historyManager: this.historyManager,
             isImageLoaded: () => this.isImageLoaded(),
@@ -3663,13 +3703,18 @@ export class ImageEditor {
     // PRIVATE — UI helpers
     // ═══════════════════════════════════════════════════════════════════════
 
+    private syncInputValue(inputElement: HTMLInputElement | null, value: string): void {
+        if (!inputElement) return;
+        const ownerDocument = inputElement.ownerDocument;
+        if (ownerDocument.activeElement === inputElement && !inputElement.readOnly) return;
+        if (inputElement.value !== value) inputElement.value = value;
+    }
+
     private updateInputs(): void {
         const scaleId = this.elements.scalePercentageInput;
         if (scaleId) {
             const scaleInputElement = document.getElementById(scaleId) as HTMLInputElement | null;
-            if (scaleInputElement) {
-                scaleInputElement.value = String(Math.round(this.currentScale * 100));
-            }
+            this.syncInputValue(scaleInputElement, String(Math.round(this.currentScale * 100)));
         }
 
         const mosaicConfig = this.getMosaicConfig();
@@ -3678,7 +3723,7 @@ export class ImageEditor {
             const brushInput = document.getElementById(
                 mosaicBrushSizeInputId,
             ) as HTMLInputElement | null;
-            if (brushInput) brushInput.value = String(mosaicConfig.brushSize);
+            this.syncInputValue(brushInput, String(mosaicConfig.brushSize));
         }
 
         const mosaicBlockSizeInputId = this.elements.mosaicBlockSizeInput;
@@ -3686,7 +3731,7 @@ export class ImageEditor {
             const blockInput = document.getElementById(
                 mosaicBlockSizeInputId,
             ) as HTMLInputElement | null;
-            if (blockInput) blockInput.value = String(mosaicConfig.blockSize);
+            this.syncInputValue(blockInput, String(mosaicConfig.blockSize));
         }
 
         const textConfig = this.getTextConfig();
@@ -3695,14 +3740,14 @@ export class ImageEditor {
             const textColorInput = document.getElementById(
                 textColorInputId,
             ) as HTMLInputElement | null;
-            if (textColorInput) textColorInput.value = textConfig.fill;
+            this.syncInputValue(textColorInput, textConfig.fill);
         }
         const textFontSizeInputId = this.elements.textFontSizeInput;
         if (textFontSizeInputId) {
             const fontInput = document.getElementById(
                 textFontSizeInputId,
             ) as HTMLInputElement | null;
-            if (fontInput) fontInput.value = String(textConfig.fontSize);
+            this.syncInputValue(fontInput, String(textConfig.fontSize));
         }
 
         const drawConfig = this.getDrawConfig();
@@ -3711,14 +3756,14 @@ export class ImageEditor {
             const drawColorInput = document.getElementById(
                 drawColorInputId,
             ) as HTMLInputElement | null;
-            if (drawColorInput) drawColorInput.value = drawConfig.color;
+            this.syncInputValue(drawColorInput, drawConfig.color);
         }
         const drawBrushSizeInputId = this.elements.drawBrushSizeInput;
         if (drawBrushSizeInputId) {
             const brushInput = document.getElementById(
                 drawBrushSizeInputId,
             ) as HTMLInputElement | null;
-            if (brushInput) brushInput.value = String(drawConfig.brushSize);
+            this.syncInputValue(brushInput, String(drawConfig.brushSize));
         }
     }
 
@@ -3777,18 +3822,16 @@ export class ImageEditor {
         }
 
         if (isInTextMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => this.setControlEnabled(key, false));
-            this.setControlEnabled('exitTextModeButton', !isBusy);
-            this.setControlEnabled('textColorInput', !isBusy);
-            this.setControlEnabled('textFontSizeInput', !isBusy);
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && TEXT_MODE_ENABLED_KEYS.includes(key));
+            });
             return;
         }
 
         if (isInDrawMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => this.setControlEnabled(key, false));
-            this.setControlEnabled('exitDrawModeButton', !isBusy);
-            this.setControlEnabled('drawColorInput', !isBusy);
-            this.setControlEnabled('drawBrushSizeInput', !isBusy);
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && DRAW_MODE_ENABLED_KEYS.includes(key));
+            });
             return;
         }
 
@@ -3872,7 +3915,9 @@ export class ImageEditor {
         if (!controlElement) return;
         this.recordElementOriginalState(key, controlElement);
         if ('disabled' in controlElement) {
-            (controlElement as HTMLButtonElement | HTMLInputElement).disabled = !isEnabled;
+            const formControl = controlElement as HTMLButtonElement | HTMLInputElement;
+            const nextDisabled = !isEnabled;
+            if (formControl.disabled !== nextDisabled) formControl.disabled = nextDisabled;
             return;
         }
         if (!isEnabled) {

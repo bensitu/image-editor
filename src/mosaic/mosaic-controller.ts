@@ -24,6 +24,7 @@ import type {
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
 import { Command, type HistoryManager } from '../history/history-manager.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
+import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { withTimeout } from '../utils/timeout.js';
 import { getMosaicImagePoint, type MosaicImagePoint } from './mosaic-geometry.js';
 import { applyCircularMosaicToImageData } from './mosaic-pixelate.js';
@@ -125,42 +126,6 @@ function getCanvasDocument(context: MosaicControllerContext): Document {
     );
 }
 
-function isFinitePoint(value: unknown): value is { x: number; y: number } {
-    const point = value as { x?: unknown; y?: unknown } | null | undefined;
-    return (
-        !!point &&
-        typeof point.x === 'number' &&
-        Number.isFinite(point.x) &&
-        typeof point.y === 'number' &&
-        Number.isFinite(point.y)
-    );
-}
-
-function getPointerFromFabricEvent(
-    canvas: FabricNS.Canvas,
-    event: unknown,
-): { x: number; y: number } | null {
-    const fabricEvent = event as {
-        scenePoint?: unknown;
-        pointer?: unknown;
-        absolutePointer?: unknown;
-        e?: Event;
-    };
-
-    if (isFinitePoint(fabricEvent.scenePoint)) return fabricEvent.scenePoint;
-    if (isFinitePoint(fabricEvent.pointer)) return fabricEvent.pointer;
-    if (isFinitePoint(fabricEvent.absolutePointer)) return fabricEvent.absolutePointer;
-
-    if (fabricEvent.e && typeof (canvas as { getPointer?: unknown }).getPointer === 'function') {
-        const pointer = (canvas as unknown as { getPointer(e: Event): unknown }).getPointer(
-            fabricEvent.e,
-        );
-        if (isFinitePoint(pointer)) return pointer;
-    }
-
-    return null;
-}
-
 function safeRender(canvas: FabricNS.Canvas): void {
     try {
         canvas.requestRenderAll();
@@ -184,7 +149,9 @@ function createPreviewCircle(context: MosaicControllerContext): MosaicPreviewCir
         fill: config.previewFill,
         stroke: config.previewStroke,
         strokeWidth: config.previewStrokeWidth,
-        strokeDashArray: config.previewStrokeDashArray ?? undefined,
+        strokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : undefined,
         selectable: false,
         evented: false,
         excludeFromExport: true,
@@ -306,6 +273,20 @@ function removePreviewImage(context: MosaicControllerContext, session: MosaicSes
         /* ignore */
     }
     session.previewImage = null;
+}
+
+function releaseMosaicRasterCache(session: MosaicSession): void {
+    const cache = session.rasterCache;
+    if (!cache) return;
+
+    try {
+        cache.offscreenCanvas.width = 0;
+        cache.offscreenCanvas.height = 0;
+    } catch {
+        /* ignore */
+    }
+
+    session.rasterCache = null;
 }
 
 function hidePreview(context: MosaicControllerContext): void {
@@ -900,6 +881,7 @@ export function exitMosaicMode(context: MosaicControllerContext): void {
     detachCanvasHandlers(context, session);
     removePreviewCircle(context, session);
     removePreviewImage(context, session);
+    releaseMosaicRasterCache(session);
     restoreObjectStates(session);
     context.canvas.selection = !!session.prevSelection;
     context.canvas.defaultCursor = session.prevDefaultCursor ?? 'default';
@@ -917,7 +899,9 @@ export function updateMosaicPreview(context: MosaicControllerContext): void {
         fill: config.previewFill,
         stroke: config.previewStroke,
         strokeWidth: config.previewStrokeWidth,
-        strokeDashArray: config.previewStrokeDashArray ?? undefined,
+        strokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : undefined,
     });
     context.canvas.bringObjectToFront(circle);
     safeRender(context.canvas);

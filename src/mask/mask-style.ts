@@ -1,10 +1,10 @@
 /**
  * Hover, selection, and "original style restore" helpers for
- * mask visual state. Owns the legacy `_getMaskNormalStyle`,
- * `_withNormalizedMaskStyles`, `_rebindMaskEvents`, and the
- * selected/unselected stroke logic from `_handleSelectionChanged`
- * that were inlined on the editor in legacy and are now extracted
- * into pure(ish) helpers that take a {@link MaskStyleContext}.
+ * mask visual state.
+ *
+ * The ImageEditor facade owns canvas state; this module receives the live
+ * canvas and resolved options through {@link MaskStyleContext} so mask
+ * visual behavior stays centralized.
  *
  * Two callers consume the same backup shape:
  *
@@ -21,8 +21,8 @@
  * Centralizing the backup shape, the hover style literals (`#ff5500`,
  * `strokeWidth: 2`, `opacity = originalAlpha + 0.2`), and the
  * selected/unselected stroke literals (`#ff0000`, `mask.originalStroke ||
- * '#ccc'`) here means the legacy visuals stay pixel-identical and any future
- * tweak happens in one place.
+ * '#ccc'`) here keeps mask visuals consistent and any future tweak in one
+ * place.
  *
  * ## Owned contracts
  *
@@ -51,18 +51,17 @@
  *   and `lockRotation` from the captured {@link MaskBackup}, matching the current
  *   documented `MaskBackup` interface.
  *
- * - **Mirrors legacy hover behavior** — {@link attachMaskHoverHandlers} and
- *   {@link reattachMaskHoverHandlers} bind the same `mouseover`/`mouseout`
- *   handlers legacy's `_rebindMaskEvents` used. The handlers read
+ * - **Hover behavior** — {@link attachMaskHoverHandlers} and
+ *   {@link reattachMaskHoverHandlers} bind `mouseover`/`mouseout`
+ *   handlers that read
  *   `mask.originalAlpha` / `mask.originalStroke` / `mask.originalStrokeWidth`
  *   on each invocation so they always reflect the current "live" state
  *   (e.g. after a stroke change from a selection event).
  *
- * - **Mirrors legacy selection styling** — {@link applyMaskSelectedStyle} sets
+ * - **Selection styling** — {@link applyMaskSelectedStyle} sets
  *   the selection-highlight stroke (`#ff0000`, `strokeWidth: 1`) and
  *   {@link applyMaskUnselectedStyle} restores the normal stroke from the
- *   per-mask `originalStroke` / `originalStrokeWidth`. Both literals match
- *   legacy's `_handleSelectionChanged`.
+ *   per-mask `originalStroke` / `originalStrokeWidth`.
  *
  * ## Out of scope (handled by sibling modules)
  *
@@ -81,10 +80,11 @@
  * - Hover handlers do NOT cache the normal/hover style at attach time. They
  *   read `mask.originalAlpha` / `mask.originalStroke` / `mask.originalStrokeWidth`
  *   on every event so the visual matches the live "original" values even
- *   after a stroke or opacity change (matching legacy).
+ *   after a stroke or opacity change.
  * - The handlers are tagged on `mask.imageEditorMaskHandlers` exactly as
- *   legacy did so {@link reattachMaskHoverHandlers} can drop the old pair before
- *   binding fresh ones, avoiding duplicate listeners after `loadFromJSON`.
+ *   {@link reattachMaskHoverHandlers} expects so it can drop the old pair
+ *   before binding fresh ones, avoiding duplicate listeners after
+ *   `loadFromJSON`.
  *
  * @module
  */
@@ -118,8 +118,7 @@ const DEFAULT_ALPHA_FALLBACK = 0.5;
  * State the mask-style helpers read from the `ImageEditor` orchestrator.
  *
  * The module does NOT own any of these slots — it only reads them so
- * ownership of the canvas and resolved options stays on the orchestrator
- * (where legacy left them).
+ * ownership of the canvas and resolved options stays on the orchestrator.
  */
 export interface MaskStyleContext {
     /**
@@ -294,8 +293,8 @@ export function attachMaskHoverHandlers(mask: MaskObject): void {
  * Also re-asserts the persisted `original*` metadata when missing — legacy's
  * `_rebindMaskEvents` did the same so a snapshot from an older format that
  * happens to lack `originalStroke`/`originalStrokeWidth` still hovers
- * correctly. The current Pretty_Printer always serializes
- * `originalAlpha`, but we defend against partial payloads here too.
+ * correctly. Current snapshots always serialize `originalAlpha`, but we
+ * defend against partial payloads here too.
  *
  * @param mask - The mask to refresh handlers on.
  */

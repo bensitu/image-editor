@@ -1,7 +1,7 @@
 /**
  * Placeholder/canvas-container visibility helper. Owns the
- * standard-DOM-state transition that the orchestrator's
- * private `_setPlaceholderVisible` method delegates to.
+ * standard-DOM-state transition used by the ImageEditor facade and image
+ * loading pipeline.
  *
  * ## Owned contracts
  *

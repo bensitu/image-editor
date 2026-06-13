@@ -5,6 +5,23 @@
  * Purpose:
  *   Verifies the v2.2.0 editor-owned object foundation: strict runtime guards,
  *   centralized metadata helpers, and annotation runtime hidden/locked sync.
+ *
+ * Scope:
+ *   - Mask guards reject legacy mask-like objects without editorObjectKind.
+ *   - Object kind markers classify base images, masks, annotations, and sessions.
+ *   - Annotation hidden/locked metadata synchronizes Fabric runtime flags.
+ *
+ * Out of scope:
+ *   - Fabric rendering behavior
+ *   - serialization round trips
+ *   - ImageEditor facade event wiring
+ *
+ * Environment:
+ *   - Node.js ESM
+ *   - focused Fabric-like object stubs
+ *
+ * Run:
+ *   node --test tests/editor-object-kinds.test.mjs
  */
 
 import { register } from 'node:module';
@@ -121,4 +138,11 @@ test('annotation hidden and locked metadata synchronizes Fabric runtime state', 
     assert.equal(annotation.lockRotation, false);
     assert.equal(annotation.editable, true);
     assert.equal(annotation.setCoordsCalls, 2);
+
+    annotation.annotationLocked = undefined;
+    syncAnnotationRuntimeState(annotation);
+
+    assert.equal(annotation.selectable, true);
+    assert.equal(annotation.evented, true);
+    assert.equal(annotation.editable, true);
 });

@@ -1512,8 +1512,8 @@ class HistoryManager {
         });
         this.maxSize = maxSize;
     }
-    execute(command) {
-        void command.execute();
+    async execute(command) {
+        await command.execute();
         this.pushAndTrim(command);
     }
     push(command) {
@@ -1606,6 +1606,13 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
     };
 }
 
+function isAnnotationLocked(annotation) {
+    return annotation.annotationLocked === true;
+}
+function isAnnotationUnlocked(annotation) {
+    return !isAnnotationLocked(annotation);
+}
+
 function setObjectProps(object, props) {
     try {
         object.set(props);
@@ -1621,7 +1628,7 @@ function syncTextEditability(annotation, editable) {
 function syncAnnotationRuntimeState(annotation) {
     var _a;
     const hidden = annotation.annotationHidden === true;
-    const locked = annotation.annotationLocked === true;
+    const locked = isAnnotationLocked(annotation);
     setObjectProps(annotation, {
         visible: !hidden,
         selectable: locked ? false : true,
@@ -1761,7 +1768,7 @@ function updateAnnotationObject(annotation, config) {
     if (typeof raw.annotationLocked === 'boolean') {
         annotation.annotationLocked = raw.annotationLocked;
     }
-    const lockedAfter = annotation.annotationLocked === true;
+    const lockedAfter = isAnnotationLocked(annotation);
     if (!lockedAfter) {
         if (typeof raw.selectable === 'boolean')
             annotation.selectable = raw.selectable;
@@ -1803,7 +1810,7 @@ function updateSelectedAnnotation(context, config) {
 }
 function removeAnnotationObjects(context, objects, options = {}) {
     const force = options.force === true;
-    const removable = objects.filter((annotation) => force || annotation.annotationLocked !== true);
+    const removable = objects.filter((annotation) => force || isAnnotationUnlocked(annotation));
     if (removable.length === 0)
         return 0;
     for (const annotation of removable) {
@@ -1893,6 +1900,12 @@ function ensureOnCanvas(canvas, object) {
         canvas.add(object);
     }
 }
+function withoutObject(canvas, object) {
+    return canvas.getObjects().filter((candidate) => candidate !== object);
+}
+function findFirstSessionIndex(objects) {
+    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
+}
 function getOrderedGroups(canvas) {
     const baseImages = [];
     const overlays = [];
@@ -1928,11 +1941,15 @@ function normalizeLayerOrder(canvas) {
 }
 function placeMaskObject(canvas, mask) {
     ensureOnCanvas(canvas, mask);
-    normalizeLayerOrder(canvas);
+    const objects = withoutObject(canvas, mask);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 function placeAnnotationObject(canvas, annotation) {
     ensureOnCanvas(canvas, annotation);
-    normalizeLayerOrder(canvas);
+    const objects = withoutObject(canvas, annotation);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 function getEditableOverlayRange(canvas) {
     const objects = canvas.getObjects();
@@ -2060,34 +2077,34 @@ function coercePoint(pt) {
     return { x: Number(pt.x), y: Number(pt.y) };
 }
 
-function getPointerFromFabricEvent$1(canvas, event) {
-    const fabricEvent = event;
-    for (const value of [
-        fabricEvent.scenePoint,
-        fabricEvent.pointer,
-        fabricEvent.absolutePointer,
-    ]) {
-        const point = value;
-        if (point &&
-            typeof point.x === 'number' &&
-            Number.isFinite(point.x) &&
-            typeof point.y === 'number' &&
-            Number.isFinite(point.y)) {
-            return { x: point.x, y: point.y };
-        }
-    }
+function isFinitePoint(value) {
+    const point = value;
+    return (!!point &&
+        typeof point.x === 'number' &&
+        Number.isFinite(point.x) &&
+        typeof point.y === 'number' &&
+        Number.isFinite(point.y));
+}
+function getPointerFromFabricEvent(canvas, event) {
+    const fabricEvent = event && typeof event === 'object'
+        ? event
+        : null;
+    if (!fabricEvent)
+        return null;
+    if (isFinitePoint(fabricEvent.scenePoint))
+        return { ...fabricEvent.scenePoint };
+    if (isFinitePoint(fabricEvent.pointer))
+        return { ...fabricEvent.pointer };
+    if (isFinitePoint(fabricEvent.absolutePointer))
+        return { ...fabricEvent.absolutePointer };
     if (fabricEvent.e && typeof canvas.getPointer === 'function') {
         const pointer = canvas.getPointer(fabricEvent.e);
-        if (pointer &&
-            typeof pointer.x === 'number' &&
-            Number.isFinite(pointer.x) &&
-            typeof pointer.y === 'number' &&
-            Number.isFinite(pointer.y)) {
-            return { x: pointer.x, y: pointer.y };
-        }
+        if (isFinitePoint(pointer))
+            return { ...pointer };
     }
     return null;
 }
+
 function resolveDefaultTextPosition(context) {
     const image = context.getOriginalImage();
     if (image) {
@@ -2207,7 +2224,7 @@ function createTextAnnotation(context, config = {}) {
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
     placeAnnotationObject(context.canvas, annotation);
-    if (resolved.selectable !== false && annotation.annotationLocked !== true) {
+    if (resolved.selectable !== false && isAnnotationUnlocked(annotation)) {
         context.canvas.setActiveObject(annotation);
     }
     context.canvas.renderAll();
@@ -2216,7 +2233,7 @@ function createTextAnnotation(context, config = {}) {
     const callbackContext = context.buildCallbackContext('createTextAnnotation');
     context.emitAnnotationsChanged(callbackContext);
     context.emitImageChanged(callbackContext);
-    if (resolved.enterEditing && annotation.annotationLocked !== true) {
+    if (resolved.enterEditing && isAnnotationUnlocked(annotation)) {
         (_b = (_a = annotation).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         selectAllText(annotation);
     }
@@ -2227,7 +2244,7 @@ function handleTextModePointer(context, event) {
     const fabricEvent = event;
     const target = fabricEvent.target;
     if (target) {
-        if (isTextAnnotationObject(target) && target.annotationLocked !== true) {
+        if (isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
             context.canvas.setActiveObject(target);
             (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         }
@@ -2236,7 +2253,7 @@ function handleTextModePointer(context, event) {
         }
         return;
     }
-    const pointer = getPointerFromFabricEvent$1(context.canvas, event);
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
     if (!pointer)
         return;
     createTextAnnotation(context, {
@@ -3365,29 +3382,6 @@ function getCanvasDocument$2(context) {
     const element = (_b = (_a = context.canvas).getElement) === null || _b === void 0 ? void 0 : _b.call(_a);
     return ((_e = (_c = element === null || element === void 0 ? void 0 : element.ownerDocument) !== null && _c !== void 0 ? _c : (_d = context.canvas.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
 }
-function isFinitePoint(value) {
-    const point = value;
-    return (!!point &&
-        typeof point.x === 'number' &&
-        Number.isFinite(point.x) &&
-        typeof point.y === 'number' &&
-        Number.isFinite(point.y));
-}
-function getPointerFromFabricEvent(canvas, event) {
-    const fabricEvent = event;
-    if (isFinitePoint(fabricEvent.scenePoint))
-        return fabricEvent.scenePoint;
-    if (isFinitePoint(fabricEvent.pointer))
-        return fabricEvent.pointer;
-    if (isFinitePoint(fabricEvent.absolutePointer))
-        return fabricEvent.absolutePointer;
-    if (fabricEvent.e && typeof canvas.getPointer === 'function') {
-        const pointer = canvas.getPointer(fabricEvent.e);
-        if (isFinitePoint(pointer))
-            return pointer;
-    }
-    return null;
-}
 function safeRender(canvas) {
     try {
         canvas.requestRenderAll();
@@ -3401,7 +3395,6 @@ function safeRender(canvas) {
     }
 }
 function createPreviewCircle(context) {
-    var _a;
     const config = context.getMosaicConfig();
     const circle = new context.fabric.Circle({
         left: 0,
@@ -3412,7 +3405,9 @@ function createPreviewCircle(context) {
         fill: config.previewFill,
         stroke: config.previewStroke,
         strokeWidth: config.previewStrokeWidth,
-        strokeDashArray: (_a = config.previewStrokeDashArray) !== null && _a !== void 0 ? _a : undefined,
+        strokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : undefined,
         selectable: false,
         evented: false,
         excludeFromExport: true,
@@ -3513,6 +3508,18 @@ function removePreviewImage(context, session) {
     catch {
     }
     session.previewImage = null;
+}
+function releaseMosaicRasterCache(session) {
+    const cache = session.rasterCache;
+    if (!cache)
+        return;
+    try {
+        cache.offscreenCanvas.width = 0;
+        cache.offscreenCanvas.height = 0;
+    }
+    catch {
+    }
+    session.rasterCache = null;
 }
 function hidePreview(context) {
     var _a;
@@ -3997,6 +4004,7 @@ function exitMosaicMode(context) {
     detachCanvasHandlers(context, session);
     removePreviewCircle(context, session);
     removePreviewImage(context, session);
+    releaseMosaicRasterCache(session);
     restoreObjectStates(session);
     context.canvas.selection = !!session.prevSelection;
     context.canvas.defaultCursor = (_a = session.prevDefaultCursor) !== null && _a !== void 0 ? _a : 'default';
@@ -4004,7 +4012,6 @@ function exitMosaicMode(context) {
     context.canvas.renderAll();
 }
 function updateMosaicPreview(context) {
-    var _a;
     const session = context.getMosaicSession();
     const circle = session === null || session === void 0 ? void 0 : session.previewCircle;
     if (!session || !circle)
@@ -4015,10 +4022,67 @@ function updateMosaicPreview(context) {
         fill: config.previewFill,
         stroke: config.previewStroke,
         strokeWidth: config.previewStrokeWidth,
-        strokeDashArray: (_a = config.previewStrokeDashArray) !== null && _a !== void 0 ? _a : undefined,
+        strokeDashArray: config.previewStrokeDashArray
+            ? [...config.previewStrokeDashArray]
+            : undefined,
     });
     context.canvas.bringObjectToFront(circle);
     safeRender(context.canvas);
+}
+
+function startImageElementLoad(dataUrl, options) {
+    const imageElement = new Image();
+    if (options.crossOrigin !== undefined) {
+        imageElement.crossOrigin = options.crossOrigin;
+    }
+    const cleanup = (clearSource = false) => {
+        if (typeof imageElement.removeEventListener === 'function') {
+            imageElement.removeEventListener('load', handleLoad);
+            imageElement.removeEventListener('error', handleError);
+        }
+        else {
+            imageElement.onload = null;
+            imageElement.onerror = null;
+        }
+        if (clearSource) {
+            try {
+                imageElement.src = '';
+            }
+            catch {
+            }
+        }
+    };
+    const handleLoad = () => {
+        var _a, _b;
+        const validationError = (_b = (_a = options.validate) === null || _a === void 0 ? void 0 : _a.call(options, imageElement)) !== null && _b !== void 0 ? _b : null;
+        if (validationError) {
+            cleanup(true);
+            rejectImage(validationError);
+            return;
+        }
+        cleanup(false);
+        resolveImage(imageElement);
+    };
+    const handleError = (event) => {
+        cleanup(true);
+        rejectImage(options.createError(event));
+    };
+    let resolveImage;
+    let rejectImage;
+    const promise = new Promise((resolve, reject) => {
+        resolveImage = resolve;
+        rejectImage = reject;
+        if (typeof imageElement.addEventListener === 'function') {
+            imageElement.addEventListener('load', handleLoad, { once: true });
+            imageElement.addEventListener('error', handleError, { once: true });
+        }
+        else {
+            imageElement.onload = handleLoad;
+            imageElement.onerror = handleError;
+        }
+        imageElement.src = dataUrl;
+    });
+    return { promise, cleanup };
 }
 
 function createMergeError(operation, error) {
@@ -4117,6 +4181,21 @@ function resolveExportOptions(context, options) {
             : context.options.mergeAnnotationsByDefault,
         multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
+    };
+}
+function resolveDownloadOptions(context, options) {
+    var _a;
+    const providedOptions = typeof options === 'string'
+        ? { fileName: options }
+        : (options !== null && options !== void 0 ? options : {});
+    return {
+        fileName: (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName,
+        exportOptions: {
+            exportArea: context.options.exportAreaByDefault,
+            mergeMasks: providedOptions.mergeMasks,
+            mergeAnnotations: providedOptions.mergeAnnotations,
+            multiplier: context.options.exportMultiplier,
+        },
     };
 }
 function readCanvasDimension(canvas, getterName, propertyName) {
@@ -4346,44 +4425,17 @@ function getImageDimensions(imageElement) {
     };
 }
 function loadImageElement(dataUrl) {
-    return new Promise((resolve, reject) => {
-        const imageElement = new Image();
-        imageElement.crossOrigin = 'anonymous';
-        const cleanup = () => {
-            if (typeof imageElement.removeEventListener === 'function') {
-                imageElement.removeEventListener('load', handleLoad);
-                imageElement.removeEventListener('error', handleError);
-            }
-            else {
-                imageElement.onload = null;
-                imageElement.onerror = null;
-            }
-        };
-        const handleLoad = () => {
-            cleanup();
-            resolve(imageElement);
-        };
-        const handleError = () => {
-            cleanup();
-            reject(new Error('Failed to decode export data URL'));
-        };
-        if (typeof imageElement.addEventListener === 'function') {
-            imageElement.addEventListener('load', handleLoad, { once: true });
-            imageElement.addEventListener('error', handleError, { once: true });
-        }
-        else {
-            imageElement.onload = handleLoad;
-            imageElement.onerror = handleError;
-        }
-        imageElement.src = dataUrl;
-    });
+    return startImageElementLoad(dataUrl, {
+        crossOrigin: 'anonymous',
+        createError: () => new Error('Failed to decode export data URL'),
+    }).promise;
 }
-async function sealPartialTransparentEdges(dataUrl, edges, target) {
+async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument) {
     if (!hasPartialEdges(edges))
         return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
@@ -4430,14 +4482,14 @@ async function sealPartialTransparentEdges(dataUrl, edges, target) {
         ? offscreenCanvas.toDataURL(target.mimeType)
         : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
-function getJpegBackgroundColor(backgroundColor) {
-    return resolveCanvasFillStyle(backgroundColor);
+function getJpegBackgroundColor(backgroundColor, ownerDocument) {
+    return resolveCanvasFillStyle(backgroundColor, ownerDocument);
 }
-function resolveCanvasFillStyle(backgroundColor, fallback = '#ffffff') {
+function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#ffffff') {
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
         return '#ffffff';
-    const context = createColorValidationContext();
+    const context = createColorValidationContext(ownerDocument);
     if (!context)
         return fallback;
     context.fillStyle = '#000001';
@@ -4454,21 +4506,23 @@ function resolveCanvasFillStyle(backgroundColor, fallback = '#ffffff') {
         return secondResolved;
     return fallback;
 }
-function createColorValidationContext() {
+function createColorValidationContext(ownerDocument) {
     try {
-        if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
-            return null;
-        }
-        return document.createElement('canvas').getContext('2d');
+        return ownerDocument.createElement('canvas').getContext('2d');
     }
     catch {
         return null;
     }
 }
 function getCanvasDocument$1(canvas) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     const canvasLike = canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
+    const ownerDocument = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument;
+    if (ownerDocument)
+        return ownerDocument;
+    if (typeof document !== 'undefined')
+        return document;
+    throw new Error('Document is unavailable for export canvas creation.');
 }
 function isTransparentCssColor(value) {
     const normalized = value.trim().toLowerCase();
@@ -4497,16 +4551,16 @@ function isZeroCssAlpha(value) {
     const numericAlpha = Number.parseFloat(alpha);
     return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
-async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality) {
+async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality, ownerDocument) {
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
     if (!canvasContext)
         throw new Error('2D canvas context is unavailable');
-    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
     canvasContext.fillRect(0, 0, width, height);
     canvasContext.drawImage(imageElement, 0, 0, width, height);
     return offscreenCanvas.toDataURL('image/jpeg', quality);
@@ -4537,13 +4591,14 @@ function dataUrlToBytes(dataUrl) {
     }
     throw new Error('No base64 decoder is available for exportImageFile.');
 }
-async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
+async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas) {
     if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
         return sourceDataUrl;
     }
     const imageElement = await loadImageElement(sourceDataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = document.createElement('canvas');
+    const ownerDocument = getCanvasDocument$1(canvas);
+    const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
@@ -4551,7 +4606,7 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor) {
         throw new Error('Unable to acquire 2D context for export conversion');
     }
     if (target.format === 'jpeg') {
-        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor);
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
         canvasContext.fillRect(0, 0, width, height);
     }
     canvasContext.drawImage(imageElement, 0, 0, width, height);
@@ -4579,9 +4634,11 @@ async function exportImageBase64(context, options) {
             const sealedFormat = resolved.format.format === 'jpeg'
                 ? { format: 'png', mimeType: 'image/png', quality: undefined }
                 : resolved.format;
-            dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat);
+            if (hasPartialEdges(partialEdges)) {
+                dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat, getCanvasDocument$1(context.canvas));
+            }
             if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality);
+                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality, getCanvasDocument$1(context.canvas));
             }
         }
         return dataUrl;
@@ -4612,7 +4669,7 @@ async function exportImageFile(context, options) {
     if (!base64) {
         throw new ExportNotReadyError('exportImageFile');
     }
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor);
+    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor, context.canvas);
     let bytes;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -4622,24 +4679,19 @@ async function exportImageFile(context, options) {
     }
     return new File([bytes], fileName, { type: resolved.mimeType });
 }
-function downloadImage(context, fileName) {
+function downloadImage(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
-    const resolvedFileName = fileName !== null && fileName !== void 0 ? fileName : context.options.defaultDownloadFileName;
-    void exportImageBase64(context, {
-        exportArea: context.options.exportAreaByDefault,
-        mergeMasks: context.options.mergeMasksByDefault,
-        mergeAnnotations: context.options.mergeAnnotationsByDefault,
-        multiplier: context.options.exportMultiplier,
-    })
+    const resolved = resolveDownloadOptions(context, options);
+    void exportImageBase64(context, resolved.exportOptions)
         .then((dataUrl) => {
         if (!dataUrl)
             return;
         const ownerDocument = getCanvasDocument$1(context.canvas);
         const link = ownerDocument.createElement('a');
-        link.download = resolvedFileName;
+        link.download = resolved.fileName;
         link.href = dataUrl;
         const body = ownerDocument.body;
         body.appendChild(link);
@@ -4923,7 +4975,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         lastSnapshot: context.getLastSnapshot(),
         canvasJson: serializeCanvas(context.canvas),
         maskCounter: context.getMaskCounter(),
-        annotationCounter: getAnnotationCounter(context),
+        annotationCounter: context.getAnnotationCounter(),
         currentScale: context.getCurrentScale(),
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
@@ -4963,7 +5015,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         context.setCurrentScale(1);
         context.setCurrentRotation(0);
         context.setMaskCounter(0);
-        setAnnotationCounter(context, 0);
+        context.setAnnotationCounter(0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
         context.canvas.renderAll();
@@ -4996,49 +5048,12 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
     }
 }
 function startImageDecode(dataUrl) {
-    const imageElement = new Image();
-    const cleanup = (clearSource = false) => {
-        if (typeof imageElement.removeEventListener === 'function') {
-            imageElement.removeEventListener('load', handleLoad);
-            imageElement.removeEventListener('error', handleError);
-        }
-        else {
-            imageElement.onload = null;
-            imageElement.onerror = null;
-        }
-        if (clearSource) {
-            imageElement.src = '';
-        }
-    };
-    const handleLoad = () => {
-        if (!hasNaturalImageDimensions(imageElement)) {
-            cleanup(true);
-            rejectImage(new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null));
-            return;
-        }
-        cleanup(false);
-        resolveImage(imageElement);
-    };
-    const handleError = (e) => {
-        cleanup(true);
-        rejectImage(new ImageDecodeError('Failed to decode image data URL.', e));
-    };
-    let resolveImage;
-    let rejectImage;
-    const promise = new Promise((resolve, reject) => {
-        resolveImage = resolve;
-        rejectImage = reject;
-        if (typeof imageElement.addEventListener === 'function') {
-            imageElement.addEventListener('load', handleLoad, { once: true });
-            imageElement.addEventListener('error', handleError, { once: true });
-        }
-        else {
-            imageElement.onload = handleLoad;
-            imageElement.onerror = handleError;
-        }
-        imageElement.src = dataUrl;
+    return startImageElementLoad(dataUrl, {
+        validate: (imageElement) => hasNaturalImageDimensions(imageElement)
+            ? null
+            : new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null),
+        createError: (event) => new ImageDecodeError('Failed to decode image data URL.', event),
     });
-    return { promise, cleanup };
 }
 function hasNaturalImageDimensions(imageElement) {
     return (Number.isFinite(imageElement.naturalWidth) &&
@@ -5104,15 +5119,6 @@ function serializeCanvas(canvas) {
     const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
     return JSON.stringify(json);
 }
-function getAnnotationCounter(context) {
-    const getter = context.getAnnotationCounter;
-    return typeof getter === 'function' ? getter.call(context) : 0;
-}
-function setAnnotationCounter(context, value) {
-    const setter = context.setAnnotationCounter;
-    if (typeof setter === 'function')
-        setter.call(context, value);
-}
 async function replayRollback(context, bundle) {
     try {
         await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
@@ -5125,7 +5131,7 @@ async function replayRollback(context, bundle) {
     context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
     context.setLastSnapshot(bundle.lastSnapshot);
     context.setMaskCounter(bundle.maskCounter);
-    setAnnotationCounter(context, bundle.annotationCounter);
+    context.setAnnotationCounter(bundle.annotationCounter);
     context.setCurrentScale(bundle.currentScale);
     context.setCurrentRotation(bundle.currentRotation);
     context.setBaseImageScale(bundle.baseImageScale);
@@ -6091,6 +6097,16 @@ const CROP_MODE_CONTROL_KEYS = [
 ];
 const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
 const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const TEXT_MODE_ENABLED_KEYS = [
+    'exitTextModeButton',
+    'textColorInput',
+    'textFontSizeInput',
+];
+const DRAW_MODE_ENABLED_KEYS = [
+    'exitDrawModeButton',
+    'drawColorInput',
+    'drawBrushSizeInput',
+];
 const MOSAIC_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
     'rotateLeftDegreesInput',
@@ -6578,8 +6594,8 @@ class ImageEditor {
             uploadArea: 'uploadArea',
         };
         this.elements = { ...defaults, ...idMap };
-        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
         this.initCanvas();
+        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
         this.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
@@ -6647,6 +6663,12 @@ class ImageEditor {
         this.canvas.on('object:scaling', onObjectEvent);
         this.canvas.on('object:rotating', onObjectEvent);
         this.canvas.on('object:modified', onObjectModified);
+    }
+    getLiveCanvasOrThrow(operationName) {
+        if (this.isDisposed || !this.canvas) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
+        }
+        return this.canvas;
     }
     bindDomEvents() {
         this.bindElementIfExists('uploadArea', 'click', () => {
@@ -7252,7 +7274,7 @@ class ImageEditor {
         applyCanvasDimensions(this.canvas, widthPx, heightPx, this.containerElement);
     }
     alignObjectBoundingBoxToCanvasTopLeft(object) {
-        var _a, _b;
+        var _a, _b, _c;
         object.setCoords();
         const boundingRect = object.getBoundingRect();
         object.set({
@@ -7260,7 +7282,7 @@ class ImageEditor {
             top: ((_b = object.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
         });
         object.setCoords();
-        this.canvas.renderAll();
+        (_c = this.canvas) === null || _c === void 0 ? void 0 : _c.renderAll();
     }
     measureLayoutViewport(scrollbarSize) {
         return this.viewportCache.measure(this.containerElement, {
@@ -7401,7 +7423,7 @@ class ImageEditor {
     }
     buildTransformContext() {
         return {
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('buildTransformContext'),
             options: this.options,
             guard: this.operationGuard,
             getOriginalImage: () => this.originalImage,
@@ -7624,13 +7646,14 @@ class ImageEditor {
                 this.emitAnnotationsChanged(context);
             }
             this.emitImageChanged(context);
+            const canvas = this.getLiveCanvasOrThrow('loadFromState');
             const activeMaskId = editorState === null || editorState === void 0 ? void 0 : editorState.activeMaskId;
             const activeAnnotationId = editorState === null || editorState === void 0 ? void 0 : editorState.activeAnnotationId;
             if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'mask' && typeof activeMaskId === 'number') {
                 const activeMask = restoredMasks.find((maskObject) => maskObject.maskId === activeMaskId);
                 if (activeMask) {
                     this.withSelectionChangeContext(context, () => {
-                        this.canvas.setActiveObject(activeMask);
+                        canvas.setActiveObject(activeMask);
                         this.handleSelectionChanged([activeMask]);
                     });
                 }
@@ -7640,7 +7663,7 @@ class ImageEditor {
                 const activeAnnotation = restoredState.annotations.find((annotation) => annotation.annotationId === activeAnnotationId);
                 if (activeAnnotation) {
                     this.withSelectionChangeContext(context, () => {
-                        this.canvas.setActiveObject(activeAnnotation);
+                        canvas.setActiveObject(activeAnnotation);
                         this.handleSelectionChanged([activeAnnotation]);
                     });
                 }
@@ -7805,7 +7828,7 @@ class ImageEditor {
     buildCreateMaskContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('createMask'),
             options: this.getRuntimeOptions(),
             getLastMask: () => this.lastMask,
             setLastMask: (maskObject) => {
@@ -7828,7 +7851,7 @@ class ImageEditor {
     }
     buildRemoveMaskContext() {
         return {
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('removeMask'),
             removeLabelForMask: (mask) => {
                 this.removeLabelForMask(mask);
             },
@@ -7893,7 +7916,7 @@ class ImageEditor {
             return;
         }
         if (isAnnotationObject(target)) {
-            if (target.annotationLocked === true)
+            if (isAnnotationLocked(target))
                 return;
             const context = this.buildCallbackContext('updateAnnotation', false);
             this.saveState();
@@ -8097,21 +8120,22 @@ class ImageEditor {
         this.finalizeActiveTextEditingIfNeeded();
         const selectedObjects = this.getSelectedCanvasObjects();
         const selectedMasks = selectedObjects.filter(isMaskObject);
-        const selectedAnnotations = selectedObjects.filter((object) => isAnnotationObject(object) && object.annotationLocked !== true);
+        const selectedAnnotations = selectedObjects.filter((object) => isAnnotationObject(object) && isAnnotationUnlocked(object));
         if (selectedMasks.length === 0 && selectedAnnotations.length === 0)
             return;
+        const canvas = this.getLiveCanvasOrThrow('deleteSelectedObject');
         const callbackContext = this.buildCallbackContext('deleteSelectedObject', false);
         this.withSelectionChangeContext(callbackContext, () => {
             for (const mask of selectedMasks) {
                 this.removeLabelForMask(mask);
-                this.canvas.remove(mask);
+                canvas.remove(mask);
             }
             removeAnnotationObjects(this.buildAnnotationManagerContext(), selectedAnnotations, {
                 saveHistory: false,
                 force: true,
             });
-            this.canvas.discardActiveObject();
-            this.canvas.renderAll();
+            canvas.discardActiveObject();
+            canvas.renderAll();
             this.saveState();
         });
         this.updateMaskList();
@@ -8137,7 +8161,7 @@ class ImageEditor {
     }
     buildAnnotationManagerContext() {
         return {
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('annotationManager'),
             saveCanvasState: () => this.saveState(),
             updateUi: () => this.updateUi(),
         };
@@ -8158,7 +8182,7 @@ class ImageEditor {
     buildTextControllerContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('textController'),
             options: this.options,
             getOriginalImage: () => this.originalImage,
             getTextConfig: () => this.currentTextConfig,
@@ -8182,7 +8206,7 @@ class ImageEditor {
     buildDrawControllerContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('drawController'),
             options: this.options,
             getDrawConfig: () => this.currentDrawConfig,
             isImageLoaded: () => this.isImageLoaded(),
@@ -8235,6 +8259,10 @@ class ImageEditor {
     }
     applyTextColorInput(color) {
         var _a;
+        if (this.isTextMode()) {
+            this.setTextColor(color);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isTextAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ fill: color });
@@ -8244,6 +8272,10 @@ class ImageEditor {
     }
     applyTextFontSizeInput(size) {
         var _a;
+        if (this.isTextMode()) {
+            this.setTextFontSize(size);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isTextAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ fontSize: size });
@@ -8253,6 +8285,10 @@ class ImageEditor {
     }
     applyDrawColorInput(color) {
         var _a;
+        if (this.isDrawMode()) {
+            this.setDrawColor(color);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isDrawAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ stroke: color });
@@ -8262,6 +8298,10 @@ class ImageEditor {
     }
     applyDrawBrushSizeInput(size) {
         var _a;
+        if (this.isDrawMode()) {
+            this.setDrawBrushSize(size);
+            return;
+        }
         const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
         if (selected && isDrawAnnotationObject(selected)) {
             this.updateSelectedAnnotation({ strokeWidth: size });
@@ -8370,7 +8410,7 @@ class ImageEditor {
             this.updateUi();
         }
     }
-    downloadImage(fileName) {
+    downloadImage(options) {
         if (!this.canvas)
             return;
         if (!this.canRunIdleOperation('downloadImage'))
@@ -8381,7 +8421,7 @@ class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         const exportContext = this.buildExportServiceContext();
         try {
-            downloadImage(exportContext, fileName);
+            downloadImage(exportContext, options);
         }
         finally {
             this.operationGuard.endBusyOperation(operationToken);
@@ -8424,7 +8464,7 @@ class ImageEditor {
     buildExportServiceContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('export'),
             options: this.options,
             isImageLoaded: () => this.isImageLoaded(),
             getOriginalImage: () => this.originalImage,
@@ -8451,8 +8491,9 @@ class ImageEditor {
             },
             getAnnotations: () => this.getAnnotations(),
             restoreAnnotations: (objects) => {
+                const canvas = this.getLiveCanvasOrThrow('restoreAnnotations');
                 objects.forEach((annotation) => {
-                    this.canvas.add(annotation);
+                    canvas.add(annotation);
                 });
                 syncAnnotationRuntimeStates(objects);
                 attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), objects);
@@ -8484,8 +8525,9 @@ class ImageEditor {
             },
             getMasks: () => this.getMasks(),
             restoreMasks: (objects) => {
+                const canvas = this.getLiveCanvasOrThrow('restoreMasks');
                 objects.forEach((mask) => {
-                    this.canvas.add(mask);
+                    canvas.add(mask);
                     reattachMaskHoverHandlers(mask);
                 });
                 this.lastMask = objects.reduce((lastMask, mask) => !lastMask || mask.maskId > lastMask.maskId ? mask : lastMask, null);
@@ -8613,7 +8655,7 @@ class ImageEditor {
     buildMosaicControllerContext() {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('mosaicController'),
             options: this.options,
             historyManager: this.historyManager,
             getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
@@ -8713,7 +8755,7 @@ class ImageEditor {
     buildCropControllerContext(operationToken) {
         return {
             fabric: this.fabricModule,
-            canvas: this.canvas,
+            canvas: this.getLiveCanvasOrThrow('cropController'),
             options: this.options,
             historyManager: this.historyManager,
             isImageLoaded: () => this.isImageLoaded(),
@@ -8735,52 +8777,53 @@ class ImageEditor {
             },
         };
     }
+    syncInputValue(inputElement, value) {
+        if (!inputElement)
+            return;
+        const ownerDocument = inputElement.ownerDocument;
+        if (ownerDocument.activeElement === inputElement && !inputElement.readOnly)
+            return;
+        if (inputElement.value !== value)
+            inputElement.value = value;
+    }
     updateInputs() {
         const scaleId = this.elements.scalePercentageInput;
         if (scaleId) {
             const scaleInputElement = document.getElementById(scaleId);
-            if (scaleInputElement) {
-                scaleInputElement.value = String(Math.round(this.currentScale * 100));
-            }
+            this.syncInputValue(scaleInputElement, String(Math.round(this.currentScale * 100)));
         }
         const mosaicConfig = this.getMosaicConfig();
         const mosaicBrushSizeInputId = this.elements.mosaicBrushSizeInput;
         if (mosaicBrushSizeInputId) {
             const brushInput = document.getElementById(mosaicBrushSizeInputId);
-            if (brushInput)
-                brushInput.value = String(mosaicConfig.brushSize);
+            this.syncInputValue(brushInput, String(mosaicConfig.brushSize));
         }
         const mosaicBlockSizeInputId = this.elements.mosaicBlockSizeInput;
         if (mosaicBlockSizeInputId) {
             const blockInput = document.getElementById(mosaicBlockSizeInputId);
-            if (blockInput)
-                blockInput.value = String(mosaicConfig.blockSize);
+            this.syncInputValue(blockInput, String(mosaicConfig.blockSize));
         }
         const textConfig = this.getTextConfig();
         const textColorInputId = this.elements.textColorInput;
         if (textColorInputId) {
             const textColorInput = document.getElementById(textColorInputId);
-            if (textColorInput)
-                textColorInput.value = textConfig.fill;
+            this.syncInputValue(textColorInput, textConfig.fill);
         }
         const textFontSizeInputId = this.elements.textFontSizeInput;
         if (textFontSizeInputId) {
             const fontInput = document.getElementById(textFontSizeInputId);
-            if (fontInput)
-                fontInput.value = String(textConfig.fontSize);
+            this.syncInputValue(fontInput, String(textConfig.fontSize));
         }
         const drawConfig = this.getDrawConfig();
         const drawColorInputId = this.elements.drawColorInput;
         if (drawColorInputId) {
             const drawColorInput = document.getElementById(drawColorInputId);
-            if (drawColorInput)
-                drawColorInput.value = drawConfig.color;
+            this.syncInputValue(drawColorInput, drawConfig.color);
         }
         const drawBrushSizeInputId = this.elements.drawBrushSizeInput;
         if (drawBrushSizeInputId) {
             const brushInput = document.getElementById(drawBrushSizeInputId);
-            if (brushInput)
-                brushInput.value = String(drawConfig.brushSize);
+            this.syncInputValue(brushInput, String(drawConfig.brushSize));
         }
     }
     async mergeAnnotations() {
@@ -8841,17 +8884,15 @@ class ImageEditor {
             return;
         }
         if (isInTextMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => this.setControlEnabled(key, false));
-            this.setControlEnabled('exitTextModeButton', !isBusy);
-            this.setControlEnabled('textColorInput', !isBusy);
-            this.setControlEnabled('textFontSizeInput', !isBusy);
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && TEXT_MODE_ENABLED_KEYS.includes(key));
+            });
             return;
         }
         if (isInDrawMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => this.setControlEnabled(key, false));
-            this.setControlEnabled('exitDrawModeButton', !isBusy);
-            this.setControlEnabled('drawColorInput', !isBusy);
-            this.setControlEnabled('drawBrushSizeInput', !isBusy);
+            CROP_MODE_CONTROL_KEYS.forEach((key) => {
+                this.setControlEnabled(key, !isBusy && DRAW_MODE_ENABLED_KEYS.includes(key));
+            });
             return;
         }
         if (isInMosaicMode) {
@@ -8911,7 +8952,10 @@ class ImageEditor {
             return;
         this.recordElementOriginalState(key, controlElement);
         if ('disabled' in controlElement) {
-            controlElement.disabled = !isEnabled;
+            const formControl = controlElement;
+            const nextDisabled = !isEnabled;
+            if (formControl.disabled !== nextDisabled)
+                formControl.disabled = nextDisabled;
             return;
         }
         if (!isEnabled) {

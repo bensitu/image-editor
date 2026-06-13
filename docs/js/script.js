@@ -872,7 +872,7 @@ function initEditor() {
         removeAllMasksButton: 'removeAllMasksButton',
         mergeMasksButton: 'mergeMasksButton',
         mergeAnnotationsButton: 'mergeAnnotationsButton',
-        downloadImageButton: 'downloadImageButton',
+        downloadImageButton: null,
         maskList: 'maskList',
         annotationList: 'annotationList',
         enterCropModeButton: 'enterCropModeButton',
@@ -950,12 +950,14 @@ function updateDemoControls() {
     const createMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadImageButtonElement = getOptionalElement('loadImageButton');
+    const downloadImageButtonElement = getOptionalElement('downloadImageButton');
     const exportMergeMasksInput = getOptionalElement('exportMergeMasksInput');
     const exportMergeAnnotationsInput = getOptionalElement('exportMergeAnnotationsInput');
 
     if (createMaskButtonElement) createMaskButtonElement.disabled = !hasLoadedImage || isBusy;
     if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
     if (loadImageButtonElement) loadImageButtonElement.disabled = isBusy;
+    if (downloadImageButtonElement) downloadImageButtonElement.disabled = !hasLoadedImage || isBusy;
     if (exportMergeMasksInput) exportMergeMasksInput.disabled = !hasLoadedImage || isBusy;
     if (exportMergeAnnotationsInput)
         exportMergeAnnotationsInput.disabled = !hasLoadedImage || isBusy;
@@ -1147,10 +1149,7 @@ async function getBase64Action() {
     try {
         // The export toggles affect rendered output only. They do not
         // remove masks or annotations and do not push history entries.
-        const imageBase64 = await editor.exportImageBase64({
-            mergeMasks: getOptionalElement('exportMergeMasksInput')?.checked !== false,
-            mergeAnnotations: getOptionalElement('exportMergeAnnotationsInput')?.checked !== false,
-        });
+        const imageBase64 = await editor.exportImageBase64(getOverlayExportOptions());
         showBase64Summary(imageBase64);
     } catch (error) {
         showMessage(error);
@@ -1158,7 +1157,24 @@ async function getBase64Action() {
     }
 }
 
+function getOverlayExportOptions() {
+    return {
+        mergeMasks: getOptionalElement('exportMergeMasksInput')?.checked !== false,
+        mergeAnnotations: getOptionalElement('exportMergeAnnotationsInput')?.checked !== false,
+    };
+}
+
+function handleDownloadButtonClick() {
+    if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
+    editor.downloadImage(getOverlayExportOptions());
+}
+
 const base64ButtonElement = getOptionalElement('base64Button');
 if (base64ButtonElement) {
     base64ButtonElement.addEventListener('click', getBase64Action);
+}
+
+const downloadImageButtonElement = getOptionalElement('downloadImageButton');
+if (downloadImageButtonElement) {
+    downloadImageButtonElement.addEventListener('click', handleDownloadButtonClick);
 }

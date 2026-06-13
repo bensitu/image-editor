@@ -1,3 +1,11 @@
+/**
+ * Draw annotation mode controller.
+ *
+ * Owns Fabric free-drawing setup, draw-session teardown, and conversion of
+ * completed paths into editor-owned annotation objects.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type FabricModule, type ImageEditorCallbackContext, type ResolvedDrawConfig, type ResolvedOptions } from '../core/public-types.js';
 export interface DrawSession {

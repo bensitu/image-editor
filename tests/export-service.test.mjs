@@ -754,6 +754,83 @@ test('exportImageFile: produces a File whose name matches options.fileName', asy
     assert.ok(file.size > 0, 'File must contain decoded bytes');
 });
 
+test('exportImageFile: reencode uses the Fabric canvas ownerDocument', async () => {
+    const previousDocument = globalThis.document;
+    const previousImage = globalThis.Image;
+    let ownerCanvasCount = 0;
+
+    class FakeImage {
+        constructor() {
+            this.naturalWidth = 2;
+            this.naturalHeight = 2;
+            this.width = 2;
+            this.height = 2;
+            this.listeners = {};
+        }
+        addEventListener(event, handler) {
+            this.listeners[event] = handler;
+        }
+        removeEventListener(event) {
+            delete this.listeners[event];
+        }
+        set src(_value) {
+            queueMicrotask(() => this.listeners.load?.());
+        }
+    }
+
+    const ownerDocument = {
+        createElement(tagName) {
+            assert.equal(String(tagName).toLowerCase(), 'canvas');
+            ownerCanvasCount += 1;
+            return {
+                width: 0,
+                height: 0,
+                getContext(type) {
+                    assert.equal(type, '2d');
+                    return {
+                        drawImage() {},
+                    };
+                },
+                toDataURL(type) {
+                    return `data:${type};base64,${Buffer.from('owner-doc').toString('base64')}`;
+                },
+            };
+        },
+    };
+
+    try {
+        globalThis.Image = FakeImage;
+        globalThis.document = {
+            createElement() {
+                throw new Error('global document must not create export canvases');
+            },
+        };
+
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('source').toString('base64'),
+        );
+        canvas.getElement = () => ({ ownerDocument });
+        const ctx = makeContext({ canvas });
+
+        const file = await exportImageFile(ctx, { fileType: 'png', fileName: 'owner.png' });
+
+        assert.equal(file.type, 'image/png');
+        assert.equal(await file.text(), 'owner-doc');
+        assert.equal(ownerCanvasCount, 1);
+    } finally {
+        if (previousDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = previousDocument;
+        }
+        if (previousImage === undefined) {
+            delete globalThis.Image;
+        } else {
+            globalThis.Image = previousImage;
+        }
+    }
+});
+
 test('exportImageFile: rejects empty image data URLs', async () => {
     const canvas = makeMockCanvas('data:image/jpeg;base64,');
     const ctx = makeContext({ canvas });
@@ -923,4 +1000,54 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
             globalThis.document = previousDocument;
         }
     }
+});
+
+test('downloadImage forwards mergeMasks and mergeAnnotations to the shared Base64 export path', async () => {
+    const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
+    const ownerDocument = ownerDom.window.document;
+    const canvasElement = ownerDocument.getElementById('c');
+    const clicked = [];
+    const createElement = ownerDocument.createElement.bind(ownerDocument);
+    ownerDocument.createElement = (tagName, options) => {
+        const element = createElement(tagName, options);
+        if (String(tagName).toLowerCase() === 'a') {
+            element.click = () => clicked.push(element);
+        }
+        return element;
+    };
+
+    const mask = makeMask();
+    const annotation = makeAnnotation({ id: 1 });
+    const canvas = {
+        ...makeMockCanvas('data:image/jpeg;base64,' + Buffer.from('download').toString('base64')),
+        objects: [mask, annotation],
+        getElement: () => canvasElement,
+        getObjects() {
+            return this.objects;
+        },
+        toDataURL(options) {
+            assert.equal(mask.visible, false, 'mask is hidden during download render');
+            assert.equal(annotation.visible, false, 'annotation is hidden during download render');
+            this.callOrder.push('toDataURL');
+            this.toDataURLArgs.push(options);
+            return 'data:image/jpeg;base64,' + Buffer.from('download').toString('base64');
+        },
+    };
+    const ctx = makeContext({ canvas });
+
+    downloadImage(ctx, {
+        fileName: 'filtered.jpg',
+        mergeMasks: false,
+        mergeAnnotations: false,
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(clicked.length, 1);
+    assert.equal(clicked[0].download, 'filtered.jpg');
+    assert.equal(mask.visible, true, 'mask visibility is restored after download render');
+    assert.equal(
+        annotation.visible,
+        true,
+        'annotation visibility is restored after download render',
+    );
 });

@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Serializer snapshots now preserve base/mask/annotation metadata, active mask or annotation identity, and filter session objects.
 - Update docs demo for Text, Draw, annotation controls, layer controls, export toggles, and merge annotations.
 
+### Fixed
+
+- Update Text and Draw mode style inputs so changing text size or draw brush size while the mode remains active affects the next created annotation without re-entering the mode, and active inputs are not overwritten while the user is typing or dragging.
+- Let `downloadImage()` accept `mergeMasks` and `mergeAnnotations` options, and update the docs demo Download button to respect the same export overlay checkboxes as Base64 output.
+- Align image-load annotation counter handling with the required `LoadImageContext` contract, including reset and rollback paths.
+- Create export offscreen canvases from the Fabric canvas owner document for partial-edge sealing, JPEG compositing, and data URL re-encoding.
+- Release the Mosaic raster cache when exiting Mosaic mode.
+- Type Mosaic preview dash arrays as readonly and copy them before passing them to Fabric.
+
 ## [2.1.0] - 2026-06-12
 
 ### Breaking Changes

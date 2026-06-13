@@ -1,3 +1,12 @@
+/**
+ * Layer-order helpers for editor-owned Fabric objects.
+ *
+ * The invariant is base images at the bottom, host objects next, editable
+ * overlays above them, and session-only objects at the top.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {
@@ -48,6 +57,17 @@ function ensureOnCanvas(canvas: FabricNS.Canvas, object: FabricNS.FabricObject):
     }
 }
 
+function withoutObject(
+    canvas: FabricNS.Canvas,
+    object: FabricNS.FabricObject,
+): FabricNS.FabricObject[] {
+    return canvas.getObjects().filter((candidate) => candidate !== object);
+}
+
+function findFirstSessionIndex(objects: FabricNS.FabricObject[]): number {
+    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
+}
+
 function getOrderedGroups(canvas: FabricNS.Canvas): {
     baseImages: BaseImageObject[];
     overlays: Array<MaskObject | AnnotationObject>;
@@ -90,22 +110,27 @@ export function normalizeLayerOrder(canvas: FabricNS.Canvas): void {
 
 export function placeBaseImageObject(canvas: FabricNS.Canvas, image: BaseImageObject): void {
     ensureOnCanvas(canvas, image);
-    normalizeLayerOrder(canvas);
+    const targetIndex = withoutObject(canvas, image).filter(isBaseImageObject).length;
+    moveObjectTo(canvas, image, targetIndex);
 }
 
 export function placeMaskObject(canvas: FabricNS.Canvas, mask: MaskObject): void {
     ensureOnCanvas(canvas, mask);
-    normalizeLayerOrder(canvas);
+    const objects = withoutObject(canvas, mask);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 
 export function placeAnnotationObject(canvas: FabricNS.Canvas, annotation: AnnotationObject): void {
     ensureOnCanvas(canvas, annotation);
-    normalizeLayerOrder(canvas);
+    const objects = withoutObject(canvas, annotation);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
 }
 
 export function placeSessionObject(canvas: FabricNS.Canvas, sessionObject: SessionObject): void {
     ensureOnCanvas(canvas, sessionObject);
-    normalizeLayerOrder(canvas);
+    moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 }
 
 export function getEditableOverlayRange(canvas: FabricNS.Canvas): {
