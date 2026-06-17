@@ -69,11 +69,8 @@ class MockCropRect {
     setCoords() {
         // No-op — the test does not exercise Fabric's coordinate cache.
     }
-    setControlVisible() {
-        // No-op — `setControlVisible('mtr', false)` is called by
-        // `enterCropMode` to hide the rotation handle. does
-        // not assert visibility.
-    }
+    setControlVisible() {}
+    setControlsVisibility() {}
     on(event, fn) {
         this.handlers.push({ event, fn, detached: false });
     }

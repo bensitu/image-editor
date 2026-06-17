@@ -70,6 +70,7 @@ class MockCropRect {
     }
     setCoords() {}
     setControlVisible() {}
+    setControlsVisibility() {}
     on(event, fn) {
         this.handlers.push({ event, fn, detached: false });
     }

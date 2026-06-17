@@ -102,11 +102,11 @@
  *   so the rect cannot grow past the available image bounding box and
  *   cannot shrink below the configured `crop.minWidth` / `crop.minHeight`.
  *   This matches legacy's `handleCropRectModified`.
- * - In Fabric v7 the rotation handle (`mtr`) is hidden via
- *   `setControlVisible('mtr', false)` because `hasRotatingPoint` is
- *   silently ignored. `lockRotation: true` is also set as runtime
- *   defence so the rotation transform itself cannot fire even if the
- *   handle were somehow shown.
+ * - In Fabric v7 crop rectangle controls are configured via
+ *   `setControlsVisibility(...)` because `hasRotatingPoint` is silently
+ *   ignored. `lockRotation: true` is also set as runtime defence so the
+ *   rotation transform itself cannot fire even if the handle were somehow
+ *   shown.
  * - The pre-crop snapshot is captured once, in `enterCropMode`, and
  *   reused by `applyCrop`'s history command and rollback path. This
  *   avoids a re-serialization right before the crop, and — more
@@ -1006,6 +1006,27 @@ function resizeCropRectToAspectRatio(
     cropRect.setCoords();
 }
 
+function updateCropRectControlVisibility(
+    cropRect: FabricNS.Rect,
+    aspectRatio: NormalizedCropAspectRatio,
+    allowRotationOfCropRect: boolean,
+): void {
+    const lockedRatio = aspectRatio !== null;
+
+    cropRect.setControlsVisibility({
+        tl: true,
+        tr: true,
+        br: true,
+        bl: true,
+        mt: !lockedRatio,
+        mb: !lockedRatio,
+        ml: !lockedRatio,
+        mr: !lockedRatio,
+        mtr: allowRotationOfCropRect,
+    });
+    cropRect.setCoords();
+}
+
 /**
  * Open a crop session. Builds a {@link CropSession} that captures:
  *
@@ -1133,17 +1154,12 @@ export function enterCropMode(
         strokeWidth: 1,
         strokeUniform: true,
         selectable: true,
-        // Fabric v7 ignores `hasRotatingPoint`; `lockRotation: true`
-        // prevents the rotation transform itself, and the
-        // `setControlVisible('mtr', false)` call below hides the handle.
         lockRotation: !allowRotation,
         cornerSize: CROP_RECT_CORNER_SIZE,
         objectCaching: false,
         lockScalingFlip: true,
     });
-    if (!allowRotation) {
-        cropRect.setControlVisible('mtr', false);
-    }
+    updateCropRectControlVisibility(cropRect, aspectRatio, allowRotation);
 
     canvas.add(cropRect);
     // Tag the rect so the state serializer's session-only filter
@@ -1302,6 +1318,11 @@ export function setCropAspectRatio(
     const aspectRatio = normalizeCropAspectRatio(aspectRatioInput);
     session.aspectRatio = aspectRatio;
     resizeCropRectToAspectRatio(context, session.cropRect, aspectRatio);
+    updateCropRectControlVisibility(
+        session.cropRect,
+        aspectRatio,
+        !!context.options.crop.allowRotationOfCropRect,
+    );
     context.canvas.setActiveObject(session.cropRect);
     context.canvas.requestRenderAll();
 }

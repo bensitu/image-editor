@@ -15,6 +15,8 @@
  *   - setCropAspectRatio updates an active crop session and switching back to
  *     free crop allows non-uniform resizing even after entering with a locked
  *     ratio.
+ *   - Free crop shows all resize handles while locked-ratio crop hides
+ *     middle-edge resize handles.
  *   - applyCrop exports a crop region whose integer dimensions preserve the
  *     selected ratio within rounding tolerance.
  *
@@ -49,13 +51,22 @@ class MockRect {
         this.scaleX = props.scaleX ?? 1;
         this.scaleY = props.scaleY ?? 1;
         this.handlers = new Map();
+        this.controlVisibility = {};
     }
     set(patch) {
         Object.assign(this, patch);
         return this;
     }
     setCoords() {}
-    setControlVisible() {}
+    setControlVisible(controlKey, isVisible) {
+        this.controlVisibility[controlKey] = isVisible;
+    }
+    setControlsVisibility(controls) {
+        Object.assign(this.controlVisibility, controls);
+    }
+    isControlVisible(controlKey) {
+        return this.controlVisibility[controlKey] ?? true;
+    }
     on(eventName, callback) {
         const handlers = this.handlers.get(eventName) ?? [];
         handlers.push(callback);
@@ -173,6 +184,23 @@ function effectiveRatio(rect) {
     return (rect.width * rect.scaleX) / (rect.height * rect.scaleY);
 }
 
+const CORNER_CONTROLS = ['tl', 'tr', 'br', 'bl'];
+const MIDDLE_EDGE_CONTROLS = ['mt', 'mb', 'ml', 'mr'];
+
+function assertCropControls(rect, { middleEdgesVisible, rotationVisible }) {
+    for (const controlKey of CORNER_CONTROLS) {
+        assert.equal(rect.isControlVisible(controlKey), true, `${controlKey} control visibility`);
+    }
+    for (const controlKey of MIDDLE_EDGE_CONTROLS) {
+        assert.equal(
+            rect.isControlVisible(controlKey),
+            middleEdgesVisible,
+            `${controlKey} control visibility`,
+        );
+    }
+    assert.equal(rect.isControlVisible('mtr'), rotationVisible, 'mtr control visibility');
+}
+
 test('normalizeCropAspectRatio resolves presets, custom ratios, and invalid values', () => {
     const cases = [
         ['free', null],
@@ -227,9 +255,11 @@ test('each crop aspect-ratio preset creates the expected initial ratio', () => {
             assert.equal(getSession().aspectRatio, null);
             assert.equal(rect.width, 40);
             assert.equal(rect.height, 30);
+            assertCropControls(rect, { middleEdgesVisible: true, rotationVisible: false });
         } else {
             assertApprox(getSession().aspectRatio, expected, `${aspectRatio} session ratio`);
             assertApprox(rect.width / rect.height, expected, `${aspectRatio} rectangle ratio`);
+            assertCropControls(rect, { middleEdgesVisible: false, rotationVisible: false });
         }
         assert.ok(rect.left >= 20, `${aspectRatio} left stays in image bounds`);
         assert.ok(rect.top >= 30, `${aspectRatio} top stays in image bounds`);
@@ -251,7 +281,28 @@ test('custom crop aspect-ratio inputs drive enterCropMode', () => {
 
         const rect = getSession().cropRect;
         assertApprox(rect.width / rect.height, 5 / 7, `ratio for ${JSON.stringify(aspectRatio)}`);
+        assertCropControls(rect, { middleEdgesVisible: false, rotationVisible: false });
     }
+});
+
+test('crop control visibility preserves rotation handle configuration', () => {
+    const disabledRotation = makeContext({
+        crop: { allowRotationOfCropRect: false },
+    });
+    enterCropMode(disabledRotation.context);
+    assertCropControls(disabledRotation.getSession().cropRect, {
+        middleEdgesVisible: true,
+        rotationVisible: false,
+    });
+
+    const enabledRotation = makeContext({
+        crop: { allowRotationOfCropRect: true },
+    });
+    enterCropMode(enabledRotation.context, { aspectRatio: '1:1' });
+    assertCropControls(enabledRotation.getSession().cropRect, {
+        middleEdgesVisible: false,
+        rotationVisible: true,
+    });
 });
 
 test('locked-ratio crop prioritizes fitting the image when min size cannot fit', () => {
@@ -346,6 +397,7 @@ test('setCropAspectRatio updates the active crop rectangle and unlocks free crop
 
     setCropAspectRatio(context, '16:9');
     assert.equal(session.aspectRatio, 16 / 9);
+    assertCropControls(rect, { middleEdgesVisible: false, rotationVisible: false });
     assertApprox(rect.width, 280, '16:9 width');
     assertApprox(rect.height, 157.5, '16:9 height');
     assertApprox(rect.left, 10, '16:9 centered left');
@@ -354,6 +406,7 @@ test('setCropAspectRatio updates the active crop rectangle and unlocks free crop
 
     setCropAspectRatio(context, 'free');
     assert.equal(session.aspectRatio, null);
+    assertCropControls(rect, { middleEdgesVisible: true, rotationVisible: false });
     rect.set({ scaleX: 0.5, scaleY: 1 });
     rect.fire('scaling');
 

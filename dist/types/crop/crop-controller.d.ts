@@ -102,11 +102,11 @@
  *   so the rect cannot grow past the available image bounding box and
  *   cannot shrink below the configured `crop.minWidth` / `crop.minHeight`.
  *   This matches legacy's `handleCropRectModified`.
- * - In Fabric v7 the rotation handle (`mtr`) is hidden via
- *   `setControlVisible('mtr', false)` because `hasRotatingPoint` is
- *   silently ignored. `lockRotation: true` is also set as runtime
- *   defence so the rotation transform itself cannot fire even if the
- *   handle were somehow shown.
+ * - In Fabric v7 crop rectangle controls are configured via
+ *   `setControlsVisibility(...)` because `hasRotatingPoint` is silently
+ *   ignored. `lockRotation: true` is also set as runtime defence so the
+ *   rotation transform itself cannot fire even if the handle were somehow
+ *   shown.
  * - The pre-crop snapshot is captured once, in `enterCropMode`, and
  *   reused by `applyCrop`'s history command and rollback path. This
  *   avoids a re-serialization right before the crop, and — more

@@ -337,6 +337,21 @@ function resizeCropRectToAspectRatio(context, cropRect, aspectRatio) {
     });
     cropRect.setCoords();
 }
+function updateCropRectControlVisibility(cropRect, aspectRatio, allowRotationOfCropRect) {
+    const lockedRatio = aspectRatio !== null;
+    cropRect.setControlsVisibility({
+        tl: true,
+        tr: true,
+        br: true,
+        bl: true,
+        mt: !lockedRatio,
+        mb: !lockedRatio,
+        ml: !lockedRatio,
+        mr: !lockedRatio,
+        mtr: allowRotationOfCropRect,
+    });
+    cropRect.setCoords();
+}
 export function enterCropMode(context, cropModeOptions = {}) {
     var _a;
     const { canvas, options } = context;
@@ -402,9 +417,7 @@ export function enterCropMode(context, cropModeOptions = {}) {
         objectCaching: false,
         lockScalingFlip: true,
     });
-    if (!allowRotation) {
-        cropRect.setControlVisible('mtr', false);
-    }
+    updateCropRectControlVisibility(cropRect, aspectRatio, allowRotation);
     canvas.add(cropRect);
     markSessionObject(cropRect, 'cropRect');
     cropRect.isCropRect = true;
@@ -511,6 +524,7 @@ export function setCropAspectRatio(context, aspectRatioInput) {
     const aspectRatio = normalizeCropAspectRatio(aspectRatioInput);
     session.aspectRatio = aspectRatio;
     resizeCropRectToAspectRatio(context, session.cropRect, aspectRatio);
+    updateCropRectControlVisibility(session.cropRect, aspectRatio, !!context.options.crop.allowRotationOfCropRect);
     context.canvas.setActiveObject(session.cropRect);
     context.canvas.requestRenderAll();
 }
