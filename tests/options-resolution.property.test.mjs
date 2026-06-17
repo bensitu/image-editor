@@ -115,6 +115,7 @@ const ALL_TOP_LEVEL_KEYS = [
 const TEXT_OPTIONS_DEFAULT_KEYS = Object.keys(DEFAULT_LABEL.textOptions);
 
 const CROP_KEYS = [
+    'aspectRatio',
     'minWidth',
     'minHeight',
     'padding',

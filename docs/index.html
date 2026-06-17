@@ -316,6 +316,30 @@
                             aria-label="Rotate right degrees"
                             data-i18n-aria-label="rotateRightDegrees"
                         />
+                        <button
+                            class="btn tool-button icon-button"
+                            id="flipHorizontalButton"
+                            type="button"
+                            title="Flip Horizontal"
+                            aria-label="Flip Horizontal"
+                        >
+                            <span class="tool-icon" data-lucide="flip-horizontal" aria-hidden="true"
+                                >H</span
+                            >
+                            <span class="tool-label" data-i18n="flipHorizontal">Flip H</span>
+                        </button>
+                        <button
+                            class="btn tool-button icon-button"
+                            id="flipVerticalButton"
+                            type="button"
+                            title="Flip Vertical"
+                            aria-label="Flip Vertical"
+                        >
+                            <span class="tool-icon" data-lucide="flip-vertical" aria-hidden="true"
+                                >V</span
+                            >
+                            <span class="tool-label" data-i18n="flipVertical">Flip V</span>
+                        </button>
                     </div>
 
                     <div
@@ -383,6 +407,21 @@
                         aria-label="Crop actions"
                         data-i18n-aria-label="cropActions"
                     >
+                        <select
+                            id="cropAspectRatioSelect"
+                            class="tool-select form-select form-select-sm"
+                            aria-label="Crop aspect ratio"
+                            data-i18n-aria-label="cropAspectRatio"
+                        >
+                            <option value="free" data-i18n="cropRatioFree">Free</option>
+                            <option value="1:1">1:1</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="2:3">2:3</option>
+                            <option value="9:16">9:16</option>
+                            <option value="16:9">16:9</option>
+                        </select>
                         <button id="enterCropModeButton" class="btn tool-button" type="button">
                             <span class="tool-icon" data-lucide="crop" aria-hidden="true">C</span>
                             <span class="tool-label" data-i18n="crop">Crop</span>
@@ -660,7 +699,7 @@
                     ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
                     : '../node_modules/fabric/dist/index.min.js';
                 const imageEditorSrc = isGitHubPages
-                    ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@2.2.0/dist/umd/image-editor.umd.js'
+                    ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@2.3.0/dist/umd/image-editor.umd.js'
                     : '../dist/umd/image-editor.umd.js';
 
                 function loadScript(src) {
@@ -676,7 +715,7 @@
                 try {
                     await loadScript(fabricSrc);
                     await loadScript(imageEditorSrc);
-                    await loadScript('js/script.js?v=2.2.0');
+                    await loadScript('js/script.js?v=2.3.0');
                 } catch (error) {
                     console.error('[ImageEditor demo] Failed to load dependencies.', error);
                 }

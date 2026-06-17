@@ -96,7 +96,7 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
 function makeContext(overrides = {}) {
     const canvas = overrides.canvas ?? makeMockCanvas();
     const options = {
-        defaultDownloadFileName: 'edited_image.jpg',
+        defaultDownloadFileName: 'edited_image',
         downsampleQuality: 0.92,
         exportMultiplier: 1,
         maxExportPixels: 50000000,
@@ -331,15 +331,27 @@ test('exportImageFile: rejects with ExportNotReadyError and warns when no image 
     assert.equal(ctx.canvas.callOrder.length, 0);
 });
 
-test('downloadImage: returns void and warns when no image is loaded', async () => {
+test('downloadImage: returns Promise<void> and warns when no image is loaded', async () => {
     const ctx = makeContext({ isImageLoaded: () => false });
     const warnings = await captureWarnings(async () => {
         const ret = downloadImage(ctx);
-        assert.equal(ret, undefined, 'downloadImage returns void');
+        assert.ok(ret instanceof Promise, 'downloadImage returns a promise');
+        await ret;
     });
     assert.equal(warnings.length, 1);
     assert.match(String(warnings[0][0] ?? ''), /downloadImage/);
     assert.equal(ctx.canvas.callOrder.length, 0, 'must touch no canvas method');
+});
+
+test('downloadImage: rejects non-object options at runtime', async () => {
+    const ctx = makeContext();
+
+    await assert.rejects(
+        () => downloadImage(ctx, 'pic.jpg'),
+        (error) =>
+            error instanceof TypeError &&
+            /expects an ImageExportOptions object/.test(error.message),
+    );
 });
 
 // ─── the documented contract — discard ActiveSelection before render ───────────────
@@ -454,19 +466,36 @@ test('downloadImage: discards ActiveSelection before toDataURL', async () => {
     const ctx = makeContext();
     let firstDiscard;
     let firstRender;
-    // The DOM wiring (document.createElement('a'), appendChild, …) is
-    // outside the scope of the documented contract and not available under node:test.
-    // Suppress the resulting `console.error` from the internal catch
-    // handler so the assertion noise stays focused on the call order.
-    await suppressErrors(async () => {
-        // downloadImage is fire-and-forget; yield to the microtask queue
-        // so the awaited `exportImageBase64` inside `downloadImage`
-        // completes before we read `callOrder`.
-        downloadImage(ctx, 'pic.jpg');
-        await new Promise((resolve) => setImmediate(resolve));
+    const previousDocument = globalThis.document;
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
+    try {
+        const dom = new JSDOM('<!doctype html><body></body>');
+        const ownerDocument = dom.window.document;
+        const createElement = ownerDocument.createElement.bind(ownerDocument);
+        ownerDocument.createElement = (tagName, options) => {
+            const element = createElement(tagName, options);
+            if (String(tagName).toLowerCase() === 'a') {
+                element.click = () => {};
+            }
+            return element;
+        };
+        globalThis.document = ownerDocument;
+        URL.createObjectURL = () => 'blob:mock';
+        URL.revokeObjectURL = () => {};
+        await downloadImage(ctx, { fileName: 'pic.jpg' });
+        await new Promise((resolve) => setTimeout(resolve, 0));
         firstDiscard = ctx.canvas.callOrder.indexOf('discardActiveObject');
         firstRender = ctx.canvas.callOrder.indexOf('toDataURL');
-    });
+    } finally {
+        if (previousDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = previousDocument;
+        }
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
+    }
     assert.notEqual(firstDiscard, -1, 'must call discardActiveObject');
     assert.notEqual(firstRender, -1, 'must call toDataURL');
     assert.ok(firstDiscard < firstRender, 'discard must precede toDataURL');
@@ -754,6 +783,27 @@ test('exportImageFile: produces a File whose name matches options.fileName', asy
     assert.ok(file.size > 0, 'File must contain decoded bytes');
 });
 
+test('exportImageFile: resolves file extension from requested format', async () => {
+    const pngCanvas = makeMockCanvas(
+        'data:image/png;base64,' + Buffer.from('png').toString('base64'),
+    );
+    const pngCtx = makeContext({ canvas: pngCanvas });
+    const pngFile = await exportImageFile(pngCtx, { fileType: 'png', fileName: 'cover' });
+    assert.equal(pngFile.name, 'cover.png');
+    assert.equal(pngFile.type, 'image/png');
+
+    const jpegCanvas = makeMockCanvas(
+        'data:image/jpeg;base64,' + Buffer.from('jpeg').toString('base64'),
+    );
+    const jpegCtx = makeContext({ canvas: jpegCanvas });
+    const jpegFile = await exportImageFile(jpegCtx, {
+        fileType: 'jpeg',
+        fileName: 'cover.png',
+    });
+    assert.equal(jpegFile.name, 'cover.jpg');
+    assert.equal(jpegFile.type, 'image/jpeg');
+});
+
 test('exportImageFile: reencode uses the Fabric canvas ownerDocument', async () => {
     const previousDocument = globalThis.document;
     const previousImage = globalThis.Image;
@@ -898,7 +948,7 @@ test('exportImageFile: falls back to defaultDownloadFileName when fileName is om
     const canvas = makeMockCanvas('data:image/jpeg;base64,' + Buffer.from('hi').toString('base64'));
     const ctx = makeContext({
         canvas,
-        options: { defaultDownloadFileName: 'fallback.jpg' },
+        options: { defaultDownloadFileName: 'fallback' },
     });
     const file = await exportImageFile(ctx, { fileType: 'jpeg' });
     assert.equal(file.name, 'fallback.jpg');
@@ -937,7 +987,7 @@ test('exportImageFile: forwards exportArea and mergeMasks independently', async 
     assert.equal(mask.visible, true, 'mask visibility must be restored after File export');
 });
 
-test('downloadImage reports asynchronous export failures through onError', async () => {
+test('downloadImage reports export failures through onError and rejects', async () => {
     const errors = [];
     const canvas = makeMockCanvas();
     canvas.toDataURL = () => {
@@ -951,8 +1001,7 @@ test('downloadImage reports asynchronous export failures through onError', async
     });
 
     await suppressErrors(async () => {
-        downloadImage(ctx, 'pic.jpg');
-        await new Promise((resolve) => setImmediate(resolve));
+        await assert.rejects(() => downloadImage(ctx, { fileName: 'pic.jpg' }), /render failed/);
     });
 
     assert.equal(errors.length, 1);
@@ -962,6 +1011,8 @@ test('downloadImage reports asynchronous export failures through onError', async
 
 test('downloadImage appends the anchor to the canvas ownerDocument', async () => {
     const previousDocument = globalThis.document;
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
     const globalDom = new JSDOM('<!doctype html><body></body>');
     const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
     globalThis.document = globalDom.window.document;
@@ -969,6 +1020,8 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
     const ownerDocument = ownerDom.window.document;
     const canvasElement = ownerDocument.getElementById('c');
     const clicked = [];
+    const objectUrls = [];
+    const revokedUrls = [];
     const createElement = ownerDocument.createElement.bind(ownerDocument);
     ownerDocument.createElement = (tagName, options) => {
         const element = createElement(tagName, options);
@@ -979,21 +1032,34 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
     };
 
     try {
+        URL.createObjectURL = (file) => {
+            objectUrls.push({ url: 'blob:owner-doc', file });
+            return 'blob:owner-doc';
+        };
+        URL.revokeObjectURL = (url) => {
+            revokedUrls.push(url);
+        };
         const canvas = makeMockCanvas(
             'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
         );
         canvas.getElement = () => canvasElement;
         const ctx = makeContext({ canvas });
 
-        downloadImage(ctx, 'owner-doc.jpg');
-        await new Promise((resolve) => setImmediate(resolve));
+        await downloadImage(ctx, { fileName: 'owner-doc.jpg' });
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.equal(clicked.length, 1);
         assert.equal(clicked[0].ownerDocument, ownerDocument);
         assert.equal(clicked[0].download, 'owner-doc.jpg');
+        assert.equal(clicked[0].href, 'blob:owner-doc');
+        assert.equal(objectUrls.length, 1);
+        assert.equal(objectUrls[0].file.name, 'owner-doc.jpg');
+        assert.deepEqual(revokedUrls, ['blob:owner-doc']);
         assert.equal(ownerDocument.body.querySelectorAll('a').length, 0);
         assert.equal(globalThis.document.body.querySelectorAll('a').length, 0);
     } finally {
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
         if (previousDocument === undefined) {
             delete globalThis.document;
         } else {
@@ -1003,6 +1069,8 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
 });
 
 test('downloadImage forwards mergeMasks and mergeAnnotations to the shared Base64 export path', async () => {
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
     const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
     const ownerDocument = ownerDom.window.document;
     const canvasElement = ownerDocument.getElementById('c');
@@ -1035,19 +1103,25 @@ test('downloadImage forwards mergeMasks and mergeAnnotations to the shared Base6
     };
     const ctx = makeContext({ canvas });
 
-    downloadImage(ctx, {
-        fileName: 'filtered.jpg',
-        mergeMasks: false,
-        mergeAnnotations: false,
-    });
-    await new Promise((resolve) => setImmediate(resolve));
+    try {
+        URL.createObjectURL = () => 'blob:filtered';
+        URL.revokeObjectURL = () => {};
+        await downloadImage(ctx, {
+            fileName: 'filtered.jpg',
+            mergeMasks: false,
+            mergeAnnotations: false,
+        });
 
-    assert.equal(clicked.length, 1);
-    assert.equal(clicked[0].download, 'filtered.jpg');
-    assert.equal(mask.visible, true, 'mask visibility is restored after download render');
-    assert.equal(
-        annotation.visible,
-        true,
-        'annotation visibility is restored after download render',
-    );
+        assert.equal(clicked.length, 1);
+        assert.equal(clicked[0].download, 'filtered.jpg');
+        assert.equal(mask.visible, true, 'mask visibility is restored after download render');
+        assert.equal(
+            annotation.visible,
+            true,
+            'annotation visibility is restored after download render',
+        );
+    } finally {
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
+    }
 });

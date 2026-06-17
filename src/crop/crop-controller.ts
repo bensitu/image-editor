@@ -126,7 +126,9 @@ import type * as FabricNS from 'fabric';
 import { CropApplyError } from '../core/errors.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
 import type {
+    CropAspectRatio,
     CropHandler,
+    CropModeOptions,
     CropPrevEvented,
     FabricModule,
     ImageMimeType,
@@ -186,6 +188,7 @@ import {
  * - `cropRect` — the active crop rectangle, or `null` after the rect has
  *   been removed (so subsequent calls to {@link removeCropRect} are
  *   idempotent on the success and rollback paths).
+ * - `aspectRatio` — current crop aspect-ratio lock. `null` means free crop.
  * - `handlers` — bound `modified` / `moving` / `scaling` handler records
  *   on the crop rectangle. Detached when the session ends.
  *
@@ -197,6 +200,7 @@ export interface CropSession {
     /** Per-mask style backups captured when masks are hidden during crop mode. */
     maskBackups: MaskBackup[];
     cropRect: FabricNS.Rect | null;
+    aspectRatio: NormalizedCropAspectRatio;
     handlers: CropHandler[];
 }
 
@@ -745,6 +749,263 @@ function reapplyPreservedMasks(
 
 // ─── enterCropMode ──────────────────────────────────────────────────────────
 
+export type NormalizedCropAspectRatio = number | null;
+
+const CROP_ASPECT_RATIO_PRESETS: Readonly<Record<string, NormalizedCropAspectRatio>> =
+    Object.freeze({
+        free: null,
+        '1:1': 1,
+        '3:4': 3 / 4,
+        '4:3': 4 / 3,
+        '3:2': 3 / 2,
+        '2:3': 2 / 3,
+        '9:16': 9 / 16,
+        '16:9': 16 / 9,
+    });
+
+export function normalizeCropAspectRatio(
+    input: CropAspectRatio | null | undefined,
+): NormalizedCropAspectRatio {
+    if (input === null || input === undefined) return null;
+
+    if (typeof input === 'number') {
+        return Number.isFinite(input) && input > 0 ? input : null;
+    }
+
+    if (typeof input === 'string') {
+        const trimmed = input.trim();
+        if (Object.prototype.hasOwnProperty.call(CROP_ASPECT_RATIO_PRESETS, trimmed)) {
+            return CROP_ASPECT_RATIO_PRESETS[trimmed] ?? null;
+        }
+
+        const parts = trimmed.split(':');
+        if (parts.length !== 2) return null;
+        const width = Number(parts[0]);
+        const height = Number(parts[1]);
+        return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+            ? width / height
+            : null;
+    }
+
+    if (typeof input === 'object') {
+        const width = Number((input as { width?: unknown }).width);
+        const height = Number((input as { height?: unknown }).height);
+        return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+            ? width / height
+            : null;
+    }
+
+    return null;
+}
+
+interface CropSize {
+    width: number;
+    height: number;
+}
+
+function fitAspectRatioInside(maxWidth: number, maxHeight: number, aspectRatio: number): CropSize {
+    const safeMaxWidth = Math.max(1, maxWidth);
+    const safeMaxHeight = Math.max(1, maxHeight);
+    let width = safeMaxWidth;
+    let height = width / aspectRatio;
+
+    if (height > safeMaxHeight) {
+        height = safeMaxHeight;
+        width = height * aspectRatio;
+    }
+
+    return {
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+    };
+}
+
+function minimumAspectRatioSizeThatFits(
+    minWidth: number,
+    minHeight: number,
+    maxWidth: number,
+    maxHeight: number,
+    aspectRatio: number,
+): CropSize | null {
+    let width = Math.max(1, minWidth);
+    let height = width / aspectRatio;
+    if (height < minHeight) {
+        height = Math.max(1, minHeight);
+        width = height * aspectRatio;
+    }
+
+    return width <= maxWidth && height <= maxHeight ? { width, height } : null;
+}
+
+function chooseAspectRatioResizeBasis(
+    canvas: FabricNS.Canvas,
+    cropRect: FabricNS.Rect,
+    scaleX: number,
+    scaleY: number,
+): 'width' | 'height' {
+    const corner = String(
+        (cropRect as { __corner?: unknown }).__corner ??
+            (canvas as { _currentTransform?: { corner?: unknown } })._currentTransform?.corner ??
+            '',
+    ).toLowerCase();
+
+    if (corner === 'mt' || corner === 'mb') return 'height';
+    if (corner === 'ml' || corner === 'mr') return 'width';
+    return Math.abs(scaleY - 1) > Math.abs(scaleX - 1) ? 'height' : 'width';
+}
+
+function constrainAspectRatioSize(
+    requestedWidth: number,
+    requestedHeight: number,
+    basis: 'width' | 'height',
+    aspectRatio: number,
+    minWidth: number,
+    minHeight: number,
+    maxWidth: number,
+    maxHeight: number,
+): CropSize {
+    const maxSize = fitAspectRatioInside(maxWidth, maxHeight, aspectRatio);
+    const minSize =
+        minimumAspectRatioSizeThatFits(
+            minWidth,
+            minHeight,
+            maxSize.width,
+            maxSize.height,
+            aspectRatio,
+        ) ?? maxSize;
+
+    let width = basis === 'height' ? requestedHeight * aspectRatio : requestedWidth;
+    let height = basis === 'height' ? requestedHeight : requestedWidth / aspectRatio;
+
+    if (width > maxSize.width || height > maxSize.height) {
+        ({ width, height } = maxSize);
+    }
+
+    if (width < minSize.width || height < minSize.height) {
+        ({ width, height } = minSize);
+    }
+
+    return { width, height };
+}
+
+function resolvePaddedCropArea(
+    boundsLeft: number,
+    boundsTop: number,
+    maxCropWidth: number,
+    maxCropHeight: number,
+    padding: number,
+): { left: number; top: number; width: number; height: number } {
+    const insetX = padding * 2 < maxCropWidth ? padding : 0;
+    const insetY = padding * 2 < maxCropHeight ? padding : 0;
+    return {
+        left: boundsLeft + insetX,
+        top: boundsTop + insetY,
+        width: Math.max(1, maxCropWidth - insetX * 2),
+        height: Math.max(1, maxCropHeight - insetY * 2),
+    };
+}
+
+function resolveCropBounds(context: CropControllerContext): {
+    boundsLeft: number;
+    boundsTop: number;
+    maxCropWidth: number;
+    maxCropHeight: number;
+    minCropWidth: number;
+    minCropHeight: number;
+    padding: number;
+    imageBounds: { left: number; top: number; width: number; height: number };
+} | null {
+    const originalImage = context.getOriginalImage();
+    if (!originalImage) return null;
+
+    originalImage.setCoords();
+    const { options } = context;
+    const imageBounds = originalImage.getBoundingRect();
+    const padding = Number.isFinite(Number(options.crop.padding))
+        ? Number(options.crop.padding)
+        : CROP_DEFAULT_PADDING;
+    const boundsLeft = Math.max(0, Math.floor(imageBounds.left));
+    const boundsTop = Math.max(0, Math.floor(imageBounds.top));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
+    const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
+    const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
+
+    return {
+        boundsLeft,
+        boundsTop,
+        maxCropWidth,
+        maxCropHeight,
+        minCropWidth: Math.min(configuredMinWidth, maxCropWidth),
+        minCropHeight: Math.min(configuredMinHeight, maxCropHeight),
+        padding,
+        imageBounds,
+    };
+}
+
+function clampCropRectIntoBounds(
+    cropRect: FabricNS.Rect,
+    bounds: NonNullable<ReturnType<typeof resolveCropBounds>>,
+): void {
+    const width = Math.min(
+        bounds.maxCropWidth,
+        Math.max(
+            bounds.minCropWidth,
+            (Number(cropRect.width) || 1) * (Number(cropRect.scaleX) || 1),
+        ),
+    );
+    const height = Math.min(
+        bounds.maxCropHeight,
+        Math.max(
+            bounds.minCropHeight,
+            (Number(cropRect.height) || 1) * (Number(cropRect.scaleY) || 1),
+        ),
+    );
+    const left = Math.min(
+        bounds.boundsLeft + bounds.maxCropWidth - width,
+        Math.max(bounds.boundsLeft, Number(cropRect.left) || bounds.boundsLeft),
+    );
+    const top = Math.min(
+        bounds.boundsTop + bounds.maxCropHeight - height,
+        Math.max(bounds.boundsTop, Number(cropRect.top) || bounds.boundsTop),
+    );
+
+    cropRect.set({ left, top, width, height, scaleX: 1, scaleY: 1 });
+}
+
+function resizeCropRectToAspectRatio(
+    context: CropControllerContext,
+    cropRect: FabricNS.Rect,
+    aspectRatio: NormalizedCropAspectRatio,
+): void {
+    const bounds = resolveCropBounds(context);
+    if (!bounds) return;
+
+    if (aspectRatio === null) {
+        clampCropRectIntoBounds(cropRect, bounds);
+        cropRect.setCoords();
+        return;
+    }
+
+    const available = resolvePaddedCropArea(
+        bounds.boundsLeft,
+        bounds.boundsTop,
+        bounds.maxCropWidth,
+        bounds.maxCropHeight,
+        bounds.padding,
+    );
+    const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
+    cropRect.set({
+        left: available.left + (available.width - fitted.width) / 2,
+        top: available.top + (available.height - fitted.height) / 2,
+        width: fitted.width,
+        height: fitted.height,
+        scaleX: 1,
+        scaleY: 1,
+    });
+    cropRect.setCoords();
+}
+
 /**
  * Open a crop session. Builds a {@link CropSession} that captures:
  *
@@ -788,7 +1049,10 @@ function reapplyPreservedMasks(
  * @param context - Editor dependency bundle — see {@link CropControllerContext}.
  *
  */
-export function enterCropMode(context: CropControllerContext): void {
+export function enterCropMode(
+    context: CropControllerContext,
+    cropModeOptions: CropModeOptions = {},
+): void {
     const { canvas, options } = context;
     if (context.getCropSession()) return;
     const originalImage = context.getOriginalImage();
@@ -816,25 +1080,51 @@ export function enterCropMode(context: CropControllerContext): void {
     const boundsTop = Math.max(0, Math.floor(imageBounds.top));
     const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
     const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
-    const rectLeft = Math.min(
-        boundsLeft + maxCropWidth - 1,
-        Math.max(boundsLeft, Math.floor(imageBounds.left + padding)),
-    );
-    const rectTop = Math.min(
-        boundsTop + maxCropHeight - 1,
-        Math.max(boundsTop, Math.floor(imageBounds.top + padding)),
-    );
     const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
     const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
     const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
     const allowRotation = !!options.crop.allowRotationOfCropRect;
+    const aspectRatio = normalizeCropAspectRatio(
+        cropModeOptions.aspectRatio ?? options.crop.aspectRatio,
+    );
+
+    let rectLeft: number;
+    let rectTop: number;
+    let rectWidth: number;
+    let rectHeight: number;
+
+    if (aspectRatio === null) {
+        rectLeft = Math.min(
+            boundsLeft + maxCropWidth - 1,
+            Math.max(boundsLeft, Math.floor(imageBounds.left + padding)),
+        );
+        rectTop = Math.min(
+            boundsTop + maxCropHeight - 1,
+            Math.max(boundsTop, Math.floor(imageBounds.top + padding)),
+        );
+        rectWidth = minCropWidth;
+        rectHeight = minCropHeight;
+    } else {
+        const available = resolvePaddedCropArea(
+            boundsLeft,
+            boundsTop,
+            maxCropWidth,
+            maxCropHeight,
+            padding,
+        );
+        const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
+        rectWidth = fitted.width;
+        rectHeight = fitted.height;
+        rectLeft = available.left + (available.width - rectWidth) / 2;
+        rectTop = available.top + (available.height - rectHeight) / 2;
+    }
 
     const cropRect = new context.fabric.Rect({
         left: rectLeft,
         top: rectTop,
-        width: minCropWidth,
-        height: minCropHeight,
+        width: rectWidth,
+        height: rectHeight,
         originX: 'left',
         originY: 'top',
         fill: CROP_RECT_FILL,
@@ -915,14 +1205,39 @@ export function enterCropMode(context: CropControllerContext): void {
         try {
             const cropWidth = Math.max(1, Number(cropRect.width) || 1);
             const cropHeight = Math.max(1, Number(cropRect.height) || 1);
-            const nextScaleX = Math.min(
-                maxCropWidth / cropWidth,
-                Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1),
-            );
-            const nextScaleY = Math.min(
-                maxCropHeight / cropHeight,
-                Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1),
-            );
+            let nextScaleX: number;
+            let nextScaleY: number;
+
+            const activeSession = context.getCropSession();
+            const activeAspectRatio = activeSession ? activeSession.aspectRatio : aspectRatio;
+
+            if (activeAspectRatio === null) {
+                nextScaleX = Math.min(
+                    maxCropWidth / cropWidth,
+                    Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1),
+                );
+                nextScaleY = Math.min(
+                    maxCropHeight / cropHeight,
+                    Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1),
+                );
+            } else {
+                const rawScaleX = Math.max(0.0001, Number(cropRect.scaleX) || 1);
+                const rawScaleY = Math.max(0.0001, Number(cropRect.scaleY) || 1);
+                const basis = chooseAspectRatioResizeBasis(canvas, cropRect, rawScaleX, rawScaleY);
+                const constrained = constrainAspectRatioSize(
+                    cropWidth * rawScaleX,
+                    cropHeight * rawScaleY,
+                    basis,
+                    activeAspectRatio,
+                    minCropWidth,
+                    minCropHeight,
+                    maxCropWidth,
+                    maxCropHeight,
+                );
+                nextScaleX = constrained.width / cropWidth;
+                nextScaleY = constrained.height / cropHeight;
+            }
+
             const scaledWidth = cropWidth * nextScaleX;
             const scaledHeight = cropHeight * nextScaleY;
             const maxLeft = Math.max(boundsLeft, boundsLeft + maxCropWidth - scaledWidth);
@@ -959,6 +1274,7 @@ export function enterCropMode(context: CropControllerContext): void {
         // empty array otherwise.
         maskBackups,
         cropRect,
+        aspectRatio,
         handlers: [
             {
                 target: cropRect,
@@ -974,6 +1290,20 @@ export function enterCropMode(context: CropControllerContext): void {
     // Paint synchronously so the active crop rectangle is visible before
     // enterCropMode returns to callers that immediately inspect the canvas.
     canvas.renderAll();
+}
+
+export function setCropAspectRatio(
+    context: CropControllerContext,
+    aspectRatioInput: CropAspectRatio | null | undefined,
+): void {
+    const session = context.getCropSession();
+    if (!session?.cropRect) return;
+
+    const aspectRatio = normalizeCropAspectRatio(aspectRatioInput);
+    session.aspectRatio = aspectRatio;
+    resizeCropRectToAspectRatio(context, session.cropRect, aspectRatio);
+    context.canvas.setActiveObject(session.cropRect);
+    context.canvas.requestRenderAll();
 }
 
 // ─── cancelCrop ─────────────────────────────────────────────────────────────

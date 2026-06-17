@@ -19,6 +19,8 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'borderColor',
     'cornerColor',
     'cornerSize',
+    'flipX',
+    'flipY',
     'isMosaicPreview',
     'annotationId',
     'annotationType',
@@ -77,6 +79,12 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
         if (typeof liveObject.cornerSize === 'number') {
             jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (typeof liveObject.flipX === 'boolean') {
+            jsonObject.flipX = liveObject.flipX;
+        }
+        if (typeof liveObject.flipY === 'boolean') {
+            jsonObject.flipY = liveObject.flipY;
         }
         if (liveObject.isCropRect === true)
             jsonObject.isCropRect = true;

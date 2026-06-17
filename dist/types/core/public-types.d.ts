@@ -36,8 +36,7 @@ export type LayoutMode = 'fit' | 'cover' | 'expand';
  */
 export type ImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 /**
- * Accepted file-type tokens for `Base64ExportOptions` and
- * `ImageFileExportOptions`. The export pipeline normalizes `'jpg'` to
+ * Accepted file-type tokens for `ImageExportOptions`. The export pipeline normalizes `'jpg'` to
  * `'jpeg'` and accepts both bare format tokens (`'png'`) and full MIME types
  * (`'image/png'`) for ergonomic interop.
  */
@@ -84,6 +83,25 @@ export type CropExportFileType = ImageFileType | 'source';
  * to PNG otherwise.
  */
 export type MosaicOutputFileType = ImageFileType | 'source';
+export type CropAspectRatioPreset = 'free' | '1:1' | '3:4' | '4:3' | '3:2' | '2:3' | '9:16' | '16:9';
+export type CropAspectRatio = CropAspectRatioPreset | number | `${number}:${number}` | {
+    width: number;
+    height: number;
+};
+export interface CropModeOptions {
+    /**
+     * Aspect ratio for the crop rectangle.
+     *
+     * - `'free'` means unconstrained crop.
+     * - Presets such as `'1:1'`, `'3:4'`, and `'16:9'` lock the crop rectangle.
+     * - A positive finite number is treated as width / height.
+     * - A string like `'2:1'` is parsed as width:height.
+     * - An object `{ width, height }` is parsed as width:height.
+     *
+     * @default options.crop.aspectRatio ?? 'free'
+     */
+    aspectRatio?: CropAspectRatio;
+}
 /**
  * A Fabric.js object augmented with mask-specific runtime properties.
  * Returned from {@link ImageEditor.createMask} and exposed in mask-related
@@ -139,7 +157,7 @@ export declare function isEditableOverlayObject(object: unknown): object is Mask
 /**
  * Public operation/reason associated with lifecycle and state callbacks.
  */
-export type ImageEditorOperation = 'init' | 'loadImage' | 'loadFromState' | 'saveState' | 'scaleImage' | 'rotateImage' | 'resetImageTransform' | 'createMask' | 'removeSelectedMask' | 'removeAllMasks' | 'mergeMasks' | 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode' | 'setTextConfig' | 'resetTextConfig' | 'setTextColor' | 'setTextFontSize' | 'enterDrawMode' | 'exitDrawMode' | 'setDrawConfig' | 'resetDrawConfig' | 'setDrawColor' | 'setDrawBrushSize' | 'updateSelectedAnnotation' | 'updateAnnotation' | 'removeSelectedAnnotation' | 'removeAllAnnotations' | 'deleteSelectedObject' | 'mergeAnnotations' | 'bringSelectedObjectForward' | 'sendSelectedObjectBackward' | 'bringSelectedObjectToFront' | 'sendSelectedObjectToBack' | 'enterCropMode' | 'applyCrop' | 'cancelCrop' | 'enterMosaicMode' | 'exitMosaicMode' | 'applyMosaic' | 'setMosaicConfig' | 'resetMosaicConfig' | 'setMosaicBrushSize' | 'setMosaicBlockSize' | 'undo' | 'redo' | 'exportImageBase64' | 'exportImageFile' | 'downloadImage' | 'dispose';
+export type ImageEditorOperation = 'init' | 'loadImage' | 'loadFromState' | 'saveState' | 'scaleImage' | 'rotateImage' | 'flipHorizontal' | 'flipVertical' | 'resetImageTransform' | 'createMask' | 'removeSelectedMask' | 'removeAllMasks' | 'mergeMasks' | 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode' | 'setTextConfig' | 'resetTextConfig' | 'setTextColor' | 'setTextFontSize' | 'enterDrawMode' | 'exitDrawMode' | 'setDrawConfig' | 'resetDrawConfig' | 'setDrawColor' | 'setDrawBrushSize' | 'updateSelectedAnnotation' | 'updateAnnotation' | 'removeSelectedAnnotation' | 'removeAllAnnotations' | 'deleteSelectedObject' | 'mergeAnnotations' | 'bringSelectedObjectForward' | 'sendSelectedObjectBackward' | 'bringSelectedObjectToFront' | 'sendSelectedObjectToBack' | 'enterCropMode' | 'setCropAspectRatio' | 'applyCrop' | 'cancelCrop' | 'enterMosaicMode' | 'exitMosaicMode' | 'applyMosaic' | 'setMosaicConfig' | 'resetMosaicConfig' | 'setMosaicBrushSize' | 'setMosaicBlockSize' | 'undo' | 'redo' | 'exportImageBase64' | 'exportImageFile' | 'downloadImage' | 'dispose';
 /**
  * Context passed to lifecycle and state callbacks.
  */
@@ -175,6 +193,8 @@ export interface ImageEditorState {
     annotationCount: number;
     currentScale: number;
     currentRotation: number;
+    isFlippedHorizontally: boolean;
+    isFlippedVertically: boolean;
     isBusy: boolean;
     activeToolMode: EditorToolMode | null;
     isCropMode: boolean;
@@ -232,6 +252,12 @@ export interface LabelConfig {
  * Defaults are applied by `core/default-options.ts`.
  */
 export interface CropConfig {
+    /**
+     * Default aspect ratio used when entering crop mode.
+     *
+     * @default 'free'
+     */
+    aspectRatio?: CropAspectRatio;
     /** Minimum crop rect width in pixels. @default 100 */
     minWidth?: number;
     /** Minimum crop rect height in pixels. @default 100 */
@@ -595,6 +621,10 @@ export interface ElementIdMap {
     rotateLeftButton?: string | null;
     /** Rotate right button. @default 'rotateRightButton' */
     rotateRightButton?: string | null;
+    /** Flip base image horizontally. @default 'flipHorizontalButton' */
+    flipHorizontalButton?: string | null;
+    /** Flip base image vertically. @default 'flipVerticalButton' */
+    flipVerticalButton?: string | null;
     /** Add mask button. @default 'createMaskButton' */
     createMaskButton?: string | null;
     /** Remove selected mask button. @default 'removeSelectedMaskButton' */
@@ -655,6 +685,8 @@ export interface ElementIdMap {
     imageInput?: string | null;
     /** Enter crop mode button. @default 'enterCropModeButton' */
     enterCropModeButton?: string | null;
+    /** Crop aspect-ratio select/input. @default 'cropAspectRatioSelect' */
+    cropAspectRatioSelect?: string | null;
     /** Apply crop button. @default 'applyCropButton' */
     applyCropButton?: string | null;
     /** Cancel crop button. @default 'cancelCropButton' */
@@ -688,16 +720,7 @@ export interface OverlayExportOptions {
      */
     mergeAnnotations?: boolean;
 }
-/**
- * Options for {@link ImageEditor.exportImageBase64}.
- *
- * Both `fileType` and `format` are accepted — when both are provided,
- * `fileType` wins. The export pipeline normalizes `'jpg'` to
- * `'jpeg'`, derives the MIME type via `export/export-format.ts`,
- * and clamps `quality` to `[0, 1]`. PNG ignores `quality` because it
- * is lossless.
- */
-export interface Base64ExportOptions extends OverlayExportOptions {
+export interface ImageExportOptions extends OverlayExportOptions {
     /**
      * Which region to export. `'image'` clips to the image bounding box;
      * `'canvas'` exports the full canvas.
@@ -705,49 +728,44 @@ export interface Base64ExportOptions extends OverlayExportOptions {
      */
     exportArea?: ExportArea;
     /**
-     * Output resolution multiplier (e.g. `2` for 2× retina).
-     * @default `options.exportMultiplier`
+     * Output format.
+     *
+     * Accepted values:
+     * - `'jpeg'`
+     * - `'jpg'`
+     * - `'png'`
+     * - `'webp'`
+     * - `'image/jpeg'`
+     * - `'image/png'`
+     * - `'image/webp'`
+     *
+     * @default 'jpeg'
      */
-    multiplier?: number;
-    /** Lossy quality 0–1. Ignored for PNG. @default `options.downsampleQuality` */
-    quality?: number;
-    /** Output format. Defaults to `'jpeg'`. */
     fileType?: ImageFileType;
-    /** Alias for `fileType` accepted for ergonomic interop. */
+    /**
+     * Alias for `fileType`.
+     *
+     * When both `fileType` and `format` are provided, `fileType` wins.
+     */
     format?: ImageFileType;
-}
-/**
- * Options for {@link ImageEditor.exportImageFile}.
- *
- * `fileName` falls back to `options.defaultDownloadFileName` when omitted.
- * `fileType` follows the same normalization rules as
- * {@link Base64ExportOptions}.
- */
-export interface ImageFileExportOptions extends OverlayExportOptions {
     /**
-     * Which region to export. `'image'` clips to the image bounding box;
-     * `'canvas'` exports the full canvas.
-     * @default 'image'
+     * Lossy quality from 0 to 1.
+     * Ignored for PNG.
+     *
+     * @default options.downsampleQuality
      */
-    exportArea?: ExportArea;
-    /** Output format. @default 'jpeg' */
-    fileType?: ImageFileType;
-    /** Lossy quality 0–1. Ignored for PNG. @default `options.downsampleQuality` */
     quality?: number;
-    /** Resolution multiplier. @default `options.exportMultiplier` */
+    /**
+     * Output resolution multiplier.
+     *
+     * @default options.exportMultiplier
+     */
     multiplier?: number;
-    /** Filename for the resulting `File` object. */
-    fileName?: string;
-}
-/**
- * Options for {@link ImageEditor.downloadImage}.
- *
- * `mergeMasks` and `mergeAnnotations` match the Base64/File export behavior:
- * omitted values fall back to `mergeMasksByDefault` and
- * `mergeAnnotationsByDefault`.
- */
-export interface DownloadImageOptions extends OverlayExportOptions {
-    /** Filename used by the generated download link. */
+    /**
+     * Filename for `exportImageFile()` and `downloadImage()`.
+     *
+     * Ignored by `exportImageBase64()`.
+     */
     fileName?: string;
 }
 /**
@@ -876,7 +894,7 @@ export interface ImageEditorOptions {
      * @default null
      */
     initialImageBase64?: string | null;
-    /** Default filename used by {@link ImageEditor.downloadImage}. @default 'edited_image.jpg' */
+    /** Default filename used by {@link ImageEditor.downloadImage}. @default 'edited_image' */
     defaultDownloadFileName?: string;
     /** Called when a valid image load is about to start. */
     onImageLoadStart?: (context: ImageEditorCallbackContext) => void;

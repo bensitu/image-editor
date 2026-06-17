@@ -102,7 +102,7 @@ export const DEFAULT_OPTIONS: Omit<
     showPlaceholder: true,
 
     initialImageBase64: null,
-    defaultDownloadFileName: 'edited_image.jpg',
+    defaultDownloadFileName: 'edited_image',
 
     // Callbacks.  Defaults are `null`; non-function
     // user values are coerced to `null` in `resolveOptions`.
@@ -150,6 +150,7 @@ export const DEFAULT_LABEL: LabelConfig = {
  * Default {@link CropConfig}.
  */
 export const DEFAULT_CROP: ResolvedCropConfig = {
+    aspectRatio: 'free',
     minWidth: 100,
     minHeight: 100,
     padding: 10,
@@ -1028,6 +1029,7 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     // ── Crop ──────────────────────────────────────────────
     const userCrop: CropConfig = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop: ResolvedCropConfig = {
+        aspectRatio: userCrop.aspectRatio ?? DEFAULT_CROP.aspectRatio,
         minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
         minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
         padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),

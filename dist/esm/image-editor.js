@@ -12,7 +12,7 @@ import { enterDrawMode as enterDrawModeImpl, exitDrawMode as exitDrawModeImpl, u
 import { isAnnotationLocked, isAnnotationUnlocked } from './annotation/annotation-lock.js';
 import { syncAnnotationRuntimeStates } from './annotation/annotation-style.js';
 import { normalizeLayerOrder, getEditableOverlayRange } from './core/layer-order.js';
-import { applyCrop as applyCropImpl, cancelCrop as cancelCropImpl, enterCropMode as enterCropModeImpl, } from './crop/crop-controller.js';
+import { applyCrop as applyCropImpl, cancelCrop as cancelCropImpl, enterCropMode as enterCropModeImpl, setCropAspectRatio as setCropAspectRatioImpl, } from './crop/crop-controller.js';
 import { enterMosaicMode as enterMosaicModeImpl, exitMosaicMode as exitMosaicModeImpl, updateMosaicPreview, } from './mosaic/mosaic-controller.js';
 import { downloadImage as downloadImageImpl, exportImageBase64 as exportImageBase64Impl, exportImageFile as exportImageFileImpl, mergeAnnotations as mergeAnnotationsImpl, mergeMasks as mergeMasksImpl, } from './export/export-service.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
@@ -35,6 +35,8 @@ const CROP_MODE_CONTROL_KEYS = [
     'rotateRightDegreesInput',
     'rotateLeftButton',
     'rotateRightButton',
+    'flipHorizontalButton',
+    'flipVerticalButton',
     'createMaskButton',
     'removeSelectedMaskButton',
     'removeAllMasksButton',
@@ -63,6 +65,7 @@ const CROP_MODE_CONTROL_KEYS = [
     'redoButton',
     'imageInput',
     'enterCropModeButton',
+    'cropAspectRatioSelect',
     'applyCropButton',
     'cancelCropButton',
     'enterMosaicModeButton',
@@ -70,8 +73,12 @@ const CROP_MODE_CONTROL_KEYS = [
     'mosaicBrushSizeInput',
     'mosaicBlockSizeInput',
 ];
-const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
-const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const CROP_MODE_ENABLED_KEYS = [
+    'cropAspectRatioSelect',
+    'applyCropButton',
+    'cancelCropButton',
+];
+const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['setCropAspectRatio', 'applyCrop', 'cancelCrop']);
 const TEXT_MODE_ENABLED_KEYS = [
     'exitTextModeButton',
     'textColorInput',
@@ -88,6 +95,8 @@ const MOSAIC_MODE_CONTROL_KEYS = [
     'rotateRightDegreesInput',
     'rotateLeftButton',
     'rotateRightButton',
+    'flipHorizontalButton',
+    'flipVerticalButton',
     'createMaskButton',
     'removeSelectedMaskButton',
     'removeAllMasksButton',
@@ -116,6 +125,7 @@ const MOSAIC_MODE_CONTROL_KEYS = [
     'redoButton',
     'imageInput',
     'enterCropModeButton',
+    'cropAspectRatioSelect',
     'applyCropButton',
     'cancelCropButton',
     'enterMosaicModeButton',
@@ -145,6 +155,8 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'saveState',
     'scaleImage',
     'rotateImage',
+    'flipHorizontal',
+    'flipVertical',
     'resetImageTransform',
     'createMask',
     'removeSelectedMask',
@@ -174,6 +186,7 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'bringSelectedObjectToFront',
     'sendSelectedObjectToBack',
     'enterCropMode',
+    'setCropAspectRatio',
     'applyCrop',
     'cancelCrop',
     'enterMosaicMode',
@@ -530,6 +543,8 @@ export class ImageEditor {
             rotateRightDegreesInput: 'rotateRightDegreesInput',
             rotateLeftButton: 'rotateLeftButton',
             rotateRightButton: 'rotateRightButton',
+            flipHorizontalButton: 'flipHorizontalButton',
+            flipVerticalButton: 'flipVerticalButton',
             createMaskButton: 'createMaskButton',
             removeSelectedMaskButton: 'removeSelectedMaskButton',
             removeAllMasksButton: 'removeAllMasksButton',
@@ -560,6 +575,7 @@ export class ImageEditor {
             redoButton: 'redoButton',
             imageInput: 'imageInput',
             enterCropModeButton: 'enterCropModeButton',
+            cropAspectRatioSelect: 'cropAspectRatioSelect',
             applyCropButton: 'applyCropButton',
             cancelCropButton: 'cancelCropButton',
             enterMosaicModeButton: 'enterMosaicModeButton',
@@ -667,6 +683,12 @@ export class ImageEditor {
         this.bindElementIfExists('resetImageTransformButton', 'click', () => {
             void this.resetImageTransform();
         });
+        this.bindElementIfExists('flipHorizontalButton', 'click', () => {
+            void this.flipHorizontal();
+        });
+        this.bindElementIfExists('flipVerticalButton', 'click', () => {
+            void this.flipVertical();
+        });
         this.bindElementIfExists('createMaskButton', 'click', () => {
             this.createMask();
         });
@@ -751,7 +773,11 @@ export class ImageEditor {
             void this.rotateImage(this.currentRotation + step);
         });
         this.bindElementIfExists('enterCropModeButton', 'click', () => {
-            this.enterCropMode();
+            this.enterCropMode({ aspectRatio: this.getSelectedCropAspectRatio() });
+        });
+        this.bindElementIfExists('cropAspectRatioSelect', 'change', () => {
+            if (this.cropSession)
+                this.setCropAspectRatio(this.getSelectedCropAspectRatio());
         });
         this.bindElementIfExists('applyCropButton', 'click', () => {
             void this.applyCrop().catch((error) => {
@@ -1038,12 +1064,27 @@ export class ImageEditor {
             return false;
         }
     }
+    getSelectedCropAspectRatio() {
+        const inputId = this.elements.cropAspectRatioSelect;
+        const inputEl = inputId
+            ? document.getElementById(inputId)
+            : null;
+        const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
+        return (value || 'free');
+    }
     isExpectedIdleGuardError(error, operationName) {
         return (error instanceof Error &&
             error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
     }
     assertCanQueueAnimation(operationName, options) {
-        this.operationGuard.assertCanQueueAnimation(operationName, this.getInternalOperationToken(options));
+        const token = this.getInternalOperationToken(options);
+        this.operationGuard.assertCanQueueAnimation(operationName, token);
+        const activeToolMode = this.getActiveToolMode();
+        if (activeToolMode &&
+            !this.operationGuard.isOwnOperation(token) &&
+            !TOOL_MODE_ALLOWED_OPERATIONS[activeToolMode].has(operationName)) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`);
+        }
     }
     isImageLoaded() {
         var _a, _b;
@@ -1158,6 +1199,7 @@ export class ImageEditor {
         return this.getActiveToolMode() !== null;
     }
     getEditorState() {
+        var _a, _b;
         const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
         const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
         const image = this.getImageInfo();
@@ -1168,6 +1210,8 @@ export class ImageEditor {
             annotationCount: this.getAnnotations().length,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
+            isFlippedHorizontally: !!((_a = this.originalImage) === null || _a === void 0 ? void 0 : _a.flipX),
+            isFlippedVertically: !!((_b = this.originalImage) === null || _b === void 0 ? void 0 : _b.flipY),
             isBusy: this.isBusy(),
             activeToolMode: this.getActiveToolMode(),
             isCropMode: this.cropSession !== null,
@@ -1482,6 +1526,70 @@ export class ImageEditor {
             this.updateUi();
             try {
                 await controller.rotateImage(degrees);
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
+            }
+            finally {
+                if (!this.isDisposed) {
+                    this.updateInputs();
+                }
+            }
+        });
+        this.emitBusyChangeIfChanged(context);
+        return job.finally(() => {
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
+        });
+    }
+    flipHorizontal() {
+        if (this.isDisposed || !this.transformController)
+            return Promise.resolve();
+        try {
+            this.assertCanQueueAnimation('flipHorizontal');
+        }
+        catch (error) {
+            return Promise.reject(error);
+        }
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('flipHorizontal', false);
+        const job = this.animQueue.add(async () => {
+            if (this.isDisposed)
+                return;
+            this.updateUi();
+            try {
+                await controller.flipHorizontal();
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
+            }
+            finally {
+                if (!this.isDisposed) {
+                    this.updateInputs();
+                }
+            }
+        });
+        this.emitBusyChangeIfChanged(context);
+        return job.finally(() => {
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
+        });
+    }
+    flipVertical() {
+        if (this.isDisposed || !this.transformController)
+            return Promise.resolve();
+        try {
+            this.assertCanQueueAnimation('flipVertical');
+        }
+        catch (error) {
+            return Promise.reject(error);
+        }
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('flipVertical', false);
+        const job = this.animQueue.add(async () => {
+            if (this.isDisposed)
+                return;
+            this.updateUi();
+            try {
+                await controller.flipVertical();
                 if (!this.isDisposed)
                     this.emitImageChanged(context);
             }
@@ -2385,7 +2493,7 @@ export class ImageEditor {
             this.updateUi();
         }
     }
-    downloadImage(options) {
+    async downloadImage(options) {
         if (!this.canvas)
             return;
         if (!this.canRunIdleOperation('downloadImage'))
@@ -2396,7 +2504,7 @@ export class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         const exportContext = this.buildExportServiceContext();
         try {
-            downloadImageImpl(exportContext, options);
+            await downloadImageImpl(exportContext, options);
         }
         finally {
             this.operationGuard.endBusyOperation(operationToken);
@@ -2671,7 +2779,7 @@ export class ImageEditor {
             },
         };
     }
-    enterCropMode() {
+    enterCropMode(options = {}) {
         if (!this.canvas || !this.originalImage)
             return;
         if (this.cropSession)
@@ -2681,10 +2789,21 @@ export class ImageEditor {
         if (!this.canRunIdleOperation('enterCropMode'))
             return;
         const cropControllerContext = this.buildCropControllerContext();
-        enterCropModeImpl(cropControllerContext);
+        enterCropModeImpl(cropControllerContext, options);
         this.updateUi();
         const callbackContext = this.buildCallbackContext('enterCropMode', false);
         this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    setCropAspectRatio(aspectRatio) {
+        if (!this.canvas || !this.cropSession)
+            return;
+        if (!this.canRunIdleOperation('setCropAspectRatio'))
+            return;
+        const cropControllerContext = this.buildCropControllerContext();
+        setCropAspectRatioImpl(cropControllerContext, aspectRatio);
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('setCropAspectRatio', false);
         this.emitImageChanged(callbackContext);
     }
     cancelCrop() {
@@ -2831,7 +2950,7 @@ export class ImageEditor {
         }
     }
     updateUi() {
-        var _a;
+        var _a, _b, _c;
         if (!this.canvas)
             return;
         const hasImage = !!this.originalImage;
@@ -2843,7 +2962,10 @@ export class ImageEditor {
         const hasSelectedMask = !!(activeObject && isMaskObject(activeObject));
         const hasSelectedAnnotation = !!(activeObject && isAnnotationObject(activeObject));
         const hasSelectedEditableObject = !!activeObject && isEditableOverlayObject(activeObject);
-        const isDefaultTransform = this.currentScale === 1 && this.currentRotation === 0;
+        const isDefaultTransform = this.currentScale === 1 &&
+            this.currentRotation === 0 &&
+            !((_a = this.originalImage) === null || _a === void 0 ? void 0 : _a.flipX) &&
+            !((_b = this.originalImage) === null || _b === void 0 ? void 0 : _b.flipY);
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const isInCropMode = this.cropSession !== null;
@@ -2851,7 +2973,7 @@ export class ImageEditor {
         const isInTextMode = this.textSession !== null;
         const isInDrawMode = this.drawSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
-        const isMosaicApplying = ((_a = this.mosaicSession) === null || _a === void 0 ? void 0 : _a.isApplying) === true;
+        const isMosaicApplying = ((_c = this.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true;
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
@@ -2884,6 +3006,8 @@ export class ImageEditor {
         this.setControlEnabled('zoomOutButton', hasImage && !isBusy && this.currentScale > this.options.minScale);
         this.setControlEnabled('rotateLeftButton', hasImage && !isBusy);
         this.setControlEnabled('rotateRightButton', hasImage && !isBusy);
+        this.setControlEnabled('flipHorizontalButton', hasImage && !isBusy);
+        this.setControlEnabled('flipVerticalButton', hasImage && !isBusy);
         this.setControlEnabled('createMaskButton', hasImage && !isBusy);
         this.setControlEnabled('removeSelectedMaskButton', hasSelectedMask && !isBusy);
         this.setControlEnabled('removeAllMasksButton', hasMasks && !isBusy);
@@ -2901,6 +3025,7 @@ export class ImageEditor {
         this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
         this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
         this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
+        this.setControlEnabled('cropAspectRatioSelect', hasImage && !isBusy);
         this.setControlEnabled('enterMosaicModeButton', hasImage && !isBusy);
         this.setControlEnabled('enterTextModeButton', hasImage && !isBusy);
         this.setControlEnabled('enterDrawModeButton', hasImage && !isBusy);

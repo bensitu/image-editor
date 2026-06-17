@@ -54,6 +54,9 @@ export type {
     // Sub-configs
     LabelConfig,
     CropConfig,
+    CropAspectRatioPreset,
+    CropAspectRatio,
+    CropModeOptions,
     CropExportFileType,
     MosaicConfig,
     ResolvedMosaicConfig,
@@ -85,9 +88,7 @@ export type {
     NormalizedImageFormat,
     // Export options
     ExportArea,
-    Base64ExportOptions,
-    ImageFileExportOptions,
-    DownloadImageOptions,
+    ImageExportOptions,
     // Lifecycle callbacks
     ImageInfo,
     ImageEditorState,

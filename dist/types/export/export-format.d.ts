@@ -1,13 +1,12 @@
 /**
  * Export format normalization helpers.
  *
- * Converts public `Base64ExportOptions` and `ImageFileExportOptions` values
- * into the normalized format, MIME type, and quality values consumed by
- * `export/export-service.ts`.
+ * Converts public `ImageExportOptions` values into the normalized format,
+ * MIME type, and quality values consumed by `export/export-service.ts`.
  *
  * @module
  */
-import type { Base64ExportOptions, ImageFileExportOptions, ImageMimeType, NormalizedImageFormat } from '../core/public-types.js';
+import type { ImageExportOptions, ImageMimeType, NormalizedImageFormat } from '../core/public-types.js';
 /**
  * Result of {@link resolveExportFormat}.
  *
@@ -81,7 +80,7 @@ export declare function clampQuality(quality: unknown, fallback: number): number
  * Resolve the user-facing export options into the canvas-/Fabric-shaped
  * values consumed by `export/export-service.ts`.
  *
- * Precedence (matches legacy `exportImageBase64` / `exportImageFile`):
+ * Precedence:
  *   1. `options.fileType` wins over `options.format` when both are supplied
  *      and `options.fileType` is truthy. Falsy `fileType` falls through to
  *      `options.format`. Both omitted → `'jpeg'`.
@@ -93,16 +92,14 @@ export declare function clampQuality(quality: unknown, fallback: number): number
  *
  * Pure function — no DOM access, safe to call from property tests.
  *
- * @param options - Subset of `Base64ExportOptions` /
- *                           `ImageFileExportOptions` carrying `fileType`,
+ * @param options - Subset of `ImageExportOptions` carrying `fileType`,
  *                           `format`, and `quality`. Other fields are
- *                           ignored. `format` is only read from options
- *                           that declare it (i.e. `Base64ExportOptions`).
+ *                           ignored.
  * @param downsampleQuality - Default quality used when `options.quality` is
  *                           omitted or non-finite. Sourced from
  *                           `ResolvedOptions.downsampleQuality`.
  * @returns The resolved `{ format, mimeType, quality}` triple.
  *
  */
-export declare function resolveExportFormat(options: Pick<Base64ExportOptions, 'fileType' | 'format' | 'quality'> | Pick<ImageFileExportOptions, 'fileType' | 'quality'> | undefined | null, downsampleQuality: number): ResolvedExportFormat;
+export declare function resolveExportFormat(options: Pick<ImageExportOptions, 'fileType' | 'format' | 'quality'> | undefined | null, downsampleQuality: number): ResolvedExportFormat;
 //# sourceMappingURL=export-format.d.ts.map

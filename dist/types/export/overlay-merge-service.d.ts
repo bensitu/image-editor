@@ -7,7 +7,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { AnnotationObject, Base64ExportOptions, LoadImageOptions, MaskObject, ResolvedOptions } from '../core/public-types.js';
+import type { AnnotationObject, ImageExportOptions, LoadImageOptions, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';
 export type OverlayMergeOperation = 'mergeMasks' | 'mergeAnnotations';
 export interface OverlayMergeTransactionContext {
@@ -19,13 +19,13 @@ export interface OverlayMergeTransactionContext {
     captureSnapshot(): string;
     loadFromState(snapshot: string): Promise<void>;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
-    exportImageBase64(options: Base64ExportOptions): Promise<string>;
+    exportImageBase64(options: ImageExportOptions): Promise<string>;
     updateUi(): void;
     updateInputs(): void;
 }
 export interface OverlayMergeGroupOptions<TTarget extends FabricNS.FabricObject, TPreserved extends FabricNS.FabricObject> {
     operation: OverlayMergeOperation;
-    exportOptions: Base64ExportOptions & {
+    exportOptions: ImageExportOptions & {
         exportArea: 'image';
         fileType: 'png';
     };

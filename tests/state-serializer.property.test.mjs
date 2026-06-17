@@ -217,6 +217,8 @@ const originalImageArb = fc.option(
         left: fc.integer({ min: 0, max: 100 }),
         top: fc.integer({ min: 0, max: 100 }),
         opacity: fc.constant(1),
+        flipX: fc.boolean(),
+        flipY: fc.boolean(),
     }),
     { nil: undefined },
 );

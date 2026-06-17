@@ -32,21 +32,6 @@ function resolveExportOptions(context, options) {
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
     };
 }
-function resolveDownloadOptions(context, options) {
-    var _a;
-    const providedOptions = typeof options === 'string'
-        ? { fileName: options }
-        : (options !== null && options !== void 0 ? options : {});
-    return {
-        fileName: (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName,
-        exportOptions: {
-            exportArea: context.options.exportAreaByDefault,
-            mergeMasks: providedOptions.mergeMasks,
-            mergeAnnotations: providedOptions.mergeAnnotations,
-            multiplier: context.options.exportMultiplier,
-        },
-    };
-}
 function readCanvasDimension(canvas, getterName, propertyName) {
     const canvasLike = canvas;
     const getter = canvasLike[getterName];
@@ -464,16 +449,23 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
 function warnNoImageLoaded(operation) {
     console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
 }
-export async function exportImageBase64(context, options) {
-    if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageBase64');
-        return '';
+function extensionForFormat(format) {
+    return format === 'jpeg' ? 'jpg' : format;
+}
+function resolveFileName(baseName, format) {
+    const fallback = 'edited_image';
+    const trimmed = String(baseName || fallback).trim() || fallback;
+    const ext = extensionForFormat(format.format);
+    if (/\.(jpe?g|png|webp)$/i.test(trimmed)) {
+        return trimmed.replace(/\.(jpe?g|png|webp)$/i, `.${ext}`);
     }
+    return `${trimmed}.${ext}`;
+}
+async function renderExportDataUrl(context, resolved) {
     const activeObject = captureActiveObject(context.canvas);
     const labelBackups = captureMaskLabelBackups(context.canvas);
     try {
         context.canvas.discardActiveObject();
-        const resolved = resolveExportOptions(context, options);
         const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
         assertExportPixelBudget(context, resolved.multiplier, region);
         const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
@@ -498,6 +490,14 @@ export async function exportImageBase64(context, options) {
         requestRender(context.canvas);
     }
 }
+export async function exportImageBase64(context, options) {
+    if (!context.isImageLoaded()) {
+        warnNoImageLoaded('exportImageBase64');
+        return '';
+    }
+    const resolved = resolveExportOptions(context, options);
+    return renderExportDataUrl(context, resolved);
+}
 export async function exportImageFile(context, options) {
     var _a;
     if (!context.isImageLoaded()) {
@@ -505,20 +505,9 @@ export async function exportImageFile(context, options) {
         throw new ExportNotReadyError('exportImageFile');
     }
     const providedOptions = options !== null && options !== void 0 ? options : {};
-    const fileName = (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName;
-    const resolved = resolveExportFormat(providedOptions, context.options.downsampleQuality);
-    const base64 = await exportImageBase64(context, {
-        exportArea: providedOptions.exportArea,
-        mergeMasks: providedOptions.mergeMasks,
-        mergeAnnotations: providedOptions.mergeAnnotations,
-        multiplier: providedOptions.multiplier,
-        quality: providedOptions.quality,
-        fileType: providedOptions.fileType,
-    });
-    if (!base64) {
-        throw new ExportNotReadyError('exportImageFile');
-    }
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor, context.canvas);
+    const resolved = resolveExportOptions(context, providedOptions);
+    const rawDataUrl = await renderExportDataUrl(context, resolved);
+    const finalDataUrl = await reencodeDataUrlAs(rawDataUrl, resolved.format, context.options.backgroundColor, context.canvas);
     let bytes;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -526,35 +515,47 @@ export async function exportImageFile(context, options) {
     catch (error) {
         throw new ExportError('exportImageFile failed to decode rendered data URL.', error);
     }
-    return new File([bytes], fileName, { type: resolved.mimeType });
+    const fileName = resolveFileName((_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName, resolved.format);
+    return new File([bytes], fileName, { type: resolved.format.mimeType });
 }
-export function downloadImage(context, options) {
+export async function downloadImage(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
-    const resolved = resolveDownloadOptions(context, options);
-    void exportImageBase64(context, resolved.exportOptions)
-        .then((dataUrl) => {
-        if (!dataUrl)
-            return;
-        const ownerDocument = getCanvasDocument(context.canvas);
-        const link = ownerDocument.createElement('a');
-        link.download = resolved.fileName;
-        link.href = dataUrl;
-        const body = ownerDocument.body;
-        body.appendChild(link);
-        try {
-            link.click();
-        }
-        finally {
-            body.removeChild(link);
-        }
-    })
-        .catch((error) => {
+    if (options !== undefined && options !== null && typeof options !== 'object') {
+        throw new TypeError('[ImageEditor] downloadImage(options) expects an ImageExportOptions object.');
+    }
+    try {
+        const file = await exportImageFile(context, options);
+        triggerFileDownload(context, file);
+    }
+    catch (error) {
         reportError(context.options, error, 'downloadImage failed.');
         console.error('[ImageEditor] downloadImage failed', error);
-    });
+        throw error;
+    }
+}
+function triggerFileDownload(context, file) {
+    const ownerDocument = getCanvasDocument(context.canvas);
+    const objectUrl = URL.createObjectURL(file);
+    const link = ownerDocument.createElement('a');
+    link.download = file.name;
+    link.href = objectUrl;
+    const body = ownerDocument.body;
+    body.appendChild(link);
+    try {
+        link.click();
+    }
+    finally {
+        body.removeChild(link);
+        if (typeof globalThis.setTimeout === 'function') {
+            globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        }
+        else {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
 }
 export async function mergeMasks(context) {
     await flattenOverlayGroupToBaseImage(context, {

@@ -8,7 +8,7 @@
  * @module
  */
 import { type CanvasJson } from './core/state-serializer.js';
-import type { AnnotationObject, AnnotationUpdateConfig, Base64ExportOptions, DownloadImageOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageFileExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking, animated transforms,
  * crop, undo/redo, and multi-format export.
@@ -229,6 +229,7 @@ export declare class ImageEditor {
     private withAnimationQueueBypass;
     private assertIdleForOperation;
     private canRunIdleOperation;
+    private getSelectedCropAspectRatio;
     private isExpectedIdleGuardError;
     private assertCanQueueAnimation;
     /**
@@ -340,8 +341,10 @@ export declare class ImageEditor {
      * @returns A promise that resolves when the animation finishes.
      */
     rotateImage(degrees: number): Promise<void>;
+    flipHorizontal(): Promise<void>;
+    flipVertical(): Promise<void>;
     /**
-     * Resets the image to scale `1` and rotation `0` (animated) and
+     * Resets the image to scale `1`, rotation `0`, and unflipped state and
      * records exactly one history entry covering the entire reset.
      *
      * Routed through the {@link animQueue} so the chained
@@ -546,13 +549,12 @@ export declare class ImageEditor {
      * the call is a no-op (no DOM action, no download triggered).
      *
      * Delegates to {@link downloadImage} in `export/export-service.ts`,
-     * which builds the data URL through the same pipeline used by
-     * {@link exportImageBase64} and triggers the anchor-driven download.
+     * which renders through the shared export core and triggers an
+     * object-URL-backed anchor download.
      *
-     * @param options - Filename string or download options. String input is
-     *   treated as a filename for backwards compatibility.
+     * @param options - Export and download options.
      */
-    downloadImage(options?: DownloadImageOptions | string): void;
+    downloadImage(options?: ImageExportOptions): Promise<void>;
     /**
      * Exports the canvas as a Base64-encoded data URL.
      *
@@ -570,7 +572,7 @@ export declare class ImageEditor {
      * @returns A promise resolving to a data URL on success, or `''` when
      *          no image is loaded.
      */
-    exportImageBase64(options?: Base64ExportOptions): Promise<string>;
+    exportImageBase64(options?: ImageExportOptions): Promise<string>;
     /**
      * Exports the canvas as a browser `File` object.
      *
@@ -597,7 +599,7 @@ export declare class ImageEditor {
      * formData.append('image', file);
      * ```
      */
-    exportImageFile(options?: ImageFileExportOptions): Promise<File>;
+    exportImageFile(options?: ImageExportOptions): Promise<File>;
     /**
      * Build the {@link ExportServiceContext} the export service reads
      * through. The facade is the single owner of the canvas, options,
@@ -653,7 +655,15 @@ export declare class ImageEditor {
      * backups when `crop.hideMasksDuringCrop` is `true`, and adds the
      * interactive crop rectangle.
      */
-    enterCropMode(): void;
+    enterCropMode(options?: CropModeOptions): void;
+    /**
+     * Updates the active crop rectangle's aspect ratio.
+     *
+     * No-ops unless crop mode is active. Pass `'free'` to unlock the
+     * crop rectangle, a preset such as `'1:1'` or `'16:9'`, or a custom
+     * ratio such as `{ width: 2, height: 1 }`.
+     */
+    setCropAspectRatio(aspectRatio: CropAspectRatio): void;
     /**
      * Cancels crop mode and removes the crop rectangle without applying
      * it.

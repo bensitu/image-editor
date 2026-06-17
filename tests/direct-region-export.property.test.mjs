@@ -101,7 +101,7 @@ function makeContext(canvas, image) {
     return {
         canvas,
         options: {
-            defaultDownloadFileName: 'edited_image.jpg',
+            defaultDownloadFileName: 'edited_image',
             downsampleQuality: 0.92,
             exportMultiplier: 1,
             exportAreaByDefault: 'image',

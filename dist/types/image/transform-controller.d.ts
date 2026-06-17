@@ -1,5 +1,5 @@
 /**
- * Animated scale, rotate, and reset operations on the
+ * Animated scale, rotate, base-image flip, and reset operations on the
  * `originalImage` with history integration. Owns the current
  * transform pipeline that the `ImageEditor` facade routes
  * through the `AnimationQueue`.
@@ -29,7 +29,10 @@
  *   the entire reset is one undoable step. Failures inside the chain
  *   still release the suppression flag in `finally` so subsequent
  *   transforms continue to record history.
- * - `scaleImage`, `rotateImage`, and
+ * - `flipHorizontal` and `flipVertical` toggle only the base image's
+ *   Fabric `flipX` / `flipY` flags. Masks and annotations are not
+ *   mirrored; they remain in their existing canvas positions by design.
+ * - `scaleImage`, `rotateImage`, flip operations, and
  *   `resetImageTransform` each call `saveCanvasState` on success so
  *   the new state is undoable. The orchestrator wires
  *   `saveCanvasState` to the full `core/state-serializer.ts → saveState`
@@ -45,7 +48,7 @@
  *    `finally` so the public promise sees `isAnimating === false` before
  *    settling.
  * 2. The animation queue (owned by the orchestrator) serializes
- *    `scaleImage`, `rotateImage`, and `resetImageTransform` so concurrent
+ *    `scaleImage`, `rotateImage`, flip operations, and `resetImageTransform` so concurrent
  *    callers do not interleave mid-animation Fabric mutations. The
  *    transform controller does NOT enqueue on the queue itself; the
  *    orchestrator wraps each call through `animQueue.add(...)` before
@@ -159,7 +162,7 @@ export interface TransformContext {
     afterTransformSnap?(): void;
 }
 /**
- * Owns the animated `scaleImage`, `rotateImage`, and
+ * Owns the animated `scaleImage`, `rotateImage`, base-image flip, and
  * `resetImageTransform` operations. Each method is invoked from a queue
  * entry on the orchestrator's animation queue and returns a Promise that
  * resolves once the Fabric animation has settled and `saveCanvasState`
@@ -253,12 +256,16 @@ export declare class TransformController {
      *
      */
     rotateImage(degrees: number): Promise<void>;
+    flipHorizontal(): Promise<void>;
+    flipVertical(): Promise<void>;
+    private flipImage;
     /**
-     * Animate the image to `scale = 1` and `rotation = 0` and record
+     * Animate the image to `scale = 1` and `rotation = 0`, clear flip
+     * state, and record
      * exactly one history entry covering the whole reset.
      *
-     * Implementation strategy: chain `scaleImage(1)` and `rotateImage(0)`
-     * but suppress their per-operation history entries via
+     * Implementation strategy: chain `scaleImage(1)` and `rotateImage(0)`,
+     * then clear `flipX` and `flipY`, but suppress their per-operation history entries via
      * {@link TransformContext.setSuppressSaveState}. After both
      * sub-animations settle (or one rejects), release the suppression
      * flag and emit a single `saveCanvasState` so the entire reset is

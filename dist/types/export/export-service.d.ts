@@ -13,17 +13,17 @@
  *   so it is not serialized into the output. The discard is performed
  *   unconditionally; calling `canvas.discardActiveObject` with no active
  *   selection is a documented no-op.
- * - `exportImageBase64(options?: Base64ExportOptions)`
- *   is the only canonical base64 export entry point. It accepts both
- *   `fileType` and `format` for ergonomic interop and
- *   returns a `Promise<string>` resolving to a `data:image/...;base64...`
- *   data URL.
- * - `exportImageFile(options?: ImageFileExportOptions)`
- *   resolves to a `File` whose name comes from `options.fileName` or the
- *   editor's `defaultDownloadFileName`.
- * - `downloadImage(options?: DownloadImageOptions | string)` triggers a
- *   browser download with the resolved filename. The bytes match the same
- *   pipeline used by `exportImageBase64`.
+ * - `exportImageBase64(options?: ImageExportOptions)`
+ *   is the canonical base64 export entry point. It accepts both
+ *   `fileType` and `format` for ergonomic interop and returns a
+ *   `Promise<string>` resolving to a `data:image/...;base64...` data URL.
+ * - `exportImageFile(options?: ImageExportOptions)` resolves to a `File`
+ *   whose name comes from `options.fileName` or the editor's
+ *   `defaultDownloadFileName`, with the final extension resolved from
+ *   the output format.
+ * - `downloadImage(options?: ImageExportOptions)` triggers a browser
+ *   download through a generated object URL. The bytes match the same
+ *   rendering core used by `exportImageBase64` and `exportImageFile`.
  * - When `isImageLoaded` is `false`, the three
  *   entry points exhibit the documented "no image loaded" shapes:
  *
@@ -31,7 +31,7 @@
  *   | -------------------- | ----------------------------------- |
  *   | `exportImageBase64`  | resolves to `''`                    |
  *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
- *   | `downloadImage`      | no-op (returns synchronously)       |
+ *   | `downloadImage`      | resolves without throwing           |
  *
  * Each path emits a single `console.warn` naming the missing image so
  * the consumer's logs identify which export attempt was skipped.
@@ -91,7 +91,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { Base64ExportOptions, DownloadImageOptions, FabricModule, ImageFileExportOptions, LoadImageOptions, AnnotationObject, MaskObject, ResolvedOptions } from '../core/public-types.js';
+import type { FabricModule, ImageExportOptions, LoadImageOptions, AnnotationObject, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import type { HistoryManager } from '../history/history-manager.js';
 import { type OverlayMergeTransactionContext } from './overlay-merge-service.js';
 /**
@@ -157,55 +157,50 @@ export interface ExportServiceContext {
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
  *
  * @param context - Export context bundle.
- * @param options - Optional {@link Base64ExportOptions}. Both `fileType`
+ * @param options - Optional {@link ImageExportOptions}. Both `fileType`
  *                 and `format` are accepted; when
  *                 both are supplied, `fileType` wins.
  * @returns        Resolves to a `data:image/...;base64...` URL on
  *                 success, or `''` when no image is loaded.
  *
  */
-export declare function exportImageBase64(context: ExportServiceContext, options?: Base64ExportOptions): Promise<string>;
+export declare function exportImageBase64(context: ExportServiceContext, options?: ImageExportOptions): Promise<string>;
 /**
  * Render the live canvas to a `File`.
  *
- * The bytes come from {@link exportImageBase64} so format/quality/
- * multiplier resolution stays consistent with the base64 path. The
- * resulting data URL is repainted through an offscreen `<canvas>` only
+ * The bytes come from the same private rendering core used by
+ * {@link exportImageBase64}. The resulting data URL is repainted
+ * through an offscreen `<canvas>` only
  * when its MIME prefix does not match the requested type — some browsers
  * silently fall back to PNG when the requested format is unsupported,
  * and the export contract requires the output MIME to match the resolved
  * `fileType`.
  *
  * @param context - Export context bundle.
- * @param options - Optional {@link ImageFileExportOptions}.
+ * @param options - Optional {@link ImageExportOptions}.
  * @returns        Resolves with the rendered `File`.
  * @throws         {@link ExportNotReadyError} when no image is loaded.
  *
  */
-export declare function exportImageFile(context: ExportServiceContext, options?: ImageFileExportOptions): Promise<File>;
+export declare function exportImageFile(context: ExportServiceContext, options?: ImageExportOptions): Promise<File>;
 /**
  * Trigger a browser download of the live canvas.
  *
- * Mirrors legacy's "anchor with `download` attribute" approach: an `<a>`
- * element is created, pointed at the data URL, appended to the document
- * so Firefox dispatches the click, clicked, and removed. The function
- * returns synchronously; the data URL is rendered
- * asynchronously and the click is deferred until that promise resolves.
+ * Mirrors legacy's "anchor with `download` attribute" approach: a `File`
+ * is rendered, an object URL is created, and an `<a>` element is appended
+ * to the document so Firefox dispatches the click.
  *
  * No-image gate emits the same `console.warn` as the
  * other entry points and returns without touching the DOM.
  *
- * Errors raised by the underlying `exportImageBase64` call are reported
- * with `console.error` rather than rethrown — `downloadImage` returns
- * `void` and there is no caller-visible promise to reject.
+ * Errors raised by the underlying export are reported with `console.error`
+ * and rethrown through the returned promise.
  *
  * @param context - Export context bundle.
- * @param options - Optional filename or {@link DownloadImageOptions}.
- *                  String input is treated as a filename for backwards
- *                  compatibility.
+ * @param options - Optional {@link ImageExportOptions}.
  *
  */
-export declare function downloadImage(context: ExportServiceContext, options?: DownloadImageOptions | string): void;
+export declare function downloadImage(context: ExportServiceContext, options?: ImageExportOptions): Promise<void>;
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link mergeMasks}. Extends {@link ExportServiceContext} with the

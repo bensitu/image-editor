@@ -74,6 +74,8 @@ function makeFabricImageMock(initial) {
         scaleX: initial.scaleX,
         scaleY: initial.scaleY,
         angle: initial.angle,
+        flipX: initial.flipX ?? false,
+        flipY: initial.flipY ?? false,
         left: 0,
         top: 0,
         originX: 'left',
@@ -137,7 +139,7 @@ function makeFabricImageMock(initial) {
  *     calls each ran under suppression while the final reset save did
  *     not.
  */
-function makeContextWithSuppression({ initialScale, initialRotation }) {
+function makeContextWithSuppression({ initialScale, initialRotation, initialFlipX, initialFlipY }) {
     const canvas = new MockCanvas();
     const guard = new OperationGuard();
     const image = makeFabricImageMock({
@@ -147,6 +149,8 @@ function makeContextWithSuppression({ initialScale, initialRotation }) {
         scaleX: initialScale,
         scaleY: initialScale,
         angle: initialRotation,
+        flipX: initialFlipX ?? false,
+        flipY: initialFlipY ?? false,
     });
 
     const state = {
@@ -266,6 +270,8 @@ test('resetImageTransform produces exactly one history entry', async () => {
                     0,
                     'the documented contract: post-reset currentRotation must be 0',
                 );
+                assert.equal(harness.image.flipX, false, 'resetImageTransform must clear flipX');
+                assert.equal(harness.image.flipY, false, 'resetImageTransform must clear flipY');
 
                 // Suppression flag MUST be released after the reset
                 // so subsequent transforms continue to record
@@ -345,4 +351,77 @@ test('resetImageTransform is a no-op when no image is loaded', async () => {
         45,
         'the documented contract: state is unchanged when no image is loaded',
     );
+});
+
+test('flipHorizontal toggles only base image flipX and records one history entry', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 1,
+        initialRotation: 0,
+        initialFlipX: false,
+        initialFlipY: false,
+    });
+    const controller = new TransformController(harness.ctx);
+    const overlay = { editorObjectKind: 'mask', flipX: false, flipY: false, left: 10 };
+
+    await controller.flipHorizontal();
+
+    assert.equal(harness.image.flipX, true);
+    assert.equal(harness.image.flipY, false);
+    assert.deepEqual(
+        overlay,
+        { editorObjectKind: 'mask', flipX: false, flipY: false, left: 10 },
+        'flipHorizontal must not mutate overlay objects',
+    );
+    assert.equal(harness.getSaveCalls(), 1);
+
+    await controller.flipHorizontal();
+
+    assert.equal(harness.image.flipX, false);
+    assert.equal(harness.getSaveCalls(), 2);
+});
+
+test('flipVertical toggles only base image flipY and records one history entry', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 1,
+        initialRotation: 0,
+        initialFlipX: false,
+        initialFlipY: false,
+    });
+    const controller = new TransformController(harness.ctx);
+    const annotation = { editorObjectKind: 'annotation', flipX: false, flipY: false, top: 12 };
+
+    await controller.flipVertical();
+
+    assert.equal(harness.image.flipX, false);
+    assert.equal(harness.image.flipY, true);
+    assert.deepEqual(
+        annotation,
+        { editorObjectKind: 'annotation', flipX: false, flipY: false, top: 12 },
+        'flipVertical must not mutate annotation objects',
+    );
+    assert.equal(harness.getSaveCalls(), 1);
+
+    await controller.flipVertical();
+
+    assert.equal(harness.image.flipY, false);
+    assert.equal(harness.getSaveCalls(), 2);
+});
+
+test('flip is a no-op when no image is loaded or the editor is disposed', async () => {
+    const noImageHarness = makeContextWithSuppression({
+        initialScale: 1,
+        initialRotation: 0,
+    });
+    noImageHarness.ctx.getOriginalImage = () => null;
+    await new TransformController(noImageHarness.ctx).flipHorizontal();
+    assert.equal(noImageHarness.getSaveCalls(), 0);
+
+    const disposedHarness = makeContextWithSuppression({
+        initialScale: 1,
+        initialRotation: 0,
+    });
+    disposedHarness.ctx.guard.markDisposed();
+    await new TransformController(disposedHarness.ctx).flipVertical();
+    assert.equal(disposedHarness.image.flipY, false);
+    assert.equal(disposedHarness.getSaveCalls(), 0);
 });

@@ -190,7 +190,7 @@ const DEFAULT_OPTIONS = {
     groupSelection: false,
     showPlaceholder: true,
     initialImageBase64: null,
-    defaultDownloadFileName: 'edited_image.jpg',
+    defaultDownloadFileName: 'edited_image',
     onImageLoadStart: null,
     onImageLoaded: null,
     onImageCleared: null,
@@ -218,6 +218,7 @@ const DEFAULT_LABEL_TEXT_OPTIONS = {
 const DEFAULT_LABEL = {
     getText: (mask) => mask.maskName};
 const DEFAULT_CROP = {
+    aspectRatio: 'free',
     minWidth: 100,
     minHeight: 100,
     padding: 10,
@@ -730,7 +731,7 @@ function getInvalidDrawConfigFields(input) {
     return invalid;
 }
 function resolveOptions(input) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -875,13 +876,14 @@ function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop = {
+        aspectRatio: (_a = userCrop.aspectRatio) !== null && _a !== void 0 ? _a : DEFAULT_CROP.aspectRatio,
         minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
         minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
         padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),
-        hideMasksDuringCrop: (_a = userCrop.hideMasksDuringCrop) !== null && _a !== void 0 ? _a : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_b = userCrop.preserveMasksAfterCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_c = userCrop.allowRotationOfCropRect) !== null && _c !== void 0 ? _c : DEFAULT_CROP.allowRotationOfCropRect,
-        exportFileType: (_d = userCrop.exportFileType) !== null && _d !== void 0 ? _d : DEFAULT_CROP.exportFileType,
+        hideMasksDuringCrop: (_b = userCrop.hideMasksDuringCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.hideMasksDuringCrop,
+        preserveMasksAfterCrop: (_c = userCrop.preserveMasksAfterCrop) !== null && _c !== void 0 ? _c : DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect: (_d = userCrop.allowRotationOfCropRect) !== null && _d !== void 0 ? _d : DEFAULT_CROP.allowRotationOfCropRect,
+        exportFileType: (_e = userCrop.exportFileType) !== null && _e !== void 0 ? _e : DEFAULT_CROP.exportFileType,
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
@@ -1155,6 +1157,8 @@ const SNAPSHOT_CUSTOM_KEYS = [
     'borderColor',
     'cornerColor',
     'cornerSize',
+    'flipX',
+    'flipY',
     'isMosaicPreview',
     'annotationId',
     'annotationType',
@@ -1213,6 +1217,12 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
         if (typeof liveObject.cornerSize === 'number') {
             jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (typeof liveObject.flipX === 'boolean') {
+            jsonObject.flipX = liveObject.flipX;
+        }
+        if (typeof liveObject.flipY === 'boolean') {
+            jsonObject.flipY = liveObject.flipY;
         }
         if (liveObject.isCropRect === true)
             jsonObject.isCropRect = true;
@@ -2931,7 +2941,159 @@ function reapplyPreservedMasks(context, cropRegion, records) {
     catch {
     }
 }
-function enterCropMode(context) {
+const CROP_ASPECT_RATIO_PRESETS = Object.freeze({
+    free: null,
+    '1:1': 1,
+    '3:4': 3 / 4,
+    '4:3': 4 / 3,
+    '3:2': 3 / 2,
+    '2:3': 2 / 3,
+    '9:16': 9 / 16,
+    '16:9': 16 / 9,
+});
+function normalizeCropAspectRatio(input) {
+    var _a;
+    if (input === null || input === undefined)
+        return null;
+    if (typeof input === 'number') {
+        return Number.isFinite(input) && input > 0 ? input : null;
+    }
+    if (typeof input === 'string') {
+        const trimmed = input.trim();
+        if (Object.prototype.hasOwnProperty.call(CROP_ASPECT_RATIO_PRESETS, trimmed)) {
+            return (_a = CROP_ASPECT_RATIO_PRESETS[trimmed]) !== null && _a !== void 0 ? _a : null;
+        }
+        const parts = trimmed.split(':');
+        if (parts.length !== 2)
+            return null;
+        const width = Number(parts[0]);
+        const height = Number(parts[1]);
+        return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+            ? width / height
+            : null;
+    }
+    if (typeof input === 'object') {
+        const width = Number(input.width);
+        const height = Number(input.height);
+        return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+            ? width / height
+            : null;
+    }
+    return null;
+}
+function fitAspectRatioInside(maxWidth, maxHeight, aspectRatio) {
+    const safeMaxWidth = Math.max(1, maxWidth);
+    const safeMaxHeight = Math.max(1, maxHeight);
+    let width = safeMaxWidth;
+    let height = width / aspectRatio;
+    if (height > safeMaxHeight) {
+        height = safeMaxHeight;
+        width = height * aspectRatio;
+    }
+    return {
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+    };
+}
+function minimumAspectRatioSizeThatFits(minWidth, minHeight, maxWidth, maxHeight, aspectRatio) {
+    let width = Math.max(1, minWidth);
+    let height = width / aspectRatio;
+    if (height < minHeight) {
+        height = Math.max(1, minHeight);
+        width = height * aspectRatio;
+    }
+    return width <= maxWidth && height <= maxHeight ? { width, height } : null;
+}
+function chooseAspectRatioResizeBasis(canvas, cropRect, scaleX, scaleY) {
+    var _a, _b, _c;
+    const corner = String((_c = (_a = cropRect.__corner) !== null && _a !== void 0 ? _a : (_b = canvas._currentTransform) === null || _b === void 0 ? void 0 : _b.corner) !== null && _c !== void 0 ? _c : '').toLowerCase();
+    if (corner === 'mt' || corner === 'mb')
+        return 'height';
+    if (corner === 'ml' || corner === 'mr')
+        return 'width';
+    return Math.abs(scaleY - 1) > Math.abs(scaleX - 1) ? 'height' : 'width';
+}
+function constrainAspectRatioSize(requestedWidth, requestedHeight, basis, aspectRatio, minWidth, minHeight, maxWidth, maxHeight) {
+    var _a;
+    const maxSize = fitAspectRatioInside(maxWidth, maxHeight, aspectRatio);
+    const minSize = (_a = minimumAspectRatioSizeThatFits(minWidth, minHeight, maxSize.width, maxSize.height, aspectRatio)) !== null && _a !== void 0 ? _a : maxSize;
+    let width = basis === 'height' ? requestedHeight * aspectRatio : requestedWidth;
+    let height = basis === 'height' ? requestedHeight : requestedWidth / aspectRatio;
+    if (width > maxSize.width || height > maxSize.height) {
+        ({ width, height } = maxSize);
+    }
+    if (width < minSize.width || height < minSize.height) {
+        ({ width, height } = minSize);
+    }
+    return { width, height };
+}
+function resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding) {
+    const insetX = padding * 2 < maxCropWidth ? padding : 0;
+    const insetY = padding * 2 < maxCropHeight ? padding : 0;
+    return {
+        left: boundsLeft + insetX,
+        top: boundsTop + insetY,
+        width: Math.max(1, maxCropWidth - insetX * 2),
+        height: Math.max(1, maxCropHeight - insetY * 2),
+    };
+}
+function resolveCropBounds(context) {
+    const originalImage = context.getOriginalImage();
+    if (!originalImage)
+        return null;
+    originalImage.setCoords();
+    const { options } = context;
+    const imageBounds = originalImage.getBoundingRect();
+    const padding = Number.isFinite(Number(options.crop.padding))
+        ? Number(options.crop.padding)
+        : CROP_DEFAULT_PADDING;
+    const boundsLeft = Math.max(0, Math.floor(imageBounds.left));
+    const boundsTop = Math.max(0, Math.floor(imageBounds.top));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
+    const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
+    const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
+    return {
+        boundsLeft,
+        boundsTop,
+        maxCropWidth,
+        maxCropHeight,
+        minCropWidth: Math.min(configuredMinWidth, maxCropWidth),
+        minCropHeight: Math.min(configuredMinHeight, maxCropHeight),
+        padding,
+        imageBounds,
+    };
+}
+function clampCropRectIntoBounds(cropRect, bounds) {
+    const width = Math.min(bounds.maxCropWidth, Math.max(bounds.minCropWidth, (Number(cropRect.width) || 1) * (Number(cropRect.scaleX) || 1)));
+    const height = Math.min(bounds.maxCropHeight, Math.max(bounds.minCropHeight, (Number(cropRect.height) || 1) * (Number(cropRect.scaleY) || 1)));
+    const left = Math.min(bounds.boundsLeft + bounds.maxCropWidth - width, Math.max(bounds.boundsLeft, Number(cropRect.left) || bounds.boundsLeft));
+    const top = Math.min(bounds.boundsTop + bounds.maxCropHeight - height, Math.max(bounds.boundsTop, Number(cropRect.top) || bounds.boundsTop));
+    cropRect.set({ left, top, width, height, scaleX: 1, scaleY: 1 });
+}
+function resizeCropRectToAspectRatio(context, cropRect, aspectRatio) {
+    const bounds = resolveCropBounds(context);
+    if (!bounds)
+        return;
+    if (aspectRatio === null) {
+        clampCropRectIntoBounds(cropRect, bounds);
+        cropRect.setCoords();
+        return;
+    }
+    const available = resolvePaddedCropArea(bounds.boundsLeft, bounds.boundsTop, bounds.maxCropWidth, bounds.maxCropHeight, bounds.padding);
+    const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
+    cropRect.set({
+        left: available.left + (available.width - fitted.width) / 2,
+        top: available.top + (available.height - fitted.height) / 2,
+        width: fitted.width,
+        height: fitted.height,
+        scaleX: 1,
+        scaleY: 1,
+    });
+    cropRect.setCoords();
+}
+function enterCropMode(context, cropModeOptions = {}) {
+    var _a;
     const { canvas, options } = context;
     if (context.getCropSession())
         return;
@@ -2953,18 +3115,35 @@ function enterCropMode(context) {
     const boundsTop = Math.max(0, Math.floor(imageBounds.top));
     const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
     const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
-    const rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
-    const rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
     const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
     const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
     const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
     const allowRotation = !!options.crop.allowRotationOfCropRect;
+    const aspectRatio = normalizeCropAspectRatio((_a = cropModeOptions.aspectRatio) !== null && _a !== void 0 ? _a : options.crop.aspectRatio);
+    let rectLeft;
+    let rectTop;
+    let rectWidth;
+    let rectHeight;
+    if (aspectRatio === null) {
+        rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
+        rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
+        rectWidth = minCropWidth;
+        rectHeight = minCropHeight;
+    }
+    else {
+        const available = resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding);
+        const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
+        rectWidth = fitted.width;
+        rectHeight = fitted.height;
+        rectLeft = available.left + (available.width - rectWidth) / 2;
+        rectTop = available.top + (available.height - rectHeight) / 2;
+    }
     const cropRect = new context.fabric.Rect({
         left: rectLeft,
         top: rectTop,
-        width: minCropWidth,
-        height: minCropHeight,
+        width: rectWidth,
+        height: rectHeight,
         originX: 'left',
         originY: 'top',
         fill: CROP_RECT_FILL,
@@ -3022,8 +3201,22 @@ function enterCropMode(context) {
         try {
             const cropWidth = Math.max(1, Number(cropRect.width) || 1);
             const cropHeight = Math.max(1, Number(cropRect.height) || 1);
-            const nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
-            const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
+            let nextScaleX;
+            let nextScaleY;
+            const activeSession = context.getCropSession();
+            const activeAspectRatio = activeSession ? activeSession.aspectRatio : aspectRatio;
+            if (activeAspectRatio === null) {
+                nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
+                nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
+            }
+            else {
+                const rawScaleX = Math.max(0.0001, Number(cropRect.scaleX) || 1);
+                const rawScaleY = Math.max(0.0001, Number(cropRect.scaleY) || 1);
+                const basis = chooseAspectRatioResizeBasis(canvas, cropRect, rawScaleX, rawScaleY);
+                const constrained = constrainAspectRatioSize(cropWidth * rawScaleX, cropHeight * rawScaleY, basis, activeAspectRatio, minCropWidth, minCropHeight, maxCropWidth, maxCropHeight);
+                nextScaleX = constrained.width / cropWidth;
+                nextScaleY = constrained.height / cropHeight;
+            }
             const scaledWidth = cropWidth * nextScaleX;
             const scaledHeight = cropHeight * nextScaleY;
             const maxLeft = Math.max(boundsLeft, boundsLeft + maxCropWidth - scaledWidth);
@@ -3051,6 +3244,7 @@ function enterCropMode(context) {
         prevEvented,
         maskBackups,
         cropRect,
+        aspectRatio,
         handlers: [
             {
                 target: cropRect,
@@ -3064,6 +3258,16 @@ function enterCropMode(context) {
     };
     context.setCropSession(session);
     canvas.renderAll();
+}
+function setCropAspectRatio(context, aspectRatioInput) {
+    const session = context.getCropSession();
+    if (!(session === null || session === void 0 ? void 0 : session.cropRect))
+        return;
+    const aspectRatio = normalizeCropAspectRatio(aspectRatioInput);
+    session.aspectRatio = aspectRatio;
+    resizeCropRectToAspectRatio(context, session.cropRect, aspectRatio);
+    context.canvas.setActiveObject(session.cropRect);
+    context.canvas.requestRenderAll();
 }
 function cancelCrop(context) {
     const session = context.getCropSession();
@@ -4183,21 +4387,6 @@ function resolveExportOptions(context, options) {
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
     };
 }
-function resolveDownloadOptions(context, options) {
-    var _a;
-    const providedOptions = typeof options === 'string'
-        ? { fileName: options }
-        : (options !== null && options !== void 0 ? options : {});
-    return {
-        fileName: (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName,
-        exportOptions: {
-            exportArea: context.options.exportAreaByDefault,
-            mergeMasks: providedOptions.mergeMasks,
-            mergeAnnotations: providedOptions.mergeAnnotations,
-            multiplier: context.options.exportMultiplier,
-        },
-    };
-}
 function readCanvasDimension(canvas, getterName, propertyName) {
     const canvasLike = canvas;
     const getter = canvasLike[getterName];
@@ -4615,16 +4804,23 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
 function warnNoImageLoaded(operation) {
     console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
 }
-async function exportImageBase64(context, options) {
-    if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageBase64');
-        return '';
+function extensionForFormat(format) {
+    return format === 'jpeg' ? 'jpg' : format;
+}
+function resolveFileName(baseName, format) {
+    const fallback = 'edited_image';
+    const trimmed = String(baseName || fallback).trim() || fallback;
+    const ext = extensionForFormat(format.format);
+    if (/\.(jpe?g|png|webp)$/i.test(trimmed)) {
+        return trimmed.replace(/\.(jpe?g|png|webp)$/i, `.${ext}`);
     }
+    return `${trimmed}.${ext}`;
+}
+async function renderExportDataUrl(context, resolved) {
     const activeObject = captureActiveObject(context.canvas);
     const labelBackups = captureMaskLabelBackups(context.canvas);
     try {
         context.canvas.discardActiveObject();
-        const resolved = resolveExportOptions(context, options);
         const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
         assertExportPixelBudget(context, resolved.multiplier, region);
         const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
@@ -4649,6 +4845,14 @@ async function exportImageBase64(context, options) {
         requestRender(context.canvas);
     }
 }
+async function exportImageBase64(context, options) {
+    if (!context.isImageLoaded()) {
+        warnNoImageLoaded('exportImageBase64');
+        return '';
+    }
+    const resolved = resolveExportOptions(context, options);
+    return renderExportDataUrl(context, resolved);
+}
 async function exportImageFile(context, options) {
     var _a;
     if (!context.isImageLoaded()) {
@@ -4656,20 +4860,9 @@ async function exportImageFile(context, options) {
         throw new ExportNotReadyError('exportImageFile');
     }
     const providedOptions = options !== null && options !== void 0 ? options : {};
-    const fileName = (_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName;
-    const resolved = resolveExportFormat(providedOptions, context.options.downsampleQuality);
-    const base64 = await exportImageBase64(context, {
-        exportArea: providedOptions.exportArea,
-        mergeMasks: providedOptions.mergeMasks,
-        mergeAnnotations: providedOptions.mergeAnnotations,
-        multiplier: providedOptions.multiplier,
-        quality: providedOptions.quality,
-        fileType: providedOptions.fileType,
-    });
-    if (!base64) {
-        throw new ExportNotReadyError('exportImageFile');
-    }
-    const finalDataUrl = await reencodeDataUrlAs(base64, resolved, context.options.backgroundColor, context.canvas);
+    const resolved = resolveExportOptions(context, providedOptions);
+    const rawDataUrl = await renderExportDataUrl(context, resolved);
+    const finalDataUrl = await reencodeDataUrlAs(rawDataUrl, resolved.format, context.options.backgroundColor, context.canvas);
     let bytes;
     try {
         bytes = dataUrlToBytes(finalDataUrl);
@@ -4677,35 +4870,47 @@ async function exportImageFile(context, options) {
     catch (error) {
         throw new ExportError('exportImageFile failed to decode rendered data URL.', error);
     }
-    return new File([bytes], fileName, { type: resolved.mimeType });
+    const fileName = resolveFileName((_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName, resolved.format);
+    return new File([bytes], fileName, { type: resolved.format.mimeType });
 }
-function downloadImage(context, options) {
+async function downloadImage(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
-    const resolved = resolveDownloadOptions(context, options);
-    void exportImageBase64(context, resolved.exportOptions)
-        .then((dataUrl) => {
-        if (!dataUrl)
-            return;
-        const ownerDocument = getCanvasDocument$1(context.canvas);
-        const link = ownerDocument.createElement('a');
-        link.download = resolved.fileName;
-        link.href = dataUrl;
-        const body = ownerDocument.body;
-        body.appendChild(link);
-        try {
-            link.click();
-        }
-        finally {
-            body.removeChild(link);
-        }
-    })
-        .catch((error) => {
+    if (options !== undefined && options !== null && typeof options !== 'object') {
+        throw new TypeError('[ImageEditor] downloadImage(options) expects an ImageExportOptions object.');
+    }
+    try {
+        const file = await exportImageFile(context, options);
+        triggerFileDownload(context, file);
+    }
+    catch (error) {
         reportError(context.options, error, 'downloadImage failed.');
         console.error('[ImageEditor] downloadImage failed', error);
-    });
+        throw error;
+    }
+}
+function triggerFileDownload(context, file) {
+    const ownerDocument = getCanvasDocument$1(context.canvas);
+    const objectUrl = URL.createObjectURL(file);
+    const link = ownerDocument.createElement('a');
+    link.download = file.name;
+    link.href = objectUrl;
+    const body = ownerDocument.body;
+    body.appendChild(link);
+    try {
+        link.click();
+    }
+    finally {
+        body.removeChild(link);
+        if (typeof globalThis.setTimeout === 'function') {
+            globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        }
+        else {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
 }
 async function mergeMasks(context) {
     await flattenOverlayGroupToBaseImage(context, {
@@ -5348,6 +5553,41 @@ class TransformController {
         }
         this.context.saveCanvasState();
     }
+    async flipHorizontal() {
+        await this.flipImage('flipX');
+    }
+    async flipVertical() {
+        await this.flipImage('flipY');
+    }
+    async flipImage(property) {
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject)
+            return;
+        if (this.context.guard.isAnimating())
+            return;
+        if (this.context.guard.isDisposed())
+            return;
+        try {
+            const centre = imageObject.getCenterPoint();
+            imageObject.set({ originX: 'center', originY: 'center' });
+            imageObject.setPositionByOrigin(centre, 'center', 'center');
+            imageObject.set({ [property]: !imageObject[property] });
+            imageObject.setCoords();
+            const newTopLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
+            imageObject.setCoords();
+        }
+        catch (error) {
+            console.warn(`[ImageEditor] ${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed`, error);
+            return;
+        }
+        if (this.context.guard.isDisposed())
+            return;
+        if (this.context.afterTransformSnap)
+            this.context.afterTransformSnap();
+        this.context.saveCanvasState();
+    }
     async resetImageTransform() {
         if (!this.context.getOriginalImage())
             return;
@@ -5355,6 +5595,13 @@ class TransformController {
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
+            const imageObject = this.context.getOriginalImage();
+            if (imageObject && !this.context.guard.isDisposed()) {
+                imageObject.set({ flipX: false, flipY: false });
+                imageObject.setCoords();
+                if (this.context.afterTransformSnap)
+                    this.context.afterTransformSnap();
+            }
         }
         finally {
             this.context.setSuppressSaveState(false);
@@ -6060,6 +6307,8 @@ const CROP_MODE_CONTROL_KEYS = [
     'rotateRightDegreesInput',
     'rotateLeftButton',
     'rotateRightButton',
+    'flipHorizontalButton',
+    'flipVerticalButton',
     'createMaskButton',
     'removeSelectedMaskButton',
     'removeAllMasksButton',
@@ -6088,6 +6337,7 @@ const CROP_MODE_CONTROL_KEYS = [
     'redoButton',
     'imageInput',
     'enterCropModeButton',
+    'cropAspectRatioSelect',
     'applyCropButton',
     'cancelCropButton',
     'enterMosaicModeButton',
@@ -6095,8 +6345,12 @@ const CROP_MODE_CONTROL_KEYS = [
     'mosaicBrushSizeInput',
     'mosaicBlockSizeInput',
 ];
-const CROP_MODE_ENABLED_KEYS = ['applyCropButton', 'cancelCropButton'];
-const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['applyCrop', 'cancelCrop']);
+const CROP_MODE_ENABLED_KEYS = [
+    'cropAspectRatioSelect',
+    'applyCropButton',
+    'cancelCropButton',
+];
+const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['setCropAspectRatio', 'applyCrop', 'cancelCrop']);
 const TEXT_MODE_ENABLED_KEYS = [
     'exitTextModeButton',
     'textColorInput',
@@ -6113,6 +6367,8 @@ const MOSAIC_MODE_CONTROL_KEYS = [
     'rotateRightDegreesInput',
     'rotateLeftButton',
     'rotateRightButton',
+    'flipHorizontalButton',
+    'flipVerticalButton',
     'createMaskButton',
     'removeSelectedMaskButton',
     'removeAllMasksButton',
@@ -6141,6 +6397,7 @@ const MOSAIC_MODE_CONTROL_KEYS = [
     'redoButton',
     'imageInput',
     'enterCropModeButton',
+    'cropAspectRatioSelect',
     'applyCropButton',
     'cancelCropButton',
     'enterMosaicModeButton',
@@ -6170,6 +6427,8 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'saveState',
     'scaleImage',
     'rotateImage',
+    'flipHorizontal',
+    'flipVertical',
     'resetImageTransform',
     'createMask',
     'removeSelectedMask',
@@ -6199,6 +6458,7 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'bringSelectedObjectToFront',
     'sendSelectedObjectToBack',
     'enterCropMode',
+    'setCropAspectRatio',
     'applyCrop',
     'cancelCrop',
     'enterMosaicMode',
@@ -6555,6 +6815,8 @@ class ImageEditor {
             rotateRightDegreesInput: 'rotateRightDegreesInput',
             rotateLeftButton: 'rotateLeftButton',
             rotateRightButton: 'rotateRightButton',
+            flipHorizontalButton: 'flipHorizontalButton',
+            flipVerticalButton: 'flipVerticalButton',
             createMaskButton: 'createMaskButton',
             removeSelectedMaskButton: 'removeSelectedMaskButton',
             removeAllMasksButton: 'removeAllMasksButton',
@@ -6585,6 +6847,7 @@ class ImageEditor {
             redoButton: 'redoButton',
             imageInput: 'imageInput',
             enterCropModeButton: 'enterCropModeButton',
+            cropAspectRatioSelect: 'cropAspectRatioSelect',
             applyCropButton: 'applyCropButton',
             cancelCropButton: 'cancelCropButton',
             enterMosaicModeButton: 'enterMosaicModeButton',
@@ -6692,6 +6955,12 @@ class ImageEditor {
         this.bindElementIfExists('resetImageTransformButton', 'click', () => {
             void this.resetImageTransform();
         });
+        this.bindElementIfExists('flipHorizontalButton', 'click', () => {
+            void this.flipHorizontal();
+        });
+        this.bindElementIfExists('flipVerticalButton', 'click', () => {
+            void this.flipVertical();
+        });
         this.bindElementIfExists('createMaskButton', 'click', () => {
             this.createMask();
         });
@@ -6776,7 +7045,11 @@ class ImageEditor {
             void this.rotateImage(this.currentRotation + step);
         });
         this.bindElementIfExists('enterCropModeButton', 'click', () => {
-            this.enterCropMode();
+            this.enterCropMode({ aspectRatio: this.getSelectedCropAspectRatio() });
+        });
+        this.bindElementIfExists('cropAspectRatioSelect', 'change', () => {
+            if (this.cropSession)
+                this.setCropAspectRatio(this.getSelectedCropAspectRatio());
         });
         this.bindElementIfExists('applyCropButton', 'click', () => {
             void this.applyCrop().catch((error) => {
@@ -7063,12 +7336,27 @@ class ImageEditor {
             return false;
         }
     }
+    getSelectedCropAspectRatio() {
+        const inputId = this.elements.cropAspectRatioSelect;
+        const inputEl = inputId
+            ? document.getElementById(inputId)
+            : null;
+        const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
+        return (value || 'free');
+    }
     isExpectedIdleGuardError(error, operationName) {
         return (error instanceof Error &&
             error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
     }
     assertCanQueueAnimation(operationName, options) {
-        this.operationGuard.assertCanQueueAnimation(operationName, this.getInternalOperationToken(options));
+        const token = this.getInternalOperationToken(options);
+        this.operationGuard.assertCanQueueAnimation(operationName, token);
+        const activeToolMode = this.getActiveToolMode();
+        if (activeToolMode &&
+            !this.operationGuard.isOwnOperation(token) &&
+            !TOOL_MODE_ALLOWED_OPERATIONS[activeToolMode].has(operationName)) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`);
+        }
     }
     isImageLoaded() {
         var _a, _b;
@@ -7183,6 +7471,7 @@ class ImageEditor {
         return this.getActiveToolMode() !== null;
     }
     getEditorState() {
+        var _a, _b;
         const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
         const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
         const image = this.getImageInfo();
@@ -7193,6 +7482,8 @@ class ImageEditor {
             annotationCount: this.getAnnotations().length,
             currentScale: this.currentScale,
             currentRotation: this.currentRotation,
+            isFlippedHorizontally: !!((_a = this.originalImage) === null || _a === void 0 ? void 0 : _a.flipX),
+            isFlippedVertically: !!((_b = this.originalImage) === null || _b === void 0 ? void 0 : _b.flipY),
             isBusy: this.isBusy(),
             activeToolMode: this.getActiveToolMode(),
             isCropMode: this.cropSession !== null,
@@ -7507,6 +7798,70 @@ class ImageEditor {
             this.updateUi();
             try {
                 await controller.rotateImage(degrees);
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
+            }
+            finally {
+                if (!this.isDisposed) {
+                    this.updateInputs();
+                }
+            }
+        });
+        this.emitBusyChangeIfChanged(context);
+        return job.finally(() => {
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
+        });
+    }
+    flipHorizontal() {
+        if (this.isDisposed || !this.transformController)
+            return Promise.resolve();
+        try {
+            this.assertCanQueueAnimation('flipHorizontal');
+        }
+        catch (error) {
+            return Promise.reject(error);
+        }
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('flipHorizontal', false);
+        const job = this.animQueue.add(async () => {
+            if (this.isDisposed)
+                return;
+            this.updateUi();
+            try {
+                await controller.flipHorizontal();
+                if (!this.isDisposed)
+                    this.emitImageChanged(context);
+            }
+            finally {
+                if (!this.isDisposed) {
+                    this.updateInputs();
+                }
+            }
+        });
+        this.emitBusyChangeIfChanged(context);
+        return job.finally(() => {
+            this.refreshUiAfterQueuedAnimation();
+            this.emitBusyChangeIfChanged(context);
+        });
+    }
+    flipVertical() {
+        if (this.isDisposed || !this.transformController)
+            return Promise.resolve();
+        try {
+            this.assertCanQueueAnimation('flipVertical');
+        }
+        catch (error) {
+            return Promise.reject(error);
+        }
+        const controller = this.transformController;
+        const context = this.buildCallbackContext('flipVertical', false);
+        const job = this.animQueue.add(async () => {
+            if (this.isDisposed)
+                return;
+            this.updateUi();
+            try {
+                await controller.flipVertical();
                 if (!this.isDisposed)
                     this.emitImageChanged(context);
             }
@@ -8410,7 +8765,7 @@ class ImageEditor {
             this.updateUi();
         }
     }
-    downloadImage(options) {
+    async downloadImage(options) {
         if (!this.canvas)
             return;
         if (!this.canRunIdleOperation('downloadImage'))
@@ -8421,7 +8776,7 @@ class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         const exportContext = this.buildExportServiceContext();
         try {
-            downloadImage(exportContext, options);
+            await downloadImage(exportContext, options);
         }
         finally {
             this.operationGuard.endBusyOperation(operationToken);
@@ -8696,7 +9051,7 @@ class ImageEditor {
             },
         };
     }
-    enterCropMode() {
+    enterCropMode(options = {}) {
         if (!this.canvas || !this.originalImage)
             return;
         if (this.cropSession)
@@ -8706,10 +9061,21 @@ class ImageEditor {
         if (!this.canRunIdleOperation('enterCropMode'))
             return;
         const cropControllerContext = this.buildCropControllerContext();
-        enterCropMode(cropControllerContext);
+        enterCropMode(cropControllerContext, options);
         this.updateUi();
         const callbackContext = this.buildCallbackContext('enterCropMode', false);
         this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    setCropAspectRatio(aspectRatio) {
+        if (!this.canvas || !this.cropSession)
+            return;
+        if (!this.canRunIdleOperation('setCropAspectRatio'))
+            return;
+        const cropControllerContext = this.buildCropControllerContext();
+        setCropAspectRatio(cropControllerContext, aspectRatio);
+        this.updateUi();
+        const callbackContext = this.buildCallbackContext('setCropAspectRatio', false);
         this.emitImageChanged(callbackContext);
     }
     cancelCrop() {
@@ -8856,7 +9222,7 @@ class ImageEditor {
         }
     }
     updateUi() {
-        var _a;
+        var _a, _b, _c;
         if (!this.canvas)
             return;
         const hasImage = !!this.originalImage;
@@ -8868,7 +9234,10 @@ class ImageEditor {
         const hasSelectedMask = !!(activeObject && isMaskObject(activeObject));
         const hasSelectedAnnotation = !!(activeObject && isAnnotationObject(activeObject));
         const hasSelectedEditableObject = !!activeObject && isEditableOverlayObject(activeObject);
-        const isDefaultTransform = this.currentScale === 1 && this.currentRotation === 0;
+        const isDefaultTransform = this.currentScale === 1 &&
+            this.currentRotation === 0 &&
+            !((_a = this.originalImage) === null || _a === void 0 ? void 0 : _a.flipX) &&
+            !((_b = this.originalImage) === null || _b === void 0 ? void 0 : _b.flipY);
         const canUndo = this.historyManager.canUndo();
         const canRedo = this.historyManager.canRedo();
         const isInCropMode = this.cropSession !== null;
@@ -8876,7 +9245,7 @@ class ImageEditor {
         const isInTextMode = this.textSession !== null;
         const isInDrawMode = this.drawSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
-        const isMosaicApplying = ((_a = this.mosaicSession) === null || _a === void 0 ? void 0 : _a.isApplying) === true;
+        const isMosaicApplying = ((_c = this.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true;
         if (isInCropMode) {
             CROP_MODE_CONTROL_KEYS.forEach((key) => {
                 this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
@@ -8909,6 +9278,8 @@ class ImageEditor {
         this.setControlEnabled('zoomOutButton', hasImage && !isBusy && this.currentScale > this.options.minScale);
         this.setControlEnabled('rotateLeftButton', hasImage && !isBusy);
         this.setControlEnabled('rotateRightButton', hasImage && !isBusy);
+        this.setControlEnabled('flipHorizontalButton', hasImage && !isBusy);
+        this.setControlEnabled('flipVerticalButton', hasImage && !isBusy);
         this.setControlEnabled('createMaskButton', hasImage && !isBusy);
         this.setControlEnabled('removeSelectedMaskButton', hasSelectedMask && !isBusy);
         this.setControlEnabled('removeAllMasksButton', hasMasks && !isBusy);
@@ -8926,6 +9297,7 @@ class ImageEditor {
         this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
         this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
         this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
+        this.setControlEnabled('cropAspectRatioSelect', hasImage && !isBusy);
         this.setControlEnabled('enterMosaicModeButton', hasImage && !isBusy);
         this.setControlEnabled('enterTextModeButton', hasImage && !isBusy);
         this.setControlEnabled('enterDrawModeButton', hasImage && !isBusy);

@@ -104,6 +104,10 @@ export interface CanvasJsonObject {
     cornerColor?: string;
     /** Fabric corner control size. */
     cornerSize?: number;
+    /** Fabric horizontal flip flag. */
+    flipX?: boolean;
+    /** Fabric vertical flip flag. */
+    flipY?: boolean;
     /** Marks the transient crop rectangle; filtered before history push. */
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
@@ -192,6 +196,8 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'borderColor',
     'cornerColor',
     'cornerSize',
+    'flipX',
+    'flipY',
     'isMosaicPreview',
     'annotationId',
     'annotationType',
@@ -271,6 +277,12 @@ function copySnapshotCustomPropsFromCanvas(
         }
         if (typeof liveObject.cornerSize === 'number') {
             jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (typeof liveObject.flipX === 'boolean') {
+            jsonObject.flipX = liveObject.flipX;
+        }
+        if (typeof liveObject.flipY === 'boolean') {
+            jsonObject.flipY = liveObject.flipY;
         }
         if (liveObject.isCropRect === true) jsonObject.isCropRect = true;
         if (liveObject.maskLabel === true) jsonObject.maskLabel = true;

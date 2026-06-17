@@ -93,6 +93,7 @@ function installDom() {
             <button id="undoButton"></button>
             <button id="redoButton"></button>
             <button id="enterCropModeButton"></button>
+            <select id="cropAspectRatioSelect"><option value="free">Free</option></select>
             <button id="applyCropButton"></button>
             <button id="cancelCropButton"></button>
             <input id="imageInput" type="file">
@@ -150,6 +151,7 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     for (const key of CONTROL_KEYS) {
         assert.equal(getControl(key).disabled, true, `${key} must be frozen in crop mode`);
     }
+    assert.equal(getControl('cropAspectRatioSelect').disabled, false);
     assert.equal(getControl('applyCropButton').disabled, false);
     assert.equal(getControl('cancelCropButton').disabled, false);
 

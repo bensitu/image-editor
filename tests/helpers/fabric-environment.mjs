@@ -111,6 +111,8 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         rotateRightDegreesInput: `rotateRightDegreesInput-${domCounter}`,
         rotateLeftButton: `rotateLeftButton-${domCounter}`,
         rotateRightButton: `rotateRightButton-${domCounter}`,
+        flipHorizontalButton: `flipHorizontalButton-${domCounter}`,
+        flipVerticalButton: `flipVerticalButton-${domCounter}`,
         createMaskButton: `createMaskButton-${domCounter}`,
         removeSelectedMaskButton: `removeSelectedMaskButton-${domCounter}`,
         removeAllMasksButton: `removeAllMasksButton-${domCounter}`,
@@ -125,6 +127,7 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         imageInput: `imageInput-${domCounter}`,
         uploadArea: `uploadArea-${domCounter}`,
         enterCropModeButton: `enterCropModeButton-${domCounter}`,
+        cropAspectRatioSelect: `cropAspectRatioSelect-${domCounter}`,
         applyCropButton: `applyCropButton-${domCounter}`,
         cancelCropButton: `cancelCropButton-${domCounter}`,
         enterMosaicModeButton: `enterMosaicModeButton-${domCounter}`,
@@ -142,6 +145,8 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         <input id="${ids.rotateRightDegreesInput}" value="90">
         <button id="${ids.rotateLeftButton}"></button>
         <button id="${ids.rotateRightButton}"></button>
+        <button id="${ids.flipHorizontalButton}"></button>
+        <button id="${ids.flipVerticalButton}"></button>
         <button id="${ids.createMaskButton}"></button>
         <button id="${ids.removeSelectedMaskButton}"></button>
         <button id="${ids.removeAllMasksButton}"></button>
@@ -153,6 +158,7 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         <button id="${ids.undoButton}"></button>
         <button id="${ids.redoButton}"></button>
         <button id="${ids.enterCropModeButton}"></button>
+        <select id="${ids.cropAspectRatioSelect}"><option value="free">Free</option></select>
         <button id="${ids.applyCropButton}"></button>
         <button id="${ids.cancelCropButton}"></button>
         <button id="${ids.enterMosaicModeButton}"></button>

@@ -44,6 +44,8 @@ const CANONICAL_IDS = Object.freeze({
     rotateRightDegreesInput: 'customRotateRightDegreesInput',
     rotateLeftButton: 'customRotateLeftButton',
     rotateRightButton: 'customRotateRightButton',
+    flipHorizontalButton: 'customFlipHorizontalButton',
+    flipVerticalButton: 'customFlipVerticalButton',
     createMaskButton: 'customCreateMaskButton',
     removeSelectedMaskButton: 'customRemoveSelectedMaskButton',
     removeAllMasksButton: 'customRemoveAllMasksButton',
@@ -58,6 +60,7 @@ const CANONICAL_IDS = Object.freeze({
     imageInput: 'customImageInput',
     uploadArea: 'customUploadArea',
     enterCropModeButton: 'customEnterCropModeButton',
+    cropAspectRatioSelect: 'customCropAspectRatioSelect',
     applyCropButton: 'customApplyCropButton',
     cancelCropButton: 'customCancelCropButton',
     enterMosaicModeButton: 'customEnterMosaicModeButton',
@@ -127,6 +130,8 @@ function installDom() {
             <input id="${CANONICAL_IDS.rotateRightDegreesInput}" value="90">
             <button id="${CANONICAL_IDS.rotateLeftButton}"></button>
             <button id="${CANONICAL_IDS.rotateRightButton}"></button>
+            <button id="${CANONICAL_IDS.flipHorizontalButton}"></button>
+            <button id="${CANONICAL_IDS.flipVerticalButton}"></button>
             <button id="${CANONICAL_IDS.createMaskButton}"></button>
             <button id="${CANONICAL_IDS.removeSelectedMaskButton}"></button>
             <button id="${CANONICAL_IDS.removeAllMasksButton}"></button>
@@ -138,6 +143,7 @@ function installDom() {
             <button id="${CANONICAL_IDS.undoButton}"></button>
             <button id="${CANONICAL_IDS.redoButton}"></button>
             <button id="${CANONICAL_IDS.enterCropModeButton}"></button>
+            <select id="${CANONICAL_IDS.cropAspectRatioSelect}"><option value="free">Free</option></select>
             <button id="${CANONICAL_IDS.applyCropButton}"></button>
             <button id="${CANONICAL_IDS.cancelCropButton}"></button>
             <button id="${CANONICAL_IDS.enterMosaicModeButton}"></button>
@@ -247,6 +253,35 @@ test('Mosaic DOM buttons and size inputs call the public Mosaic API', () => {
     blockInput.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     assert.deepEqual(calls, ['enter', 'exit', ['brush', 72], ['block', 11]]);
+});
+
+test('Crop ratio select is passed to enterCropMode and live crop updates', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.enterCropMode = (options) => calls.push(['enter', options.aspectRatio]);
+    editor.setCropAspectRatio = (aspectRatio) => calls.push(['ratio', aspectRatio]);
+
+    const ratioSelect = document.getElementById(CANONICAL_IDS.cropAspectRatioSelect);
+    ratioSelect.innerHTML = `
+        <option value="free">Free</option>
+        <option value="4:3">4:3</option>
+        <option value="16:9">16:9</option>
+    `;
+    ratioSelect.value = '16:9';
+
+    document
+        .getElementById(CANONICAL_IDS.enterCropModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    editor.cropSession = {};
+    ratioSelect.value = '4:3';
+    ratioSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    assert.deepEqual(calls, [
+        ['enter', '16:9'],
+        ['ratio', '4:3'],
+    ]);
 });
 
 test('Text mode size input updates live config without overwriting active typing', () => {

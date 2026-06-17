@@ -92,6 +92,10 @@ export interface CanvasJsonObject {
     cornerColor?: string;
     /** Fabric corner control size. */
     cornerSize?: number;
+    /** Fabric horizontal flip flag. */
+    flipX?: boolean;
+    /** Fabric vertical flip flag. */
+    flipY?: boolean;
     /** Marks the transient crop rectangle; filtered before history push. */
     isCropRect?: boolean;
     /** Marks a mask label text object; filtered before history push. */
@@ -158,7 +162,7 @@ export interface CanvasJson {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "isMosaicPreview", "annotationId", "annotationType", "annotationName", "annotationHidden", "annotationLocked"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "annotationName", "annotationHidden", "annotationLocked"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.

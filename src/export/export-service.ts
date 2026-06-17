@@ -13,17 +13,17 @@
  *   so it is not serialized into the output. The discard is performed
  *   unconditionally; calling `canvas.discardActiveObject` with no active
  *   selection is a documented no-op.
- * - `exportImageBase64(options?: Base64ExportOptions)`
- *   is the only canonical base64 export entry point. It accepts both
- *   `fileType` and `format` for ergonomic interop and
- *   returns a `Promise<string>` resolving to a `data:image/...;base64...`
- *   data URL.
- * - `exportImageFile(options?: ImageFileExportOptions)`
- *   resolves to a `File` whose name comes from `options.fileName` or the
- *   editor's `defaultDownloadFileName`.
- * - `downloadImage(options?: DownloadImageOptions | string)` triggers a
- *   browser download with the resolved filename. The bytes match the same
- *   pipeline used by `exportImageBase64`.
+ * - `exportImageBase64(options?: ImageExportOptions)`
+ *   is the canonical base64 export entry point. It accepts both
+ *   `fileType` and `format` for ergonomic interop and returns a
+ *   `Promise<string>` resolving to a `data:image/...;base64...` data URL.
+ * - `exportImageFile(options?: ImageExportOptions)` resolves to a `File`
+ *   whose name comes from `options.fileName` or the editor's
+ *   `defaultDownloadFileName`, with the final extension resolved from
+ *   the output format.
+ * - `downloadImage(options?: ImageExportOptions)` triggers a browser
+ *   download through a generated object URL. The bytes match the same
+ *   rendering core used by `exportImageBase64` and `exportImageFile`.
  * - When `isImageLoaded` is `false`, the three
  *   entry points exhibit the documented "no image loaded" shapes:
  *
@@ -31,7 +31,7 @@
  *   | -------------------- | ----------------------------------- |
  *   | `exportImageBase64`  | resolves to `''`                    |
  *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
- *   | `downloadImage`      | no-op (returns synchronously)       |
+ *   | `downloadImage`      | resolves without throwing           |
  *
  * Each path emits a single `console.warn` naming the missing image so
  * the consumer's logs identify which export attempt was skipped.
@@ -96,11 +96,9 @@ import type * as FabricNS from 'fabric';
 import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/public-types.js';
 import { reportError } from '../core/callback-reporter.js';
 import type {
-    Base64ExportOptions,
-    DownloadImageOptions,
     ExportArea,
     FabricModule,
-    ImageFileExportOptions,
+    ImageExportOptions,
     LoadImageOptions,
     AnnotationObject,
     MaskObject,
@@ -143,11 +141,6 @@ interface ResolvedExportOptions {
     mergeAnnotations: boolean;
     multiplier: number;
     format: ResolvedExportFormat;
-}
-
-interface ResolvedDownloadOptions {
-    fileName: string;
-    exportOptions: Base64ExportOptions;
 }
 
 type VisibilityBackup = {
@@ -221,7 +214,7 @@ function resolveExportArea(requested: unknown, fallback: ExportArea): ExportArea
 
 function resolveExportOptions(
     context: ExportServiceContext,
-    options?: Base64ExportOptions | ImageFileExportOptions | null,
+    options?: ImageExportOptions | null,
 ): ResolvedExportOptions {
     const providedOptions = options ?? {};
     return {
@@ -239,25 +232,6 @@ function resolveExportOptions(
                 : context.options.mergeAnnotationsByDefault,
         multiplier: resolveMultiplier(providedOptions.multiplier, context.options.exportMultiplier),
         format: resolveExportFormat(providedOptions, context.options.downsampleQuality),
-    };
-}
-
-function resolveDownloadOptions(
-    context: ExportServiceContext,
-    options?: DownloadImageOptions | string | null,
-): ResolvedDownloadOptions {
-    const providedOptions: DownloadImageOptions =
-        typeof options === 'string'
-            ? ({ fileName: options } satisfies DownloadImageOptions)
-            : (options ?? {});
-    return {
-        fileName: providedOptions.fileName ?? context.options.defaultDownloadFileName,
-        exportOptions: {
-            exportArea: context.options.exportAreaByDefault,
-            mergeMasks: providedOptions.mergeMasks,
-            mergeAnnotations: providedOptions.mergeAnnotations,
-            multiplier: context.options.exportMultiplier,
-        },
     };
 }
 
@@ -904,6 +878,88 @@ function warnNoImageLoaded(operation: string): void {
     console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
 }
 
+function extensionForFormat(format: NormalizedImageFormat): string {
+    return format === 'jpeg' ? 'jpg' : format;
+}
+
+function resolveFileName(baseName: string, format: ResolvedExportFormat): string {
+    const fallback = 'edited_image';
+    const trimmed = String(baseName || fallback).trim() || fallback;
+    const ext = extensionForFormat(format.format);
+
+    if (/\.(jpe?g|png|webp)$/i.test(trimmed)) {
+        return trimmed.replace(/\.(jpe?g|png|webp)$/i, `.${ext}`);
+    }
+
+    return `${trimmed}.${ext}`;
+}
+
+async function renderExportDataUrl(
+    context: ExportServiceContext,
+    resolved: ResolvedExportOptions,
+): Promise<string> {
+    const activeObject = captureActiveObject(context.canvas);
+    const labelBackups = captureMaskLabelBackups(context.canvas);
+
+    try {
+        // Drop any active selection BEFORE region math. It is restored in
+        // the finally block so export does not perturb the editor UI.
+        context.canvas.discardActiveObject();
+
+        const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
+        assertExportPixelBudget(context, resolved.multiplier, region);
+
+        const renderFormat =
+            region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
+        const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
+
+        let dataUrl = await withSessionObjectsHidden(context, async () =>
+            withMaskExportState(context, resolved.mergeMasks, async () =>
+                withAnnotationsExportState(context, resolved.mergeAnnotations, async () =>
+                    renderCanvasToDataUrl(
+                        context.canvas,
+                        renderFormat,
+                        renderQuality,
+                        resolved.multiplier,
+                        region,
+                    ),
+                ),
+            ),
+        );
+
+        if (region) {
+            const sealedFormat =
+                resolved.format.format === 'jpeg'
+                    ? ({ format: 'png', mimeType: 'image/png', quality: undefined } as const)
+                    : resolved.format;
+
+            if (hasPartialEdges(partialEdges)) {
+                dataUrl = await sealPartialTransparentEdges(
+                    dataUrl,
+                    partialEdges,
+                    sealedFormat,
+                    getCanvasDocument(context.canvas),
+                );
+            }
+
+            if (resolved.format.format === 'jpeg') {
+                dataUrl = await convertDataUrlToOpaqueJpeg(
+                    dataUrl,
+                    context.options.backgroundColor,
+                    resolved.format.quality,
+                    getCanvasDocument(context.canvas),
+                );
+            }
+        }
+
+        return dataUrl;
+    } finally {
+        restoreMaskLabelBackups(context.canvas, labelBackups);
+        restoreActiveObject(context.canvas, activeObject);
+        requestRender(context.canvas);
+    }
+}
+
 // ─── exportImageBase64 ───────────────────────────────────────────────────────
 
 /**
@@ -934,7 +990,7 @@ function warnNoImageLoaded(operation: string): void {
  *    `canvas.toDataURL` call — no intermediate `<canvas>`.
  *
  * @param context - Export context bundle.
- * @param options - Optional {@link Base64ExportOptions}. Both `fileType`
+ * @param options - Optional {@link ImageExportOptions}. Both `fileType`
  *                 and `format` are accepted; when
  *                 both are supplied, `fileType` wins.
  * @returns        Resolves to a `data:image/...;base64...` URL on
@@ -943,68 +999,15 @@ function warnNoImageLoaded(operation: string): void {
  */
 export async function exportImageBase64(
     context: ExportServiceContext,
-    options?: Base64ExportOptions,
+    options?: ImageExportOptions,
 ): Promise<string> {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
         return '';
     }
 
-    const activeObject = captureActiveObject(context.canvas);
-    const labelBackups = captureMaskLabelBackups(context.canvas);
-    try {
-        // Drop any active selection BEFORE region math. It is restored in
-        // the finally block so export does not perturb the editor UI.
-        context.canvas.discardActiveObject();
-
-        const resolved = resolveExportOptions(context, options);
-        const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
-        assertExportPixelBudget(context, resolved.multiplier, region);
-        const renderFormat =
-            region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
-        const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
-
-        let dataUrl = await withSessionObjectsHidden(context, async () =>
-            withMaskExportState(context, resolved.mergeMasks, async () =>
-                withAnnotationsExportState(context, resolved.mergeAnnotations, async () =>
-                    renderCanvasToDataUrl(
-                        context.canvas,
-                        renderFormat,
-                        renderQuality,
-                        resolved.multiplier,
-                        region,
-                    ),
-                ),
-            ),
-        );
-        if (region) {
-            const sealedFormat =
-                resolved.format.format === 'jpeg'
-                    ? ({ format: 'png', mimeType: 'image/png', quality: undefined } as const)
-                    : resolved.format;
-            if (hasPartialEdges(partialEdges)) {
-                dataUrl = await sealPartialTransparentEdges(
-                    dataUrl,
-                    partialEdges,
-                    sealedFormat,
-                    getCanvasDocument(context.canvas),
-                );
-            }
-            if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(
-                    dataUrl,
-                    context.options.backgroundColor,
-                    resolved.format.quality,
-                    getCanvasDocument(context.canvas),
-                );
-            }
-        }
-        return dataUrl;
-    } finally {
-        restoreMaskLabelBackups(context.canvas, labelBackups);
-        restoreActiveObject(context.canvas, activeObject);
-        requestRender(context.canvas);
-    }
+    const resolved = resolveExportOptions(context, options);
+    return renderExportDataUrl(context, resolved);
 }
 
 // ─── exportImageFile ─────────────────────────────────────────────────────────
@@ -1012,23 +1015,23 @@ export async function exportImageBase64(
 /**
  * Render the live canvas to a `File`.
  *
- * The bytes come from {@link exportImageBase64} so format/quality/
- * multiplier resolution stays consistent with the base64 path. The
- * resulting data URL is repainted through an offscreen `<canvas>` only
+ * The bytes come from the same private rendering core used by
+ * {@link exportImageBase64}. The resulting data URL is repainted
+ * through an offscreen `<canvas>` only
  * when its MIME prefix does not match the requested type — some browsers
  * silently fall back to PNG when the requested format is unsupported,
  * and the export contract requires the output MIME to match the resolved
  * `fileType`.
  *
  * @param context - Export context bundle.
- * @param options - Optional {@link ImageFileExportOptions}.
+ * @param options - Optional {@link ImageExportOptions}.
  * @returns        Resolves with the rendered `File`.
  * @throws         {@link ExportNotReadyError} when no image is loaded.
  *
  */
 export async function exportImageFile(
     context: ExportServiceContext,
-    options?: ImageFileExportOptions,
+    options?: ImageExportOptions,
 ): Promise<File> {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageFile');
@@ -1036,33 +1039,12 @@ export async function exportImageFile(
     }
 
     const providedOptions = options ?? {};
-    const fileName = providedOptions.fileName ?? context.options.defaultDownloadFileName;
-    const resolved = resolveExportFormat(providedOptions, context.options.downsampleQuality);
-
-    // Reuse `exportImageBase64` so format/quality/multiplier resolution,
-    // ActiveSelection discard, and the bake-in/restore bracket are all
-    // defined once.
-    const base64 = await exportImageBase64(context, {
-        exportArea: providedOptions.exportArea,
-        mergeMasks: providedOptions.mergeMasks,
-        mergeAnnotations: providedOptions.mergeAnnotations,
-        multiplier: providedOptions.multiplier,
-        quality: providedOptions.quality,
-        fileType: providedOptions.fileType,
-    });
-    if (!base64) {
-        // exportImageBase64 already warned about the missing image; the
-        // file path still owes its own typed rejection. In practice this
-        // branch is unreachable because the `isImageLoaded` gate above
-        // already returned, but the guard keeps the function total even
-        // if a caller bypasses the gate by mutating the context between
-        // awaits.
-        throw new ExportNotReadyError('exportImageFile');
-    }
+    const resolved = resolveExportOptions(context, providedOptions);
+    const rawDataUrl = await renderExportDataUrl(context, resolved);
 
     const finalDataUrl = await reencodeDataUrlAs(
-        base64,
-        resolved,
+        rawDataUrl,
+        resolved.format,
         context.options.backgroundColor,
         context.canvas,
     );
@@ -1072,7 +1054,12 @@ export async function exportImageFile(
     } catch (error) {
         throw new ExportError('exportImageFile failed to decode rendered data URL.', error);
     }
-    return new File([bytes], fileName, { type: resolved.mimeType });
+    const fileName = resolveFileName(
+        providedOptions.fileName ?? context.options.defaultDownloadFileName,
+        resolved.format,
+    );
+
+    return new File([bytes], fileName, { type: resolved.format.mimeType });
 }
 
 // ─── downloadImage ───────────────────────────────────────────────────────────
@@ -1080,59 +1067,66 @@ export async function exportImageFile(
 /**
  * Trigger a browser download of the live canvas.
  *
- * Mirrors legacy's "anchor with `download` attribute" approach: an `<a>`
- * element is created, pointed at the data URL, appended to the document
- * so Firefox dispatches the click, clicked, and removed. The function
- * returns synchronously; the data URL is rendered
- * asynchronously and the click is deferred until that promise resolves.
+ * Mirrors legacy's "anchor with `download` attribute" approach: a `File`
+ * is rendered, an object URL is created, and an `<a>` element is appended
+ * to the document so Firefox dispatches the click.
  *
  * No-image gate emits the same `console.warn` as the
  * other entry points and returns without touching the DOM.
  *
- * Errors raised by the underlying `exportImageBase64` call are reported
- * with `console.error` rather than rethrown — `downloadImage` returns
- * `void` and there is no caller-visible promise to reject.
+ * Errors raised by the underlying export are reported with `console.error`
+ * and rethrown through the returned promise.
  *
  * @param context - Export context bundle.
- * @param options - Optional filename or {@link DownloadImageOptions}.
- *                  String input is treated as a filename for backwards
- *                  compatibility.
+ * @param options - Optional {@link ImageExportOptions}.
  *
  */
-export function downloadImage(
+export async function downloadImage(
     context: ExportServiceContext,
-    options?: DownloadImageOptions | string,
-): void {
+    options?: ImageExportOptions,
+): Promise<void> {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('downloadImage');
         return;
     }
 
-    const resolved = resolveDownloadOptions(context, options);
+    if (options !== undefined && options !== null && typeof options !== 'object') {
+        throw new TypeError(
+            '[ImageEditor] downloadImage(options) expects an ImageExportOptions object.',
+        );
+    }
 
-    // The download path mirrors legacy: an anchor with `download` and an
-    // `href` set to the data URL emitted by `exportImageBase64`. The
-    // anchor is appended to `document.body` because some browsers
-    // (notably Firefox) ignore programmatic clicks on detached nodes.
-    void exportImageBase64(context, resolved.exportOptions)
-        .then((dataUrl) => {
-            if (!dataUrl) return; // already warned by `exportImageBase64`
-            const ownerDocument = getCanvasDocument(context.canvas);
-            const link = ownerDocument.createElement('a');
-            link.download = resolved.fileName;
-            link.href = dataUrl;
-            const body = ownerDocument.body;
-            body.appendChild(link);
-            try {
-                link.click();
-            } finally {
-                body.removeChild(link);
-            }
-        })
-        .catch((error: unknown) => {
-            reportError(context.options, error, 'downloadImage failed.');
-            console.error('[ImageEditor] downloadImage failed', error);
-        });
+    try {
+        const file = await exportImageFile(context, options);
+        triggerFileDownload(context, file);
+    } catch (error) {
+        reportError(context.options, error, 'downloadImage failed.');
+        console.error('[ImageEditor] downloadImage failed', error);
+        throw error;
+    }
+}
+
+function triggerFileDownload(context: ExportServiceContext, file: File): void {
+    const ownerDocument = getCanvasDocument(context.canvas);
+    const objectUrl = URL.createObjectURL(file);
+    const link = ownerDocument.createElement('a');
+
+    link.download = file.name;
+    link.href = objectUrl;
+
+    const body = ownerDocument.body;
+    body.appendChild(link);
+
+    try {
+        link.click();
+    } finally {
+        body.removeChild(link);
+        if (typeof globalThis.setTimeout === 'function') {
+            globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+        } else {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
 }
 
 // ─── mergeMasks ──────────────────────────────────────────────────────────────

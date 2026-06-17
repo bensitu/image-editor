@@ -13,7 +13,7 @@ import { MergeAnnotationsError, MergeMasksError } from '../core/errors.js';
 import { normalizeLayerOrder } from '../core/layer-order.js';
 import type {
     AnnotationObject,
-    Base64ExportOptions,
+    ImageExportOptions,
     LoadImageOptions,
     MaskObject,
     ResolvedOptions,
@@ -31,7 +31,7 @@ export interface OverlayMergeTransactionContext {
     captureSnapshot(): string;
     loadFromState(snapshot: string): Promise<void>;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
-    exportImageBase64(options: Base64ExportOptions): Promise<string>;
+    exportImageBase64(options: ImageExportOptions): Promise<string>;
     updateUi(): void;
     updateInputs(): void;
 }
@@ -41,7 +41,7 @@ export interface OverlayMergeGroupOptions<
     TPreserved extends FabricNS.FabricObject,
 > {
     operation: OverlayMergeOperation;
-    exportOptions: Base64ExportOptions & {
+    exportOptions: ImageExportOptions & {
         exportArea: 'image';
         fileType: 'png';
     };

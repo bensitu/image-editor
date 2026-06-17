@@ -186,7 +186,159 @@ function reapplyPreservedMasks(context, cropRegion, records) {
     catch {
     }
 }
-export function enterCropMode(context) {
+const CROP_ASPECT_RATIO_PRESETS = Object.freeze({
+    free: null,
+    '1:1': 1,
+    '3:4': 3 / 4,
+    '4:3': 4 / 3,
+    '3:2': 3 / 2,
+    '2:3': 2 / 3,
+    '9:16': 9 / 16,
+    '16:9': 16 / 9,
+});
+export function normalizeCropAspectRatio(input) {
+    var _a;
+    if (input === null || input === undefined)
+        return null;
+    if (typeof input === 'number') {
+        return Number.isFinite(input) && input > 0 ? input : null;
+    }
+    if (typeof input === 'string') {
+        const trimmed = input.trim();
+        if (Object.prototype.hasOwnProperty.call(CROP_ASPECT_RATIO_PRESETS, trimmed)) {
+            return (_a = CROP_ASPECT_RATIO_PRESETS[trimmed]) !== null && _a !== void 0 ? _a : null;
+        }
+        const parts = trimmed.split(':');
+        if (parts.length !== 2)
+            return null;
+        const width = Number(parts[0]);
+        const height = Number(parts[1]);
+        return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+            ? width / height
+            : null;
+    }
+    if (typeof input === 'object') {
+        const width = Number(input.width);
+        const height = Number(input.height);
+        return Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+            ? width / height
+            : null;
+    }
+    return null;
+}
+function fitAspectRatioInside(maxWidth, maxHeight, aspectRatio) {
+    const safeMaxWidth = Math.max(1, maxWidth);
+    const safeMaxHeight = Math.max(1, maxHeight);
+    let width = safeMaxWidth;
+    let height = width / aspectRatio;
+    if (height > safeMaxHeight) {
+        height = safeMaxHeight;
+        width = height * aspectRatio;
+    }
+    return {
+        width: Math.max(1, width),
+        height: Math.max(1, height),
+    };
+}
+function minimumAspectRatioSizeThatFits(minWidth, minHeight, maxWidth, maxHeight, aspectRatio) {
+    let width = Math.max(1, minWidth);
+    let height = width / aspectRatio;
+    if (height < minHeight) {
+        height = Math.max(1, minHeight);
+        width = height * aspectRatio;
+    }
+    return width <= maxWidth && height <= maxHeight ? { width, height } : null;
+}
+function chooseAspectRatioResizeBasis(canvas, cropRect, scaleX, scaleY) {
+    var _a, _b, _c;
+    const corner = String((_c = (_a = cropRect.__corner) !== null && _a !== void 0 ? _a : (_b = canvas._currentTransform) === null || _b === void 0 ? void 0 : _b.corner) !== null && _c !== void 0 ? _c : '').toLowerCase();
+    if (corner === 'mt' || corner === 'mb')
+        return 'height';
+    if (corner === 'ml' || corner === 'mr')
+        return 'width';
+    return Math.abs(scaleY - 1) > Math.abs(scaleX - 1) ? 'height' : 'width';
+}
+function constrainAspectRatioSize(requestedWidth, requestedHeight, basis, aspectRatio, minWidth, minHeight, maxWidth, maxHeight) {
+    var _a;
+    const maxSize = fitAspectRatioInside(maxWidth, maxHeight, aspectRatio);
+    const minSize = (_a = minimumAspectRatioSizeThatFits(minWidth, minHeight, maxSize.width, maxSize.height, aspectRatio)) !== null && _a !== void 0 ? _a : maxSize;
+    let width = basis === 'height' ? requestedHeight * aspectRatio : requestedWidth;
+    let height = basis === 'height' ? requestedHeight : requestedWidth / aspectRatio;
+    if (width > maxSize.width || height > maxSize.height) {
+        ({ width, height } = maxSize);
+    }
+    if (width < minSize.width || height < minSize.height) {
+        ({ width, height } = minSize);
+    }
+    return { width, height };
+}
+function resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding) {
+    const insetX = padding * 2 < maxCropWidth ? padding : 0;
+    const insetY = padding * 2 < maxCropHeight ? padding : 0;
+    return {
+        left: boundsLeft + insetX,
+        top: boundsTop + insetY,
+        width: Math.max(1, maxCropWidth - insetX * 2),
+        height: Math.max(1, maxCropHeight - insetY * 2),
+    };
+}
+function resolveCropBounds(context) {
+    const originalImage = context.getOriginalImage();
+    if (!originalImage)
+        return null;
+    originalImage.setCoords();
+    const { options } = context;
+    const imageBounds = originalImage.getBoundingRect();
+    const padding = Number.isFinite(Number(options.crop.padding))
+        ? Number(options.crop.padding)
+        : CROP_DEFAULT_PADDING;
+    const boundsLeft = Math.max(0, Math.floor(imageBounds.left));
+    const boundsTop = Math.max(0, Math.floor(imageBounds.top));
+    const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
+    const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
+    const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
+    const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
+    return {
+        boundsLeft,
+        boundsTop,
+        maxCropWidth,
+        maxCropHeight,
+        minCropWidth: Math.min(configuredMinWidth, maxCropWidth),
+        minCropHeight: Math.min(configuredMinHeight, maxCropHeight),
+        padding,
+        imageBounds,
+    };
+}
+function clampCropRectIntoBounds(cropRect, bounds) {
+    const width = Math.min(bounds.maxCropWidth, Math.max(bounds.minCropWidth, (Number(cropRect.width) || 1) * (Number(cropRect.scaleX) || 1)));
+    const height = Math.min(bounds.maxCropHeight, Math.max(bounds.minCropHeight, (Number(cropRect.height) || 1) * (Number(cropRect.scaleY) || 1)));
+    const left = Math.min(bounds.boundsLeft + bounds.maxCropWidth - width, Math.max(bounds.boundsLeft, Number(cropRect.left) || bounds.boundsLeft));
+    const top = Math.min(bounds.boundsTop + bounds.maxCropHeight - height, Math.max(bounds.boundsTop, Number(cropRect.top) || bounds.boundsTop));
+    cropRect.set({ left, top, width, height, scaleX: 1, scaleY: 1 });
+}
+function resizeCropRectToAspectRatio(context, cropRect, aspectRatio) {
+    const bounds = resolveCropBounds(context);
+    if (!bounds)
+        return;
+    if (aspectRatio === null) {
+        clampCropRectIntoBounds(cropRect, bounds);
+        cropRect.setCoords();
+        return;
+    }
+    const available = resolvePaddedCropArea(bounds.boundsLeft, bounds.boundsTop, bounds.maxCropWidth, bounds.maxCropHeight, bounds.padding);
+    const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
+    cropRect.set({
+        left: available.left + (available.width - fitted.width) / 2,
+        top: available.top + (available.height - fitted.height) / 2,
+        width: fitted.width,
+        height: fitted.height,
+        scaleX: 1,
+        scaleY: 1,
+    });
+    cropRect.setCoords();
+}
+export function enterCropMode(context, cropModeOptions = {}) {
+    var _a;
     const { canvas, options } = context;
     if (context.getCropSession())
         return;
@@ -208,18 +360,35 @@ export function enterCropMode(context) {
     const boundsTop = Math.max(0, Math.floor(imageBounds.top));
     const maxCropWidth = Math.max(1, Math.floor(imageBounds.width));
     const maxCropHeight = Math.max(1, Math.floor(imageBounds.height));
-    const rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
-    const rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
     const configuredMinWidth = Math.max(1, Number(options.crop.minWidth) || 1);
     const configuredMinHeight = Math.max(1, Number(options.crop.minHeight) || 1);
     const minCropWidth = Math.min(configuredMinWidth, maxCropWidth);
     const minCropHeight = Math.min(configuredMinHeight, maxCropHeight);
     const allowRotation = !!options.crop.allowRotationOfCropRect;
+    const aspectRatio = normalizeCropAspectRatio((_a = cropModeOptions.aspectRatio) !== null && _a !== void 0 ? _a : options.crop.aspectRatio);
+    let rectLeft;
+    let rectTop;
+    let rectWidth;
+    let rectHeight;
+    if (aspectRatio === null) {
+        rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
+        rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
+        rectWidth = minCropWidth;
+        rectHeight = minCropHeight;
+    }
+    else {
+        const available = resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding);
+        const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
+        rectWidth = fitted.width;
+        rectHeight = fitted.height;
+        rectLeft = available.left + (available.width - rectWidth) / 2;
+        rectTop = available.top + (available.height - rectHeight) / 2;
+    }
     const cropRect = new context.fabric.Rect({
         left: rectLeft,
         top: rectTop,
-        width: minCropWidth,
-        height: minCropHeight,
+        width: rectWidth,
+        height: rectHeight,
         originX: 'left',
         originY: 'top',
         fill: CROP_RECT_FILL,
@@ -277,8 +446,22 @@ export function enterCropMode(context) {
         try {
             const cropWidth = Math.max(1, Number(cropRect.width) || 1);
             const cropHeight = Math.max(1, Number(cropRect.height) || 1);
-            const nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
-            const nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
+            let nextScaleX;
+            let nextScaleY;
+            const activeSession = context.getCropSession();
+            const activeAspectRatio = activeSession ? activeSession.aspectRatio : aspectRatio;
+            if (activeAspectRatio === null) {
+                nextScaleX = Math.min(maxCropWidth / cropWidth, Math.max(minCropWidth / cropWidth, Number(cropRect.scaleX) || 1));
+                nextScaleY = Math.min(maxCropHeight / cropHeight, Math.max(minCropHeight / cropHeight, Number(cropRect.scaleY) || 1));
+            }
+            else {
+                const rawScaleX = Math.max(0.0001, Number(cropRect.scaleX) || 1);
+                const rawScaleY = Math.max(0.0001, Number(cropRect.scaleY) || 1);
+                const basis = chooseAspectRatioResizeBasis(canvas, cropRect, rawScaleX, rawScaleY);
+                const constrained = constrainAspectRatioSize(cropWidth * rawScaleX, cropHeight * rawScaleY, basis, activeAspectRatio, minCropWidth, minCropHeight, maxCropWidth, maxCropHeight);
+                nextScaleX = constrained.width / cropWidth;
+                nextScaleY = constrained.height / cropHeight;
+            }
             const scaledWidth = cropWidth * nextScaleX;
             const scaledHeight = cropHeight * nextScaleY;
             const maxLeft = Math.max(boundsLeft, boundsLeft + maxCropWidth - scaledWidth);
@@ -306,6 +489,7 @@ export function enterCropMode(context) {
         prevEvented,
         maskBackups,
         cropRect,
+        aspectRatio,
         handlers: [
             {
                 target: cropRect,
@@ -319,6 +503,16 @@ export function enterCropMode(context) {
     };
     context.setCropSession(session);
     canvas.renderAll();
+}
+export function setCropAspectRatio(context, aspectRatioInput) {
+    const session = context.getCropSession();
+    if (!(session === null || session === void 0 ? void 0 : session.cropRect))
+        return;
+    const aspectRatio = normalizeCropAspectRatio(aspectRatioInput);
+    session.aspectRatio = aspectRatio;
+    resizeCropRectToAspectRatio(context, session.cropRect, aspectRatio);
+    context.canvas.setActiveObject(session.cropRect);
+    context.canvas.requestRenderAll();
 }
 export function cancelCrop(context) {
     const session = context.getCropSession();

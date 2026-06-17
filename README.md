@@ -7,7 +7,7 @@
 A lightweight, TypeScript-first canvas image editor built on top of
 [Fabric.js](https://fabricjs.com/) v7. `ImageEditor` wraps a Fabric canvas
 with image loading, scale and rotation, mask creation, Text and Draw
-annotations, crop, Mosaic mode, history (undo/redo), layer operations, and
+annotations, crop, Mosaic mode, base-image flips, history (undo/redo), layer operations, and
 base64/file export — exposed as a single canonical class
 with a stable public surface.
 
@@ -129,6 +129,8 @@ resolve to `undefined`.
 <input id="rotateLeftDegreesInput" type="number" value="90" />
 <button id="rotateRightButton">Rotate Right</button>
 <input id="rotateRightDegreesInput" type="number" value="90" />
+<button id="flipHorizontalButton">Flip Horizontal</button>
+<button id="flipVerticalButton">Flip Vertical</button>
 
 <button id="createMaskButton">Add Mask</button>
 <button id="removeSelectedMaskButton">Remove Mask</button>
@@ -155,6 +157,16 @@ resolve to `undefined`.
 <ul id="annotationList"></ul>
 
 <button id="enterCropModeButton">Crop</button>
+<select id="cropAspectRatioSelect">
+    <option value="free">Free</option>
+    <option value="1:1">1:1</option>
+    <option value="3:4">3:4</option>
+    <option value="4:3">4:3</option>
+    <option value="3:2">3:2</option>
+    <option value="2:3">2:3</option>
+    <option value="9:16">9:16</option>
+    <option value="16:9">16:9</option>
+</select>
 <button id="applyCropButton">Apply Crop</button>
 <button id="cancelCropButton">Cancel Crop</button>
 
@@ -212,11 +224,14 @@ editor.init({
     rotateLeftDegreesInput: 'rotateLeftDegreesInput',
     rotateRightButton: 'rotateRightButton',
     rotateRightDegreesInput: 'rotateRightDegreesInput',
+    flipHorizontalButton: 'flipHorizontalButton',
+    flipVerticalButton: 'flipVerticalButton',
     createMaskButton: 'createMaskButton',
     removeSelectedMaskButton: 'removeSelectedMaskButton',
     removeAllMasksButton: 'removeAllMasksButton',
     maskList: 'maskList',
     enterCropModeButton: 'enterCropModeButton',
+    cropAspectRatioSelect: 'cropAspectRatioSelect',
     applyCropButton: 'applyCropButton',
     cancelCropButton: 'cancelCropButton',
     enterMosaicModeButton: 'enterMosaicModeButton',
@@ -270,7 +285,7 @@ const { ImageEditor } = require('@bensitu/image-editor');
 const editor = new ImageEditor(fabric, { canvasWidth: 800, canvasHeight: 600 });
 ```
 
-In v2.2, `require('@bensitu/image-editor')` returns a namespace object with
+In v2, `require('@bensitu/image-editor')` returns a namespace object with
 `ImageEditor`, `default`, and the editor object guards
 (`isBaseImageObject`, `isMaskObject`, `isAnnotationObject`,
 `isTextAnnotationObject`, `isDrawAnnotationObject`, `isSessionObject`, and
@@ -350,11 +365,18 @@ the JPEG, PNG, or WebP export options.
 
 ### Transforms
 
-| Method                  | Description                                                                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Non-finite values are no-ops. Animated.      |
-| `rotateImage(degrees)`  | Rotate to `degrees`. Non-finite values resolve without changing canvas state. Animated.             |
-| `resetImageTransform()` | Animate to scale 1 and rotation 0. Records exactly one history entry covering the entire transform. |
+| Method                  | Description                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Non-finite values are no-ops. Animated.                                     |
+| `rotateImage(degrees)`  | Rotate to `degrees`. Non-finite values resolve without changing canvas state. Animated.                                            |
+| `flipHorizontal()`      | Toggle horizontal flip on the base image only. Masks, annotations, and session overlays are not mirrored. Returns `Promise<void>`. |
+| `flipVertical()`        | Toggle vertical flip on the base image only. Masks, annotations, and session overlays are not mirrored. Returns `Promise<void>`.   |
+| `resetImageTransform()` | Animate to scale 1, rotation 0, and an unflipped state. Records exactly one history entry covering the entire transform.           |
+
+```ts
+await editor.flipHorizontal();
+await editor.flipVertical();
+```
 
 ### Masks
 
@@ -393,11 +415,29 @@ editor.createMask({ color: 'rgba(0, 128, 255, 0.35)' }); // Per-call override.
 
 ### Crop
 
-| Method            | Description                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------ |
-| `enterCropMode()` | Add an interactive crop rectangle on top of the image.                               |
-| `applyCrop()`     | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.  |
-| `cancelCrop()`    | Cancel crop mode and restore the prior canvas state without pushing a history entry. |
+| Method                      | Description                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `enterCropMode(options?)`   | Add an interactive crop rectangle on top of the image.                               |
+| `setCropAspectRatio(ratio)` | Update the active crop rectangle ratio while crop mode is open.                      |
+| `applyCrop()`               | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.  |
+| `cancelCrop()`              | Cancel crop mode and restore the prior canvas state without pushing a history entry. |
+
+`enterCropMode({ aspectRatio })` locks the crop rectangle to a preset or custom
+ratio. Supported preset strings are `'free'`, `'1:1'`, `'3:4'`, `'4:3'`,
+`'3:2'`, `'2:3'`, `'16:9'`, and `'9:16'`. Custom ratios use
+`{ width, height }`. Per-call options override `crop.aspectRatio` from the
+constructor.
+
+When `cropAspectRatioSelect` is bound through `init(idMap)`, the built-in Crop
+button uses the select's current value and changing the select while crop mode
+is open calls `setCropAspectRatio()` to resize the active crop rectangle.
+
+```ts
+editor.enterCropMode({ aspectRatio: '1:1' });
+editor.enterCropMode({ aspectRatio: '16:9' });
+editor.setCropAspectRatio('4:3');
+editor.enterCropMode({ aspectRatio: { width: 2, height: 1 } });
+```
 
 ### Mosaic mode
 
@@ -508,30 +548,39 @@ base image below overlays and session objects above overlays.
 | `mergeAnnotations()`          | Bake annotations into the base image atomically. Returns `Promise<void>`.                      |
 | `exportImageBase64(options?)` | Returns `Promise<string>` (data URL). Resolves to `''` with a warning when no image is loaded. |
 | `exportImageFile(options?)`   | Returns `Promise<File>`. Rejects when no image is loaded.                                      |
-| `downloadImage(options?)`     | Triggers a browser download. Also accepts a filename string. No-op when no image is loaded.    |
+| `downloadImage(options?)`     | Returns `Promise<void>` and triggers a browser download. No-op when no image is loaded.        |
 
-`Base64ExportOptions` and `ImageFileExportOptions` separate overlay rendering
-from export region selection. `DownloadImageOptions` supports the same overlay
-rendering flags plus `fileName`:
+All export APIs use the same `ImageExportOptions` shape:
 
-| Option             | Default   | Description                                                                                 |
-| ------------------ | --------- | ------------------------------------------------------------------------------------------- |
-| `mergeMasks`       | `true`    | Render masks into exported pixels. Mask labels are never exported.                          |
-| `mergeAnnotations` | `true`    | Render non-hidden annotations into exported pixels.                                         |
-| `exportArea`       | `'image'` | `'image'` clips to the image bounding box; `'canvas'` exports the canvas.                   |
-| `fileType`         | `'jpeg'`  | `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, or matching full MIME strings.                        |
-| `format`           | `'jpeg'`  | Alias for `fileType` on `exportImageBase64`; `fileType` wins when both set.                 |
-| `quality`          | `0.92`    | Lossy quality clamped to `[0, 1]`; ignored for PNG.                                         |
-| `multiplier`       | `1`       | Output resolution multiplier.                                                               |
-| `fileName`         | option    | `ImageFileExportOptions` and `DownloadImageOptions`. Defaults to `defaultDownloadFileName`. |
+| Option             | Default   | Description                                                                       |
+| ------------------ | --------- | --------------------------------------------------------------------------------- |
+| `mergeMasks`       | `true`    | Render masks into exported pixels. Mask labels are never exported.                |
+| `mergeAnnotations` | `true`    | Render non-hidden annotations into exported pixels.                               |
+| `exportArea`       | `'image'` | `'image'` clips to the image bounding box; `'canvas'` exports the canvas.         |
+| `fileType`         | `'jpeg'`  | `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, or matching full MIME strings.              |
+| `format`           | `'jpeg'`  | Alias for `fileType` on all export APIs; `fileType` wins when both set.           |
+| `quality`          | `0.92`    | Lossy quality clamped to `[0, 1]`; ignored for PNG.                               |
+| `multiplier`       | `1`       | Output resolution multiplier.                                                     |
+| `fileName`         | option    | `exportImageFile()` and `downloadImage()`. Defaults to `defaultDownloadFileName`. |
 
 ```ts
 await editor.exportImageBase64({ mergeMasks: true, mergeAnnotations: true });
 await editor.exportImageBase64({ mergeMasks: false, mergeAnnotations: true });
 await editor.exportImageBase64({ mergeMasks: true, mergeAnnotations: false });
 await editor.exportImageBase64({ mergeMasks: false, mergeAnnotations: false });
-editor.downloadImage({ mergeMasks: false, mergeAnnotations: false });
-editor.downloadImage('edited_image.jpg'); // Backwards-compatible filename shorthand.
+
+const dataUrl = await editor.exportImageBase64({ fileType: 'png', exportArea: 'image' });
+const file = await editor.exportImageFile({
+    fileType: 'webp',
+    quality: 0.85,
+    fileName: 'edited',
+});
+await editor.downloadImage({
+    fileType: 'png',
+    fileName: 'edited',
+    mergeMasks: false,
+    mergeAnnotations: false,
+});
 ```
 
 `mergeMasks` and `mergeAnnotations` in export options affect the rendered output
@@ -554,59 +603,59 @@ Pass an `ImageEditorOptions` object as the second constructor argument
 (or as the only argument when using the UMD global form). Unknown keys are
 ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 
-| Option                      | Default              | Description                                                                                                                                                                                                                                                                    |
-| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `canvasWidth`               | `800`                | Initial and hidden-container fallback canvas width in pixels.                                                                                                                                                                                                                  |
-| `canvasHeight`              | `600`                | Initial and hidden-container fallback canvas height in pixels.                                                                                                                                                                                                                 |
-| `backgroundColor`           | `'transparent'`      | Fabric canvas background color.                                                                                                                                                                                                                                                |
-| `animationDuration`         | `300`                | Duration of scale and rotate animations (ms).                                                                                                                                                                                                                                  |
-| `minScale`                  | `0.1`                | Minimum scale factor.                                                                                                                                                                                                                                                          |
-| `maxScale`                  | `5.0`                | Maximum scale factor.                                                                                                                                                                                                                                                          |
-| `scaleStep`                 | `0.05`               | Scale delta per zoom step.                                                                                                                                                                                                                                                     |
-| `rotationStep`              | `90`                 | Rotation step in degrees.                                                                                                                                                                                                                                                      |
-| `defaultLayoutMode`         | `'expand'`           | Initial layout mode for image loads until changed by `setLayoutMode()`. Use `'fit'`, `'cover'`, or `'expand'`. Invalid runtime values fall back to `'expand'`.                                                                                                                 |
-| `downsampleOnLoad`          | `true`               | Downsample large images on load.                                                                                                                                                                                                                                               |
-| `downsampleMaxWidth`        | `4000`               | Max width before downsampling kicks in.                                                                                                                                                                                                                                        |
-| `downsampleMaxHeight`       | `3000`               | Max height before downsampling kicks in.                                                                                                                                                                                                                                       |
-| `downsampleQuality`         | `0.92`               | Lossy quality used when downsampling and exporting.                                                                                                                                                                                                                            |
-| `preserveSourceFormat`      | `true`               | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                                                                                                                                                |
-| `downsampleMimeType`        | `null`               | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                                                                                                                                               |
-| `imageLoadTimeoutMs`        | `30000`              | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                                 |
-| `exportMultiplier`          | `1`                  | Output resolution multiplier.                                                                                                                                                                                                                                                  |
-| `maxExportPixels`           | `50000000`           | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                                     |
-| `maxHistorySize`            | `50`                 | Maximum undo-history entries. Snapshots may include full image data URLs, so large images can duplicate memory across history entries. Lower this for memory-constrained pages.                                                                                                |
-| `exportAreaByDefault`       | `'image'`            | Default export region for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                         |
-| `mergeMasksByDefault`       | `true`               | Default mask rendering behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                               |
-| `mergeAnnotationsByDefault` | `true`               | Default annotation rendering behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                         |
-| `defaultMaskWidth`          | `50`                 | Default mask width.                                                                                                                                                                                                                                                            |
-| `defaultMaskHeight`         | `80`                 | Default mask height.                                                                                                                                                                                                                                                           |
-| `defaultMaskConfig`         | `{}`                 | Defaults applied by `createMask()` after `defaultMaskWidth` / `defaultMaskHeight` and before per-call config. Supports `MaskConfig` fields except `onCreate` and `fabricGenerator`.                                                                                            |
-| `defaultMosaicConfig`       | see source           | Defaults used to initialize the current Mosaic tool config. Supports `brushSize`, `blockSize`, preview circle styling, `outputFileType`, and `outputQuality`. Runtime Mosaic setters update the current config only.                                                           |
-| `defaultTextConfig`         | see source           | Defaults used to initialize the current Text annotation config. Runtime Text setters update the current config only.                                                                                                                                                           |
-| `defaultDrawConfig`         | see source           | Defaults used to initialize the current Draw mode config. Runtime Draw setters update the current config only.                                                                                                                                                                 |
-| `maskRotatable`             | `false`              | Allow masks to be rotated by the user.                                                                                                                                                                                                                                         |
-| `maskLabelOnSelect`         | `true`               | Show a label above a selected mask.                                                                                                                                                                                                                                            |
-| `maskLabelOffset`           | `3`                  | Pixel offset of the label from the mask's top-left corner.                                                                                                                                                                                                                     |
-| `maskName`                  | `'mask'`             | Prefix used for auto-generated mask names.                                                                                                                                                                                                                                     |
-| `textAnnotationName`        | `'text'`             | Prefix used for auto-generated text annotation names.                                                                                                                                                                                                                          |
-| `drawAnnotationName`        | `'draw'`             | Prefix used for auto-generated draw annotation names.                                                                                                                                                                                                                          |
-| `groupSelection`            | `false`              | Allow Fabric multi-object group selection on the canvas.                                                                                                                                                                                                                       |
-| `showPlaceholder`           | `true`               | Show a placeholder element while no image is loaded.                                                                                                                                                                                                                           |
-| `initialImageBase64`        | `null`               | Base64 data URL auto-loaded after construction.                                                                                                                                                                                                                                |
-| `defaultDownloadFileName`   | `'edited_image.jpg'` | Default file name used by `downloadImage()`.                                                                                                                                                                                                                                   |
-| `onImageLoadStart`          | `null`               | Called before a valid image load begins.                                                                                                                                                                                                                                       |
-| `onImageLoaded`             | `null`               | Called as `(info, context)` once after a successful `loadImage`. Extra arguments are ignored by existing zero-argument JavaScript handlers.                                                                                                                                    |
-| `onImageCleared`            | `null`               | Called when a committed image is replaced or cleared.                                                                                                                                                                                                                          |
-| `onImageChanged`            | `null`               | Called with a safe editor state snapshot after visible editor state changes.                                                                                                                                                                                                   |
-| `onBusyChange`              | `null`               | Called only when the public busy state changes.                                                                                                                                                                                                                                |
-| `onEditorDisposed`          | `null`               | Called once when `dispose()` performs teardown.                                                                                                                                                                                                                                |
-| `onMasksChanged`            | `null`               | Called with a shallow copy of current mask objects after the mask collection changes.                                                                                                                                                                                          |
-| `onAnnotationsChanged`      | `null`               | Called with a shallow copy of current annotation objects after the annotation collection changes.                                                                                                                                                                              |
-| `onSelectionChange`         | `null`               | Called with selected object payload after selection changes.                                                                                                                                                                                                                   |
-| `onError`                   | `null`               | Called as `(error, message)` when the editor reports an error.                                                                                                                                                                                                                 |
-| `onWarning`                 | `null`               | Called as `(error, message)` when the editor reports a recoverable warning.                                                                                                                                                                                                    |
-| `label`                     | see source           | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                                                                                                                                                   |
-| `crop`                      | see source           | `CropConfig` (`minWidth`, `minHeight`, `padding`, `hideMasksDuringCrop`, `preserveMasksAfterCrop`, `allowRotationOfCropRect`, `exportFileType`, `exportQuality`). `applyCrop()` preserves the current image format by default (`'source'`) and falls back to PNG when unknown. |
+| Option                      | Default          | Description                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canvasWidth`               | `800`            | Initial and hidden-container fallback canvas width in pixels.                                                                                                                                                                                                                                 |
+| `canvasHeight`              | `600`            | Initial and hidden-container fallback canvas height in pixels.                                                                                                                                                                                                                                |
+| `backgroundColor`           | `'transparent'`  | Fabric canvas background color.                                                                                                                                                                                                                                                               |
+| `animationDuration`         | `300`            | Duration of scale and rotate animations (ms).                                                                                                                                                                                                                                                 |
+| `minScale`                  | `0.1`            | Minimum scale factor.                                                                                                                                                                                                                                                                         |
+| `maxScale`                  | `5.0`            | Maximum scale factor.                                                                                                                                                                                                                                                                         |
+| `scaleStep`                 | `0.05`           | Scale delta per zoom step.                                                                                                                                                                                                                                                                    |
+| `rotationStep`              | `90`             | Rotation step in degrees.                                                                                                                                                                                                                                                                     |
+| `defaultLayoutMode`         | `'expand'`       | Initial layout mode for image loads until changed by `setLayoutMode()`. Use `'fit'`, `'cover'`, or `'expand'`. Invalid runtime values fall back to `'expand'`.                                                                                                                                |
+| `downsampleOnLoad`          | `true`           | Downsample large images on load.                                                                                                                                                                                                                                                              |
+| `downsampleMaxWidth`        | `4000`           | Max width before downsampling kicks in.                                                                                                                                                                                                                                                       |
+| `downsampleMaxHeight`       | `3000`           | Max height before downsampling kicks in.                                                                                                                                                                                                                                                      |
+| `downsampleQuality`         | `0.92`           | Lossy quality used when downsampling and exporting.                                                                                                                                                                                                                                           |
+| `preserveSourceFormat`      | `true`           | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                                                                                                                                                               |
+| `downsampleMimeType`        | `null`           | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                                                                                                                                                              |
+| `imageLoadTimeoutMs`        | `30000`          | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                                                |
+| `exportMultiplier`          | `1`              | Output resolution multiplier.                                                                                                                                                                                                                                                                 |
+| `maxExportPixels`           | `50000000`       | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                                                    |
+| `maxHistorySize`            | `50`             | Maximum undo-history entries. Snapshots may include full image data URLs, so large images can duplicate memory across history entries. Lower this for memory-constrained pages.                                                                                                               |
+| `exportAreaByDefault`       | `'image'`        | Default export region for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                                        |
+| `mergeMasksByDefault`       | `true`           | Default mask rendering behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                              |
+| `mergeAnnotationsByDefault` | `true`           | Default annotation rendering behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                        |
+| `defaultMaskWidth`          | `50`             | Default mask width.                                                                                                                                                                                                                                                                           |
+| `defaultMaskHeight`         | `80`             | Default mask height.                                                                                                                                                                                                                                                                          |
+| `defaultMaskConfig`         | `{}`             | Defaults applied by `createMask()` after `defaultMaskWidth` / `defaultMaskHeight` and before per-call config. Supports `MaskConfig` fields except `onCreate` and `fabricGenerator`.                                                                                                           |
+| `defaultMosaicConfig`       | see source       | Defaults used to initialize the current Mosaic tool config. Supports `brushSize`, `blockSize`, preview circle styling, `outputFileType`, and `outputQuality`. Runtime Mosaic setters update the current config only.                                                                          |
+| `defaultTextConfig`         | see source       | Defaults used to initialize the current Text annotation config. Runtime Text setters update the current config only.                                                                                                                                                                          |
+| `defaultDrawConfig`         | see source       | Defaults used to initialize the current Draw mode config. Runtime Draw setters update the current config only.                                                                                                                                                                                |
+| `maskRotatable`             | `false`          | Allow masks to be rotated by the user.                                                                                                                                                                                                                                                        |
+| `maskLabelOnSelect`         | `true`           | Show a label above a selected mask.                                                                                                                                                                                                                                                           |
+| `maskLabelOffset`           | `3`              | Pixel offset of the label from the mask's top-left corner.                                                                                                                                                                                                                                    |
+| `maskName`                  | `'mask'`         | Prefix used for auto-generated mask names.                                                                                                                                                                                                                                                    |
+| `textAnnotationName`        | `'text'`         | Prefix used for auto-generated text annotation names.                                                                                                                                                                                                                                         |
+| `drawAnnotationName`        | `'draw'`         | Prefix used for auto-generated draw annotation names.                                                                                                                                                                                                                                         |
+| `groupSelection`            | `false`          | Allow Fabric multi-object group selection on the canvas.                                                                                                                                                                                                                                      |
+| `showPlaceholder`           | `true`           | Show a placeholder element while no image is loaded.                                                                                                                                                                                                                                          |
+| `initialImageBase64`        | `null`           | Base64 data URL auto-loaded after construction.                                                                                                                                                                                                                                               |
+| `defaultDownloadFileName`   | `'edited_image'` | Default filename base used by `exportImageFile()` and `downloadImage()`. The resolved export format supplies or corrects the extension.                                                                                                                                                       |
+| `onImageLoadStart`          | `null`           | Called before a valid image load begins.                                                                                                                                                                                                                                                      |
+| `onImageLoaded`             | `null`           | Called as `(info, context)` once after a successful `loadImage`. Extra arguments are ignored by existing zero-argument JavaScript handlers.                                                                                                                                                   |
+| `onImageCleared`            | `null`           | Called when a committed image is replaced or cleared.                                                                                                                                                                                                                                         |
+| `onImageChanged`            | `null`           | Called with a safe editor state snapshot after visible editor state changes.                                                                                                                                                                                                                  |
+| `onBusyChange`              | `null`           | Called only when the public busy state changes.                                                                                                                                                                                                                                               |
+| `onEditorDisposed`          | `null`           | Called once when `dispose()` performs teardown.                                                                                                                                                                                                                                               |
+| `onMasksChanged`            | `null`           | Called with a shallow copy of current mask objects after the mask collection changes.                                                                                                                                                                                                         |
+| `onAnnotationsChanged`      | `null`           | Called with a shallow copy of current annotation objects after the annotation collection changes.                                                                                                                                                                                             |
+| `onSelectionChange`         | `null`           | Called with selected object payload after selection changes.                                                                                                                                                                                                                                  |
+| `onError`                   | `null`           | Called as `(error, message)` when the editor reports an error.                                                                                                                                                                                                                                |
+| `onWarning`                 | `null`           | Called as `(error, message)` when the editor reports a recoverable warning.                                                                                                                                                                                                                   |
+| `label`                     | see source       | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                                                                                                                                                                  |
+| `crop`                      | see source       | `CropConfig` (`minWidth`, `minHeight`, `padding`, `aspectRatio`, `hideMasksDuringCrop`, `preserveMasksAfterCrop`, `allowRotationOfCropRect`, `exportFileType`, `exportQuality`). `applyCrop()` preserves the current image format by default (`'source'`) and falls back to PNG when unknown. |
 
 `crop.exportFileType` defaults to `'source'`. Supported explicit values are
 `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, and full image MIME strings. PNG is
@@ -619,23 +668,28 @@ preserve the current image MIME type when known and fall back to PNG when the
 source format cannot be determined. JPEG/WebP commits use
 `defaultMosaicConfig.outputQuality` when finite, otherwise `downsampleQuality`.
 
-## Breaking changes in v2.2.0
+## Breaking changes in v2
 
+- `Base64ExportOptions`, `ImageFileExportOptions`, and `DownloadImageOptions`
+  were replaced by `ImageExportOptions`.
+- `downloadImage(fileName: string)` was removed. Use
+  `downloadImage({ fileName })`.
+- `downloadImage()` now returns `Promise<void>`.
+- `defaultDownloadFileName` now defaults to `'edited_image'`; export format
+  resolution supplies or corrects the final extension.
 - All editor-owned Fabric objects now require `editorObjectKind`.
 - `isMaskObject()` is strict and rejects legacy objects with only `maskId`.
 - `MaskObject.maskUid` is required.
 - Serialized states without `editorObjectKind` are not migrated.
 - Export option mergeMask was removed; use `mergeMasks`.
 - Constructor option mergeMaskByDefault was removed; use `mergeMasksByDefault`.
-- `ImageFileExportOptions` keeps `fileType` only; `format` remains limited to
-  `exportImageBase64`.
 
 ## Example workflow
 
 1. Construct `ImageEditor` with options and call `init(idMap)` to wire it up.
 2. Load an image via `loadImage(base64)` or the bound file input.
-3. Adjust with `scaleImage`, `rotateImage`, `resetImageTransform`, Crop mode,
-   Mosaic mode, Text mode, or Draw mode.
+3. Adjust with `scaleImage`, `rotateImage`, `flipHorizontal`, `flipVertical`,
+   `resetImageTransform`, Crop mode, Mosaic mode, Text mode, or Draw mode.
 4. Add `createMask` and annotation calls, then inspect via `maskList` and
    `annotationList`.
 5. Use `mergeMasks()` or `mergeAnnotations()` to bake overlays into the image, then
@@ -714,8 +768,10 @@ import type {
     ExportArea,
     CropExportFileType,
     MosaicOutputFileType,
-    Base64ExportOptions,
-    ImageFileExportOptions,
+    ImageExportOptions,
+    CropAspectRatioPreset,
+    CropAspectRatio,
+    CropModeOptions,
     ImageInfo,
     ImageEditorState,
     ImageEditorSelection,

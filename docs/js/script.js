@@ -43,6 +43,8 @@ const translations = {
         rotateRightDegrees: 'Rotate right degrees',
         rotateLeft: 'Rotate Left',
         rotateRight: 'Rotate Right',
+        flipHorizontal: 'Flip H',
+        flipVertical: 'Flip V',
         historyActions: 'History actions',
         resetTransform: 'Reset',
         undo: 'Undo',
@@ -53,6 +55,8 @@ const translations = {
         removeMask: 'Remove',
         removeAllMasks: 'Remove All',
         cropActions: 'Crop actions',
+        cropAspectRatio: 'Crop aspect ratio',
+        cropRatioFree: 'Free',
         crop: 'Crop',
         apply: 'Apply',
         cancel: 'Cancel',
@@ -126,6 +130,8 @@ const translations = {
         rotateRightDegrees: '向右旋转角度',
         rotateLeft: '向左旋转',
         rotateRight: '向右旋转',
+        flipHorizontal: '水平翻转',
+        flipVertical: '垂直翻转',
         historyActions: '历史操作',
         resetTransform: '重置',
         undo: '撤销',
@@ -136,6 +142,8 @@ const translations = {
         removeMask: '移除',
         removeAllMasks: '全部移除',
         cropActions: '裁剪操作',
+        cropAspectRatio: '裁剪比例',
+        cropRatioFree: '自由',
         crop: '裁剪',
         apply: '应用',
         cancel: '取消',
@@ -209,6 +217,8 @@ const translations = {
         rotateRightDegrees: '右回転の角度',
         rotateLeft: '左回転',
         rotateRight: '右回転',
+        flipHorizontal: '左右反転',
+        flipVertical: '上下反転',
         historyActions: '履歴操作',
         resetTransform: 'リセット',
         undo: '元に戻す',
@@ -219,6 +229,8 @@ const translations = {
         removeMask: '削除',
         removeAllMasks: 'すべて削除',
         cropActions: '切り抜き操作',
+        cropAspectRatio: '切り抜き比率',
+        cropRatioFree: '自由',
         crop: '切り抜き',
         apply: '適用',
         cancel: 'キャンセル',
@@ -292,6 +304,8 @@ const translations = {
         rotateRightDegrees: '오른쪽 회전 각도',
         rotateLeft: '왼쪽 회전',
         rotateRight: '오른쪽 회전',
+        flipHorizontal: '좌우 반전',
+        flipVertical: '상하 반전',
         historyActions: '기록 작업',
         resetTransform: '초기화',
         undo: '실행 취소',
@@ -302,6 +316,8 @@ const translations = {
         removeMask: '삭제',
         removeAllMasks: '전체 삭제',
         cropActions: '자르기 작업',
+        cropAspectRatio: '자르기 비율',
+        cropRatioFree: '자유',
         crop: '자르기',
         apply: '적용',
         cancel: '취소',
@@ -375,6 +391,8 @@ const translations = {
         rotateRightDegrees: 'Degrés de rotation droite',
         rotateLeft: 'Rotation gauche',
         rotateRight: 'Rotation droite',
+        flipHorizontal: 'Retourner H',
+        flipVertical: 'Retourner V',
         historyActions: "Actions d'historique",
         resetTransform: 'Réinitialiser',
         undo: 'Annuler',
@@ -385,6 +403,8 @@ const translations = {
         removeMask: 'Supprimer',
         removeAllMasks: 'Tout supprimer',
         cropActions: 'Actions de recadrage',
+        cropAspectRatio: 'Ratio de recadrage',
+        cropRatioFree: 'Libre',
         crop: 'Recadrer',
         apply: 'Appliquer',
         cancel: 'Annuler',
@@ -458,6 +478,8 @@ const translations = {
         rotateRightDegrees: 'Grados de giro a la derecha',
         rotateLeft: 'Girar a la izquierda',
         rotateRight: 'Girar a la derecha',
+        flipHorizontal: 'Voltear H',
+        flipVertical: 'Voltear V',
         historyActions: 'Acciones de historial',
         resetTransform: 'Restablecer',
         undo: 'Deshacer',
@@ -468,6 +490,8 @@ const translations = {
         removeMask: 'Eliminar',
         removeAllMasks: 'Eliminar todo',
         cropActions: 'Acciones de recorte',
+        cropAspectRatio: 'Relación de recorte',
+        cropRatioFree: 'Libre',
         crop: 'Recortar',
         apply: 'Aplicar',
         cancel: 'Cancelar',
@@ -865,6 +889,8 @@ function initEditor() {
         zoomOutButton: 'zoomOutButton',
         rotateLeftButton: 'rotateLeftButton',
         rotateRightButton: 'rotateRightButton',
+        flipHorizontalButton: 'flipHorizontalButton',
+        flipVerticalButton: 'flipVerticalButton',
         rotateLeftDegreesInput: 'rotateLeftDegreesInput',
         rotateRightDegreesInput: 'rotateRightDegreesInput',
         createMaskButton: null,
@@ -876,6 +902,7 @@ function initEditor() {
         maskList: 'maskList',
         annotationList: 'annotationList',
         enterCropModeButton: 'enterCropModeButton',
+        cropAspectRatioSelect: 'cropAspectRatioSelect',
         applyCropButton: 'applyCropButton',
         cancelCropButton: 'cancelCropButton',
         enterMosaicModeButton: 'enterMosaicModeButton',
@@ -1164,9 +1191,14 @@ function getOverlayExportOptions() {
     };
 }
 
-function handleDownloadButtonClick() {
+async function handleDownloadButtonClick() {
     if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
-    editor.downloadImage(getOverlayExportOptions());
+    try {
+        await editor.downloadImage(getOverlayExportOptions());
+    } catch (error) {
+        showMessage(error);
+        console.error(error);
+    }
 }
 
 const base64ButtonElement = getOptionalElement('base64Button');

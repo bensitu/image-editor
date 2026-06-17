@@ -104,6 +104,41 @@ export class TransformController {
         }
         this.context.saveCanvasState();
     }
+    async flipHorizontal() {
+        await this.flipImage('flipX');
+    }
+    async flipVertical() {
+        await this.flipImage('flipY');
+    }
+    async flipImage(property) {
+        const imageObject = this.context.getOriginalImage();
+        if (!imageObject)
+            return;
+        if (this.context.guard.isAnimating())
+            return;
+        if (this.context.guard.isDisposed())
+            return;
+        try {
+            const centre = imageObject.getCenterPoint();
+            imageObject.set({ originX: 'center', originY: 'center' });
+            imageObject.setPositionByOrigin(centre, 'center', 'center');
+            imageObject.set({ [property]: !imageObject[property] });
+            imageObject.setCoords();
+            const newTopLeft = computeTopLeftPoint(imageObject);
+            imageObject.set({ originX: 'left', originY: 'top' });
+            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
+            imageObject.setCoords();
+        }
+        catch (error) {
+            console.warn(`[ImageEditor] ${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed`, error);
+            return;
+        }
+        if (this.context.guard.isDisposed())
+            return;
+        if (this.context.afterTransformSnap)
+            this.context.afterTransformSnap();
+        this.context.saveCanvasState();
+    }
     async resetImageTransform() {
         if (!this.context.getOriginalImage())
             return;
@@ -111,6 +146,13 @@ export class TransformController {
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
+            const imageObject = this.context.getOriginalImage();
+            if (imageObject && !this.context.guard.isDisposed()) {
+                imageObject.set({ flipX: false, flipY: false });
+                imageObject.setCoords();
+                if (this.context.afterTransformSnap)
+                    this.context.afterTransformSnap();
+            }
         }
         finally {
             this.context.setSuppressSaveState(false);

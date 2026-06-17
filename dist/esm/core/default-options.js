@@ -37,7 +37,7 @@ export const DEFAULT_OPTIONS = {
     groupSelection: false,
     showPlaceholder: true,
     initialImageBase64: null,
-    defaultDownloadFileName: 'edited_image.jpg',
+    defaultDownloadFileName: 'edited_image',
     onImageLoadStart: null,
     onImageLoaded: null,
     onImageCleared: null,
@@ -67,6 +67,7 @@ export const DEFAULT_LABEL = {
     textOptions: { ...DEFAULT_LABEL_TEXT_OPTIONS },
 };
 export const DEFAULT_CROP = {
+    aspectRatio: 'free',
     minWidth: 100,
     minHeight: 100,
     padding: 10,
@@ -581,7 +582,7 @@ export function getInvalidDrawConfigFields(input) {
     return invalid;
 }
 export function resolveOptions(input) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -726,13 +727,14 @@ export function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop = {
+        aspectRatio: (_a = userCrop.aspectRatio) !== null && _a !== void 0 ? _a : DEFAULT_CROP.aspectRatio,
         minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
         minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
         padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),
-        hideMasksDuringCrop: (_a = userCrop.hideMasksDuringCrop) !== null && _a !== void 0 ? _a : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_b = userCrop.preserveMasksAfterCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_c = userCrop.allowRotationOfCropRect) !== null && _c !== void 0 ? _c : DEFAULT_CROP.allowRotationOfCropRect,
-        exportFileType: (_d = userCrop.exportFileType) !== null && _d !== void 0 ? _d : DEFAULT_CROP.exportFileType,
+        hideMasksDuringCrop: (_b = userCrop.hideMasksDuringCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.hideMasksDuringCrop,
+        preserveMasksAfterCrop: (_c = userCrop.preserveMasksAfterCrop) !== null && _c !== void 0 ? _c : DEFAULT_CROP.preserveMasksAfterCrop,
+        allowRotationOfCropRect: (_d = userCrop.allowRotationOfCropRect) !== null && _d !== void 0 ? _d : DEFAULT_CROP.allowRotationOfCropRect,
+        exportFileType: (_e = userCrop.exportFileType) !== null && _e !== void 0 ? _e : DEFAULT_CROP.exportFileType,
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);

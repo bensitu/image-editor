@@ -56,6 +56,8 @@ const CANONICAL_METHODS = Object.freeze([
     'setLayoutMode',
     'scaleImage',
     'rotateImage',
+    'flipHorizontal',
+    'flipVertical',
     'resetImageTransform',
     'createMask',
     'removeSelectedMask',
@@ -67,6 +69,7 @@ const CANONICAL_METHODS = Object.freeze([
     'updateSelectedAnnotation',
     'deleteSelectedObject',
     'enterCropMode',
+    'setCropAspectRatio',
     'cancelCrop',
     'applyCrop',
     'enterMosaicMode',
@@ -222,7 +225,7 @@ test('package barrel does not re-export internal helpers as runtime values', () 
     }
 });
 
-test('package barrel runtime value exports match the v2.2.0 object guard surface', () => {
+test('package barrel runtime value exports match the object guard surface', () => {
     // `default` is the ESM default export and shows up as an own
     // property of the namespace object alongside the named exports. The
     // canonical set of runtime values from `src/index.ts` is small and

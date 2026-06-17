@@ -3,7 +3,7 @@
  *   Unit test
  *
  * Purpose:
- *   Verifies the v2.2.0 editor-owned object foundation: strict runtime guards,
+ *   Verifies the editor-owned object foundation: strict runtime guards,
  *   centralized metadata helpers, and annotation runtime hidden/locked sync.
  *
  * Scope:

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-06-17
+
+### Breaking Changes
+
+- Replace `Base64ExportOptions`, `ImageFileExportOptions`, and `DownloadImageOptions` with the unified `ImageExportOptions` type.
+- Remove the `downloadImage(fileName: string)` shorthand. Use `downloadImage({ fileName })` instead.
+- Change `downloadImage()` to return `Promise<void>`.
+- Change the default download/export filename base from `edited_image.jpg` to `edited_image`; the requested export format now determines the extension.
+
+### Added
+
+- Add base-image-only `flipHorizontal()` and `flipVertical()` APIs, optional `flipHorizontalButton` / `flipVerticalButton` DOM bindings, editor state flags, undo/redo support, and save/load persistence.
+- Add crop aspect-ratio locking through `enterCropMode(options?)`, constructor-level `crop.aspectRatio`, and presets for `1:1`, `3:4`, `4:3`, `3:2`, `2:3`, `16:9`, and `9:16`.
+- Add `setCropAspectRatio()` and optional `cropAspectRatioSelect` DOM binding so crop ratio controls can resize an active crop rectangle.
+- Add custom crop aspect ratios through `{ width, height }`.
+- Add regression coverage for unified export options, filename resolution, base-image-only flips, flip history/state persistence, and crop aspect-ratio behavior.
+
+### Changed
+
+- Refactor Base64, `File`, and download exports to resolve options through one shared export path while preserving per-format output and overlay rendering controls.
+- Apply `format` as an alias for `fileType` across all export entry points, with `fileType` taking precedence.
+- Update the demo and README for asynchronous downloads, unified export options, flip controls, and crop ratio examples.
+
+### Fixed
+
+- Ensure image flip operations do not mirror masks, annotations, or session overlays.
+- Ensure `exportImageFile()` and `downloadImage()` append or correct filename extensions from the resolved export format.
+- Ensure invalid runtime download options reject clearly instead of being treated as legacy filename shorthand.
+
 ## [2.2.0] - 2026-06-15
 
 ### Breaking Changes

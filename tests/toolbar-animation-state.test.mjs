@@ -43,9 +43,12 @@ const ENABLED_WHEN_IMAGE_LOADED = [
     'zoomOutButton',
     'rotateLeftButton',
     'rotateRightButton',
+    'flipHorizontalButton',
+    'flipVerticalButton',
     'createMaskButton',
     'downloadImageButton',
     'enterCropModeButton',
+    'cropAspectRatioSelect',
     'imageInput',
 ];
 
@@ -63,6 +66,8 @@ function installDom({ containerWidth = 800, containerHeight = 600 } = {}) {
             <input id="rotateRightDegreesInput" value="90">
             <button id="rotateLeftButton"></button>
             <button id="rotateRightButton"></button>
+            <button id="flipHorizontalButton"></button>
+            <button id="flipVerticalButton"></button>
             <button id="createMaskButton"></button>
             <button id="removeSelectedMaskButton"></button>
             <button id="removeAllMasksButton"></button>
@@ -74,6 +79,7 @@ function installDom({ containerWidth = 800, containerHeight = 600 } = {}) {
             <button id="undoButton"></button>
             <button id="redoButton"></button>
             <button id="enterCropModeButton"></button>
+            <select id="cropAspectRatioSelect"><option value="free">Free</option></select>
             <button id="applyCropButton"></button>
             <button id="cancelCropButton"></button>
             <input id="imageInput" type="file">

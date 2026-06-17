@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "Lightweight canvas-based image editor built on Fabric.js v7",
     "license": "MIT",
     "author": "Ben Situ",

@@ -450,10 +450,6 @@ test('post-dispose synchronous public methods are no-ops and do not throw', () =
         () => editor.downloadImage(),
         'downloadImage() must be a safe no-op after dispose',
     );
-    assert.doesNotThrow(
-        () => editor.downloadImage('foo.png'),
-        'downloadImage(name) must be a safe no-op after dispose',
-    );
 
     // `isImageLoaded()` reads `this.originalImage` rather than the
     // canvas, so it should still return a sensible boolean after

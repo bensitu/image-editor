@@ -198,7 +198,7 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
         fabric: { FabricImage: { fromURL: () => Promise.resolve({}) } },
         canvas,
         options: {
-            defaultDownloadFileName: 'edited_image.jpg',
+            defaultDownloadFileName: 'edited_image',
             downsampleQuality: 0.92,
             exportMultiplier: 1,
             exportAreaByDefault: 'image',

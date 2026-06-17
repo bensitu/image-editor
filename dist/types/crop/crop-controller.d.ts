@@ -121,7 +121,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { CropHandler, CropPrevEvented, FabricModule, ImageMimeType, LoadImageOptions, MaskBackup, ResolvedOptions } from '../core/public-types.js';
+import type { CropAspectRatio, CropHandler, CropModeOptions, CropPrevEvented, FabricModule, ImageMimeType, LoadImageOptions, MaskBackup, ResolvedOptions } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';
 /**
  * Internal state of an open crop session. Built by {@link enterCropMode},
@@ -152,6 +152,7 @@ import { type HistoryManager } from '../history/history-manager.js';
  * - `cropRect` — the active crop rectangle, or `null` after the rect has
  *   been removed (so subsequent calls to {@link removeCropRect} are
  *   idempotent on the success and rollback paths).
+ * - `aspectRatio` — current crop aspect-ratio lock. `null` means free crop.
  * - `handlers` — bound `modified` / `moving` / `scaling` handler records
  *   on the crop rectangle. Detached when the session ends.
  *
@@ -163,6 +164,7 @@ export interface CropSession {
     /** Per-mask style backups captured when masks are hidden during crop mode. */
     maskBackups: MaskBackup[];
     cropRect: FabricNS.Rect | null;
+    aspectRatio: NormalizedCropAspectRatio;
     handlers: CropHandler[];
 }
 /**
@@ -255,6 +257,8 @@ export interface CropControllerContext {
      */
     updateMaskList?(): void;
 }
+export type NormalizedCropAspectRatio = number | null;
+export declare function normalizeCropAspectRatio(input: CropAspectRatio | null | undefined): NormalizedCropAspectRatio;
 /**
  * Open a crop session. Builds a {@link CropSession} that captures:
  *
@@ -298,7 +302,8 @@ export interface CropControllerContext {
  * @param context - Editor dependency bundle — see {@link CropControllerContext}.
  *
  */
-export declare function enterCropMode(context: CropControllerContext): void;
+export declare function enterCropMode(context: CropControllerContext, cropModeOptions?: CropModeOptions): void;
+export declare function setCropAspectRatio(context: CropControllerContext, aspectRatioInput: CropAspectRatio | null | undefined): void;
 /**
  * Close an open crop session WITHOUT applying the crop. Restores the
  * pre-crop `canvas.selection`, the per-object `evented` / `selectable`
