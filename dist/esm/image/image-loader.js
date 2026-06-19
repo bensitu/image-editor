@@ -2,14 +2,14 @@ import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
 import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
+import { isSupportedImageDataUrl } from '../utils/file.js';
 import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { withTimeout } from '../utils/timeout.js';
 import { computeCoverLayout, computeExpandLayout, computeFitLayout, selectLayoutStrategy, applyCanvasDimensions, measureScrollbarSize, } from './layout-manager.js';
 import { computeDownsampleDimensions, detectSourceMimeType, resampleImage, } from './image-resampler.js';
 export async function loadImage(context, imageBase64, loadOptions = {}) {
-    if (typeof imageBase64 !== 'string' || !imageBase64.startsWith('data:image/')) {
+    if (!isSupportedImageDataUrl(imageBase64))
         return;
-    }
     const placeholderHidden = context.placeholderElement
         ? !!context.placeholderElement.hidden
         : null;

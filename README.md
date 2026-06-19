@@ -329,12 +329,12 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 
 ### Image loading
 
-| Method                        | Description                                                                                                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadImage(base64, options?)` | Load an image from a `data:image/...` URL. Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
-| `isImageLoaded()`             | Returns `true` if a valid image is currently loaded on the canvas.                                                                                              |
-| `isBusy()`                    | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                  |
-| `setLayoutMode(mode)`         | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                 |
+| Method                        | Description                                                                                                                                                                                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadImage(base64, options?)` | Load a supported raster image data URL (`png`, `jpeg`, `webp`, `gif`, or `bmp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
+| `isImageLoaded()`             | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                                    |
+| `isBusy()`                    | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                                                        |
+| `setLayoutMode(mode)`         | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                                       |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
 preserving the container's scroll position across both successful loads and

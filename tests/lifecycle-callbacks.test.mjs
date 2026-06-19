@@ -128,6 +128,22 @@ test('onImageCleared fires on successful replacement but not on failed rollback'
     assert.ok(cleared[0].previousImage);
 });
 
+test('unsupported image data URLs are ignored before load lifecycle callbacks', async (t) => {
+    const events = [];
+    const { editor } = createSourceEditor({
+        onImageLoadStart: (context) => events.push(['start', context.operation]),
+        onImageLoaded: (_info, context) => events.push(['loaded', context.operation]),
+        onImageChanged: (_state, context) => events.push(['changed', context.operation]),
+        onBusyChange: (isBusy, context) => events.push(['busy', context.operation, isBusy]),
+    });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage('data:image/svg+xml;base64,PHN2Zy8+');
+
+    assert.deepEqual(events, []);
+    assert.equal(editor.isImageLoaded(), false);
+});
+
 test('onImageChanged reports load, mask, undo, redo, and loadFromState state transitions', async (t) => {
     const operations = [];
     const { editor } = createSourceEditor({

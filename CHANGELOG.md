@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ensure image flip operations do not mirror masks, annotations, or session overlays.
 - Ensure `exportImageFile()` and `downloadImage()` append or correct filename extensions from the resolved export format.
 - Ensure invalid runtime download options reject clearly instead of being treated as legacy filename shorthand.
+- Ensure `loadImage()` rejects unsupported image data URL MIME types, including SVG, before mutating editor state.
 
 ## [2.2.0] - 2026-06-15
 

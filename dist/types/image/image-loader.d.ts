@@ -19,11 +19,11 @@
  *   restored editor state. Callback exceptions are caught and logged so a
  *   faulty integrator callback cannot mask the original error that the
  *   loader re-throws. The success path does NOT invoke `onError`.
- * - Strings that do not start with `data:image/`
+ * - Strings that are not supported image data URLs
  *   resolve without mutating placeholder visibility, scroll position,
  *   image state, or canvas state. The function returns before
  *   capturing the rollback bundle, so no observable side effect occurs.
- * - On a valid `data:image/` URL, the loader captures
+ * - On a supported image data URL, the loader captures
  *   the rollback bundle *before* mutating any of the fields it tracks
  *   (placeholder `hidden`, container `scrollTop`/`scrollLeft`, container
  *   `originalImage`, `lastSnapshot`, the canvas JSON
@@ -256,12 +256,12 @@ export interface LoadImageContext {
  * transactional mutation/rollback separate from facade-level event ordering.
  *
  * @param context - Editor dependency bundle.
- * @param imageBase64 - Base64 data URL to load (`data:image/...;base64...`).
+ * @param imageBase64 - Supported image data URL to load.
  * @param loadOptions - Public {@link LoadImageOptions}. Currently only
  *                     `preserveScroll` is consulted; defaults to `false`.
  * @returns Resolved promise on success, rejected with the original error
- *          (after rollback) on failure. Non-data:image inputs resolve
- *          without observable mutation.
+ *          (after rollback) on failure. Unsupported inputs resolve without
+ *          observable mutation.
  *
  */
 export declare function loadImage(context: LoadImageContext, imageBase64: string, loadOptions?: LoadImageOptions): Promise<void>;

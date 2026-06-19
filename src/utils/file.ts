@@ -40,6 +40,26 @@ export const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string> = {
 export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
 
 /**
+ * Return true only for image data URLs whose MIME type is accepted by the
+ * upload path. This keeps public `loadImage(dataUrl)` validation aligned
+ * with file-input validation and rejects unsupported image containers such as
+ * SVG before any canvas or lifecycle state is touched.
+ *
+ * The `data:image/` prefix remains case-sensitive to preserve the previous
+ * public no-op contract for non-matching data URL prefixes.
+ *
+ * @param value - Candidate data URL.
+ * @returns True when the data URL carries a supported image MIME type.
+ */
+export function isSupportedImageDataUrl(value: unknown): value is string {
+    if (typeof value !== 'string') return false;
+    if (!value.startsWith('data:image/')) return false;
+    const match = /^data:(image\/[^;,]+)(?:[;,])/.exec(value);
+    if (!match) return false;
+    return SUPPORTED_IMAGE_MIME_TYPES.has(match[1]!.toLowerCase());
+}
+
+/**
  * Determine whether a `File` is a supported image and return its resolved
  * MIME type, or `null` when it should be rejected.
  *

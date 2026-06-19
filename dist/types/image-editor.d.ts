@@ -213,12 +213,12 @@ export declare class ImageEditor {
      * the call as a documented no-op so a queued scale/rotate animation
      * cannot be torn down by a concurrent reload.
      *
-     * @param base64 - Data URL string starting with `data:image/…`.
+     * @param base64 - Supported image data URL string.
      * @param options - Optional {@link LoadImageOptions}; currently only
      *                `preserveScroll` is consulted.
      * @returns A promise that resolves once the image is on the canvas, or
      *          rejects with the original error after a transactional
-     *          rollback. Non-data:image inputs and Fabric-unavailable /
+     *          rollback. Unsupported image inputs and Fabric-unavailable /
      *          disposed states resolve without observable mutation.
      */
     loadImage(base64: string, options?: LoadImageOptions): Promise<void>;

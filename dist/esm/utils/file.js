@@ -7,6 +7,16 @@ export const SUPPORTED_IMAGE_EXTENSIONS = {
     bmp: 'image/bmp',
 };
 export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
+export function isSupportedImageDataUrl(value) {
+    if (typeof value !== 'string')
+        return false;
+    if (!value.startsWith('data:image/'))
+        return false;
+    const match = /^data:(image\/[^;,]+)(?:[;,])/.exec(value);
+    if (!match)
+        return false;
+    return SUPPORTED_IMAGE_MIME_TYPES.has(match[1].toLowerCase());
+}
 export function inferImageMimeType(file) {
     var _a, _b;
     if (file.type && SUPPORTED_IMAGE_MIME_TYPES.has(file.type))

@@ -10,6 +10,7 @@
  * Scope:
  *   - inferImageMimeType accepts supported browser MIME types and rejects unsupported
  *     ones.
+ *   - isSupportedImageDataUrl accepts only supported image data URL MIME types.
  *   - Empty file.type values fall back to supported file extensions.
  *   - readFileAsDataUrl rejects when FileReader aborts and restores the original
  *     global FileReader after the test.
@@ -39,7 +40,8 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { inferImageMimeType, readFileAsDataUrl } = await import('../src/utils/file.ts');
+const { inferImageMimeType, isSupportedImageDataUrl, readFileAsDataUrl } =
+    await import('../src/utils/file.ts');
 
 test('inferImageMimeType accepts supported browser MIME types', () => {
     for (const [name, type] of [
@@ -66,6 +68,18 @@ test('inferImageMimeType falls back to supported file extensions when MIME is em
         const file = new File(['x'], name, { type: '' });
         assert.equal(inferImageMimeType(file), type);
     }
+});
+
+test('isSupportedImageDataUrl rejects unsupported image MIME types', () => {
+    assert.equal(isSupportedImageDataUrl('data:image/png;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/jpeg;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/webp;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/gif;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/bmp;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/svg+xml;base64,AAAA'), false);
+    assert.equal(isSupportedImageDataUrl('data:image/avif;base64,AAAA'), false);
+    assert.equal(isSupportedImageDataUrl('data:text/plain;base64,AAAA'), false);
+    assert.equal(isSupportedImageDataUrl('DATA:IMAGE/PNG;base64,AAAA'), false);
 });
 
 test('readFileAsDataUrl rejects when FileReader aborts', async () => {

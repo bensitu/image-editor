@@ -162,7 +162,12 @@ import {
 } from './mask/mask-style.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
-import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from './utils/file.js';
+import {
+    inferImageMimeType,
+    isSupportedImageDataUrl,
+    readFileAsDataUrl,
+    resetFileInput,
+} from './utils/file.js';
 import { detectSourceMimeType } from './image/image-resampler.js';
 
 // ─── Internal element-key type ────────────────────────────────────────────────
@@ -1159,12 +1164,12 @@ export class ImageEditor {
      * the call as a documented no-op so a queued scale/rotate animation
      * cannot be torn down by a concurrent reload.
      *
-     * @param base64 - Data URL string starting with `data:image/…`.
+     * @param base64 - Supported image data URL string.
      * @param options - Optional {@link LoadImageOptions}; currently only
      *                `preserveScroll` is consulted.
      * @returns A promise that resolves once the image is on the canvas, or
      *          rejects with the original error after a transactional
-     *          rollback. Non-data:image inputs and Fabric-unavailable /
+     *          rollback. Unsupported image inputs and Fabric-unavailable /
      *          disposed states resolve without observable mutation.
      */
     async loadImage(base64: string, options: LoadImageOptions = {}): Promise<void> {
@@ -1182,7 +1187,7 @@ export class ImageEditor {
         // loadImage are no-ops" contract.
         if (!this.isFabricLoaded || !this.canvas) return;
         if (this.isDisposed) return;
-        if (typeof base64 !== 'string' || !base64.startsWith('data:image/')) return;
+        if (!isSupportedImageDataUrl(base64)) return;
 
         if (!this.canRunIdleOperation('loadImage', options)) return;
         this.finalizeActiveTextEditingIfNeeded();

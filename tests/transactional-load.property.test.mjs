@@ -11,7 +11,7 @@
  * Scope:
  *   - Successful loads commit image, scalar, mask-counter, placeholder, and snapshot
  *     state.
- *   - Invalid non-image strings return without mutation.
+ *   - Unsupported image inputs return without mutation.
  *   - Failures restore the pre-call rollback bundle and preserve scroll when
  *     requested.
  *
@@ -362,7 +362,7 @@ const VALID_PNG_DATA_URL =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAIAAAUAAeImBZsAAAAASUVORK5CYII=';
 
 /** Strings that MUST NOT trigger any mutation. */
-const nonDataImageStringArb = fc.oneof(
+const unsupportedImageInputStringArb = fc.oneof(
     fc.constantFrom(
         '',
         'not-a-url',
@@ -370,6 +370,8 @@ const nonDataImageStringArb = fc.oneof(
         'https://example.com/foo.png',
         'data:text/plain;base64,SGVsbG8=',
         'data:application/json;base64,e30=',
+        'data:image/svg+xml;base64,PHN2Zy8+',
+        'data:image/avif;base64,AAAA',
         'data:image', // missing trailing slash
         'DATA:IMAGE/PNG;base64,xxx', // case-sensitive prefix per the documented contract
         'file:///tmp/foo.png',
@@ -381,10 +383,10 @@ const preserveScrollArb = fc.option(fc.boolean(), { nil: undefined });
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test('non-data:image strings cause zero mutation', async () => {
+test('unsupported image inputs cause zero mutation', async () => {
     await fc.assert(
         fc.asyncProperty(
-            nonDataImageStringArb,
+            unsupportedImageInputStringArb,
             preserveScrollArb,
             async (input, preserveScroll) => {
                 installImageStub('success');
@@ -410,12 +412,12 @@ test('non-data:image strings cause zero mutation', async () => {
                 assert.equal(
                     canvas.calls.length,
                     callsBefore,
-                    'the documented contract: non-data:image input must not invoke any canvas method',
+                    'the documented contract: unsupported image input must not invoke any canvas method',
                 );
                 assert.deepEqual(
                     holder.placeholderShows,
                     [],
-                    'the documented contract: non-data:image input must not toggle placeholder visibility',
+                    'the documented contract: unsupported image input must not toggle placeholder visibility',
                 );
                 assert.deepEqual(
                     {
@@ -430,7 +432,7 @@ test('non-data:image strings cause zero mutation', async () => {
                         currentImageMimeType: holder.state.currentImageMimeType,
                     },
                     initial,
-                    'the documented contract: non-data:image input must leave editor scalar state unchanged',
+                    'the documented contract: unsupported image input must leave editor scalar state unchanged',
                 );
             },
         ),

@@ -24,7 +24,7 @@ import { renderMaskList, updateMaskListSelection } from './mask/mask-list.js';
 import { applyMaskSelectedStyle, applyMaskUnselectedStyle, reattachMaskHoverHandlers, } from './mask/mask-style.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from './ui/visibility-state.js';
-import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from './utils/file.js';
+import { inferImageMimeType, isSupportedImageDataUrl, readFileAsDataUrl, resetFileInput, } from './utils/file.js';
 import { detectSourceMimeType } from './image/image-resampler.js';
 const LAYOUT_EPSILON = 0.5;
 const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
@@ -930,7 +930,7 @@ export class ImageEditor {
             return;
         if (this.isDisposed)
             return;
-        if (typeof base64 !== 'string' || !base64.startsWith('data:image/'))
+        if (!isSupportedImageDataUrl(base64))
             return;
         if (!this.canRunIdleOperation('loadImage', options))
             return;
