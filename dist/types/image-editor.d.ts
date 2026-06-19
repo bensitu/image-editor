@@ -175,8 +175,6 @@ export declare class ImageEditor {
     private getLiveCanvasOrThrow;
     private bindDomEvents;
     private bindKeyboardEvents;
-    private isNativeTextInputActive;
-    private isFabricTextEditingActive;
     private handleKeyboardEvent;
     private finalizeActiveTextEditingIfNeeded;
     /**
@@ -252,6 +250,7 @@ export declare class ImageEditor {
     setLayoutMode(mode: LayoutMode): void;
     private getRuntimeOptions;
     private buildCallbackContext;
+    private buildBusyOperationAccess;
     private getOperationContext;
     private emitOptionCallback;
     private getImageInfo;
@@ -259,6 +258,7 @@ export declare class ImageEditor {
     getAnnotations(): AnnotationObject[];
     private getMaskCollectionSignature;
     private getAnnotationCollectionSignature;
+    private buildToolModeSnapshot;
     private getActiveToolMode;
     private isToolModeActive;
     private getEditorState;
@@ -478,6 +478,7 @@ export declare class ImageEditor {
     private hideAllMaskLabels;
     private syncMaskLabel;
     private showLabelForMask;
+    private buildSelectionControllerAccess;
     private handleObjectMovingScalingRotating;
     private handleObjectModified;
     private handleSelectionChanged;
@@ -501,6 +502,7 @@ export declare class ImageEditor {
     resetDrawConfig(): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    private buildEditableObjectActionAccess;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(options?: RemoveAllAnnotationsOptions): void;
     updateAnnotation(annotationId: number, config: AnnotationUpdateConfig): void;
@@ -522,7 +524,6 @@ export declare class ImageEditor {
     private applyTextFontSizeInput;
     private applyDrawColorInput;
     private applyDrawBrushSizeInput;
-    private getSelectedCanvasObjects;
     private moveSelectedEditableObject;
     /**
      * Bakes all current masks into the image:
