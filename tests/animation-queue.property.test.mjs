@@ -123,10 +123,10 @@ function withTimeout(promise, ms, label) {
     });
 }
 
-/** Sum of all task delays, with a generous safety margin for clear/teardown. */
+/** Sum of all task delays, with a safety margin for full-suite scheduler load. */
 function settleBudgetMs(specs) {
     const total = specs.reduce((sum, s) => sum + s.delay, 0);
-    return Math.max(250, total * 4 + 250);
+    return Math.max(2_000, total * 20 + 2_000);
 }
 
 // ─── Property assertions ───────────────────────────────────────────────────

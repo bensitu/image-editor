@@ -81,6 +81,7 @@ export declare class ImageEditor {
      * stable Fabric canvas reference.
      */
     private transformController;
+    private readonly contextFactory;
     /**
      * Hidden-container viewport cache shared across `loadImage` calls. Owned
      * by the facade so the layout manager can reuse the last visible
@@ -155,6 +156,7 @@ export declare class ImageEditor {
      *                              is the Fabric module. Ignored otherwise.
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
+    private createContextFactory;
     /**
      * Initializes the editor: connects to DOM elements, wires events,
      * and optionally loads the `initialImageBase64` from options.
@@ -172,7 +174,6 @@ export declare class ImageEditor {
     private initCanvas;
     private getLiveCanvasOrThrow;
     private bindDomEvents;
-    private bindElementIfExists;
     private bindKeyboardEvents;
     private isNativeTextInputActive;
     private isFabricTextEditingActive;
@@ -285,6 +286,7 @@ export declare class ImageEditor {
      * final animation tick.
      */
     private alignObjectBoundingBoxToCanvasTopLeft;
+    private buildDisplayGeometryContext;
     private measureLayoutViewport;
     private getScrollbarStableViewportCanvasSize;
     /**
@@ -701,12 +703,12 @@ export declare class ImageEditor {
      * accessors all bind back to `this`.
      */
     private buildCropControllerContext;
-    private syncInputValue;
     private updateInputs;
     mergeAnnotations(): Promise<void>;
     private updateUi;
+    private buildControlSnapshot;
+    private buildControlElementContext;
     private setControlEnabled;
-    private recordElementOriginalState;
     private restoreElementOriginalStates;
     private updatePlaceholderStatus;
     /**

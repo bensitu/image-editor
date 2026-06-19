@@ -30,15 +30,9 @@
  * @module
  */
 
-import type { ElementIdMap } from '../core/public-types.js';
+import type { ElementKey } from '../core/editor-elements.js';
 
-/**
- * Logical element-name keys understood by the editor's `idMap`. Matches the
- * `ElementKey` alias exported from `dom-bindings.ts` so the orchestrator's
- * registry and the toolbar-state helpers can be driven from the same
- * lookup function without crossing the public-types boundary.
- */
-export type ElementKey = keyof Required<ElementIdMap>;
+export type { ElementKey };
 
 /**
  * Callback used by every helper in this module to translate a logical

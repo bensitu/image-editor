@@ -5435,6 +5435,177 @@ async function replayRollback(context, bundle) {
     }
 }
 
+async function loadImageFile(context, file) {
+    const inputElement = context.getInputElement();
+    const mime = inferImageMimeType(file);
+    if (!mime) {
+        reportWarning(context.options, null, `Unsupported image file type: ${file.type || file.name || 'unknown'}.`);
+        resetFileInput(inputElement);
+        return;
+    }
+    let dataUrl;
+    try {
+        dataUrl = await readFileAsDataUrl(file);
+    }
+    catch (error) {
+        reportError(context.options, error, 'Failed to read selected image file.');
+        resetFileInput(inputElement);
+        return;
+    }
+    try {
+        await context.loadImage(dataUrl);
+    }
+    catch {
+    }
+    finally {
+        resetFileInput(inputElement);
+    }
+}
+
+const LAYOUT_EPSILON = 0.5;
+const SCROLLBAR_SETTLE_EPSILON = 1;
+function measureLayoutViewport(context, scrollbarSize) {
+    return context.viewportCache.measure(context.containerElement, {
+        width: context.options.canvasWidth,
+        height: context.options.canvasHeight,
+    }, scrollbarSize);
+}
+function getScrollbarStableViewportCanvasSize(viewport) {
+    return {
+        width: Math.max(1, viewport.width - 1),
+        height: Math.max(1, viewport.height - 1),
+    };
+}
+function updateCanvasSizeToImageBounds(context, options = {}) {
+    var _a, _b;
+    const originalImage = context.getOriginalImage();
+    if (!originalImage)
+        return;
+    originalImage.setCoords();
+    const boundingRect = originalImage.getBoundingRect();
+    const scrollbarSize = measureScrollbarSize((_b = (_a = context.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
+    const viewport = measureLayoutViewport(context, scrollbarSize);
+    const shouldStabilizeContainedViewport = options.stabilizeContainedViewport !== false;
+    const imageFitsViewport = boundingRect.width <= viewport.width + LAYOUT_EPSILON &&
+        boundingRect.height <= viewport.height + LAYOUT_EPSILON;
+    if (context.currentLayoutMode === 'fit' || context.currentLayoutMode === 'cover') {
+        if (imageFitsViewport) {
+            const canvasSize = shouldStabilizeContainedViewport
+                ? getScrollbarStableViewportCanvasSize(viewport)
+                : viewport;
+            context.setCanvasSize(canvasSize.width, canvasSize.height);
+            return;
+        }
+        const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
+        context.setCanvasSize(canvasSize.width, canvasSize.height);
+        return;
+    }
+    if (imageFitsViewport) {
+        const canvasSize = shouldStabilizeContainedViewport
+            ? getScrollbarStableViewportCanvasSize(viewport)
+            : viewport;
+        context.setCanvasSize(canvasSize.width, canvasSize.height);
+        return;
+    }
+    context.setCanvasSize(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
+}
+function shouldNormalizeCanvasSizeAfterStateRestore(context) {
+    var _a, _b;
+    const originalImage = context.getOriginalImage();
+    if (!context.canvas || !originalImage)
+        return false;
+    originalImage.setCoords();
+    const boundingRect = originalImage.getBoundingRect();
+    const viewport = measureLayoutViewport(context, measureScrollbarSize((_b = (_a = context.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
+    const canvasW = Math.ceil(context.canvas.getWidth());
+    const canvasH = Math.ceil(context.canvas.getHeight());
+    const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
+        boundingRect.height > canvasH + LAYOUT_EPSILON;
+    if (context.currentLayoutMode === 'fit' || context.currentLayoutMode === 'cover') {
+        const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
+            boundingRect.width <= viewport.width + LAYOUT_EPSILON;
+        const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
+            boundingRect.height <= viewport.height + LAYOUT_EPSILON;
+        return clipsImage || staleOverflowWidth || staleOverflowHeight;
+    }
+    if (context.currentLayoutMode === 'expand') {
+        const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
+        const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
+        return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
+            Math.abs(canvasH - expectedH) > LAYOUT_EPSILON);
+    }
+    return clipsImage;
+}
+function settleFitCoverScrollbarsAfterStateRestore(context) {
+    if (!context.canvas ||
+        !context.containerElement ||
+        (context.currentLayoutMode !== 'fit' && context.currentLayoutMode !== 'cover')) {
+        return;
+    }
+    const canvasW = Math.ceil(context.canvas.getWidth());
+    const canvasH = Math.ceil(context.canvas.getHeight());
+    if (canvasW <= 1 || canvasH <= 1)
+        return;
+    const clientW = Math.floor(context.containerElement.clientWidth || 0);
+    const clientH = Math.floor(context.containerElement.clientHeight || 0);
+    if (clientW <= 0 || clientH <= 0)
+        return;
+    const scrollW = Math.ceil(context.containerElement.scrollWidth || 0);
+    const scrollH = Math.ceil(context.containerElement.scrollHeight || 0);
+    const hasHorizontalScrollbar = scrollW > clientW + LAYOUT_EPSILON;
+    const hasVerticalScrollbar = scrollH > clientH + LAYOUT_EPSILON;
+    if (!hasHorizontalScrollbar && !hasVerticalScrollbar)
+        return;
+    const nudgeWidth = hasVerticalScrollbar && Math.abs(canvasW - clientW) <= SCROLLBAR_SETTLE_EPSILON;
+    const nudgeHeight = hasHorizontalScrollbar && Math.abs(canvasH - clientH) <= SCROLLBAR_SETTLE_EPSILON;
+    if (!nudgeWidth && !nudgeHeight)
+        return;
+    context.setCanvasSize(nudgeWidth ? canvasW - 1 : canvasW, nudgeHeight ? canvasH - 1 : canvasH);
+    context.setCanvasSize(canvasW, canvasH);
+}
+function captureImageDisplayGeometry(context) {
+    const originalImage = context.getOriginalImage();
+    if (!context.canvas || !originalImage)
+        return null;
+    originalImage.setCoords();
+    const boundingRect = originalImage.getBoundingRect();
+    return {
+        canvasWidth: context.canvas.getWidth(),
+        canvasHeight: context.canvas.getHeight(),
+        imageDisplayWidth: Math.max(1, boundingRect.width),
+        imageDisplayHeight: Math.max(1, boundingRect.height),
+    };
+}
+function restoreMergedImageDisplayGeometry(context, geometry) {
+    const originalImage = context.getOriginalImage();
+    if (!geometry || !context.canvas || !originalImage)
+        return;
+    context.setCanvasSize(geometry.canvasWidth, geometry.canvasHeight);
+    const sourceW = Math.max(1, originalImage.width || geometry.imageDisplayWidth);
+    const sourceH = Math.max(1, originalImage.height || geometry.imageDisplayHeight);
+    const scale = Math.min(geometry.imageDisplayWidth / sourceW, geometry.imageDisplayHeight / sourceH);
+    originalImage.set({
+        left: 0,
+        top: 0,
+        angle: 0,
+        scaleX: scale,
+        scaleY: scale,
+        originX: 'left',
+        originY: 'top',
+        selectable: false,
+        evented: false,
+        hasControls: false,
+        hoverCursor: 'default',
+    });
+    originalImage.setCoords();
+    context.canvas.sendObjectToBack(originalImage);
+    context.setCurrentScale(1);
+    context.setCurrentRotation(0);
+    context.setBaseImageScale(scale);
+    context.setLastSnapshot(context.captureSnapshot());
+    context.canvas.renderAll();
+}
+
 const ANIMATION_SETTLE_GRACE_MS = 1000;
 function animateProps(object, props, options, guard) {
     return new Promise((resolve, reject) => {
@@ -6072,6 +6243,369 @@ function removeAllMasks(context, options = {}) {
     }
 }
 
+class EditorContextFactory {
+    constructor(access) {
+        Object.defineProperty(this, "access", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: access
+        });
+    }
+    buildExportServiceContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('export'),
+            options: access.getOptions(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getOriginalImage: () => access.getOriginalImage(),
+        };
+    }
+    buildLoadImageContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('loadImage'),
+            options: access.getRuntimeOptions(),
+            containerElement: access.getContainerElement(),
+            placeholderElement: access.getPlaceholderElement(),
+            viewportCache: access.getViewportCache(),
+            getOriginalImage: () => access.getOriginalImage(),
+            setOriginalImage: (image) => {
+                access.setOriginalImage(image);
+            },
+            getIsImageLoadedToCanvas: () => access.getIsImageLoadedToCanvas(),
+            setIsImageLoadedToCanvas: (value) => {
+                access.setIsImageLoadedToCanvas(value);
+            },
+            getLastSnapshot: () => access.getLastSnapshot(),
+            setLastSnapshot: (snapshot) => {
+                access.setLastSnapshot(snapshot);
+            },
+            getMaskCounter: () => access.getMaskCounter(),
+            setMaskCounter: (value) => {
+                access.setMaskCounter(value);
+            },
+            getAnnotationCounter: () => access.getAnnotationCounter(),
+            setAnnotationCounter: (value) => {
+                access.setAnnotationCounter(value);
+            },
+            getCurrentScale: () => access.getCurrentScale(),
+            setCurrentScale: (scale) => {
+                access.setCurrentScale(scale);
+            },
+            getCurrentRotation: () => access.getCurrentRotation(),
+            setCurrentRotation: (rotation) => {
+                access.setCurrentRotation(rotation);
+            },
+            getBaseImageScale: () => access.getBaseImageScale(),
+            setBaseImageScale: (scale) => {
+                access.setBaseImageScale(scale);
+            },
+            getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
+            setCurrentImageMimeType: (mimeType) => {
+                access.setCurrentImageMimeType(mimeType);
+            },
+            setPlaceholderVisible: (show) => {
+                access.setPlaceholderVisible(show);
+            },
+        };
+    }
+    buildTransformContext() {
+        const access = this.access;
+        return {
+            canvas: access.getLiveCanvas('buildTransformContext'),
+            options: access.getOptions(),
+            guard: access.getOperationGuard(),
+            getOriginalImage: () => access.getOriginalImage(),
+            getCurrentScale: () => access.getCurrentScale(),
+            setCurrentScale: (scale) => {
+                access.setCurrentScale(scale);
+            },
+            getCurrentRotation: () => access.getCurrentRotation(),
+            setCurrentRotation: (rotation) => {
+                access.setCurrentRotation(rotation);
+            },
+            getBaseImageScale: () => access.getBaseImageScale(),
+            saveCanvasState: () => {
+                access.saveCanvasStateWithAnimationBypass();
+            },
+            setSuppressSaveState: (suppress) => {
+                access.setSuppressSaveState(suppress);
+            },
+            afterTransformSnap: () => {
+                const canvas = access.getCanvas();
+                const originalImage = access.getOriginalImage();
+                if (access.isDisposed() || !canvas || !originalImage)
+                    return;
+                access.updateCanvasSizeToImageBounds();
+                access.alignObjectBoundingBoxToCanvasTopLeft(originalImage);
+                canvas
+                    .getObjects()
+                    .filter(isMaskObject)
+                    .forEach((maskObject) => {
+                    access.syncMaskLabel(maskObject);
+                });
+            },
+        };
+    }
+    buildCreateMaskContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('createMask'),
+            options: access.getRuntimeOptions(),
+            getLastMask: () => access.getLastMask(),
+            setLastMask: (maskObject) => {
+                access.setLastMask(maskObject);
+            },
+            getMaskCounter: () => access.getMaskCounter(),
+            setMaskCounter: (value) => {
+                access.setMaskCounter(value);
+            },
+            updateMaskList: () => {
+                access.updateMaskList();
+            },
+            saveCanvasState: () => {
+                access.saveCanvasState();
+            },
+            expandCanvasIfNeeded: (widthPx, heightPx) => {
+                access.setCanvasSize(widthPx, heightPx);
+            },
+        };
+    }
+    buildRemoveMaskContext() {
+        const access = this.access;
+        return {
+            canvas: access.getLiveCanvas('removeMask'),
+            removeLabelForMask: (mask) => {
+                access.removeLabelForMask(mask);
+            },
+            updateMaskList: () => {
+                access.updateMaskList();
+            },
+            saveCanvasState: () => {
+                access.saveCanvasState();
+            },
+            setLastMask: (maskObject) => {
+                access.setLastMask(maskObject);
+            },
+        };
+    }
+    buildMaskLabelContext() {
+        const canvas = this.access.getCanvas();
+        if (!canvas)
+            return null;
+        return {
+            fabric: this.access.getFabric(),
+            canvas,
+            options: this.access.getOptions(),
+        };
+    }
+    buildMaskListContext() {
+        const access = this.access;
+        return {
+            canvas: access.getCanvas(),
+            getListElementId: () => access.getMaskListElementId(),
+            onMaskSelected: (mask) => {
+                access.handleMaskSelected(mask);
+            },
+        };
+    }
+    buildAnnotationManagerContext() {
+        const access = this.access;
+        return {
+            canvas: access.getLiveCanvas('annotationManager'),
+            saveCanvasState: () => access.saveCanvasState(),
+            updateUi: () => access.updateUi(),
+        };
+    }
+    buildAnnotationListContext() {
+        const access = this.access;
+        return {
+            canvas: access.getCanvas(),
+            getListElementId: () => access.getAnnotationListElementId(),
+            onAnnotationSelected: (annotation) => {
+                access.handleAnnotationSelected(annotation);
+            },
+        };
+    }
+    buildTextControllerContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('textController'),
+            options: access.getOptions(),
+            getOriginalImage: () => access.getOriginalImage(),
+            getTextConfig: () => access.getTextConfig(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getAnnotationCounter: () => access.getAnnotationCounter(),
+            setAnnotationCounter: (value) => {
+                access.setAnnotationCounter(value);
+            },
+            getTextSession: () => access.getTextSession(),
+            setTextSession: (session) => {
+                access.setTextSession(session);
+            },
+            saveCanvasState: () => access.saveCanvasState(),
+            updateAnnotationList: () => access.updateAnnotationList(),
+            updateUi: () => access.updateUi(),
+            emitAnnotationsChanged: (context) => access.emitAnnotationsChanged(context),
+            emitImageChanged: (context) => access.emitImageChanged(context),
+            buildCallbackContext: (operation) => access.buildCallbackContext(operation, false),
+        };
+    }
+    buildDrawControllerContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('drawController'),
+            options: access.getOptions(),
+            getDrawConfig: () => access.getDrawConfig(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getAnnotationCounter: () => access.getAnnotationCounter(),
+            setAnnotationCounter: (value) => {
+                access.setAnnotationCounter(value);
+            },
+            getDrawSession: () => access.getDrawSession(),
+            setDrawSession: (session) => {
+                access.setDrawSession(session);
+            },
+            saveCanvasState: () => access.saveCanvasState(),
+            updateAnnotationList: () => access.updateAnnotationList(),
+            updateUi: () => access.updateUi(),
+            emitAnnotationsChanged: (context) => access.emitAnnotationsChanged(context),
+            emitImageChanged: (context) => access.emitImageChanged(context),
+            buildCallbackContext: (operation) => access.buildCallbackContext(operation, false),
+        };
+    }
+    buildMosaicControllerContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('mosaicController'),
+            options: access.getOptions(),
+            historyManager: access.getHistoryManager(),
+            getMosaicConfig: () => access.getMosaicConfig(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getOriginalImage: () => access.getOriginalImage(),
+            setOriginalImage: (image) => {
+                access.setOriginalImage(image);
+            },
+            getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
+            setCurrentImageMimeType: (mimeType) => {
+                access.setCurrentImageMimeType(mimeType);
+            },
+            getLastSnapshot: () => access.getLastSnapshot(),
+            setLastSnapshot: (snapshot) => {
+                access.setLastSnapshot(snapshot);
+            },
+            captureSnapshot: () => access.captureSnapshot(),
+            loadFromState: (snapshot) => access.loadFromStateForOperation(undefined, snapshot),
+            updateUi: () => access.updateUi(),
+            updateInputs: () => access.updateInputs(),
+            hideAllMaskLabels: () => access.hideAllMaskLabels(),
+            emitImageChanged: (context) => {
+                access.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                access.emitBusyChangeIfChanged(context);
+            },
+            buildCallbackContext: (operation, isInternal) => access.buildCallbackContext(operation, isInternal),
+            getMosaicSession: () => access.getMosaicSession(),
+            setMosaicSession: (session) => {
+                access.setMosaicSession(session);
+            },
+        };
+    }
+    buildCropControllerContext(operationToken) {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('cropController'),
+            options: access.getOptions(),
+            historyManager: access.getHistoryManager(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getOriginalImage: () => access.getOriginalImage(),
+            getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
+            getCropSession: () => access.getCropSession(),
+            setCropSession: (session) => {
+                access.setCropSession(session);
+            },
+            saveState: () => access.captureSnapshot(),
+            loadFromState: (snapshot) => access.loadFromStateForOperation(operationToken, snapshot),
+            loadImage: (base64, providedOptions) => access.loadImageForOperation(operationToken, base64, providedOptions),
+            getMaskCounter: () => access.getMaskCounter(),
+            setMaskCounter: (value) => {
+                access.setMaskCounter(value);
+            },
+            updateMaskList: () => {
+                access.updateMaskList();
+            },
+        };
+    }
+    buildMergeMasksContext(operationToken) {
+        const access = this.access;
+        return {
+            ...this.buildExportServiceContext(),
+            historyManager: access.getHistoryManager(),
+            containerElement: access.getContainerElement(),
+            loadImage: (base64, providedOptions) => access.loadMergedImage(operationToken, base64, providedOptions),
+            captureSnapshot: () => access.captureSnapshot(),
+            loadFromState: (snapshot) => access.loadFromStateForOperation(operationToken, snapshot),
+            exportImageBase64: (options) => exportImageBase64(this.buildExportServiceContext(), options),
+            updateUi: () => access.updateUi(),
+            updateInputs: () => access.updateInputs(),
+            removeAllMasksNoHistory: () => {
+                removeAllMasks(this.buildRemoveMaskContext(), { saveHistory: false });
+            },
+            getAnnotations: () => access.getAnnotations(),
+            restoreAnnotations: (objects) => {
+                const canvas = access.getLiveCanvas('restoreAnnotations');
+                objects.forEach((annotation) => {
+                    canvas.add(annotation);
+                });
+                syncAnnotationRuntimeStates(objects);
+                attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), objects);
+                access.setAnnotationCounter(Math.max(access.getAnnotationCounter(), ...objects.map((annotation) => annotation.annotationId), 0));
+                access.updateAnnotationList();
+            },
+        };
+    }
+    buildMergeAnnotationsContext(operationToken) {
+        const access = this.access;
+        return {
+            ...this.buildExportServiceContext(),
+            historyManager: access.getHistoryManager(),
+            containerElement: access.getContainerElement(),
+            loadImage: (base64, providedOptions) => access.loadMergedImage(operationToken, base64, providedOptions),
+            captureSnapshot: () => access.captureSnapshot(),
+            loadFromState: (snapshot) => access.loadFromStateForOperation(operationToken, snapshot),
+            exportImageBase64: (options) => exportImageBase64(this.buildExportServiceContext(), options),
+            updateUi: () => access.updateUi(),
+            updateInputs: () => access.updateInputs(),
+            removeAllAnnotationsNoHistory: () => {
+                removeAllAnnotations(this.buildAnnotationManagerContext(), {
+                    saveHistory: false,
+                    force: true,
+                });
+            },
+            getMasks: () => access.getMasks(),
+            restoreMasks: (objects) => {
+                const canvas = access.getLiveCanvas('restoreMasks');
+                objects.forEach((mask) => {
+                    canvas.add(mask);
+                    reattachMaskHoverHandlers(mask);
+                });
+                access.setLastMask(objects.reduce((lastMask, mask) => !lastMask || mask.maskId > lastMask.maskId ? mask : lastMask, null));
+                access.setMaskCounter(Math.max(access.getMaskCounter(), ...objects.map((mask) => mask.maskId), 0));
+                access.updateMaskList();
+            },
+        };
+    }
+}
+
 function removeLabelForMask(context, mask) {
     if (!context.canvas || !mask.labelObject)
         return;
@@ -6310,20 +6844,6 @@ class DomBindings {
     }
 }
 
-function setPlaceholderVisible(placeholderElement, containerElement, show) {
-    if (placeholderElement) {
-        placeholderElement.hidden = !show;
-        placeholderElement.setAttribute('aria-hidden', show ? 'false' : 'true');
-    }
-    if (containerElement) {
-        containerElement.hidden = show;
-        containerElement.setAttribute('aria-hidden', show ? 'true' : 'false');
-    }
-}
-
-const LAYOUT_EPSILON = 0.5;
-const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
-const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
 const CROP_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
     'rotateLeftDegreesInput',
@@ -6373,12 +6893,13 @@ const CROP_MODE_ENABLED_KEYS = [
     'applyCropButton',
     'cancelCropButton',
 ];
-const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['setCropAspectRatio', 'applyCrop', 'cancelCrop']);
+const TEXT_MODE_CONTROL_KEYS = CROP_MODE_CONTROL_KEYS;
 const TEXT_MODE_ENABLED_KEYS = [
     'exitTextModeButton',
     'textColorInput',
     'textFontSizeInput',
 ];
+const DRAW_MODE_CONTROL_KEYS = CROP_MODE_CONTROL_KEYS;
 const DRAW_MODE_ENABLED_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
@@ -6433,6 +6954,359 @@ const MOSAIC_MODE_ENABLED_KEYS = [
     'mosaicBrushSizeInput',
     'mosaicBlockSizeInput',
 ];
+function setModeControlState(controlKeys, enabledKeys, snapshot, setEnabled) {
+    controlKeys.forEach((key) => {
+        setEnabled(key, !snapshot.isBusy && enabledKeys.includes(key));
+    });
+}
+function applyEditorControlState(snapshot, setEnabled) {
+    if (snapshot.isInCropMode) {
+        setModeControlState(CROP_MODE_CONTROL_KEYS, CROP_MODE_ENABLED_KEYS, snapshot, setEnabled);
+        return;
+    }
+    if (snapshot.isInTextMode) {
+        setModeControlState(TEXT_MODE_CONTROL_KEYS, TEXT_MODE_ENABLED_KEYS, snapshot, setEnabled);
+        return;
+    }
+    if (snapshot.isInDrawMode) {
+        setModeControlState(DRAW_MODE_CONTROL_KEYS, DRAW_MODE_ENABLED_KEYS, snapshot, setEnabled);
+        return;
+    }
+    if (snapshot.isInMosaicMode) {
+        MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
+            setEnabled(key, !snapshot.isBusy &&
+                !snapshot.isMosaicApplying &&
+                MOSAIC_MODE_ENABLED_KEYS.includes(key));
+        });
+        setEnabled('imageInput', false);
+        return;
+    }
+    setEnabled('scalePercentageInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('rotateLeftDegreesInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('rotateRightDegreesInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('zoomInButton', snapshot.hasImage && !snapshot.isBusy && snapshot.currentScale < snapshot.maxScale);
+    setEnabled('zoomOutButton', snapshot.hasImage && !snapshot.isBusy && snapshot.currentScale > snapshot.minScale);
+    setEnabled('rotateLeftButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('rotateRightButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('flipHorizontalButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('flipVerticalButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('createMaskButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('removeSelectedMaskButton', snapshot.hasSelectedMask && !snapshot.isBusy);
+    setEnabled('removeAllMasksButton', snapshot.hasMasks && !snapshot.isBusy);
+    setEnabled('mergeMasksButton', snapshot.hasImage && snapshot.hasMasks && !snapshot.isBusy);
+    setEnabled('removeSelectedAnnotationButton', snapshot.hasSelectedAnnotation && !snapshot.isBusy);
+    setEnabled('removeAllAnnotationsButton', snapshot.hasAnnotations && !snapshot.isBusy);
+    setEnabled('deleteSelectedObjectButton', snapshot.hasSelectedEditableObject && !snapshot.isBusy);
+    setEnabled('mergeAnnotationsButton', snapshot.hasImage && snapshot.hasAnnotations && !snapshot.isBusy);
+    setEnabled('bringSelectedObjectForwardButton', snapshot.hasSelectedEditableObject && !snapshot.isBusy);
+    setEnabled('sendSelectedObjectBackwardButton', snapshot.hasSelectedEditableObject && !snapshot.isBusy);
+    setEnabled('bringSelectedObjectToFrontButton', snapshot.hasSelectedEditableObject && !snapshot.isBusy);
+    setEnabled('sendSelectedObjectToBackButton', snapshot.hasSelectedEditableObject && !snapshot.isBusy);
+    setEnabled('downloadImageButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('resetImageTransformButton', snapshot.hasImage && !snapshot.isDefaultTransform && !snapshot.isBusy);
+    setEnabled('undoButton', snapshot.hasImage && !snapshot.isBusy && snapshot.canUndo);
+    setEnabled('redoButton', snapshot.hasImage && !snapshot.isBusy && snapshot.canRedo);
+    setEnabled('enterCropModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('cropAspectRatioSelect', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('enterMosaicModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('enterTextModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('enterDrawModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('exitMosaicModeButton', false);
+    setEnabled('exitTextModeButton', false);
+    setEnabled('exitDrawModeButton', false);
+    setEnabled('mosaicBrushSizeInput', !snapshot.isDisposed);
+    setEnabled('mosaicBlockSizeInput', !snapshot.isDisposed);
+    setEnabled('textColorInput', !snapshot.isDisposed);
+    setEnabled('textFontSizeInput', !snapshot.isDisposed);
+    setEnabled('drawColorInput', !snapshot.isDisposed);
+    setEnabled('drawBrushSizeInput', !snapshot.isDisposed);
+    setEnabled('imageInput', !snapshot.isBusy);
+    setEnabled('applyCropButton', false);
+    setEnabled('cancelCropButton', false);
+}
+
+function recordElementOriginalState(context, key, element) {
+    if (!context.originalAriaDisabledMap.has(key)) {
+        context.originalAriaDisabledMap.set(key, element.getAttribute('aria-disabled'));
+    }
+    if (!context.originalPointerEventsMap.has(key)) {
+        context.originalPointerEventsMap.set(key, element.style.pointerEvents || '');
+    }
+    if ('disabled' in element && !context.originalDisabledMap.has(key)) {
+        context.originalDisabledMap.set(key, !!element.disabled);
+    }
+}
+function setEditorControlEnabled(context, key, isEnabled) {
+    var _a;
+    const controlElement = context.getElement(key);
+    if (!controlElement)
+        return;
+    recordElementOriginalState(context, key, controlElement);
+    if ('disabled' in controlElement) {
+        const formControl = controlElement;
+        const nextDisabled = !isEnabled;
+        if (formControl.disabled !== nextDisabled)
+            formControl.disabled = nextDisabled;
+        return;
+    }
+    if (!isEnabled) {
+        controlElement.setAttribute('aria-disabled', 'true');
+        controlElement.style.pointerEvents = 'none';
+    }
+    else {
+        const originalAria = context.originalAriaDisabledMap.get(key);
+        if (originalAria === null || originalAria === undefined) {
+            controlElement.removeAttribute('aria-disabled');
+        }
+        else {
+            controlElement.setAttribute('aria-disabled', originalAria);
+        }
+        controlElement.style.pointerEvents = (_a = context.originalPointerEventsMap.get(key)) !== null && _a !== void 0 ? _a : '';
+    }
+}
+function restoreEditorControlOriginalStates(context) {
+    var _a, _b;
+    for (const key of Object.keys(context.elements)) {
+        const element = context.getElement(key);
+        if (!element)
+            continue;
+        if ('disabled' in element && context.originalDisabledMap.has(key)) {
+            element.disabled =
+                (_a = context.originalDisabledMap.get(key)) !== null && _a !== void 0 ? _a : false;
+        }
+        if (context.originalAriaDisabledMap.has(key)) {
+            const originalAria = context.originalAriaDisabledMap.get(key);
+            if (originalAria === null || originalAria === undefined) {
+                element.removeAttribute('aria-disabled');
+            }
+            else {
+                element.setAttribute('aria-disabled', originalAria);
+            }
+        }
+        if (context.originalPointerEventsMap.has(key)) {
+            element.style.pointerEvents = (_b = context.originalPointerEventsMap.get(key)) !== null && _b !== void 0 ? _b : '';
+        }
+    }
+    context.originalDisabledMap.clear();
+    context.originalAriaDisabledMap.clear();
+    context.originalPointerEventsMap.clear();
+}
+
+function bindElement(context, key, eventType, handler) {
+    context.bindings.bindIfExists(key, eventType, handler);
+}
+function parseInputNumber(context, key) {
+    return parseFloat(context.getInputValue(key));
+}
+function parseEventInputNumber(event) {
+    return parseFloat(event.target.value);
+}
+function getEventInputValue(event) {
+    return event.target.value;
+}
+function bindUploadEvents(context) {
+    bindElement(context, 'uploadArea', 'click', () => {
+        context.actions.openImagePicker();
+    });
+    bindElement(context, 'imageInput', 'change', (event) => {
+        var _a;
+        const file = (_a = event.target.files) === null || _a === void 0 ? void 0 : _a[0];
+        if (file)
+            void context.actions.loadImageFile(file);
+    });
+}
+function bindTransformEvents(context) {
+    bindElement(context, 'zoomInButton', 'click', () => {
+        void context.actions.zoomIn();
+    });
+    bindElement(context, 'zoomOutButton', 'click', () => {
+        void context.actions.zoomOut();
+    });
+    bindElement(context, 'resetImageTransformButton', 'click', () => {
+        void context.actions.resetImageTransform();
+    });
+    bindElement(context, 'flipHorizontalButton', 'click', () => {
+        void context.actions.flipHorizontal();
+    });
+    bindElement(context, 'flipVerticalButton', 'click', () => {
+        void context.actions.flipVertical();
+    });
+    bindElement(context, 'rotateLeftButton', 'click', () => {
+        const parsedStep = parseInputNumber(context, 'rotateLeftDegreesInput');
+        const step = Number.isNaN(parsedStep) ? context.rotationStep : parsedStep;
+        void context.actions.rotateLeft(step);
+    });
+    bindElement(context, 'rotateRightButton', 'click', () => {
+        const parsedStep = parseInputNumber(context, 'rotateRightDegreesInput');
+        const step = Number.isNaN(parsedStep) ? context.rotationStep : parsedStep;
+        void context.actions.rotateRight(step);
+    });
+}
+function bindMaskEvents(context) {
+    bindElement(context, 'createMaskButton', 'click', () => {
+        context.actions.createMask();
+    });
+    bindElement(context, 'removeSelectedMaskButton', 'click', () => {
+        context.actions.removeSelectedMask();
+    });
+    bindElement(context, 'removeAllMasksButton', 'click', () => {
+        context.actions.removeAllMasks();
+    });
+    bindElement(context, 'mergeMasksButton', 'click', () => {
+        void context.actions.mergeMasks();
+    });
+}
+function bindAnnotationEvents(context) {
+    bindElement(context, 'mergeAnnotationsButton', 'click', () => {
+        void context.actions.mergeAnnotations();
+    });
+    bindElement(context, 'enterTextModeButton', 'click', () => {
+        context.actions.enterTextMode();
+    });
+    bindElement(context, 'exitTextModeButton', 'click', () => {
+        context.actions.exitTextMode();
+    });
+    bindElement(context, 'enterDrawModeButton', 'click', () => {
+        context.actions.enterDrawMode();
+    });
+    bindElement(context, 'exitDrawModeButton', 'click', () => {
+        context.actions.exitDrawMode();
+    });
+    bindElement(context, 'removeSelectedAnnotationButton', 'click', () => {
+        context.actions.removeSelectedAnnotation();
+    });
+    bindElement(context, 'removeAllAnnotationsButton', 'click', () => {
+        context.actions.removeAllAnnotations();
+    });
+    bindElement(context, 'deleteSelectedObjectButton', 'click', () => {
+        context.actions.deleteSelectedObject();
+    });
+    bindElement(context, 'bringSelectedObjectForwardButton', 'click', () => {
+        context.actions.bringSelectedObjectForward();
+    });
+    bindElement(context, 'sendSelectedObjectBackwardButton', 'click', () => {
+        context.actions.sendSelectedObjectBackward();
+    });
+    bindElement(context, 'bringSelectedObjectToFrontButton', 'click', () => {
+        context.actions.bringSelectedObjectToFront();
+    });
+    bindElement(context, 'sendSelectedObjectToBackButton', 'click', () => {
+        context.actions.sendSelectedObjectToBack();
+    });
+    bindStringInput(context, 'textColorInput', (value) => {
+        context.actions.setTextColor(value);
+    });
+    bindNumberInput(context, 'textFontSizeInput', (value) => {
+        context.actions.setTextFontSize(value);
+    });
+    bindStringInput(context, 'drawColorInput', (value) => {
+        context.actions.setDrawColor(value);
+    });
+    bindNumberInput(context, 'drawBrushSizeInput', (value) => {
+        context.actions.setDrawBrushSize(value);
+    });
+}
+function bindHistoryEvents(context) {
+    bindElement(context, 'downloadImageButton', 'click', () => {
+        void context.actions.downloadImage();
+    });
+    bindElement(context, 'undoButton', 'click', () => {
+        void context.actions.undo();
+    });
+    bindElement(context, 'redoButton', 'click', () => {
+        void context.actions.redo();
+    });
+}
+function bindCropEvents(context) {
+    bindElement(context, 'enterCropModeButton', 'click', () => {
+        context.actions.enterCropMode();
+    });
+    bindElement(context, 'cropAspectRatioSelect', 'change', () => {
+        context.actions.updateSelectedCropAspectRatio();
+    });
+    bindElement(context, 'applyCropButton', 'click', () => {
+        void context.actions.applyCrop().catch((error) => {
+            context.actions.reportCropApplyError(error);
+        });
+    });
+    bindElement(context, 'cancelCropButton', 'click', () => {
+        context.actions.cancelCrop();
+    });
+}
+function bindMosaicEvents(context) {
+    bindElement(context, 'enterMosaicModeButton', 'click', () => {
+        context.actions.enterMosaicMode();
+    });
+    bindElement(context, 'exitMosaicModeButton', 'click', () => {
+        context.actions.exitMosaicMode();
+    });
+    bindNumberInput(context, 'mosaicBrushSizeInput', (value) => {
+        context.actions.setMosaicBrushSize(value);
+    });
+    bindNumberInput(context, 'mosaicBlockSizeInput', (value) => {
+        context.actions.setMosaicBlockSize(value);
+    });
+}
+function bindStringInput(context, key, applyValue) {
+    const handler = (event) => {
+        applyValue(getEventInputValue(event));
+    };
+    bindElement(context, key, 'input', handler);
+    bindElement(context, key, 'change', handler);
+}
+function bindNumberInput(context, key, applyValue) {
+    const handler = (event) => {
+        applyValue(parseEventInputNumber(event));
+    };
+    bindElement(context, key, 'input', handler);
+    bindElement(context, key, 'change', handler);
+}
+function bindEditorDomEvents(context) {
+    bindUploadEvents(context);
+    bindTransformEvents(context);
+    bindMaskEvents(context);
+    bindAnnotationEvents(context);
+    bindHistoryEvents(context);
+    bindCropEvents(context);
+    bindMosaicEvents(context);
+}
+
+function syncInputValue(inputElement, value) {
+    if (!inputElement)
+        return;
+    const ownerDocument = inputElement.ownerDocument;
+    if (ownerDocument.activeElement === inputElement && !inputElement.readOnly)
+        return;
+    if (inputElement.value !== value)
+        inputElement.value = value;
+}
+function syncInput(getInputElement, key, value) {
+    syncInputValue(getInputElement(key), value);
+}
+function applyEditorInputState(snapshot, getInputElement) {
+    syncInput(getInputElement, 'scalePercentageInput', String(Math.round(snapshot.currentScale * 100)));
+    syncInput(getInputElement, 'mosaicBrushSizeInput', String(snapshot.mosaicConfig.brushSize));
+    syncInput(getInputElement, 'mosaicBlockSizeInput', String(snapshot.mosaicConfig.blockSize));
+    syncInput(getInputElement, 'textColorInput', snapshot.textConfig.fill);
+    syncInput(getInputElement, 'textFontSizeInput', String(snapshot.textConfig.fontSize));
+    syncInput(getInputElement, 'drawColorInput', snapshot.drawConfig.color);
+    syncInput(getInputElement, 'drawBrushSizeInput', String(snapshot.drawConfig.brushSize));
+}
+
+function setPlaceholderVisible(placeholderElement, containerElement, show) {
+    if (placeholderElement) {
+        placeholderElement.hidden = !show;
+        placeholderElement.setAttribute('aria-hidden', show ? 'false' : 'true');
+    }
+    if (containerElement) {
+        containerElement.hidden = show;
+        containerElement.setAttribute('aria-hidden', show ? 'true' : 'false');
+    }
+}
+
+const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
+const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
+const CROP_SESSION_ALLOWED_OPERATIONS = new Set(['setCropAspectRatio', 'applyCrop', 'cancelCrop']);
 const MOSAIC_SESSION_ALLOWED_OPERATIONS = new Set([
     'exitMosaicMode',
     'applyMosaic',
@@ -6442,7 +7316,6 @@ const MOSAIC_SESSION_ALLOWED_OPERATIONS = new Set([
     'setMosaicBlockSize',
     'saveState',
 ]);
-const SCROLLBAR_SETTLE_EPSILON = 1;
 const IMAGE_EDITOR_OPERATIONS = new Set([
     'init',
     'loadImage',
@@ -6717,6 +7590,12 @@ class ImageEditor {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "contextFactory", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "viewportCache", {
             enumerable: true,
             configurable: true,
@@ -6816,6 +7695,144 @@ class ImageEditor {
         this.operationGuard = new OperationGuard();
         this.animQueue = new AnimationQueue();
         this.historyManager = new HistoryManager(this.options.maxHistorySize);
+        this.contextFactory = this.createContextFactory();
+    }
+    createContextFactory() {
+        return new EditorContextFactory({
+            getFabric: () => this.fabricModule,
+            getOptions: () => this.options,
+            getRuntimeOptions: () => this.getRuntimeOptions(),
+            getHistoryManager: () => this.historyManager,
+            getOperationGuard: () => this.operationGuard,
+            getCanvas: () => this.canvas,
+            getLiveCanvas: (operationName) => this.getLiveCanvasOrThrow(operationName),
+            getContainerElement: () => this.containerElement,
+            getPlaceholderElement: () => this.placeholderElement,
+            getViewportCache: () => this.viewportCache,
+            isDisposed: () => this.isDisposed,
+            isImageLoaded: () => this.isImageLoaded(),
+            getOriginalImage: () => this.originalImage,
+            setOriginalImage: (image) => {
+                this.originalImage = image;
+            },
+            getIsImageLoadedToCanvas: () => this.isImageLoadedToCanvas,
+            setIsImageLoadedToCanvas: (value) => {
+                this.isImageLoadedToCanvas = value;
+            },
+            getCurrentImageMimeType: () => this.currentImageMimeType,
+            setCurrentImageMimeType: (mimeType) => {
+                this.currentImageMimeType = mimeType;
+            },
+            getLastSnapshot: () => this.lastSnapshot,
+            setLastSnapshot: (snapshot) => {
+                this.lastSnapshot = snapshot;
+            },
+            getCurrentScale: () => this.currentScale,
+            setCurrentScale: (scale) => {
+                this.currentScale = scale;
+            },
+            getCurrentRotation: () => this.currentRotation,
+            setCurrentRotation: (rotation) => {
+                this.currentRotation = rotation;
+            },
+            getBaseImageScale: () => this.baseImageScale,
+            setBaseImageScale: (scale) => {
+                this.baseImageScale = scale;
+            },
+            getMaskCounter: () => this.maskCounter,
+            setMaskCounter: (value) => {
+                this.maskCounter = value;
+            },
+            getLastMask: () => this.lastMask,
+            setLastMask: (mask) => {
+                this.lastMask = mask;
+            },
+            getAnnotationCounter: () => this.annotationCounter,
+            setAnnotationCounter: (value) => {
+                this.annotationCounter = value;
+            },
+            getTextConfig: () => this.currentTextConfig,
+            getDrawConfig: () => this.currentDrawConfig,
+            getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
+            getTextSession: () => this.textSession,
+            setTextSession: (session) => {
+                this.textSession = session;
+            },
+            getDrawSession: () => this.drawSession,
+            setDrawSession: (session) => {
+                this.drawSession = session;
+            },
+            getMosaicSession: () => this.mosaicSession,
+            setMosaicSession: (session) => {
+                this.mosaicSession = session;
+            },
+            getCropSession: () => this.cropSession,
+            setCropSession: (session) => {
+                this.cropSession = session;
+            },
+            saveCanvasState: () => this.saveState(),
+            saveCanvasStateWithAnimationBypass: () => {
+                this.saveStateInternal(this.withAnimationQueueBypass());
+            },
+            setSuppressSaveState: (suppress) => {
+                this.shouldSuppressSaveState = suppress;
+            },
+            captureSnapshot: () => this.captureSnapshotInternal(),
+            loadImageForOperation: (operationToken, base64, providedOptions) => this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
+            loadMergedImage: async (operationToken, base64, providedOptions) => {
+                const geometry = this.captureImageDisplayGeometry();
+                await this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
+                this.restoreMergedImageDisplayGeometry(geometry);
+            },
+            loadFromStateForOperation: (operationToken, snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
+            setCanvasSize: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
+            },
+            updateCanvasSizeToImageBounds: () => this.updateCanvasSizeToImageBounds(),
+            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+                this.alignObjectBoundingBoxToCanvasTopLeft(object);
+            },
+            syncMaskLabel: (mask) => {
+                this.syncMaskLabel(mask);
+            },
+            removeLabelForMask: (mask) => {
+                this.removeLabelForMask(mask);
+            },
+            hideAllMaskLabels: () => {
+                this.hideAllMaskLabels();
+            },
+            setPlaceholderVisible: (show) => {
+                setPlaceholderVisible(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? show : false);
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                this.updateAnnotationList();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            getMaskListElementId: () => this.elements.maskList,
+            handleMaskSelected: (mask) => this.handleSelectionChanged([mask]),
+            getAnnotationListElementId: () => this.elements.annotationList,
+            handleAnnotationSelected: (annotation) => this.handleSelectionChanged([annotation]),
+            getMasks: () => this.getMasks(),
+            getAnnotations: () => this.getAnnotations(),
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                this.emitAnnotationsChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+        });
     }
     init(idMap = {}) {
         if (!this.isFabricLoaded) {
@@ -6957,174 +7974,124 @@ class ImageEditor {
         return this.canvas;
     }
     bindDomEvents() {
-        this.bindElementIfExists('uploadArea', 'click', () => {
-            var _a;
-            const inputId = this.elements.imageInput;
-            if (inputId)
-                (_a = document.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+        var _a, _b;
+        if (!this.domBindings)
+            return;
+        const ownerDocument = (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document;
+        bindEditorDomEvents({
+            bindings: this.domBindings,
+            rotationStep: this.options.rotationStep,
+            getInputValue: (key) => {
+                var _a;
+                const id = this.elements[key];
+                const element = id
+                    ? ownerDocument.getElementById(id)
+                    : null;
+                return (_a = element === null || element === void 0 ? void 0 : element.value) !== null && _a !== void 0 ? _a : '';
+            },
+            actions: {
+                openImagePicker: () => {
+                    var _a;
+                    const inputId = this.elements.imageInput;
+                    if (inputId)
+                        (_a = ownerDocument.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+                },
+                loadImageFile: (file) => this.loadImageFile(file),
+                zoomIn: () => this.scaleImage(this.currentScale + this.options.scaleStep),
+                zoomOut: () => this.scaleImage(this.currentScale - this.options.scaleStep),
+                resetImageTransform: () => this.resetImageTransform(),
+                flipHorizontal: () => this.flipHorizontal(),
+                flipVertical: () => this.flipVertical(),
+                rotateLeft: (degrees) => this.rotateImage(this.currentRotation - degrees),
+                rotateRight: (degrees) => this.rotateImage(this.currentRotation + degrees),
+                createMask: () => {
+                    this.createMask();
+                },
+                removeSelectedMask: () => {
+                    this.removeSelectedMask();
+                },
+                removeAllMasks: () => {
+                    this.removeAllMasks();
+                },
+                mergeMasks: () => this.mergeMasks(),
+                mergeAnnotations: () => this.mergeAnnotations(),
+                enterTextMode: () => {
+                    this.enterTextMode();
+                },
+                exitTextMode: () => {
+                    this.exitTextMode();
+                },
+                enterDrawMode: () => {
+                    this.enterDrawMode();
+                },
+                exitDrawMode: () => {
+                    this.exitDrawMode();
+                },
+                removeSelectedAnnotation: () => {
+                    this.removeSelectedAnnotation();
+                },
+                removeAllAnnotations: () => {
+                    this.removeAllAnnotations();
+                },
+                deleteSelectedObject: () => {
+                    this.deleteSelectedObject();
+                },
+                bringSelectedObjectForward: () => {
+                    this.bringSelectedObjectForward();
+                },
+                sendSelectedObjectBackward: () => {
+                    this.sendSelectedObjectBackward();
+                },
+                bringSelectedObjectToFront: () => {
+                    this.bringSelectedObjectToFront();
+                },
+                sendSelectedObjectToBack: () => {
+                    this.sendSelectedObjectToBack();
+                },
+                downloadImage: () => this.downloadImage(),
+                undo: () => this.undo(),
+                redo: () => this.redo(),
+                enterCropMode: () => {
+                    this.enterCropMode({ aspectRatio: this.getSelectedCropAspectRatio() });
+                },
+                updateSelectedCropAspectRatio: () => {
+                    if (this.cropSession)
+                        this.setCropAspectRatio(this.getSelectedCropAspectRatio());
+                },
+                applyCrop: () => this.applyCrop(),
+                reportCropApplyError: (error) => {
+                    reportError(this.options, error, 'Crop apply failed.');
+                },
+                cancelCrop: () => {
+                    this.cancelCrop();
+                },
+                enterMosaicMode: () => {
+                    this.enterMosaicMode();
+                },
+                exitMosaicMode: () => {
+                    this.exitMosaicMode();
+                },
+                setMosaicBrushSize: (size) => {
+                    this.setMosaicBrushSize(size);
+                },
+                setMosaicBlockSize: (size) => {
+                    this.setMosaicBlockSize(size);
+                },
+                setTextColor: (color) => {
+                    this.applyTextColorInput(color);
+                },
+                setTextFontSize: (size) => {
+                    this.applyTextFontSizeInput(size);
+                },
+                setDrawColor: (color) => {
+                    this.applyDrawColorInput(color);
+                },
+                setDrawBrushSize: (size) => {
+                    this.applyDrawBrushSizeInput(size);
+                },
+            },
         });
-        this.bindElementIfExists('imageInput', 'change', (e) => {
-            var _a;
-            const file = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
-            if (file)
-                void this.loadImageFile(file);
-        });
-        this.bindElementIfExists('zoomInButton', 'click', () => {
-            void this.scaleImage(this.currentScale + this.options.scaleStep);
-        });
-        this.bindElementIfExists('zoomOutButton', 'click', () => {
-            void this.scaleImage(this.currentScale - this.options.scaleStep);
-        });
-        this.bindElementIfExists('resetImageTransformButton', 'click', () => {
-            void this.resetImageTransform();
-        });
-        this.bindElementIfExists('flipHorizontalButton', 'click', () => {
-            void this.flipHorizontal();
-        });
-        this.bindElementIfExists('flipVerticalButton', 'click', () => {
-            void this.flipVertical();
-        });
-        this.bindElementIfExists('createMaskButton', 'click', () => {
-            this.createMask();
-        });
-        this.bindElementIfExists('removeSelectedMaskButton', 'click', () => {
-            this.removeSelectedMask();
-        });
-        this.bindElementIfExists('removeAllMasksButton', 'click', () => {
-            this.removeAllMasks();
-        });
-        this.bindElementIfExists('mergeMasksButton', 'click', () => {
-            void this.mergeMasks();
-        });
-        this.bindElementIfExists('mergeAnnotationsButton', 'click', () => {
-            void this.mergeAnnotations();
-        });
-        this.bindElementIfExists('enterTextModeButton', 'click', () => {
-            this.enterTextMode();
-        });
-        this.bindElementIfExists('exitTextModeButton', 'click', () => {
-            this.exitTextMode();
-        });
-        this.bindElementIfExists('enterDrawModeButton', 'click', () => {
-            this.enterDrawMode();
-        });
-        this.bindElementIfExists('exitDrawModeButton', 'click', () => {
-            this.exitDrawMode();
-        });
-        this.bindElementIfExists('removeSelectedAnnotationButton', 'click', () => {
-            this.removeSelectedAnnotation();
-        });
-        this.bindElementIfExists('removeAllAnnotationsButton', 'click', () => {
-            this.removeAllAnnotations();
-        });
-        this.bindElementIfExists('deleteSelectedObjectButton', 'click', () => {
-            this.deleteSelectedObject();
-        });
-        this.bindElementIfExists('bringSelectedObjectForwardButton', 'click', () => {
-            this.bringSelectedObjectForward();
-        });
-        this.bindElementIfExists('sendSelectedObjectBackwardButton', 'click', () => {
-            this.sendSelectedObjectBackward();
-        });
-        this.bindElementIfExists('bringSelectedObjectToFrontButton', 'click', () => {
-            this.bringSelectedObjectToFront();
-        });
-        this.bindElementIfExists('sendSelectedObjectToBackButton', 'click', () => {
-            this.sendSelectedObjectToBack();
-        });
-        this.bindElementIfExists('downloadImageButton', 'click', () => {
-            this.downloadImage();
-        });
-        this.bindElementIfExists('undoButton', 'click', () => {
-            this.undo();
-        });
-        this.bindElementIfExists('redoButton', 'click', () => {
-            this.redo();
-        });
-        this.bindElementIfExists('rotateLeftButton', 'click', () => {
-            const inputId = this.elements.rotateLeftDegreesInput;
-            const inputEl = inputId
-                ? document.getElementById(inputId)
-                : null;
-            let step = this.options.rotationStep;
-            if (inputEl) {
-                const parsedStep = parseFloat(inputEl.value);
-                if (!isNaN(parsedStep))
-                    step = parsedStep;
-            }
-            void this.rotateImage(this.currentRotation - step);
-        });
-        this.bindElementIfExists('rotateRightButton', 'click', () => {
-            const inputId = this.elements.rotateRightDegreesInput;
-            const inputEl = inputId
-                ? document.getElementById(inputId)
-                : null;
-            let step = this.options.rotationStep;
-            if (inputEl) {
-                const parsedStep = parseFloat(inputEl.value);
-                if (!isNaN(parsedStep))
-                    step = parsedStep;
-            }
-            void this.rotateImage(this.currentRotation + step);
-        });
-        this.bindElementIfExists('enterCropModeButton', 'click', () => {
-            this.enterCropMode({ aspectRatio: this.getSelectedCropAspectRatio() });
-        });
-        this.bindElementIfExists('cropAspectRatioSelect', 'change', () => {
-            if (this.cropSession)
-                this.setCropAspectRatio(this.getSelectedCropAspectRatio());
-        });
-        this.bindElementIfExists('applyCropButton', 'click', () => {
-            void this.applyCrop().catch((error) => {
-                reportError(this.options, error, 'Crop apply failed.');
-            });
-        });
-        this.bindElementIfExists('cancelCropButton', 'click', () => {
-            this.cancelCrop();
-        });
-        this.bindElementIfExists('enterMosaicModeButton', 'click', () => {
-            this.enterMosaicMode();
-        });
-        this.bindElementIfExists('exitMosaicModeButton', 'click', () => {
-            this.exitMosaicMode();
-        });
-        const bindMosaicSizeInput = (key, applyValue) => {
-            const handler = (event) => {
-                const parsed = parseFloat(event.target.value);
-                applyValue(parsed);
-            };
-            this.bindElementIfExists(key, 'input', handler);
-            this.bindElementIfExists(key, 'change', handler);
-        };
-        bindMosaicSizeInput('mosaicBrushSizeInput', (value) => {
-            this.setMosaicBrushSize(value);
-        });
-        bindMosaicSizeInput('mosaicBlockSizeInput', (value) => {
-            this.setMosaicBlockSize(value);
-        });
-        const bindStringInput = (key, applyValue) => {
-            const handler = (event) => {
-                applyValue(event.target.value);
-            };
-            this.bindElementIfExists(key, 'input', handler);
-            this.bindElementIfExists(key, 'change', handler);
-        };
-        const bindNumberInput = (key, applyValue) => {
-            const handler = (event) => {
-                applyValue(parseFloat(event.target.value));
-            };
-            this.bindElementIfExists(key, 'input', handler);
-            this.bindElementIfExists(key, 'change', handler);
-        };
-        bindStringInput('textColorInput', (value) => this.applyTextColorInput(value));
-        bindNumberInput('textFontSizeInput', (value) => this.applyTextFontSizeInput(value));
-        bindStringInput('drawColorInput', (value) => this.applyDrawColorInput(value));
-        bindNumberInput('drawBrushSizeInput', (value) => this.applyDrawBrushSizeInput(value));
         this.bindKeyboardEvents();
-    }
-    bindElementIfExists(key, event, handler) {
-        var _a;
-        (_a = this.domBindings) === null || _a === void 0 ? void 0 : _a.bindIfExists(key, event, handler);
     }
     bindKeyboardEvents() {
         var _a, _b;
@@ -7189,33 +8156,16 @@ class ImageEditor {
         finalizeActiveTextEditing(this.buildTextControllerContext(), { commit: true });
     }
     async loadImageFile(file) {
-        const inputId = this.elements.imageInput;
-        const inputEl = inputId
-            ? document.getElementById(inputId)
-            : null;
-        const mime = inferImageMimeType(file);
-        if (!mime) {
-            reportWarning(this.options, null, `Unsupported image file type: ${file.type || file.name || 'unknown'}.`);
-            resetFileInput(inputEl);
-            return;
-        }
-        let dataUrl;
-        try {
-            dataUrl = await readFileAsDataUrl(file);
-        }
-        catch (error) {
-            reportError(this.options, error, 'Failed to read selected image file.');
-            resetFileInput(inputEl);
-            return;
-        }
-        try {
-            await this.loadImage(dataUrl);
-        }
-        catch {
-        }
-        finally {
-            resetFileInput(inputEl);
-        }
+        await loadImageFile({
+            options: this.options,
+            getInputElement: () => {
+                const inputId = this.elements.imageInput;
+                return inputId
+                    ? document.getElementById(inputId)
+                    : null;
+            },
+            loadImage: (dataUrl) => this.loadImage(dataUrl),
+        }, file);
     }
     async loadImage(base64, options = {}) {
         return this.loadImageInternal(base64, options);
@@ -7239,53 +8189,7 @@ class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         this.updateUi();
         this.hideAllMaskLabels();
-        const loadImageContext = {
-            fabric: this.fabricModule,
-            canvas: this.canvas,
-            options: this.getRuntimeOptions(),
-            containerElement: this.containerElement,
-            placeholderElement: this.placeholderElement,
-            viewportCache: this.viewportCache,
-            getOriginalImage: () => this.originalImage,
-            setOriginalImage: (v) => {
-                this.originalImage = v;
-            },
-            getIsImageLoadedToCanvas: () => this.isImageLoadedToCanvas,
-            setIsImageLoadedToCanvas: (v) => {
-                this.isImageLoadedToCanvas = v;
-            },
-            getLastSnapshot: () => this.lastSnapshot,
-            setLastSnapshot: (v) => {
-                this.lastSnapshot = v;
-            },
-            getMaskCounter: () => this.maskCounter,
-            setMaskCounter: (v) => {
-                this.maskCounter = v;
-            },
-            getAnnotationCounter: () => this.annotationCounter,
-            setAnnotationCounter: (v) => {
-                this.annotationCounter = v;
-            },
-            getCurrentScale: () => this.currentScale,
-            setCurrentScale: (v) => {
-                this.currentScale = v;
-            },
-            getCurrentRotation: () => this.currentRotation,
-            setCurrentRotation: (v) => {
-                this.currentRotation = v;
-            },
-            getBaseImageScale: () => this.baseImageScale,
-            setBaseImageScale: (v) => {
-                this.baseImageScale = v;
-            },
-            getCurrentImageMimeType: () => this.currentImageMimeType,
-            setCurrentImageMimeType: (v) => {
-                this.currentImageMimeType = v;
-            },
-            setPlaceholderVisible: (show) => {
-                setPlaceholderVisible(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? show : false);
-            },
-        };
+        const loadImageContext = this.contextFactory.buildLoadImageContext();
         try {
             await loadImage(loadImageContext, base64, options);
         }
@@ -7598,175 +8502,55 @@ class ImageEditor {
         object.setCoords();
         (_c = this.canvas) === null || _c === void 0 ? void 0 : _c.renderAll();
     }
+    buildDisplayGeometryContext() {
+        return {
+            canvas: this.canvas,
+            containerElement: this.containerElement,
+            options: this.options,
+            currentLayoutMode: this.currentLayoutMode,
+            viewportCache: this.viewportCache,
+            getOriginalImage: () => this.originalImage,
+            setCanvasSize: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
+            },
+            setCurrentScale: (scale) => {
+                this.currentScale = scale;
+            },
+            setCurrentRotation: (rotation) => {
+                this.currentRotation = rotation;
+            },
+            setBaseImageScale: (scale) => {
+                this.baseImageScale = scale;
+            },
+            captureSnapshot: () => this.captureSnapshotInternal(),
+            setLastSnapshot: (snapshot) => {
+                this.lastSnapshot = snapshot;
+            },
+        };
+    }
     measureLayoutViewport(scrollbarSize) {
-        return this.viewportCache.measure(this.containerElement, {
-            width: this.options.canvasWidth,
-            height: this.options.canvasHeight,
-        }, scrollbarSize);
+        return measureLayoutViewport(this.buildDisplayGeometryContext(), scrollbarSize);
     }
     getScrollbarStableViewportCanvasSize(viewport) {
-        return {
-            width: Math.max(1, viewport.width - 1),
-            height: Math.max(1, viewport.height - 1),
-        };
+        return getScrollbarStableViewportCanvasSize(viewport);
     }
     updateCanvasSizeToImageBounds(options = {}) {
-        var _a, _b;
-        if (!this.originalImage)
-            return;
-        this.originalImage.setCoords();
-        const boundingRect = this.originalImage.getBoundingRect();
-        const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
-        const viewport = this.measureLayoutViewport(scrollbarSize);
-        const shouldStabilizeContainedViewport = options.stabilizeContainedViewport !== false;
-        const imageFitsViewport = boundingRect.width <= viewport.width + LAYOUT_EPSILON &&
-            boundingRect.height <= viewport.height + LAYOUT_EPSILON;
-        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
-            if (imageFitsViewport) {
-                const canvasSize = shouldStabilizeContainedViewport
-                    ? this.getScrollbarStableViewportCanvasSize(viewport)
-                    : viewport;
-                this.setCanvasSizePx(canvasSize.width, canvasSize.height);
-                return;
-            }
-            const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
-            this.setCanvasSizePx(canvasSize.width, canvasSize.height);
-            return;
-        }
-        if (imageFitsViewport) {
-            const canvasSize = shouldStabilizeContainedViewport
-                ? this.getScrollbarStableViewportCanvasSize(viewport)
-                : viewport;
-            this.setCanvasSizePx(canvasSize.width, canvasSize.height);
-            return;
-        }
-        this.setCanvasSizePx(Math.max(viewport.width, Math.ceil(boundingRect.width)), Math.max(viewport.height, Math.ceil(boundingRect.height)));
+        updateCanvasSizeToImageBounds(this.buildDisplayGeometryContext(), options);
     }
     shouldNormalizeCanvasSizeAfterStateRestore() {
-        var _a, _b;
-        if (!this.canvas || !this.originalImage)
-            return false;
-        this.originalImage.setCoords();
-        const boundingRect = this.originalImage.getBoundingRect();
-        const viewport = this.measureLayoutViewport(measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
-        const canvasW = Math.ceil(this.canvas.getWidth());
-        const canvasH = Math.ceil(this.canvas.getHeight());
-        const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
-            boundingRect.height > canvasH + LAYOUT_EPSILON;
-        if (this.currentLayoutMode === 'fit' || this.currentLayoutMode === 'cover') {
-            const staleOverflowWidth = canvasW > viewport.width + LAYOUT_EPSILON &&
-                boundingRect.width <= viewport.width + LAYOUT_EPSILON;
-            const staleOverflowHeight = canvasH > viewport.height + LAYOUT_EPSILON &&
-                boundingRect.height <= viewport.height + LAYOUT_EPSILON;
-            return clipsImage || staleOverflowWidth || staleOverflowHeight;
-        }
-        if (this.currentLayoutMode === 'expand') {
-            const expectedW = Math.max(viewport.width, Math.ceil(boundingRect.width));
-            const expectedH = Math.max(viewport.height, Math.ceil(boundingRect.height));
-            return (Math.abs(canvasW - expectedW) > LAYOUT_EPSILON ||
-                Math.abs(canvasH - expectedH) > LAYOUT_EPSILON);
-        }
-        return clipsImage;
+        return shouldNormalizeCanvasSizeAfterStateRestore(this.buildDisplayGeometryContext());
     }
     settleFitCoverScrollbarsAfterStateRestore() {
-        if (!this.canvas ||
-            !this.containerElement ||
-            (this.currentLayoutMode !== 'fit' && this.currentLayoutMode !== 'cover')) {
-            return;
-        }
-        const canvasW = Math.ceil(this.canvas.getWidth());
-        const canvasH = Math.ceil(this.canvas.getHeight());
-        if (canvasW <= 1 || canvasH <= 1)
-            return;
-        const clientW = Math.floor(this.containerElement.clientWidth || 0);
-        const clientH = Math.floor(this.containerElement.clientHeight || 0);
-        if (clientW <= 0 || clientH <= 0)
-            return;
-        const scrollW = Math.ceil(this.containerElement.scrollWidth || 0);
-        const scrollH = Math.ceil(this.containerElement.scrollHeight || 0);
-        const hasHorizontalScrollbar = scrollW > clientW + LAYOUT_EPSILON;
-        const hasVerticalScrollbar = scrollH > clientH + LAYOUT_EPSILON;
-        if (!hasHorizontalScrollbar && !hasVerticalScrollbar)
-            return;
-        const nudgeWidth = hasVerticalScrollbar && Math.abs(canvasW - clientW) <= SCROLLBAR_SETTLE_EPSILON;
-        const nudgeHeight = hasHorizontalScrollbar && Math.abs(canvasH - clientH) <= SCROLLBAR_SETTLE_EPSILON;
-        if (!nudgeWidth && !nudgeHeight)
-            return;
-        this.setCanvasSizePx(nudgeWidth ? canvasW - 1 : canvasW, nudgeHeight ? canvasH - 1 : canvasH);
-        this.setCanvasSizePx(canvasW, canvasH);
+        settleFitCoverScrollbarsAfterStateRestore(this.buildDisplayGeometryContext());
     }
     captureImageDisplayGeometry() {
-        if (!this.canvas || !this.originalImage)
-            return null;
-        this.originalImage.setCoords();
-        const boundingRect = this.originalImage.getBoundingRect();
-        return {
-            canvasWidth: this.canvas.getWidth(),
-            canvasHeight: this.canvas.getHeight(),
-            imageDisplayWidth: Math.max(1, boundingRect.width),
-            imageDisplayHeight: Math.max(1, boundingRect.height),
-        };
+        return captureImageDisplayGeometry(this.buildDisplayGeometryContext());
     }
     restoreMergedImageDisplayGeometry(geometry) {
-        if (!geometry || !this.canvas || !this.originalImage)
-            return;
-        this.setCanvasSizePx(geometry.canvasWidth, geometry.canvasHeight);
-        const sourceW = Math.max(1, this.originalImage.width || geometry.imageDisplayWidth);
-        const sourceH = Math.max(1, this.originalImage.height || geometry.imageDisplayHeight);
-        const scale = Math.min(geometry.imageDisplayWidth / sourceW, geometry.imageDisplayHeight / sourceH);
-        this.originalImage.set({
-            left: 0,
-            top: 0,
-            angle: 0,
-            scaleX: scale,
-            scaleY: scale,
-            originX: 'left',
-            originY: 'top',
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            hoverCursor: 'default',
-        });
-        this.originalImage.setCoords();
-        this.canvas.sendObjectToBack(this.originalImage);
-        this.currentScale = 1;
-        this.currentRotation = 0;
-        this.baseImageScale = scale;
-        this.lastSnapshot = this.captureSnapshotInternal();
-        this.canvas.renderAll();
+        restoreMergedImageDisplayGeometry(this.buildDisplayGeometryContext(), geometry);
     }
     buildTransformContext() {
-        return {
-            canvas: this.getLiveCanvasOrThrow('buildTransformContext'),
-            options: this.options,
-            guard: this.operationGuard,
-            getOriginalImage: () => this.originalImage,
-            getCurrentScale: () => this.currentScale,
-            setCurrentScale: (n) => {
-                this.currentScale = n;
-            },
-            getCurrentRotation: () => this.currentRotation,
-            setCurrentRotation: (n) => {
-                this.currentRotation = n;
-            },
-            getBaseImageScale: () => this.baseImageScale,
-            saveCanvasState: () => {
-                this.saveStateInternal(this.withAnimationQueueBypass());
-            },
-            setSuppressSaveState: (suppress) => {
-                this.shouldSuppressSaveState = suppress;
-            },
-            afterTransformSnap: () => {
-                if (this.isDisposed || !this.canvas || !this.originalImage)
-                    return;
-                this.updateCanvasSizeToImageBounds();
-                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
-                this.canvas
-                    .getObjects()
-                    .filter(isMaskObject)
-                    .forEach((maskObject) => this.syncMaskLabel(maskObject));
-            },
-        };
+        return this.contextFactory.buildTransformContext();
     }
     scaleImage(factor) {
         if (this.isDisposed || !this.transformController)
@@ -8204,50 +8988,13 @@ class ImageEditor {
         }
     }
     buildCreateMaskContext() {
-        return {
-            fabric: this.fabricModule,
-            canvas: this.getLiveCanvasOrThrow('createMask'),
-            options: this.getRuntimeOptions(),
-            getLastMask: () => this.lastMask,
-            setLastMask: (maskObject) => {
-                this.lastMask = maskObject;
-            },
-            getMaskCounter: () => this.maskCounter,
-            setMaskCounter: (n) => {
-                this.maskCounter = n;
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            saveCanvasState: () => {
-                this.saveState();
-            },
-            expandCanvasIfNeeded: (widthPx, heightPx) => {
-                this.setCanvasSizePx(widthPx, heightPx);
-            },
-        };
+        return this.contextFactory.buildCreateMaskContext();
     }
     buildRemoveMaskContext() {
-        return {
-            canvas: this.getLiveCanvasOrThrow('removeMask'),
-            removeLabelForMask: (mask) => {
-                this.removeLabelForMask(mask);
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            saveCanvasState: () => {
-                this.saveState();
-            },
-            setLastMask: (maskObject) => {
-                this.lastMask = maskObject;
-            },
-        };
+        return this.contextFactory.buildRemoveMaskContext();
     }
     buildMaskLabelContext() {
-        if (!this.canvas)
-            return null;
-        return { fabric: this.fabricModule, canvas: this.canvas, options: this.options };
+        return this.contextFactory.buildMaskLabelContext();
     }
     removeLabelForMask(mask) {
         const context = this.buildMaskLabelContext();
@@ -8331,11 +9078,7 @@ class ImageEditor {
         this.emitOptionCallback('onSelectionChange', [this.buildSelection(selected), context]);
     }
     buildMaskListContext() {
-        return {
-            canvas: this.canvas,
-            getListElementId: () => this.elements.maskList,
-            onMaskSelected: (mask) => this.handleSelectionChanged([mask]),
-        };
+        return this.contextFactory.buildMaskListContext();
     }
     updateMaskList() {
         renderMaskList(this.buildMaskListContext());
@@ -8538,18 +9281,10 @@ class ImageEditor {
         this.moveSelectedEditableObject('sendSelectedObjectToBack');
     }
     buildAnnotationManagerContext() {
-        return {
-            canvas: this.getLiveCanvasOrThrow('annotationManager'),
-            saveCanvasState: () => this.saveState(),
-            updateUi: () => this.updateUi(),
-        };
+        return this.contextFactory.buildAnnotationManagerContext();
     }
     buildAnnotationListContext() {
-        return {
-            canvas: this.canvas,
-            getListElementId: () => this.elements.annotationList,
-            onAnnotationSelected: (annotation) => this.handleSelectionChanged([annotation]),
-        };
+        return this.contextFactory.buildAnnotationListContext();
     }
     updateAnnotationList() {
         renderAnnotationList(this.buildAnnotationListContext());
@@ -8558,51 +9293,10 @@ class ImageEditor {
         updateAnnotationListSelection(this.buildAnnotationListContext(), selectedAnnotation);
     }
     buildTextControllerContext() {
-        return {
-            fabric: this.fabricModule,
-            canvas: this.getLiveCanvasOrThrow('textController'),
-            options: this.options,
-            getOriginalImage: () => this.originalImage,
-            getTextConfig: () => this.currentTextConfig,
-            isImageLoaded: () => this.isImageLoaded(),
-            getAnnotationCounter: () => this.annotationCounter,
-            setAnnotationCounter: (value) => {
-                this.annotationCounter = value;
-            },
-            getTextSession: () => this.textSession,
-            setTextSession: (session) => {
-                this.textSession = session;
-            },
-            saveCanvasState: () => this.saveState(),
-            updateAnnotationList: () => this.updateAnnotationList(),
-            updateUi: () => this.updateUi(),
-            emitAnnotationsChanged: (context) => this.emitAnnotationsChanged(context),
-            emitImageChanged: (context) => this.emitImageChanged(context),
-            buildCallbackContext: (operation) => this.buildCallbackContext(operation, false),
-        };
+        return this.contextFactory.buildTextControllerContext();
     }
     buildDrawControllerContext() {
-        return {
-            fabric: this.fabricModule,
-            canvas: this.getLiveCanvasOrThrow('drawController'),
-            options: this.options,
-            getDrawConfig: () => this.currentDrawConfig,
-            isImageLoaded: () => this.isImageLoaded(),
-            getAnnotationCounter: () => this.annotationCounter,
-            setAnnotationCounter: (value) => {
-                this.annotationCounter = value;
-            },
-            getDrawSession: () => this.drawSession,
-            setDrawSession: (session) => {
-                this.drawSession = session;
-            },
-            saveCanvasState: () => this.saveState(),
-            updateAnnotationList: () => this.updateAnnotationList(),
-            updateUi: () => this.updateUi(),
-            emitAnnotationsChanged: (context) => this.emitAnnotationsChanged(context),
-            emitImageChanged: (context) => this.emitImageChanged(context),
-            buildCallbackContext: (operation) => this.buildCallbackContext(operation, false),
-        };
+        return this.contextFactory.buildDrawControllerContext();
     }
     applyTextConfigPatch(config, operation) {
         if (!this.canRunIdleOperation(operation))
@@ -8840,79 +9534,13 @@ class ImageEditor {
         }
     }
     buildExportServiceContext() {
-        return {
-            fabric: this.fabricModule,
-            canvas: this.getLiveCanvasOrThrow('export'),
-            options: this.options,
-            isImageLoaded: () => this.isImageLoaded(),
-            getOriginalImage: () => this.originalImage,
-        };
+        return this.contextFactory.buildExportServiceContext();
     }
     buildMergeMasksContext(operationToken) {
-        return {
-            ...this.buildExportServiceContext(),
-            historyManager: this.historyManager,
-            containerElement: this.containerElement,
-            loadImage: async (base64, providedOptions) => {
-                const geometry = this.captureImageDisplayGeometry();
-                await this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
-                this.restoreMergedImageDisplayGeometry(geometry);
-            },
-            captureSnapshot: () => this.captureSnapshotInternal(),
-            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
-            exportImageBase64: (options) => exportImageBase64(this.buildExportServiceContext(), options),
-            updateUi: () => this.updateUi(),
-            updateInputs: () => this.updateInputs(),
-            removeAllMasksNoHistory: () => {
-                const context = this.buildRemoveMaskContext();
-                removeAllMasks(context, { saveHistory: false });
-            },
-            getAnnotations: () => this.getAnnotations(),
-            restoreAnnotations: (objects) => {
-                const canvas = this.getLiveCanvasOrThrow('restoreAnnotations');
-                objects.forEach((annotation) => {
-                    canvas.add(annotation);
-                });
-                syncAnnotationRuntimeStates(objects);
-                attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), objects);
-                this.annotationCounter = Math.max(this.annotationCounter, ...objects.map((annotation) => annotation.annotationId), 0);
-                this.updateAnnotationList();
-            },
-        };
+        return this.contextFactory.buildMergeMasksContext(operationToken);
     }
     buildMergeAnnotationsContext(operationToken) {
-        return {
-            ...this.buildExportServiceContext(),
-            historyManager: this.historyManager,
-            containerElement: this.containerElement,
-            loadImage: async (base64, providedOptions) => {
-                const geometry = this.captureImageDisplayGeometry();
-                await this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
-                this.restoreMergedImageDisplayGeometry(geometry);
-            },
-            captureSnapshot: () => this.captureSnapshotInternal(),
-            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
-            exportImageBase64: (options) => exportImageBase64(this.buildExportServiceContext(), options),
-            updateUi: () => this.updateUi(),
-            updateInputs: () => this.updateInputs(),
-            removeAllAnnotationsNoHistory: () => {
-                removeAllAnnotations(this.buildAnnotationManagerContext(), {
-                    saveHistory: false,
-                    force: true,
-                });
-            },
-            getMasks: () => this.getMasks(),
-            restoreMasks: (objects) => {
-                const canvas = this.getLiveCanvasOrThrow('restoreMasks');
-                objects.forEach((mask) => {
-                    canvas.add(mask);
-                    reattachMaskHoverHandlers(mask);
-                });
-                this.lastMask = objects.reduce((lastMask, mask) => !lastMask || mask.maskId > lastMask.maskId ? mask : lastMask, null);
-                this.maskCounter = Math.max(this.maskCounter, ...objects.map((mask) => mask.maskId), 0);
-                this.updateMaskList();
-            },
-        };
+        return this.contextFactory.buildMergeAnnotationsContext(operationToken);
     }
     captureSnapshotInternal() {
         var _a, _b;
@@ -9031,48 +9659,7 @@ class ImageEditor {
         this.emitImageChanged(this.buildCallbackContext(operation, false));
     }
     buildMosaicControllerContext() {
-        return {
-            fabric: this.fabricModule,
-            canvas: this.getLiveCanvasOrThrow('mosaicController'),
-            options: this.options,
-            historyManager: this.historyManager,
-            getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
-            isImageLoaded: () => this.isImageLoaded(),
-            getOriginalImage: () => this.originalImage,
-            setOriginalImage: (image) => {
-                this.originalImage = image;
-            },
-            getCurrentImageMimeType: () => this.currentImageMimeType,
-            setCurrentImageMimeType: (mimeType) => {
-                this.currentImageMimeType = mimeType;
-            },
-            getLastSnapshot: () => this.lastSnapshot,
-            setLastSnapshot: (snapshot) => {
-                this.lastSnapshot = snapshot;
-            },
-            captureSnapshot: () => this.captureSnapshotInternal(),
-            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withAnimationQueueBypass()),
-            updateUi: () => {
-                this.updateUi();
-            },
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            hideAllMaskLabels: () => {
-                this.hideAllMaskLabels();
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-            buildCallbackContext: (operation, isInternal) => this.buildCallbackContext(operation, isInternal),
-            getMosaicSession: () => this.mosaicSession,
-            setMosaicSession: (session) => {
-                this.mosaicSession = session;
-            },
-        };
+        return this.contextFactory.buildMosaicControllerContext();
     }
     enterCropMode(options = {}) {
         if (!this.canvas || !this.originalImage)
@@ -9142,78 +9729,18 @@ class ImageEditor {
         }
     }
     buildCropControllerContext(operationToken) {
-        return {
-            fabric: this.fabricModule,
-            canvas: this.getLiveCanvasOrThrow('cropController'),
-            options: this.options,
-            historyManager: this.historyManager,
-            isImageLoaded: () => this.isImageLoaded(),
-            getOriginalImage: () => this.originalImage,
-            getCurrentImageMimeType: () => this.currentImageMimeType,
-            getCropSession: () => this.cropSession,
-            setCropSession: (s) => {
-                this.cropSession = s;
-            },
-            saveState: () => this.captureSnapshotInternal(),
-            loadFromState: (snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
-            loadImage: (base64, providedOptions) => this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
-            getMaskCounter: () => this.maskCounter,
-            setMaskCounter: (n) => {
-                this.maskCounter = n;
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-        };
-    }
-    syncInputValue(inputElement, value) {
-        if (!inputElement)
-            return;
-        const ownerDocument = inputElement.ownerDocument;
-        if (ownerDocument.activeElement === inputElement && !inputElement.readOnly)
-            return;
-        if (inputElement.value !== value)
-            inputElement.value = value;
+        return this.contextFactory.buildCropControllerContext(operationToken);
     }
     updateInputs() {
-        const scaleId = this.elements.scalePercentageInput;
-        if (scaleId) {
-            const scaleInputElement = document.getElementById(scaleId);
-            this.syncInputValue(scaleInputElement, String(Math.round(this.currentScale * 100)));
-        }
-        const mosaicConfig = this.getMosaicConfig();
-        const mosaicBrushSizeInputId = this.elements.mosaicBrushSizeInput;
-        if (mosaicBrushSizeInputId) {
-            const brushInput = document.getElementById(mosaicBrushSizeInputId);
-            this.syncInputValue(brushInput, String(mosaicConfig.brushSize));
-        }
-        const mosaicBlockSizeInputId = this.elements.mosaicBlockSizeInput;
-        if (mosaicBlockSizeInputId) {
-            const blockInput = document.getElementById(mosaicBlockSizeInputId);
-            this.syncInputValue(blockInput, String(mosaicConfig.blockSize));
-        }
-        const textConfig = this.getTextConfig();
-        const textColorInputId = this.elements.textColorInput;
-        if (textColorInputId) {
-            const textColorInput = document.getElementById(textColorInputId);
-            this.syncInputValue(textColorInput, textConfig.fill);
-        }
-        const textFontSizeInputId = this.elements.textFontSizeInput;
-        if (textFontSizeInputId) {
-            const fontInput = document.getElementById(textFontSizeInputId);
-            this.syncInputValue(fontInput, String(textConfig.fontSize));
-        }
-        const drawConfig = this.getDrawConfig();
-        const drawColorInputId = this.elements.drawColorInput;
-        if (drawColorInputId) {
-            const drawColorInput = document.getElementById(drawColorInputId);
-            this.syncInputValue(drawColorInput, drawConfig.color);
-        }
-        const drawBrushSizeInputId = this.elements.drawBrushSizeInput;
-        if (drawBrushSizeInputId) {
-            const brushInput = document.getElementById(drawBrushSizeInputId);
-            this.syncInputValue(brushInput, String(drawConfig.brushSize));
-        }
+        applyEditorInputState({
+            currentScale: this.currentScale,
+            mosaicConfig: this.getMosaicConfig(),
+            textConfig: this.getTextConfig(),
+            drawConfig: this.getDrawConfig(),
+        }, (key) => {
+            const id = this.elements[key];
+            return id ? document.getElementById(id) : null;
+        });
     }
     async mergeAnnotations() {
         if (!this.canvas)
@@ -9245,9 +9772,17 @@ class ImageEditor {
         }
     }
     updateUi() {
+        const snapshot = this.buildControlSnapshot();
+        if (!snapshot)
+            return;
+        applyEditorControlState(snapshot, (key, enabled) => {
+            this.setControlEnabled(key, enabled);
+        });
+    }
+    buildControlSnapshot() {
         var _a, _b, _c;
         if (!this.canvas)
-            return;
+            return null;
         const hasImage = !!this.originalImage;
         const masks = hasImage ? this.canvas.getObjects().filter(isMaskObject) : [];
         const annotations = hasImage ? this.canvas.getObjects().filter(isAnnotationObject) : [];
@@ -9269,146 +9804,45 @@ class ImageEditor {
         const isInDrawMode = this.drawSession !== null;
         const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
         const isMosaicApplying = ((_c = this.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true;
-        if (isInCropMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && CROP_MODE_ENABLED_KEYS.includes(key));
-            });
-            return;
-        }
-        if (isInTextMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && TEXT_MODE_ENABLED_KEYS.includes(key));
-            });
-            return;
-        }
-        if (isInDrawMode) {
-            CROP_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && DRAW_MODE_ENABLED_KEYS.includes(key));
-            });
-            return;
-        }
-        if (isInMosaicMode) {
-            MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
-                this.setControlEnabled(key, !isBusy && !isMosaicApplying && MOSAIC_MODE_ENABLED_KEYS.includes(key));
-            });
-            this.setControlEnabled('imageInput', false);
-            return;
-        }
-        this.setControlEnabled('scalePercentageInput', hasImage && !isBusy);
-        this.setControlEnabled('rotateLeftDegreesInput', hasImage && !isBusy);
-        this.setControlEnabled('rotateRightDegreesInput', hasImage && !isBusy);
-        this.setControlEnabled('zoomInButton', hasImage && !isBusy && this.currentScale < this.options.maxScale);
-        this.setControlEnabled('zoomOutButton', hasImage && !isBusy && this.currentScale > this.options.minScale);
-        this.setControlEnabled('rotateLeftButton', hasImage && !isBusy);
-        this.setControlEnabled('rotateRightButton', hasImage && !isBusy);
-        this.setControlEnabled('flipHorizontalButton', hasImage && !isBusy);
-        this.setControlEnabled('flipVerticalButton', hasImage && !isBusy);
-        this.setControlEnabled('createMaskButton', hasImage && !isBusy);
-        this.setControlEnabled('removeSelectedMaskButton', hasSelectedMask && !isBusy);
-        this.setControlEnabled('removeAllMasksButton', hasMasks && !isBusy);
-        this.setControlEnabled('mergeMasksButton', hasImage && hasMasks && !isBusy);
-        this.setControlEnabled('removeSelectedAnnotationButton', hasSelectedAnnotation && !isBusy);
-        this.setControlEnabled('removeAllAnnotationsButton', hasAnnotations && !isBusy);
-        this.setControlEnabled('deleteSelectedObjectButton', hasSelectedEditableObject && !isBusy);
-        this.setControlEnabled('mergeAnnotationsButton', hasImage && hasAnnotations && !isBusy);
-        this.setControlEnabled('bringSelectedObjectForwardButton', hasSelectedEditableObject && !isBusy);
-        this.setControlEnabled('sendSelectedObjectBackwardButton', hasSelectedEditableObject && !isBusy);
-        this.setControlEnabled('bringSelectedObjectToFrontButton', hasSelectedEditableObject && !isBusy);
-        this.setControlEnabled('sendSelectedObjectToBackButton', hasSelectedEditableObject && !isBusy);
-        this.setControlEnabled('downloadImageButton', hasImage && !isBusy);
-        this.setControlEnabled('resetImageTransformButton', hasImage && !isDefaultTransform && !isBusy);
-        this.setControlEnabled('undoButton', hasImage && !isBusy && canUndo);
-        this.setControlEnabled('redoButton', hasImage && !isBusy && canRedo);
-        this.setControlEnabled('enterCropModeButton', hasImage && !isBusy);
-        this.setControlEnabled('cropAspectRatioSelect', hasImage && !isBusy);
-        this.setControlEnabled('enterMosaicModeButton', hasImage && !isBusy);
-        this.setControlEnabled('enterTextModeButton', hasImage && !isBusy);
-        this.setControlEnabled('enterDrawModeButton', hasImage && !isBusy);
-        this.setControlEnabled('exitMosaicModeButton', false);
-        this.setControlEnabled('exitTextModeButton', false);
-        this.setControlEnabled('exitDrawModeButton', false);
-        this.setControlEnabled('mosaicBrushSizeInput', !this.isDisposed);
-        this.setControlEnabled('mosaicBlockSizeInput', !this.isDisposed);
-        this.setControlEnabled('textColorInput', !this.isDisposed);
-        this.setControlEnabled('textFontSizeInput', !this.isDisposed);
-        this.setControlEnabled('drawColorInput', !this.isDisposed);
-        this.setControlEnabled('drawBrushSizeInput', !this.isDisposed);
-        this.setControlEnabled('imageInput', !isBusy);
-        this.setControlEnabled('applyCropButton', false);
-        this.setControlEnabled('cancelCropButton', false);
+        return {
+            hasImage,
+            hasMasks,
+            hasAnnotations,
+            hasSelectedMask,
+            hasSelectedAnnotation,
+            hasSelectedEditableObject,
+            isDefaultTransform,
+            currentScale: this.currentScale,
+            minScale: this.options.minScale,
+            maxScale: this.options.maxScale,
+            canUndo,
+            canRedo,
+            isBusy,
+            isDisposed: this.isDisposed,
+            isInCropMode,
+            isInMosaicMode,
+            isInTextMode,
+            isInDrawMode,
+            isMosaicApplying,
+        };
+    }
+    buildControlElementContext() {
+        return {
+            elements: this.elements,
+            originalDisabledMap: this.elementOriginalDisabledMap,
+            originalAriaDisabledMap: this.elementOriginalAriaDisabledMap,
+            originalPointerEventsMap: this.elementOriginalPointerEventsMap,
+            getElement: (key) => {
+                const id = this.elements[key];
+                return id ? document.getElementById(id) : null;
+            },
+        };
     }
     setControlEnabled(key, isEnabled) {
-        var _a;
-        const id = this.elements[key];
-        if (!id)
-            return;
-        const controlElement = document.getElementById(id);
-        if (!controlElement)
-            return;
-        this.recordElementOriginalState(key, controlElement);
-        if ('disabled' in controlElement) {
-            const formControl = controlElement;
-            const nextDisabled = !isEnabled;
-            if (formControl.disabled !== nextDisabled)
-                formControl.disabled = nextDisabled;
-            return;
-        }
-        if (!isEnabled) {
-            controlElement.setAttribute('aria-disabled', 'true');
-            controlElement.style.pointerEvents = 'none';
-        }
-        else {
-            const originalAria = this.elementOriginalAriaDisabledMap.get(key);
-            if (originalAria === null || originalAria === undefined) {
-                controlElement.removeAttribute('aria-disabled');
-            }
-            else {
-                controlElement.setAttribute('aria-disabled', originalAria);
-            }
-            controlElement.style.pointerEvents =
-                (_a = this.elementOriginalPointerEventsMap.get(key)) !== null && _a !== void 0 ? _a : '';
-        }
-    }
-    recordElementOriginalState(key, element) {
-        if (!this.elementOriginalAriaDisabledMap.has(key)) {
-            this.elementOriginalAriaDisabledMap.set(key, element.getAttribute('aria-disabled'));
-        }
-        if (!this.elementOriginalPointerEventsMap.has(key)) {
-            this.elementOriginalPointerEventsMap.set(key, element.style.pointerEvents || '');
-        }
-        if ('disabled' in element && !this.elementOriginalDisabledMap.has(key)) {
-            this.elementOriginalDisabledMap.set(key, !!element.disabled);
-        }
+        setEditorControlEnabled(this.buildControlElementContext(), key, isEnabled);
     }
     restoreElementOriginalStates() {
-        var _a, _b;
-        for (const key of Object.keys(this.elements)) {
-            const id = this.elements[key];
-            if (!id)
-                continue;
-            const element = document.getElementById(id);
-            if (!element)
-                continue;
-            if ('disabled' in element && this.elementOriginalDisabledMap.has(key)) {
-                element.disabled =
-                    (_a = this.elementOriginalDisabledMap.get(key)) !== null && _a !== void 0 ? _a : false;
-            }
-            if (this.elementOriginalAriaDisabledMap.has(key)) {
-                const originalAria = this.elementOriginalAriaDisabledMap.get(key);
-                if (originalAria === null || originalAria === undefined) {
-                    element.removeAttribute('aria-disabled');
-                }
-                else {
-                    element.setAttribute('aria-disabled', originalAria);
-                }
-            }
-            if (this.elementOriginalPointerEventsMap.has(key)) {
-                element.style.pointerEvents = (_b = this.elementOriginalPointerEventsMap.get(key)) !== null && _b !== void 0 ? _b : '';
-            }
-        }
-        this.elementOriginalDisabledMap.clear();
-        this.elementOriginalAriaDisabledMap.clear();
-        this.elementOriginalPointerEventsMap.clear();
+        restoreEditorControlOriginalStates(this.buildControlElementContext());
     }
     updatePlaceholderStatus() {
         setPlaceholderVisible(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? !this.originalImage : false);

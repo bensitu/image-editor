@@ -29,13 +29,8 @@
  *
  * @module
  */
-import type { ElementIdMap } from '../core/public-types.js';
-/**
- * Logical element-name keys understood by the editor's `idMap`. Mirrors the
- * `ElementKey` alias used internally by `image-editor.ts` so callers can
- * speak the same vocabulary without crossing the public-types boundary.
- */
-export type ElementKey = keyof Required<ElementIdMap>;
+import type { ElementKey } from '../core/editor-elements.js';
+export type { ElementKey };
 /**
  * Lightweight registry of DOM event listeners owned by an editor instance.
  *
