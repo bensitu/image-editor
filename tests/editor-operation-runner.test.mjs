@@ -22,7 +22,8 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { runBusyOperation } = await import('../src/runtime/editor-operation-runner.ts');
+const { runBusyOperation, runBusyOperationWithoutUi } =
+    await import('../src/runtime/editor-operation-runner.ts');
 
 function createAccess() {
     const calls = [];
@@ -92,5 +93,28 @@ test('runBusyOperation still ends busy state and updates UI when body rejects', 
         ['endBusyOperation', true],
         ['emitBusyChangeIfChanged', 'mergeAnnotations'],
         ['updateUi'],
+    ]);
+});
+
+test('runBusyOperationWithoutUi preserves export/download ordering', async () => {
+    const access = createAccess();
+
+    const result = await runBusyOperationWithoutUi(
+        access,
+        'exportImageBase64',
+        async (context, token) => {
+            access.calls.push(['body', context.operation, token === access.token]);
+            return 'data-url';
+        },
+    );
+
+    assert.equal(result, 'data-url');
+    assert.deepEqual(access.calls, [
+        ['buildCallbackContext', 'exportImageBase64', false],
+        ['beginBusyOperation', 'exportImageBase64'],
+        ['emitBusyChangeIfChanged', 'exportImageBase64'],
+        ['body', 'exportImageBase64', true],
+        ['endBusyOperation', true],
+        ['emitBusyChangeIfChanged', 'exportImageBase64'],
     ]);
 });

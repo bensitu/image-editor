@@ -17,28 +17,21 @@ import {
     type ResolvedElementIdMap,
 } from './core/editor-elements.js';
 import {
-    areResolvedMosaicConfigsEqual,
-    areResolvedDrawConfigsEqual,
-    areResolvedTextAnnotationConfigsEqual,
     cloneResolvedMosaicConfig,
     cloneResolvedDrawConfig,
     cloneResolvedTextAnnotationConfig,
-    getInvalidDrawConfigFields,
-    getInvalidMosaicConfigFields,
-    getInvalidTextAnnotationConfigFields,
     isLayoutMode,
-    mergeDrawConfigPatch,
-    mergeMosaicConfigPatch,
-    mergeTextAnnotationConfigPatch,
     resolveOptions,
 } from './core/default-options.js';
 import { OperationGuard, type OperationToken } from './core/operation-guard.js';
+import type { CanvasJson } from './core/state-serializer.js';
+import { HistoryManager } from './history/history-manager.js';
 import {
-    loadFromState as loadFromStateImpl,
-    saveState as saveStateImpl,
-    type CanvasJson,
-} from './core/state-serializer.js';
-import { Command, HistoryManager } from './history/history-manager.js';
+    captureSnapshotAction,
+    loadFromStateAction,
+    saveStateAction,
+    type EditorStateActionAccess,
+} from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
 import type {
     AnnotationObject,
@@ -72,13 +65,7 @@ import type {
     TextAnnotationConfig,
     TextAnnotationObject,
 } from './core/public-types.js';
-import {
-    isAnnotationObject,
-    isDrawAnnotationObject,
-    isEditableOverlayObject,
-    isMaskObject,
-    isTextAnnotationObject,
-} from './core/public-types.js';
+import { isAnnotationObject, isEditableOverlayObject, isMaskObject } from './core/public-types.js';
 import {
     getAnnotations as getAnnotationsImpl,
     renderAnnotationList,
@@ -87,47 +74,70 @@ import {
     type AnnotationManagerContext,
 } from './annotation/annotation-manager.js';
 import {
-    attachTextEditingHandlersToAnnotations,
-    createTextAnnotation as createTextAnnotationImpl,
-    enterTextMode as enterTextModeImpl,
     exitTextMode as exitTextModeImpl,
     finalizeActiveTextEditing,
     type TextControllerContext,
     type TextSession,
 } from './annotation/text-controller.js';
 import {
-    enterDrawMode as enterDrawModeImpl,
     exitDrawMode as exitDrawModeImpl,
-    updateDrawBrush,
     type DrawControllerContext,
     type DrawSession,
 } from './annotation/draw-controller.js';
-import { syncAnnotationRuntimeStates } from './annotation/annotation-style.js';
 import {
-    applyCrop as applyCropImpl,
+    createTextAnnotationAction,
+    enterDrawModeAction,
+    enterTextModeAction,
+    exitDrawModeAction,
+    exitTextModeAction,
+    type AnnotationModeActionAccess,
+} from './annotation/annotation-mode-actions.js';
+import {
+    applyDrawBrushSizeInputAction,
+    applyDrawColorInputAction,
+    applyDrawConfigPatchAction,
+    applyTextColorInputAction,
+    applyTextConfigPatchAction,
+    applyTextFontSizeInputAction,
+    type AnnotationConfigActionAccess,
+} from './annotation/annotation-config-actions.js';
+import {
     cancelCrop as cancelCropImpl,
-    enterCropMode as enterCropModeImpl,
-    setCropAspectRatio as setCropAspectRatioImpl,
     type CropControllerContext,
     type CropSession,
 } from './crop/crop-controller.js';
 import {
-    enterMosaicMode as enterMosaicModeImpl,
+    applyCropAction,
+    cancelCropAction,
+    enterCropModeAction,
+    setCropAspectRatioAction,
+    type CropActionAccess,
+} from './crop/crop-actions.js';
+import {
     exitMosaicMode as exitMosaicModeImpl,
-    updateMosaicPreview,
     type MosaicControllerContext,
     type MosaicSession,
 } from './mosaic/mosaic-controller.js';
 import {
-    downloadImage as downloadImageImpl,
-    exportImageBase64 as exportImageBase64Impl,
-    exportImageFile as exportImageFileImpl,
-    mergeAnnotations as mergeAnnotationsImpl,
-    mergeMasks as mergeMasksImpl,
+    applyMosaicConfigPatchAction,
+    enterMosaicModeAction,
+    exitMosaicModeAction,
+    resetMosaicConfigAction,
+    type MosaicActionAccess,
+} from './mosaic/mosaic-actions.js';
+import {
     type ExportServiceContext,
     type MergeAnnotationsContext,
     type MergeMasksContext,
 } from './export/export-service.js';
+import {
+    downloadImageAction,
+    exportImageBase64Action,
+    exportImageFileAction,
+    mergeAnnotationsAction,
+    mergeMasksAction,
+    type ExportActionAccess,
+} from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
 import {
@@ -143,8 +153,16 @@ import {
 } from './image/display-geometry.js';
 import { ViewportCache, applyCanvasDimensions, type ViewportSize } from './image/layout-manager.js';
 import { TransformController, type TransformContext } from './image/transform-controller.js';
+import {
+    flipHorizontalAction,
+    flipVerticalAction,
+    resetImageTransformAction,
+    rotateImageAction,
+    scaleImageAction,
+    type TransformActionAccess,
+} from './image/transform-actions.js';
 import { EditorContextFactory } from './runtime/editor-contexts.js';
-import { runBusyOperation, type BusyOperationAccess } from './runtime/editor-operation-runner.js';
+import type { BusyOperationAccess } from './runtime/editor-operation-runner.js';
 import {
     handleObjectModified as handleObjectModifiedImpl,
     handleObjectMovingScalingRotating as handleObjectMovingScalingRotatingImpl,
@@ -160,13 +178,13 @@ import {
     updateSelectedAnnotationAction,
     type EditableObjectActionAccess,
 } from './overlay/editable-object-actions.js';
+import { type CreateMaskContext, type RemoveMaskContext } from './mask/mask-factory.js';
 import {
-    createMask as createMaskImpl,
-    removeAllMasks as removeAllMasksImpl,
-    removeSelectedMask as removeSelectedMaskImpl,
-    type CreateMaskContext,
-    type RemoveMaskContext,
-} from './mask/mask-factory.js';
+    createMaskAction,
+    removeAllMasksAction as removeAllMasksActionImpl,
+    removeSelectedMaskAction,
+    type MaskActionAccess,
+} from './mask/mask-actions.js';
 import {
     createLabelForMask,
     hideAllMaskLabels,
@@ -176,8 +194,11 @@ import {
     type MaskLabelManagerContext,
 } from './mask/mask-label-manager.js';
 import { renderMaskList, updateMaskListSelection, type MaskListContext } from './mask/mask-list.js';
-import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from './mask/mask-style.js';
-import { safelyDisposeCanvas, safelyRemoveKeyboardListener } from './lifecycle/editor-dispose.js';
+import {
+    safelyDisposeCanvas,
+    safelyExitActiveSession,
+    safelyRemoveKeyboardListener,
+} from './lifecycle/editor-dispose.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { applyEditorControlState, type EditorControlSnapshot } from './ui/editor-control-state.js';
 import {
@@ -364,60 +385,19 @@ export class ImageEditor {
     /**
      * Creates a new image editor instance.
      *
-     * The constructor accepts two argument shapes so the same source ships
-     * to both ESM and UMD consumers:
-     *
-     * - **ESM form** — `new ImageEditor(fabric, options?)`. The first
-     *   argument is the imported Fabric.js v7 module
-     *   (`import * as fabric from 'fabric'`).
-     * - **UMD / CDN form** — `new ImageEditor(options?)`. The Fabric module
-     *   is read from `globalThis.fabric` and the first argument is treated
-     *   as `ImageEditorOptions`.
-     *
-     * Detection is delegated to `fabric/fabric-adapter.ts`. When neither
-     * form yields a usable Fabric module, the adapter logs a single
-     * descriptive `console.error` and the constructor returns a degraded
-     * instance whose `init` and `loadImage` calls become no-ops
-     * resolving to `undefined`.
-     *
-     * Options are normalized through `core/default-options.ts#resolveOptions`,
-     * which deep-merges nested `label`/`crop` configs with the documented
-     * defaults, drops unknown keys, and freezes the nested references so
-     * post-construction mutation cannot affect the live editor
-     * The resolved options object is held on the
-     * instance as an internal facade field; nothing on the public surface
-     * exposes it directly.
-     *
-     * @param fabricModuleOrOptions - Fabric.js module (ESM) or options (UMD).
-     * @param options - Editor options when the first argument
-     *                              is the Fabric module. Ignored otherwise.
+     * Accepts ESM (`new ImageEditor(fabric, options?)`) and UMD/CDN
+     * (`new ImageEditor(options?)`) forms. Fabric detection and option
+     * normalization are delegated to the adapter/resolver modules.
      */
     constructor(
         fabricModuleOrOptions: FabricModule | ImageEditorOptions = {},
         options: ImageEditorOptions = {},
     ) {
-        // detect the Fabric module and
-        // separate it from the user's options partial. The adapter logs a
-        // single `console.error` on a miss; we then surface that miss via
-        // `isFabricLoaded === false` so `init` and `loadImage` can
-        // short-circuit.
         const detected = detectFabric(fabricModuleOrOptions, options);
 
-        // The adapter returns `null` on a miss; the public field type is
-        // `FabricModule`, so the cast keeps the rest of the class typed
-        // exactly as before. The `isFabricLoaded` flag is the single
-        // source of truth for "is Fabric usable?" — every public method
-        // that touches Fabric checks it before mutating canvas state.
         this.fabricModule = detected.fabric ?? ({} as FabricModule);
         this.isFabricLoaded = detected.isFabricLoaded;
 
-        // resolve options through the canonical
-        // resolver. `resolveOptions` applies defaults for every top-level
-        // key, deep-merges `label.textOptions` and `crop`, normalizes
-        // callbacks to functions or `null`, drops unknown top-level keys,
-        // and freezes the returned `label`/`crop` references so a later
-        // mutation of `userInput.label.textOptions` cannot affect the
-        // live editor.
         this.options = resolveOptions(detected.options);
         this.currentLayoutMode = this.options.layoutMode;
         this.defaultMosaicConfig = this.options.defaultMosaicConfig;
@@ -441,17 +421,6 @@ export class ImageEditor {
             );
         }
 
-        // ── Internal facade state ─────────────────────────────────────────
-        // `historyManager`, `animQueue`, `operationGuard`, and the callbacks on
-        // `options` stay implementation-owned. The public read-only
-        // introspection point is `isImageLoaded`.
-        //
-        // The `operationGuard` is shared between the facade (for the
-        // animation per-method guards), the transform controller
-        // (for `runAnimation` bracketing), and the
-        // Fabric animation wrapper (for `isDisposed`-aware callbacks).
-        // The `transformController` is constructed
-        // lazily in {@link init} once a canvas is available.
         this.operationGuard = new OperationGuard();
         this.animQueue = new AnimationQueue();
         this.historyManager = new HistoryManager(this.options.maxHistorySize);
@@ -619,19 +588,7 @@ export class ImageEditor {
     // PUBLIC — init
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Initializes the editor: connects to DOM elements, wires events,
-     * and optionally loads the `initialImageBase64` from options.
-     *
-     * Must be called once before any other method is used.
-     *
-     * @param idMap - Optional mapping from logical names to DOM element IDs.
-     *
-     * @example
-     * ```ts
-     * editor.init({ canvas: 'myCanvas', downloadImageButton: 'dlBtn'});
-     * ```
-     */
+    /** Initializes DOM bindings, canvas state, and the optional initial image. */
     init(idMap: ElementIdMap = {}): void {
         if (!this.isFabricLoaded) {
             const globalFabric = (globalThis as unknown as { fabric?: unknown }).fabric;
@@ -644,30 +601,18 @@ export class ImageEditor {
             this.fabricModule = globalFabric as FabricModule;
             this.isFabricLoaded = true;
         }
-        // Idempotency on the dispose side is mirrored
-        // here: a post-dispose `init` would otherwise re-create the
-        // canvas without the bindings registry the dispose path drained,
-        // and would also leak Fabric resources. Returning early matches
-        // the dispose contract in `core/operation-guard.ts`.
+        // Post-dispose init is a no-op to avoid recreating canvas resources.
         if (this.isDisposed) return;
 
         this.elements = resolveElementIds(idMap);
 
         this.initCanvas();
-        // Construct the bindings registry after `initCanvas` so document
-        // resolution is anchored to the actual canvas owner document.
-        // The resolver closes over `this.elements` so subsequent ID-map
-        // mutations are reflected without rebuilding the registry; the
-        // disposed-flag closure routes through the operation guard's single
-        // source of truth.
+        // Bindings are anchored to the canvas owner document.
         this.domBindings = new DomBindings(
             (key) => this.elements[key],
             () => this.isDisposed,
             () => this.canvasElement?.ownerDocument ?? document,
         );
-        // Construct the transform controller now that the Fabric canvas
-        // is available. The context binds back to facade fields so the
-        // controller does not duplicate state.
         this.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
@@ -1555,24 +1500,7 @@ export class ImageEditor {
     // PRIVATE — transform controller wiring
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Build the {@link TransformContext} the controller reads/writes
-     * through. The facade is the single owner of `currentScale`,
-     * `currentRotation`, `baseImageScale`, `shouldSuppressSaveState`, and
-     * the {@link OperationGuard}, so the context's accessors all bind
-     * back to `this` rather than duplicating state.
-     *
-     * The `saveCanvasState` callback delegates to {@link saveState},
-     * which already honors `shouldSuppressSaveState`. That lets
-     * {@link resetImageTransform} reuse the public scale and rotate paths
-     * while suppressing intermediate saves and emitting one final history
-     * entry.
-     *
-     * The `afterTransformSnap` hook re-runs the post-animation UI helpers:
-     * expand-to-image canvas sizing, bounding-box re-alignment, and mask
-     * label sync.
-     *
-     */
+    /** Builds the transform controller context from facade-owned runtime state. */
     private buildTransformContext(): TransformContext {
         return this.contextFactory.buildTransformContext();
     }
@@ -1581,185 +1509,55 @@ export class ImageEditor {
     // PUBLIC — scale / rotate / reset
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Animates the image to the given scale factor.
-     * The factor is clamped to `[options.minScale, options.maxScale]`.
-     *
-     * Routed through the {@link animQueue} so concurrent calls are
-     * serialized. The actual animation lives
-     * in {@link TransformController.scaleImage}, which brackets the
-     * Fabric tween in {@link OperationGuard.runAnimation} so
-     * `isAnimating` is `false` before this Promise settles
-     * and calls {@link saveState} on success.
-     *
-     * @returns A promise that resolves when the animation finishes.
-     */
-    scaleImage(factor: number): Promise<void> {
-        if (this.isDisposed || !this.transformController) return Promise.resolve();
-        if (!Number.isFinite(factor)) return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('scaleImage');
-        } catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('scaleImage', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed) return;
-            // Disable buttons up front so the toolbar reflects the
-            // pending animation while it runs.
-            this.updateUi();
-            try {
-                await controller.scaleImage(factor);
-                if (!this.isDisposed) this.emitImageChanged(context);
-            } finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+    private buildTransformActionAccess(): TransformActionAccess {
+        return {
+            isDisposed: () => this.isDisposed,
+            getTransformController: () => this.transformController,
+            assertCanQueueAnimation: (operation) => {
+                this.assertCanQueueAnimation(operation);
+            },
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            enqueueAnimation: (body) => this.animQueue.add(body),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            refreshUiAfterQueuedAnimation: () => {
+                this.refreshUiAfterQueuedAnimation();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+        };
     }
 
-    /**
-     * Animates the image to the given rotation angle.
-     *
-     * Routed through the {@link animQueue}.
-     * Non-finite input is a documented no-op; the controller
-     * short-circuits without modifying canvas state.
-     *
-     * @param degrees - Target rotation angle in degrees.
-     * @returns A promise that resolves when the animation finishes.
-     */
+    /** Animates the image to the given scale factor, clamped to configured limits. */
+    scaleImage(factor: number): Promise<void> {
+        return scaleImageAction(this.buildTransformActionAccess(), factor);
+    }
+
+    /** Animates the image to the given rotation angle. Non-finite input no-ops. */
     rotateImage(degrees: number): Promise<void> {
-        if (this.isDisposed || !this.transformController) return Promise.resolve();
-        if (!Number.isFinite(degrees)) return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('rotateImage');
-        } catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('rotateImage', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed) return;
-            this.updateUi();
-            try {
-                await controller.rotateImage(degrees);
-                if (!this.isDisposed) this.emitImageChanged(context);
-            } finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return rotateImageAction(this.buildTransformActionAccess(), degrees);
     }
 
     flipHorizontal(): Promise<void> {
-        if (this.isDisposed || !this.transformController) return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('flipHorizontal');
-        } catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('flipHorizontal', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed) return;
-            this.updateUi();
-            try {
-                await controller.flipHorizontal();
-                if (!this.isDisposed) this.emitImageChanged(context);
-            } finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return flipHorizontalAction(this.buildTransformActionAccess());
     }
 
     flipVertical(): Promise<void> {
-        if (this.isDisposed || !this.transformController) return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('flipVertical');
-        } catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('flipVertical', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed) return;
-            this.updateUi();
-            try {
-                await controller.flipVertical();
-                if (!this.isDisposed) this.emitImageChanged(context);
-            } finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return flipVerticalAction(this.buildTransformActionAccess());
     }
 
-    /**
-     * Resets the image to scale `1`, rotation `0`, and unflipped state and
-     * records exactly one history entry covering the entire reset.
-     *
-     * Routed through the {@link animQueue} so the chained
-     * `scaleImage(1)` and `rotateImage(0)` sub-animations are serialized
-     * with any other queued transform. The
-     * controller toggles `shouldSuppressSaveState` around the chain so the
-     * inner per-operation `saveState` calls collapse into a single
-     * post-reset save.
-     *
-     * @returns A promise that resolves when both sub-animations have
-     *          settled and the single history entry has been recorded.
-     */
+    /** Resets scale, rotation, and flip state as one undoable transform. */
     resetImageTransform(): Promise<void> {
-        if (this.isDisposed || !this.transformController) return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('resetImageTransform');
-        } catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('resetImageTransform', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed) return;
-            this.updateUi();
-            try {
-                await controller.resetImageTransform();
-                if (!this.isDisposed) this.emitImageChanged(context);
-            } finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return resetImageTransformAction(this.buildTransformActionAccess());
     }
 
     private refreshUiAfterQueuedAnimation(): void {
@@ -1771,6 +1569,118 @@ export class ImageEditor {
     // ═══════════════════════════════════════════════════════════════════════
     // PUBLIC — history
     // ═══════════════════════════════════════════════════════════════════════
+
+    private buildEditorStateActionAccess(): EditorStateActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            getLiveCanvas: (operationName) => this.getLiveCanvasOrThrow(operationName),
+            getOptions: () => this.options,
+            isDisposed: () => this.isDisposed,
+            canRunIdleOperation: (operation, options) =>
+                this.canRunIdleOperation(operation, options),
+            getActiveStateRestoreOperation: () => this.activeStateRestoreOperation,
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            getOriginalImage: () => this.originalImage,
+            setOriginalImage: (image) => {
+                this.originalImage = image;
+            },
+            getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
+            getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
+            setCanvasSize: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
+            },
+            hideAllMaskLabels: () => {
+                this.hideAllMaskLabels();
+            },
+            inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
+            setCurrentImageMimeType: (mimeType) => {
+                this.currentImageMimeType = mimeType;
+            },
+            setIsImageLoadedToCanvas: (value) => {
+                this.isImageLoadedToCanvas = value;
+            },
+            setMaskCounter: (value) => {
+                this.maskCounter = value;
+            },
+            setAnnotationCounter: (value) => {
+                this.annotationCounter = value;
+            },
+            setCurrentScale: (value) => {
+                this.currentScale = value;
+            },
+            setCurrentRotation: (value) => {
+                this.currentRotation = value;
+            },
+            setBaseImageScale: (value) => {
+                this.baseImageScale = value;
+            },
+            setLastMask: (mask) => {
+                this.lastMask = mask;
+            },
+            getLastSnapshot: () => this.lastSnapshot,
+            setLastSnapshot: (snapshot) => {
+                this.lastSnapshot = snapshot;
+            },
+            shouldNormalizeCanvasSizeAfterStateRestore: () =>
+                this.shouldNormalizeCanvasSizeAfterStateRestore(),
+            updateCanvasSizeToImageBounds: (options) => {
+                this.updateCanvasSizeToImageBounds(options);
+            },
+            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+                this.alignObjectBoundingBoxToCanvasTopLeft(object);
+            },
+            settleFitCoverScrollbarsAfterStateRestore: () => {
+                this.settleFitCoverScrollbarsAfterStateRestore();
+            },
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                this.updateAnnotationList();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitImageCleared: (image, context) => {
+                this.emitOptionCallback('onImageCleared', [image, context]);
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                this.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            withSelectionChangeContext: (context, callback) =>
+                this.withSelectionChangeContext(context, callback),
+            handleSelectionChanged: (selected) => {
+                this.handleSelectionChanged(selected);
+            },
+            shouldSuppressSaveState: () => this.shouldSuppressSaveState,
+            getCurrentScale: () => this.currentScale,
+            getCurrentRotation: () => this.currentRotation,
+            getBaseImageScale: () => this.baseImageScale,
+            getCurrentImageMimeType: () => this.currentImageMimeType,
+            getHistoryManager: () => this.historyManager,
+            withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
+            showLabelForMask: (mask) => {
+                this.showLabelForMask(mask);
+            },
+            updateMaskListSelection: (mask) => {
+                this.updateMaskListSelection(mask);
+            },
+            updateAnnotationListSelection: (annotation) => {
+                this.updateAnnotationListSelection(annotation);
+            },
+        };
+    }
 
     /**
      * Restores a previously serialized canvas state.
@@ -1794,153 +1704,7 @@ export class ImageEditor {
         jsonString: string | CanvasJson,
         options?: InternalOperationOptions | null,
     ): Promise<void> {
-        if (!jsonString || !this.canvas) return;
-        // After-dispose calls resolve as a no-op so a queued undo/redo
-        // entry that fires post-dispose does not touch the canvas.
-        if (this.isDisposed) return;
-        if (!this.canRunIdleOperation('loadFromState', options)) return;
-        const activeRestoreOperation = this.activeStateRestoreOperation;
-        const context = this.buildCallbackContext(
-            activeRestoreOperation ?? 'loadFromState',
-            activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo',
-        );
-        const previousImage = this.originalImage;
-        const previousMaskSignature = this.getMaskCollectionSignature();
-        const previousAnnotationSignature = this.getAnnotationCollectionSignature();
-
-        try {
-            const restoredState = await loadFromStateImpl({
-                canvas: this.canvas,
-                jsonString,
-                setCanvasSize: (widthPx, heightPx) => this.setCanvasSizePx(widthPx, heightPx),
-            });
-
-            // Defend against dispose racing with the awaited
-            // `loadFromJSON`: the canvas may have been torn down between
-            // the call and the resolution.
-            if (this.isDisposed || !this.canvas) return;
-
-            // Drop any lingering label texts the snapshot did not filter.
-            // The serializer's snapshot already excludes labels, but a
-            // hand-built or older payload may include them.
-            this.hideAllMaskLabels();
-
-            this.originalImage = restoredState.originalImage;
-            if (this.originalImage) {
-                this.originalImage.set({
-                    originX: 'left',
-                    originY: 'top',
-                    selectable: false,
-                    evented: false,
-                    hasControls: false,
-                    hoverCursor: 'default',
-                });
-                this.canvas.sendObjectToBack(this.originalImage);
-            }
-
-            this.maskCounter = restoredState.maxMaskId;
-            this.annotationCounter = restoredState.maxAnnotationId;
-
-            const editorState = restoredState.editorState;
-            if (editorState) {
-                this.currentScale = editorState.currentScale;
-                this.currentRotation = editorState.currentRotation;
-                this.baseImageScale = editorState.baseImageScale;
-            }
-            if (this.originalImage) {
-                this.currentImageMimeType =
-                    editorState && 'currentImageMimeType' in editorState
-                        ? (editorState.currentImageMimeType ?? null)
-                        : this.inferCurrentImageMimeType();
-            } else {
-                this.currentImageMimeType = null;
-            }
-
-            this.isImageLoadedToCanvas = !!this.originalImage;
-
-            if (this.originalImage && this.shouldNormalizeCanvasSizeAfterStateRestore()) {
-                this.updateCanvasSizeToImageBounds({ stabilizeContainedViewport: false });
-                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
-            }
-            if (this.originalImage) {
-                this.settleFitCoverScrollbarsAfterStateRestore();
-            }
-
-            // Re-attach mouseover/mouseout hover handlers (Fabric never
-            // serializes event listeners).
-            const restoredMasks = restoredState.masks;
-            this.lastMask = restoredMasks.reduce<MaskObject | null>(
-                (lastMask, maskObject) =>
-                    !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask,
-                null,
-            );
-            restoredMasks.forEach((maskObject) => {
-                applyMaskUnselectedStyle(maskObject);
-                reattachMaskHoverHandlers(maskObject);
-            });
-            syncAnnotationRuntimeStates(restoredState.annotations);
-            attachTextEditingHandlersToAnnotations(
-                this.buildTextControllerContext(),
-                restoredState.annotations,
-            );
-
-            // Update lastSnapshot so the NEXT saveState correctly
-            // uses the restored and layout-normalized state as its
-            // "before" baseline.
-            this.lastSnapshot = this.captureSnapshotInternal();
-
-            // Undo/redo callers await this method and should settle after
-            // Fabric has painted the restored state.
-            this.canvas.renderAll();
-            this.updateInputs();
-            this.updateMaskList();
-            this.updateAnnotationList();
-            this.updateUi();
-            if (previousImage && previousImage !== this.originalImage) {
-                this.emitOptionCallback('onImageCleared', [previousImage, context]);
-            }
-            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
-                this.emitMasksChanged(context);
-            }
-            if (previousAnnotationSignature !== this.getAnnotationCollectionSignature()) {
-                this.emitAnnotationsChanged(context);
-            }
-            this.emitImageChanged(context);
-
-            const canvas = this.getLiveCanvasOrThrow('loadFromState');
-            const activeMaskId = editorState?.activeMaskId;
-            const activeAnnotationId = editorState?.activeAnnotationId;
-            if (editorState?.activeObjectKind === 'mask' && typeof activeMaskId === 'number') {
-                const activeMask = restoredMasks.find(
-                    (maskObject) => maskObject.maskId === activeMaskId,
-                );
-                if (activeMask) {
-                    this.withSelectionChangeContext(context, () => {
-                        canvas.setActiveObject(activeMask);
-                        this.handleSelectionChanged([activeMask]);
-                    });
-                }
-            } else if (
-                editorState?.activeObjectKind === 'annotation' &&
-                typeof activeAnnotationId === 'number'
-            ) {
-                const activeAnnotation = restoredState.annotations.find(
-                    (annotation) => annotation.annotationId === activeAnnotationId,
-                );
-                if (activeAnnotation) {
-                    this.withSelectionChangeContext(context, () => {
-                        canvas.setActiveObject(activeAnnotation);
-                        this.handleSelectionChanged([activeAnnotation]);
-                    });
-                }
-            }
-        } catch (error) {
-            reportError(this.options, error, 'Failed to restore canvas state.');
-            // Propagate so `Command.undo`/`Command.execute` reject and
-            // `HistoryManager` leaves `currentIndex` untouched on a
-            // failed restore.
-            throw error;
-        }
+        await loadFromStateAction(this.buildEditorStateActionAccess(), jsonString, options);
     }
 
     /**
@@ -1952,66 +1716,7 @@ export class ImageEditor {
     }
 
     private saveStateInternal(options?: InternalOperationOptions | null): void {
-        if (!this.canvas || this.shouldSuppressSaveState) return;
-        if (!this.canRunIdleOperation('saveState', options)) return;
-        const activeObj = this.canvas.getActiveObject();
-        const activeMask = this.getActiveMaskForSnapshot();
-        const activeAnnotation = this.getActiveAnnotationForSnapshot();
-        this.hideAllMaskLabels();
-
-        try {
-            const after = saveStateImpl({
-                canvas: this.canvas,
-                activeMaskId: activeMask?.maskId ?? null,
-                activeAnnotationId: activeAnnotation?.annotationId ?? null,
-                currentScale: this.currentScale,
-                currentRotation: this.currentRotation,
-                baseImageScale: this.baseImageScale,
-                currentImageMimeType: this.currentImageMimeType,
-            });
-            const before = this.lastSnapshot ?? after;
-            if (after === before) {
-                return;
-            }
-
-            const cmd = new Command(
-                async () => {
-                    await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
-                },
-                async () => {
-                    await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
-                },
-            );
-
-            this.historyManager.push(cmd);
-            this.lastSnapshot = after;
-        } catch (error) {
-            reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
-        } finally {
-            this.restoreActiveObjectAfterSnapshot(activeObj, activeMask, activeAnnotation);
-            this.updateUi();
-        }
-    }
-
-    private restoreActiveObjectAfterSnapshot(
-        activeObj: FabricNS.FabricObject | null | undefined,
-        activeMask: MaskObject | null,
-        activeAnnotation: AnnotationObject | null,
-    ): void {
-        if (!this.canvas) return;
-        const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-        const annotationToRestore =
-            activeObj && isAnnotationObject(activeObj) ? activeObj : activeAnnotation;
-        if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
-            this.canvas.setActiveObject(maskToRestore);
-            this.showLabelForMask(maskToRestore);
-            this.updateMaskListSelection(maskToRestore);
-            return;
-        }
-        if (annotationToRestore && this.canvas.getObjects().includes(annotationToRestore)) {
-            this.canvas.setActiveObject(annotationToRestore);
-            this.updateAnnotationListSelection(annotationToRestore);
-        }
+        saveStateAction(this.buildEditorStateActionAccess(), options);
     }
 
     /**
@@ -2078,103 +1783,43 @@ export class ImageEditor {
     // PUBLIC — mask management
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Creates and adds a mask shape to the canvas.
-     *
-     * Delegates to {@link createMask} in `mask/mask-factory.ts`, which
-     * owns the resolved-config build, polygon bounding-box realignment,
-     * falsy-style preservation, monotonic `maskCounter` bookkeeping,
-     * and the post-create ordering contract: add to canvas → update
-     * list DOM → `setActiveObject` (when `selectable !== false`) →
-     * `saveState` → `config.onCreate(mask, canvas)`.
-     *
-     * @param config - Shape type, dimensions, position, style, and callbacks.
-     * @returns The created mask object, or `null` if the canvas is unavailable.
-     *
-     * @example
-     * ```ts
-     * // Simple rect mask
-     * editor.createMask;
-     *
-     * // Circle with custom size
-     * editor.createMask({ shape: 'circle', radius: 60, color: 'rgba(255,0,0,0.4)'});
-     *
-     * // Positioned at 20% from the left
-     * editor.createMask({ left: '20%', top: 40});
-     * ```
-     */
+    private buildMaskActionAccess(): MaskActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            getMasks: () => this.getMasks(),
+            canRunIdleOperation: (operation, options) =>
+                this.canRunIdleOperation(operation, options),
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            buildCreateMaskContext: () => this.buildCreateMaskContext(),
+            buildRemoveMaskContext: () => this.buildRemoveMaskContext(),
+            withSelectionChangeContext: (context, callback) =>
+                this.withSelectionChangeContext(context, callback),
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
+
+    /** Creates and adds a mask shape, returning `null` when the operation cannot run. */
     createMask(config: MaskConfig = {}): MaskObject | null {
-        if (!this.canvas) return null;
-        if (!this.canRunIdleOperation('createMask')) return null;
-        const callbackContext = this.buildCallbackContext('createMask', false);
-        const createMaskContext = this.buildCreateMaskContext();
-        const mask = this.withSelectionChangeContext(callbackContext, () =>
-            createMaskImpl(createMaskContext, config),
-        );
-        if (mask) {
-            this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        }
-        return mask;
+        return createMaskAction(this.buildMaskActionAccess(), config);
     }
 
-    /**
-     * Removes the currently selected mask (and its label).
-     *
-     * Delegates to {@link removeSelectedMask} in `mask/mask-factory.ts`,
-     * which removes the active mask, clears the canvas selection,
-     * re-renders the mask list DOM, and pushes a single history entry.
-     */
+    /** Removes the currently selected mask and its label. */
     removeSelectedMask(): void {
-        if (!this.canvas) return;
-        if (!this.canRunIdleOperation('removeSelectedMask')) return;
-        const before = this.getMasks().length;
-        const callbackContext = this.buildCallbackContext('removeSelectedMask', false);
-        const removeMaskContext = this.buildRemoveMaskContext();
-        this.withSelectionChangeContext(callbackContext, () =>
-            removeSelectedMaskImpl(removeMaskContext),
-        );
-        this.updateUi();
-        if (this.getMasks().length !== before) {
-            this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        }
+        removeSelectedMaskAction(this.buildMaskActionAccess());
     }
 
-    /**
-     * Removes all masks and their labels.
-     *
-     * Delegates to {@link removeAllMasks} in `mask/mask-factory.ts`,
-     * which removes every mask and label in canvas order, clears the
-     * `lastMask` reference, re-renders the mask list
-     * DOM, and pushes a single history entry by default. Callers can
-     * pass `{ saveHistory: false}` to skip the history push — used by
-     * the merge and crop pipelines, which already record their own
-     * enclosing history entry.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call is a documented no-op so an in-flight scale/rotate
-     * animation cannot have its mask layer torn out from under it. The
-     * guard mirrors the loadImage pattern (silent no-op, no throw, no
-     * DOM mutation) so the canvas, history stack, and mask list are
-     * left untouched.
-     */
+    /** Removes all masks and labels, or no-ops while guarded operations are active. */
     removeAllMasks(options: RemoveAllMasksOptions = {}): void {
-        if (!this.canvas) return;
-        // guarded operation. No DOM action while an
-        // animation is in flight. Mirrors loadImage's silent-no-op shape.
-        if (!this.canRunIdleOperation('removeAllMasks', options)) return;
-        const before = this.getMasks().length;
-        const callbackContext = this.buildCallbackContext('removeAllMasks', false);
-        const removeMaskContext = this.buildRemoveMaskContext();
-        this.withSelectionChangeContext(callbackContext, () =>
-            removeAllMasksImpl(removeMaskContext, options),
-        );
-        this.updateUi();
-        if (this.getMasks().length !== before) {
-            this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        }
+        removeAllMasksActionImpl(this.buildMaskActionAccess(), options);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2316,23 +1961,32 @@ export class ImageEditor {
     // PUBLIC — annotations
     // ═══════════════════════════════════════════════════════════════════════
 
+    private buildAnnotationModeActionAccess(): AnnotationModeActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            getTextSession: () => this.textSession,
+            getDrawSession: () => this.drawSession,
+            isToolModeActive: () => this.isToolModeActive(),
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+            buildDrawControllerContext: () => this.buildDrawControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
+
     enterTextMode(): void {
-        if (!this.canvas) return;
-        if (!this.canRunIdleOperation('enterTextMode')) return;
-        if (this.isToolModeActive()) return;
-        enterTextModeImpl(this.buildTextControllerContext());
-        const callbackContext = this.buildCallbackContext('enterTextMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterTextModeAction(this.buildAnnotationModeActionAccess());
     }
 
     exitTextMode(): void {
-        if (!this.canvas || !this.textSession) return;
-        if (!this.canRunIdleOperation('exitTextMode')) return;
-        exitTextModeImpl(this.buildTextControllerContext());
-        const callbackContext = this.buildCallbackContext('exitTextMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        exitTextModeAction(this.buildAnnotationModeActionAccess());
     }
 
     isTextMode(): boolean {
@@ -2340,28 +1994,15 @@ export class ImageEditor {
     }
 
     createTextAnnotation(config: TextAnnotationConfig = {}): TextAnnotationObject | null {
-        if (!this.canvas) return null;
-        if (!this.canRunIdleOperation('createTextAnnotation')) return null;
-        return createTextAnnotationImpl(this.buildTextControllerContext(), config);
+        return createTextAnnotationAction(this.buildAnnotationModeActionAccess(), config);
     }
 
     enterDrawMode(): void {
-        if (!this.canvas) return;
-        if (!this.canRunIdleOperation('enterDrawMode')) return;
-        if (this.isToolModeActive()) return;
-        enterDrawModeImpl(this.buildDrawControllerContext());
-        const callbackContext = this.buildCallbackContext('enterDrawMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterDrawModeAction(this.buildAnnotationModeActionAccess());
     }
 
     exitDrawMode(): void {
-        if (!this.canvas || !this.drawSession) return;
-        if (!this.canRunIdleOperation('exitDrawMode')) return;
-        exitDrawModeImpl(this.buildDrawControllerContext());
-        const callbackContext = this.buildCallbackContext('exitDrawMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        exitDrawModeAction(this.buildAnnotationModeActionAccess());
     }
 
     isDrawMode(): boolean {
@@ -2538,100 +2179,80 @@ export class ImageEditor {
         return this.contextFactory.buildDrawControllerContext();
     }
 
+    private buildAnnotationConfigActionAccess(): AnnotationConfigActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            isTextMode: () => this.isTextMode(),
+            isDrawMode: () => this.isDrawMode(),
+            getCurrentTextConfig: () => this.currentTextConfig,
+            setCurrentTextConfig: (config) => {
+                this.currentTextConfig = config;
+            },
+            getDefaultTextConfig: () => this.defaultTextConfig,
+            getCurrentDrawConfig: () => this.currentDrawConfig,
+            setCurrentDrawConfig: (config) => {
+                this.currentDrawConfig = config;
+            },
+            getDefaultDrawConfig: () => this.defaultDrawConfig,
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildDrawControllerContext: () => this.buildDrawControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            updateSelectedAnnotation: (config) => {
+                this.updateSelectedAnnotation(config);
+            },
+            setTextColor: (color) => {
+                this.setTextColor(color);
+            },
+            setTextFontSize: (size) => {
+                this.setTextFontSize(size);
+            },
+            setDrawColor: (color) => {
+                this.setDrawColor(color);
+            },
+            setDrawBrushSize: (size) => {
+                this.setDrawBrushSize(size);
+            },
+            reportWarning: (error, message) => {
+                reportWarning(this.options, error, message);
+            },
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
+
     private applyTextConfigPatch(
         config: TextAnnotationConfig,
         operation: ImageEditorOperation,
     ): void {
-        if (!this.canRunIdleOperation(operation)) return;
-        const invalidFields = getInvalidTextAnnotationConfigFields(config);
-        if (invalidFields.length > 0) {
-            reportWarning(
-                this.options,
-                null,
-                `${operation} ignored invalid Text config fields: ${invalidFields.join(', ')}.`,
-            );
-        }
-        const next = mergeTextAnnotationConfigPatch(
-            this.currentTextConfig,
-            config,
-            this.defaultTextConfig,
-        );
-        if (areResolvedTextAnnotationConfigsEqual(this.currentTextConfig, next)) return;
-        this.currentTextConfig = next;
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext(operation, false));
+        applyTextConfigPatchAction(this.buildAnnotationConfigActionAccess(), config, operation);
     }
 
     private applyDrawConfigPatch(config: DrawConfig, operation: ImageEditorOperation): void {
-        if (!this.canRunIdleOperation(operation)) return;
-        const invalidFields = getInvalidDrawConfigFields(config);
-        if (invalidFields.length > 0) {
-            reportWarning(
-                this.options,
-                null,
-                `${operation} ignored invalid Draw config fields: ${invalidFields.join(', ')}.`,
-            );
-        }
-        const next = mergeDrawConfigPatch(this.currentDrawConfig, config, this.defaultDrawConfig);
-        if (areResolvedDrawConfigsEqual(this.currentDrawConfig, next)) return;
-        this.currentDrawConfig = next;
-        updateDrawBrush(this.buildDrawControllerContext());
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext(operation, false));
+        applyDrawConfigPatchAction(this.buildAnnotationConfigActionAccess(), config, operation);
     }
 
     private applyTextColorInput(color: string): void {
-        if (this.isTextMode()) {
-            this.setTextColor(color);
-            return;
-        }
-        const selected = this.canvas?.getActiveObject();
-        if (selected && isTextAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ fill: color });
-            return;
-        }
-        this.setTextColor(color);
+        applyTextColorInputAction(this.buildAnnotationConfigActionAccess(), color);
     }
 
     private applyTextFontSizeInput(size: number): void {
-        if (this.isTextMode()) {
-            this.setTextFontSize(size);
-            return;
-        }
-        const selected = this.canvas?.getActiveObject();
-        if (selected && isTextAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ fontSize: size });
-            return;
-        }
-        this.setTextFontSize(size);
+        applyTextFontSizeInputAction(this.buildAnnotationConfigActionAccess(), size);
     }
 
     private applyDrawColorInput(color: string): void {
-        if (this.isDrawMode()) {
-            this.setDrawColor(color);
-            return;
-        }
-        const selected = this.canvas?.getActiveObject();
-        if (selected && isDrawAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ stroke: color });
-            return;
-        }
-        this.setDrawColor(color);
+        applyDrawColorInputAction(this.buildAnnotationConfigActionAccess(), color);
     }
 
     private applyDrawBrushSizeInput(size: number): void {
-        if (this.isDrawMode()) {
-            this.setDrawBrushSize(size);
-            return;
-        }
-        const selected = this.canvas?.getActiveObject();
-        if (selected && isDrawAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ strokeWidth: size });
-            return;
-        }
-        this.setDrawBrushSize(size);
+        applyDrawBrushSizeInputAction(this.buildAnnotationConfigActionAccess(), size);
     }
 
     private moveSelectedEditableObject(operation: ImageEditorOperation): void {
@@ -2644,156 +2265,71 @@ export class ImageEditor {
     // PUBLIC — merge / export / download
     // ═══════════════════════════════════════════════════════════════════════
 
+    private buildExportActionAccess(): ExportActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            getAnnotations: () => this.getAnnotations(),
+            getMasks: () => this.getMasks(),
+            canRunIdleOperation: (operation, options) =>
+                this.canRunIdleOperation(operation, options),
+            assertIdleForOperation: (operation, options) => {
+                this.assertIdleForOperation(operation, options);
+            },
+            finalizeActiveTextEditingIfNeeded: () => {
+                this.finalizeActiveTextEditingIfNeeded();
+            },
+            buildExportServiceContext: () => this.buildExportServiceContext(),
+            buildMergeMasksContext: (token) => this.buildMergeMasksContext(token),
+            buildMergeAnnotationsContext: (token) => this.buildMergeAnnotationsContext(token),
+            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                this.updateAnnotationList();
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                this.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
+
     /**
-     * Bakes all current masks into the image:
-     * exports the masked image, removes the masks, and re-imports the result
-     * as the new base image.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call resolves without mutation so a queued scale/rotate
-     * animation cannot have the original image swapped out mid-flight.
-     *
-     * Delegates the merge pipeline to {@link mergeMasks} in
-     * `export/export-service.ts`, which captures the pre-merge snapshot,
-     * renders the merged bitmap via the export bake-in bracket, removes
-     * masks without history, reloads the merged image transactionally,
-     * preserves container scroll, and pushes exactly one history entry.
-     * On any failure it restores the pre-merge snapshot and rejects with
-     * `MergeMasksError`.
-     *
-     * @returns A promise that resolves when the merge is complete.
+     * Bakes all current masks into the base image and records one history entry.
+     * Resolves without mutation while an animation or incompatible tool mode is active.
      */
     async mergeMasks(): Promise<void> {
-        if (!this.canvas) return;
-        if (!this.canRunIdleOperation('mergeMasks')) return;
-        this.finalizeActiveTextEditingIfNeeded();
-        const hasMasks = this.canvas.getObjects().some(isMaskObject);
-        if (!hasMasks) return;
-        await runBusyOperation(
-            this.buildBusyOperationAccess(),
-            'mergeMasks',
-            async (callbackContext, operationToken) => {
-                const mergeMasksContext = this.buildMergeMasksContext(operationToken);
-                await mergeMasksImpl(mergeMasksContext);
-                this.updateInputs();
-                this.updateMaskList();
-                this.updateAnnotationList();
-                this.emitMasksChanged(callbackContext);
-                if (this.getAnnotations().length > 0) {
-                    this.emitAnnotationsChanged(callbackContext);
-                }
-                this.emitImageChanged(callbackContext);
-            },
-        );
+        await mergeMasksAction(this.buildExportActionAccess());
     }
 
-    /**
-     * Triggers a browser download of the current canvas.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call is a no-op (no DOM action, no download triggered).
-     *
-     * Delegates to {@link downloadImage} in `export/export-service.ts`,
-     * which renders through the shared export core and triggers an
-     * object-URL-backed anchor download.
-     *
-     * @param options - Export and download options.
-     */
+    /** Triggers a browser download, or no-ops while guarded operations are active. */
     async downloadImage(options?: ImageExportOptions): Promise<void> {
-        if (!this.canvas) return;
-        // guarded operation. Silent DOM-no-op shape
-        // so a queued scale/rotate animation does not get its export
-        // pipeline run concurrently.
-        if (!this.canRunIdleOperation('downloadImage')) return;
-        this.finalizeActiveTextEditingIfNeeded();
-        const callbackContext = this.buildCallbackContext('downloadImage', false);
-        const operationToken = this.operationGuard.beginBusyOperation('downloadImage');
-        this.emitBusyChangeIfChanged(callbackContext);
-        const exportContext = this.buildExportServiceContext();
-        try {
-            await downloadImageImpl(exportContext, options);
-        } finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-        }
+        await downloadImageAction(this.buildExportActionAccess(), options);
     }
 
     /**
-     * Exports the canvas as a Base64-encoded data URL.
-     *
-     * Delegates to {@link exportImageBase64} in `export/export-service.ts`,
-     * which discards any active selection, runs the bake-in/restore
-     * bracket for image-area exports, and emits a single
-     * `canvas.toDataURL` call with the floored image-bounding-box region
-     * after temporarily baking masks into the export when requested.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call resolves to an empty string so an in-flight scale/rotate
-     * animation does not see a mid-frame export of the canvas.
-     *
-     * @param options - Export options.
-     * @returns A promise resolving to a data URL on success, or `''` when
-     *          no image is loaded.
+     * Exports the canvas as a Base64 data URL.
+     * Returns `''` when no image is loaded or the operation is currently guarded.
      */
     async exportImageBase64(options?: ImageExportOptions): Promise<string> {
-        if (!this.canvas) return '';
-        // Guarded operation: the canvas, mask styles, and active-object
-        // selection are left untouched while an animation is in flight.
-        if (!this.canRunIdleOperation('exportImageBase64', options)) return '';
-        this.finalizeActiveTextEditingIfNeeded();
-        const callbackContext = this.buildCallbackContext('exportImageBase64', false);
-        const operationToken = this.operationGuard.beginBusyOperation('exportImageBase64');
-        this.emitBusyChangeIfChanged(callbackContext);
-        const exportContext = this.buildExportServiceContext();
-        try {
-            return await exportImageBase64Impl(exportContext, options);
-        } finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-        }
+        return await exportImageBase64Action(this.buildExportActionAccess(), options);
     }
 
     /**
-     * Exports the canvas as a browser `File` object.
-     *
-     * Delegates to {@link exportImageFile} in `export/export-service.ts`,
-     * which reuses the base64 pipeline, repaints through an offscreen
-     * canvas only when the resulting MIME type does not match the
-     * requested `fileType`, and resolves with a `File` whose `type`
-     * matches the requested format.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call rejects via `OperationGuard.assertNotAnimating` because
-     * `Promise<File>` has no natural no-op shape. The thrown error
-     * embeds the operation label so callers can distinguish the guard
-     * rejection from an underlying export failure.
-     *
-     * @param options - Export and file options.
-     * @returns A promise resolving to a `File`.
-     * @throws  `ExportNotReadyError` when no image is loaded.
-     *
-     * @example
-     * ```ts
-     * const file = await editor.exportImageFile({ fileType: 'png', mergeMasks: false});
-     * const formData = new FormData;
-     * formData.append('image', file);
-     * ```
+     * Exports the canvas as a browser `File`.
+     * Rejects when the operation is guarded because `Promise<File>` has no no-op value.
      */
     async exportImageFile(options?: ImageExportOptions): Promise<File> {
-        // Guarded operation: `Promise<File>` has no empty no-op shape, so
-        // the operation guard rejects without mutating canvas state.
-        this.assertIdleForOperation('exportImageFile', options);
-        this.finalizeActiveTextEditingIfNeeded();
-        const callbackContext = this.buildCallbackContext('exportImageFile', false);
-        const operationToken = this.operationGuard.beginBusyOperation('exportImageFile');
-        this.emitBusyChangeIfChanged(callbackContext);
-        const exportContext = this.buildExportServiceContext();
-        try {
-            return await exportImageFileImpl(exportContext, options);
-        } finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-        }
+        return await exportImageFileAction(this.buildExportActionAccess(), options);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2835,69 +2371,51 @@ export class ImageEditor {
      * and does NOT update `lastSnapshot`.
      */
     private captureSnapshotInternal(): string {
-        if (!this.canvas) {
-            throw new Error(
-                '[ImageEditor] Cannot capture canvas snapshot before init or after dispose.',
-            );
-        }
-        const activeMask = this.getActiveMaskForSnapshot();
-        const activeAnnotation = this.getActiveAnnotationForSnapshot();
-        this.hideAllMaskLabels();
-        return saveStateImpl({
-            canvas: this.canvas,
-            activeMaskId: activeMask?.maskId ?? null,
-            activeAnnotationId: activeAnnotation?.annotationId ?? null,
-            currentScale: this.currentScale,
-            currentRotation: this.currentRotation,
-            baseImageScale: this.baseImageScale,
-            currentImageMimeType: this.currentImageMimeType,
-        });
-    }
-
-    private getActiveMaskForSnapshot(): MaskObject | null {
-        if (!this.canvas) return null;
-        const activeObject = this.canvas.getActiveObject();
-        if (activeObject && isMaskObject(activeObject)) return activeObject;
-        const labeledMasks = this.canvas
-            .getObjects()
-            .filter((object): object is MaskObject => isMaskObject(object) && !!object.labelObject);
-        return labeledMasks.length === 1 ? (labeledMasks[0] ?? null) : null;
-    }
-
-    private getActiveAnnotationForSnapshot(): AnnotationObject | null {
-        if (!this.canvas) return null;
-        const activeObject = this.canvas.getActiveObject();
-        return activeObject && isAnnotationObject(activeObject) ? activeObject : null;
+        return captureSnapshotAction(this.buildEditorStateActionAccess());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
     // PUBLIC — mosaic mode
     // ═══════════════════════════════════════════════════════════════════════
 
-    enterMosaicMode(): void {
-        if (!this.canvas || !this.originalImage) return;
-        if (this.mosaicSession) return;
-        if (!this.isImageLoaded()) return;
-        if (!this.canRunIdleOperation('enterMosaicMode')) return;
+    private buildMosaicActionAccess(): MosaicActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            getOriginalImage: () => this.originalImage,
+            getMosaicSession: () => this.mosaicSession,
+            getMosaicConfig: () => this.currentMosaicConfig,
+            setMosaicConfig: (config) => {
+                this.currentMosaicConfig = config;
+            },
+            getDefaultMosaicConfig: () => this.defaultMosaicConfig,
+            getOptions: () => this.options,
+            isDisposed: () => this.isDisposed,
+            isImageLoaded: () => this.isImageLoaded(),
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildMosaicControllerContext: () => this.buildMosaicControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
 
-        enterMosaicModeImpl(this.buildMosaicControllerContext());
-        this.updateInputs();
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('enterMosaicMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+    enterMosaicMode(): void {
+        enterMosaicModeAction(this.buildMosaicActionAccess());
     }
 
     exitMosaicMode(): void {
-        if (!this.canvas || !this.mosaicSession) return;
-        if (!this.canRunIdleOperation('exitMosaicMode')) return;
-
-        exitMosaicModeImpl(this.buildMosaicControllerContext());
-        this.updateInputs();
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('exitMosaicMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        exitMosaicModeAction(this.buildMosaicActionAccess());
     }
 
     isMosaicMode(): boolean {
@@ -2913,17 +2431,7 @@ export class ImageEditor {
     }
 
     resetMosaicConfig(): void {
-        if (this.isDisposed) return;
-        const nextConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
-        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig)) return;
-
-        this.currentMosaicConfig = nextConfig;
-        if (this.mosaicSession && this.canvas) {
-            updateMosaicPreview(this.buildMosaicControllerContext());
-        }
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext('resetMosaicConfig', false));
+        resetMosaicConfigAction(this.buildMosaicActionAccess());
     }
 
     setMosaicBrushSize(size: number): void {
@@ -2935,38 +2443,7 @@ export class ImageEditor {
     }
 
     private applyMosaicConfigPatch(config: MosaicConfig, operation: ImageEditorOperation): void {
-        if (this.isDisposed) return;
-        if (config === null || typeof config !== 'object' || Array.isArray(config)) {
-            reportWarning(
-                this.options,
-                new TypeError('[ImageEditor] Invalid Mosaic config object.'),
-                'Ignored invalid Mosaic config.',
-            );
-            return;
-        }
-
-        const invalidFields = getInvalidMosaicConfigFields(config);
-        if (invalidFields.length > 0) {
-            reportWarning(
-                this.options,
-                new TypeError(
-                    `[ImageEditor] Ignored invalid Mosaic config field(s): ` +
-                        `${invalidFields.join(', ')}.`,
-                ),
-                'Ignored invalid Mosaic config fields.',
-            );
-        }
-
-        const nextConfig = mergeMosaicConfigPatch(this.currentMosaicConfig, config);
-        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig)) return;
-
-        this.currentMosaicConfig = nextConfig;
-        if (this.mosaicSession && this.canvas) {
-            updateMosaicPreview(this.buildMosaicControllerContext());
-        }
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext(operation, false));
+        applyMosaicConfigPatchAction(this.buildMosaicActionAccess(), config, operation);
     }
 
     private buildMosaicControllerContext(): MosaicControllerContext {
@@ -2977,123 +2454,66 @@ export class ImageEditor {
     // PUBLIC — crop mode
     // ═══════════════════════════════════════════════════════════════════════
 
+    private buildCropActionAccess(): CropActionAccess {
+        return {
+            getCanvas: () => this.canvas,
+            getOriginalImage: () => this.originalImage,
+            getCropSession: () => this.cropSession,
+            setCropSession: (session) => {
+                this.cropSession = session;
+            },
+            isImageLoaded: () => this.isImageLoaded(),
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildCropControllerContext: (token) => this.buildCropControllerContext(token),
+            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
+            buildCallbackContext: (operation, isInternalOperation) =>
+                this.buildCallbackContext(operation, isInternalOperation),
+            getMasks: () => this.getMasks(),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
+
     /**
-     * Enters crop mode: adds a resizable selection rect to the canvas.
-     * All other controls are disabled until {@link applyCrop} or
-     * {@link cancelCrop} is called.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call is a silent no-op; opening a crop session in the middle
-     * of a queued scale/rotate animation would otherwise allow the
-     * animation to mutate `originalImage` while a crop rect is bound to
-     * the prior coordinate system.
-     *
-     * Delegates to {@link enterCropMode} in `crop/crop-controller.ts`,
-     * which captures the pre-crop canvas snapshot, freezes every other
-     * canvas object's `evented`/`selectable`, captures per-mask style
-     * backups when `crop.hideMasksDuringCrop` is `true`, and adds the
-     * interactive crop rectangle.
+     * Enters crop mode and adds the interactive crop rectangle.
+     * No-ops while an animation or another incompatible operation is active.
      */
     enterCropMode(options: CropModeOptions = {}): void {
-        if (!this.canvas || !this.originalImage) return;
-        if (this.cropSession) return;
-        if (!this.isImageLoaded()) return;
-        // guarded operation. No DOM action while an
-        // animation is in flight: the canvas, selection state, and
-        // pre-crop snapshot remain untouched.
-        if (!this.canRunIdleOperation('enterCropMode')) return;
-        const cropControllerContext = this.buildCropControllerContext();
-        enterCropModeImpl(cropControllerContext, options);
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('enterCropMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterCropModeAction(this.buildCropActionAccess(), options);
     }
 
-    /**
-     * Updates the active crop rectangle's aspect ratio.
-     *
-     * No-ops unless crop mode is active. Pass `'free'` to unlock the
-     * crop rectangle, a preset such as `'1:1'` or `'16:9'`, or a custom
-     * ratio such as `{ width: 2, height: 1 }`.
-     */
+    /** Updates the active crop rectangle's aspect ratio, or no-ops outside crop mode. */
     setCropAspectRatio(aspectRatio: CropAspectRatio): void {
-        if (!this.canvas || !this.cropSession) return;
-        if (!this.canRunIdleOperation('setCropAspectRatio')) return;
-        const cropControllerContext = this.buildCropControllerContext();
-        setCropAspectRatioImpl(cropControllerContext, aspectRatio);
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('setCropAspectRatio', false);
-        this.emitImageChanged(callbackContext);
+        setCropAspectRatioAction(this.buildCropActionAccess(), aspectRatio);
     }
 
-    /**
-     * Cancels crop mode and removes the crop rectangle without applying
-     * it.
-     *
-     * Delegates to {@link cancelCrop} in `crop/crop-controller.ts`,
-     * which restores the per-object `evented`/`selectable`, restores
-     * per-mask style backups, removes the crop rectangle, detaches
-     * every crop-bound Fabric handler, and drops the session WITHOUT
-     * pushing a history entry.
-     */
+    /** Cancels crop mode without applying the crop or pushing history. */
     cancelCrop(): void {
-        if (!this.canvas || !this.cropSession) return;
-        if (!this.canRunIdleOperation('cancelCrop')) return;
-        const cropControllerContext = this.buildCropControllerContext();
-        cancelCropImpl(cropControllerContext);
-        this.cropSession = null;
-        this.updateUi();
-        this.canvas.requestRenderAll();
-        const callbackContext = this.buildCallbackContext('cancelCrop', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        cancelCropAction(this.buildCropActionAccess());
     }
 
     /**
-     * Applies the current crop rectangle: crops the image and reloads
-     * it. Pushes the operation onto the undo/redo history.
-     *
-     * Operation guard: while `isAnimating === true`
-     * the call resolves without mutation. The crop session is left
-     * intact so the user can retry once the queued animation settles.
-     *
-     * Delegates to {@link applyCrop} in `crop/crop-controller.ts`,
-     * which reads the crop region, optionally captures intersecting
-     * masks for `crop.preserveMasksAfterCrop`, exports the cropped
-     * region, reloads it through the transactional loader, and pushes
-     * exactly one history entry. On any failure it restores the
-     * pre-crop snapshot and rejects with `CropApplyError`.
-     *
-     * @returns A promise that resolves when the cropped image is loaded.
+     * Applies the current crop rectangle and records one history entry.
+     * Guarded no-ops leave the open crop session intact for a later retry.
      */
     async applyCrop(): Promise<void> {
-        if (!this.canvas || !this.cropSession) return;
-        // guarded operation. Resolved-promise no-op
-        // shape: leave the open crop session alone so the user can
-        // re-issue `applyCrop` after the in-flight scale/rotate
-        // animation settles. Do not call `cancelCrop` here: the guard must
-        // leave editor state untouched.
-        if (!this.canRunIdleOperation('applyCrop')) return;
-        const callbackContext = this.buildCallbackContext('applyCrop', false);
-        const hadMasks = this.getMasks().length > 0;
-        const operationToken = this.operationGuard.beginBusyOperation('applyCrop');
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.updateUi();
-        try {
-            const cropControllerContext = this.buildCropControllerContext(operationToken);
-            await applyCropImpl(cropControllerContext);
-            this.updateInputs();
-            this.updateMaskList();
-            if (hadMasks || this.getMasks().length > 0) {
-                this.emitMasksChanged(callbackContext);
-            }
-            this.emitImageChanged(callbackContext);
-        } finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-            this.updateUi();
-        }
+        await applyCropAction(this.buildCropActionAccess());
     }
 
     /**
@@ -3127,24 +2547,7 @@ export class ImageEditor {
     }
 
     async mergeAnnotations(): Promise<void> {
-        if (!this.canvas) return;
-        if (!this.canRunIdleOperation('mergeAnnotations')) return;
-        this.finalizeActiveTextEditingIfNeeded();
-        const hasAnnotations = this.canvas.getObjects().some(isAnnotationObject);
-        if (!hasAnnotations) return;
-        await runBusyOperation(
-            this.buildBusyOperationAccess(),
-            'mergeAnnotations',
-            async (callbackContext, operationToken) => {
-                await mergeAnnotationsImpl(this.buildMergeAnnotationsContext(operationToken));
-                this.updateInputs();
-                this.updateMaskList();
-                this.updateAnnotationList();
-                this.emitAnnotationsChanged(callbackContext);
-                if (this.getMasks().length > 0) this.emitMasksChanged(callbackContext);
-                this.emitImageChanged(callbackContext);
-            },
-        );
+        await mergeAnnotationsAction(this.buildExportActionAccess());
     }
 
     private updateUi(): void {
@@ -3292,46 +2695,40 @@ export class ImageEditor {
         this.keyboardDocument = null;
         this.restoreElementOriginalStates();
 
-        if (this.cropSession && this.canvas) {
-            // (5) Drop the crop session if one was open. The crop
-            //     controller's teardownSession is best-effort because
-            //     Fabric may have already disposed the rect during a
-            //     `loadFromState` rollback.
-            try {
-                const context = this.buildCropControllerContext();
-                cancelCropImpl(context);
-            } catch {
-                /* ignore */
-            }
-            this.cropSession = null;
-        }
-
-        if (this.mosaicSession && this.canvas) {
-            try {
-                exitMosaicModeImpl(this.buildMosaicControllerContext());
-            } catch {
-                /* ignore */
-            }
-            this.mosaicSession = null;
-        }
-
-        if (this.textSession && this.canvas) {
-            try {
-                exitTextModeImpl(this.buildTextControllerContext());
-            } catch {
-                /* ignore */
-            }
-            this.textSession = null;
-        }
-
-        if (this.drawSession && this.canvas) {
-            try {
-                exitDrawModeImpl(this.buildDrawControllerContext());
-            } catch {
-                /* ignore */
-            }
-            this.drawSession = null;
-        }
+        // (5) Drop active tool sessions best-effort. Fabric may already
+        //     have disposed session objects during a rollback.
+        safelyExitActiveSession(
+            this.cropSession !== null,
+            this.canvas,
+            () => cancelCropImpl(this.buildCropControllerContext()),
+            () => {
+                this.cropSession = null;
+            },
+        );
+        safelyExitActiveSession(
+            this.mosaicSession !== null,
+            this.canvas,
+            () => exitMosaicModeImpl(this.buildMosaicControllerContext()),
+            () => {
+                this.mosaicSession = null;
+            },
+        );
+        safelyExitActiveSession(
+            this.textSession !== null,
+            this.canvas,
+            () => exitTextModeImpl(this.buildTextControllerContext()),
+            () => {
+                this.textSession = null;
+            },
+        );
+        safelyExitActiveSession(
+            this.drawSession !== null,
+            this.canvas,
+            () => exitDrawModeImpl(this.buildDrawControllerContext()),
+            () => {
+                this.drawSession = null;
+            },
+        );
 
         if (this.canvas) {
             safelyDisposeCanvas(this.canvas);

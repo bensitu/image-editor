@@ -17,4 +17,14 @@ export function safelyDisposeCanvas(canvas) {
     catch {
     }
 }
+export function safelyExitActiveSession(hasSession, canvas, exitSession, clearSession) {
+    if (!hasSession || !canvas)
+        return;
+    try {
+        exitSession();
+    }
+    catch {
+    }
+    clearSession();
+}
 //# sourceMappingURL=editor-dispose.js.map

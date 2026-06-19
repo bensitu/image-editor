@@ -22,3 +22,18 @@ export function safelyDisposeCanvas(canvas: FabricNS.Canvas | null): void {
         /* ignore */
     }
 }
+
+export function safelyExitActiveSession(
+    hasSession: boolean,
+    canvas: FabricNS.Canvas | null,
+    exitSession: () => void,
+    clearSession: () => void,
+): void {
+    if (!hasSession || !canvas) return;
+    try {
+        exitSession();
+    } catch {
+        /* ignore */
+    }
+    clearSession();
+}

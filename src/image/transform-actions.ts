@@ -1,0 +1,85 @@
+import type { ImageEditorCallbackContext, ImageEditorOperation } from '../core/public-types.js';
+import type { TransformController } from './transform-controller.js';
+
+export interface TransformActionAccess {
+    isDisposed(): boolean;
+    getTransformController(): TransformController | null;
+    assertCanQueueAnimation(operation: ImageEditorOperation): void;
+    buildCallbackContext(
+        operation: ImageEditorOperation,
+        isInternalOperation: boolean,
+    ): ImageEditorCallbackContext;
+    enqueueAnimation(body: () => Promise<void>): Promise<void>;
+    updateInputs(): void;
+    updateUi(): void;
+    refreshUiAfterQueuedAnimation(): void;
+    emitImageChanged(context: ImageEditorCallbackContext): void;
+    emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
+}
+
+type TransformControllerAction = (controller: TransformController) => Promise<void>;
+
+export function scaleImageAction(access: TransformActionAccess, factor: number): Promise<void> {
+    if (!Number.isFinite(factor)) return Promise.resolve();
+    return runQueuedTransformAction(access, 'scaleImage', (controller) =>
+        controller.scaleImage(factor),
+    );
+}
+
+export function rotateImageAction(access: TransformActionAccess, degrees: number): Promise<void> {
+    if (!Number.isFinite(degrees)) return Promise.resolve();
+    return runQueuedTransformAction(access, 'rotateImage', (controller) =>
+        controller.rotateImage(degrees),
+    );
+}
+
+export function flipHorizontalAction(access: TransformActionAccess): Promise<void> {
+    return runQueuedTransformAction(access, 'flipHorizontal', (controller) =>
+        controller.flipHorizontal(),
+    );
+}
+
+export function flipVerticalAction(access: TransformActionAccess): Promise<void> {
+    return runQueuedTransformAction(access, 'flipVertical', (controller) =>
+        controller.flipVertical(),
+    );
+}
+
+export function resetImageTransformAction(access: TransformActionAccess): Promise<void> {
+    return runQueuedTransformAction(access, 'resetImageTransform', (controller) =>
+        controller.resetImageTransform(),
+    );
+}
+
+function runQueuedTransformAction(
+    access: TransformActionAccess,
+    operation: ImageEditorOperation,
+    runControllerAction: TransformControllerAction,
+): Promise<void> {
+    const controller = access.getTransformController();
+    if (access.isDisposed() || !controller) return Promise.resolve();
+    try {
+        access.assertCanQueueAnimation(operation);
+    } catch (error) {
+        return Promise.reject(error);
+    }
+
+    const context = access.buildCallbackContext(operation, false);
+    const job = access.enqueueAnimation(async () => {
+        if (access.isDisposed()) return;
+        access.updateUi();
+        try {
+            await runControllerAction(controller);
+            if (!access.isDisposed()) access.emitImageChanged(context);
+        } finally {
+            if (!access.isDisposed()) {
+                access.updateInputs();
+            }
+        }
+    });
+    access.emitBusyChangeIfChanged(context);
+    return job.finally(() => {
+        access.refreshUiAfterQueuedAnimation();
+        access.emitBusyChangeIfChanged(context);
+    });
+}

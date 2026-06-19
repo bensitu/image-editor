@@ -29,3 +29,19 @@ export async function runBusyOperation<T>(
         access.updateUi();
     }
 }
+
+export async function runBusyOperationWithoutUi<T>(
+    access: BusyOperationAccess,
+    operation: ImageEditorOperation,
+    body: (context: ImageEditorCallbackContext, token: OperationToken) => Promise<T>,
+): Promise<T> {
+    const context = access.buildCallbackContext(operation, false);
+    const token = access.beginBusyOperation(operation);
+    access.emitBusyChangeIfChanged(context);
+    try {
+        return await body(context, token);
+    } finally {
+        access.endBusyOperation(token);
+        access.emitBusyChangeIfChanged(context);
+    }
+}

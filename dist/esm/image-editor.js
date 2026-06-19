@@ -1,33 +1,35 @@
 import { AnimationQueue } from './animation/animation-queue.js';
 import { reportError, reportWarning } from './core/callback-reporter.js';
 import { resolveElementIds, } from './core/editor-elements.js';
-import { areResolvedMosaicConfigsEqual, areResolvedDrawConfigsEqual, areResolvedTextAnnotationConfigsEqual, cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedTextAnnotationConfig, getInvalidDrawConfigFields, getInvalidMosaicConfigFields, getInvalidTextAnnotationConfigFields, isLayoutMode, mergeDrawConfigPatch, mergeMosaicConfigPatch, mergeTextAnnotationConfigPatch, resolveOptions, } from './core/default-options.js';
+import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedTextAnnotationConfig, isLayoutMode, resolveOptions, } from './core/default-options.js';
 import { OperationGuard } from './core/operation-guard.js';
-import { loadFromState as loadFromStateImpl, saveState as saveStateImpl, } from './core/state-serializer.js';
-import { Command, HistoryManager } from './history/history-manager.js';
+import { HistoryManager } from './history/history-manager.js';
+import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
-import { isAnnotationObject, isDrawAnnotationObject, isEditableOverlayObject, isMaskObject, isTextAnnotationObject, } from './core/public-types.js';
+import { isAnnotationObject, isEditableOverlayObject, isMaskObject } from './core/public-types.js';
 import { getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
-import { attachTextEditingHandlersToAnnotations, createTextAnnotation as createTextAnnotationImpl, enterTextMode as enterTextModeImpl, exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
-import { enterDrawMode as enterDrawModeImpl, exitDrawMode as exitDrawModeImpl, updateDrawBrush, } from './annotation/draw-controller.js';
-import { syncAnnotationRuntimeStates } from './annotation/annotation-style.js';
-import { applyCrop as applyCropImpl, cancelCrop as cancelCropImpl, enterCropMode as enterCropModeImpl, setCropAspectRatio as setCropAspectRatioImpl, } from './crop/crop-controller.js';
-import { enterMosaicMode as enterMosaicModeImpl, exitMosaicMode as exitMosaicModeImpl, updateMosaicPreview, } from './mosaic/mosaic-controller.js';
-import { downloadImage as downloadImageImpl, exportImageBase64 as exportImageBase64Impl, exportImageFile as exportImageFileImpl, mergeAnnotations as mergeAnnotationsImpl, mergeMasks as mergeMasksImpl, } from './export/export-service.js';
+import { exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
+import { exitDrawMode as exitDrawModeImpl, } from './annotation/draw-controller.js';
+import { createTextAnnotationAction, enterDrawModeAction, enterTextModeAction, exitDrawModeAction, exitTextModeAction, } from './annotation/annotation-mode-actions.js';
+import { applyDrawBrushSizeInputAction, applyDrawColorInputAction, applyDrawConfigPatchAction, applyTextColorInputAction, applyTextConfigPatchAction, applyTextFontSizeInputAction, } from './annotation/annotation-config-actions.js';
+import { cancelCrop as cancelCropImpl, } from './crop/crop-controller.js';
+import { applyCropAction, cancelCropAction, enterCropModeAction, setCropAspectRatioAction, } from './crop/crop-actions.js';
+import { exitMosaicMode as exitMosaicModeImpl, } from './mosaic/mosaic-controller.js';
+import { applyMosaicConfigPatchAction, enterMosaicModeAction, exitMosaicModeAction, resetMosaicConfigAction, } from './mosaic/mosaic-actions.js';
+import { downloadImageAction, exportImageBase64Action, exportImageFileAction, mergeAnnotationsAction, mergeMasksAction, } from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
 import { captureImageDisplayGeometry as captureImageDisplayGeometryImpl, getScrollbarStableViewportCanvasSize as getScrollbarStableViewportCanvasSizeImpl, measureLayoutViewport as measureLayoutViewportImpl, restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl, settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl, shouldNormalizeCanvasSizeAfterStateRestore as shouldNormalizeCanvasSizeAfterStateRestoreImpl, updateCanvasSizeToImageBounds as updateCanvasSizeToImageBoundsImpl, } from './image/display-geometry.js';
 import { ViewportCache, applyCanvasDimensions } from './image/layout-manager.js';
 import { TransformController } from './image/transform-controller.js';
+import { flipHorizontalAction, flipVerticalAction, resetImageTransformAction, rotateImageAction, scaleImageAction, } from './image/transform-actions.js';
 import { EditorContextFactory } from './runtime/editor-contexts.js';
-import { runBusyOperation } from './runtime/editor-operation-runner.js';
 import { handleObjectModified as handleObjectModifiedImpl, handleObjectMovingScalingRotating as handleObjectMovingScalingRotatingImpl, handleSelectionChanged as handleSelectionChangedImpl, } from './selection/editor-selection-controller.js';
 import { deleteSelectedEditableObjects, moveSelectedEditableObject as moveSelectedEditableObjectImpl, removeAllAnnotationsAction, removeSelectedAnnotationAction, updateAnnotationAction, updateSelectedAnnotationAction, } from './overlay/editable-object-actions.js';
-import { createMask as createMaskImpl, removeAllMasks as removeAllMasksImpl, removeSelectedMask as removeSelectedMaskImpl, } from './mask/mask-factory.js';
+import { createMaskAction, removeAllMasksAction as removeAllMasksActionImpl, removeSelectedMaskAction, } from './mask/mask-actions.js';
 import { createLabelForMask, hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
 import { renderMaskList, updateMaskListSelection } from './mask/mask-list.js';
-import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from './mask/mask-style.js';
-import { safelyDisposeCanvas, safelyRemoveKeyboardListener } from './lifecycle/editor-dispose.js';
+import { safelyDisposeCanvas, safelyExitActiveSession, safelyRemoveKeyboardListener, } from './lifecycle/editor-dispose.js';
 import { DomBindings } from './ui/dom-bindings.js';
 import { applyEditorControlState } from './ui/editor-control-state.js';
 import { restoreEditorControlOriginalStates, setEditorControlEnabled, } from './ui/editor-control-elements.js';
@@ -1151,169 +1153,46 @@ export class ImageEditor {
     buildTransformContext() {
         return this.contextFactory.buildTransformContext();
     }
+    buildTransformActionAccess() {
+        return {
+            isDisposed: () => this.isDisposed,
+            getTransformController: () => this.transformController,
+            assertCanQueueAnimation: (operation) => {
+                this.assertCanQueueAnimation(operation);
+            },
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            enqueueAnimation: (body) => this.animQueue.add(body),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            refreshUiAfterQueuedAnimation: () => {
+                this.refreshUiAfterQueuedAnimation();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
     scaleImage(factor) {
-        if (this.isDisposed || !this.transformController)
-            return Promise.resolve();
-        if (!Number.isFinite(factor))
-            return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('scaleImage');
-        }
-        catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('scaleImage', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
-                return;
-            this.updateUi();
-            try {
-                await controller.scaleImage(factor);
-                if (!this.isDisposed)
-                    this.emitImageChanged(context);
-            }
-            finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return scaleImageAction(this.buildTransformActionAccess(), factor);
     }
     rotateImage(degrees) {
-        if (this.isDisposed || !this.transformController)
-            return Promise.resolve();
-        if (!Number.isFinite(degrees))
-            return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('rotateImage');
-        }
-        catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('rotateImage', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
-                return;
-            this.updateUi();
-            try {
-                await controller.rotateImage(degrees);
-                if (!this.isDisposed)
-                    this.emitImageChanged(context);
-            }
-            finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return rotateImageAction(this.buildTransformActionAccess(), degrees);
     }
     flipHorizontal() {
-        if (this.isDisposed || !this.transformController)
-            return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('flipHorizontal');
-        }
-        catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('flipHorizontal', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
-                return;
-            this.updateUi();
-            try {
-                await controller.flipHorizontal();
-                if (!this.isDisposed)
-                    this.emitImageChanged(context);
-            }
-            finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return flipHorizontalAction(this.buildTransformActionAccess());
     }
     flipVertical() {
-        if (this.isDisposed || !this.transformController)
-            return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('flipVertical');
-        }
-        catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('flipVertical', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
-                return;
-            this.updateUi();
-            try {
-                await controller.flipVertical();
-                if (!this.isDisposed)
-                    this.emitImageChanged(context);
-            }
-            finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return flipVerticalAction(this.buildTransformActionAccess());
     }
     resetImageTransform() {
-        if (this.isDisposed || !this.transformController)
-            return Promise.resolve();
-        try {
-            this.assertCanQueueAnimation('resetImageTransform');
-        }
-        catch (error) {
-            return Promise.reject(error);
-        }
-        const controller = this.transformController;
-        const context = this.buildCallbackContext('resetImageTransform', false);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
-                return;
-            this.updateUi();
-            try {
-                await controller.resetImageTransform();
-                if (!this.isDisposed)
-                    this.emitImageChanged(context);
-            }
-            finally {
-                if (!this.isDisposed) {
-                    this.updateInputs();
-                }
-            }
-        });
-        this.emitBusyChangeIfChanged(context);
-        return job.finally(() => {
-            this.refreshUiAfterQueuedAnimation();
-            this.emitBusyChangeIfChanged(context);
-        });
+        return resetImageTransformAction(this.buildTransformActionAccess());
     }
     refreshUiAfterQueuedAnimation() {
         if (this.isDisposed || !this.canvas)
@@ -1321,178 +1200,124 @@ export class ImageEditor {
         this.updateInputs();
         this.updateUi();
     }
+    buildEditorStateActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            getLiveCanvas: (operationName) => this.getLiveCanvasOrThrow(operationName),
+            getOptions: () => this.options,
+            isDisposed: () => this.isDisposed,
+            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
+            getActiveStateRestoreOperation: () => this.activeStateRestoreOperation,
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            getOriginalImage: () => this.originalImage,
+            setOriginalImage: (image) => {
+                this.originalImage = image;
+            },
+            getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
+            getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
+            setCanvasSize: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
+            },
+            hideAllMaskLabels: () => {
+                this.hideAllMaskLabels();
+            },
+            inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
+            setCurrentImageMimeType: (mimeType) => {
+                this.currentImageMimeType = mimeType;
+            },
+            setIsImageLoadedToCanvas: (value) => {
+                this.isImageLoadedToCanvas = value;
+            },
+            setMaskCounter: (value) => {
+                this.maskCounter = value;
+            },
+            setAnnotationCounter: (value) => {
+                this.annotationCounter = value;
+            },
+            setCurrentScale: (value) => {
+                this.currentScale = value;
+            },
+            setCurrentRotation: (value) => {
+                this.currentRotation = value;
+            },
+            setBaseImageScale: (value) => {
+                this.baseImageScale = value;
+            },
+            setLastMask: (mask) => {
+                this.lastMask = mask;
+            },
+            getLastSnapshot: () => this.lastSnapshot,
+            setLastSnapshot: (snapshot) => {
+                this.lastSnapshot = snapshot;
+            },
+            shouldNormalizeCanvasSizeAfterStateRestore: () => this.shouldNormalizeCanvasSizeAfterStateRestore(),
+            updateCanvasSizeToImageBounds: (options) => {
+                this.updateCanvasSizeToImageBounds(options);
+            },
+            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+                this.alignObjectBoundingBoxToCanvasTopLeft(object);
+            },
+            settleFitCoverScrollbarsAfterStateRestore: () => {
+                this.settleFitCoverScrollbarsAfterStateRestore();
+            },
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                this.updateAnnotationList();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitImageCleared: (image, context) => {
+                this.emitOptionCallback('onImageCleared', [image, context]);
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                this.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
+            handleSelectionChanged: (selected) => {
+                this.handleSelectionChanged(selected);
+            },
+            shouldSuppressSaveState: () => this.shouldSuppressSaveState,
+            getCurrentScale: () => this.currentScale,
+            getCurrentRotation: () => this.currentRotation,
+            getBaseImageScale: () => this.baseImageScale,
+            getCurrentImageMimeType: () => this.currentImageMimeType,
+            getHistoryManager: () => this.historyManager,
+            withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
+            showLabelForMask: (mask) => {
+                this.showLabelForMask(mask);
+            },
+            updateMaskListSelection: (mask) => {
+                this.updateMaskListSelection(mask);
+            },
+            updateAnnotationListSelection: (annotation) => {
+                this.updateAnnotationListSelection(annotation);
+            },
+        };
+    }
     async loadFromState(jsonString) {
         return this.loadFromStateInternal(jsonString);
     }
     async loadFromStateInternal(jsonString, options) {
-        var _a;
-        if (!jsonString || !this.canvas)
-            return;
-        if (this.isDisposed)
-            return;
-        if (!this.canRunIdleOperation('loadFromState', options))
-            return;
-        const activeRestoreOperation = this.activeStateRestoreOperation;
-        const context = this.buildCallbackContext(activeRestoreOperation !== null && activeRestoreOperation !== void 0 ? activeRestoreOperation : 'loadFromState', activeRestoreOperation === 'undo' || activeRestoreOperation === 'redo');
-        const previousImage = this.originalImage;
-        const previousMaskSignature = this.getMaskCollectionSignature();
-        const previousAnnotationSignature = this.getAnnotationCollectionSignature();
-        try {
-            const restoredState = await loadFromStateImpl({
-                canvas: this.canvas,
-                jsonString,
-                setCanvasSize: (widthPx, heightPx) => this.setCanvasSizePx(widthPx, heightPx),
-            });
-            if (this.isDisposed || !this.canvas)
-                return;
-            this.hideAllMaskLabels();
-            this.originalImage = restoredState.originalImage;
-            if (this.originalImage) {
-                this.originalImage.set({
-                    originX: 'left',
-                    originY: 'top',
-                    selectable: false,
-                    evented: false,
-                    hasControls: false,
-                    hoverCursor: 'default',
-                });
-                this.canvas.sendObjectToBack(this.originalImage);
-            }
-            this.maskCounter = restoredState.maxMaskId;
-            this.annotationCounter = restoredState.maxAnnotationId;
-            const editorState = restoredState.editorState;
-            if (editorState) {
-                this.currentScale = editorState.currentScale;
-                this.currentRotation = editorState.currentRotation;
-                this.baseImageScale = editorState.baseImageScale;
-            }
-            if (this.originalImage) {
-                this.currentImageMimeType =
-                    editorState && 'currentImageMimeType' in editorState
-                        ? ((_a = editorState.currentImageMimeType) !== null && _a !== void 0 ? _a : null)
-                        : this.inferCurrentImageMimeType();
-            }
-            else {
-                this.currentImageMimeType = null;
-            }
-            this.isImageLoadedToCanvas = !!this.originalImage;
-            if (this.originalImage && this.shouldNormalizeCanvasSizeAfterStateRestore()) {
-                this.updateCanvasSizeToImageBounds({ stabilizeContainedViewport: false });
-                this.alignObjectBoundingBoxToCanvasTopLeft(this.originalImage);
-            }
-            if (this.originalImage) {
-                this.settleFitCoverScrollbarsAfterStateRestore();
-            }
-            const restoredMasks = restoredState.masks;
-            this.lastMask = restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null);
-            restoredMasks.forEach((maskObject) => {
-                applyMaskUnselectedStyle(maskObject);
-                reattachMaskHoverHandlers(maskObject);
-            });
-            syncAnnotationRuntimeStates(restoredState.annotations);
-            attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), restoredState.annotations);
-            this.lastSnapshot = this.captureSnapshotInternal();
-            this.canvas.renderAll();
-            this.updateInputs();
-            this.updateMaskList();
-            this.updateAnnotationList();
-            this.updateUi();
-            if (previousImage && previousImage !== this.originalImage) {
-                this.emitOptionCallback('onImageCleared', [previousImage, context]);
-            }
-            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
-                this.emitMasksChanged(context);
-            }
-            if (previousAnnotationSignature !== this.getAnnotationCollectionSignature()) {
-                this.emitAnnotationsChanged(context);
-            }
-            this.emitImageChanged(context);
-            const canvas = this.getLiveCanvasOrThrow('loadFromState');
-            const activeMaskId = editorState === null || editorState === void 0 ? void 0 : editorState.activeMaskId;
-            const activeAnnotationId = editorState === null || editorState === void 0 ? void 0 : editorState.activeAnnotationId;
-            if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'mask' && typeof activeMaskId === 'number') {
-                const activeMask = restoredMasks.find((maskObject) => maskObject.maskId === activeMaskId);
-                if (activeMask) {
-                    this.withSelectionChangeContext(context, () => {
-                        canvas.setActiveObject(activeMask);
-                        this.handleSelectionChanged([activeMask]);
-                    });
-                }
-            }
-            else if ((editorState === null || editorState === void 0 ? void 0 : editorState.activeObjectKind) === 'annotation' &&
-                typeof activeAnnotationId === 'number') {
-                const activeAnnotation = restoredState.annotations.find((annotation) => annotation.annotationId === activeAnnotationId);
-                if (activeAnnotation) {
-                    this.withSelectionChangeContext(context, () => {
-                        canvas.setActiveObject(activeAnnotation);
-                        this.handleSelectionChanged([activeAnnotation]);
-                    });
-                }
-            }
-        }
-        catch (error) {
-            reportError(this.options, error, 'Failed to restore canvas state.');
-            throw error;
-        }
+        await loadFromStateAction(this.buildEditorStateActionAccess(), jsonString, options);
     }
     saveState() {
         this.saveStateInternal();
     }
     saveStateInternal(options) {
-        var _a, _b, _c;
-        if (!this.canvas || this.shouldSuppressSaveState)
-            return;
-        if (!this.canRunIdleOperation('saveState', options))
-            return;
-        const activeObj = this.canvas.getActiveObject();
-        const activeMask = this.getActiveMaskForSnapshot();
-        const activeAnnotation = this.getActiveAnnotationForSnapshot();
-        this.hideAllMaskLabels();
-        try {
-            const after = saveStateImpl({
-                canvas: this.canvas,
-                activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
-                activeAnnotationId: (_b = activeAnnotation === null || activeAnnotation === void 0 ? void 0 : activeAnnotation.annotationId) !== null && _b !== void 0 ? _b : null,
-                currentScale: this.currentScale,
-                currentRotation: this.currentRotation,
-                baseImageScale: this.baseImageScale,
-                currentImageMimeType: this.currentImageMimeType,
-            });
-            const before = (_c = this.lastSnapshot) !== null && _c !== void 0 ? _c : after;
-            if (after === before) {
-                return;
-            }
-            const cmd = new Command(async () => {
-                await this.loadFromStateInternal(after, this.withAnimationQueueBypass());
-            }, async () => {
-                await this.loadFromStateInternal(before, this.withAnimationQueueBypass());
-            });
-            this.historyManager.push(cmd);
-            this.lastSnapshot = after;
-        }
-        catch (error) {
-            reportWarning(this.options, error, 'Failed to capture canvas snapshot.');
-        }
-        finally {
-            this.restoreActiveObjectAfterSnapshot(activeObj, activeMask, activeAnnotation);
-            this.updateUi();
-        }
-    }
-    restoreActiveObjectAfterSnapshot(activeObj, activeMask, activeAnnotation) {
-        if (!this.canvas)
-            return;
-        const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-        const annotationToRestore = activeObj && isAnnotationObject(activeObj) ? activeObj : activeAnnotation;
-        if (maskToRestore && this.canvas.getObjects().includes(maskToRestore)) {
-            this.canvas.setActiveObject(maskToRestore);
-            this.showLabelForMask(maskToRestore);
-            this.updateMaskListSelection(maskToRestore);
-            return;
-        }
-        if (annotationToRestore && this.canvas.getObjects().includes(annotationToRestore)) {
-            this.canvas.setActiveObject(annotationToRestore);
-            this.updateAnnotationListSelection(annotationToRestore);
-        }
+        saveStateAction(this.buildEditorStateActionAccess(), options);
     }
     undo() {
         if (this.isDisposed)
@@ -1542,49 +1367,34 @@ export class ImageEditor {
             this.emitBusyChangeIfChanged(context);
         });
     }
+    buildMaskActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            getMasks: () => this.getMasks(),
+            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            buildCreateMaskContext: () => this.buildCreateMaskContext(),
+            buildRemoveMaskContext: () => this.buildRemoveMaskContext(),
+            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
     createMask(config = {}) {
-        if (!this.canvas)
-            return null;
-        if (!this.canRunIdleOperation('createMask'))
-            return null;
-        const callbackContext = this.buildCallbackContext('createMask', false);
-        const createMaskContext = this.buildCreateMaskContext();
-        const mask = this.withSelectionChangeContext(callbackContext, () => createMaskImpl(createMaskContext, config));
-        if (mask) {
-            this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        }
-        return mask;
+        return createMaskAction(this.buildMaskActionAccess(), config);
     }
     removeSelectedMask() {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('removeSelectedMask'))
-            return;
-        const before = this.getMasks().length;
-        const callbackContext = this.buildCallbackContext('removeSelectedMask', false);
-        const removeMaskContext = this.buildRemoveMaskContext();
-        this.withSelectionChangeContext(callbackContext, () => removeSelectedMaskImpl(removeMaskContext));
-        this.updateUi();
-        if (this.getMasks().length !== before) {
-            this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        }
+        removeSelectedMaskAction(this.buildMaskActionAccess());
     }
     removeAllMasks(options = {}) {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('removeAllMasks', options))
-            return;
-        const before = this.getMasks().length;
-        const callbackContext = this.buildCallbackContext('removeAllMasks', false);
-        const removeMaskContext = this.buildRemoveMaskContext();
-        this.withSelectionChangeContext(callbackContext, () => removeAllMasksImpl(removeMaskContext, options));
-        this.updateUi();
-        if (this.getMasks().length !== before) {
-            this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        }
+        removeAllMasksActionImpl(this.buildMaskActionAccess(), options);
     }
     buildCreateMaskContext() {
         return this.contextFactory.buildCreateMaskContext();
@@ -1685,59 +1495,41 @@ export class ImageEditor {
     updateMaskListSelection(selectedMask) {
         updateMaskListSelection(this.buildMaskListContext(), selectedMask);
     }
+    buildAnnotationModeActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            getTextSession: () => this.textSession,
+            getDrawSession: () => this.drawSession,
+            isToolModeActive: () => this.isToolModeActive(),
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+            buildDrawControllerContext: () => this.buildDrawControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
     enterTextMode() {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('enterTextMode'))
-            return;
-        if (this.isToolModeActive())
-            return;
-        enterTextModeImpl(this.buildTextControllerContext());
-        const callbackContext = this.buildCallbackContext('enterTextMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterTextModeAction(this.buildAnnotationModeActionAccess());
     }
     exitTextMode() {
-        if (!this.canvas || !this.textSession)
-            return;
-        if (!this.canRunIdleOperation('exitTextMode'))
-            return;
-        exitTextModeImpl(this.buildTextControllerContext());
-        const callbackContext = this.buildCallbackContext('exitTextMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        exitTextModeAction(this.buildAnnotationModeActionAccess());
     }
     isTextMode() {
         return this.textSession !== null;
     }
     createTextAnnotation(config = {}) {
-        if (!this.canvas)
-            return null;
-        if (!this.canRunIdleOperation('createTextAnnotation'))
-            return null;
-        return createTextAnnotationImpl(this.buildTextControllerContext(), config);
+        return createTextAnnotationAction(this.buildAnnotationModeActionAccess(), config);
     }
     enterDrawMode() {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('enterDrawMode'))
-            return;
-        if (this.isToolModeActive())
-            return;
-        enterDrawModeImpl(this.buildDrawControllerContext());
-        const callbackContext = this.buildCallbackContext('enterDrawMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterDrawModeAction(this.buildAnnotationModeActionAccess());
     }
     exitDrawMode() {
-        if (!this.canvas || !this.drawSession)
-            return;
-        if (!this.canRunIdleOperation('exitDrawMode'))
-            return;
-        exitDrawModeImpl(this.buildDrawControllerContext());
-        const callbackContext = this.buildCallbackContext('exitDrawMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        exitDrawModeAction(this.buildAnnotationModeActionAccess());
     }
     isDrawMode() {
         return this.drawSession !== null;
@@ -1881,88 +1673,70 @@ export class ImageEditor {
     buildDrawControllerContext() {
         return this.contextFactory.buildDrawControllerContext();
     }
+    buildAnnotationConfigActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            isTextMode: () => this.isTextMode(),
+            isDrawMode: () => this.isDrawMode(),
+            getCurrentTextConfig: () => this.currentTextConfig,
+            setCurrentTextConfig: (config) => {
+                this.currentTextConfig = config;
+            },
+            getDefaultTextConfig: () => this.defaultTextConfig,
+            getCurrentDrawConfig: () => this.currentDrawConfig,
+            setCurrentDrawConfig: (config) => {
+                this.currentDrawConfig = config;
+            },
+            getDefaultDrawConfig: () => this.defaultDrawConfig,
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildDrawControllerContext: () => this.buildDrawControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            updateSelectedAnnotation: (config) => {
+                this.updateSelectedAnnotation(config);
+            },
+            setTextColor: (color) => {
+                this.setTextColor(color);
+            },
+            setTextFontSize: (size) => {
+                this.setTextFontSize(size);
+            },
+            setDrawColor: (color) => {
+                this.setDrawColor(color);
+            },
+            setDrawBrushSize: (size) => {
+                this.setDrawBrushSize(size);
+            },
+            reportWarning: (error, message) => {
+                reportWarning(this.options, error, message);
+            },
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
     applyTextConfigPatch(config, operation) {
-        if (!this.canRunIdleOperation(operation))
-            return;
-        const invalidFields = getInvalidTextAnnotationConfigFields(config);
-        if (invalidFields.length > 0) {
-            reportWarning(this.options, null, `${operation} ignored invalid Text config fields: ${invalidFields.join(', ')}.`);
-        }
-        const next = mergeTextAnnotationConfigPatch(this.currentTextConfig, config, this.defaultTextConfig);
-        if (areResolvedTextAnnotationConfigsEqual(this.currentTextConfig, next))
-            return;
-        this.currentTextConfig = next;
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext(operation, false));
+        applyTextConfigPatchAction(this.buildAnnotationConfigActionAccess(), config, operation);
     }
     applyDrawConfigPatch(config, operation) {
-        if (!this.canRunIdleOperation(operation))
-            return;
-        const invalidFields = getInvalidDrawConfigFields(config);
-        if (invalidFields.length > 0) {
-            reportWarning(this.options, null, `${operation} ignored invalid Draw config fields: ${invalidFields.join(', ')}.`);
-        }
-        const next = mergeDrawConfigPatch(this.currentDrawConfig, config, this.defaultDrawConfig);
-        if (areResolvedDrawConfigsEqual(this.currentDrawConfig, next))
-            return;
-        this.currentDrawConfig = next;
-        updateDrawBrush(this.buildDrawControllerContext());
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext(operation, false));
+        applyDrawConfigPatchAction(this.buildAnnotationConfigActionAccess(), config, operation);
     }
     applyTextColorInput(color) {
-        var _a;
-        if (this.isTextMode()) {
-            this.setTextColor(color);
-            return;
-        }
-        const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-        if (selected && isTextAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ fill: color });
-            return;
-        }
-        this.setTextColor(color);
+        applyTextColorInputAction(this.buildAnnotationConfigActionAccess(), color);
     }
     applyTextFontSizeInput(size) {
-        var _a;
-        if (this.isTextMode()) {
-            this.setTextFontSize(size);
-            return;
-        }
-        const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-        if (selected && isTextAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ fontSize: size });
-            return;
-        }
-        this.setTextFontSize(size);
+        applyTextFontSizeInputAction(this.buildAnnotationConfigActionAccess(), size);
     }
     applyDrawColorInput(color) {
-        var _a;
-        if (this.isDrawMode()) {
-            this.setDrawColor(color);
-            return;
-        }
-        const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-        if (selected && isDrawAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ stroke: color });
-            return;
-        }
-        this.setDrawColor(color);
+        applyDrawColorInputAction(this.buildAnnotationConfigActionAccess(), color);
     }
     applyDrawBrushSizeInput(size) {
-        var _a;
-        if (this.isDrawMode()) {
-            this.setDrawBrushSize(size);
-            return;
-        }
-        const selected = (_a = this.canvas) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-        if (selected && isDrawAnnotationObject(selected)) {
-            this.updateSelectedAnnotation({ strokeWidth: size });
-            return;
-        }
-        this.setDrawBrushSize(size);
+        applyDrawBrushSizeInputAction(this.buildAnnotationConfigActionAccess(), size);
     }
     moveSelectedEditableObject(operation) {
         if (!this.canvas)
@@ -1971,78 +1745,53 @@ export class ImageEditor {
             return;
         moveSelectedEditableObjectImpl(this.buildEditableObjectActionAccess(), operation);
     }
+    buildExportActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            getAnnotations: () => this.getAnnotations(),
+            getMasks: () => this.getMasks(),
+            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
+            assertIdleForOperation: (operation, options) => {
+                this.assertIdleForOperation(operation, options);
+            },
+            finalizeActiveTextEditingIfNeeded: () => {
+                this.finalizeActiveTextEditingIfNeeded();
+            },
+            buildExportServiceContext: () => this.buildExportServiceContext(),
+            buildMergeMasksContext: (token) => this.buildMergeMasksContext(token),
+            buildMergeAnnotationsContext: (token) => this.buildMergeAnnotationsContext(token),
+            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                this.updateAnnotationList();
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                this.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+        };
+    }
     async mergeMasks() {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('mergeMasks'))
-            return;
-        this.finalizeActiveTextEditingIfNeeded();
-        const hasMasks = this.canvas.getObjects().some(isMaskObject);
-        if (!hasMasks)
-            return;
-        await runBusyOperation(this.buildBusyOperationAccess(), 'mergeMasks', async (callbackContext, operationToken) => {
-            const mergeMasksContext = this.buildMergeMasksContext(operationToken);
-            await mergeMasksImpl(mergeMasksContext);
-            this.updateInputs();
-            this.updateMaskList();
-            this.updateAnnotationList();
-            this.emitMasksChanged(callbackContext);
-            if (this.getAnnotations().length > 0) {
-                this.emitAnnotationsChanged(callbackContext);
-            }
-            this.emitImageChanged(callbackContext);
-        });
+        await mergeMasksAction(this.buildExportActionAccess());
     }
     async downloadImage(options) {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('downloadImage'))
-            return;
-        this.finalizeActiveTextEditingIfNeeded();
-        const callbackContext = this.buildCallbackContext('downloadImage', false);
-        const operationToken = this.operationGuard.beginBusyOperation('downloadImage');
-        this.emitBusyChangeIfChanged(callbackContext);
-        const exportContext = this.buildExportServiceContext();
-        try {
-            await downloadImageImpl(exportContext, options);
-        }
-        finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-        }
+        await downloadImageAction(this.buildExportActionAccess(), options);
     }
     async exportImageBase64(options) {
-        if (!this.canvas)
-            return '';
-        if (!this.canRunIdleOperation('exportImageBase64', options))
-            return '';
-        this.finalizeActiveTextEditingIfNeeded();
-        const callbackContext = this.buildCallbackContext('exportImageBase64', false);
-        const operationToken = this.operationGuard.beginBusyOperation('exportImageBase64');
-        this.emitBusyChangeIfChanged(callbackContext);
-        const exportContext = this.buildExportServiceContext();
-        try {
-            return await exportImageBase64Impl(exportContext, options);
-        }
-        finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-        }
+        return await exportImageBase64Action(this.buildExportActionAccess(), options);
     }
     async exportImageFile(options) {
-        this.assertIdleForOperation('exportImageFile', options);
-        this.finalizeActiveTextEditingIfNeeded();
-        const callbackContext = this.buildCallbackContext('exportImageFile', false);
-        const operationToken = this.operationGuard.beginBusyOperation('exportImageFile');
-        this.emitBusyChangeIfChanged(callbackContext);
-        const exportContext = this.buildExportServiceContext();
-        try {
-            return await exportImageFileImpl(exportContext, options);
-        }
-        finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-        }
+        return await exportImageFileAction(this.buildExportActionAccess(), options);
     }
     buildExportServiceContext() {
         return this.contextFactory.buildExportServiceContext();
@@ -2054,68 +1803,43 @@ export class ImageEditor {
         return this.contextFactory.buildMergeAnnotationsContext(operationToken);
     }
     captureSnapshotInternal() {
-        var _a, _b;
-        if (!this.canvas) {
-            throw new Error('[ImageEditor] Cannot capture canvas snapshot before init or after dispose.');
-        }
-        const activeMask = this.getActiveMaskForSnapshot();
-        const activeAnnotation = this.getActiveAnnotationForSnapshot();
-        this.hideAllMaskLabels();
-        return saveStateImpl({
-            canvas: this.canvas,
-            activeMaskId: (_a = activeMask === null || activeMask === void 0 ? void 0 : activeMask.maskId) !== null && _a !== void 0 ? _a : null,
-            activeAnnotationId: (_b = activeAnnotation === null || activeAnnotation === void 0 ? void 0 : activeAnnotation.annotationId) !== null && _b !== void 0 ? _b : null,
-            currentScale: this.currentScale,
-            currentRotation: this.currentRotation,
-            baseImageScale: this.baseImageScale,
-            currentImageMimeType: this.currentImageMimeType,
-        });
+        return captureSnapshotAction(this.buildEditorStateActionAccess());
     }
-    getActiveMaskForSnapshot() {
-        var _a;
-        if (!this.canvas)
-            return null;
-        const activeObject = this.canvas.getActiveObject();
-        if (activeObject && isMaskObject(activeObject))
-            return activeObject;
-        const labeledMasks = this.canvas
-            .getObjects()
-            .filter((object) => isMaskObject(object) && !!object.labelObject);
-        return labeledMasks.length === 1 ? ((_a = labeledMasks[0]) !== null && _a !== void 0 ? _a : null) : null;
-    }
-    getActiveAnnotationForSnapshot() {
-        if (!this.canvas)
-            return null;
-        const activeObject = this.canvas.getActiveObject();
-        return activeObject && isAnnotationObject(activeObject) ? activeObject : null;
+    buildMosaicActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            getOriginalImage: () => this.originalImage,
+            getMosaicSession: () => this.mosaicSession,
+            getMosaicConfig: () => this.currentMosaicConfig,
+            setMosaicConfig: (config) => {
+                this.currentMosaicConfig = config;
+            },
+            getDefaultMosaicConfig: () => this.defaultMosaicConfig,
+            getOptions: () => this.options,
+            isDisposed: () => this.isDisposed,
+            isImageLoaded: () => this.isImageLoaded(),
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildMosaicControllerContext: () => this.buildMosaicControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+        };
     }
     enterMosaicMode() {
-        if (!this.canvas || !this.originalImage)
-            return;
-        if (this.mosaicSession)
-            return;
-        if (!this.isImageLoaded())
-            return;
-        if (!this.canRunIdleOperation('enterMosaicMode'))
-            return;
-        enterMosaicModeImpl(this.buildMosaicControllerContext());
-        this.updateInputs();
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('enterMosaicMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterMosaicModeAction(this.buildMosaicActionAccess());
     }
     exitMosaicMode() {
-        if (!this.canvas || !this.mosaicSession)
-            return;
-        if (!this.canRunIdleOperation('exitMosaicMode'))
-            return;
-        exitMosaicModeImpl(this.buildMosaicControllerContext());
-        this.updateInputs();
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('exitMosaicMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        exitMosaicModeAction(this.buildMosaicActionAccess());
     }
     isMosaicMode() {
         return this.mosaicSession !== null;
@@ -2127,18 +1851,7 @@ export class ImageEditor {
         this.applyMosaicConfigPatch(config, 'setMosaicConfig');
     }
     resetMosaicConfig() {
-        if (this.isDisposed)
-            return;
-        const nextConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
-        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig))
-            return;
-        this.currentMosaicConfig = nextConfig;
-        if (this.mosaicSession && this.canvas) {
-            updateMosaicPreview(this.buildMosaicControllerContext());
-        }
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext('resetMosaicConfig', false));
+        resetMosaicConfigAction(this.buildMosaicActionAccess());
     }
     setMosaicBrushSize(size) {
         this.applyMosaicConfigPatch({ brushSize: size }, 'setMosaicBrushSize');
@@ -2147,97 +1860,56 @@ export class ImageEditor {
         this.applyMosaicConfigPatch({ blockSize: size }, 'setMosaicBlockSize');
     }
     applyMosaicConfigPatch(config, operation) {
-        if (this.isDisposed)
-            return;
-        if (config === null || typeof config !== 'object' || Array.isArray(config)) {
-            reportWarning(this.options, new TypeError('[ImageEditor] Invalid Mosaic config object.'), 'Ignored invalid Mosaic config.');
-            return;
-        }
-        const invalidFields = getInvalidMosaicConfigFields(config);
-        if (invalidFields.length > 0) {
-            reportWarning(this.options, new TypeError(`[ImageEditor] Ignored invalid Mosaic config field(s): ` +
-                `${invalidFields.join(', ')}.`), 'Ignored invalid Mosaic config fields.');
-        }
-        const nextConfig = mergeMosaicConfigPatch(this.currentMosaicConfig, config);
-        if (areResolvedMosaicConfigsEqual(this.currentMosaicConfig, nextConfig))
-            return;
-        this.currentMosaicConfig = nextConfig;
-        if (this.mosaicSession && this.canvas) {
-            updateMosaicPreview(this.buildMosaicControllerContext());
-        }
-        this.updateInputs();
-        this.updateUi();
-        this.emitImageChanged(this.buildCallbackContext(operation, false));
+        applyMosaicConfigPatchAction(this.buildMosaicActionAccess(), config, operation);
     }
     buildMosaicControllerContext() {
         return this.contextFactory.buildMosaicControllerContext();
     }
+    buildCropActionAccess() {
+        return {
+            getCanvas: () => this.canvas,
+            getOriginalImage: () => this.originalImage,
+            getCropSession: () => this.cropSession,
+            setCropSession: (session) => {
+                this.cropSession = session;
+            },
+            isImageLoaded: () => this.isImageLoaded(),
+            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
+            buildCropControllerContext: (token) => this.buildCropControllerContext(token),
+            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            getMasks: () => this.getMasks(),
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
     enterCropMode(options = {}) {
-        if (!this.canvas || !this.originalImage)
-            return;
-        if (this.cropSession)
-            return;
-        if (!this.isImageLoaded())
-            return;
-        if (!this.canRunIdleOperation('enterCropMode'))
-            return;
-        const cropControllerContext = this.buildCropControllerContext();
-        enterCropModeImpl(cropControllerContext, options);
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('enterCropMode', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        enterCropModeAction(this.buildCropActionAccess(), options);
     }
     setCropAspectRatio(aspectRatio) {
-        if (!this.canvas || !this.cropSession)
-            return;
-        if (!this.canRunIdleOperation('setCropAspectRatio'))
-            return;
-        const cropControllerContext = this.buildCropControllerContext();
-        setCropAspectRatioImpl(cropControllerContext, aspectRatio);
-        this.updateUi();
-        const callbackContext = this.buildCallbackContext('setCropAspectRatio', false);
-        this.emitImageChanged(callbackContext);
+        setCropAspectRatioAction(this.buildCropActionAccess(), aspectRatio);
     }
     cancelCrop() {
-        if (!this.canvas || !this.cropSession)
-            return;
-        if (!this.canRunIdleOperation('cancelCrop'))
-            return;
-        const cropControllerContext = this.buildCropControllerContext();
-        cancelCropImpl(cropControllerContext);
-        this.cropSession = null;
-        this.updateUi();
-        this.canvas.requestRenderAll();
-        const callbackContext = this.buildCallbackContext('cancelCrop', false);
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.emitImageChanged(callbackContext);
+        cancelCropAction(this.buildCropActionAccess());
     }
     async applyCrop() {
-        if (!this.canvas || !this.cropSession)
-            return;
-        if (!this.canRunIdleOperation('applyCrop'))
-            return;
-        const callbackContext = this.buildCallbackContext('applyCrop', false);
-        const hadMasks = this.getMasks().length > 0;
-        const operationToken = this.operationGuard.beginBusyOperation('applyCrop');
-        this.emitBusyChangeIfChanged(callbackContext);
-        this.updateUi();
-        try {
-            const cropControllerContext = this.buildCropControllerContext(operationToken);
-            await applyCropImpl(cropControllerContext);
-            this.updateInputs();
-            this.updateMaskList();
-            if (hadMasks || this.getMasks().length > 0) {
-                this.emitMasksChanged(callbackContext);
-            }
-            this.emitImageChanged(callbackContext);
-        }
-        finally {
-            this.operationGuard.endBusyOperation(operationToken);
-            this.emitBusyChangeIfChanged(callbackContext);
-            this.updateUi();
-        }
+        await applyCropAction(this.buildCropActionAccess());
     }
     buildCropControllerContext(operationToken) {
         return this.contextFactory.buildCropControllerContext(operationToken);
@@ -2254,24 +1926,7 @@ export class ImageEditor {
         });
     }
     async mergeAnnotations() {
-        if (!this.canvas)
-            return;
-        if (!this.canRunIdleOperation('mergeAnnotations'))
-            return;
-        this.finalizeActiveTextEditingIfNeeded();
-        const hasAnnotations = this.canvas.getObjects().some(isAnnotationObject);
-        if (!hasAnnotations)
-            return;
-        await runBusyOperation(this.buildBusyOperationAccess(), 'mergeAnnotations', async (callbackContext, operationToken) => {
-            await mergeAnnotationsImpl(this.buildMergeAnnotationsContext(operationToken));
-            this.updateInputs();
-            this.updateMaskList();
-            this.updateAnnotationList();
-            this.emitAnnotationsChanged(callbackContext);
-            if (this.getMasks().length > 0)
-                this.emitMasksChanged(callbackContext);
-            this.emitImageChanged(callbackContext);
-        });
+        await mergeAnnotationsAction(this.buildExportActionAccess());
     }
     updateUi() {
         const snapshot = this.buildControlSnapshot();
@@ -2363,39 +2018,18 @@ export class ImageEditor {
         this.keyboardHandler = null;
         this.keyboardDocument = null;
         this.restoreElementOriginalStates();
-        if (this.cropSession && this.canvas) {
-            try {
-                const context = this.buildCropControllerContext();
-                cancelCropImpl(context);
-            }
-            catch {
-            }
+        safelyExitActiveSession(this.cropSession !== null, this.canvas, () => cancelCropImpl(this.buildCropControllerContext()), () => {
             this.cropSession = null;
-        }
-        if (this.mosaicSession && this.canvas) {
-            try {
-                exitMosaicModeImpl(this.buildMosaicControllerContext());
-            }
-            catch {
-            }
+        });
+        safelyExitActiveSession(this.mosaicSession !== null, this.canvas, () => exitMosaicModeImpl(this.buildMosaicControllerContext()), () => {
             this.mosaicSession = null;
-        }
-        if (this.textSession && this.canvas) {
-            try {
-                exitTextModeImpl(this.buildTextControllerContext());
-            }
-            catch {
-            }
+        });
+        safelyExitActiveSession(this.textSession !== null, this.canvas, () => exitTextModeImpl(this.buildTextControllerContext()), () => {
             this.textSession = null;
-        }
-        if (this.drawSession && this.canvas) {
-            try {
-                exitDrawModeImpl(this.buildDrawControllerContext());
-            }
-            catch {
-            }
+        });
+        safelyExitActiveSession(this.drawSession !== null, this.canvas, () => exitDrawModeImpl(this.buildDrawControllerContext()), () => {
             this.drawSession = null;
-        }
+        });
         if (this.canvas) {
             safelyDisposeCanvas(this.canvas);
             this.canvas = null;
