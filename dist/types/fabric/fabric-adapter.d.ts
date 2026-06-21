@@ -34,7 +34,7 @@
 import type { FabricModule, ImageEditorOptions } from '../core/public-types.js';
 /**
  * Result of {@link detectFabric}. The caller should:
- *   - assign `fabric` and `isFabricLoaded` to private fields on the editor,
+ *   - store `fabric` and `isFabricLoaded` in the editor runtime,
  *   - use `options` as the ImageEditorOptions partial to feed into
  *     `core/default-options.ts`.
  *

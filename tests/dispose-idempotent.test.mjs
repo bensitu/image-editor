@@ -136,7 +136,7 @@ class Mockcanvas {
         // `fire()` (which the editor itself never calls — but the
         // assertion below documents the behavior) is observably a
         // no-op. The editor never calls into the disposed canvas
-        // because `this.canvas` is set to `null` immediately after.
+        // because the runtime canvas reference is cleared immediately after.
         this.listeners.clear();
     }
 }
@@ -405,14 +405,13 @@ test('post-dispose synchronous public methods are no-ops and do not throw', () =
     const { editor } = makeEditor();
     editor.dispose();
 
-    // Synchronous methods that the facade gates with `if (!this.canvas) return`
-    // (or stronger). Each must accept a representative argument shape
-    // and return the documented no-op value without ever touching the
-    // (null) canvas.
+    // Synchronous methods that gate on a missing runtime canvas (or
+    // stronger). Each must accept a representative argument shape and return
+    // the documented no-op value without ever touching the cleared canvas.
     assert.doesNotThrow(() => editor.saveState(), 'saveState() must be a safe no-op after dispose');
 
-    // `createMask` has a documented `null` return when the canvas is
-    // null, which is exactly the post-dispose state.
+    // `createMask` has a documented `null` return when the runtime canvas
+    // is null, which is exactly the post-dispose state.
     assert.equal(
         editor.createMask({ shape: 'rect' }),
         null,
@@ -451,9 +450,9 @@ test('post-dispose synchronous public methods are no-ops and do not throw', () =
         'downloadImage() must be a safe no-op after dispose',
     );
 
-    // `isImageLoaded()` reads `this.originalImage` rather than the
-    // canvas, so it should still return a sensible boolean after
-    // dispose. The "no image was ever loaded" path returns `false`.
+    // `isImageLoaded()` reads the runtime original image rather than the
+    // canvas, so it should still return a sensible boolean after dispose.
+    // The "no image was ever loaded" path returns `false`.
     assert.equal(
         editor.isImageLoaded(),
         false,
@@ -474,9 +473,9 @@ test('post-dispose async public methods resolve safely without touching the canv
     const disposeCallsAtDispose = canvasStub.disposeCalls;
 
     // ── loadImage ────────────────────────────
-    // After dispose `loadImage` falls through the
-    // `!this.isFabricLoaded || !this.canvas` early return and resolves
-    // with `undefined` without touching the loader pipeline.
+    // After dispose `loadImage` falls through the missing-Fabric or missing-
+    // canvas early return and resolves with `undefined` without touching the
+    // loader pipeline.
     await assert.doesNotReject(
         editor.loadImage('data:image/png;base64,AAAA'),
         'post-dispose loadImage must resolve without throwing',
@@ -515,13 +514,13 @@ test('post-dispose async public methods resolve safely without touching the canv
     await assert.doesNotReject(editor.redo(), 'post-dispose redo must resolve without throwing');
 
     // ── exportImageBase64 ─────────────────────────
-    // The facade gates at `if (!this.canvas) return ''`, so the
-    // documented empty-string no-op shape is preserved after dispose.
+    // Export gates on a missing runtime canvas, so the documented
+    // empty-string no-op shape is preserved after dispose.
     const base64 = await editor.exportImageBase64();
     assert.equal(base64, '', 'post-dispose exportImageBase64 must resolve to the empty string');
 
     // ── loadFromState ───────────────────────────────────
-    // `loadFromState` short-circuits on `!this.canvas`. A subsequent
+    // `loadFromState` short-circuits on a missing runtime canvas. A subsequent
     // string-form call must not throw.
     await assert.doesNotReject(
         editor.loadFromState('{"objects":[]}'),
@@ -533,8 +532,8 @@ test('post-dispose async public methods resolve safely without touching the canv
     );
 
     // ── applyCrop ─────────────────────────────────
-    // No crop session exists post-dispose, so the facade's
-    // `!this.cropSession` gate triggers a resolved-promise no-op.
+    // No crop session exists post-dispose, so the runtime crop-session gate
+    // triggers a resolved-promise no-op.
     await assert.doesNotReject(
         editor.applyCrop(),
         'post-dispose applyCrop must resolve without throwing',

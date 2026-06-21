@@ -2,7 +2,7 @@
  * Mosaic mode controller.
  *
  * Owns the Mosaic session lifecycle, preview objects, Fabric pointer handlers,
- * and the base-image pixel replacement pipeline. The ImageEditor facade owns
+ * and the base-image pixel replacement pipeline. The editor runtime owns
  * canonical editor state and passes it in through the context callbacks.
  *
  * @module

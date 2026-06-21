@@ -1,5 +1,4 @@
 import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/public-types.js';
-import { reportError } from '../core/callback-reporter.js';
 import { ExportError, ExportNotReadyError } from '../core/errors.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox, getPartialExportEdges, hasMeaningfulCanvasRegion, } from '../utils/canvas-region.js';
@@ -198,6 +197,8 @@ function captureActiveObject(canvas) {
 function restoreActiveObject(canvas, activeObject) {
     if (!activeObject)
         return;
+    if (!canvas.getObjects().includes(activeObject))
+        return;
     try {
         const canvasWithSelection = canvas;
         if (typeof canvasWithSelection.setActiveObject === 'function') {
@@ -311,6 +312,18 @@ async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument
         for (let x = 0; x < width; x += 1)
             sealPixel(x, height - 1, x, height - 2);
     }
+    if ((edges === null || edges === void 0 ? void 0 : edges.left) && (edges === null || edges === void 0 ? void 0 : edges.top) && width > 1 && height > 1) {
+        sealPixel(0, 0, 1, 1);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.right) && (edges === null || edges === void 0 ? void 0 : edges.top) && width > 1 && height > 1) {
+        sealPixel(width - 1, 0, width - 2, 1);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.left) && (edges === null || edges === void 0 ? void 0 : edges.bottom) && width > 1 && height > 1) {
+        sealPixel(0, height - 1, 1, height - 2);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.right) && (edges === null || edges === void 0 ? void 0 : edges.bottom) && width > 1 && height > 1) {
+        sealPixel(width - 1, height - 1, width - 2, height - 2);
+    }
     canvasContext.putImageData(imageData, 0, 0);
     return target.quality === undefined
         ? offscreenCanvas.toDataURL(target.mimeType)
@@ -319,6 +332,7 @@ async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument
 function getJpegBackgroundColor(backgroundColor, ownerDocument) {
     return resolveCanvasFillStyle(backgroundColor, ownerDocument);
 }
+const colorValidationContexts = new WeakMap();
 function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#ffffff') {
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
@@ -341,10 +355,17 @@ function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#fff
     return fallback;
 }
 function createColorValidationContext(ownerDocument) {
+    var _a;
+    if (colorValidationContexts.has(ownerDocument)) {
+        return (_a = colorValidationContexts.get(ownerDocument)) !== null && _a !== void 0 ? _a : null;
+    }
     try {
-        return ownerDocument.createElement('canvas').getContext('2d');
+        const context = ownerDocument.createElement('canvas').getContext('2d');
+        colorValidationContexts.set(ownerDocument, context);
+        return context;
     }
     catch {
+        colorValidationContexts.set(ownerDocument, null);
         return null;
     }
 }
@@ -368,7 +389,7 @@ function isTransparentCssColor(value) {
         const alpha = digits.length === 4 ? digits[3] : digits.slice(6, 8);
         return /^0+$/.test(alpha);
     }
-    const commaAlpha = normalized.match(/^(?:rgba|hsla)\((.*),\s*([^,/)]+)\)$/i);
+    const commaAlpha = normalized.match(/^(?:rgba|hsla)\(([^)]{0,200}),\s*([^,/)]{0,50})\)$/i);
     if (commaAlpha && isZeroCssAlpha(commaAlpha[2]))
         return true;
     const slashAlpha = normalized.match(/^[a-z][a-z0-9-]*\([^/]+\/\s*([^)]+)\)$/i);
@@ -410,7 +431,7 @@ function dataUrlToBytes(dataUrl) {
         const binary = globalThis.atob(base64);
         const buffer = new ArrayBuffer(binary.length);
         const bytes = new Uint8Array(buffer);
-        for (let i = binary.length - 1; i >= 0; i -= 1) {
+        for (let i = 0; i < binary.length; i += 1) {
             bytes[i] = binary.charCodeAt(i);
         }
         return bytes;
@@ -526,23 +547,19 @@ export async function downloadImage(context, options) {
     if (options !== undefined && options !== null && typeof options !== 'object') {
         throw new TypeError('[ImageEditor] downloadImage(options) expects an ImageExportOptions object.');
     }
-    try {
-        const file = await exportImageFile(context, options);
-        triggerFileDownload(context, file);
-    }
-    catch (error) {
-        reportError(context.options, error, 'downloadImage failed.');
-        console.error('[ImageEditor] downloadImage failed', error);
-        throw error;
-    }
+    const file = await exportImageFile(context, options);
+    triggerFileDownload(context, file);
 }
 function triggerFileDownload(context, file) {
+    var _a;
     const ownerDocument = getCanvasDocument(context.canvas);
     const objectUrl = URL.createObjectURL(file);
     const link = ownerDocument.createElement('a');
     link.download = file.name;
     link.href = objectUrl;
-    const body = ownerDocument.body;
+    const body = (_a = ownerDocument.body) !== null && _a !== void 0 ? _a : ownerDocument.documentElement;
+    if (!body)
+        throw new Error('Document body is unavailable for download trigger.');
     body.appendChild(link);
     try {
         link.click();

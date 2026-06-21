@@ -189,7 +189,7 @@ export function renderAnnotationList(context) {
         item.className = 'list-group-item annotation-item';
         item.textContent = annotation.annotationName;
         item.dataset.annotationId = String(annotation.annotationId);
-        item.onclick = () => {
+        item.addEventListener('click', () => {
             const id = Number(item.dataset.annotationId);
             if (!Number.isFinite(id))
                 return;
@@ -198,7 +198,7 @@ export function renderAnnotationList(context) {
                 return;
             canvas.setActiveObject(target);
             context.onAnnotationSelected(target);
-        };
+        });
         listEl.appendChild(item);
     });
 }

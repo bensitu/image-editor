@@ -74,7 +74,7 @@ export class DomBindings {
     private registry: BindingEntry[] = [];
     private readonly resolveElementId: (key: ElementKey) => string | null | undefined;
     private readonly isDisposed: () => boolean;
-    private readonly resolveDocument: () => Document;
+    private readonly resolveDocument: () => Document | null;
 
     /**
      * @param resolveElementId - Returns the resolved DOM element ID for a given logical key, or a
@@ -83,12 +83,14 @@ export class DomBindings {
      * @param isDisposed - Returns the editor's current `isDisposed` flag. Bound handlers
      *   consult this on every dispatch and exit early when it returns
      *   `true`.
-     * @param resolveDocument - Returns the document that owns the bound controls.
+     * @param resolveDocument - Returns the document that owns the bound controls, or `null`
+     *   when the runtime has no DOM.
      */
     constructor(
         resolveElementId: (key: ElementKey) => string | null | undefined,
         isDisposed: () => boolean,
-        resolveDocument: () => Document = () => document,
+        resolveDocument: () => Document | null = () =>
+            typeof document !== 'undefined' ? document : null,
     ) {
         this.resolveElementId = resolveElementId;
         this.isDisposed = isDisposed;
@@ -110,7 +112,9 @@ export class DomBindings {
     bindIfExists(key: ElementKey, eventType: string, handler: EventListener): boolean {
         const id = this.resolveElementId(key);
         if (!id) return false;
-        const element = this.resolveDocument().getElementById(id);
+        const ownerDocument = this.resolveDocument();
+        if (!ownerDocument) return false;
+        const element = ownerDocument.getElementById(id);
         if (!element) return false;
 
         // Disposed-aware wrapper. Holding the wrapper (not the raw handler)
@@ -137,7 +141,9 @@ export class DomBindings {
         for (const entry of this.registry) {
             const id = this.resolveElementId(entry.elementKey);
             if (!id) continue;
-            const element = this.resolveDocument().getElementById(id);
+            const ownerDocument = this.resolveDocument();
+            if (!ownerDocument) continue;
+            const element = ownerDocument.getElementById(id);
             if (!element) continue;
             try {
                 element.removeEventListener(entry.eventType, entry.handler);

@@ -1,3 +1,9 @@
+/**
+ * Busy-operation wrappers shared by export, merge, and crop actions.
+ *
+ * These helpers bracket async work with OperationGuard tokens, busy callbacks,
+ * and optional UI refreshes.
+ */
 import type { OperationToken } from '../core/operation-guard.js';
 import type { ImageEditorCallbackContext, ImageEditorOperation } from '../core/public-types.js';
 export interface BusyOperationAccess {

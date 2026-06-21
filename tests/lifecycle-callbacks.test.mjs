@@ -41,6 +41,7 @@ import {
     makeImageDataUrl,
     resetEditorDom,
 } from './helpers/fabric-environment.mjs';
+import { getHistoryManager, requireEditorCanvas } from './helpers/editor-internals.mjs';
 
 const { default: ImageEditor } = await import('../src/index.ts');
 
@@ -310,26 +311,28 @@ test('saveState restores the selected mask label when snapshot capture fails', a
     await loadFixtureImage(editor);
     const mask = editor.createMask({ width: 20, height: 20 });
     assert.ok(mask?.labelObject, 'sanity: selected mask must have a visible label before save');
-    const historyLengthBefore = editor.historyManager.history.length;
-    const originalToJSON = editor.canvas.toJSON;
+    const historyManager = getHistoryManager(editor);
+    const canvas = requireEditorCanvas(editor);
+    const historyLengthBefore = historyManager.history.length;
+    const originalToJSON = canvas.toJSON;
     const snapshotError = new Error('snapshot failed');
-    editor.canvas.toJSON = () => {
+    canvas.toJSON = () => {
         throw snapshotError;
     };
 
     try {
         editor.saveState();
     } finally {
-        editor.canvas.toJSON = originalToJSON;
+        canvas.toJSON = originalToJSON;
     }
 
     assert.ok(mask.labelObject, 'selected mask label must be restored after failed saveState');
-    assert.equal(editor.canvas.getObjects().includes(mask.labelObject), true);
+    assert.equal(canvas.getObjects().includes(mask.labelObject), true);
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].error, snapshotError);
     assert.match(warnings[0].message, /capture canvas snapshot/);
     assert.equal(
-        editor.historyManager.history.length,
+        historyManager.history.length,
         historyLengthBefore,
         'failed snapshot must not add a history entry',
     );

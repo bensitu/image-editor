@@ -2,7 +2,7 @@
  * Hover, selection, and "original style restore" helpers for
  * mask visual state.
  *
- * The ImageEditor facade owns canvas state; this module receives the live
+ * The editor runtime owns canvas state; this module receives the live
  * canvas and resolved options through {@link MaskStyleContext} so mask
  * visual behavior stays centralized.
  *
@@ -72,9 +72,9 @@
  *
  * ## Implementation notes
  *
- * - The orchestrator (`src/image-editor.ts`) owns the canvas reference and
- *   the resolved options. The helpers in this module receive those slots
- *   through a {@link MaskStyleContext} so the module is independent of the
+ * - The editor runtime owns the canvas reference and resolved options. The
+ *   helpers in this module receive those slots through a
+ *   {@link MaskStyleContext} so the module is independent of the
  *   `ImageEditor` class shape and can be unit tested in isolation against
  *   a stub Fabric environment.
  * - Hover handlers do NOT cache the normal/hover style at attach time. They

@@ -52,12 +52,13 @@
  * ## Implementation notes
  *
  * The loader is an exported **function** that takes its dependencies in a
- * {@link LoadImageContext} parameter rather than a class. The `ImageEditor`
- * facade owns all editor state (the canvas reference, the placeholder
- * element, the editor scalar fields), so the loader must read and write
- * that state through a small set of getter/setter callbacks. The class
- * shape stays on the facade; the loader remains stateless so the rollback
- * bundle is the single source of truth for what the operation has captured.
+ * {@link LoadImageContext} parameter rather than a class. The editor
+ * runtime owns the mutable editor state (the canvas reference, the
+ * placeholder element, and the editor scalar fields), so the loader must
+ * read and write that state through a small set of getter/setter callbacks.
+ * The class shape stays on the facade; the loader remains stateless so the
+ * rollback bundle is the single source of truth for what the operation has
+ * captured.
  *
  * The rollback bundle is built before the loader hides the placeholder or
  * touches the canvas. It captures *every* field listed in the documented
@@ -138,12 +139,12 @@ export interface RollbackBundle {
     currentImageMimeType: ImageMimeType | null;
 }
 /**
- * Dependency bundle passed by the `ImageEditor` facade into
+ * Dependency bundle passed from the `ImageEditor` facade into
  * {@link loadImage}. The loader has no class state of its own — every
  * editor field it reads or writes is exposed here as a getter/setter pair
- * so the facade keeps ownership of the canonical state.
+ * so the editor runtime keeps ownership of the canonical state.
  *
- * The facade is responsible for:
+ * The facade and context factory are responsible for:
  * - constructing the {@link ViewportCache} once and reusing it across
  *   loads (so hidden-tab fallbacks work),
  * - providing a `setPlaceholderVisible` callback that delegates to

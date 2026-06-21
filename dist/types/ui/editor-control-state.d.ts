@@ -1,3 +1,9 @@
+/**
+ * Editor control enablement policy.
+ *
+ * Applies a compact state snapshot to toolbar, mode, history, and upload
+ * controls so competing operations stay disabled while a tool owns the canvas.
+ */
 import type { ElementKey } from '../core/editor-elements.js';
 export interface EditorControlSnapshot {
     hasImage: boolean;

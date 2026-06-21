@@ -1,3 +1,9 @@
+/**
+ * Annotation mode action adapters for Text and Draw sessions.
+ *
+ * The facade uses these helpers to guard mode entry/exit and to delegate
+ * session object creation to the focused controllers.
+ */
 import type * as FabricNS from 'fabric';
 import type { ImageEditorCallbackContext, ImageEditorOperation, TextAnnotationConfig, TextAnnotationObject } from '../core/public-types.js';
 import type { DrawControllerContext, DrawSession } from './draw-controller.js';

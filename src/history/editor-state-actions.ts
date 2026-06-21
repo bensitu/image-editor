@@ -1,3 +1,10 @@
+/**
+ * History and serialized-state action adapters for ImageEditor.
+ *
+ * This module coordinates guarded save, undo, redo, and load-from-state flows
+ * around the shared state serializer and history manager.
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { reportError, reportWarning } from '../core/callback-reporter.js';
@@ -296,11 +303,7 @@ function restoreActiveSelection(
 
 function getActiveMaskForSnapshot(canvas: FabricNS.Canvas): MaskObject | null {
     const activeObject = canvas.getActiveObject();
-    if (activeObject && isMaskObject(activeObject)) return activeObject;
-    const labeledMasks = canvas
-        .getObjects()
-        .filter((object): object is MaskObject => isMaskObject(object) && !!object.labelObject);
-    return labeledMasks.length === 1 ? (labeledMasks[0] ?? null) : null;
+    return activeObject && isMaskObject(activeObject) ? activeObject : null;
 }
 
 function getActiveAnnotationForSnapshot(canvas: FabricNS.Canvas): AnnotationObject | null {

@@ -67,9 +67,10 @@ export declare class DomBindings {
      * @param isDisposed - Returns the editor's current `isDisposed` flag. Bound handlers
      *   consult this on every dispatch and exit early when it returns
      *   `true`.
-     * @param resolveDocument - Returns the document that owns the bound controls.
+     * @param resolveDocument - Returns the document that owns the bound controls, or `null`
+     *   when the runtime has no DOM.
      */
-    constructor(resolveElementId: (key: ElementKey) => string | null | undefined, isDisposed: () => boolean, resolveDocument?: () => Document);
+    constructor(resolveElementId: (key: ElementKey) => string | null | undefined, isDisposed: () => boolean, resolveDocument?: () => Document | null);
     /**
      * Look up the element registered under `key`. If it exists, attach
      * `handler` for `eventType` and record the binding so `removeAll` can

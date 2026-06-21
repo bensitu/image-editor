@@ -1,7 +1,7 @@
 /**
  * Annotation CRUD, selection, list rendering, and update helpers.
  *
- * The ImageEditor facade owns canvas state and passes a small context bundle
+ * The editor runtime owns canvas state and passes a small context bundle
  * into these helpers so Text and Draw annotations share one removal/update
  * implementation.
  *

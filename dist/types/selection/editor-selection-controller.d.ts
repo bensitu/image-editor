@@ -1,3 +1,9 @@
+/**
+ * Selection and object-modification handlers for editor-owned canvas objects.
+ *
+ * The facade delegates Fabric selection events here so mask labels, lists,
+ * history, and lifecycle callbacks stay synchronized.
+ */
 import type * as FabricNS from 'fabric';
 import { type AnnotationObject, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageEditorSelection, type MaskObject } from '../core/public-types.js';
 export interface EditorSelectionControllerAccess {

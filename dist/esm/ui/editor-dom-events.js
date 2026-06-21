@@ -7,6 +7,13 @@ function parseInputNumber(context, key) {
 function parseEventInputNumber(event) {
     return parseFloat(event.target.value);
 }
+function handleAsyncAction(context, operation, action) {
+    void Promise.resolve()
+        .then(action)
+        .catch((error) => {
+        context.actions.reportAsyncActionError(operation, error);
+    });
+}
 function getEventInputValue(event) {
     return event.target.value;
 }
@@ -114,13 +121,13 @@ function bindAnnotationEvents(context) {
 }
 function bindHistoryEvents(context) {
     bindElement(context, 'downloadImageButton', 'click', () => {
-        void context.actions.downloadImage();
+        handleAsyncAction(context, 'downloadImage', () => context.actions.downloadImage());
     });
     bindElement(context, 'undoButton', 'click', () => {
-        void context.actions.undo();
+        handleAsyncAction(context, 'undo', () => context.actions.undo());
     });
     bindElement(context, 'redoButton', 'click', () => {
-        void context.actions.redo();
+        handleAsyncAction(context, 'redo', () => context.actions.redo());
     });
 }
 function bindCropEvents(context) {

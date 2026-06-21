@@ -32,6 +32,13 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import {
+    getEditorCanvas,
+    requireEditorCanvas,
+    setCropSession,
+    setDrawSession,
+    setTextSession,
+} from './helpers/editor-internals.mjs';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
 
@@ -164,10 +171,11 @@ function installDom() {
     return dom.window;
 }
 
-function createEditor(idMap = CANONICAL_IDS) {
+function createEditor(idMap = CANONICAL_IDS, options = {}) {
     const editor = new ImageEditor(makeFabricStub(), {
         animationDuration: 0,
         showPlaceholder: false,
+        ...options,
     });
     assert.doesNotThrow(() => editor.init(idMap));
     return editor;
@@ -203,6 +211,40 @@ test('uploadArea null disables the built-in upload click binding', () => {
         .dispatchEvent(new window.Event('click', { bubbles: true }));
 
     assert.equal(clicks, 0, 'uploadArea: null must not bind a click listener');
+});
+
+test('download, undo, and redo DOM buttons report async rejections', async () => {
+    const window = installDom();
+    const errors = [];
+    const editor = createEditor(CANONICAL_IDS, {
+        onError: (error, message) => {
+            errors.push({ error, message });
+        },
+    });
+    editor.downloadImage = () => Promise.reject(new Error('download failed'));
+    editor.undo = () => Promise.reject(new Error('undo failed'));
+    editor.redo = () => Promise.reject(new Error('redo failed'));
+
+    document
+        .getElementById(CANONICAL_IDS.downloadImageButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.undoButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.redoButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(
+        errors.map((entry) => [entry.message, entry.error.message]),
+        [
+            ['downloadImage failed.', 'download failed'],
+            ['undo failed.', 'undo failed'],
+            ['redo failed.', 'redo failed'],
+        ],
+    );
 });
 
 test('optional DOM bindings accept null values without binding', () => {
@@ -274,7 +316,7 @@ test('Crop ratio select is passed to enterCropMode and live crop updates', () =>
         .getElementById(CANONICAL_IDS.enterCropModeButton)
         .dispatchEvent(new window.Event('click', { bubbles: true }));
 
-    editor.cropSession = {};
+    setCropSession(editor, {});
     ratioSelect.value = '4:3';
     ratioSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 
@@ -288,8 +330,8 @@ test('Text mode size input updates live config without overwriting active typing
     const window = installDom();
     const editor = createEditor();
 
-    editor.textSession = { mode: 'text' };
-    editor.canvas.activeObject = {
+    setTextSession(editor, { mode: 'text' });
+    requireEditorCanvas(editor).activeObject = {
         editorObjectKind: 'annotation',
         annotationId: 1,
         annotationType: 'text',
@@ -310,8 +352,8 @@ test('Draw mode size input updates live config without overwriting active draggi
     const window = installDom();
     const editor = createEditor();
 
-    editor.drawSession = { mode: 'draw' };
-    editor.canvas.activeObject = {
+    setDrawSession(editor, { mode: 'draw' });
+    requireEditorCanvas(editor).activeObject = {
         editorObjectKind: 'annotation',
         annotationId: 2,
         annotationType: 'draw',
@@ -326,7 +368,7 @@ test('Draw mode size input updates live config without overwriting active draggi
     assert.equal(drawSizeInput.value, '18.');
     assert.equal(document.activeElement, drawSizeInput);
     assert.equal(drawSizeInput.disabled, false);
-    assert.equal(editor.canvas.freeDrawingBrush.width, 18);
+    assert.equal(requireEditorCanvas(editor).freeDrawingBrush.width, 18);
 });
 
 test('removed v1 DOM key names are ignored at runtime', () => {
@@ -368,7 +410,7 @@ test('init re-checks global Fabric when construction happened before Fabric load
 
         globalThis.fabric = makeFabricStub();
         assert.doesNotThrow(() => editor.init(CANONICAL_IDS));
-        assert.ok(editor.canvas, 'init must recover once global Fabric is available');
+        assert.ok(getEditorCanvas(editor), 'init must recover once global Fabric is available');
     } finally {
         console.error = originalConsoleError;
         globalThis.fabric = originalFabric;

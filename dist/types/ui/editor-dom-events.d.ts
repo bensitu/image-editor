@@ -1,7 +1,14 @@
+/**
+ * DOM event binding for ImageEditor controls.
+ *
+ * This module maps canonical element keys to UI event listeners and delegates
+ * the resulting actions through an explicit command surface.
+ */
 import type { ElementKey } from '../core/editor-elements.js';
 import type { DomBindings } from './dom-bindings.js';
 type MaybePromise<T = void> = T | Promise<T>;
 export interface EditorDomEventActions {
+    reportAsyncActionError(operation: string, error: unknown): void;
     openImagePicker(): void;
     loadImageFile(file: File): MaybePromise;
     zoomIn(): MaybePromise;

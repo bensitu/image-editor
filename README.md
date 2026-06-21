@@ -299,6 +299,11 @@ and the documented public types. Internal helpers (animation queue, command, his
 manager, controllers, services, managers, utility modules) are intentionally
 not exported and may change without notice.
 
+The facade delegates most mutable implementation state through an internal
+`EditorRuntime` plus action/context adapters. This does not add any public
+entry points; consumers should continue to import from `@bensitu/image-editor`
+only.
+
 ### Object model
 
 Every editor-owned Fabric object carries strict `editorObjectKind` metadata:

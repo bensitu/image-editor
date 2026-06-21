@@ -1,3 +1,9 @@
+/**
+ * Mosaic mode action adapters for the ImageEditor facade.
+ *
+ * These helpers guard Mosaic session entry, exit, and configuration updates
+ * before delegating to the Mosaic controller.
+ */
 import type * as FabricNS from 'fabric';
 import type { BaseImageObject, ImageEditorCallbackContext, ImageEditorOperation, MosaicConfig, ResolvedMosaicConfig, ResolvedOptions } from '../core/public-types.js';
 import { type MosaicControllerContext, type MosaicSession } from './mosaic-controller.js';

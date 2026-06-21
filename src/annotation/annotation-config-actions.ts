@@ -1,3 +1,10 @@
+/**
+ * Annotation configuration action adapters for Text and Draw tools.
+ *
+ * These helpers normalize runtime config patches, apply live tool updates,
+ * and route selected-annotation style changes through the facade callbacks.
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {

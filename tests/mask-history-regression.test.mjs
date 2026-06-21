@@ -37,6 +37,7 @@ import {
     loadFixtureImage,
     resetEditorDom,
 } from './helpers/fabric-environment.mjs';
+import { requireEditorCanvas } from './helpers/editor-internals.mjs';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
 
@@ -80,11 +81,12 @@ test('undo after a mask control transform restores the previous mask geometry', 
 
     mask.set({ scaleX: 1.75, scaleY: 1.5, angle: 35 });
     mask.setCoords();
-    editor.canvas.fire('object:modified', { target: mask });
+    const canvas = requireEditorCanvas(editor);
+    canvas.fire('object:modified', { target: mask });
 
     await editor.undo();
 
-    const restoredMasks = editor.canvas.getObjects().filter(isMask);
+    const restoredMasks = canvas.getObjects().filter(isMask);
     assert.equal(restoredMasks.length, 1, 'undo must keep the mask instead of removing it');
     const restoredMask = restoredMasks[0];
     assert.equal(restoredMask.maskId, original.maskId);
@@ -108,12 +110,13 @@ test('duplicate mask modified events do not add a no-op undo step', async (t) =>
 
     mask.set({ scaleX: 1.75, scaleY: 1.5 });
     mask.setCoords();
-    editor.canvas.fire('object:modified', { target: mask });
-    editor.canvas.fire('object:modified', { target: mask });
+    const canvas = requireEditorCanvas(editor);
+    canvas.fire('object:modified', { target: mask });
+    canvas.fire('object:modified', { target: mask });
 
     await editor.undo();
 
-    const restoredMask = editor.canvas.getObjects().filter(isMask)[0];
+    const restoredMask = canvas.getObjects().filter(isMask)[0];
     assert.equal(restoredMask.scaleX ?? 1, 1);
     assert.equal(restoredMask.scaleY ?? 1, 1);
 });
@@ -132,7 +135,7 @@ test('creating a mask after merge undo places it next to the restored last mask'
     await editor.mergeMasks();
     await editor.undo();
 
-    const restoredFirstMask = editor.canvas
+    const restoredFirstMask = requireEditorCanvas(editor)
         .getObjects()
         .filter(isMask)
         .find((mask) => mask.maskId === firstMask.maskId);

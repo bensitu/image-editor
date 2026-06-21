@@ -1,3 +1,9 @@
+/**
+ * Context factory for subsystem controllers and services.
+ *
+ * The factory converts runtime accessors into the small context objects used
+ * by image, mask, crop, export, annotation, and mosaic modules.
+ */
 import type * as FabricNS from 'fabric';
 import { type TextControllerContext, type TextSession } from '../annotation/text-controller.js';
 import type { DrawControllerContext, DrawSession } from '../annotation/draw-controller.js';

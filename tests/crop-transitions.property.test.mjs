@@ -222,7 +222,7 @@ function makeOriginalImage() {
  *   - `saveStateCalls` / `loadFromStateCalls` recording every
  *     snapshot capture and restore so the test can assert ordering.
  *   - `sessionPointer` — the live `CropSession | null` ref the
- *     controller reads/writes. The orchestrator owns this in
+ *     controller reads/writes. The editor runtime owns this in
  *     production; here a plain object suffices.
  *
  * @param {object}  args
@@ -271,7 +271,7 @@ function makeContext({ failLoadImage = false } = {}) {
         }
     };
 
-    // Session pointer ref — orchestrator-owned in production. The
+    // Session pointer ref — runtime-owned in production. The
     // controller reads/writes it through the
     // `getCropSession` / `setCropSession` callbacks.
     const sessionRef = { current: null };

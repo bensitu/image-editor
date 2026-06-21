@@ -1,3 +1,10 @@
+/**
+ * Queued transform action adapters for scale, rotate, flip, and reset.
+ *
+ * The facade uses these helpers to enforce animation queue ordering and
+ * busy-state callbacks before calling the transform controller.
+ */
+
 import type { ImageEditorCallbackContext, ImageEditorOperation } from '../core/public-types.js';
 import type { TransformController } from './transform-controller.js';
 

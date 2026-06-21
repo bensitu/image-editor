@@ -2,80 +2,6 @@
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
-class AnimationQueue {
-    constructor() {
-        Object.defineProperty(this, "queue", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: []
-        });
-        Object.defineProperty(this, "running", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-    }
-    add(animationFn) {
-        return new Promise((resolve, reject) => {
-            this.queue.push({ run: animationFn, resolve, reject });
-            if (!this.running) {
-                void this.drainQueue();
-            }
-        });
-    }
-    clear(reason) {
-        const pending = this.queue;
-        this.queue = [];
-        if (reason !== undefined) {
-            for (const entry of pending) {
-                entry.reject(reason);
-            }
-        }
-        else {
-            for (const entry of pending) {
-                entry.resolve();
-            }
-        }
-    }
-    isRunning() {
-        return this.running;
-    }
-    isBusy() {
-        return this.running || this.queue.length > 0;
-    }
-    waitForIdle() {
-        if (!this.running && this.queue.length === 0) {
-            return Promise.resolve();
-        }
-        return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
-    }
-    async drainQueue() {
-        if (this.running)
-            return;
-        this.running = true;
-        try {
-            while (this.queue.length > 0) {
-                const entry = this.queue.shift();
-                try {
-                    await entry.run();
-                    entry.resolve();
-                }
-                catch (error) {
-                    entry.reject(error);
-                }
-            }
-        }
-        finally {
-            this.running = false;
-            if (this.queue.length > 0) {
-                void this.drainQueue();
-            }
-        }
-    }
-}
-
 function reportWarning(options, error, message) {
     const warningCallback = options.onWarning;
     if (typeof warningCallback !== 'function')
@@ -959,266 +885,6 @@ function resolveOptions(input) {
         defaultTextConfig,
         defaultDrawConfig,
     });
-}
-
-class OperationGuard {
-    constructor() {
-        Object.defineProperty(this, "isAnimationActive", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "isDisposedFlag", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "isLoadingActive", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "currentOperationName", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "currentOperationToken", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "animationAborters", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Set()
-        });
-    }
-    isAnimating() {
-        return this.isAnimationActive;
-    }
-    isDisposed() {
-        return this.isDisposedFlag;
-    }
-    isLoading() {
-        return this.isLoadingActive;
-    }
-    activeOperationName() {
-        return this.currentOperationName;
-    }
-    isBusy() {
-        return (this.isAnimationActive || this.isLoadingActive || this.currentOperationToken !== null);
-    }
-    beginAnimation() {
-        this.isAnimationActive = true;
-    }
-    endAnimation() {
-        this.isAnimationActive = false;
-    }
-    markDisposed() {
-        this.isDisposedFlag = true;
-        this.isAnimationActive = false;
-        this.isLoadingActive = false;
-        this.currentOperationName = null;
-        this.currentOperationToken = null;
-        for (const abort of this.animationAborters) {
-            try {
-                abort();
-            }
-            catch {
-            }
-        }
-        this.animationAborters.clear();
-    }
-    registerAnimationAborter(abort) {
-        if (this.isDisposedFlag) {
-            try {
-                abort();
-            }
-            catch {
-            }
-            return () => undefined;
-        }
-        this.animationAborters.add(abort);
-        return () => {
-            this.animationAborters.delete(abort);
-        };
-    }
-    beginLoading() {
-        this.isLoadingActive = true;
-    }
-    endLoading() {
-        this.isLoadingActive = false;
-    }
-    beginBusyOperation(operationName) {
-        const token = Symbol(operationName);
-        this.currentOperationName = operationName;
-        this.currentOperationToken = token;
-        return token;
-    }
-    endBusyOperation(token) {
-        if (token && token === this.currentOperationToken) {
-            this.currentOperationName = null;
-            this.currentOperationToken = null;
-        }
-    }
-    isOwnOperation(token) {
-        return !!token && token === this.currentOperationToken;
-    }
-    async runAnimation(animationTask) {
-        this.beginAnimation();
-        try {
-            return await animationTask();
-        }
-        finally {
-            this.endAnimation();
-        }
-    }
-    assertNotAnimating(operationLabel) {
-        if (this.isAnimationActive) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
-        }
-    }
-    assertIdleForOperation(operationLabel, token) {
-        var _a;
-        if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
-        }
-        const ownOperation = this.isOwnOperation(token);
-        if (this.isAnimationActive) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
-        }
-        if (this.isLoadingActive && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
-        }
-        if (this.currentOperationToken && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
-        }
-    }
-    assertCanQueueAnimation(operationLabel, token) {
-        var _a;
-        if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
-        }
-        const ownOperation = this.isOwnOperation(token);
-        if (this.isLoadingActive && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
-        }
-        if (this.currentOperationToken && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
-        }
-    }
-}
-
-class Command {
-    constructor(execute, undo) {
-        Object.defineProperty(this, "execute", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "undo", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.execute = execute;
-        this.undo = undo;
-    }
-}
-class HistoryManager {
-    constructor(maxSize = 50) {
-        Object.defineProperty(this, "history", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: []
-        });
-        Object.defineProperty(this, "currentIndex", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: -1
-        });
-        Object.defineProperty(this, "isProcessing", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "maxSize", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.maxSize = maxSize;
-    }
-    async execute(command) {
-        await command.execute();
-        this.pushAndTrim(command);
-    }
-    push(command) {
-        this.pushAndTrim(command);
-    }
-    canUndo() {
-        return this.currentIndex >= 0;
-    }
-    canRedo() {
-        return this.currentIndex < this.history.length - 1;
-    }
-    async undo() {
-        if (this.isProcessing || !this.canUndo())
-            return;
-        this.isProcessing = true;
-        try {
-            const cmd = this.history[this.currentIndex];
-            if (!cmd)
-                return;
-            await cmd.undo();
-            this.currentIndex--;
-        }
-        finally {
-            this.isProcessing = false;
-        }
-    }
-    async redo() {
-        if (this.isProcessing || !this.canRedo())
-            return;
-        this.isProcessing = true;
-        try {
-            const cmd = this.history[this.currentIndex + 1];
-            if (!cmd)
-                return;
-            await cmd.execute();
-            this.currentIndex++;
-        }
-        finally {
-            this.isProcessing = false;
-        }
-    }
-    pushAndTrim(command) {
-        if (this.currentIndex < this.history.length - 1) {
-            this.history = this.history.slice(0, this.currentIndex + 1);
-        }
-        this.history.push(command);
-        if (this.history.length > this.maxSize) {
-            this.history.shift();
-        }
-        else {
-            this.currentIndex++;
-        }
-    }
 }
 
 function isBaseImageObject(object) {
@@ -2289,6 +1955,109 @@ function attachTextEditingHandlersToAnnotations(context, annotations) {
     });
 }
 
+class Command {
+    constructor(execute, undo) {
+        Object.defineProperty(this, "execute", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "undo", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.execute = execute;
+        this.undo = undo;
+    }
+}
+class HistoryManager {
+    constructor(maxSize = 50) {
+        Object.defineProperty(this, "history", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
+        Object.defineProperty(this, "currentIndex", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: -1
+        });
+        Object.defineProperty(this, "isProcessing", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "maxSize", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.maxSize = maxSize;
+    }
+    async execute(command) {
+        await command.execute();
+        this.pushAndTrim(command);
+    }
+    push(command) {
+        this.pushAndTrim(command);
+    }
+    canUndo() {
+        return this.currentIndex >= 0;
+    }
+    canRedo() {
+        return this.currentIndex < this.history.length - 1;
+    }
+    async undo() {
+        if (this.isProcessing || !this.canUndo())
+            return;
+        this.isProcessing = true;
+        try {
+            const cmd = this.history[this.currentIndex];
+            if (!cmd)
+                return;
+            await cmd.undo();
+            this.currentIndex--;
+        }
+        finally {
+            this.isProcessing = false;
+        }
+    }
+    async redo() {
+        if (this.isProcessing || !this.canRedo())
+            return;
+        this.isProcessing = true;
+        try {
+            const cmd = this.history[this.currentIndex + 1];
+            if (!cmd)
+                return;
+            await cmd.execute();
+            this.currentIndex++;
+        }
+        finally {
+            this.isProcessing = false;
+        }
+    }
+    pushAndTrim(command) {
+        if (this.currentIndex < this.history.length - 1) {
+            this.history = this.history.slice(0, this.currentIndex + 1);
+        }
+        this.history.push(command);
+        if (this.history.length > this.maxSize) {
+            this.history.shift();
+        }
+        else {
+            this.currentIndex++;
+        }
+    }
+}
+
 async function loadFromStateAction(access, jsonString, options) {
     var _a, _b, _c;
     const canvas = access.getCanvas();
@@ -2463,14 +2232,8 @@ function restoreActiveSelection(access, restoredState, editorState, context) {
     }
 }
 function getActiveMaskForSnapshot(canvas) {
-    var _a;
     const activeObject = canvas.getActiveObject();
-    if (activeObject && isMaskObject(activeObject))
-        return activeObject;
-    const labeledMasks = canvas
-        .getObjects()
-        .filter((object) => isMaskObject(object) && !!object.labelObject);
-    return labeledMasks.length === 1 ? ((_a = labeledMasks[0]) !== null && _a !== void 0 ? _a : null) : null;
+    return activeObject && isMaskObject(activeObject) ? activeObject : null;
 }
 function getActiveAnnotationForSnapshot(canvas) {
     const activeObject = canvas.getActiveObject();
@@ -2719,7 +2482,7 @@ function renderAnnotationList(context) {
         item.className = 'list-group-item annotation-item';
         item.textContent = annotation.annotationName;
         item.dataset.annotationId = String(annotation.annotationId);
-        item.onclick = () => {
+        item.addEventListener('click', () => {
             const id = Number(item.dataset.annotationId);
             if (!Number.isFinite(id))
                 return;
@@ -2728,7 +2491,7 @@ function renderAnnotationList(context) {
                 return;
             canvas.setActiveObject(target);
             context.onAnnotationSelected(target);
-        };
+        });
         listEl.appendChild(item);
     });
 }
@@ -5112,6 +4875,8 @@ function captureActiveObject(canvas) {
 function restoreActiveObject(canvas, activeObject) {
     if (!activeObject)
         return;
+    if (!canvas.getObjects().includes(activeObject))
+        return;
     try {
         const canvasWithSelection = canvas;
         if (typeof canvasWithSelection.setActiveObject === 'function') {
@@ -5225,6 +4990,18 @@ async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument
         for (let x = 0; x < width; x += 1)
             sealPixel(x, height - 1, x, height - 2);
     }
+    if ((edges === null || edges === void 0 ? void 0 : edges.left) && (edges === null || edges === void 0 ? void 0 : edges.top) && width > 1 && height > 1) {
+        sealPixel(0, 0, 1, 1);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.right) && (edges === null || edges === void 0 ? void 0 : edges.top) && width > 1 && height > 1) {
+        sealPixel(width - 1, 0, width - 2, 1);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.left) && (edges === null || edges === void 0 ? void 0 : edges.bottom) && width > 1 && height > 1) {
+        sealPixel(0, height - 1, 1, height - 2);
+    }
+    if ((edges === null || edges === void 0 ? void 0 : edges.right) && (edges === null || edges === void 0 ? void 0 : edges.bottom) && width > 1 && height > 1) {
+        sealPixel(width - 1, height - 1, width - 2, height - 2);
+    }
     canvasContext.putImageData(imageData, 0, 0);
     return target.quality === undefined
         ? offscreenCanvas.toDataURL(target.mimeType)
@@ -5233,6 +5010,7 @@ async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument
 function getJpegBackgroundColor(backgroundColor, ownerDocument) {
     return resolveCanvasFillStyle(backgroundColor, ownerDocument);
 }
+const colorValidationContexts = new WeakMap();
 function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#ffffff') {
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
@@ -5255,10 +5033,17 @@ function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#fff
     return fallback;
 }
 function createColorValidationContext(ownerDocument) {
+    var _a;
+    if (colorValidationContexts.has(ownerDocument)) {
+        return (_a = colorValidationContexts.get(ownerDocument)) !== null && _a !== void 0 ? _a : null;
+    }
     try {
-        return ownerDocument.createElement('canvas').getContext('2d');
+        const context = ownerDocument.createElement('canvas').getContext('2d');
+        colorValidationContexts.set(ownerDocument, context);
+        return context;
     }
     catch {
+        colorValidationContexts.set(ownerDocument, null);
         return null;
     }
 }
@@ -5282,7 +5067,7 @@ function isTransparentCssColor(value) {
         const alpha = digits.length === 4 ? digits[3] : digits.slice(6, 8);
         return /^0+$/.test(alpha);
     }
-    const commaAlpha = normalized.match(/^(?:rgba|hsla)\((.*),\s*([^,/)]+)\)$/i);
+    const commaAlpha = normalized.match(/^(?:rgba|hsla)\(([^)]{0,200}),\s*([^,/)]{0,50})\)$/i);
     if (commaAlpha && isZeroCssAlpha(commaAlpha[2]))
         return true;
     const slashAlpha = normalized.match(/^[a-z][a-z0-9-]*\([^/]+\/\s*([^)]+)\)$/i);
@@ -5324,7 +5109,7 @@ function dataUrlToBytes(dataUrl) {
         const binary = globalThis.atob(base64);
         const buffer = new ArrayBuffer(binary.length);
         const bytes = new Uint8Array(buffer);
-        for (let i = binary.length - 1; i >= 0; i -= 1) {
+        for (let i = 0; i < binary.length; i += 1) {
             bytes[i] = binary.charCodeAt(i);
         }
         return bytes;
@@ -5440,23 +5225,19 @@ async function downloadImage(context, options) {
     if (options !== undefined && options !== null && typeof options !== 'object') {
         throw new TypeError('[ImageEditor] downloadImage(options) expects an ImageExportOptions object.');
     }
-    try {
-        const file = await exportImageFile(context, options);
-        triggerFileDownload(context, file);
-    }
-    catch (error) {
-        reportError(context.options, error, 'downloadImage failed.');
-        console.error('[ImageEditor] downloadImage failed', error);
-        throw error;
-    }
+    const file = await exportImageFile(context, options);
+    triggerFileDownload(context, file);
 }
 function triggerFileDownload(context, file) {
+    var _a;
     const ownerDocument = getCanvasDocument$1(context.canvas);
     const objectUrl = URL.createObjectURL(file);
     const link = ownerDocument.createElement('a');
     link.download = file.name;
     link.href = objectUrl;
-    const body = ownerDocument.body;
+    const body = (_a = ownerDocument.body) !== null && _a !== void 0 ? _a : ownerDocument.documentElement;
+    if (!body)
+        throw new Error('Document body is unavailable for download trigger.');
     body.appendChild(link);
     try {
         link.click();
@@ -6532,6 +6313,467 @@ function runQueuedTransformAction(access, operation, runControllerAction) {
     });
 }
 
+class EditorActionAccessFactory {
+    constructor(runtime, callbacks, contextFactory) {
+        Object.defineProperty(this, "runtime", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: runtime
+        });
+        Object.defineProperty(this, "callbacks", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: callbacks
+        });
+        Object.defineProperty(this, "contextFactory", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: contextFactory
+        });
+    }
+    buildBusyOperationAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            beginBusyOperation: (operation) => runtime.operationGuard.beginBusyOperation(operation),
+            endBusyOperation: (token) => {
+                runtime.operationGuard.endBusyOperation(token);
+            },
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            emitBusyChangeIfChanged: (context) => {
+                callbacks.emitBusyChangeIfChanged(context);
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+        };
+    }
+    buildTransformActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            isDisposed: () => runtime.isDisposed,
+            getTransformController: () => runtime.transformController,
+            assertCanQueueAnimation: (operation) => {
+                callbacks.assertCanQueueAnimation(operation);
+            },
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            enqueueAnimation: (body) => runtime.animQueue.add(body),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            refreshUiAfterQueuedAnimation: () => {
+                callbacks.refreshUiAfterQueuedAnimation();
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                callbacks.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
+    buildEditorStateActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getLiveCanvas: (operationName) => runtime.getLiveCanvasOrThrow(operationName),
+            getOptions: () => runtime.options,
+            isDisposed: () => runtime.isDisposed,
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
+            getActiveStateRestoreOperation: () => runtime.activeStateRestoreOperation,
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            getOriginalImage: () => runtime.originalImage,
+            setOriginalImage: (image) => {
+                runtime.originalImage = image;
+            },
+            getMaskCollectionSignature: () => callbacks.getMaskCollectionSignature(),
+            getAnnotationCollectionSignature: () => callbacks.getAnnotationCollectionSignature(),
+            setCanvasSize: (widthPx, heightPx) => {
+                callbacks.setCanvasSize(widthPx, heightPx);
+            },
+            hideAllMaskLabels: () => {
+                callbacks.hideAllMaskLabels();
+            },
+            inferCurrentImageMimeType: () => callbacks.inferCurrentImageMimeType(),
+            setCurrentImageMimeType: (mimeType) => {
+                runtime.currentImageMimeType = mimeType;
+            },
+            setIsImageLoadedToCanvas: (value) => {
+                runtime.isImageLoadedToCanvas = value;
+            },
+            setMaskCounter: (value) => {
+                runtime.maskCounter = value;
+            },
+            setAnnotationCounter: (value) => {
+                runtime.annotationCounter = value;
+            },
+            setCurrentScale: (value) => {
+                runtime.currentScale = value;
+            },
+            setCurrentRotation: (value) => {
+                runtime.currentRotation = value;
+            },
+            setBaseImageScale: (value) => {
+                runtime.baseImageScale = value;
+            },
+            setLastMask: (mask) => {
+                runtime.lastMask = mask;
+            },
+            getLastSnapshot: () => runtime.lastSnapshot,
+            setLastSnapshot: (snapshot) => {
+                runtime.lastSnapshot = snapshot;
+            },
+            shouldNormalizeCanvasSizeAfterStateRestore: () => callbacks.shouldNormalizeCanvasSizeAfterStateRestore(),
+            updateCanvasSizeToImageBounds: (options) => {
+                callbacks.updateCanvasSizeToImageBounds(options);
+            },
+            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+                callbacks.alignObjectBoundingBoxToCanvasTopLeft(object);
+            },
+            settleFitCoverScrollbarsAfterStateRestore: () => {
+                callbacks.settleFitCoverScrollbarsAfterStateRestore();
+            },
+            buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
+            updateMaskList: () => {
+                callbacks.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                callbacks.updateAnnotationList();
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            emitImageCleared: (image, context) => {
+                callbacks.emitImageCleared(image, context);
+            },
+            emitMasksChanged: (context) => {
+                callbacks.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                callbacks.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+            withSelectionChangeContext: (context, callback) => callbacks.withSelectionChangeContext(context, callback),
+            handleSelectionChanged: (selected) => {
+                callbacks.handleSelectionChanged(selected);
+            },
+            shouldSuppressSaveState: () => runtime.shouldSuppressSaveState,
+            getCurrentScale: () => runtime.currentScale,
+            getCurrentRotation: () => runtime.currentRotation,
+            getBaseImageScale: () => runtime.baseImageScale,
+            getCurrentImageMimeType: () => runtime.currentImageMimeType,
+            getHistoryManager: () => runtime.historyManager,
+            withAnimationQueueBypass: () => callbacks.withAnimationQueueBypass(),
+            showLabelForMask: (mask) => {
+                callbacks.showLabelForMask(mask);
+            },
+            updateMaskListSelection: (mask) => {
+                callbacks.updateMaskListSelection(mask);
+            },
+            updateAnnotationListSelection: (annotation) => {
+                callbacks.updateAnnotationListSelection(annotation);
+            },
+        };
+    }
+    buildMaskActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getMasks: () => callbacks.getMasks(),
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            buildCreateMaskContext: () => this.contextFactory.buildCreateMaskContext(),
+            buildRemoveMaskContext: () => this.contextFactory.buildRemoveMaskContext(),
+            withSelectionChangeContext: (context, callback) => callbacks.withSelectionChangeContext(context, callback),
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                callbacks.emitMasksChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+        };
+    }
+    buildSelectionControllerAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            removeLabelForMask: (mask) => {
+                callbacks.removeLabelForMask(mask);
+            },
+            showLabelForMask: (mask) => {
+                callbacks.showLabelForMask(mask);
+            },
+            syncMaskLabel: (mask) => {
+                callbacks.syncMaskLabel(mask);
+            },
+            updateMaskListSelection: (mask) => {
+                callbacks.updateMaskListSelection(mask);
+            },
+            updateAnnotationListSelection: (annotation) => {
+                callbacks.updateAnnotationListSelection(annotation);
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            saveState: () => {
+                callbacks.saveState();
+            },
+            getNextSelectionChangeContext: () => runtime.nextSelectionChangeContext,
+            getActiveStateRestoreOperation: () => runtime.activeStateRestoreOperation,
+            buildSelection: (selected) => callbacks.buildSelection(selected),
+            buildCallbackContext: (operation, isHistoryRestore) => callbacks.buildCallbackContext(operation, isHistoryRestore),
+            emitSelectionChange: (selection, context) => {
+                callbacks.emitSelectionChange(selection, context);
+            },
+            emitMasksChanged: (context) => {
+                callbacks.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                callbacks.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+        };
+    }
+    buildAnnotationModeActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getTextSession: () => runtime.textSession,
+            getDrawSession: () => runtime.drawSession,
+            isToolModeActive: () => runtime.cropSession !== null ||
+                runtime.mosaicSession !== null ||
+                runtime.textSession !== null ||
+                runtime.drawSession !== null,
+            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
+            buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            emitBusyChangeIfChanged: (context) => {
+                callbacks.emitBusyChangeIfChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+        };
+    }
+    buildEditableObjectActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getLiveCanvas: (operationName) => runtime.getLiveCanvasOrThrow(operationName),
+            buildAnnotationManagerContext: () => this.contextFactory.buildAnnotationManagerContext(),
+            getMasks: () => callbacks.getMasks(),
+            getAnnotations: () => callbacks.getAnnotations(),
+            removeLabelForMask: (mask) => {
+                callbacks.removeLabelForMask(mask);
+            },
+            withSelectionChangeContext: (context, callback) => callbacks.withSelectionChangeContext(context, callback),
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            saveState: () => {
+                callbacks.saveState();
+            },
+            updateMaskList: () => {
+                callbacks.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                callbacks.updateAnnotationList();
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                callbacks.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                callbacks.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+            reportWarning: (message) => {
+                callbacks.reportWarning(null, message);
+            },
+        };
+    }
+    buildAnnotationConfigActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            isTextMode: () => runtime.textSession !== null,
+            isDrawMode: () => runtime.drawSession !== null,
+            getCurrentTextConfig: () => runtime.currentTextConfig,
+            setCurrentTextConfig: (config) => {
+                runtime.currentTextConfig = config;
+            },
+            getDefaultTextConfig: () => runtime.defaultTextConfig,
+            getCurrentDrawConfig: () => runtime.currentDrawConfig,
+            setCurrentDrawConfig: (config) => {
+                runtime.currentDrawConfig = config;
+            },
+            getDefaultDrawConfig: () => runtime.defaultDrawConfig,
+            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            updateSelectedAnnotation: (config) => {
+                callbacks.updateSelectedAnnotation(config);
+            },
+            setTextColor: (color) => {
+                callbacks.setTextColor(color);
+            },
+            setTextFontSize: (size) => {
+                callbacks.setTextFontSize(size);
+            },
+            setDrawColor: (color) => {
+                callbacks.setDrawColor(color);
+            },
+            setDrawBrushSize: (size) => {
+                callbacks.setDrawBrushSize(size);
+            },
+            reportWarning: (error, message) => {
+                callbacks.reportWarning(error, message);
+            },
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+        };
+    }
+    buildExportActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getAnnotations: () => callbacks.getAnnotations(),
+            getMasks: () => callbacks.getMasks(),
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
+            assertIdleForOperation: (operation, options) => {
+                callbacks.assertIdleForOperation(operation, options);
+            },
+            finalizeActiveTextEditingIfNeeded: () => {
+                callbacks.finalizeActiveTextEditingIfNeeded();
+            },
+            buildExportServiceContext: () => this.contextFactory.buildExportServiceContext(),
+            buildMergeMasksContext: (token) => this.contextFactory.buildMergeMasksContext(token),
+            buildMergeAnnotationsContext: (token) => this.contextFactory.buildMergeAnnotationsContext(token),
+            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
+            updateMaskList: () => {
+                callbacks.updateMaskList();
+            },
+            updateAnnotationList: () => {
+                callbacks.updateAnnotationList();
+            },
+            emitMasksChanged: (context) => {
+                callbacks.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                callbacks.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+        };
+    }
+    buildMosaicActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getOriginalImage: () => runtime.originalImage,
+            getMosaicSession: () => runtime.mosaicSession,
+            getMosaicConfig: () => runtime.currentMosaicConfig,
+            setMosaicConfig: (config) => {
+                runtime.currentMosaicConfig = config;
+            },
+            getDefaultMosaicConfig: () => runtime.defaultMosaicConfig,
+            getOptions: () => runtime.options,
+            isDisposed: () => runtime.isDisposed,
+            isImageLoaded: () => runtime.isImageLoaded(),
+            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            buildMosaicControllerContext: () => this.contextFactory.buildMosaicControllerContext(),
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                callbacks.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
+    buildCropActionAccess() {
+        const { runtime, callbacks } = this;
+        return {
+            getCanvas: () => runtime.canvas,
+            getOriginalImage: () => runtime.originalImage,
+            getCropSession: () => runtime.cropSession,
+            setCropSession: (session) => {
+                runtime.cropSession = session;
+            },
+            isImageLoaded: () => runtime.isImageLoaded(),
+            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            buildCropControllerContext: (token) => this.contextFactory.buildCropControllerContext(token),
+            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
+            buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            getMasks: () => callbacks.getMasks(),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
+            updateMaskList: () => {
+                callbacks.updateMaskList();
+            },
+            updateUi: () => {
+                callbacks.updateUi();
+            },
+            emitMasksChanged: (context) => {
+                callbacks.emitMasksChanged(context);
+            },
+            emitImageChanged: (context) => {
+                callbacks.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                callbacks.emitBusyChangeIfChanged(context);
+            },
+        };
+    }
+}
+
+function setPlaceholderVisible(placeholderElement, containerElement, show) {
+    if (placeholderElement) {
+        placeholderElement.hidden = !show;
+        placeholderElement.setAttribute('aria-hidden', show ? 'false' : 'true');
+    }
+    if (containerElement) {
+        containerElement.hidden = show;
+        containerElement.setAttribute('aria-hidden', show ? 'true' : 'false');
+    }
+}
+
 const POLYGON_AREA_EPSILON = 1e-6;
 function createMaskUid(maskId) {
     return `mask-${maskId}`;
@@ -7270,6 +7512,687 @@ class EditorContextFactory {
     }
 }
 
+function createEditorContextFactory(runtime, callbacks) {
+    return new EditorContextFactory({
+        getFabric: () => runtime.fabricModule,
+        getOptions: () => runtime.options,
+        getRuntimeOptions: () => runtime.getRuntimeOptions(),
+        getHistoryManager: () => runtime.historyManager,
+        getOperationGuard: () => runtime.operationGuard,
+        getCanvas: () => runtime.canvas,
+        getLiveCanvas: (operationName) => runtime.getLiveCanvasOrThrow(operationName),
+        getContainerElement: () => runtime.containerElement,
+        getPlaceholderElement: () => runtime.placeholderElement,
+        getViewportCache: () => runtime.viewportCache,
+        isDisposed: () => runtime.isDisposed,
+        isImageLoaded: () => runtime.isImageLoaded(),
+        getOriginalImage: () => runtime.originalImage,
+        setOriginalImage: (image) => {
+            runtime.originalImage = image;
+        },
+        getIsImageLoadedToCanvas: () => runtime.isImageLoadedToCanvas,
+        setIsImageLoadedToCanvas: (value) => {
+            runtime.isImageLoadedToCanvas = value;
+        },
+        getCurrentImageMimeType: () => runtime.currentImageMimeType,
+        setCurrentImageMimeType: (mimeType) => {
+            runtime.currentImageMimeType = mimeType;
+        },
+        getLastSnapshot: () => runtime.lastSnapshot,
+        setLastSnapshot: (snapshot) => {
+            runtime.lastSnapshot = snapshot;
+        },
+        getCurrentScale: () => runtime.currentScale,
+        setCurrentScale: (scale) => {
+            runtime.currentScale = scale;
+        },
+        getCurrentRotation: () => runtime.currentRotation,
+        setCurrentRotation: (rotation) => {
+            runtime.currentRotation = rotation;
+        },
+        getBaseImageScale: () => runtime.baseImageScale,
+        setBaseImageScale: (scale) => {
+            runtime.baseImageScale = scale;
+        },
+        getMaskCounter: () => runtime.maskCounter,
+        setMaskCounter: (value) => {
+            runtime.maskCounter = value;
+        },
+        getLastMask: () => runtime.lastMask,
+        setLastMask: (mask) => {
+            runtime.lastMask = mask;
+        },
+        getAnnotationCounter: () => runtime.annotationCounter,
+        setAnnotationCounter: (value) => {
+            runtime.annotationCounter = value;
+        },
+        getTextConfig: () => runtime.currentTextConfig,
+        getDrawConfig: () => runtime.currentDrawConfig,
+        getMosaicConfig: () => cloneResolvedMosaicConfig(runtime.currentMosaicConfig),
+        getTextSession: () => runtime.textSession,
+        setTextSession: (session) => {
+            runtime.textSession = session;
+        },
+        getDrawSession: () => runtime.drawSession,
+        setDrawSession: (session) => {
+            runtime.drawSession = session;
+        },
+        getMosaicSession: () => runtime.mosaicSession,
+        setMosaicSession: (session) => {
+            runtime.mosaicSession = session;
+        },
+        getCropSession: () => runtime.cropSession,
+        setCropSession: (session) => {
+            runtime.cropSession = session;
+        },
+        saveCanvasState: () => callbacks.saveCanvasState(),
+        saveCanvasStateWithAnimationBypass: () => callbacks.saveCanvasStateWithAnimationBypass(),
+        setSuppressSaveState: (suppress) => {
+            runtime.shouldSuppressSaveState = suppress;
+        },
+        captureSnapshot: () => callbacks.captureSnapshot(),
+        loadImageForOperation: (operationToken, base64, providedOptions) => callbacks.loadImageForOperation(operationToken, base64, providedOptions),
+        loadMergedImage: (operationToken, base64, providedOptions) => callbacks.loadMergedImage(operationToken, base64, providedOptions),
+        loadFromStateForOperation: (operationToken, snapshot) => callbacks.loadFromStateForOperation(operationToken, snapshot),
+        setCanvasSize: (widthPx, heightPx) => {
+            callbacks.setCanvasSize(widthPx, heightPx);
+        },
+        updateCanvasSizeToImageBounds: () => callbacks.updateCanvasSizeToImageBounds(),
+        alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+            callbacks.alignObjectBoundingBoxToCanvasTopLeft(object);
+        },
+        syncMaskLabel: (mask) => {
+            callbacks.syncMaskLabel(mask);
+        },
+        removeLabelForMask: (mask) => {
+            callbacks.removeLabelForMask(mask);
+        },
+        hideAllMaskLabels: () => {
+            callbacks.hideAllMaskLabels();
+        },
+        setPlaceholderVisible: (show) => {
+            setPlaceholderVisible(runtime.placeholderElement, runtime.containerElement, runtime.options.showPlaceholder ? show : false);
+        },
+        updateMaskList: () => callbacks.updateMaskList(),
+        updateAnnotationList: () => callbacks.updateAnnotationList(),
+        updateUi: () => callbacks.updateUi(),
+        updateInputs: () => callbacks.updateInputs(),
+        getMaskListElementId: () => runtime.elements.maskList,
+        handleMaskSelected: (mask) => callbacks.handleSelectionChanged([mask]),
+        getAnnotationListElementId: () => runtime.elements.annotationList,
+        handleAnnotationSelected: (annotation) => callbacks.handleSelectionChanged([annotation]),
+        getMasks: () => callbacks.getMasks(),
+        getAnnotations: () => callbacks.getAnnotations(),
+        emitImageChanged: (context) => {
+            callbacks.emitImageChanged(context);
+        },
+        emitAnnotationsChanged: (context) => {
+            callbacks.emitAnnotationsChanged(context);
+        },
+        emitBusyChangeIfChanged: (context) => {
+            callbacks.emitBusyChangeIfChanged(context);
+        },
+        buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+    });
+}
+
+class AnimationQueue {
+    constructor() {
+        Object.defineProperty(this, "queue", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: []
+        });
+        Object.defineProperty(this, "running", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+    }
+    add(animationFn) {
+        return new Promise((resolve, reject) => {
+            this.queue.push({ run: animationFn, resolve, reject });
+            if (!this.running) {
+                void this.drainQueue();
+            }
+        });
+    }
+    clear(reason) {
+        const pending = this.queue;
+        this.queue = [];
+        if (reason !== undefined) {
+            for (const entry of pending) {
+                entry.reject(reason);
+            }
+        }
+        else {
+            for (const entry of pending) {
+                entry.resolve();
+            }
+        }
+    }
+    isRunning() {
+        return this.running;
+    }
+    isBusy() {
+        return this.running || this.queue.length > 0;
+    }
+    waitForIdle() {
+        if (!this.running && this.queue.length === 0) {
+            return Promise.resolve();
+        }
+        return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
+    }
+    async drainQueue() {
+        if (this.running)
+            return;
+        this.running = true;
+        try {
+            while (this.queue.length > 0) {
+                const entry = this.queue.shift();
+                try {
+                    await entry.run();
+                    entry.resolve();
+                }
+                catch (error) {
+                    entry.reject(error);
+                }
+            }
+        }
+        finally {
+            this.running = false;
+            if (this.queue.length > 0) {
+                void this.drainQueue();
+            }
+        }
+    }
+}
+
+class OperationGuard {
+    constructor() {
+        Object.defineProperty(this, "isAnimationActive", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "isDisposedFlag", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "isLoadingActive", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "currentOperationName", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "currentOperationToken", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "animationAborters", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Set()
+        });
+    }
+    isAnimating() {
+        return this.isAnimationActive;
+    }
+    isDisposed() {
+        return this.isDisposedFlag;
+    }
+    isLoading() {
+        return this.isLoadingActive;
+    }
+    activeOperationName() {
+        return this.currentOperationName;
+    }
+    isBusy() {
+        return (this.isAnimationActive || this.isLoadingActive || this.currentOperationToken !== null);
+    }
+    beginAnimation() {
+        this.isAnimationActive = true;
+    }
+    endAnimation() {
+        this.isAnimationActive = false;
+    }
+    markDisposed() {
+        this.isDisposedFlag = true;
+        this.isAnimationActive = false;
+        this.isLoadingActive = false;
+        this.currentOperationName = null;
+        this.currentOperationToken = null;
+        for (const abort of this.animationAborters) {
+            try {
+                abort();
+            }
+            catch {
+            }
+        }
+        this.animationAborters.clear();
+    }
+    registerAnimationAborter(abort) {
+        if (this.isDisposedFlag) {
+            try {
+                abort();
+            }
+            catch {
+            }
+            return () => undefined;
+        }
+        this.animationAborters.add(abort);
+        return () => {
+            this.animationAborters.delete(abort);
+        };
+    }
+    beginLoading() {
+        this.isLoadingActive = true;
+    }
+    endLoading() {
+        this.isLoadingActive = false;
+    }
+    beginBusyOperation(operationName) {
+        const token = Symbol(operationName);
+        this.currentOperationName = operationName;
+        this.currentOperationToken = token;
+        return token;
+    }
+    endBusyOperation(token) {
+        if (token && token === this.currentOperationToken) {
+            this.currentOperationName = null;
+            this.currentOperationToken = null;
+        }
+    }
+    isOwnOperation(token) {
+        return !!token && token === this.currentOperationToken;
+    }
+    async runAnimation(animationTask) {
+        this.beginAnimation();
+        try {
+            return await animationTask();
+        }
+        finally {
+            this.endAnimation();
+        }
+    }
+    assertNotAnimating(operationLabel) {
+        if (this.isAnimationActive) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+        }
+    }
+    assertIdleForOperation(operationLabel, token) {
+        var _a;
+        if (this.isDisposedFlag) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+        }
+        const ownOperation = this.isOwnOperation(token);
+        if (this.isAnimationActive) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+        }
+        if (this.isLoadingActive && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+        }
+        if (this.currentOperationToken && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
+                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+        }
+    }
+    assertCanQueueAnimation(operationLabel, token) {
+        var _a;
+        if (this.isDisposedFlag) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+        }
+        const ownOperation = this.isOwnOperation(token);
+        if (this.isLoadingActive && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+        }
+        if (this.currentOperationToken && !ownOperation) {
+            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
+                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+        }
+    }
+}
+
+class EditorRuntime {
+    constructor(fabricModule, isFabricLoaded, options) {
+        Object.defineProperty(this, "fabricModule", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "isFabricLoaded", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "options", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentLayoutMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "defaultMosaicConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentMosaicConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "defaultTextConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentTextConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "defaultDrawConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentDrawConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "canvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "canvasElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "containerElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "placeholderElement", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "elements", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: {}
+        });
+        Object.defineProperty(this, "elementOriginalDisabledMap", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "elementOriginalAriaDisabledMap", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "elementOriginalPointerEventsMap", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "originalImage", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "baseImageScale", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 1
+        });
+        Object.defineProperty(this, "currentScale", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 1
+        });
+        Object.defineProperty(this, "currentRotation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "isImageLoadedToCanvas", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "currentImageMimeType", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "maskCounter", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "lastMask", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "annotationCounter", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "lastSnapshot", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "historyManager", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "operationGuard", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new OperationGuard()
+        });
+        Object.defineProperty(this, "animQueue", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new AnimationQueue()
+        });
+        Object.defineProperty(this, "transformController", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "viewportCache", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new ViewportCache()
+        });
+        Object.defineProperty(this, "cropSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "mosaicSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "textSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "drawSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "domBindings", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "keyboardDocument", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "keyboardHandler", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "isDisposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "shouldSuppressSaveState", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        Object.defineProperty(this, "lastEmittedIsBusy", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "activeStateRestoreOperation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "nextSelectionChangeContext", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        this.fabricModule = fabricModule;
+        this.isFabricLoaded = isFabricLoaded;
+        this.options = options;
+        this.currentLayoutMode = options.layoutMode;
+        this.defaultMosaicConfig = options.defaultMosaicConfig;
+        this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
+        this.defaultTextConfig = options.defaultTextConfig;
+        this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
+        this.defaultDrawConfig = options.defaultDrawConfig;
+        this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.historyManager = new HistoryManager(options.maxHistorySize);
+    }
+    getRuntimeOptions() {
+        if (this.currentLayoutMode === this.options.layoutMode)
+            return this.options;
+        return Object.freeze({
+            ...this.options,
+            layoutMode: this.currentLayoutMode,
+        });
+    }
+    getLiveCanvasOrThrow(operationName) {
+        if (this.isDisposed || !this.canvas) {
+            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
+        }
+        return this.canvas;
+    }
+    isImageLoaded() {
+        var _a, _b;
+        return !!(this.originalImage &&
+            this.originalImage instanceof this.fabricModule.FabricImage &&
+            ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
+            ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+    }
+    isBusy(isToolModeActive = false) {
+        return this.operationGuard.isBusy() || this.animQueue.isBusy() || isToolModeActive;
+    }
+    resetAfterDispose() {
+        this.canvas = null;
+        this.canvasElement = null;
+        this.isImageLoadedToCanvas = false;
+        this.originalImage = null;
+        this.currentImageMimeType = null;
+        this.lastMask = null;
+        this.maskCounter = 0;
+        this.annotationCounter = 0;
+        this.currentScale = 1;
+        this.currentRotation = 0;
+        this.baseImageScale = 1;
+        this.lastSnapshot = null;
+        this.transformController = null;
+        this.viewportCache.clear();
+    }
+}
+
 function handleSelectionChanged(access, selected) {
     var _a, _b, _c;
     const canvas = access.getCanvas();
@@ -7646,7 +8569,7 @@ function renderMaskList(context) {
         listItemElement.className = 'list-group-item mask-item';
         listItemElement.textContent = mask.maskName;
         listItemElement.dataset.maskId = String(mask.maskId);
-        listItemElement.onclick = () => {
+        listItemElement.addEventListener('click', () => {
             const id = Number(listItemElement.dataset.maskId);
             if (!Number.isFinite(id))
                 return;
@@ -7657,7 +8580,7 @@ function renderMaskList(context) {
                 return;
             canvas.setActiveObject(target);
             context.onMaskSelected(target);
-        };
+        });
         listEl.appendChild(listItemElement);
     });
 }
@@ -7706,7 +8629,7 @@ function safelyExitActiveSession(hasSession, canvas, exitSession, clearSession) 
 }
 
 class DomBindings {
-    constructor(resolveElementId, isDisposed, resolveDocument = () => document) {
+    constructor(resolveElementId, isDisposed, resolveDocument = () => typeof document !== 'undefined' ? document : null) {
         Object.defineProperty(this, "registry", {
             enumerable: true,
             configurable: true,
@@ -7739,7 +8662,10 @@ class DomBindings {
         const id = this.resolveElementId(key);
         if (!id)
             return false;
-        const element = this.resolveDocument().getElementById(id);
+        const ownerDocument = this.resolveDocument();
+        if (!ownerDocument)
+            return false;
+        const element = ownerDocument.getElementById(id);
         if (!element)
             return false;
         const wrapped = (event) => {
@@ -7756,7 +8682,10 @@ class DomBindings {
             const id = this.resolveElementId(entry.elementKey);
             if (!id)
                 continue;
-            const element = this.resolveDocument().getElementById(id);
+            const ownerDocument = this.resolveDocument();
+            if (!ownerDocument)
+                continue;
+            const element = ownerDocument.getElementById(id);
             if (!element)
                 continue;
             try {
@@ -7953,6 +8882,40 @@ function applyEditorControlState(snapshot, setEnabled) {
     setEnabled('cancelCropButton', false);
 }
 
+function buildEditorControlSnapshot(runtime) {
+    var _a, _b, _c;
+    if (!runtime.canvas)
+        return null;
+    const hasImage = !!runtime.originalImage;
+    const masks = hasImage ? runtime.canvas.getObjects().filter(isMaskObject) : [];
+    const annotations = hasImage ? runtime.canvas.getObjects().filter(isAnnotationObject) : [];
+    const activeObject = runtime.canvas.getActiveObject();
+    return {
+        hasImage,
+        hasMasks: masks.length > 0,
+        hasAnnotations: annotations.length > 0,
+        hasSelectedMask: !!(activeObject && isMaskObject(activeObject)),
+        hasSelectedAnnotation: !!(activeObject && isAnnotationObject(activeObject)),
+        hasSelectedEditableObject: !!activeObject && isEditableOverlayObject(activeObject),
+        isDefaultTransform: runtime.currentScale === 1 &&
+            runtime.currentRotation === 0 &&
+            !((_a = runtime.originalImage) === null || _a === void 0 ? void 0 : _a.flipX) &&
+            !((_b = runtime.originalImage) === null || _b === void 0 ? void 0 : _b.flipY),
+        currentScale: runtime.currentScale,
+        minScale: runtime.options.minScale,
+        maxScale: runtime.options.maxScale,
+        canUndo: runtime.historyManager.canUndo(),
+        canRedo: runtime.historyManager.canRedo(),
+        isBusy: runtime.operationGuard.isBusy() || runtime.animQueue.isBusy(),
+        isDisposed: runtime.isDisposed,
+        isInCropMode: runtime.cropSession !== null,
+        isInMosaicMode: runtime.mosaicSession !== null,
+        isInTextMode: runtime.textSession !== null,
+        isInDrawMode: runtime.drawSession !== null,
+        isMosaicApplying: ((_c = runtime.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true,
+    };
+}
+
 function recordElementOriginalState(context, key, element) {
     if (!context.originalAriaDisabledMap.has(key)) {
         context.originalAriaDisabledMap.set(key, element.getAttribute('aria-disabled'));
@@ -8028,6 +8991,13 @@ function parseInputNumber(context, key) {
 }
 function parseEventInputNumber(event) {
     return parseFloat(event.target.value);
+}
+function handleAsyncAction(context, operation, action) {
+    void Promise.resolve()
+        .then(action)
+        .catch((error) => {
+        context.actions.reportAsyncActionError(operation, error);
+    });
 }
 function getEventInputValue(event) {
     return event.target.value;
@@ -8136,13 +9106,13 @@ function bindAnnotationEvents(context) {
 }
 function bindHistoryEvents(context) {
     bindElement(context, 'downloadImageButton', 'click', () => {
-        void context.actions.downloadImage();
+        handleAsyncAction(context, 'downloadImage', () => context.actions.downloadImage());
     });
     bindElement(context, 'undoButton', 'click', () => {
-        void context.actions.undo();
+        handleAsyncAction(context, 'undo', () => context.actions.undo());
     });
     bindElement(context, 'redoButton', 'click', () => {
-        void context.actions.redo();
+        handleAsyncAction(context, 'redo', () => context.actions.redo());
     });
 }
 function bindCropEvents(context) {
@@ -8197,6 +9167,122 @@ function bindEditorDomEvents(context) {
     bindHistoryEvents(context);
     bindCropEvents(context);
     bindMosaicEvents(context);
+}
+
+function createEditorDomEventActions(runtime, ownerDocument, host) {
+    return {
+        reportAsyncActionError: (operation, error) => {
+            host.reportAsyncActionError(operation, error);
+        },
+        openImagePicker: () => {
+            var _a;
+            const inputId = runtime.elements.imageInput;
+            if (inputId)
+                (_a = ownerDocument.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+        },
+        loadImageFile: (file) => host.loadImageFile(file),
+        zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
+        zoomOut: () => host.scaleImage(runtime.currentScale - runtime.options.scaleStep),
+        resetImageTransform: () => host.resetImageTransform(),
+        flipHorizontal: () => host.flipHorizontal(),
+        flipVertical: () => host.flipVertical(),
+        rotateLeft: (degrees) => host.rotateImage(runtime.currentRotation - degrees),
+        rotateRight: (degrees) => host.rotateImage(runtime.currentRotation + degrees),
+        createMask: () => {
+            host.createMask();
+        },
+        removeSelectedMask: () => {
+            host.removeSelectedMask();
+        },
+        removeAllMasks: () => {
+            host.removeAllMasks();
+        },
+        mergeMasks: () => host.mergeMasks(),
+        mergeAnnotations: () => host.mergeAnnotations(),
+        enterTextMode: () => {
+            host.enterTextMode();
+        },
+        exitTextMode: () => {
+            host.exitTextMode();
+        },
+        enterDrawMode: () => {
+            host.enterDrawMode();
+        },
+        exitDrawMode: () => {
+            host.exitDrawMode();
+        },
+        removeSelectedAnnotation: () => {
+            host.removeSelectedAnnotation();
+        },
+        removeAllAnnotations: () => {
+            host.removeAllAnnotations();
+        },
+        deleteSelectedObject: () => {
+            host.deleteSelectedObject();
+        },
+        bringSelectedObjectForward: () => {
+            host.bringSelectedObjectForward();
+        },
+        sendSelectedObjectBackward: () => {
+            host.sendSelectedObjectBackward();
+        },
+        bringSelectedObjectToFront: () => {
+            host.bringSelectedObjectToFront();
+        },
+        sendSelectedObjectToBack: () => {
+            host.sendSelectedObjectToBack();
+        },
+        downloadImage: () => host.downloadImage(),
+        undo: () => host.undo(),
+        redo: () => host.redo(),
+        enterCropMode: () => {
+            host.enterCropMode({ aspectRatio: getSelectedCropAspectRatio(runtime, ownerDocument) });
+        },
+        updateSelectedCropAspectRatio: () => {
+            if (runtime.cropSession) {
+                host.setCropAspectRatio(getSelectedCropAspectRatio(runtime, ownerDocument));
+            }
+        },
+        applyCrop: () => host.applyCrop(),
+        reportCropApplyError: (error) => {
+            host.reportCropApplyError(error);
+        },
+        cancelCrop: () => {
+            host.cancelCrop();
+        },
+        enterMosaicMode: () => {
+            host.enterMosaicMode();
+        },
+        exitMosaicMode: () => {
+            host.exitMosaicMode();
+        },
+        setMosaicBrushSize: (size) => {
+            host.setMosaicBrushSize(size);
+        },
+        setMosaicBlockSize: (size) => {
+            host.setMosaicBlockSize(size);
+        },
+        setTextColor: (color) => {
+            host.setTextColor(color);
+        },
+        setTextFontSize: (size) => {
+            host.setTextFontSize(size);
+        },
+        setDrawColor: (color) => {
+            host.setDrawColor(color);
+        },
+        setDrawBrushSize: (size) => {
+            host.setDrawBrushSize(size);
+        },
+    };
+}
+function getSelectedCropAspectRatio(runtime, ownerDocument) {
+    const inputId = runtime.elements.cropAspectRatioSelect;
+    const inputEl = inputId
+        ? ownerDocument.getElementById(inputId)
+        : null;
+    const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
+    return (value || 'free');
 }
 
 function syncInputValue(inputElement, value) {
@@ -8280,17 +9366,6 @@ function handleEditorKeyboardEvent(access, event) {
     }
     else if (access.hasCropSession()) {
         access.cancelCrop();
-    }
-}
-
-function setPlaceholderVisible(placeholderElement, containerElement, show) {
-    if (placeholderElement) {
-        placeholderElement.hidden = !show;
-        placeholderElement.setAttribute('aria-hidden', show ? 'false' : 'true');
-    }
-    if (containerElement) {
-        containerElement.hidden = show;
-        containerElement.setAttribute('aria-hidden', show ? 'true' : 'false');
     }
 }
 
@@ -8410,200 +9485,18 @@ function isImageEditorOperation(value) {
 
 const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
 const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
+function getRuntimeDocument(canvasElement) {
+    var _a;
+    return (_a = canvasElement === null || canvasElement === void 0 ? void 0 : canvasElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
+}
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
         var _a;
-        Object.defineProperty(this, "fabricModule", {
+        Object.defineProperty(this, "runtime", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
-        });
-        Object.defineProperty(this, "isFabricLoaded", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "options", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "currentLayoutMode", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'expand'
-        });
-        Object.defineProperty(this, "defaultMosaicConfig", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "currentMosaicConfig", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "defaultTextConfig", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "currentTextConfig", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "defaultDrawConfig", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "currentDrawConfig", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "canvas", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "canvasElement", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "containerElement", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "placeholderElement", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "elements", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: {}
-        });
-        Object.defineProperty(this, "elementOriginalDisabledMap", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Map()
-        });
-        Object.defineProperty(this, "elementOriginalAriaDisabledMap", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Map()
-        });
-        Object.defineProperty(this, "elementOriginalPointerEventsMap", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Map()
-        });
-        Object.defineProperty(this, "originalImage", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "baseImageScale", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 1
-        });
-        Object.defineProperty(this, "currentScale", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 1
-        });
-        Object.defineProperty(this, "currentRotation", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 0
-        });
-        Object.defineProperty(this, "isImageLoadedToCanvas", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "currentImageMimeType", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "maskCounter", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 0
-        });
-        Object.defineProperty(this, "lastMask", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "annotationCounter", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 0
-        });
-        Object.defineProperty(this, "lastSnapshot", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "historyManager", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "operationGuard", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "animQueue", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "transformController", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
         });
         Object.defineProperty(this, "contextFactory", {
             enumerable: true,
@@ -8611,186 +9504,30 @@ class ImageEditor {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "viewportCache", {
+        Object.defineProperty(this, "actionAccessFactory", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new ViewportCache()
-        });
-        Object.defineProperty(this, "cropSession", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "mosaicSession", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "textSession", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "drawSession", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "domBindings", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "keyboardDocument", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "keyboardHandler", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "isDisposed", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "shouldSuppressSaveState", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "lastEmittedIsBusy", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "activeStateRestoreOperation", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "nextSelectionChangeContext", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
+            value: void 0
         });
         const detected = detectFabric(fabricModuleOrOptions, options);
-        this.fabricModule = (_a = detected.fabric) !== null && _a !== void 0 ? _a : {};
-        this.isFabricLoaded = detected.isFabricLoaded;
-        this.options = resolveOptions(detected.options);
-        this.currentLayoutMode = this.options.layoutMode;
-        this.defaultMosaicConfig = this.options.defaultMosaicConfig;
-        this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
-        this.defaultTextConfig = this.options.defaultTextConfig;
-        this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
-        this.defaultDrawConfig = this.options.defaultDrawConfig;
-        this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        const resolvedOptions = resolveOptions(detected.options);
+        this.runtime = new EditorRuntime((_a = detected.fabric) !== null && _a !== void 0 ? _a : {}, detected.isFabricLoaded, resolvedOptions);
         const rawDefaultLayoutMode = detected.options
             .defaultLayoutMode;
         if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
-            reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
+            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
                 `${JSON.stringify(rawDefaultLayoutMode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Invalid defaultLayoutMode fell back to "expand".');
         }
-        this.operationGuard = new OperationGuard();
-        this.animQueue = new AnimationQueue();
-        this.historyManager = new HistoryManager(this.options.maxHistorySize);
         this.contextFactory = this.createContextFactory();
+        this.actionAccessFactory = this.createActionAccessFactory();
     }
     createContextFactory() {
-        return new EditorContextFactory({
-            getFabric: () => this.fabricModule,
-            getOptions: () => this.options,
-            getRuntimeOptions: () => this.getRuntimeOptions(),
-            getHistoryManager: () => this.historyManager,
-            getOperationGuard: () => this.operationGuard,
-            getCanvas: () => this.canvas,
-            getLiveCanvas: (operationName) => this.getLiveCanvasOrThrow(operationName),
-            getContainerElement: () => this.containerElement,
-            getPlaceholderElement: () => this.placeholderElement,
-            getViewportCache: () => this.viewportCache,
-            isDisposed: () => this.isDisposed,
-            isImageLoaded: () => this.isImageLoaded(),
-            getOriginalImage: () => this.originalImage,
-            setOriginalImage: (image) => {
-                this.originalImage = image;
-            },
-            getIsImageLoadedToCanvas: () => this.isImageLoadedToCanvas,
-            setIsImageLoadedToCanvas: (value) => {
-                this.isImageLoadedToCanvas = value;
-            },
-            getCurrentImageMimeType: () => this.currentImageMimeType,
-            setCurrentImageMimeType: (mimeType) => {
-                this.currentImageMimeType = mimeType;
-            },
-            getLastSnapshot: () => this.lastSnapshot,
-            setLastSnapshot: (snapshot) => {
-                this.lastSnapshot = snapshot;
-            },
-            getCurrentScale: () => this.currentScale,
-            setCurrentScale: (scale) => {
-                this.currentScale = scale;
-            },
-            getCurrentRotation: () => this.currentRotation,
-            setCurrentRotation: (rotation) => {
-                this.currentRotation = rotation;
-            },
-            getBaseImageScale: () => this.baseImageScale,
-            setBaseImageScale: (scale) => {
-                this.baseImageScale = scale;
-            },
-            getMaskCounter: () => this.maskCounter,
-            setMaskCounter: (value) => {
-                this.maskCounter = value;
-            },
-            getLastMask: () => this.lastMask,
-            setLastMask: (mask) => {
-                this.lastMask = mask;
-            },
-            getAnnotationCounter: () => this.annotationCounter,
-            setAnnotationCounter: (value) => {
-                this.annotationCounter = value;
-            },
-            getTextConfig: () => this.currentTextConfig,
-            getDrawConfig: () => this.currentDrawConfig,
-            getMosaicConfig: () => cloneResolvedMosaicConfig(this.currentMosaicConfig),
-            getTextSession: () => this.textSession,
-            setTextSession: (session) => {
-                this.textSession = session;
-            },
-            getDrawSession: () => this.drawSession,
-            setDrawSession: (session) => {
-                this.drawSession = session;
-            },
-            getMosaicSession: () => this.mosaicSession,
-            setMosaicSession: (session) => {
-                this.mosaicSession = session;
-            },
-            getCropSession: () => this.cropSession,
-            setCropSession: (session) => {
-                this.cropSession = session;
-            },
+        return createEditorContextFactory(this.runtime, {
             saveCanvasState: () => this.saveState(),
             saveCanvasStateWithAnimationBypass: () => {
                 this.saveStateInternal(this.withAnimationQueueBypass());
-            },
-            setSuppressSaveState: (suppress) => {
-                this.shouldSuppressSaveState = suppress;
             },
             captureSnapshot: () => this.captureSnapshotInternal(),
             loadImageForOperation: (operationToken, base64, providedOptions) => this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
@@ -8816,9 +9553,6 @@ class ImageEditor {
             hideAllMaskLabels: () => {
                 this.hideAllMaskLabels();
             },
-            setPlaceholderVisible: (show) => {
-                setPlaceholderVisible(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? show : false);
-            },
             updateMaskList: () => {
                 this.updateMaskList();
             },
@@ -8831,10 +9565,9 @@ class ImageEditor {
             updateInputs: () => {
                 this.updateInputs();
             },
-            getMaskListElementId: () => this.elements.maskList,
-            handleMaskSelected: (mask) => this.handleSelectionChanged([mask]),
-            getAnnotationListElementId: () => this.elements.annotationList,
-            handleAnnotationSelected: (annotation) => this.handleSelectionChanged([annotation]),
+            handleSelectionChanged: (selected) => {
+                this.handleSelectionChanged(selected);
+            },
             getMasks: () => this.getMasks(),
             getAnnotations: () => this.getAnnotations(),
             emitImageChanged: (context) => {
@@ -8849,29 +9582,138 @@ class ImageEditor {
             buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
         });
     }
+    createActionAccessFactory() {
+        return new EditorActionAccessFactory(this.runtime, {
+            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
+            assertIdleForOperation: (operation, options) => {
+                this.assertIdleForOperation(operation, options);
+            },
+            assertCanQueueAnimation: (operation) => {
+                this.assertCanQueueAnimation(operation);
+            },
+            finalizeActiveTextEditingIfNeeded: () => {
+                this.finalizeActiveTextEditingIfNeeded();
+            },
+            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
+            buildSelection: (selected) => this.buildSelection(selected),
+            getMasks: () => this.getMasks(),
+            getAnnotations: () => this.getAnnotations(),
+            getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
+            getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
+            inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
+            shouldNormalizeCanvasSizeAfterStateRestore: () => this.shouldNormalizeCanvasSizeAfterStateRestore(),
+            updateCanvasSizeToImageBounds: (options) => this.updateCanvasSizeToImageBounds(options),
+            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+                this.alignObjectBoundingBoxToCanvasTopLeft(object);
+            },
+            settleFitCoverScrollbarsAfterStateRestore: () => {
+                this.settleFitCoverScrollbarsAfterStateRestore();
+            },
+            setCanvasSize: (widthPx, heightPx) => {
+                this.setCanvasSizePx(widthPx, heightPx);
+            },
+            refreshUiAfterQueuedAnimation: () => {
+                this.refreshUiAfterQueuedAnimation();
+            },
+            updateInputs: () => {
+                this.updateInputs();
+            },
+            updateMaskList: () => {
+                this.updateMaskList();
+            },
+            updateMaskListSelection: (mask) => {
+                this.updateMaskListSelection(mask);
+            },
+            updateAnnotationList: () => {
+                this.updateAnnotationList();
+            },
+            updateAnnotationListSelection: (annotation) => {
+                this.updateAnnotationListSelection(annotation);
+            },
+            updateUi: () => {
+                this.updateUi();
+            },
+            saveState: () => {
+                this.saveState();
+            },
+            removeLabelForMask: (mask) => {
+                this.removeLabelForMask(mask);
+            },
+            showLabelForMask: (mask) => {
+                this.showLabelForMask(mask);
+            },
+            syncMaskLabel: (mask) => {
+                this.syncMaskLabel(mask);
+            },
+            hideAllMaskLabels: () => {
+                this.hideAllMaskLabels();
+            },
+            handleSelectionChanged: (selected) => {
+                this.handleSelectionChanged(selected);
+            },
+            updateSelectedAnnotation: (config) => {
+                this.updateSelectedAnnotation(config);
+            },
+            setTextColor: (color) => {
+                this.setTextColor(color);
+            },
+            setTextFontSize: (size) => {
+                this.setTextFontSize(size);
+            },
+            setDrawColor: (color) => {
+                this.setDrawColor(color);
+            },
+            setDrawBrushSize: (size) => {
+                this.setDrawBrushSize(size);
+            },
+            emitImageCleared: (image, context) => {
+                this.emitOptionCallback('onImageCleared', [image, context]);
+            },
+            emitSelectionChange: (selection, context) => {
+                this.emitOptionCallback('onSelectionChange', [selection, context]);
+            },
+            emitMasksChanged: (context) => {
+                this.emitMasksChanged(context);
+            },
+            emitAnnotationsChanged: (context) => {
+                this.emitAnnotationsChanged(context);
+            },
+            emitImageChanged: (context) => {
+                this.emitImageChanged(context);
+            },
+            emitBusyChangeIfChanged: (context) => {
+                this.emitBusyChangeIfChanged(context);
+            },
+            reportWarning: (error, message) => {
+                reportWarning(this.runtime.options, error, message);
+            },
+            withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
+        }, this.contextFactory);
+    }
     init(idMap = {}) {
-        if (!this.isFabricLoaded) {
+        if (!this.runtime.isFabricLoaded) {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
                 typeof globalFabric.Canvas !== 'function') {
                 return;
             }
-            this.fabricModule = globalFabric;
-            this.isFabricLoaded = true;
+            this.runtime.fabricModule = globalFabric;
+            this.runtime.isFabricLoaded = true;
         }
-        if (this.isDisposed)
+        if (this.runtime.isDisposed)
             return;
-        this.elements = resolveElementIds(idMap);
+        this.runtime.elements = resolveElementIds(idMap);
         this.initCanvas();
-        this.domBindings = new DomBindings((key) => this.elements[key], () => this.isDisposed, () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; });
-        this.transformController = new TransformController(this.buildTransformContext());
+        this.runtime.domBindings = new DomBindings((key) => this.runtime.elements[key], () => this.runtime.isDisposed, () => getRuntimeDocument(this.runtime.canvasElement));
+        this.runtime.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
         this.updateMaskList();
         this.updateAnnotationList();
         this.updateUi();
-        if (this.options.initialImageBase64) {
-            void this.loadImage(this.options.initialImageBase64).catch(() => {
+        if (this.runtime.options.initialImageBase64) {
+            void this.loadImage(this.runtime.options.initialImageBase64).catch(() => {
             });
         }
         else {
@@ -8880,45 +9722,51 @@ class ImageEditor {
     }
     initCanvas() {
         var _a;
-        const id = this.elements.canvas;
-        const canvasElement = id ? document.getElementById(id) : null;
+        const id = this.runtime.elements.canvas;
+        const globalDocument = typeof document !== 'undefined' ? document : null;
+        const canvasElement = id && globalDocument
+            ? globalDocument.getElementById(id)
+            : null;
         if (!canvasElement)
             throw new Error(`[ImageEditor] Canvas element not found: "${id}"`);
-        this.canvasElement = canvasElement;
-        const containerId = this.elements.canvasContainer;
+        this.runtime.canvasElement = canvasElement;
+        const ownerDocument = canvasElement.ownerDocument;
+        const containerId = this.runtime.elements.canvasContainer;
         if (containerId) {
-            this.containerElement =
-                (_a = document.getElementById(containerId)) !== null && _a !== void 0 ? _a : canvasElement.parentElement;
+            this.runtime.containerElement =
+                (_a = ownerDocument.getElementById(containerId)) !== null && _a !== void 0 ? _a : canvasElement.parentElement;
         }
         else {
-            this.containerElement = canvasElement.parentElement;
+            this.runtime.containerElement = canvasElement.parentElement;
         }
-        const placeholderId = this.elements.imagePlaceholder;
-        this.placeholderElement = placeholderId ? document.getElementById(placeholderId) : null;
-        let initialWidth = this.options.canvasWidth;
-        let initialHeight = this.options.canvasHeight;
-        if (this.containerElement) {
-            const containerWidth = Math.floor(this.containerElement.clientWidth);
-            const containerHeight = Math.floor(this.containerElement.clientHeight);
+        const placeholderId = this.runtime.elements.imagePlaceholder;
+        this.runtime.placeholderElement = placeholderId
+            ? ownerDocument.getElementById(placeholderId)
+            : null;
+        let initialWidth = this.runtime.options.canvasWidth;
+        let initialHeight = this.runtime.options.canvasHeight;
+        if (this.runtime.containerElement) {
+            const containerWidth = Math.floor(this.runtime.containerElement.clientWidth);
+            const containerHeight = Math.floor(this.runtime.containerElement.clientHeight);
             if (containerWidth > 0 && containerHeight > 0) {
                 initialWidth = containerWidth;
                 initialHeight = containerHeight;
             }
         }
-        this.canvas = new this.fabricModule.Canvas(canvasElement, {
+        this.runtime.canvas = new this.runtime.fabricModule.Canvas(canvasElement, {
             width: initialWidth,
             height: initialHeight,
-            backgroundColor: this.options.backgroundColor,
-            selection: this.options.groupSelection,
+            backgroundColor: this.runtime.options.backgroundColor,
+            selection: this.runtime.options.groupSelection,
             preserveObjectStacking: true,
         });
-        this.canvas.on('selection:created', (e) => {
+        this.runtime.canvas.on('selection:created', (e) => {
             this.handleSelectionChanged(e.selected);
         });
-        this.canvas.on('selection:updated', (e) => {
+        this.runtime.canvas.on('selection:updated', (e) => {
             this.handleSelectionChanged(e.selected);
         });
-        this.canvas.on('selection:cleared', () => this.handleSelectionChanged([]));
+        this.runtime.canvas.on('selection:cleared', () => this.handleSelectionChanged([]));
         const onObjectEvent = (e) => {
             if (e.target)
                 this.handleObjectMovingScalingRotating(e.target);
@@ -8927,48 +9775,44 @@ class ImageEditor {
             if (e.target)
                 this.handleObjectModified(e.target);
         };
-        this.canvas.on('object:moving', onObjectEvent);
-        this.canvas.on('object:scaling', onObjectEvent);
-        this.canvas.on('object:rotating', onObjectEvent);
-        this.canvas.on('object:modified', onObjectModified);
+        this.runtime.canvas.on('object:moving', onObjectEvent);
+        this.runtime.canvas.on('object:scaling', onObjectEvent);
+        this.runtime.canvas.on('object:rotating', onObjectEvent);
+        this.runtime.canvas.on('object:modified', onObjectModified);
     }
     getLiveCanvasOrThrow(operationName) {
-        if (this.isDisposed || !this.canvas) {
+        if (this.runtime.isDisposed || !this.runtime.canvas) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
         }
-        return this.canvas;
+        return this.runtime.canvas;
     }
     bindDomEvents() {
-        var _a, _b;
-        if (!this.domBindings)
+        if (!this.runtime.domBindings)
             return;
-        const ownerDocument = (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document;
+        const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
+        if (!ownerDocument)
+            return;
         bindEditorDomEvents({
-            bindings: this.domBindings,
-            rotationStep: this.options.rotationStep,
+            bindings: this.runtime.domBindings,
+            rotationStep: this.runtime.options.rotationStep,
             getInputValue: (key) => {
                 var _a;
-                const id = this.elements[key];
+                const id = this.runtime.elements[key];
                 const element = id
                     ? ownerDocument.getElementById(id)
                     : null;
                 return (_a = element === null || element === void 0 ? void 0 : element.value) !== null && _a !== void 0 ? _a : '';
             },
-            actions: {
-                openImagePicker: () => {
-                    var _a;
-                    const inputId = this.elements.imageInput;
-                    if (inputId)
-                        (_a = ownerDocument.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+            actions: createEditorDomEventActions(this.runtime, ownerDocument, {
+                reportAsyncActionError: (operation, error) => {
+                    reportError(this.runtime.options, error, `${operation} failed.`);
                 },
                 loadImageFile: (file) => this.loadImageFile(file),
-                zoomIn: () => this.scaleImage(this.currentScale + this.options.scaleStep),
-                zoomOut: () => this.scaleImage(this.currentScale - this.options.scaleStep),
+                scaleImage: (scale) => this.scaleImage(scale),
+                rotateImage: (rotation) => this.rotateImage(rotation),
                 resetImageTransform: () => this.resetImageTransform(),
                 flipHorizontal: () => this.flipHorizontal(),
                 flipVertical: () => this.flipVertical(),
-                rotateLeft: (degrees) => this.rotateImage(this.currentRotation - degrees),
-                rotateRight: (degrees) => this.rotateImage(this.currentRotation + degrees),
                 createMask: () => {
                     this.createMask();
                 },
@@ -9016,16 +9860,15 @@ class ImageEditor {
                 downloadImage: () => this.downloadImage(),
                 undo: () => this.undo(),
                 redo: () => this.redo(),
-                enterCropMode: () => {
-                    this.enterCropMode({ aspectRatio: this.getSelectedCropAspectRatio() });
+                enterCropMode: (options) => {
+                    this.enterCropMode(options);
                 },
-                updateSelectedCropAspectRatio: () => {
-                    if (this.cropSession)
-                        this.setCropAspectRatio(this.getSelectedCropAspectRatio());
+                setCropAspectRatio: (aspectRatio) => {
+                    this.setCropAspectRatio(aspectRatio);
                 },
                 applyCrop: () => this.applyCrop(),
                 reportCropApplyError: (error) => {
-                    reportError(this.options, error, 'Crop apply failed.');
+                    reportError(this.runtime.options, error, 'Crop apply failed.');
                 },
                 cancelCrop: () => {
                     this.cancelCrop();
@@ -9054,18 +9897,18 @@ class ImageEditor {
                 setDrawBrushSize: (size) => {
                     this.applyDrawBrushSizeInput(size);
                 },
-            },
+            }),
         });
-        this.bindKeyboardEvents();
+        this.bindKeyboardEvents(ownerDocument);
     }
-    bindKeyboardEvents() {
+    bindKeyboardEvents(ownerDocument) {
         bindEditorKeyboardEvents({
-            getOwnerDocument: () => { var _a, _b; return (_b = (_a = this.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : document; },
-            getKeyboardDocument: () => this.keyboardDocument,
-            getKeyboardHandler: () => this.keyboardHandler,
+            getOwnerDocument: () => ownerDocument,
+            getKeyboardDocument: () => this.runtime.keyboardDocument,
+            getKeyboardHandler: () => this.runtime.keyboardHandler,
             setKeyboardBinding: (keyboardDocument, keyboardHandler) => {
-                this.keyboardDocument = keyboardDocument;
-                this.keyboardHandler = keyboardHandler;
+                this.runtime.keyboardDocument = keyboardDocument;
+                this.runtime.keyboardHandler = keyboardHandler;
             },
             removeKeyboardListener: (keyboardDocument, keyboardHandler) => {
                 safelyRemoveKeyboardListener(keyboardDocument, keyboardHandler);
@@ -9077,13 +9920,13 @@ class ImageEditor {
     }
     handleKeyboardEvent(event) {
         handleEditorKeyboardEvent({
-            isDisposed: () => this.isDisposed,
-            getCanvas: () => this.canvas,
-            getKeyboardDocument: () => this.keyboardDocument,
-            hasTextSession: () => this.textSession !== null,
-            hasDrawSession: () => this.drawSession !== null,
-            hasMosaicSession: () => this.mosaicSession !== null,
-            hasCropSession: () => this.cropSession !== null,
+            isDisposed: () => this.runtime.isDisposed,
+            getCanvas: () => this.runtime.canvas,
+            getKeyboardDocument: () => this.runtime.keyboardDocument,
+            hasTextSession: () => this.runtime.textSession !== null,
+            hasDrawSession: () => this.runtime.drawSession !== null,
+            hasMosaicSession: () => this.runtime.mosaicSession !== null,
+            hasCropSession: () => this.runtime.cropSession !== null,
             deleteSelectedObject: () => {
                 this.deleteSelectedObject();
             },
@@ -9105,17 +9948,18 @@ class ImageEditor {
         }, event);
     }
     finalizeActiveTextEditingIfNeeded() {
-        if (!this.canvas || !isFabricTextEditingActive(this.canvas))
+        if (!this.runtime.canvas || !isFabricTextEditingActive(this.runtime.canvas))
             return;
         finalizeActiveTextEditing(this.buildTextControllerContext(), { commit: true });
     }
     async loadImageFile(file) {
         await loadImageFile({
-            options: this.options,
+            options: this.runtime.options,
             getInputElement: () => {
-                const inputId = this.elements.imageInput;
-                return inputId
-                    ? document.getElementById(inputId)
+                const inputId = this.runtime.elements.imageInput;
+                const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
+                return inputId && ownerDocument
+                    ? ownerDocument.getElementById(inputId)
                     : null;
             },
             loadImage: (dataUrl) => this.loadImage(dataUrl),
@@ -9125,9 +9969,9 @@ class ImageEditor {
         return this.loadImageInternal(base64, options);
     }
     async loadImageInternal(base64, options = {}) {
-        if (!this.isFabricLoaded || !this.canvas)
+        if (!this.runtime.isFabricLoaded || !this.runtime.canvas)
             return;
-        if (this.isDisposed)
+        if (this.runtime.isDisposed)
             return;
         if (!isSupportedImageDataUrl(base64))
             return;
@@ -9135,11 +9979,11 @@ class ImageEditor {
             return;
         this.finalizeActiveTextEditingIfNeeded();
         const callbackContext = this.getOperationContext('loadImage', options);
-        const previousImage = this.originalImage;
+        const previousImage = this.runtime.originalImage;
         const hadMasks = this.getMasks().length > 0;
         const hadAnnotations = this.getAnnotations().length > 0;
         this.emitOptionCallback('onImageLoadStart', [callbackContext]);
-        this.operationGuard.beginLoading();
+        this.runtime.operationGuard.beginLoading();
         this.emitBusyChangeIfChanged(callbackContext);
         this.updateUi();
         this.hideAllMaskLabels();
@@ -9148,17 +9992,17 @@ class ImageEditor {
             await loadImage(loadImageContext, base64, options);
         }
         finally {
-            this.operationGuard.endLoading();
+            this.runtime.operationGuard.endLoading();
             this.emitBusyChangeIfChanged(callbackContext);
-            if (!this.isDisposed && this.canvas)
+            if (!this.runtime.isDisposed && this.runtime.canvas)
                 this.updateUi();
         }
-        this.lastMask = null;
+        this.runtime.lastMask = null;
         this.updateInputs();
         this.updateMaskList();
         this.updateAnnotationList();
         this.updateUi();
-        if (previousImage && previousImage !== this.originalImage) {
+        if (previousImage && previousImage !== this.runtime.originalImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, callbackContext]);
         }
         const imageInfo = this.getImageInfo();
@@ -9194,14 +10038,14 @@ class ImageEditor {
     }
     assertIdleForOperation(operationName, options) {
         const token = this.getInternalOperationToken(options);
-        this.operationGuard.assertIdleForOperation(operationName, token);
+        this.runtime.operationGuard.assertIdleForOperation(operationName, token);
         const activeToolMode = this.getActiveToolMode();
         if (activeToolMode &&
-            !this.operationGuard.isOwnOperation(token) &&
+            !this.runtime.operationGuard.isOwnOperation(token) &&
             !canRunOperationInToolMode(activeToolMode, operationName)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`);
         }
-        if (this.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
+        if (this.runtime.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
         }
     }
@@ -9217,82 +10061,61 @@ class ImageEditor {
             return false;
         }
     }
-    getSelectedCropAspectRatio() {
-        const inputId = this.elements.cropAspectRatioSelect;
-        const inputEl = inputId
-            ? document.getElementById(inputId)
-            : null;
-        const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
-        return (value || 'free');
-    }
     isExpectedIdleGuardError(error, operationName) {
         return (error instanceof Error &&
             error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
     }
     assertCanQueueAnimation(operationName, options) {
         const token = this.getInternalOperationToken(options);
-        this.operationGuard.assertCanQueueAnimation(operationName, token);
+        this.runtime.operationGuard.assertCanQueueAnimation(operationName, token);
         const activeToolMode = this.getActiveToolMode();
         if (activeToolMode &&
-            !this.operationGuard.isOwnOperation(token) &&
+            !this.runtime.operationGuard.isOwnOperation(token) &&
             !canRunOperationInToolMode(activeToolMode, operationName)) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`);
         }
     }
     isImageLoaded() {
         var _a, _b;
-        return !!(this.originalImage &&
-            this.originalImage instanceof this.fabricModule.FabricImage &&
-            ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
-            ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+        return !!(this.runtime.originalImage &&
+            this.runtime.originalImage instanceof this.runtime.fabricModule.FabricImage &&
+            ((_a = this.runtime.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
+            ((_b = this.runtime.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
     }
     isBusy() {
-        return this.operationGuard.isBusy() || this.animQueue.isBusy() || this.isToolModeActive();
+        return (this.runtime.operationGuard.isBusy() ||
+            this.runtime.animQueue.isBusy() ||
+            this.isToolModeActive());
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
-            reportWarning(this.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
+            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
-        this.currentLayoutMode = mode;
+        this.runtime.currentLayoutMode = mode;
     }
     getRuntimeOptions() {
-        if (this.currentLayoutMode === this.options.layoutMode)
-            return this.options;
+        if (this.runtime.currentLayoutMode === this.runtime.options.layoutMode)
+            return this.runtime.options;
         return Object.freeze({
-            ...this.options,
-            layoutMode: this.currentLayoutMode,
+            ...this.runtime.options,
+            layoutMode: this.runtime.currentLayoutMode,
         });
     }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
     }
-    buildBusyOperationAccess() {
-        return {
-            beginBusyOperation: (operation) => this.operationGuard.beginBusyOperation(operation),
-            endBusyOperation: (token) => {
-                this.operationGuard.endBusyOperation(token);
-            },
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-        };
-    }
     getOperationContext(fallback, options) {
         const internal = this.getInternalOperationToken(options);
-        const activeOperation = this.operationGuard.activeOperationName();
+        const activeOperation = this.runtime.operationGuard.activeOperationName();
         if (internal && activeOperation) {
             return this.buildCallbackContext(isImageEditorOperation(activeOperation) ? activeOperation : fallback, true);
         }
         return this.buildCallbackContext(fallback, false);
     }
     emitOptionCallback(callbackName, args) {
-        const callback = this.options[callbackName];
+        const callback = this.runtime.options[callbackName];
         if (typeof callback !== 'function')
             return;
         try {
@@ -9303,44 +10126,44 @@ class ImageEditor {
         }
     }
     getImageInfo() {
-        if (!this.canvas || !this.originalImage)
+        if (!this.runtime.canvas || !this.runtime.originalImage)
             return null;
-        const canvasWidth = this.canvas.getWidth();
-        const canvasHeight = this.canvas.getHeight();
+        const canvasWidth = this.runtime.canvas.getWidth();
+        const canvasHeight = this.runtime.canvas.getHeight();
         let displayWidth;
         let displayHeight;
         try {
-            this.originalImage.setCoords();
-            const bounds = this.originalImage.getBoundingRect();
+            this.runtime.originalImage.setCoords();
+            const bounds = this.runtime.originalImage.getBoundingRect();
             displayWidth = Math.max(0, Number(bounds.width) || 0);
             displayHeight = Math.max(0, Number(bounds.height) || 0);
         }
         catch {
-            displayWidth = Math.max(0, (Number(this.originalImage.width) || 0) *
-                Math.abs(Number(this.originalImage.scaleX) || 1));
-            displayHeight = Math.max(0, (Number(this.originalImage.height) || 0) *
-                Math.abs(Number(this.originalImage.scaleY) || 1));
+            displayWidth = Math.max(0, (Number(this.runtime.originalImage.width) || 0) *
+                Math.abs(Number(this.runtime.originalImage.scaleX) || 1));
+            displayHeight = Math.max(0, (Number(this.runtime.originalImage.height) || 0) *
+                Math.abs(Number(this.runtime.originalImage.scaleY) || 1));
         }
         return {
-            width: Math.max(0, Number(this.originalImage.width) || 0),
-            height: Math.max(0, Number(this.originalImage.height) || 0),
+            width: Math.max(0, Number(this.runtime.originalImage.width) || 0),
+            height: Math.max(0, Number(this.runtime.originalImage.height) || 0),
             displayWidth,
             displayHeight,
-            scale: this.currentScale,
-            rotation: this.currentRotation,
+            scale: this.runtime.currentScale,
+            rotation: this.runtime.currentRotation,
             canvasWidth,
             canvasHeight,
         };
     }
     getMasks() {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return [];
-        return this.canvas.getObjects().filter(isMaskObject).slice();
+        return this.runtime.canvas.getObjects().filter(isMaskObject).slice();
     }
     getAnnotations() {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return [];
-        return getAnnotations(this.canvas);
+        return getAnnotations(this.runtime.canvas);
     }
     getMaskCollectionSignature() {
         return this.getMasks()
@@ -9354,10 +10177,10 @@ class ImageEditor {
     }
     buildToolModeSnapshot() {
         return {
-            hasCropSession: this.cropSession !== null,
-            hasMosaicSession: this.mosaicSession !== null,
-            hasTextSession: this.textSession !== null,
-            hasDrawSession: this.drawSession !== null,
+            hasCropSession: this.runtime.cropSession !== null,
+            hasMosaicSession: this.runtime.mosaicSession !== null,
+            hasTextSession: this.runtime.textSession !== null,
+            hasDrawSession: this.runtime.drawSession !== null,
         };
     }
     getActiveToolMode() {
@@ -9368,26 +10191,26 @@ class ImageEditor {
     }
     getEditorState() {
         var _a, _b;
-        const canvasWidth = this.canvas ? this.canvas.getWidth() : 0;
-        const canvasHeight = this.canvas ? this.canvas.getHeight() : 0;
+        const canvasWidth = this.runtime.canvas ? this.runtime.canvas.getWidth() : 0;
+        const canvasHeight = this.runtime.canvas ? this.runtime.canvas.getHeight() : 0;
         const image = this.getImageInfo();
         return {
             hasImage: image !== null,
             image,
             maskCount: this.getMasks().length,
             annotationCount: this.getAnnotations().length,
-            currentScale: this.currentScale,
-            currentRotation: this.currentRotation,
-            isFlippedHorizontally: !!((_a = this.originalImage) === null || _a === void 0 ? void 0 : _a.flipX),
-            isFlippedVertically: !!((_b = this.originalImage) === null || _b === void 0 ? void 0 : _b.flipY),
+            currentScale: this.runtime.currentScale,
+            currentRotation: this.runtime.currentRotation,
+            isFlippedHorizontally: !!((_a = this.runtime.originalImage) === null || _a === void 0 ? void 0 : _a.flipX),
+            isFlippedVertically: !!((_b = this.runtime.originalImage) === null || _b === void 0 ? void 0 : _b.flipY),
             isBusy: this.isBusy(),
             activeToolMode: this.getActiveToolMode(),
-            isCropMode: this.cropSession !== null,
-            isMosaicMode: this.mosaicSession !== null,
-            isTextMode: this.textSession !== null,
-            isDrawMode: this.drawSession !== null,
-            canUndo: this.historyManager.canUndo(),
-            canRedo: this.historyManager.canRedo(),
+            isCropMode: this.runtime.cropSession !== null,
+            isMosaicMode: this.runtime.mosaicSession !== null,
+            isTextMode: this.runtime.textSession !== null,
+            isDrawMode: this.runtime.drawSession !== null,
+            canUndo: this.runtime.historyManager.canUndo(),
+            canRedo: this.runtime.historyManager.canRedo(),
             canvasWidth,
             canvasHeight,
         };
@@ -9403,9 +10226,9 @@ class ImageEditor {
     }
     emitBusyChangeIfChanged(context) {
         const isBusy = this.isBusy();
-        if (this.lastEmittedIsBusy === isBusy)
+        if (this.runtime.lastEmittedIsBusy === isBusy)
             return;
-        this.lastEmittedIsBusy = isBusy;
+        this.runtime.lastEmittedIsBusy = isBusy;
         this.emitOptionCallback('onBusyChange', [isBusy, context]);
     }
     buildSelection(selected) {
@@ -9426,20 +10249,20 @@ class ImageEditor {
         };
     }
     withSelectionChangeContext(context, callback) {
-        const previous = this.nextSelectionChangeContext;
-        this.nextSelectionChangeContext = context;
+        const previous = this.runtime.nextSelectionChangeContext;
+        this.runtime.nextSelectionChangeContext = context;
         try {
             return callback();
         }
         finally {
-            this.nextSelectionChangeContext = previous;
+            this.runtime.nextSelectionChangeContext = previous;
         }
     }
     isSupportedImageMimeType(mimeType) {
         return mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp';
     }
     inferCurrentImageMimeType() {
-        const image = this.originalImage;
+        const image = this.runtime.originalImage;
         if (!image)
             return null;
         let source = null;
@@ -9456,9 +10279,9 @@ class ImageEditor {
         return this.isSupportedImageMimeType(mimeType) ? mimeType : null;
     }
     setCanvasSizePx(widthPx, heightPx) {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
-        applyCanvasDimensions(this.canvas, widthPx, heightPx, this.containerElement);
+        applyCanvasDimensions(this.runtime.canvas, widthPx, heightPx, this.runtime.containerElement);
     }
     alignObjectBoundingBoxToCanvasTopLeft(object) {
         var _a, _b, _c;
@@ -9469,31 +10292,31 @@ class ImageEditor {
             top: ((_b = object.top) !== null && _b !== void 0 ? _b : 0) - boundingRect.top,
         });
         object.setCoords();
-        (_c = this.canvas) === null || _c === void 0 ? void 0 : _c.renderAll();
+        (_c = this.runtime.canvas) === null || _c === void 0 ? void 0 : _c.renderAll();
     }
     buildDisplayGeometryContext() {
         return {
-            canvas: this.canvas,
-            containerElement: this.containerElement,
-            options: this.options,
-            currentLayoutMode: this.currentLayoutMode,
-            viewportCache: this.viewportCache,
-            getOriginalImage: () => this.originalImage,
+            canvas: this.runtime.canvas,
+            containerElement: this.runtime.containerElement,
+            options: this.runtime.options,
+            currentLayoutMode: this.runtime.currentLayoutMode,
+            viewportCache: this.runtime.viewportCache,
+            getOriginalImage: () => this.runtime.originalImage,
             setCanvasSize: (widthPx, heightPx) => {
                 this.setCanvasSizePx(widthPx, heightPx);
             },
             setCurrentScale: (scale) => {
-                this.currentScale = scale;
+                this.runtime.currentScale = scale;
             },
             setCurrentRotation: (rotation) => {
-                this.currentRotation = rotation;
+                this.runtime.currentRotation = rotation;
             },
             setBaseImageScale: (scale) => {
-                this.baseImageScale = scale;
+                this.runtime.baseImageScale = scale;
             },
             captureSnapshot: () => this.captureSnapshotInternal(),
             setLastSnapshot: (snapshot) => {
-                this.lastSnapshot = snapshot;
+                this.runtime.lastSnapshot = snapshot;
             },
         };
     }
@@ -9521,188 +10344,55 @@ class ImageEditor {
     buildTransformContext() {
         return this.contextFactory.buildTransformContext();
     }
-    buildTransformActionAccess() {
-        return {
-            isDisposed: () => this.isDisposed,
-            getTransformController: () => this.transformController,
-            assertCanQueueAnimation: (operation) => {
-                this.assertCanQueueAnimation(operation);
-            },
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            enqueueAnimation: (body) => this.animQueue.add(body),
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            refreshUiAfterQueuedAnimation: () => {
-                this.refreshUiAfterQueuedAnimation();
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-        };
-    }
     scaleImage(factor) {
-        return scaleImageAction(this.buildTransformActionAccess(), factor);
+        return scaleImageAction(this.actionAccessFactory.buildTransformActionAccess(), factor);
     }
     rotateImage(degrees) {
-        return rotateImageAction(this.buildTransformActionAccess(), degrees);
+        return rotateImageAction(this.actionAccessFactory.buildTransformActionAccess(), degrees);
     }
     flipHorizontal() {
-        return flipHorizontalAction(this.buildTransformActionAccess());
+        return flipHorizontalAction(this.actionAccessFactory.buildTransformActionAccess());
     }
     flipVertical() {
-        return flipVerticalAction(this.buildTransformActionAccess());
+        return flipVerticalAction(this.actionAccessFactory.buildTransformActionAccess());
     }
     resetImageTransform() {
-        return resetImageTransformAction(this.buildTransformActionAccess());
+        return resetImageTransformAction(this.actionAccessFactory.buildTransformActionAccess());
     }
     refreshUiAfterQueuedAnimation() {
-        if (this.isDisposed || !this.canvas)
+        if (this.runtime.isDisposed || !this.runtime.canvas)
             return;
         this.updateInputs();
         this.updateUi();
-    }
-    buildEditorStateActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getLiveCanvas: (operationName) => this.getLiveCanvasOrThrow(operationName),
-            getOptions: () => this.options,
-            isDisposed: () => this.isDisposed,
-            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
-            getActiveStateRestoreOperation: () => this.activeStateRestoreOperation,
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            getOriginalImage: () => this.originalImage,
-            setOriginalImage: (image) => {
-                this.originalImage = image;
-            },
-            getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
-            getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
-            setCanvasSize: (widthPx, heightPx) => {
-                this.setCanvasSizePx(widthPx, heightPx);
-            },
-            hideAllMaskLabels: () => {
-                this.hideAllMaskLabels();
-            },
-            inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
-            setCurrentImageMimeType: (mimeType) => {
-                this.currentImageMimeType = mimeType;
-            },
-            setIsImageLoadedToCanvas: (value) => {
-                this.isImageLoadedToCanvas = value;
-            },
-            setMaskCounter: (value) => {
-                this.maskCounter = value;
-            },
-            setAnnotationCounter: (value) => {
-                this.annotationCounter = value;
-            },
-            setCurrentScale: (value) => {
-                this.currentScale = value;
-            },
-            setCurrentRotation: (value) => {
-                this.currentRotation = value;
-            },
-            setBaseImageScale: (value) => {
-                this.baseImageScale = value;
-            },
-            setLastMask: (mask) => {
-                this.lastMask = mask;
-            },
-            getLastSnapshot: () => this.lastSnapshot,
-            setLastSnapshot: (snapshot) => {
-                this.lastSnapshot = snapshot;
-            },
-            shouldNormalizeCanvasSizeAfterStateRestore: () => this.shouldNormalizeCanvasSizeAfterStateRestore(),
-            updateCanvasSizeToImageBounds: (options) => {
-                this.updateCanvasSizeToImageBounds(options);
-            },
-            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
-                this.alignObjectBoundingBoxToCanvasTopLeft(object);
-            },
-            settleFitCoverScrollbarsAfterStateRestore: () => {
-                this.settleFitCoverScrollbarsAfterStateRestore();
-            },
-            buildTextControllerContext: () => this.buildTextControllerContext(),
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateAnnotationList: () => {
-                this.updateAnnotationList();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            emitImageCleared: (image, context) => {
-                this.emitOptionCallback('onImageCleared', [image, context]);
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
-            handleSelectionChanged: (selected) => {
-                this.handleSelectionChanged(selected);
-            },
-            shouldSuppressSaveState: () => this.shouldSuppressSaveState,
-            getCurrentScale: () => this.currentScale,
-            getCurrentRotation: () => this.currentRotation,
-            getBaseImageScale: () => this.baseImageScale,
-            getCurrentImageMimeType: () => this.currentImageMimeType,
-            getHistoryManager: () => this.historyManager,
-            withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
-            showLabelForMask: (mask) => {
-                this.showLabelForMask(mask);
-            },
-            updateMaskListSelection: (mask) => {
-                this.updateMaskListSelection(mask);
-            },
-            updateAnnotationListSelection: (annotation) => {
-                this.updateAnnotationListSelection(annotation);
-            },
-        };
     }
     async loadFromState(jsonString) {
         return this.loadFromStateInternal(jsonString);
     }
     async loadFromStateInternal(jsonString, options) {
-        await loadFromStateAction(this.buildEditorStateActionAccess(), jsonString, options);
+        await loadFromStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), jsonString, options);
     }
     saveState() {
         this.saveStateInternal();
     }
     saveStateInternal(options) {
-        saveStateAction(this.buildEditorStateActionAccess(), options);
+        saveStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), options);
     }
     undo() {
-        if (this.isDisposed)
+        if (this.runtime.isDisposed)
             return Promise.resolve();
         if (!this.canRunIdleOperation('undo'))
             return Promise.resolve();
         this.finalizeActiveTextEditingIfNeeded();
         const context = this.buildCallbackContext('undo', true);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
+        const job = this.runtime.animQueue.add(async () => {
+            if (this.runtime.isDisposed)
                 return;
-            this.activeStateRestoreOperation = 'undo';
+            this.runtime.activeStateRestoreOperation = 'undo';
             try {
-                await this.historyManager.undo();
+                await this.runtime.historyManager.undo();
             }
             finally {
-                this.activeStateRestoreOperation = null;
+                this.runtime.activeStateRestoreOperation = null;
             }
         });
         this.emitBusyChangeIfChanged(context);
@@ -9712,21 +10402,21 @@ class ImageEditor {
         });
     }
     redo() {
-        if (this.isDisposed)
+        if (this.runtime.isDisposed)
             return Promise.resolve();
         if (!this.canRunIdleOperation('redo'))
             return Promise.resolve();
         this.finalizeActiveTextEditingIfNeeded();
         const context = this.buildCallbackContext('redo', true);
-        const job = this.animQueue.add(async () => {
-            if (this.isDisposed)
+        const job = this.runtime.animQueue.add(async () => {
+            if (this.runtime.isDisposed)
                 return;
-            this.activeStateRestoreOperation = 'redo';
+            this.runtime.activeStateRestoreOperation = 'redo';
             try {
-                await this.historyManager.redo();
+                await this.runtime.historyManager.redo();
             }
             finally {
-                this.activeStateRestoreOperation = null;
+                this.runtime.activeStateRestoreOperation = null;
             }
         });
         this.emitBusyChangeIfChanged(context);
@@ -9735,34 +10425,14 @@ class ImageEditor {
             this.emitBusyChangeIfChanged(context);
         });
     }
-    buildMaskActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getMasks: () => this.getMasks(),
-            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            buildCreateMaskContext: () => this.buildCreateMaskContext(),
-            buildRemoveMaskContext: () => this.buildRemoveMaskContext(),
-            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
-            updateUi: () => {
-                this.updateUi();
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-        };
-    }
     createMask(config = {}) {
-        return createMaskAction(this.buildMaskActionAccess(), config);
+        return createMaskAction(this.actionAccessFactory.buildMaskActionAccess(), config);
     }
     removeSelectedMask() {
-        removeSelectedMaskAction(this.buildMaskActionAccess());
+        removeSelectedMaskAction(this.actionAccessFactory.buildMaskActionAccess());
     }
     removeAllMasks(options = {}) {
-        removeAllMasksAction(this.buildMaskActionAccess(), options);
+        removeAllMasksAction(this.actionAccessFactory.buildMaskActionAccess(), options);
     }
     buildCreateMaskContext() {
         return this.contextFactory.buildCreateMaskContext();
@@ -9803,56 +10473,14 @@ class ImageEditor {
             return;
         showLabelForMask(context, mask);
     }
-    buildSelectionControllerAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            removeLabelForMask: (mask) => {
-                this.removeLabelForMask(mask);
-            },
-            showLabelForMask: (mask) => {
-                this.showLabelForMask(mask);
-            },
-            syncMaskLabel: (mask) => {
-                this.syncMaskLabel(mask);
-            },
-            updateMaskListSelection: (mask) => {
-                this.updateMaskListSelection(mask);
-            },
-            updateAnnotationListSelection: (annotation) => {
-                this.updateAnnotationListSelection(annotation);
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            saveState: () => {
-                this.saveState();
-            },
-            getNextSelectionChangeContext: () => this.nextSelectionChangeContext,
-            getActiveStateRestoreOperation: () => this.activeStateRestoreOperation,
-            buildSelection: (selected) => this.buildSelection(selected),
-            buildCallbackContext: (operation, isHistoryRestore) => this.buildCallbackContext(operation, isHistoryRestore),
-            emitSelectionChange: (selection, context) => {
-                this.emitOptionCallback('onSelectionChange', [selection, context]);
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-        };
-    }
     handleObjectMovingScalingRotating(target) {
-        handleObjectMovingScalingRotating(this.buildSelectionControllerAccess(), target);
+        handleObjectMovingScalingRotating(this.actionAccessFactory.buildSelectionControllerAccess(), target);
     }
     handleObjectModified(target) {
-        handleObjectModified(this.buildSelectionControllerAccess(), target);
+        handleObjectModified(this.actionAccessFactory.buildSelectionControllerAccess(), target);
     }
     handleSelectionChanged(selected) {
-        handleSelectionChanged(this.buildSelectionControllerAccess(), selected);
+        handleSelectionChanged(this.actionAccessFactory.buildSelectionControllerAccess(), selected);
     }
     buildMaskListContext() {
         return this.contextFactory.buildMaskListContext();
@@ -9863,53 +10491,35 @@ class ImageEditor {
     updateMaskListSelection(selectedMask) {
         updateMaskListSelection(this.buildMaskListContext(), selectedMask);
     }
-    buildAnnotationModeActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getTextSession: () => this.textSession,
-            getDrawSession: () => this.drawSession,
-            isToolModeActive: () => this.isToolModeActive(),
-            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
-            buildTextControllerContext: () => this.buildTextControllerContext(),
-            buildDrawControllerContext: () => this.buildDrawControllerContext(),
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-        };
-    }
     enterTextMode() {
-        enterTextModeAction(this.buildAnnotationModeActionAccess());
+        enterTextModeAction(this.actionAccessFactory.buildAnnotationModeActionAccess());
     }
     exitTextMode() {
-        exitTextModeAction(this.buildAnnotationModeActionAccess());
+        exitTextModeAction(this.actionAccessFactory.buildAnnotationModeActionAccess());
     }
     isTextMode() {
-        return this.textSession !== null;
+        return this.runtime.textSession !== null;
     }
     createTextAnnotation(config = {}) {
-        return createTextAnnotationAction(this.buildAnnotationModeActionAccess(), config);
+        return createTextAnnotationAction(this.actionAccessFactory.buildAnnotationModeActionAccess(), config);
     }
     enterDrawMode() {
-        enterDrawModeAction(this.buildAnnotationModeActionAccess());
+        enterDrawModeAction(this.actionAccessFactory.buildAnnotationModeActionAccess());
     }
     exitDrawMode() {
-        exitDrawModeAction(this.buildAnnotationModeActionAccess());
+        exitDrawModeAction(this.actionAccessFactory.buildAnnotationModeActionAccess());
     }
     isDrawMode() {
-        return this.drawSession !== null;
+        return this.runtime.drawSession !== null;
     }
     getTextConfig() {
-        return cloneResolvedTextAnnotationConfig(this.currentTextConfig);
+        return cloneResolvedTextAnnotationConfig(this.runtime.currentTextConfig);
     }
     setTextConfig(config) {
         this.applyTextConfigPatch(config, 'setTextConfig');
     }
     resetTextConfig() {
-        this.applyTextConfigPatch(this.defaultTextConfig, 'resetTextConfig');
+        this.applyTextConfigPatch(this.runtime.defaultTextConfig, 'resetTextConfig');
     }
     setTextColor(color) {
         this.applyTextConfigPatch({ fill: color }, 'setTextColor');
@@ -9918,13 +10528,13 @@ class ImageEditor {
         this.applyTextConfigPatch({ fontSize: size }, 'setTextFontSize');
     }
     getDrawConfig() {
-        return cloneResolvedDrawConfig(this.currentDrawConfig);
+        return cloneResolvedDrawConfig(this.runtime.currentDrawConfig);
     }
     setDrawConfig(config) {
         this.applyDrawConfigPatch(config, 'setDrawConfig');
     }
     resetDrawConfig() {
-        this.applyDrawConfigPatch(this.defaultDrawConfig, 'resetDrawConfig');
+        this.applyDrawConfigPatch(this.runtime.defaultDrawConfig, 'resetDrawConfig');
     }
     setDrawColor(color) {
         this.applyDrawConfigPatch({ color }, 'setDrawColor');
@@ -9932,84 +10542,46 @@ class ImageEditor {
     setDrawBrushSize(size) {
         this.applyDrawConfigPatch({ brushSize: size }, 'setDrawBrushSize');
     }
-    buildEditableObjectActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getLiveCanvas: (operationName) => this.getLiveCanvasOrThrow(operationName),
-            buildAnnotationManagerContext: () => this.buildAnnotationManagerContext(),
-            getMasks: () => this.getMasks(),
-            getAnnotations: () => this.getAnnotations(),
-            removeLabelForMask: (mask) => {
-                this.removeLabelForMask(mask);
-            },
-            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            saveState: () => {
-                this.saveState();
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateAnnotationList: () => {
-                this.updateAnnotationList();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            reportWarning: (message) => {
-                reportWarning(this.options, null, message);
-            },
-        };
-    }
     removeSelectedAnnotation() {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
         if (!this.canRunIdleOperation('removeSelectedAnnotation'))
             return;
         const callbackContext = this.buildCallbackContext('removeSelectedAnnotation', false);
-        removeSelectedAnnotationAction(this.buildEditableObjectActionAccess(), callbackContext);
+        removeSelectedAnnotationAction(this.actionAccessFactory.buildEditableObjectActionAccess(), callbackContext);
     }
     removeAllAnnotations(options = {}) {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
         if (!this.canRunIdleOperation('removeAllAnnotations', options))
             return;
         const callbackContext = this.buildCallbackContext('removeAllAnnotations', false);
-        removeAllAnnotationsAction(this.buildEditableObjectActionAccess(), options, callbackContext);
+        removeAllAnnotationsAction(this.actionAccessFactory.buildEditableObjectActionAccess(), options, callbackContext);
     }
     updateAnnotation(annotationId, config) {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
         if (!this.canRunIdleOperation('updateAnnotation'))
             return;
         const callbackContext = this.buildCallbackContext('updateAnnotation', false);
-        updateAnnotationAction(this.buildEditableObjectActionAccess(), annotationId, config, callbackContext);
+        updateAnnotationAction(this.actionAccessFactory.buildEditableObjectActionAccess(), annotationId, config, callbackContext);
     }
     updateSelectedAnnotation(config) {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
         if (!this.canRunIdleOperation('updateSelectedAnnotation'))
             return;
         const callbackContext = this.buildCallbackContext('updateSelectedAnnotation', false);
-        updateSelectedAnnotationAction(this.buildEditableObjectActionAccess(), config, callbackContext);
+        updateSelectedAnnotationAction(this.actionAccessFactory.buildEditableObjectActionAccess(), config, callbackContext);
     }
     deleteSelectedObject() {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
         if (!this.canRunIdleOperation('deleteSelectedObject'))
             return;
         this.finalizeActiveTextEditingIfNeeded();
         const callbackContext = this.buildCallbackContext('deleteSelectedObject', false);
-        deleteSelectedEditableObjects(this.buildEditableObjectActionAccess(), callbackContext);
+        deleteSelectedEditableObjects(this.actionAccessFactory.buildEditableObjectActionAccess(), callbackContext);
     }
     bringSelectedObjectForward() {
         this.moveSelectedEditableObject('bringSelectedObjectForward');
@@ -10041,125 +10613,42 @@ class ImageEditor {
     buildDrawControllerContext() {
         return this.contextFactory.buildDrawControllerContext();
     }
-    buildAnnotationConfigActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            isTextMode: () => this.isTextMode(),
-            isDrawMode: () => this.isDrawMode(),
-            getCurrentTextConfig: () => this.currentTextConfig,
-            setCurrentTextConfig: (config) => {
-                this.currentTextConfig = config;
-            },
-            getDefaultTextConfig: () => this.defaultTextConfig,
-            getCurrentDrawConfig: () => this.currentDrawConfig,
-            setCurrentDrawConfig: (config) => {
-                this.currentDrawConfig = config;
-            },
-            getDefaultDrawConfig: () => this.defaultDrawConfig,
-            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
-            buildDrawControllerContext: () => this.buildDrawControllerContext(),
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            updateSelectedAnnotation: (config) => {
-                this.updateSelectedAnnotation(config);
-            },
-            setTextColor: (color) => {
-                this.setTextColor(color);
-            },
-            setTextFontSize: (size) => {
-                this.setTextFontSize(size);
-            },
-            setDrawColor: (color) => {
-                this.setDrawColor(color);
-            },
-            setDrawBrushSize: (size) => {
-                this.setDrawBrushSize(size);
-            },
-            reportWarning: (error, message) => {
-                reportWarning(this.options, error, message);
-            },
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-        };
-    }
     applyTextConfigPatch(config, operation) {
-        applyTextConfigPatchAction(this.buildAnnotationConfigActionAccess(), config, operation);
+        applyTextConfigPatchAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), config, operation);
     }
     applyDrawConfigPatch(config, operation) {
-        applyDrawConfigPatchAction(this.buildAnnotationConfigActionAccess(), config, operation);
+        applyDrawConfigPatchAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), config, operation);
     }
     applyTextColorInput(color) {
-        applyTextColorInputAction(this.buildAnnotationConfigActionAccess(), color);
+        applyTextColorInputAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), color);
     }
     applyTextFontSizeInput(size) {
-        applyTextFontSizeInputAction(this.buildAnnotationConfigActionAccess(), size);
+        applyTextFontSizeInputAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), size);
     }
     applyDrawColorInput(color) {
-        applyDrawColorInputAction(this.buildAnnotationConfigActionAccess(), color);
+        applyDrawColorInputAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), color);
     }
     applyDrawBrushSizeInput(size) {
-        applyDrawBrushSizeInputAction(this.buildAnnotationConfigActionAccess(), size);
+        applyDrawBrushSizeInputAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), size);
     }
     moveSelectedEditableObject(operation) {
-        if (!this.canvas)
+        if (!this.runtime.canvas)
             return;
         if (!this.canRunIdleOperation(operation))
             return;
-        moveSelectedEditableObject(this.buildEditableObjectActionAccess(), operation);
-    }
-    buildExportActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getAnnotations: () => this.getAnnotations(),
-            getMasks: () => this.getMasks(),
-            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
-            assertIdleForOperation: (operation, options) => {
-                this.assertIdleForOperation(operation, options);
-            },
-            finalizeActiveTextEditingIfNeeded: () => {
-                this.finalizeActiveTextEditingIfNeeded();
-            },
-            buildExportServiceContext: () => this.buildExportServiceContext(),
-            buildMergeMasksContext: (token) => this.buildMergeMasksContext(token),
-            buildMergeAnnotationsContext: (token) => this.buildMergeAnnotationsContext(token),
-            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateAnnotationList: () => {
-                this.updateAnnotationList();
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-        };
+        moveSelectedEditableObject(this.actionAccessFactory.buildEditableObjectActionAccess(), operation);
     }
     async mergeMasks() {
-        await mergeMasksAction(this.buildExportActionAccess());
+        await mergeMasksAction(this.actionAccessFactory.buildExportActionAccess());
     }
     async downloadImage(options) {
-        await downloadImageAction(this.buildExportActionAccess(), options);
+        await downloadImageAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     async exportImageBase64(options) {
-        return await exportImageBase64Action(this.buildExportActionAccess(), options);
+        return await exportImageBase64Action(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     async exportImageFile(options) {
-        return await exportImageFileAction(this.buildExportActionAccess(), options);
+        return await exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     buildExportServiceContext() {
         return this.contextFactory.buildExportServiceContext();
@@ -10171,55 +10660,25 @@ class ImageEditor {
         return this.contextFactory.buildMergeAnnotationsContext(operationToken);
     }
     captureSnapshotInternal() {
-        return captureSnapshotAction(this.buildEditorStateActionAccess());
-    }
-    buildMosaicActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getOriginalImage: () => this.originalImage,
-            getMosaicSession: () => this.mosaicSession,
-            getMosaicConfig: () => this.currentMosaicConfig,
-            setMosaicConfig: (config) => {
-                this.currentMosaicConfig = config;
-            },
-            getDefaultMosaicConfig: () => this.defaultMosaicConfig,
-            getOptions: () => this.options,
-            isDisposed: () => this.isDisposed,
-            isImageLoaded: () => this.isImageLoaded(),
-            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
-            buildMosaicControllerContext: () => this.buildMosaicControllerContext(),
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-        };
+        return captureSnapshotAction(this.actionAccessFactory.buildEditorStateActionAccess());
     }
     enterMosaicMode() {
-        enterMosaicModeAction(this.buildMosaicActionAccess());
+        enterMosaicModeAction(this.actionAccessFactory.buildMosaicActionAccess());
     }
     exitMosaicMode() {
-        exitMosaicModeAction(this.buildMosaicActionAccess());
+        exitMosaicModeAction(this.actionAccessFactory.buildMosaicActionAccess());
     }
     isMosaicMode() {
-        return this.mosaicSession !== null;
+        return this.runtime.mosaicSession !== null;
     }
     getMosaicConfig() {
-        return cloneResolvedMosaicConfig(this.currentMosaicConfig);
+        return cloneResolvedMosaicConfig(this.runtime.currentMosaicConfig);
     }
     setMosaicConfig(config) {
         this.applyMosaicConfigPatch(config, 'setMosaicConfig');
     }
     resetMosaicConfig() {
-        resetMosaicConfigAction(this.buildMosaicActionAccess());
+        resetMosaicConfigAction(this.actionAccessFactory.buildMosaicActionAccess());
     }
     setMosaicBrushSize(size) {
         this.applyMosaicConfigPatch({ brushSize: size }, 'setMosaicBrushSize');
@@ -10228,138 +10687,61 @@ class ImageEditor {
         this.applyMosaicConfigPatch({ blockSize: size }, 'setMosaicBlockSize');
     }
     applyMosaicConfigPatch(config, operation) {
-        applyMosaicConfigPatchAction(this.buildMosaicActionAccess(), config, operation);
+        applyMosaicConfigPatchAction(this.actionAccessFactory.buildMosaicActionAccess(), config, operation);
     }
     buildMosaicControllerContext() {
         return this.contextFactory.buildMosaicControllerContext();
     }
-    buildCropActionAccess() {
-        return {
-            getCanvas: () => this.canvas,
-            getOriginalImage: () => this.originalImage,
-            getCropSession: () => this.cropSession,
-            setCropSession: (session) => {
-                this.cropSession = session;
-            },
-            isImageLoaded: () => this.isImageLoaded(),
-            canRunIdleOperation: (operation) => this.canRunIdleOperation(operation),
-            buildCropControllerContext: (token) => this.buildCropControllerContext(token),
-            buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            getMasks: () => this.getMasks(),
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-        };
-    }
     enterCropMode(options = {}) {
-        enterCropModeAction(this.buildCropActionAccess(), options);
+        enterCropModeAction(this.actionAccessFactory.buildCropActionAccess(), options);
     }
     setCropAspectRatio(aspectRatio) {
-        setCropAspectRatioAction(this.buildCropActionAccess(), aspectRatio);
+        setCropAspectRatioAction(this.actionAccessFactory.buildCropActionAccess(), aspectRatio);
     }
     cancelCrop() {
-        cancelCropAction(this.buildCropActionAccess());
+        cancelCropAction(this.actionAccessFactory.buildCropActionAccess());
     }
     async applyCrop() {
-        await applyCropAction(this.buildCropActionAccess());
+        await applyCropAction(this.actionAccessFactory.buildCropActionAccess());
     }
     buildCropControllerContext(operationToken) {
         return this.contextFactory.buildCropControllerContext(operationToken);
     }
     updateInputs() {
         applyEditorInputState({
-            currentScale: this.currentScale,
+            currentScale: this.runtime.currentScale,
             mosaicConfig: this.getMosaicConfig(),
             textConfig: this.getTextConfig(),
             drawConfig: this.getDrawConfig(),
         }, (key) => {
-            const id = this.elements[key];
-            return id ? document.getElementById(id) : null;
+            const id = this.runtime.elements[key];
+            const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
+            return id && ownerDocument
+                ? ownerDocument.getElementById(id)
+                : null;
         });
     }
     async mergeAnnotations() {
-        await mergeAnnotationsAction(this.buildExportActionAccess());
+        await mergeAnnotationsAction(this.actionAccessFactory.buildExportActionAccess());
     }
     updateUi() {
-        const snapshot = this.buildControlSnapshot();
+        const snapshot = buildEditorControlSnapshot(this.runtime);
         if (!snapshot)
             return;
         applyEditorControlState(snapshot, (key, enabled) => {
             this.setControlEnabled(key, enabled);
         });
     }
-    buildControlSnapshot() {
-        var _a, _b, _c;
-        if (!this.canvas)
-            return null;
-        const hasImage = !!this.originalImage;
-        const masks = hasImage ? this.canvas.getObjects().filter(isMaskObject) : [];
-        const annotations = hasImage ? this.canvas.getObjects().filter(isAnnotationObject) : [];
-        const hasMasks = masks.length > 0;
-        const hasAnnotations = annotations.length > 0;
-        const activeObject = this.canvas.getActiveObject();
-        const hasSelectedMask = !!(activeObject && isMaskObject(activeObject));
-        const hasSelectedAnnotation = !!(activeObject && isAnnotationObject(activeObject));
-        const hasSelectedEditableObject = !!activeObject && isEditableOverlayObject(activeObject);
-        const isDefaultTransform = this.currentScale === 1 &&
-            this.currentRotation === 0 &&
-            !((_a = this.originalImage) === null || _a === void 0 ? void 0 : _a.flipX) &&
-            !((_b = this.originalImage) === null || _b === void 0 ? void 0 : _b.flipY);
-        const canUndo = this.historyManager.canUndo();
-        const canRedo = this.historyManager.canRedo();
-        const isInCropMode = this.cropSession !== null;
-        const isInMosaicMode = this.mosaicSession !== null;
-        const isInTextMode = this.textSession !== null;
-        const isInDrawMode = this.drawSession !== null;
-        const isBusy = this.operationGuard.isBusy() || this.animQueue.isBusy();
-        const isMosaicApplying = ((_c = this.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true;
-        return {
-            hasImage,
-            hasMasks,
-            hasAnnotations,
-            hasSelectedMask,
-            hasSelectedAnnotation,
-            hasSelectedEditableObject,
-            isDefaultTransform,
-            currentScale: this.currentScale,
-            minScale: this.options.minScale,
-            maxScale: this.options.maxScale,
-            canUndo,
-            canRedo,
-            isBusy,
-            isDisposed: this.isDisposed,
-            isInCropMode,
-            isInMosaicMode,
-            isInTextMode,
-            isInDrawMode,
-            isMosaicApplying,
-        };
-    }
     buildControlElementContext() {
         return {
-            elements: this.elements,
-            originalDisabledMap: this.elementOriginalDisabledMap,
-            originalAriaDisabledMap: this.elementOriginalAriaDisabledMap,
-            originalPointerEventsMap: this.elementOriginalPointerEventsMap,
+            elements: this.runtime.elements,
+            originalDisabledMap: this.runtime.elementOriginalDisabledMap,
+            originalAriaDisabledMap: this.runtime.elementOriginalAriaDisabledMap,
+            originalPointerEventsMap: this.runtime.elementOriginalPointerEventsMap,
             getElement: (key) => {
-                const id = this.elements[key];
-                return id ? document.getElementById(id) : null;
+                const id = this.runtime.elements[key];
+                const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
+                return id && ownerDocument ? ownerDocument.getElementById(id) : null;
             },
         };
     }
@@ -10370,51 +10752,51 @@ class ImageEditor {
         restoreEditorControlOriginalStates(this.buildControlElementContext());
     }
     updatePlaceholderStatus() {
-        setPlaceholderVisible(this.placeholderElement, this.containerElement, this.options.showPlaceholder ? !this.originalImage : false);
+        setPlaceholderVisible(this.runtime.placeholderElement, this.runtime.containerElement, this.runtime.options.showPlaceholder ? !this.runtime.originalImage : false);
     }
     dispose() {
         var _a;
-        if (this.isDisposed)
+        if (this.runtime.isDisposed)
             return;
         const context = this.buildCallbackContext('dispose', false);
-        const previousImage = this.originalImage;
-        this.isDisposed = true;
-        this.operationGuard.markDisposed();
-        this.animQueue.clear();
-        (_a = this.domBindings) === null || _a === void 0 ? void 0 : _a.removeAll();
-        safelyRemoveKeyboardListener(this.keyboardDocument, this.keyboardHandler);
-        this.keyboardHandler = null;
-        this.keyboardDocument = null;
+        const previousImage = this.runtime.originalImage;
+        this.runtime.isDisposed = true;
+        this.runtime.operationGuard.markDisposed();
+        this.runtime.animQueue.clear();
+        (_a = this.runtime.domBindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+        safelyRemoveKeyboardListener(this.runtime.keyboardDocument, this.runtime.keyboardHandler);
+        this.runtime.keyboardHandler = null;
+        this.runtime.keyboardDocument = null;
         this.restoreElementOriginalStates();
-        safelyExitActiveSession(this.cropSession !== null, this.canvas, () => cancelCrop(this.buildCropControllerContext()), () => {
-            this.cropSession = null;
+        safelyExitActiveSession(this.runtime.cropSession !== null, this.runtime.canvas, () => cancelCrop(this.buildCropControllerContext()), () => {
+            this.runtime.cropSession = null;
         });
-        safelyExitActiveSession(this.mosaicSession !== null, this.canvas, () => exitMosaicMode(this.buildMosaicControllerContext()), () => {
-            this.mosaicSession = null;
+        safelyExitActiveSession(this.runtime.mosaicSession !== null, this.runtime.canvas, () => exitMosaicMode(this.buildMosaicControllerContext()), () => {
+            this.runtime.mosaicSession = null;
         });
-        safelyExitActiveSession(this.textSession !== null, this.canvas, () => exitTextMode(this.buildTextControllerContext()), () => {
-            this.textSession = null;
+        safelyExitActiveSession(this.runtime.textSession !== null, this.runtime.canvas, () => exitTextMode(this.buildTextControllerContext()), () => {
+            this.runtime.textSession = null;
         });
-        safelyExitActiveSession(this.drawSession !== null, this.canvas, () => exitDrawMode(this.buildDrawControllerContext()), () => {
-            this.drawSession = null;
+        safelyExitActiveSession(this.runtime.drawSession !== null, this.runtime.canvas, () => exitDrawMode(this.buildDrawControllerContext()), () => {
+            this.runtime.drawSession = null;
         });
-        if (this.canvas) {
-            safelyDisposeCanvas(this.canvas);
-            this.canvas = null;
-            this.canvasElement = null;
-            this.isImageLoadedToCanvas = false;
+        if (this.runtime.canvas) {
+            safelyDisposeCanvas(this.runtime.canvas);
+            this.runtime.canvas = null;
+            this.runtime.canvasElement = null;
+            this.runtime.isImageLoadedToCanvas = false;
         }
-        this.originalImage = null;
-        this.currentImageMimeType = null;
-        this.lastMask = null;
-        this.maskCounter = 0;
-        this.annotationCounter = 0;
-        this.currentScale = 1;
-        this.currentRotation = 0;
-        this.baseImageScale = 1;
-        this.lastSnapshot = null;
-        this.transformController = null;
-        this.viewportCache.clear();
+        this.runtime.originalImage = null;
+        this.runtime.currentImageMimeType = null;
+        this.runtime.lastMask = null;
+        this.runtime.maskCounter = 0;
+        this.runtime.annotationCounter = 0;
+        this.runtime.currentScale = 1;
+        this.runtime.currentRotation = 0;
+        this.runtime.baseImageScale = 1;
+        this.runtime.lastSnapshot = null;
+        this.runtime.transformController = null;
+        this.runtime.viewportCache.clear();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
         }

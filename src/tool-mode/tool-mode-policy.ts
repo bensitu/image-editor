@@ -1,3 +1,10 @@
+/**
+ * Tool-mode operation policy for ImageEditor.
+ *
+ * The policy defines which public operations may run while Crop, Mosaic,
+ * Text, or Draw mode owns editor interaction.
+ */
+
 import type { EditorToolMode, ImageEditorOperation } from '../core/public-types.js';
 
 export interface EditorToolModeSnapshot {

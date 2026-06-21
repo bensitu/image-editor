@@ -1,3 +1,9 @@
+/**
+ * Annotation configuration action adapters for Text and Draw tools.
+ *
+ * These helpers normalize runtime config patches, apply live tool updates,
+ * and route selected-annotation style changes through the facade callbacks.
+ */
 import type * as FabricNS from 'fabric';
 import { type AnnotationUpdateConfig, type DrawConfig, type ImageEditorCallbackContext, type ImageEditorOperation, type ResolvedDrawConfig, type ResolvedTextAnnotationConfig, type TextAnnotationConfig } from '../core/public-types.js';
 import { type DrawControllerContext } from './draw-controller.js';

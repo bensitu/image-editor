@@ -22,7 +22,7 @@ export function renderMaskList(context) {
         listItemElement.className = 'list-group-item mask-item';
         listItemElement.textContent = mask.maskName;
         listItemElement.dataset.maskId = String(mask.maskId);
-        listItemElement.onclick = () => {
+        listItemElement.addEventListener('click', () => {
             const id = Number(listItemElement.dataset.maskId);
             if (!Number.isFinite(id))
                 return;
@@ -33,7 +33,7 @@ export function renderMaskList(context) {
                 return;
             canvas.setActiveObject(target);
             context.onMaskSelected(target);
-        };
+        });
         listEl.appendChild(listItemElement);
     });
 }

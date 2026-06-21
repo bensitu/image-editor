@@ -94,7 +94,6 @@
 import type * as FabricNS from 'fabric';
 
 import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/public-types.js';
-import { reportError } from '../core/callback-reporter.js';
 import type {
     ExportArea,
     FabricModule,
@@ -529,6 +528,7 @@ function restoreActiveObject(
     activeObject: FabricNS.FabricObject | null,
 ): void {
     if (!activeObject) return;
+    if (!canvas.getObjects().includes(activeObject)) return;
     try {
         const canvasWithSelection = canvas as CanvasWithSelection;
         if (typeof canvasWithSelection.setActiveObject === 'function') {
@@ -676,6 +676,18 @@ async function sealPartialTransparentEdges(
     if (edges?.bottom && height > 1) {
         for (let x = 0; x < width; x += 1) sealPixel(x, height - 1, x, height - 2);
     }
+    if (edges?.left && edges?.top && width > 1 && height > 1) {
+        sealPixel(0, 0, 1, 1);
+    }
+    if (edges?.right && edges?.top && width > 1 && height > 1) {
+        sealPixel(width - 1, 0, width - 2, 1);
+    }
+    if (edges?.left && edges?.bottom && width > 1 && height > 1) {
+        sealPixel(0, height - 1, 1, height - 2);
+    }
+    if (edges?.right && edges?.bottom && width > 1 && height > 1) {
+        sealPixel(width - 1, height - 1, width - 2, height - 2);
+    }
 
     canvasContext.putImageData(imageData, 0, 0);
     return target.quality === undefined
@@ -686,6 +698,8 @@ async function sealPartialTransparentEdges(
 function getJpegBackgroundColor(backgroundColor: unknown, ownerDocument: Document): string {
     return resolveCanvasFillStyle(backgroundColor, ownerDocument);
 }
+
+const colorValidationContexts = new WeakMap<Document, CanvasRenderingContext2D | null>();
 
 function resolveCanvasFillStyle(
     backgroundColor: unknown,
@@ -713,9 +727,15 @@ function resolveCanvasFillStyle(
 }
 
 function createColorValidationContext(ownerDocument: Document): CanvasRenderingContext2D | null {
+    if (colorValidationContexts.has(ownerDocument)) {
+        return colorValidationContexts.get(ownerDocument) ?? null;
+    }
     try {
-        return ownerDocument.createElement('canvas').getContext('2d');
+        const context = ownerDocument.createElement('canvas').getContext('2d');
+        colorValidationContexts.set(ownerDocument, context);
+        return context;
     } catch {
+        colorValidationContexts.set(ownerDocument, null);
         return null;
     }
 }
@@ -743,7 +763,7 @@ function isTransparentCssColor(value: string): boolean {
         return /^0+$/.test(alpha);
     }
 
-    const commaAlpha = normalized.match(/^(?:rgba|hsla)\((.*),\s*([^,/)]+)\)$/i);
+    const commaAlpha = normalized.match(/^(?:rgba|hsla)\(([^)]{0,200}),\s*([^,/)]{0,50})\)$/i);
     if (commaAlpha && isZeroCssAlpha(commaAlpha[2]!)) return true;
 
     const slashAlpha = normalized.match(/^[a-z][a-z0-9-]*\([^/]+\/\s*([^)]+)\)$/i);
@@ -783,8 +803,8 @@ async function convertDataUrlToOpaqueJpeg(
 
 /**
  * Convert a `data:image/...;base64...` URL into the byte array that
- * `new File([...]...)` consumes. Mirrors legacy's reverse-loop decode so
- * large data URLs do not allocate intermediate `Array.from` storage.
+ * `new File([...]...)` consumes without allocating intermediate
+ * `Array.from` storage.
  *
  * The payload must be strict base64; embedded whitespace is rejected
  * before the decoder runs.
@@ -805,7 +825,7 @@ function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
         // because it admits `SharedArrayBuffer`).
         const buffer = new ArrayBuffer(binary.length);
         const bytes = new Uint8Array(buffer);
-        for (let i = binary.length - 1; i >= 0; i -= 1) {
+        for (let i = 0; i < binary.length; i += 1) {
             bytes[i] = binary.charCodeAt(i);
         }
         return bytes;
@@ -1074,8 +1094,8 @@ export async function exportImageFile(
  * No-image gate emits the same `console.warn` as the
  * other entry points and returns without touching the DOM.
  *
- * Errors raised by the underlying export are reported with `console.error`
- * and rethrown through the returned promise.
+ * Errors raised by the underlying export reject the returned promise so the
+ * caller can report or recover at the UI boundary.
  *
  * @param context - Export context bundle.
  * @param options - Optional {@link ImageExportOptions}.
@@ -1096,14 +1116,8 @@ export async function downloadImage(
         );
     }
 
-    try {
-        const file = await exportImageFile(context, options);
-        triggerFileDownload(context, file);
-    } catch (error) {
-        reportError(context.options, error, 'downloadImage failed.');
-        console.error('[ImageEditor] downloadImage failed', error);
-        throw error;
-    }
+    const file = await exportImageFile(context, options);
+    triggerFileDownload(context, file);
 }
 
 function triggerFileDownload(context: ExportServiceContext, file: File): void {
@@ -1114,7 +1128,8 @@ function triggerFileDownload(context: ExportServiceContext, file: File): void {
     link.download = file.name;
     link.href = objectUrl;
 
-    const body = ownerDocument.body;
+    const body = ownerDocument.body ?? ownerDocument.documentElement;
+    if (!body) throw new Error('Document body is unavailable for download trigger.');
     body.appendChild(link);
 
     try {

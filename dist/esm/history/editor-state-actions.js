@@ -179,14 +179,8 @@ function restoreActiveSelection(access, restoredState, editorState, context) {
     }
 }
 function getActiveMaskForSnapshot(canvas) {
-    var _a;
     const activeObject = canvas.getActiveObject();
-    if (activeObject && isMaskObject(activeObject))
-        return activeObject;
-    const labeledMasks = canvas
-        .getObjects()
-        .filter((object) => isMaskObject(object) && !!object.labelObject);
-    return labeledMasks.length === 1 ? ((_a = labeledMasks[0]) !== null && _a !== void 0 ? _a : null) : null;
+    return activeObject && isMaskObject(activeObject) ? activeObject : null;
 }
 function getActiveAnnotationForSnapshot(canvas) {
     const activeObject = canvas.getActiveObject();

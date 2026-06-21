@@ -7,7 +7,7 @@
  * - On a successful `createMask`, the editor SHALL
  *   increment `maskCounter` and assign the result to `mask.maskId`. Counter
  *   bookkeeping flows through `context.getMaskCounter` / `context.setMaskCounter` so
- *   the orchestrator retains ownership of the field across loadImage and
+ *   the editor runtime retains ownership of the field across loadImage and
  *   loadFromState (which reset / restore the counter).
  * - Together with `core/state-serializer.ts`, mask IDs
  *   stay unique across mixed `createMask` / `mergeMasks` / `undo` / `redo`
@@ -51,7 +51,7 @@
  * - `removeAllMasks({ saveHistory: false})` removes
  *   masks without pushing a history entry (used by merge/crop pipelines).
  * - `removeAllMasks` is operation-guard-rejected
- *   while `isAnimating` is `true`. The guard lives on the orchestrator;
+ *   while `isAnimating` is `true`. The guard lives on the editor runtime;
  *   this module is only invoked after the guard has cleared.
  * - `removeAllMasks` clears `lastMask` to `null`,
  *   so subsequent `createMask` calls cannot auto-place relative to a
@@ -64,12 +64,12 @@
  *
  * ## Design notes
  *
- * - The orchestrator owns the editor-level state (`maskCounter`,
- *   `lastMask`, the canvas, `saveState`, `updateMaskList`). The factory
- *   reads/writes those slots through getter/setter callbacks supplied in
- *   {@link CreateMaskContext} so this module is independent of the
- *   `ImageEditor` class shape.
- * - `expandCanvasIfNeeded` is optional. The orchestrator may supply it to
+ * - The editor runtime owns the editor-level state (`maskCounter`,
+ *   `lastMask`, and the canvas), while the facade supplies history and UI
+ *   callbacks. The factory reads/writes those slots through getter/setter
+ *   callbacks supplied in {@link CreateMaskContext} so this module is
+ *   independent of the `ImageEditor` class shape.
+ * - `expandCanvasIfNeeded` is optional. The facade may supply it to
  *   route through `setCanvasSizePx` (which forces a synchronous reflow on
  *   the scroll container, see `image-editor.ts`). When absent, the factory
  *   falls back to the public Fabric API `canvas.setDimensions`.
@@ -96,7 +96,7 @@ export interface CreateMaskContext {
     /** Last mask reference, used for the auto-place-to-right behavior. */
     getLastMask(): MaskObject | null;
     setLastMask(mask: MaskObject | null): void;
-    /** Mask counter — owned by the orchestrator. */
+    /** Mask counter, owned by the editor runtime. */
     getMaskCounter(): number;
     setMaskCounter(n: number): void;
     /** Re-render the mask list DOM (UI ownership lives in `mask/mask-list.ts`). */
@@ -107,7 +107,7 @@ export interface CreateMaskContext {
      * Optional canvas resize hook used when `options.layoutMode` is
      * `'expand'` and the placed mask would extend past the current canvas size.
      * If omitted, the factory calls `canvas.setDimensions` directly. The
-     * orchestrator typically passes `setCanvasSizePx` here so the scroll
+     * facade typically passes `setCanvasSizePx` here so the scroll
      * container reflows synchronously with the new canvas size.
      */
     expandCanvasIfNeeded?: (width: number, height: number) => void;

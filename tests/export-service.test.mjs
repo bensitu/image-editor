@@ -371,6 +371,10 @@ test('exportImageBase64: restores the active object after rendering', async () =
     const canvas = {
         ...makeMockCanvas(),
         activeObject,
+        objects: [activeObject],
+        getObjects() {
+            return this.objects.slice();
+        },
         getActiveObject() {
             return this.activeObject;
         },
@@ -394,6 +398,43 @@ test('exportImageBase64: restores the active object after rendering', async () =
         canvas.callOrder.indexOf('setActiveObject') > canvas.callOrder.indexOf('toDataURL'),
         'selection restore must happen after rendering',
     );
+});
+
+test('exportImageBase64: does not restore an active object removed during rendering', async () => {
+    const activeObject = { type: 'rect' };
+    const canvas = {
+        ...makeMockCanvas(),
+        activeObject,
+        objects: [activeObject],
+        getObjects() {
+            return this.objects.slice();
+        },
+        getActiveObject() {
+            return this.activeObject;
+        },
+        discardActiveObject() {
+            this.callOrder.push('discardActiveObject');
+            this.activeObject = null;
+            return this;
+        },
+        setActiveObject(object) {
+            this.callOrder.push('setActiveObject');
+            this.activeObject = object;
+            return this;
+        },
+        toDataURL(options) {
+            this.objects = [];
+            this.callOrder.push('toDataURL');
+            this.toDataURLArgs.push(options);
+            return 'data:image/jpeg;base64,AAAA';
+        },
+    };
+    const ctx = makeContext({ canvas });
+
+    await exportImageBase64(ctx);
+
+    assert.equal(canvas.activeObject, null);
+    assert.equal(canvas.callOrder.includes('setActiveObject'), false);
 });
 
 test('exportImageBase64: hides mask labels during export and restores them afterward', async () => {
@@ -588,7 +629,8 @@ test('exportImageBase64: rejects empty image export regions before rendering', a
 });
 
 test('exportImageBase64: JPEG background falls back for transparent and invalid colors', async () => {
-    for (const backgroundColor of ['transparent', 'rgb(0 0 0 / 0%)', '#ZZZZZZ']) {
+    const longCommaColor = `rgba(${Array.from({ length: 120 }, (_, index) => index).join(',')}, 0)`;
+    for (const backgroundColor of ['transparent', 'rgb(0 0 0 / 0%)', '#ZZZZZZ', longCommaColor]) {
         await withFakeCanvasDom(async (fills) => {
             const canvas = makeMockCanvas(
                 'data:image/png;base64,' + Buffer.from('png').toString('base64'),
@@ -987,7 +1029,7 @@ test('exportImageFile: forwards exportArea and mergeMasks independently', async 
     assert.equal(mask.visible, true, 'mask visibility must be restored after File export');
 });
 
-test('downloadImage reports export failures through onError and rejects', async () => {
+test('downloadImage rejects export failures without duplicate error reporting', async () => {
     const errors = [];
     const canvas = makeMockCanvas();
     canvas.toDataURL = () => {
@@ -1004,9 +1046,7 @@ test('downloadImage reports export failures through onError and rejects', async 
         await assert.rejects(() => downloadImage(ctx, { fileName: 'pic.jpg' }), /render failed/);
     });
 
-    assert.equal(errors.length, 1);
-    assert.match(errors[0].message, /downloadImage failed/);
-    assert.match(String(errors[0].error?.message ?? ''), /render failed/);
+    assert.deepEqual(errors, []);
 });
 
 test('downloadImage appends the anchor to the canvas ownerDocument', async () => {
@@ -1065,6 +1105,45 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
         } else {
             globalThis.document = previousDocument;
         }
+    }
+});
+
+test('downloadImage falls back to documentElement when ownerDocument.body is unavailable', async () => {
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
+    const ownerDom = new JSDOM('<!doctype html><html><body><canvas id="c"></canvas></body></html>');
+    const ownerDocument = ownerDom.window.document;
+    const canvasElement = ownerDocument.getElementById('c');
+    const clicked = [];
+    const createElement = ownerDocument.createElement.bind(ownerDocument);
+    ownerDocument.createElement = (tagName, options) => {
+        const element = createElement(tagName, options);
+        if (String(tagName).toLowerCase() === 'a') {
+            element.click = () => clicked.push(element);
+        }
+        return element;
+    };
+    Object.defineProperty(ownerDocument, 'body', {
+        configurable: true,
+        value: null,
+    });
+
+    try {
+        URL.createObjectURL = () => 'blob:owner-doc';
+        URL.revokeObjectURL = () => {};
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
+        );
+        canvas.getElement = () => canvasElement;
+        const ctx = makeContext({ canvas });
+
+        await downloadImage(ctx, { fileName: 'owner-doc.jpg' });
+
+        assert.equal(clicked.length, 1);
+        assert.equal(ownerDocument.documentElement.querySelectorAll('a').length, 0);
+    } finally {
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
     }
 });
 

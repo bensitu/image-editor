@@ -1,3 +1,10 @@
+/**
+ * DOM control state mutation and restoration helpers.
+ *
+ * These helpers preserve original disabled, aria-disabled, and pointer-event
+ * values before the editor temporarily enables or disables controls.
+ */
+
 import type { ElementKey, ResolvedElementIdMap } from '../core/editor-elements.js';
 
 export interface EditorControlElementContext {

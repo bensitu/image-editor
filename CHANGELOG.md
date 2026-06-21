@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-06-22
+
+### Changed
+
+- Refactor `ImageEditor` around a shared internal runtime plus action/context access adapters, preserving the documented public API and package root surface.
+- Extract DOM event actions and editor control snapshot construction into focused UI modules to keep facade wiring smaller.
+- Move internal tests to explicit runtime-state helpers and remove temporary facade compatibility accessors for TypeScript-private fields.
+- Refresh internal file headers and architecture comments to match the runtime-owned state model.
+
+### Fixed
+
+- Clean up stale import/type drift after the modularization work and keep typecheck/lint passing from source.
+- Avoid duplicate download export error reporting while still surfacing DOM-triggered download/undo/redo failures through `onError`.
+- Harden export edge sealing, active-object restoration, download link creation, and transparent CSS color parsing against audit-reported edge cases.
+- Stop inferring an active mask from a lone visible mask label when capturing history snapshots.
+
 ## [2.3.0] - 2026-06-18
 
 ### Breaking Changes

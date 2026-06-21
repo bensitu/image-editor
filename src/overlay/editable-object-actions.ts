@@ -1,3 +1,10 @@
+/**
+ * Editable overlay actions for annotations, masks, and layer ordering.
+ *
+ * The facade routes selected-object commands here so annotation updates,
+ * mask label cleanup, history, and callbacks share one guarded path.
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {

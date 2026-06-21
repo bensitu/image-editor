@@ -1,3 +1,9 @@
+/**
+ * Image display geometry helpers for transform, merge, and state restore flows.
+ *
+ * These functions keep canvas sizing and restored image bounds consistent
+ * across Fit, Cover, and Expand layout modes.
+ */
 import type * as FabricNS from 'fabric';
 import type { BaseImageObject, LayoutMode, ResolvedOptions } from '../core/public-types.js';
 import { type ViewportCache, type ViewportSize } from './layout-manager.js';

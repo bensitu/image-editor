@@ -40,6 +40,7 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { setCropSession, setOriginalImage } from './helpers/editor-internals.mjs';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
 
@@ -143,9 +144,9 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     });
 
     editor.init({});
-    editor.originalImage = new fabric.FabricImage();
+    setOriginalImage(editor, new fabric.FabricImage());
 
-    editor.cropSession = {};
+    setCropSession(editor, {});
     editor.updateUi();
 
     for (const key of CONTROL_KEYS) {
@@ -155,7 +156,7 @@ test('leaving crop mode re-enables frozen file and transform inputs', () => {
     assert.equal(getControl('applyCropButton').disabled, false);
     assert.equal(getControl('cancelCropButton').disabled, false);
 
-    editor.cropSession = null;
+    setCropSession(editor, null);
     editor.updateUi();
 
     for (const key of CONTROL_KEYS) {

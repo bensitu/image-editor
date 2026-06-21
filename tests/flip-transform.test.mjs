@@ -42,6 +42,7 @@ import {
     loadFixtureImage,
     resetEditorDom,
 } from './helpers/fabric-environment.mjs';
+import { getCropSession, requireOriginalImage } from './helpers/editor-internals.mjs';
 
 const { default: ImageEditor } = await import('../src/index.ts');
 
@@ -81,8 +82,8 @@ test('flipHorizontal and flipVertical affect only the base image and participate
 
     await editor.flipHorizontal();
 
-    assert.equal(editor.originalImage.flipX, true);
-    assert.equal(editor.originalImage.flipY, false);
+    assert.equal(requireOriginalImage(editor).flipX, true);
+    assert.equal(requireOriginalImage(editor).flipY, false);
     assert.deepEqual(
         { left: mask.left, top: mask.top, flipX: !!mask.flipX, flipY: !!mask.flipY },
         maskBefore,
@@ -100,33 +101,33 @@ test('flipHorizontal and flipVertical affect only the base image and participate
     );
 
     await editor.undo();
-    assert.equal(editor.originalImage.flipX, false, 'undo restores previous flipX');
+    assert.equal(requireOriginalImage(editor).flipX, false, 'undo restores previous flipX');
 
     await editor.redo();
-    assert.equal(editor.originalImage.flipX, true, 'redo reapplies flipX');
+    assert.equal(requireOriginalImage(editor).flipX, true, 'redo reapplies flipX');
 
     await editor.flipVertical();
-    assert.equal(editor.originalImage.flipX, true);
-    assert.equal(editor.originalImage.flipY, true);
+    assert.equal(requireOriginalImage(editor).flipX, true);
+    assert.equal(requireOriginalImage(editor).flipY, true);
 
     const snapshot = editor.captureSnapshotInternal();
     await editor.flipHorizontal();
-    assert.equal(editor.originalImage.flipX, false);
+    assert.equal(requireOriginalImage(editor).flipX, false);
     await editor.loadFromState(snapshot);
-    assert.equal(editor.originalImage.flipX, true, 'loadFromState preserves flipX');
-    assert.equal(editor.originalImage.flipY, true, 'loadFromState preserves flipY');
+    assert.equal(requireOriginalImage(editor).flipX, true, 'loadFromState preserves flipX');
+    assert.equal(requireOriginalImage(editor).flipY, true, 'loadFromState preserves flipY');
 
     await editor.resetImageTransform();
-    assert.equal(editor.originalImage.flipX, false, 'reset clears flipX');
-    assert.equal(editor.originalImage.flipY, false, 'reset clears flipY');
+    assert.equal(requireOriginalImage(editor).flipX, false, 'reset clears flipX');
+    assert.equal(requireOriginalImage(editor).flipY, false, 'reset clears flipY');
 
     await editor.undo();
-    assert.equal(editor.originalImage.flipX, true, 'undo after reset restores flipX');
-    assert.equal(editor.originalImage.flipY, true, 'undo after reset restores flipY');
+    assert.equal(requireOriginalImage(editor).flipX, true, 'undo after reset restores flipX');
+    assert.equal(requireOriginalImage(editor).flipY, true, 'undo after reset restores flipY');
 
     await editor.redo();
-    assert.equal(editor.originalImage.flipX, false, 'redo after reset clears flipX again');
-    assert.equal(editor.originalImage.flipY, false, 'redo after reset clears flipY again');
+    assert.equal(requireOriginalImage(editor).flipX, false, 'redo after reset clears flipX again');
+    assert.equal(requireOriginalImage(editor).flipY, false, 'redo after reset clears flipY again');
 });
 
 test('flip APIs are no-ops without an image and after dispose', async () => {
@@ -143,7 +144,7 @@ test('flip APIs are no-ops without an image and after dispose', async () => {
 
 test('flip APIs are blocked while tool modes are active', async (t) => {
     const cases = [
-        ['crop', (editor) => editor.enterCropMode(), (editor) => editor.cropSession !== null],
+        ['crop', (editor) => editor.enterCropMode(), (editor) => getCropSession(editor) !== null],
         ['mosaic', (editor) => editor.enterMosaicMode(), (editor) => editor.isMosaicMode()],
         ['text', (editor) => editor.enterTextMode(), (editor) => editor.isTextMode()],
         ['draw', (editor) => editor.enterDrawMode(), (editor) => editor.isDrawMode()],
@@ -166,8 +167,8 @@ test('flip APIs are blocked while tool modes are active', async (t) => {
                 () => editor.flipVertical(),
                 new RegExp(`Cannot run "flipVertical" while ${mode} mode is active`),
             );
-            assert.equal(editor.originalImage.flipX, false);
-            assert.equal(editor.originalImage.flipY, false);
+            assert.equal(requireOriginalImage(editor).flipX, false);
+            assert.equal(requireOriginalImage(editor).flipY, false);
         });
     }
 });
@@ -189,8 +190,8 @@ test('loadImage resets new image flip state and preserves flip on failed rollbac
     await editor.flipHorizontal();
     await editor.flipVertical();
 
-    assert.equal(editor.originalImage.flipX, true);
-    assert.equal(editor.originalImage.flipY, true);
+    assert.equal(requireOriginalImage(editor).flipX, true);
+    assert.equal(requireOriginalImage(editor).flipY, true);
     assert.deepEqual(states.at(-1), {
         operation: 'flipVertical',
         isFlippedHorizontally: true,
@@ -198,12 +199,20 @@ test('loadImage resets new image flip state and preserves flip on failed rollbac
     });
 
     await assert.rejects(() => editor.loadImage('data:image/png;base64,not-image-data'));
-    assert.equal(editor.originalImage.flipX, true, 'failed load rollback preserves flipX');
-    assert.equal(editor.originalImage.flipY, true, 'failed load rollback preserves flipY');
+    assert.equal(requireOriginalImage(editor).flipX, true, 'failed load rollback preserves flipX');
+    assert.equal(requireOriginalImage(editor).flipY, true, 'failed load rollback preserves flipY');
 
     await loadFixtureImage(editor, { width: 64, height: 64, fill: '#f2a541' });
-    assert.equal(!!editor.originalImage.flipX, false, 'new image starts unflipped horizontally');
-    assert.equal(!!editor.originalImage.flipY, false, 'new image starts unflipped vertically');
+    assert.equal(
+        !!requireOriginalImage(editor).flipX,
+        false,
+        'new image starts unflipped horizontally',
+    );
+    assert.equal(
+        !!requireOriginalImage(editor).flipY,
+        false,
+        'new image starts unflipped vertically',
+    );
     assert.deepEqual(states.at(-1), {
         operation: 'loadImage',
         isFlippedHorizontally: false,

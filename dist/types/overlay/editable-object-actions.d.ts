@@ -1,3 +1,9 @@
+/**
+ * Editable overlay actions for annotations, masks, and layer ordering.
+ *
+ * The facade routes selected-object commands here so annotation updates,
+ * mask label cleanup, history, and callbacks share one guarded path.
+ */
 import type * as FabricNS from 'fabric';
 import { type AnnotationManagerContext } from '../annotation/annotation-manager.js';
 import { type AnnotationObject, type AnnotationUpdateConfig, type ImageEditorCallbackContext, type ImageEditorOperation, type MaskObject, type RemoveAllAnnotationsOptions } from '../core/public-types.js';

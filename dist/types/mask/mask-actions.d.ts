@@ -1,3 +1,9 @@
+/**
+ * Public mask action adapters for the ImageEditor facade.
+ *
+ * This module applies operation guards, callback emission, and UI refreshes
+ * around the lower-level mask factory helpers.
+ */
 import type * as FabricNS from 'fabric';
 import type { ImageEditorCallbackContext, ImageEditorOperation, MaskConfig, MaskObject, RemoveAllMasksOptions } from '../core/public-types.js';
 import { type CreateMaskContext, type RemoveMaskContext } from './mask-factory.js';

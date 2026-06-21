@@ -1,8 +1,8 @@
 /**
  * Animated scale, rotate, base-image flip, and reset operations on the
  * `originalImage` with history integration. Owns the current
- * transform pipeline that the `ImageEditor` facade routes
- * through the `AnimationQueue`.
+ * transform pipeline that the `ImageEditor` facade routes through the
+ * runtime `AnimationQueue`.
  *
  * ## Owned contracts
  *
@@ -34,7 +34,7 @@
  *   mirrored; they remain in their existing canvas positions by design.
  * - `scaleImage`, `rotateImage`, flip operations, and
  *   `resetImageTransform` each call `saveCanvasState` on success so
- *   the new state is undoable. The orchestrator wires
+ *   the new state is undoable. The facade wires
  *   `saveCanvasState` to the full `core/state-serializer.ts → saveState`
  *   path; this module does not serialize the canvas itself.
  *
@@ -42,16 +42,16 @@
  *
  * The transform pipeline cooperates with three guards:
  *
- * 1. The orchestrator's {@link TransformContext.guard} sets
+ * 1. The runtime's {@link TransformContext.guard} sets
  *    `isAnimating` true/false around the Fabric animation. The
  *    `OperationGuard.runAnimation()` bracket clears the flag inside a
  *    `finally` so the public promise sees `isAnimating === false` before
  *    settling.
- * 2. The animation queue (owned by the orchestrator) serializes
+ * 2. The animation queue (owned by the runtime) serializes
  *    `scaleImage`, `rotateImage`, flip operations, and `resetImageTransform` so concurrent
  *    callers do not interleave mid-animation Fabric mutations. The
  *    transform controller does NOT enqueue on the queue itself; the
- *    orchestrator wraps each call through `animQueue.add(...)` before
+ *    action layer wraps each call through `animQueue.add(...)` before
  *    invoking the controller method.
  * 3. The dispose flag on {@link TransformContext.guard} lets animation
  *    callbacks consult `guard.isDisposed()` before touching the canvas.
@@ -62,7 +62,7 @@
  *
  * ## Why a class with a context bundle?
  *
- * This module keeps transform state on the facade so `currentScale`,
+ * This module keeps transform state on the editor runtime so `currentScale`,
  * `currentRotation`, `baseImageScale`, and `shouldSuppressSaveState`
  * remain on a single owner (these are part of the snapshot wire format).
  * The controller therefore reads and writes through the
@@ -82,9 +82,9 @@ import type { OperationGuard } from '../core/operation-guard.js';
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link TransformController}. Mirrors the
  * `LoadImageContext` shape so each pipeline
- * keeps the orchestrator as the single owner of editor state.
+ * keeps the editor runtime as the single owner of editor state.
  *
- * The facade is responsible for:
+ * The facade and action layer are responsible for:
  *
  * - constructing a single {@link OperationGuard} per editor and reusing it
  *   across pipelines so `isAnimating` and `isDisposed` live in one place,
@@ -99,7 +99,7 @@ import type { OperationGuard } from '../core/operation-guard.js';
  *   entry,
  * - performing post-animation UI refresh (rotation/scale input boxes,
  *   undo/redo buttons, mask label sync) — those concerns belong on the
- *   facade, not in the controller, so per-step UI updates remain
+ *   facade/action layer, not in the controller, so per-step UI updates remain
  *   centralized.
  *
  */
@@ -140,7 +140,7 @@ export interface TransformContext {
      * a no-op. Used by {@link TransformController.resetImageTransform} to
      * collapse the per-operation history entries from the chained
      * `scaleImage(1)` and `rotateImage(0)` calls into a single reset
-     * entry. The orchestrator owns the flag itself; this method is the
+     * entry. The runtime owns the flag itself; this method is the
      * controller's only handle on it.
      */
     setSuppressSaveState(suppress: boolean): void;

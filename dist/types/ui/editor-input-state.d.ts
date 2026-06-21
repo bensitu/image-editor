@@ -1,3 +1,9 @@
+/**
+ * Input value synchronization for editor toolbar controls.
+ *
+ * The sync logic avoids overwriting focused editable inputs while keeping
+ * scale, Mosaic, Text, and Draw controls aligned with runtime state.
+ */
 import type { ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig } from '../core/public-types.js';
 import type { ElementKey } from '../core/editor-elements.js';
 export interface EditorInputSnapshot {

@@ -1,5 +1,5 @@
 export class DomBindings {
-    constructor(resolveElementId, isDisposed, resolveDocument = () => document) {
+    constructor(resolveElementId, isDisposed, resolveDocument = () => typeof document !== 'undefined' ? document : null) {
         Object.defineProperty(this, "registry", {
             enumerable: true,
             configurable: true,
@@ -32,7 +32,10 @@ export class DomBindings {
         const id = this.resolveElementId(key);
         if (!id)
             return false;
-        const element = this.resolveDocument().getElementById(id);
+        const ownerDocument = this.resolveDocument();
+        if (!ownerDocument)
+            return false;
+        const element = ownerDocument.getElementById(id);
         if (!element)
             return false;
         const wrapped = (event) => {
@@ -49,7 +52,10 @@ export class DomBindings {
             const id = this.resolveElementId(entry.elementKey);
             if (!id)
                 continue;
-            const element = this.resolveDocument().getElementById(id);
+            const ownerDocument = this.resolveDocument();
+            if (!ownerDocument)
+                continue;
+            const element = ownerDocument.getElementById(id);
             if (!element)
                 continue;
             try {

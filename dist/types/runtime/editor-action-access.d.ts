@@ -1,0 +1,87 @@
+/**
+ * Builds action access objects from the shared runtime state.
+ *
+ * Public ImageEditor methods use these adapters to call focused action modules
+ * without exposing the runtime object as each module's direct dependency.
+ */
+import type * as FabricNS from 'fabric';
+import type { AnnotationConfigActionAccess } from '../annotation/annotation-config-actions.js';
+import type { AnnotationModeActionAccess } from '../annotation/annotation-mode-actions.js';
+import type { AnnotationObject, ImageEditorSelection } from '../core/public-types.js';
+import type { ImageEditorCallbackContext, ImageEditorOperation, MaskObject } from '../core/public-types.js';
+import type { CropActionAccess } from '../crop/crop-actions.js';
+import type { ExportActionAccess } from '../export/export-actions.js';
+import type { EditorStateActionAccess } from '../history/editor-state-actions.js';
+import type { TransformActionAccess } from '../image/transform-actions.js';
+import type { MaskActionAccess } from '../mask/mask-actions.js';
+import type { MosaicActionAccess } from '../mosaic/mosaic-actions.js';
+import type { EditableObjectActionAccess } from '../overlay/editable-object-actions.js';
+import type { EditorSelectionControllerAccess } from '../selection/editor-selection-controller.js';
+import type { BusyOperationAccess } from './editor-operation-runner.js';
+import type { EditorContextFactory } from './editor-contexts.js';
+import type { EditorRuntime } from './editor-runtime.js';
+export interface EditorActionCallbacks {
+    canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
+    assertIdleForOperation(operation: ImageEditorOperation, options?: object | null): void;
+    assertCanQueueAnimation(operation: ImageEditorOperation): void;
+    finalizeActiveTextEditingIfNeeded(): void;
+    buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
+    withSelectionChangeContext<T>(context: ImageEditorCallbackContext, callback: () => T): T;
+    buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection;
+    getMasks(): MaskObject[];
+    getAnnotations(): AnnotationObject[];
+    getMaskCollectionSignature(): string;
+    getAnnotationCollectionSignature(): string;
+    inferCurrentImageMimeType(): ReturnType<EditorStateActionAccess['getCurrentImageMimeType']>;
+    shouldNormalizeCanvasSizeAfterStateRestore(): boolean;
+    updateCanvasSizeToImageBounds(options: {
+        stabilizeContainedViewport?: boolean;
+    }): void;
+    alignObjectBoundingBoxToCanvasTopLeft(object: FabricNS.FabricObject): void;
+    settleFitCoverScrollbarsAfterStateRestore(): void;
+    setCanvasSize(widthPx: number, heightPx: number): void;
+    refreshUiAfterQueuedAnimation(): void;
+    updateInputs(): void;
+    updateMaskList(): void;
+    updateMaskListSelection(mask: MaskObject | null): void;
+    updateAnnotationList(): void;
+    updateAnnotationListSelection(annotation: AnnotationObject | null): void;
+    updateUi(): void;
+    saveState(): void;
+    removeLabelForMask(mask: MaskObject): void;
+    showLabelForMask(mask: MaskObject): void;
+    syncMaskLabel(mask: MaskObject): void;
+    hideAllMaskLabels(): void;
+    handleSelectionChanged(selected: FabricNS.FabricObject[]): void;
+    updateSelectedAnnotation(config: object): void;
+    setTextColor(color: string): void;
+    setTextFontSize(size: number): void;
+    setDrawColor(color: string): void;
+    setDrawBrushSize(size: number): void;
+    emitImageCleared(image: NonNullable<EditorRuntime['originalImage']>, context: ImageEditorCallbackContext): void;
+    emitSelectionChange(selection: ImageEditorSelection, context: ImageEditorCallbackContext): void;
+    emitMasksChanged(context: ImageEditorCallbackContext): void;
+    emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
+    emitImageChanged(context: ImageEditorCallbackContext): void;
+    emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
+    reportWarning(error: unknown, message: string): void;
+    withAnimationQueueBypass(): object;
+}
+export declare class EditorActionAccessFactory {
+    private readonly runtime;
+    private readonly callbacks;
+    private readonly contextFactory;
+    constructor(runtime: EditorRuntime, callbacks: EditorActionCallbacks, contextFactory: EditorContextFactory);
+    buildBusyOperationAccess(): BusyOperationAccess;
+    buildTransformActionAccess(): TransformActionAccess;
+    buildEditorStateActionAccess(): EditorStateActionAccess;
+    buildMaskActionAccess(): MaskActionAccess;
+    buildSelectionControllerAccess(): EditorSelectionControllerAccess;
+    buildAnnotationModeActionAccess(): AnnotationModeActionAccess;
+    buildEditableObjectActionAccess(): EditableObjectActionAccess;
+    buildAnnotationConfigActionAccess(): AnnotationConfigActionAccess;
+    buildExportActionAccess(): ExportActionAccess;
+    buildMosaicActionAccess(): MosaicActionAccess;
+    buildCropActionAccess(): CropActionAccess;
+}
+//# sourceMappingURL=editor-action-access.d.ts.map

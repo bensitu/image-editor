@@ -1,3 +1,10 @@
+/**
+ * Keyboard binding and shortcut handling for ImageEditor.
+ *
+ * The handlers coordinate delete/backspace object removal and Escape-driven
+ * mode exits while respecting native and Fabric text editing.
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { isTextAnnotationObject } from '../core/public-types.js';

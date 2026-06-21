@@ -1,9 +1,17 @@
+/**
+ * DOM event binding for ImageEditor controls.
+ *
+ * This module maps canonical element keys to UI event listeners and delegates
+ * the resulting actions through an explicit command surface.
+ */
+
 import type { ElementKey } from '../core/editor-elements.js';
 import type { DomBindings } from './dom-bindings.js';
 
 type MaybePromise<T = void> = T | Promise<T>;
 
 export interface EditorDomEventActions {
+    reportAsyncActionError(operation: string, error: unknown): void;
     openImagePicker(): void;
     loadImageFile(file: File): MaybePromise;
 
@@ -78,6 +86,18 @@ function parseInputNumber(context: EditorDomEventContext, key: ElementKey): numb
 
 function parseEventInputNumber(event: Event): number {
     return parseFloat((event.target as HTMLInputElement).value);
+}
+
+function handleAsyncAction(
+    context: EditorDomEventContext,
+    operation: string,
+    action: () => MaybePromise,
+): void {
+    void Promise.resolve()
+        .then(action)
+        .catch((error) => {
+            context.actions.reportAsyncActionError(operation, error);
+        });
 }
 
 function getEventInputValue(event: Event): string {
@@ -193,13 +213,13 @@ function bindAnnotationEvents(context: EditorDomEventContext): void {
 
 function bindHistoryEvents(context: EditorDomEventContext): void {
     bindElement(context, 'downloadImageButton', 'click', () => {
-        void context.actions.downloadImage();
+        handleAsyncAction(context, 'downloadImage', () => context.actions.downloadImage());
     });
     bindElement(context, 'undoButton', 'click', () => {
-        void context.actions.undo();
+        handleAsyncAction(context, 'undo', () => context.actions.undo());
     });
     bindElement(context, 'redoButton', 'click', () => {
-        void context.actions.redo();
+        handleAsyncAction(context, 'redo', () => context.actions.redo());
     });
 }
 

@@ -1,3 +1,10 @@
+/**
+ * Defensive cleanup helpers for ImageEditor disposal.
+ *
+ * These functions isolate best-effort teardown paths so dispose remains
+ * idempotent even when Fabric or DOM cleanup throws.
+ */
+
 import type * as FabricNS from 'fabric';
 
 export function safelyRemoveKeyboardListener(

@@ -1,3 +1,10 @@
+/**
+ * Selection and object-modification handlers for editor-owned canvas objects.
+ *
+ * The facade delegates Fabric selection events here so mask labels, lists,
+ * history, and lifecycle callbacks stay synchronized.
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { isAnnotationLocked } from '../annotation/annotation-lock.js';

@@ -85,6 +85,8 @@ export async function flattenOverlayGroupToBaseImage<
     if (!context.isImageLoaded()) return;
     if (options.getTargets().length === 0) return;
 
+    // Capture before detaching preserved overlays so rollback can restore the
+    // complete pre-merge canvas with one loadFromState call.
     const beforeSnapshot = context.captureSnapshot();
     const preservedObjects = options.getPreservedObjects();
     const preScrollTop = context.containerElement ? context.containerElement.scrollTop : null;

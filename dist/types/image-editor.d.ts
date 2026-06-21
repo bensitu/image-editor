@@ -10,8 +10,8 @@
 import type { CanvasJson } from './core/state-serializer.js';
 import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
- * Lightweight Fabric.js v7 image editor with masking, animated transforms,
- * crop, undo/redo, and multi-format export.
+ * Lightweight Fabric.js v7 image editor with masking/annotation, animated transforms,
+ * crop, undo/redo, mosaic and multi-format export.
  *
  * ## Quick start (ESM)
  * ```ts
@@ -30,100 +30,9 @@ import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropMod
  * ```
  */
 export declare class ImageEditor {
-    private fabricModule;
-    private isFabricLoaded;
-    private readonly options;
-    private currentLayoutMode;
-    private readonly defaultMosaicConfig;
-    private currentMosaicConfig;
-    private readonly defaultTextConfig;
-    private currentTextConfig;
-    private readonly defaultDrawConfig;
-    private currentDrawConfig;
-    private canvas;
-    private canvasElement;
-    private containerElement;
-    private placeholderElement;
-    private elements;
-    private readonly elementOriginalDisabledMap;
-    private readonly elementOriginalAriaDisabledMap;
-    private readonly elementOriginalPointerEventsMap;
-    private originalImage;
-    private baseImageScale;
-    private currentScale;
-    private currentRotation;
-    private isImageLoadedToCanvas;
-    private currentImageMimeType;
-    private maskCounter;
-    private lastMask;
-    private annotationCounter;
-    private lastSnapshot;
-    private readonly historyManager;
-    /**
-     * Single source of truth for `isAnimating` and `isDisposed` flags
-     * shared between the facade, the transform controller, and the
-     * Fabric animation wrapper. The transform controller calls
-     * `runAnimation` to bracket each Fabric tween so the flag is
-     * cleared inside a `finally`; the facade reads
-     * `isAnimating` for the per-method guard rejections; and the
-     * dispose path forwards to
-     * `markDisposed` so in-flight animation callbacks short-circuit.
-     */
-    private readonly operationGuard;
-    private readonly animQueue;
-    /**
-     * Owns animated `scaleImage`, `rotateImage`, and
-     * `resetImageTransform`. The facade enqueues each public method on
-     * {@link animQueue} and the controller drives
-     * the per-Fabric-animation `runAnimation` bracket through
-     * {@link operationGuard}. The controller is constructed in {@link init}
-     * once `canvas` is available so its `TransformContext` can hold a
-     * stable Fabric canvas reference.
-     */
-    private transformController;
+    private readonly runtime;
     private readonly contextFactory;
-    /**
-     * Hidden-container viewport cache shared across `loadImage` calls. Owned
-     * by the facade so the layout manager can reuse the last visible
-     * measurement when the editor is hidden inside a tab, modal, or
-     * accordion.
-     */
-    private readonly viewportCache;
-    /**
-     * Live crop session pointer owned by the facade. The crop controller
-     * (`crop/crop-controller.ts`) reads and writes this slot through the
-     * `getCropSession`/`setCropSession` callbacks bundled into the
-     * controller's context, so the controller has no class state of its
-     * own and multiple editors on the same page do not share crop state.
-     */
-    private cropSession;
-    private mosaicSession;
-    private textSession;
-    private drawSession;
-    /**
-     * Managed registry of DOM event listeners owned by this editor.
-     *
-     * Constructed lazily by {@link init} so the registry can read the
-     * editor's `isDisposed` flag through a closure that captures `this`.
-     * `dispose` drains the registry via {@link DomBindings.removeAll}
-     * and the wrapped handlers exit early while
-     * `isDisposed === true`.
-     */
-    private domBindings;
-    private keyboardDocument;
-    private keyboardHandler;
-    private isDisposed;
-    /**
-     * When `true`, {@link saveState} is a no-op.  Used by
-     * {@link resetImageTransform} (via the transform controller) to
-     * suppress the intermediate history entries from {@link scaleImage}
-     * and {@link rotateImage} so the entire reset is a single undoable
-     * step.
-     */
-    private shouldSuppressSaveState;
-    private lastEmittedIsBusy;
-    private activeStateRestoreOperation;
-    private nextSelectionChangeContext;
+    private readonly actionAccessFactory;
     /**
      * Creates a new image editor instance.
      *
@@ -133,6 +42,7 @@ export declare class ImageEditor {
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
     private createContextFactory;
+    private createActionAccessFactory;
     /** Initializes DOM bindings, canvas state, and the optional initial image. */
     init(idMap?: ElementIdMap): void;
     private initCanvas;
@@ -192,7 +102,6 @@ export declare class ImageEditor {
     private withAnimationQueueBypass;
     private assertIdleForOperation;
     private canRunIdleOperation;
-    private getSelectedCropAspectRatio;
     private isExpectedIdleGuardError;
     private assertCanQueueAnimation;
     /**
@@ -214,7 +123,6 @@ export declare class ImageEditor {
     setLayoutMode(mode: LayoutMode): void;
     private getRuntimeOptions;
     private buildCallbackContext;
-    private buildBusyOperationAccess;
     private getOperationContext;
     private emitOptionCallback;
     private getImageInfo;
@@ -263,9 +171,8 @@ export declare class ImageEditor {
     private settleFitCoverScrollbarsAfterStateRestore;
     private captureImageDisplayGeometry;
     private restoreMergedImageDisplayGeometry;
-    /** Builds the transform controller context from facade-owned runtime state. */
+    /** Builds the transform controller context from the shared runtime state. */
     private buildTransformContext;
-    private buildTransformActionAccess;
     /** Animates the image to the given scale factor, clamped to configured limits. */
     scaleImage(factor: number): Promise<void>;
     /** Animates the image to the given rotation angle. Non-finite input no-ops. */
@@ -275,7 +182,6 @@ export declare class ImageEditor {
     /** Resets scale, rotation, and flip state as one undoable transform. */
     resetImageTransform(): Promise<void>;
     private refreshUiAfterQueuedAnimation;
-    private buildEditorStateActionAccess;
     /**
      * Restores a previously serialized canvas state.
      *
@@ -318,7 +224,6 @@ export declare class ImageEditor {
      * Same serialization and dispose guarantees as {@link undo}.
      */
     redo(): Promise<void>;
-    private buildMaskActionAccess;
     /** Creates and adds a mask shape, returning `null` when the operation cannot run. */
     createMask(config?: MaskConfig): MaskObject | null;
     /** Removes the currently selected mask and its label. */
@@ -327,17 +232,16 @@ export declare class ImageEditor {
     removeAllMasks(options?: RemoveAllMasksOptions): void;
     /**
      * Build the {@link CreateMaskContext} the mask factory reads/writes
-     * through. The facade is the single owner of `maskCounter`,
-     * `lastMask`, the canvas, and `saveState`, so the context's
-     * accessors all bind back to `this` rather than duplicating state.
+     * through. The runtime owns `maskCounter`, `lastMask`, the canvas,
+     * and history state; the context forwards access without duplicating
+     * those fields.
      */
     private buildCreateMaskContext;
     /**
      * Build the {@link RemoveMaskContext} the mask factory reads/writes
-     * through for `removeSelectedMask` / `removeAllMasks`. The facade
-     * is the single owner of the canvas, mask label DOM, mask list
-     * DOM, history, and `lastMask`, so the context's accessors bind
-     * back to `this`.
+     * through for `removeSelectedMask` / `removeAllMasks`. The runtime
+     * owns the canvas, history, and `lastMask`; the facade supplies the
+     * DOM and label callbacks the factory needs.
      */
     private buildRemoveMaskContext;
     private buildMaskLabelContext;
@@ -346,14 +250,12 @@ export declare class ImageEditor {
     private hideAllMaskLabels;
     private syncMaskLabel;
     private showLabelForMask;
-    private buildSelectionControllerAccess;
     private handleObjectMovingScalingRotating;
     private handleObjectModified;
     private handleSelectionChanged;
     private buildMaskListContext;
     private updateMaskList;
     private updateMaskListSelection;
-    private buildAnnotationModeActionAccess;
     enterTextMode(): void;
     exitTextMode(): void;
     isTextMode(): boolean;
@@ -371,7 +273,6 @@ export declare class ImageEditor {
     resetDrawConfig(): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
-    private buildEditableObjectActionAccess;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(options?: RemoveAllAnnotationsOptions): void;
     updateAnnotation(annotationId: number, config: AnnotationUpdateConfig): void;
@@ -387,7 +288,6 @@ export declare class ImageEditor {
     private updateAnnotationListSelection;
     private buildTextControllerContext;
     private buildDrawControllerContext;
-    private buildAnnotationConfigActionAccess;
     private applyTextConfigPatch;
     private applyDrawConfigPatch;
     private applyTextColorInput;
@@ -395,7 +295,6 @@ export declare class ImageEditor {
     private applyDrawColorInput;
     private applyDrawBrushSizeInput;
     private moveSelectedEditableObject;
-    private buildExportActionAccess;
     /**
      * Bakes all current masks into the base image and records one history entry.
      * Resolves without mutation while an animation or incompatible tool mode is active.
@@ -415,8 +314,8 @@ export declare class ImageEditor {
     exportImageFile(options?: ImageExportOptions): Promise<File>;
     /**
      * Build the {@link ExportServiceContext} the export service reads
-     * through. The facade is the single owner of the canvas, options,
-     * and the `originalImage` reference.
+     * through. The runtime owns the canvas, options, and `originalImage`
+     * reference; the context exposes only the export-facing accessors.
      */
     private buildExportServiceContext;
     /**
@@ -439,7 +338,6 @@ export declare class ImageEditor {
      * and does NOT update `lastSnapshot`.
      */
     private captureSnapshotInternal;
-    private buildMosaicActionAccess;
     enterMosaicMode(): void;
     exitMosaicMode(): void;
     isMosaicMode(): boolean;
@@ -450,7 +348,6 @@ export declare class ImageEditor {
     setMosaicBlockSize(size: number): void;
     private applyMosaicConfigPatch;
     private buildMosaicControllerContext;
-    private buildCropActionAccess;
     /**
      * Enters crop mode and adds the interactive crop rectangle.
      * No-ops while an animation or another incompatible operation is active.
@@ -467,16 +364,14 @@ export declare class ImageEditor {
     applyCrop(): Promise<void>;
     /**
      * Build the {@link CropControllerContext} the crop controller reads
-     * through. The facade is the single owner of the live crop session
-     * pointer (`cropSession`), the canvas, the resolved options, the
-     * history manager, and the transactional loader, so the context's
-     * accessors all bind back to `this`.
+     * through. The runtime owns the crop session pointer, canvas,
+     * resolved options, and history manager while the facade supplies
+     * transactional loader and UI callbacks.
      */
     private buildCropControllerContext;
     private updateInputs;
     mergeAnnotations(): Promise<void>;
     private updateUi;
-    private buildControlSnapshot;
     private buildControlElementContext;
     private setControlEnabled;
     private restoreElementOriginalStates;

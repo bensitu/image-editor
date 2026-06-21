@@ -1,3 +1,9 @@
+/**
+ * Crop mode action adapters for the ImageEditor facade.
+ *
+ * These helpers enforce crop operation guards, busy-state emission, and UI
+ * refreshes around the crop controller.
+ */
 import type * as FabricNS from 'fabric';
 import type { OperationToken } from '../core/operation-guard.js';
 import type { BaseImageObject, CropAspectRatio, CropModeOptions, ImageEditorCallbackContext, ImageEditorOperation, MaskObject } from '../core/public-types.js';

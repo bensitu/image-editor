@@ -2,7 +2,7 @@
  * Per-mask label overlay creation, positioning, show/hide, and
  * removal.
  *
- * The ImageEditor facade owns the canvas and resolved options; this module
+ * The editor runtime owns the canvas and resolved options; this module
  * receives those dependencies through {@link MaskLabelManagerContext} so
  * label behavior can be tested without the full facade.
  *
@@ -38,11 +38,11 @@
  *
  * ## Implementation notes
  *
- * - The orchestrator (`src/image-editor.ts`) owns the canvas reference,
- *   resolved options, and Fabric module. The helpers in this module
- *   receive those slots through a {@link MaskLabelManagerContext} so the
- *   module is independent of the `ImageEditor` class shape and can be unit
- *   tested in isolation against a stub Fabric environment.
+ * - The editor runtime owns the canvas reference, resolved options, and
+ *   Fabric module. The helpers in this module receive those slots through
+ *   a {@link MaskLabelManagerContext} so the module is independent of the
+ *   `ImageEditor` class shape and can be unit tested in isolation against
+ *   a stub Fabric environment.
  * - When `options.label.create` is supplied, the user owns the full label
  *   build (it may even return `null` to opt out for a particular mask).
  *   When the factory returns `null` or the option is absent, this module
@@ -57,11 +57,11 @@
 import type * as FabricNS from 'fabric';
 import type { FabricModule, MaskObject, ResolvedOptions } from '../core/public-types.js';
 /**
- * State the label helpers read from the `ImageEditor` orchestrator.
+ * State the label helpers read from the editor runtime.
  *
  * The module does NOT own any of these slots — it only reads them so
  * ownership of the canvas, Fabric module, and resolved options stays on the
- * orchestrator.
+ * runtime.
  */
 export interface MaskLabelManagerContext {
     /** Injected Fabric.js v7 module used to construct the label text. */

@@ -1,7 +1,7 @@
 /**
  * Annotation CRUD, selection, list rendering, and update helpers.
  *
- * The ImageEditor facade owns canvas state and passes a small context bundle
+ * The editor runtime owns canvas state and passes a small context bundle
  * into these helpers so Text and Draw annotations share one removal/update
  * implementation.
  *
@@ -261,7 +261,7 @@ export function renderAnnotationList(context: AnnotationListContext): void {
         item.className = 'list-group-item annotation-item';
         item.textContent = annotation.annotationName;
         item.dataset.annotationId = String(annotation.annotationId);
-        item.onclick = () => {
+        item.addEventListener('click', () => {
             const id = Number(item.dataset.annotationId);
             if (!Number.isFinite(id)) return;
             const target = getAnnotations(canvas).find(
@@ -270,7 +270,7 @@ export function renderAnnotationList(context: AnnotationListContext): void {
             if (!target) return;
             canvas.setActiveObject(target);
             context.onAnnotationSelected(target);
-        };
+        });
         listEl.appendChild(item);
     });
 }

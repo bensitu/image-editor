@@ -33,6 +33,23 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
+import {
+    getBaseImageScale,
+    getCurrentRotation,
+    getCurrentScale,
+    getHistoryManager,
+    getOperationGuard,
+    requireEditorCanvas,
+    requireOriginalImage,
+    setBaseImageScale,
+    setCropSession,
+    setCurrentLayoutMode,
+    setCurrentRotation,
+    setCurrentScale,
+    setLastSnapshot,
+    setOriginalImage,
+} from './helpers/editor-internals.mjs';
+
 const { ImageEditor } = await import('../src/image-editor.ts');
 
 const ENABLED_WHEN_IMAGE_LOADED = [
@@ -310,7 +327,7 @@ function makeEditor(options = {}, viewport = {}) {
 
     editor.init({});
     const image = new fabric.FabricImage();
-    editor.originalImage = image;
+    setOriginalImage(editor, image);
     fabric.lastCanvas.add(image);
     editor.updateUi();
     return editor;
@@ -340,8 +357,8 @@ test('scaleImage leaves a stable no-scrollbar canvas when the image is smaller t
             },
             { containerWidth: 960, containerHeight: 520 },
         );
-        const canvas = editor.canvas;
-        editor.currentLayoutMode = mode;
+        const canvas = requireEditorCanvas(editor);
+        setCurrentLayoutMode(editor, mode);
         canvas.setDimensions({ width: 1400, height: 900 });
 
         await editor.scaleImage(0.3);
@@ -368,13 +385,13 @@ test('undo after rotate restores the canvas size for the restored image bounds',
         },
         { containerWidth: 960, containerHeight: 520 },
     );
-    const canvas = editor.canvas;
-    const image = editor.originalImage;
+    const canvas = requireEditorCanvas(editor);
+    const image = requireOriginalImage(editor);
 
     image.scale(520 / image.height);
-    editor.baseImageScale = image.scaleX;
+    setBaseImageScale(editor, image.scaleX);
     canvas.setDimensions({ width: 960, height: 520 });
-    editor.lastSnapshot = editor.captureSnapshotInternal();
+    setLastSnapshot(editor, editor.captureSnapshotInternal());
 
     await editor.rotateImage(90);
 
@@ -382,7 +399,7 @@ test('undo after rotate restores the canvas size for the restored image bounds',
 
     await editor.undo();
 
-    assert.equal(editor.currentRotation, 0);
+    assert.equal(getCurrentRotation(editor), 0);
     assert.equal(canvas.width, 960);
     assert.equal(canvas.height, 520);
     assertControlsEnabled('after undo', ENABLED_WHEN_IMAGE_LOADED);
@@ -395,11 +412,11 @@ test('loadFromState normalizes stale cover canvas dimensions without shrinking v
         },
         { containerWidth: 960, containerHeight: 520 },
     );
-    const canvas = editor.canvas;
-    const image = editor.originalImage;
+    const canvas = requireEditorCanvas(editor);
+    const image = requireOriginalImage(editor);
 
     image.scale(520 / image.height);
-    editor.baseImageScale = image.scaleX;
+    setBaseImageScale(editor, image.scaleX);
     canvas.setDimensions({ width: 960, height: 900 });
 
     await editor.loadFromState(editor.captureSnapshotInternal());
@@ -422,12 +439,12 @@ test('loadFromState settles a sticky cover scrollbar axis without changing resto
         },
         { containerWidth: 960, containerHeight: 520 },
     );
-    const canvas = editor.canvas;
-    const image = editor.originalImage;
+    const canvas = requireEditorCanvas(editor);
+    const image = requireOriginalImage(editor);
     const container = document.getElementById('canvasContainer');
 
     image.scale(0.945);
-    editor.baseImageScale = image.scaleX;
+    setBaseImageScale(editor, image.scaleX);
     canvas.setDimensions({ width: 945, height: 800 });
     const snapshot = editor.captureSnapshotInternal();
 
@@ -477,10 +494,10 @@ test('loadFromState settles a sticky cover scrollbar axis without changing resto
 
 test('history and state APIs are guarded while crop mode owns the canvas', async () => {
     const editor = makeEditor();
-    editor.currentRotation = 45;
+    setCurrentRotation(editor, 45);
     const snapshot = editor.captureSnapshotInternal();
-    editor.currentRotation = 90;
-    editor.cropSession = {};
+    setCurrentRotation(editor, 90);
+    setCropSession(editor, {});
 
     editor.saveState();
     await editor.loadFromState(snapshot);
@@ -488,26 +505,27 @@ test('history and state APIs are guarded while crop mode owns the canvas', async
     await editor.redo();
 
     assert.equal(
-        editor.currentRotation,
+        getCurrentRotation(editor),
         90,
         'external loadFromState must no-op while crop mode is active',
     );
     assert.equal(
-        editor.historyManager.history.length,
+        getHistoryManager(editor).history.length,
         0,
         'external saveState must not push history while crop mode is active',
     );
 
-    editor.cropSession = null;
+    setCropSession(editor, null);
 });
 
 test('history and state APIs are guarded while another operation is active', async () => {
     const editor = makeEditor();
-    editor.currentRotation = 45;
+    setCurrentRotation(editor, 45);
     const snapshot = editor.captureSnapshotInternal();
-    editor.currentRotation = 90;
+    setCurrentRotation(editor, 90);
 
-    const token = editor.operationGuard.beginBusyOperation('exportImageBase64');
+    const operationGuard = getOperationGuard(editor);
+    const token = operationGuard.beginBusyOperation('exportImageBase64');
     try {
         editor.saveState();
         await editor.loadFromState(snapshot);
@@ -522,17 +540,17 @@ test('history and state APIs are guarded while another operation is active', asy
 
         assert.equal(base64, '', 'exportImageBase64 must no-op while busy');
         assert.equal(
-            editor.currentRotation,
+            getCurrentRotation(editor),
             90,
             'external loadFromState must no-op while another operation is active',
         );
         assert.equal(
-            editor.historyManager.history.length,
+            getHistoryManager(editor).history.length,
             0,
             'external saveState must not push history while another operation is active',
         );
     } finally {
-        editor.operationGuard.endBusyOperation(token);
+        operationGuard.endBusyOperation(token);
     }
 });
 
@@ -543,26 +561,26 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
         },
         { containerWidth: 960, containerHeight: 520 },
     );
-    const canvas = editor.canvas;
-    const image = editor.originalImage;
+    const canvas = requireEditorCanvas(editor);
+    const image = requireOriginalImage(editor);
 
     image.scale(0.5);
-    editor.baseImageScale = 0.5;
+    setBaseImageScale(editor, 0.5);
     canvas.setDimensions({ width: 620, height: 400 });
-    editor.lastSnapshot = editor.captureSnapshotInternal();
+    setLastSnapshot(editor, editor.captureSnapshotInternal());
 
     editor.loadImageInternal = async () => {
         const mergedImage = new image.constructor();
         mergedImage.width = 1000;
         mergedImage.height = 700;
         mergedImage.scale(1);
-        editor.originalImage = mergedImage;
+        setOriginalImage(editor, mergedImage);
         canvas.objects = [mergedImage];
         canvas.setDimensions({ width: 960, height: 520 });
-        editor.baseImageScale = 1;
-        editor.currentScale = 1;
-        editor.currentRotation = 0;
-        editor.lastSnapshot = editor.captureSnapshotInternal();
+        setBaseImageScale(editor, 1);
+        setCurrentScale(editor, 1);
+        setCurrentRotation(editor, 0);
+        setLastSnapshot(editor, editor.captureSnapshotInternal());
     };
 
     const ctx = editor.buildMergeMasksContext();
@@ -571,9 +589,9 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
 
     assert.equal(canvas.width, 620);
     assert.equal(canvas.height, 400);
-    assert.equal(editor.originalImage.scaleX, 0.5);
-    assert.equal(editor.originalImage.scaleY, 0.5);
-    assert.equal(editor.baseImageScale, 0.5);
-    assert.equal(editor.currentScale, 1);
-    assert.equal(editor.currentRotation, 0);
+    assert.equal(requireOriginalImage(editor).scaleX, 0.5);
+    assert.equal(requireOriginalImage(editor).scaleY, 0.5);
+    assert.equal(getBaseImageScale(editor), 0.5);
+    assert.equal(getCurrentScale(editor), 1);
+    assert.equal(getCurrentRotation(editor), 0);
 });

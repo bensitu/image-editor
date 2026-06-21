@@ -193,8 +193,8 @@ export declare function exportImageFile(context: ExportServiceContext, options?:
  * No-image gate emits the same `console.warn` as the
  * other entry points and returns without touching the DOM.
  *
- * Errors raised by the underlying export are reported with `console.error`
- * and rethrown through the returned promise.
+ * Errors raised by the underlying export reject the returned promise so the
+ * caller can report or recover at the UI boundary.
  *
  * @param context - Export context bundle.
  * @param options - Optional {@link ImageExportOptions}.

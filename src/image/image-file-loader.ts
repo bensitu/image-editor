@@ -1,3 +1,10 @@
+/**
+ * File-input image loading adapter.
+ *
+ * Reads browser `File` objects, validates supported image MIME types, and
+ * forwards data URLs into the transactional image loader.
+ */
+
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import type { ResolvedOptions } from '../core/public-types.js';
 import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from '../utils/file.js';

@@ -163,7 +163,7 @@ import {
  * Internal state of an open crop session. Built by {@link enterCropMode},
  * consumed and discarded by {@link applyCrop} / {@link cancelCrop}.
  *
- * The `ImageEditor` facade owns the live pointer to this object; the
+ * The editor runtime owns the live pointer to this object; the
  * controller reads and writes it through the
  * {@link CropControllerContext.getCropSession} /
  * {@link CropControllerContext.setCropSession} callbacks so multiple

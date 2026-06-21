@@ -1,3 +1,9 @@
+/**
+ * History and serialized-state action adapters for ImageEditor.
+ *
+ * This module coordinates guarded save, undo, redo, and load-from-state flows
+ * around the shared state serializer and history manager.
+ */
 import type * as FabricNS from 'fabric';
 import { type CanvasJson } from '../core/state-serializer.js';
 import { type AnnotationObject, type BaseImageObject, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type MaskObject, type ResolvedOptions } from '../core/public-types.js';

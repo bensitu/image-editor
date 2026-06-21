@@ -36,6 +36,7 @@ import {
     getImageDimensionsFromDataUrl,
     loadFixtureImage,
 } from './helpers/fabric-environment.mjs';
+import { getOperationGuard, requireOriginalImage } from './helpers/editor-internals.mjs';
 
 function makeEdgeBorderImageDataUrl({
     width = 100,
@@ -96,8 +97,9 @@ test('mergeMasks preserves the right edge when image width lands on a partial pi
     await editor.loadImage(makeEdgeBorderImageDataUrl({ width: 100, height: 200, right: true }));
     editor.createMask({ left: 5, top: 5, width: 10, height: 10 });
 
-    editor.originalImage.setCoords();
-    const imageBounds = editor.originalImage.getBoundingRect();
+    const image = requireOriginalImage(editor);
+    image.setCoords();
+    const imageBounds = image.getBoundingRect();
     assert.equal(imageBounds.width, 39.5);
 
     await editor.mergeMasks();
@@ -135,8 +137,9 @@ test('mergeMasks preserves the bottom edge when image height lands on a partial 
     );
     editor.createMask({ left: 5, top: 5, width: 10, height: 10 });
 
-    editor.originalImage.setCoords();
-    const imageBounds = editor.originalImage.getBoundingRect();
+    const image = requireOriginalImage(editor);
+    image.setCoords();
+    const imageBounds = image.getBoundingRect();
     assert.equal(imageBounds.height, 59.5);
 
     await editor.mergeMasks();
@@ -172,8 +175,9 @@ test('JPEG export composites partial transparent edges without introducing black
     await editor.loadImage(
         makeEdgeBorderImageDataUrl({ width: 200, height: 100, right: false, bottom: false }),
     );
-    editor.originalImage.setCoords();
-    const imageBounds = editor.originalImage.getBoundingRect();
+    const image = requireOriginalImage(editor);
+    image.setCoords();
+    const imageBounds = image.getBoundingRect();
     assert.equal(imageBounds.height, 59.5);
 
     const exported = await editor.exportImageBase64({
@@ -198,12 +202,13 @@ test('facade blocks mutating operations while a load is active', async (t) => {
     t.after(() => disposeEditor(editor));
     await loadFixtureImage(editor);
 
-    editor.operationGuard.beginLoading();
+    const operationGuard = getOperationGuard(editor);
+    operationGuard.beginLoading();
     try {
         assert.equal(editor.createMask({ width: 20, height: 20 }), null);
         assert.equal(await editor.exportImageBase64({ exportArea: 'image' }), '');
         await assert.rejects(() => editor.scaleImage(1.1), /image is loading/);
     } finally {
-        editor.operationGuard.endLoading();
+        operationGuard.endLoading();
     }
 });

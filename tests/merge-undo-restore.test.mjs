@@ -33,6 +33,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createEditor, disposeEditor, loadFixtureImage } from './helpers/fabric-environment.mjs';
+import { requireEditorCanvas } from './helpers/editor-internals.mjs';
 
 const LAYOUT_MODES = [
     {
@@ -97,7 +98,8 @@ test('merge undo restores mask metadata, label, and mask list in every layout mo
 
             await editor.undo();
 
-            const restoredMasks = editor.canvas
+            const canvas = requireEditorCanvas(editor);
+            const restoredMasks = canvas
                 .getObjects()
                 .filter((object) => typeof object.maskId === 'number');
             assert.equal(restoredMasks.length, 1, 'undo must restore one mask object');
@@ -123,7 +125,7 @@ test('merge undo restores mask metadata, label, and mask list in every layout mo
                 'undo must reattach mask hover handlers',
             );
 
-            const activeMask = editor.canvas.getActiveObject();
+            const activeMask = canvas.getActiveObject();
             assert.equal(activeMask?.maskId, createdMask.maskId, 'undo must reselect the mask');
             assert.ok(restoredMask.labelObject, 'undo must rebuild the selected mask label');
             assert.equal(restoredMask.labelObject.maskLabel, true);

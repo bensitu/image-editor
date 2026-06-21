@@ -1,7 +1,7 @@
 /**
  * Mask list DOM rendering and click-to-select behavior.
  *
- * The ImageEditor facade owns canvas selection state; this module rebuilds
+ * The editor runtime owns canvas selection state; this module rebuilds
  * the list from the current canvas objects and reports user selection through
  * {@link MaskListContext}.
  *
@@ -32,18 +32,18 @@
  *   `mask/mask-label-manager.ts`.
  * - Mask creation, removal, and the post-create `updateMaskList` call — see
  *   `mask/mask-factory.ts`. The factory
- *   invokes the orchestrator's `updateMaskList` callback, which delegates
+ *   invokes the facade's `updateMaskList` callback, which delegates
  *   here.
  * - Hover/selection appearance on the canvas — see `mask/mask-style.ts`.
  *
  * ## Implementation notes
  *
- * - The orchestrator (`src/image-editor.ts`) owns the canvas reference, the
- *   resolved `elements` table, and the selection callback. The helpers in
- *   this module receive those slots through a {@link MaskListContext} so the
- *   module is independent of the `ImageEditor` class shape and can be unit
- *   tested in isolation against a stub Fabric environment plus a JSDOM
- *   container.
+ * - The editor runtime owns the canvas reference and resolved `elements`
+ *   table, while the facade supplies the selection callback. The helpers
+ *   in this module receive those slots through a {@link MaskListContext}
+ *   so the module is independent of the `ImageEditor` class shape and can
+ *   be unit tested in isolation against a stub Fabric environment plus a
+ *   JSDOM container.
  * - The DOM contract — `<li class="list-group-item mask-item">` with a
  *   `dataset.maskId` — is stable so existing CSS, theme overrides, and
  *   integrator selectors continue to work unchanged.
@@ -51,8 +51,8 @@
  *   it guarantees the DOM mirrors `canvas.getObjects` exactly, and the
  *   Fabric event handlers (`object:added`, `object:removed`, `selection:*`)
  *   already fire often enough that an incremental diff is not justified.
- *   `innerHTML = ''` also detaches every prior `onclick` handler we attached
- *   below, so there is no need to track listeners separately.
+ *   `innerHTML = ''` also detaches every prior click listener attached to
+ *   the removed list items, so there is no need to track listeners separately.
  *
  * @module
  */
@@ -62,11 +62,10 @@ import type { MaskObject } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 
 /**
- * State the mask-list helpers read from the `ImageEditor` orchestrator.
+ * State the mask-list helpers read from the editor runtime and facade callbacks.
  *
  * The module does NOT own any of these slots — it only reads them so
- * ownership of the canvas, the resolved DOM element ID map, and the
- * selection-changed pipeline stays on the orchestrator.
+ * ownership of the canvas and resolved DOM element ID map stays on the runtime.
  */
 export interface MaskListContext {
     /**
@@ -144,7 +143,7 @@ export function renderMaskList(context: MaskListContext): void {
     const listEl = ownerDocument.getElementById(listId);
     if (!listEl || !context.canvas) return;
 
-    // Drop the previous DOM (and, by detaching the nodes, every onclick
+    // Drop the previous DOM (and, by detaching the nodes, every click
     // handler we attached below). Rebuilding from scratch keeps the list in
     // exact sync with the canvas object order without any incremental diff.
     listEl.innerHTML = '';
@@ -163,7 +162,7 @@ export function renderMaskList(context: MaskListContext): void {
             // stable identifier for click routing and tests.
             listItemElement.dataset.maskId = String(mask.maskId);
 
-            listItemElement.onclick = () => {
+            listItemElement.addEventListener('click', () => {
                 // select by maskId lookup, NOT by list
                 // position. Re-read `canvas.getObjects` at click time so the
                 // lookup tolerates objects that were re-ordered or removed
@@ -176,7 +175,7 @@ export function renderMaskList(context: MaskListContext): void {
                 if (!target) return;
                 canvas.setActiveObject(target);
                 context.onMaskSelected(target);
-            };
+            });
 
             listEl.appendChild(listItemElement);
         });

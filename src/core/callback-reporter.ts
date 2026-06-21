@@ -77,7 +77,7 @@ export type ErrorCallbackHost = Pick<ResolvedOptions, 'onError'>;
  * try {
  *   await tryDownsample(...);
  * } catch (error) {
- *   reportWarning(this.options, error, 'Downsample fell back to source format.');
+ *   reportWarning(options, error, 'Downsample fell back to source format.');
  *   // continue with the un-downsampled image — no rethrow
  * }
  * ```
@@ -130,7 +130,7 @@ export function reportWarning(options: WarningCallbackHost, error: unknown, mess
  * try {
  *   await loadFabricImage(dataUrl);
  * } catch (error) {
- *   reportError(this.options, error, `Image load failed: ${describe(error)}`);
+ *   reportError(options, error, `Image load failed: ${describe(error)}`);
  *   throw error; // original error is preserved on the consumer's promise
  * }
  * ```

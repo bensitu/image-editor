@@ -1,3 +1,10 @@
+/**
+ * Export and merge action adapters for the ImageEditor facade.
+ *
+ * The adapters enforce idle/busy guards and callback emission around the
+ * lower-level export service operations.
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { OperationToken } from '../core/operation-guard.js';

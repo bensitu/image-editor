@@ -215,21 +215,20 @@ class MockCanvas {
 
 /**
  * Build a fresh model — canvas, fabric, options, the mutable counter
- * slot owned by the orchestrator (mirroring `image-editor.ts`), and
+ * slot owned by the editor runtime, and
  * factory helpers for `CreateMaskContext` / `RemoveMaskContext`.
  *
  * The counter and `lastMask` slots live on the model object so each
  * iteration starts from a clean state and the assertions can read
- * back the orchestrator-owned values directly.
+ * back the runtime-owned values directly.
  */
 function makeModel() {
     const canvas = new MockCanvas();
     const fabric = makeFabric();
     const options = resolveOptions({});
-    // The orchestrator owns these fields in `image-editor.ts`. We hold
-    // them here so the factory's `getMaskCounter` / `setMaskCounter`
-    // hooks can mutate them and the property assertions can read them
-    // back.
+    // The editor runtime owns these fields in production. We hold them here
+    // so the factory's `getMaskCounter` / `setMaskCounter` hooks can mutate
+    // them and the property assertions can read them back.
     const slots = { counter: 0, lastMask: null };
 
     return {

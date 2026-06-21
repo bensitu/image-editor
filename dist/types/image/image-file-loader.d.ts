@@ -1,3 +1,9 @@
+/**
+ * File-input image loading adapter.
+ *
+ * Reads browser `File` objects, validates supported image MIME types, and
+ * forwards data URLs into the transactional image loader.
+ */
 import type { ResolvedOptions } from '../core/public-types.js';
 export interface LoadImageFileContext {
     options: ResolvedOptions;
