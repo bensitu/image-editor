@@ -952,6 +952,18 @@ function markAnnotationObject(object, meta) {
     annotation.annotationName = meta.annotationName;
     annotation.annotationHidden = (_a = meta.annotationHidden) !== null && _a !== void 0 ? _a : false;
     annotation.annotationLocked = (_b = meta.annotationLocked) !== null && _b !== void 0 ? _b : false;
+    if (typeof meta.annotationSelectable === 'boolean') {
+        annotation.annotationSelectable = meta.annotationSelectable;
+    }
+    if (typeof meta.annotationEvented === 'boolean') {
+        annotation.annotationEvented = meta.annotationEvented;
+    }
+    if (typeof meta.annotationHasControls === 'boolean') {
+        annotation.annotationHasControls = meta.annotationHasControls;
+    }
+    if (typeof meta.annotationEditable === 'boolean') {
+        annotation.annotationEditable = meta.annotationEditable;
+    }
     return annotation;
 }
 function markSessionObject(object, sessionObjectType) {
@@ -988,6 +1000,10 @@ const SNAPSHOT_CUSTOM_KEYS = [
     'annotationName',
     'annotationHidden',
     'annotationLocked',
+    'annotationSelectable',
+    'annotationEvented',
+    'annotationHasControls',
+    'annotationEditable',
 ];
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
@@ -1067,6 +1083,18 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
         if (typeof liveObject.annotationLocked === 'boolean') {
             jsonObject.annotationLocked = liveObject.annotationLocked;
+        }
+        if (typeof liveObject.annotationSelectable === 'boolean') {
+            jsonObject.annotationSelectable = liveObject.annotationSelectable;
+        }
+        if (typeof liveObject.annotationEvented === 'boolean') {
+            jsonObject.annotationEvented = liveObject.annotationEvented;
+        }
+        if (typeof liveObject.annotationHasControls === 'boolean') {
+            jsonObject.annotationHasControls = liveObject.annotationHasControls;
+        }
+        if (typeof liveObject.annotationEditable === 'boolean') {
+            jsonObject.annotationEditable = liveObject.annotationEditable;
         }
     }
 }
@@ -1206,6 +1234,18 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                 annotationName: jObj.annotationName,
                 annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
                 annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
+                annotationSelectable: typeof jObj.annotationSelectable === 'boolean'
+                    ? jObj.annotationSelectable
+                    : undefined,
+                annotationEvented: typeof jObj.annotationEvented === 'boolean'
+                    ? jObj.annotationEvented
+                    : undefined,
+                annotationHasControls: typeof jObj.annotationHasControls === 'boolean'
+                    ? jObj.annotationHasControls
+                    : undefined,
+                annotationEditable: typeof jObj.annotationEditable === 'boolean'
+                    ? jObj.annotationEditable
+                    : undefined,
             });
             return;
         }
@@ -1461,41 +1501,77 @@ function setObjectProps(object, props) {
         Object.assign(object, props);
     }
 }
+function readBoolean(value, fallback) {
+    return typeof value === 'boolean' ? value : fallback;
+}
+function getBaseSelectable(annotation) {
+    return readBoolean(annotation.annotationSelectable, readBoolean(annotation.selectable, true));
+}
+function getBaseEvented(annotation) {
+    return readBoolean(annotation.annotationEvented, readBoolean(annotation.evented, true));
+}
+function getBaseHasControls(annotation) {
+    return readBoolean(annotation.annotationHasControls, readBoolean(annotation.hasControls, true));
+}
+function getBaseEditable(annotation) {
+    return readBoolean(annotation.annotationEditable, readBoolean(annotation.editable, true));
+}
 function syncTextEditability(annotation, editable) {
     const textObject = annotation;
     textObject.editable = editable;
 }
+function ensureBaseInteractivityMetadata(annotation) {
+    if (typeof annotation.annotationSelectable !== 'boolean') {
+        annotation.annotationSelectable = readBoolean(annotation.selectable, true);
+    }
+    if (typeof annotation.annotationEvented !== 'boolean') {
+        annotation.annotationEvented = readBoolean(annotation.evented, true);
+    }
+    if (typeof annotation.annotationHasControls !== 'boolean') {
+        annotation.annotationHasControls = readBoolean(annotation.hasControls, true);
+    }
+    if (isTextAnnotationObject(annotation) && typeof annotation.annotationEditable !== 'boolean') {
+        annotation.annotationEditable = getBaseEditable(annotation);
+    }
+}
 function syncAnnotationRuntimeState(annotation) {
-    var _a;
+    var _a, _b;
     const hidden = annotation.annotationHidden === true;
     const locked = isAnnotationLocked(annotation);
+    if (locked) {
+        ensureBaseInteractivityMetadata(annotation);
+        setObjectProps(annotation, {
+            visible: !hidden,
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            lockScalingX: true,
+            lockScalingY: true,
+            lockRotation: true,
+        });
+        if (isTextAnnotationObject(annotation)) {
+            syncTextEditability(annotation, false);
+        }
+        (_a = annotation.setCoords) === null || _a === void 0 ? void 0 : _a.call(annotation);
+        return;
+    }
     setObjectProps(annotation, {
         visible: !hidden,
-        selectable: locked ? false : true,
-        evented: locked ? false : true,
-        hasControls: !locked,
-        lockMovementX: locked,
-        lockMovementY: locked,
-        lockScalingX: locked,
-        lockScalingY: locked,
-        lockRotation: locked,
+        selectable: getBaseSelectable(annotation),
+        evented: getBaseEvented(annotation),
+        hasControls: getBaseHasControls(annotation),
+        lockMovementX: false,
+        lockMovementY: false,
+        lockScalingX: false,
+        lockScalingY: false,
+        lockRotation: false,
     });
-    if (!locked) {
-        setObjectProps(annotation, {
-            selectable: true,
-            evented: true,
-            hasControls: true,
-            lockMovementX: false,
-            lockMovementY: false,
-            lockScalingX: false,
-            lockScalingY: false,
-            lockRotation: false,
-        });
-    }
     if (isTextAnnotationObject(annotation)) {
-        syncTextEditability(annotation, !locked);
+        syncTextEditability(annotation, getBaseEditable(annotation));
     }
-    (_a = annotation.setCoords) === null || _a === void 0 ? void 0 : _a.call(annotation);
+    (_b = annotation.setCoords) === null || _b === void 0 ? void 0 : _b.call(annotation);
 }
 function syncAnnotationRuntimeStates(annotations) {
     annotations.forEach(syncAnnotationRuntimeState);
@@ -1775,12 +1851,21 @@ function attachTextEditingHandlers(context, annotation) {
         var _a;
         textObject.imageEditorTextEditingInitialText = String((_a = textObject.text) !== null && _a !== void 0 ? _a : '');
         textObject.imageEditorTextEditingCancel = false;
+        delete textObject.imageEditorTextEditingHandledChange;
     };
     const exited = () => {
         var _a;
         const initial = textObject.imageEditorTextEditingInitialText;
         const finalText = String((_a = textObject.text) !== null && _a !== void 0 ? _a : '');
         const cancel = textObject.imageEditorTextEditingCancel === true;
+        if (initial !== undefined) {
+            textObject.imageEditorTextEditingHandledChange = true;
+            setTimeout(() => {
+                if (textObject.imageEditorTextEditingHandledChange === true) {
+                    delete textObject.imageEditorTextEditingHandledChange;
+                }
+            }, 0);
+        }
         if (cancel && initial !== undefined) {
             textObject.set({ text: initial });
         }
@@ -1788,7 +1873,7 @@ function attachTextEditingHandlers(context, annotation) {
         delete textObject.imageEditorTextEditingCancel;
         if (!cancel && initial !== undefined && initial !== finalText) {
             context.saveCanvasState();
-            const callbackContext = context.buildCallbackContext('createTextAnnotation');
+            const callbackContext = context.buildCallbackContext('updateAnnotation');
             context.emitAnnotationsChanged(callbackContext);
             context.emitImageChanged(callbackContext);
         }
@@ -1846,6 +1931,10 @@ function createTextAnnotation(context, config = {}) {
         annotationName: meta.annotationName,
         annotationHidden: meta.annotationHidden,
         annotationLocked: meta.annotationLocked,
+        annotationSelectable: resolved.selectable,
+        annotationEvented: resolved.evented,
+        annotationHasControls: textbox.hasControls !== false,
+        annotationEditable: resolved.editable,
     });
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
@@ -1932,6 +2021,7 @@ function exitTextMode(context) {
     const session = context.getTextSession();
     if (!session)
         return;
+    finalizeActiveTextEditing(context, { commit: true });
     session.dispose();
     context.setTextSession(null);
     context.canvas.requestRenderAll();
@@ -2335,8 +2425,16 @@ function snapshotAnnotation(annotation) {
         visible: annotation.visible,
         selectable: annotation.selectable,
         evented: annotation.evented,
+        hasControls: annotation.hasControls,
+        editable: isTextAnnotationObject(annotation)
+            ? annotation.editable
+            : undefined,
         annotationHidden: annotation.annotationHidden,
         annotationLocked: annotation.annotationLocked,
+        annotationSelectable: annotation.annotationSelectable,
+        annotationEvented: annotation.annotationEvented,
+        annotationHasControls: annotation.annotationHasControls,
+        annotationEditable: annotation.annotationEditable,
     });
 }
 function setAnnotationProps(annotation, props) {
@@ -2403,12 +2501,21 @@ function updateAnnotationObject(annotation, config) {
     }
     const lockedAfter = isAnnotationLocked(annotation);
     if (!lockedAfter) {
-        if (typeof raw.selectable === 'boolean')
-            annotation.selectable = raw.selectable;
-        if (typeof raw.evented === 'boolean')
-            annotation.evented = raw.evented;
-        if (isTextAnnotationObject(annotation))
+        if (typeof raw.selectable === 'boolean') {
+            annotation.annotationSelectable = raw.selectable;
+        }
+        if (typeof raw.evented === 'boolean') {
+            annotation.annotationEvented = raw.evented;
+        }
+        if (typeof raw.hasControls === 'boolean') {
+            annotation.annotationHasControls = raw.hasControls;
+        }
+        if (isTextAnnotationObject(annotation)) {
+            if (typeof raw.editable === 'boolean') {
+                annotation.annotationEditable = raw.editable;
+            }
             updateTextAnnotation(annotation, config);
+        }
         if (isDrawAnnotationObject(annotation))
             updateDrawAnnotation(annotation, config);
     }
@@ -2547,6 +2654,9 @@ function markPathAsDrawAnnotation(context, path) {
         annotationName: `${context.options.drawAnnotationName}${annotationId}`,
         annotationHidden: config.annotationHidden,
         annotationLocked: config.annotationLocked,
+        annotationSelectable: config.selectable,
+        annotationEvented: config.evented,
+        annotationHasControls: path.hasControls !== false,
     });
     syncAnnotationRuntimeState(annotation);
     return annotation;
@@ -4757,10 +4867,13 @@ async function withMaskExportState(context, mergeMasks, callback) {
 async function withObjectsHidden(canvas, predicate, callback) {
     const backups = getCanvasObjects(canvas)
         .filter(predicate)
-        .map((object) => ({
-        object,
-        visible: object.visible,
-    }));
+        .map((object) => {
+        var _a;
+        return ({
+            object,
+            visible: (_a = object.visible) !== null && _a !== void 0 ? _a : true,
+        });
+    });
     for (const backup of backups) {
         try {
             if (typeof backup.object.set === 'function') {
@@ -4816,6 +4929,7 @@ function isObjectOnCanvas(canvas, object) {
     return getCanvasObjects(canvas).includes(object);
 }
 function captureMaskLabelBackups(canvas) {
+    var _a;
     const backups = [];
     for (const object of getCanvasObjects(canvas)) {
         if (!isMaskObject(object))
@@ -4828,7 +4942,7 @@ function captureMaskLabelBackups(canvas) {
             mask: object,
             label,
             wasOnCanvas,
-            visible: label.visible,
+            visible: (_a = label.visible) !== null && _a !== void 0 ? _a : true,
         });
         try {
             if (typeof label.set === 'function')
@@ -8239,6 +8353,13 @@ function handleObjectModified(access, target) {
     if (isAnnotationObject(target)) {
         if (isAnnotationLocked(target))
             return;
+        if (isTextAnnotationObject(target)) {
+            const textTarget = target;
+            if (textTarget.imageEditorTextEditingHandledChange === true) {
+                delete textTarget.imageEditorTextEditingHandledChange;
+                return;
+            }
+        }
         const context = access.buildCallbackContext('updateAnnotation', false);
         access.saveState();
         access.emitAnnotationsChanged(context);

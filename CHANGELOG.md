@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-06-23
+
+### Fixed
+
+- Preserve annotation base interactivity metadata across creation, update, lock/unlock, save/load, undo/redo, and overlay merge preservation.
+- Emit `updateAnnotation` for existing text edits, suppress duplicate text-edit history/callbacks from Fabric `object:modified`, and commit active text editing when exiting Text mode through the public/DOM path.
+- Restore hidden export overlays with Fabric's default visible state when their previous `visible` value was `undefined`.
+
+### Documentation
+
+- Clarify Text/Draw tool-mode blocked operations, export-vs-merge state semantics, and `annotationHidden` / `annotationLocked` behavior.
+
 ## [2.4.0] - 2026-06-22
 
 ### Changed

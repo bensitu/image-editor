@@ -26,6 +26,18 @@ export function markAnnotationObject(object, meta) {
     annotation.annotationName = meta.annotationName;
     annotation.annotationHidden = (_a = meta.annotationHidden) !== null && _a !== void 0 ? _a : false;
     annotation.annotationLocked = (_b = meta.annotationLocked) !== null && _b !== void 0 ? _b : false;
+    if (typeof meta.annotationSelectable === 'boolean') {
+        annotation.annotationSelectable = meta.annotationSelectable;
+    }
+    if (typeof meta.annotationEvented === 'boolean') {
+        annotation.annotationEvented = meta.annotationEvented;
+    }
+    if (typeof meta.annotationHasControls === 'boolean') {
+        annotation.annotationHasControls = meta.annotationHasControls;
+    }
+    if (typeof meta.annotationEditable === 'boolean') {
+        annotation.annotationEditable = meta.annotationEditable;
+    }
     return annotation;
 }
 export function markSessionObject(object, sessionObjectType) {

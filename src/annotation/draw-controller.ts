@@ -98,6 +98,9 @@ function markPathAsDrawAnnotation(
         annotationName: `${context.options.drawAnnotationName}${annotationId}`,
         annotationHidden: config.annotationHidden,
         annotationLocked: config.annotationLocked,
+        annotationSelectable: config.selectable,
+        annotationEvented: config.evented,
+        annotationHasControls: path.hasControls !== false,
     }) as DrawAnnotationObject;
     syncAnnotationRuntimeState(annotation);
     return annotation;

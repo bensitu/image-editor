@@ -1,9 +1,10 @@
 /**
  * Runtime Fabric flag synchronization for editor-owned annotations.
  *
- * The metadata fields `annotationHidden` and `annotationLocked` are the
- * durable source of truth; this module projects them onto Fabric visibility,
- * selectability, event handling, and text editability.
+ * `annotationHidden` and `annotationLocked` are business-level state. The
+ * `annotationSelectable` / `annotationEvented` / `annotationHasControls` /
+ * `annotationEditable` fields preserve the annotation's base interactivity so
+ * locking can temporarily disable interaction without destroying user intent.
  *
  * @module
  */

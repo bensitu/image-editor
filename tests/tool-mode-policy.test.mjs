@@ -131,6 +131,38 @@ test('draw mode allows draw-session operations', () => {
     assert.equal(canRunOperationInToolMode('draw', 'createTextAnnotation'), false);
 });
 
+test('text and draw modes block unrelated mutating and export operations', () => {
+    const blocked = [
+        'exportImageBase64',
+        'exportImageFile',
+        'downloadImage',
+        'mergeMasks',
+        'mergeAnnotations',
+        'undo',
+        'redo',
+        'deleteSelectedObject',
+        'scaleImage',
+        'rotateImage',
+        'flipHorizontal',
+        'flipVertical',
+        'resetImageTransform',
+        'loadImage',
+        'loadFromState',
+    ];
+
+    for (const operation of blocked) {
+        assert.equal(
+            canRunOperationInToolMode('text', operation),
+            false,
+            `text blocks ${operation}`,
+        );
+        assert.equal(
+            canRunOperationInToolMode('draw', operation),
+            false,
+            `draw blocks ${operation}`,
+        );
+    }
+});
 test('operation name guard recognizes public operation names only', () => {
     assert.equal(isImageEditorOperation('mergeMasks'), true);
     assert.equal(isImageEditorOperation('dispose'), true);

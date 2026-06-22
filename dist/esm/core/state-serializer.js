@@ -27,6 +27,10 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'annotationName',
     'annotationHidden',
     'annotationLocked',
+    'annotationSelectable',
+    'annotationEvented',
+    'annotationHasControls',
+    'annotationEditable',
 ];
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
@@ -106,6 +110,18 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
         if (typeof liveObject.annotationLocked === 'boolean') {
             jsonObject.annotationLocked = liveObject.annotationLocked;
+        }
+        if (typeof liveObject.annotationSelectable === 'boolean') {
+            jsonObject.annotationSelectable = liveObject.annotationSelectable;
+        }
+        if (typeof liveObject.annotationEvented === 'boolean') {
+            jsonObject.annotationEvented = liveObject.annotationEvented;
+        }
+        if (typeof liveObject.annotationHasControls === 'boolean') {
+            jsonObject.annotationHasControls = liveObject.annotationHasControls;
+        }
+        if (typeof liveObject.annotationEditable === 'boolean') {
+            jsonObject.annotationEditable = liveObject.annotationEditable;
         }
     }
 }
@@ -245,6 +261,18 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                 annotationName: jObj.annotationName,
                 annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
                 annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
+                annotationSelectable: typeof jObj.annotationSelectable === 'boolean'
+                    ? jObj.annotationSelectable
+                    : undefined,
+                annotationEvented: typeof jObj.annotationEvented === 'boolean'
+                    ? jObj.annotationEvented
+                    : undefined,
+                annotationHasControls: typeof jObj.annotationHasControls === 'boolean'
+                    ? jObj.annotationHasControls
+                    : undefined,
+                annotationEditable: typeof jObj.annotationEditable === 'boolean'
+                    ? jObj.annotationEditable
+                    : undefined,
             });
             return;
         }

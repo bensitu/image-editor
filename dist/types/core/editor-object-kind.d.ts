@@ -24,6 +24,10 @@ export declare function markAnnotationObject(object: FabricNS.FabricObject, meta
     annotationName: string;
     annotationHidden?: boolean;
     annotationLocked?: boolean;
+    annotationSelectable?: boolean;
+    annotationEvented?: boolean;
+    annotationHasControls?: boolean;
+    annotationEditable?: boolean;
 }): AnnotationObject;
 export declare function markSessionObject<T extends FabricNS.FabricObject>(object: T, sessionObjectType: SessionObjectType): T & SessionObject;
 //# sourceMappingURL=editor-object-kind.d.ts.map

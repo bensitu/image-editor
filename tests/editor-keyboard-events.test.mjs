@@ -90,6 +90,26 @@ test('Backspace is ignored while a native input owns focus', () => {
     assert.deepEqual(access.calls, []);
 });
 
+test('Delete and Backspace are ignored while native editable controls own focus', () => {
+    const activeElements = [
+        { tagName: 'INPUT', isContentEditable: false },
+        { tagName: 'TEXTAREA', isContentEditable: false },
+        { tagName: 'SELECT', isContentEditable: false },
+        { tagName: 'DIV', isContentEditable: true },
+    ];
+
+    for (const activeElement of activeElements) {
+        for (const key of ['Delete', 'Backspace']) {
+            const access = createAccess({
+                getKeyboardDocument: () => ({ activeElement }),
+            });
+
+            handleEditorKeyboardEvent(access, createEvent(key));
+
+            assert.deepEqual(access.calls, [], `${key} ignored for ${activeElement.tagName}`);
+        }
+    }
+});
 test('Escape finalizes active Fabric text editing without committing', () => {
     const textObject = {
         editorObjectKind: 'annotation',
@@ -124,6 +144,22 @@ test('Escape exits active modes in existing facade priority', () => {
     assert.deepEqual(access.calls, ['exitTextMode']);
 });
 
+test('Escape exits each active tool mode through its dedicated action', () => {
+    const cases = [
+        { overrides: { hasTextSession: () => true }, expected: 'exitTextMode' },
+        { overrides: { hasDrawSession: () => true }, expected: 'exitDrawMode' },
+        { overrides: { hasMosaicSession: () => true }, expected: 'exitMosaicMode' },
+        { overrides: { hasCropSession: () => true }, expected: 'cancelCrop' },
+    ];
+
+    for (const { overrides, expected } of cases) {
+        const access = createAccess(overrides);
+
+        handleEditorKeyboardEvent(access, createEvent('Escape'));
+
+        assert.deepEqual(access.calls, [expected]);
+    }
+});
 test('Escape falls through to crop cancellation when only crop is active', () => {
     const access = createAccess({
         hasCropSession: () => true,

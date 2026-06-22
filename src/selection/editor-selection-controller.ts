@@ -11,6 +11,7 @@ import { isAnnotationLocked } from '../annotation/annotation-lock.js';
 import {
     isAnnotationObject,
     isMaskObject,
+    isTextAnnotationObject,
     type AnnotationObject,
     type ImageEditorCallbackContext,
     type ImageEditorOperation,
@@ -108,6 +109,15 @@ export function handleObjectModified(
 
     if (isAnnotationObject(target)) {
         if (isAnnotationLocked(target)) return;
+        if (isTextAnnotationObject(target)) {
+            const textTarget = target as typeof target & {
+                imageEditorTextEditingHandledChange?: boolean;
+            };
+            if (textTarget.imageEditorTextEditingHandledChange === true) {
+                delete textTarget.imageEditorTextEditingHandledChange;
+                return;
+            }
+        }
         const context = access.buildCallbackContext('updateAnnotation', false);
         access.saveState();
         access.emitAnnotationsChanged(context);

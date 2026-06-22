@@ -497,6 +497,13 @@ Tool modes are mutually exclusive: Crop, Mosaic, Text, and Draw cannot be
 active at the same time. `getEditorState()` reports `activeToolMode` plus
 `isCropMode`, `isMosaicMode`, `isTextMode`, and `isDrawMode`.
 
+While Text or Draw mode is active, unrelated image operations are blocked:
+export, merge, undo/redo, delete, transform, `loadImage`, and `loadFromState`
+no-op through the normal guard. Exit the active mode before running those
+operations. Text mode still allows `exitTextMode`, `createTextAnnotation`, and
+Text config setters; Draw mode still allows `exitDrawMode` and Draw config
+setters.
+
 | Method                               | Description                                                                |
 | ------------------------------------ | -------------------------------------------------------------------------- |
 | `getAnnotations()`                   | Return current annotation objects in canvas order. Masks are not included. |
@@ -529,9 +536,14 @@ editor.setDrawConfig({ color: '#00aaff', brushSize: 10 });
 ```
 
 Annotations carry `annotationHidden` and `annotationLocked` metadata. Hidden
-annotations are not rendered during export. Locked annotations are not
-selectable/editable and are skipped by selected-annotation update/delete
-operations unless an API explicitly opts into forced removal.
+annotations remain in state and annotation lists, but are not visible or
+rendered during export until shown again. Locked annotations are non-interactive
+(`selectable`, `evented`, transform controls, movement/scaling/rotation, and
+text editability are disabled) and are skipped by selected-annotation
+update/delete operations unless an API explicitly opts into forced removal.
+Unlocking restores the annotation's intended base interactivity flags, including
+non-default `selectable`, `evented`, text `editable`, and `hasControls` values
+provided at creation or through supported update paths.
 
 ### Layer operations
 
@@ -686,8 +698,8 @@ source format cannot be determined. JPEG/WebP commits use
 - `isMaskObject()` is strict and rejects legacy objects with only `maskId`.
 - `MaskObject.maskUid` is required.
 - Serialized states without `editorObjectKind` are not migrated.
-- Export option mergeMask was removed; use `mergeMasks`.
-- Constructor option mergeMaskByDefault was removed; use `mergeMasksByDefault`.
+- Export option `mergeMask` was removed; use `mergeMasks`.
+- Constructor option `mergeMaskByDefault` was removed; use `mergeMasksByDefault`.
 
 ## Example workflow
 

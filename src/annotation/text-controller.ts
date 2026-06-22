@@ -55,13 +55,14 @@ export interface TextControllerContext {
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
     buildCallbackContext(
-        operation: 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode',
+        operation: 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode' | 'updateAnnotation',
     ): ImageEditorCallbackContext;
 }
 
 type TextWithEditTag = TextAnnotationObject & {
     imageEditorTextEditingInitialText?: string;
     imageEditorTextEditingCancel?: boolean;
+    imageEditorTextEditingHandledChange?: boolean;
     imageEditorTextEditingHandlers?: {
         entered: () => void;
         exited: () => void;
@@ -143,11 +144,20 @@ export function attachTextEditingHandlers(
     const entered = (): void => {
         textObject.imageEditorTextEditingInitialText = String(textObject.text ?? '');
         textObject.imageEditorTextEditingCancel = false;
+        delete textObject.imageEditorTextEditingHandledChange;
     };
     const exited = (): void => {
         const initial = textObject.imageEditorTextEditingInitialText;
         const finalText = String(textObject.text ?? '');
         const cancel = textObject.imageEditorTextEditingCancel === true;
+        if (initial !== undefined) {
+            textObject.imageEditorTextEditingHandledChange = true;
+            setTimeout(() => {
+                if (textObject.imageEditorTextEditingHandledChange === true) {
+                    delete textObject.imageEditorTextEditingHandledChange;
+                }
+            }, 0);
+        }
         if (cancel && initial !== undefined) {
             textObject.set({ text: initial } as Partial<FabricNS.TextboxProps>);
         }
@@ -155,7 +165,7 @@ export function attachTextEditingHandlers(
         delete textObject.imageEditorTextEditingCancel;
         if (!cancel && initial !== undefined && initial !== finalText) {
             context.saveCanvasState();
-            const callbackContext = context.buildCallbackContext('createTextAnnotation');
+            const callbackContext = context.buildCallbackContext('updateAnnotation');
             context.emitAnnotationsChanged(callbackContext);
             context.emitImageChanged(callbackContext);
         }
@@ -220,6 +230,10 @@ export function createTextAnnotation(
         annotationName: meta.annotationName,
         annotationHidden: meta.annotationHidden,
         annotationLocked: meta.annotationLocked,
+        annotationSelectable: resolved.selectable,
+        annotationEvented: resolved.evented,
+        annotationHasControls: textbox.hasControls !== false,
+        annotationEditable: resolved.editable,
     }) as TextAnnotationObject;
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
@@ -312,6 +326,7 @@ export function enterTextMode(context: TextControllerContext): void {
 export function exitTextMode(context: TextControllerContext): void {
     const session = context.getTextSession();
     if (!session) return;
+    finalizeActiveTextEditing(context, { commit: true });
     session.dispose();
     context.setTextSession(null);
     context.canvas.requestRenderAll();

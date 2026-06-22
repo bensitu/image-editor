@@ -79,10 +79,13 @@ async function withMaskExportState(context, mergeMasks, callback) {
 async function withObjectsHidden(canvas, predicate, callback) {
     const backups = getCanvasObjects(canvas)
         .filter(predicate)
-        .map((object) => ({
-        object,
-        visible: object.visible,
-    }));
+        .map((object) => {
+        var _a;
+        return ({
+            object,
+            visible: (_a = object.visible) !== null && _a !== void 0 ? _a : true,
+        });
+    });
     for (const backup of backups) {
         try {
             if (typeof backup.object.set === 'function') {
@@ -138,6 +141,7 @@ function isObjectOnCanvas(canvas, object) {
     return getCanvasObjects(canvas).includes(object);
 }
 function captureMaskLabelBackups(canvas) {
+    var _a;
     const backups = [];
     for (const object of getCanvasObjects(canvas)) {
         if (!isMaskObject(object))
@@ -150,7 +154,7 @@ function captureMaskLabelBackups(canvas) {
             mask: object,
             label,
             wasOnCanvas,
-            visible: label.visible,
+            visible: (_a = label.visible) !== null && _a !== void 0 ? _a : true,
         });
         try {
             if (typeof label.set === 'function')

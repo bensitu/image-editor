@@ -34,7 +34,7 @@ export interface TextControllerContext {
     updateUi(): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
-    buildCallbackContext(operation: 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode'): ImageEditorCallbackContext;
+    buildCallbackContext(operation: 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode' | 'updateAnnotation'): ImageEditorCallbackContext;
 }
 export declare function attachTextEditingHandlers(context: TextControllerContext, annotation: TextAnnotationObject): void;
 export declare function createTextAnnotation(context: TextControllerContext, config?: TextAnnotationConfig): TextAnnotationObject | null;

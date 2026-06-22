@@ -396,7 +396,7 @@ async function withObjectsHidden<T>(
         .filter(predicate)
         .map((object) => ({
             object,
-            visible: (object as { visible?: unknown }).visible,
+            visible: (object as { visible?: unknown }).visible ?? true,
         }));
 
     for (const backup of backups) {
@@ -482,7 +482,7 @@ function captureMaskLabelBackups(canvas: FabricNS.Canvas): LabelBackup[] {
             mask: object,
             label,
             wasOnCanvas,
-            visible: (label as { visible?: unknown }).visible,
+            visible: (label as { visible?: unknown }).visible ?? true,
         });
         try {
             if (typeof label.set === 'function') label.set({ visible: false });

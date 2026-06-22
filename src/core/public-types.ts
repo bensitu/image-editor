@@ -186,6 +186,10 @@ export interface AnnotationObject extends FabricNS.FabricObject {
     annotationName: string;
     annotationHidden?: boolean;
     annotationLocked?: boolean;
+    annotationSelectable?: boolean;
+    annotationEvented?: boolean;
+    annotationHasControls?: boolean;
+    annotationEditable?: boolean;
 }
 
 export interface TextAnnotationObject extends AnnotationObject {

@@ -124,6 +124,14 @@ export interface CanvasJsonObject {
     annotationHidden?: boolean;
     /** Business-level annotation lock state. */
     annotationLocked?: boolean;
+    /** Base selectable intent restored when an annotation is unlocked. */
+    annotationSelectable?: boolean;
+    /** Base evented intent restored when an annotation is unlocked. */
+    annotationEvented?: boolean;
+    /** Base transform controls intent restored when an annotation is unlocked. */
+    annotationHasControls?: boolean;
+    /** Base text editability intent restored when a text annotation is unlocked. */
+    annotationEditable?: boolean;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -204,6 +212,10 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'annotationName',
     'annotationHidden',
     'annotationLocked',
+    'annotationSelectable',
+    'annotationEvented',
+    'annotationHasControls',
+    'annotationEditable',
 ] as const;
 
 /**
@@ -233,6 +245,10 @@ function copySnapshotCustomPropsFromCanvas(
                   annotationName?: string;
                   annotationHidden?: boolean;
                   annotationLocked?: boolean;
+                  annotationSelectable?: boolean;
+                  annotationEvented?: boolean;
+                  annotationHasControls?: boolean;
+                  annotationEditable?: boolean;
               })
             | undefined;
         const jsonObject = jsonObjects[index];
@@ -301,6 +317,18 @@ function copySnapshotCustomPropsFromCanvas(
         }
         if (typeof liveObject.annotationLocked === 'boolean') {
             jsonObject.annotationLocked = liveObject.annotationLocked;
+        }
+        if (typeof liveObject.annotationSelectable === 'boolean') {
+            jsonObject.annotationSelectable = liveObject.annotationSelectable;
+        }
+        if (typeof liveObject.annotationEvented === 'boolean') {
+            jsonObject.annotationEvented = liveObject.annotationEvented;
+        }
+        if (typeof liveObject.annotationHasControls === 'boolean') {
+            jsonObject.annotationHasControls = liveObject.annotationHasControls;
+        }
+        if (typeof liveObject.annotationEditable === 'boolean') {
+            jsonObject.annotationEditable = liveObject.annotationEditable;
         }
     }
 }
@@ -710,6 +738,22 @@ function restoreEditorObjectPropsFromJson(
                     typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
                 annotationLocked:
                     typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
+                annotationSelectable:
+                    typeof jObj.annotationSelectable === 'boolean'
+                        ? jObj.annotationSelectable
+                        : undefined,
+                annotationEvented:
+                    typeof jObj.annotationEvented === 'boolean'
+                        ? jObj.annotationEvented
+                        : undefined,
+                annotationHasControls:
+                    typeof jObj.annotationHasControls === 'boolean'
+                        ? jObj.annotationHasControls
+                        : undefined,
+                annotationEditable:
+                    typeof jObj.annotationEditable === 'boolean'
+                        ? jObj.annotationEditable
+                        : undefined,
             });
             return;
         }

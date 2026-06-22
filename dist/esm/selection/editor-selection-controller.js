@@ -1,5 +1,5 @@
 import { isAnnotationLocked } from '../annotation/annotation-lock.js';
-import { isAnnotationObject, isMaskObject, } from '../core/public-types.js';
+import { isAnnotationObject, isMaskObject, isTextAnnotationObject, } from '../core/public-types.js';
 import { applyMaskSelectedStyle, applyMaskUnselectedStyle } from '../mask/mask-style.js';
 export function handleSelectionChanged(access, selected) {
     var _a, _b, _c;
@@ -47,6 +47,13 @@ export function handleObjectModified(access, target) {
     if (isAnnotationObject(target)) {
         if (isAnnotationLocked(target))
             return;
+        if (isTextAnnotationObject(target)) {
+            const textTarget = target;
+            if (textTarget.imageEditorTextEditingHandledChange === true) {
+                delete textTarget.imageEditorTextEditingHandledChange;
+                return;
+            }
+        }
         const context = access.buildCallbackContext('updateAnnotation', false);
         access.saveState();
         access.emitAnnotationsChanged(context);

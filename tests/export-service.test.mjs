@@ -808,6 +808,44 @@ test('exportImageBase64: mergeMasks and mergeAnnotations independently control r
     }
 });
 
+test('exportImageBase64: hidden overlay backup restores undefined visible as true', async () => {
+    const mask = makeMask();
+    delete mask.visible;
+    const annotation = makeAnnotation({ id: 1 });
+    delete annotation.visible;
+    const canvas = {
+        ...makeMockCanvas(),
+        objects: [mask, annotation],
+        getObjects() {
+            return this.objects;
+        },
+        toDataURL(options) {
+            assert.equal(mask.visible, false, 'mask is hidden during render');
+            assert.equal(annotation.visible, false, 'annotation is hidden during render');
+            this.toDataURLArgs.push(options);
+            return 'data:image/png;base64,' + Buffer.from('export').toString('base64');
+        },
+    };
+    const ctx = makeContext({
+        canvas,
+        getOriginalImage: () => makeFakeOriginalImage(),
+    });
+
+    await exportImageBase64(ctx, {
+        fileType: 'png',
+        mergeMasks: false,
+        mergeAnnotations: false,
+    });
+
+    assert.equal(mask.visible, true, 'undefined mask visibility restores to Fabric default true');
+    assert.equal(
+        annotation.visible,
+        true,
+        'undefined annotation visibility restores to Fabric default true',
+    );
+    assert.equal(annotation.annotationHidden, false, 'business hidden flag is not mutated');
+    assert.equal(canvas.objects.length, 2, 'export does not add or remove overlays');
+});
 // ─── the documented contract — exportImageFile surface ─────────────────────────────
 
 test('exportImageFile: produces a File whose name matches options.fileName', async () => {

@@ -112,6 +112,14 @@ export interface CanvasJsonObject {
     annotationHidden?: boolean;
     /** Business-level annotation lock state. */
     annotationLocked?: boolean;
+    /** Base selectable intent restored when an annotation is unlocked. */
+    annotationSelectable?: boolean;
+    /** Base evented intent restored when an annotation is unlocked. */
+    annotationEvented?: boolean;
+    /** Base transform controls intent restored when an annotation is unlocked. */
+    annotationHasControls?: boolean;
+    /** Base text editability intent restored when a text annotation is unlocked. */
+    annotationEditable?: boolean;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -162,7 +170,7 @@ export interface CanvasJson {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "annotationName", "annotationHidden", "annotationLocked"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "annotationName", "annotationHidden", "annotationLocked", "annotationSelectable", "annotationEvented", "annotationHasControls", "annotationEditable"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.

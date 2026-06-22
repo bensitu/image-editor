@@ -42,8 +42,16 @@ function snapshotAnnotation(annotation) {
         visible: annotation.visible,
         selectable: annotation.selectable,
         evented: annotation.evented,
+        hasControls: annotation.hasControls,
+        editable: isTextAnnotationObject(annotation)
+            ? annotation.editable
+            : undefined,
         annotationHidden: annotation.annotationHidden,
         annotationLocked: annotation.annotationLocked,
+        annotationSelectable: annotation.annotationSelectable,
+        annotationEvented: annotation.annotationEvented,
+        annotationHasControls: annotation.annotationHasControls,
+        annotationEditable: annotation.annotationEditable,
     });
 }
 function setAnnotationProps(annotation, props) {
@@ -110,12 +118,21 @@ export function updateAnnotationObject(annotation, config) {
     }
     const lockedAfter = isAnnotationLocked(annotation);
     if (!lockedAfter) {
-        if (typeof raw.selectable === 'boolean')
-            annotation.selectable = raw.selectable;
-        if (typeof raw.evented === 'boolean')
-            annotation.evented = raw.evented;
-        if (isTextAnnotationObject(annotation))
+        if (typeof raw.selectable === 'boolean') {
+            annotation.annotationSelectable = raw.selectable;
+        }
+        if (typeof raw.evented === 'boolean') {
+            annotation.annotationEvented = raw.evented;
+        }
+        if (typeof raw.hasControls === 'boolean') {
+            annotation.annotationHasControls = raw.hasControls;
+        }
+        if (isTextAnnotationObject(annotation)) {
+            if (typeof raw.editable === 'boolean') {
+                annotation.annotationEditable = raw.editable;
+            }
             updateTextAnnotation(annotation, config);
+        }
         if (isDrawAnnotationObject(annotation))
             updateDrawAnnotation(annotation, config);
     }

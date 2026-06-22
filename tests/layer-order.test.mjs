@@ -104,6 +104,27 @@ test('normalizeLayerOrder repairs base, other, overlay, session groups', () => {
     assert.deepEqual(names(canvas), ['base1', 'other1', 'mask1', 'annotation1', 'session1']);
 });
 
+test('normalizeLayerOrder preserves editable overlay relative order', () => {
+    const canvas = new MockCanvas([
+        session('session1'),
+        annotation('drawAnnotation'),
+        other('other1'),
+        mask('mask1'),
+        base('base1'),
+        annotation('textAnnotation'),
+    ]);
+
+    normalizeLayerOrder(canvas);
+
+    assert.deepEqual(names(canvas), [
+        'base1',
+        'other1',
+        'drawAnnotation',
+        'mask1',
+        'textAnnotation',
+        'session1',
+    ]);
+});
 test('single-object placement inserts new objects into the correct layer band', () => {
     const canvas = new MockCanvas([base('base1'), other('other1'), session('session1')]);
     const mask1 = mask('mask1');

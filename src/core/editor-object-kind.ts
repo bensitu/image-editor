@@ -57,6 +57,10 @@ export function markAnnotationObject(
         annotationName: string;
         annotationHidden?: boolean;
         annotationLocked?: boolean;
+        annotationSelectable?: boolean;
+        annotationEvented?: boolean;
+        annotationHasControls?: boolean;
+        annotationEditable?: boolean;
     },
 ): AnnotationObject {
     const annotation = object as AnnotationObject;
@@ -66,6 +70,18 @@ export function markAnnotationObject(
     annotation.annotationName = meta.annotationName;
     annotation.annotationHidden = meta.annotationHidden ?? false;
     annotation.annotationLocked = meta.annotationLocked ?? false;
+    if (typeof meta.annotationSelectable === 'boolean') {
+        annotation.annotationSelectable = meta.annotationSelectable;
+    }
+    if (typeof meta.annotationEvented === 'boolean') {
+        annotation.annotationEvented = meta.annotationEvented;
+    }
+    if (typeof meta.annotationHasControls === 'boolean') {
+        annotation.annotationHasControls = meta.annotationHasControls;
+    }
+    if (typeof meta.annotationEditable === 'boolean') {
+        annotation.annotationEditable = meta.annotationEditable;
+    }
     return annotation;
 }
 

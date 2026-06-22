@@ -52,12 +52,21 @@ export function attachTextEditingHandlers(context, annotation) {
         var _a;
         textObject.imageEditorTextEditingInitialText = String((_a = textObject.text) !== null && _a !== void 0 ? _a : '');
         textObject.imageEditorTextEditingCancel = false;
+        delete textObject.imageEditorTextEditingHandledChange;
     };
     const exited = () => {
         var _a;
         const initial = textObject.imageEditorTextEditingInitialText;
         const finalText = String((_a = textObject.text) !== null && _a !== void 0 ? _a : '');
         const cancel = textObject.imageEditorTextEditingCancel === true;
+        if (initial !== undefined) {
+            textObject.imageEditorTextEditingHandledChange = true;
+            setTimeout(() => {
+                if (textObject.imageEditorTextEditingHandledChange === true) {
+                    delete textObject.imageEditorTextEditingHandledChange;
+                }
+            }, 0);
+        }
         if (cancel && initial !== undefined) {
             textObject.set({ text: initial });
         }
@@ -65,7 +74,7 @@ export function attachTextEditingHandlers(context, annotation) {
         delete textObject.imageEditorTextEditingCancel;
         if (!cancel && initial !== undefined && initial !== finalText) {
             context.saveCanvasState();
-            const callbackContext = context.buildCallbackContext('createTextAnnotation');
+            const callbackContext = context.buildCallbackContext('updateAnnotation');
             context.emitAnnotationsChanged(callbackContext);
             context.emitImageChanged(callbackContext);
         }
@@ -123,6 +132,10 @@ export function createTextAnnotation(context, config = {}) {
         annotationName: meta.annotationName,
         annotationHidden: meta.annotationHidden,
         annotationLocked: meta.annotationLocked,
+        annotationSelectable: resolved.selectable,
+        annotationEvented: resolved.evented,
+        annotationHasControls: textbox.hasControls !== false,
+        annotationEditable: resolved.editable,
     });
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
@@ -209,6 +222,7 @@ export function exitTextMode(context) {
     const session = context.getTextSession();
     if (!session)
         return;
+    finalizeActiveTextEditing(context, { commit: true });
     session.dispose();
     context.setTextSession(null);
     context.canvas.requestRenderAll();
