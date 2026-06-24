@@ -1,4 +1,5 @@
 import { cloneResolvedMosaicConfig } from '../core/default-options.js';
+import { resolveDomElement } from '../core/editor-elements.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from '../ui/visibility-state.js';
 import { EditorContextFactory } from './editor-contexts.js';
 export function createEditorContextFactory(runtime, callbacks) {
@@ -106,9 +107,15 @@ export function createEditorContextFactory(runtime, callbacks) {
         updateAnnotationList: () => callbacks.updateAnnotationList(),
         updateUi: () => callbacks.updateUi(),
         updateInputs: () => callbacks.updateInputs(),
-        getMaskListElementId: () => runtime.elements.maskList,
+        getMaskListElement: () => {
+            var _a;
+            return resolveDomElement(runtime.elements.maskList, (_a = runtime.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument);
+        },
         handleMaskSelected: (mask) => callbacks.handleSelectionChanged([mask]),
-        getAnnotationListElementId: () => runtime.elements.annotationList,
+        getAnnotationListElement: () => {
+            var _a;
+            return resolveDomElement(runtime.elements.annotationList, (_a = runtime.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument);
+        },
         handleAnnotationSelected: (annotation) => callbacks.handleSelectionChanged([annotation]),
         getMasks: () => callbacks.getMasks(),
         getAnnotations: () => callbacks.getAnnotations(),

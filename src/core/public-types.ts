@@ -266,6 +266,9 @@ export type ImageEditorOperation =
     | 'loadImage'
     | 'loadFromState'
     | 'saveState'
+    | 'setCanvasSize'
+    | 'resizeToContainer'
+    | 'relayout'
     | 'scaleImage'
     | 'rotateImage'
     | 'flipHorizontal'
@@ -812,122 +815,153 @@ export interface RemoveAllAnnotationsOptions {
     force?: boolean;
 }
 
-// ─── Element ID map ──────────────────────────────────────────────────────────
+// ─── Element targets ─────────────────────────────────────────────────────────
 
 /**
- * Mapping from logical control names to actual DOM element IDs on the page.
- * Any key may be omitted; the default ID is the same as the key name.
- * Unknown or missing element IDs are ignored safely by `ui/dom-bindings.ts`.
+ * Public DOM target accepted by {@link ImageEditor.init}.
+ *
+ * String values are resolved as element IDs. HTMLElement values support
+ * framework refs. `null` and `undefined` deliberately leave optional controls
+ * unmanaged by the editor.
+ */
+export type ElementTarget<TElement extends HTMLElement = HTMLElement> =
+    | string
+    | TElement
+    | null
+    | undefined;
+
+/**
+ * Mapping from logical control names to DOM targets on the page.
+ *
+ * String IDs remain supported for plain HTML and UMD usage. HTMLElement values
+ * let React, Vue, and other framework wrappers pass refs without generating
+ * globally unique IDs. Any optional key may be omitted or set to `null`; unknown
+ * or missing controls are ignored safely by `ui/dom-bindings.ts`.
+ *
+ * @deprecated The name is kept for backwards compatibility. Use
+ * {@link ElementMap} in new code.
  */
 export interface ElementIdMap {
     /** The `<canvas>` element. @default 'canvas' */
-    canvas?: string;
+    canvas?: ElementTarget<HTMLCanvasElement>;
     /**
      * Scrollable viewport container that wraps the canvas.
      * Used to determine the visible size for canvas-sizing decisions.
      * If omitted, `canvas.parentElement` is used.
      */
-    canvasContainer?: string | null;
+    canvasContainer?: ElementTarget<HTMLElement>;
     /** Empty-state placeholder element. @default 'imagePlaceholder' */
-    imagePlaceholder?: string | null;
+    imagePlaceholder?: ElementTarget<HTMLElement>;
     /** Scale percentage input/display. @default 'scalePercentageInput' */
-    scalePercentageInput?: string | null;
+    scalePercentageInput?: ElementTarget<HTMLInputElement>;
     /** Left-rotation step input. @default 'rotateLeftDegreesInput' */
-    rotateLeftDegreesInput?: string | null;
+    rotateLeftDegreesInput?: ElementTarget<HTMLInputElement>;
     /** Right-rotation step input. @default 'rotateRightDegreesInput' */
-    rotateRightDegreesInput?: string | null;
+    rotateRightDegreesInput?: ElementTarget<HTMLInputElement>;
     /** Rotate left button. @default 'rotateLeftButton' */
-    rotateLeftButton?: string | null;
+    rotateLeftButton?: ElementTarget<HTMLButtonElement>;
     /** Rotate right button. @default 'rotateRightButton' */
-    rotateRightButton?: string | null;
+    rotateRightButton?: ElementTarget<HTMLButtonElement>;
     /** Flip base image horizontally. @default 'flipHorizontalButton' */
-    flipHorizontalButton?: string | null;
+    flipHorizontalButton?: ElementTarget<HTMLButtonElement>;
     /** Flip base image vertically. @default 'flipVerticalButton' */
-    flipVerticalButton?: string | null;
+    flipVerticalButton?: ElementTarget<HTMLButtonElement>;
     /** Add mask button. @default 'createMaskButton' */
-    createMaskButton?: string | null;
+    createMaskButton?: ElementTarget<HTMLButtonElement>;
     /** Remove selected mask button. @default 'removeSelectedMaskButton' */
-    removeSelectedMaskButton?: string | null;
+    removeSelectedMaskButton?: ElementTarget<HTMLButtonElement>;
     /** Remove all masks button. @default 'removeAllMasksButton' */
-    removeAllMasksButton?: string | null;
+    removeAllMasksButton?: ElementTarget<HTMLButtonElement>;
     /** Merge masks into image button. @default 'mergeMasksButton' */
-    mergeMasksButton?: string | null;
+    mergeMasksButton?: ElementTarget<HTMLButtonElement>;
     /** Annotation list container (`<ul>` or `<ol>`). @default 'annotationList' */
-    annotationList?: string | null;
+    annotationList?: ElementTarget<HTMLElement>;
     /** Enter Text mode button. @default 'enterTextModeButton' */
-    enterTextModeButton?: string | null;
+    enterTextModeButton?: ElementTarget<HTMLButtonElement>;
     /** Exit Text mode button. @default 'exitTextModeButton' */
-    exitTextModeButton?: string | null;
+    exitTextModeButton?: ElementTarget<HTMLButtonElement>;
     /** Text color input. @default 'textColorInput' */
-    textColorInput?: string | null;
+    textColorInput?: ElementTarget<HTMLInputElement>;
     /** Text font-size input. @default 'textFontSizeInput' */
-    textFontSizeInput?: string | null;
+    textFontSizeInput?: ElementTarget<HTMLInputElement>;
     /** Enter Draw mode button. @default 'enterDrawModeButton' */
-    enterDrawModeButton?: string | null;
+    enterDrawModeButton?: ElementTarget<HTMLButtonElement>;
     /** Exit Draw mode button. @default 'exitDrawModeButton' */
-    exitDrawModeButton?: string | null;
+    exitDrawModeButton?: ElementTarget<HTMLButtonElement>;
     /** Draw color input. @default 'drawColorInput' */
-    drawColorInput?: string | null;
+    drawColorInput?: ElementTarget<HTMLInputElement>;
     /** Draw brush-size input. @default 'drawBrushSizeInput' */
-    drawBrushSizeInput?: string | null;
+    drawBrushSizeInput?: ElementTarget<HTMLInputElement>;
     /** Remove selected annotation button. @default 'removeSelectedAnnotationButton' */
-    removeSelectedAnnotationButton?: string | null;
+    removeSelectedAnnotationButton?: ElementTarget<HTMLButtonElement>;
     /** Remove all annotations button. @default 'removeAllAnnotationsButton' */
-    removeAllAnnotationsButton?: string | null;
+    removeAllAnnotationsButton?: ElementTarget<HTMLButtonElement>;
     /** Delete selected mask or annotation button. @default 'deleteSelectedObjectButton' */
-    deleteSelectedObjectButton?: string | null;
+    deleteSelectedObjectButton?: ElementTarget<HTMLButtonElement>;
     /** Merge annotations into image button. @default 'mergeAnnotationsButton' */
-    mergeAnnotationsButton?: string | null;
+    mergeAnnotationsButton?: ElementTarget<HTMLButtonElement>;
     /** Move selected editable overlay one layer forward. */
-    bringSelectedObjectForwardButton?: string | null;
+    bringSelectedObjectForwardButton?: ElementTarget<HTMLButtonElement>;
     /** Move selected editable overlay one layer backward. */
-    sendSelectedObjectBackwardButton?: string | null;
+    sendSelectedObjectBackwardButton?: ElementTarget<HTMLButtonElement>;
     /** Move selected editable overlay to the front of overlays. */
-    bringSelectedObjectToFrontButton?: string | null;
+    bringSelectedObjectToFrontButton?: ElementTarget<HTMLButtonElement>;
     /** Move selected editable overlay to the back of overlays. */
-    sendSelectedObjectToBackButton?: string | null;
+    sendSelectedObjectToBackButton?: ElementTarget<HTMLButtonElement>;
     /** Download image button. @default 'downloadImageButton' */
-    downloadImageButton?: string | null;
+    downloadImageButton?: ElementTarget<HTMLButtonElement>;
     /** Mask list container (`<ul>` or `<ol>`). @default 'maskList' */
-    maskList?: string | null;
+    maskList?: ElementTarget<HTMLElement>;
     /** Zoom in button. @default 'zoomInButton' */
-    zoomInButton?: string | null;
+    zoomInButton?: ElementTarget<HTMLButtonElement>;
     /** Zoom out button. @default 'zoomOutButton' */
-    zoomOutButton?: string | null;
+    zoomOutButton?: ElementTarget<HTMLButtonElement>;
     /** Reset transform button. @default 'resetImageTransformButton' */
-    resetImageTransformButton?: string | null;
+    resetImageTransformButton?: ElementTarget<HTMLButtonElement>;
     /** Undo button. @default 'undoButton' */
-    undoButton?: string | null;
+    undoButton?: ElementTarget<HTMLButtonElement>;
     /** Redo button. @default 'redoButton' */
-    redoButton?: string | null;
+    redoButton?: ElementTarget<HTMLButtonElement>;
     /** File input for image selection. @default 'imageInput' */
-    imageInput?: string | null;
+    imageInput?: ElementTarget<HTMLInputElement>;
     /** Enter crop mode button. @default 'enterCropModeButton' */
-    enterCropModeButton?: string | null;
+    enterCropModeButton?: ElementTarget<HTMLButtonElement>;
     /** Crop aspect-ratio select/input. @default 'cropAspectRatioSelect' */
-    cropAspectRatioSelect?: string | null;
+    cropAspectRatioSelect?: ElementTarget<HTMLSelectElement | HTMLInputElement>;
     /** Apply crop button. @default 'applyCropButton' */
-    applyCropButton?: string | null;
+    applyCropButton?: ElementTarget<HTMLButtonElement>;
     /** Cancel crop button. @default 'cancelCropButton' */
-    cancelCropButton?: string | null;
+    cancelCropButton?: ElementTarget<HTMLButtonElement>;
     /** Enter Mosaic mode button. @default 'enterMosaicModeButton' */
-    enterMosaicModeButton?: string | null;
+    enterMosaicModeButton?: ElementTarget<HTMLButtonElement>;
     /** Exit Mosaic mode button. @default 'exitMosaicModeButton' */
-    exitMosaicModeButton?: string | null;
-    /**
-     * Optional input/range control for Mosaic brush diameter.
-     * @default 'mosaicBrushSizeInput'
-     */
-    mosaicBrushSizeInput?: string | null;
-    /**
-     * Optional input/range control for Mosaic block size.
-     * @default 'mosaicBlockSizeInput'
-     */
-    mosaicBlockSizeInput?: string | null;
+    exitMosaicModeButton?: ElementTarget<HTMLButtonElement>;
+    /** Optional input/range control for Mosaic brush diameter. @default 'mosaicBrushSizeInput' */
+    mosaicBrushSizeInput?: ElementTarget<HTMLInputElement>;
+    /** Optional input/range control for Mosaic block size. @default 'mosaicBlockSizeInput' */
+    mosaicBlockSizeInput?: ElementTarget<HTMLInputElement>;
     /** Clickable upload area (delegates to imageInput). @default 'uploadArea' */
-    uploadArea?: string | null;
+    uploadArea?: ElementTarget<HTMLElement>;
 }
 
+/** Mapping from logical control names to string IDs, HTMLElement refs, or null. */
+export type ElementMap = ElementIdMap;
+
+/** Options for {@link ImageEditor.resizeToContainer}. */
+export interface ResizeToContainerOptions {
+    /** Width to use when the container is hidden or reports zero width. */
+    fallbackWidth?: number;
+    /** Height to use when the container is hidden or reports zero height. */
+    fallbackHeight?: number;
+}
+
+/** Options for {@link ImageEditor.relayout}. */
+export interface RelayoutOptions {
+    /** Optional layout mode to set before measuring and resizing. */
+    mode?: LayoutMode;
+    /** Restore container scroll position after relayout when possible. */
+    preserveScroll?: boolean;
+}
 // ─── Export options ──────────────────────────────────────────────────────────
 
 export interface OverlayExportOptions {

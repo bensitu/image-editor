@@ -5,13 +5,11 @@ function getMaskListDocument(context) {
     return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
 }
 export function renderMaskList(context) {
-    const listId = context.getListElementId();
-    if (!listId)
-        return;
-    const ownerDocument = getMaskListDocument(context);
-    const listEl = ownerDocument.getElementById(listId);
+    var _a;
+    const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
+    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getMaskListDocument(context);
     listEl.innerHTML = '';
     const canvas = context.canvas;
     canvas
@@ -38,10 +36,7 @@ export function renderMaskList(context) {
     });
 }
 export function updateMaskListSelection(context, selectedMask) {
-    const listId = context.getListElementId();
-    if (!listId)
-        return;
-    const listEl = getMaskListDocument(context).getElementById(listId);
+    const listEl = context.getListElement();
     if (!listEl)
         return;
     const selectedId = selectedMask ? String(selectedMask.maskId) : null;

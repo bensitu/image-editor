@@ -16,7 +16,7 @@ export interface AnnotationManagerContext {
 }
 export interface AnnotationListContext {
     canvas: FabricNS.Canvas | null;
-    getListElementId(): string | null | undefined;
+    getListElement(): HTMLElement | null | undefined;
     onAnnotationSelected(annotation: AnnotationObject): void;
 }
 export declare function getActiveSelectionObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[];

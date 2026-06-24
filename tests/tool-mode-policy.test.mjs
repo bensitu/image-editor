@@ -148,6 +148,9 @@ test('text and draw modes block unrelated mutating and export operations', () =>
         'resetImageTransform',
         'loadImage',
         'loadFromState',
+        'setCanvasSize',
+        'resizeToContainer',
+        'relayout',
     ];
 
     for (const operation of blocked) {
@@ -165,6 +168,9 @@ test('text and draw modes block unrelated mutating and export operations', () =>
 });
 test('operation name guard recognizes public operation names only', () => {
     assert.equal(isImageEditorOperation('mergeMasks'), true);
+    assert.equal(isImageEditorOperation('setCanvasSize'), true);
+    assert.equal(isImageEditorOperation('resizeToContainer'), true);
+    assert.equal(isImageEditorOperation('relayout'), true);
     assert.equal(isImageEditorOperation('dispose'), true);
     assert.equal(isImageEditorOperation('notAnOperation'), false);
     assert.equal(isImageEditorOperation(null), false);

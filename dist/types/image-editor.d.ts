@@ -8,7 +8,7 @@
  * @module
  */
 import type { CanvasJson } from './core/state-serializer.js';
-import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, ElementIdMap, FabricModule, ImageEditorOptions, ImageExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, ElementMap, FabricModule, ImageEditorOptions, ImageExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, RelayoutOptions, ResizeToContainerOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking/annotation, animated transforms,
  * crop, undo/redo, mosaic and multi-format export.
@@ -44,8 +44,9 @@ export declare class ImageEditor {
     private createContextFactory;
     private createActionAccessFactory;
     /** Initializes DOM bindings, canvas state, and the optional initial image. */
-    init(idMap?: ElementIdMap): void;
+    init(elementMap?: ElementMap): void;
     private initCanvas;
+    private resolveElement;
     private getLiveCanvasOrThrow;
     private bindDomEvents;
     private bindKeyboardEvents;
@@ -121,6 +122,26 @@ export declare class ImageEditor {
      * @param mode - Layout mode to use for future image loads.
      */
     setLayoutMode(mode: LayoutMode): void;
+    /**
+     * Resize the Fabric canvas to explicit CSS pixel dimensions.
+     * Invalid, non-finite, or non-positive dimensions are reported through
+     * `onWarning` and ignored.
+     */
+    setCanvasSize(widthPx: number, heightPx: number): void;
+    /**
+     * Resize the Fabric canvas to the current container client size.
+     * Hidden containers can use `fallbackWidth` and `fallbackHeight`.
+     */
+    resizeToContainer(options?: ResizeToContainerOptions): void;
+    /**
+     * Re-measure the host layout and refresh canvas geometry.
+     *
+     * This conservative relayout keeps the existing image and overlays in place;
+     * it does not reload the image or reset user transforms. When an image is
+     * already loaded, canvas bounds are recalculated around the current image
+     * geometry using the active layout mode.
+     */
+    relayout(options?: RelayoutOptions): void;
     private getRuntimeOptions;
     private buildCallbackContext;
     private getOperationContext;
@@ -142,6 +163,11 @@ export declare class ImageEditor {
     private withSelectionChangeContext;
     private isSupportedImageMimeType;
     private inferCurrentImageMimeType;
+    private canRunPublicLayoutOperation;
+    private normalizeCanvasDimension;
+    private applyPublicCanvasSize;
+    private resolveContainerResizeSize;
+    private refreshAfterCanvasLayoutChange;
     /**
      * Atomically resize the Fabric canvas. Routes through
      * {@link applyCanvasDimensions} so the canvas's lower (render) and

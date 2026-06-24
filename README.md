@@ -79,6 +79,16 @@ The package ships a single public entry, resolved by tooling via the
 The UMD bundle exposes a global named `ImageEditor` and treats `fabric` as an
 external global named `fabric`.
 
+## Framework integration
+
+The core editor is framework-agnostic and can be mounted with string IDs or
+HTMLElement refs. React, Vue, Next.js, Nuxt, and other frameworks should create
+and dispose the editor inside client-side lifecycle hooks.
+
+- [React integration](docs/frameworks/react.md)
+- [Vue integration](docs/frameworks/vue.md)
+- [SSR / Next.js / Nuxt](docs/frameworks/ssr.md)
+
 ## Dual entry-point convention
 
 `ImageEditor`'s constructor accepts the Fabric module either explicitly (ESM
@@ -327,19 +337,22 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 
 ### Lifecycle
 
-| Method         | Description                                                                          |
-| -------------- | ------------------------------------------------------------------------------------ |
-| `init(idMap?)` | Bind the editor to DOM elements. Pass an `ElementIdMap`; any key may be omitted.     |
-| `dispose()`    | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent. |
+| Method              | Description                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `init(elementMap?)` | Bind the editor to DOM elements. Pass string IDs, HTMLElement refs, or `null` for unmanaged optional controls. |
+| `dispose()`         | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent.                           |
 
 ### Image loading
 
-| Method                        | Description                                                                                                                                                                                           |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadImage(base64, options?)` | Load a supported raster image data URL (`png`, `jpeg`, `webp`, `gif`, or `bmp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
-| `isImageLoaded()`             | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                                    |
-| `isBusy()`                    | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                                                        |
-| `setLayoutMode(mode)`         | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                                       |
+| Method                         | Description                                                                                                                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadImage(base64, options?)`  | Load a supported raster image data URL (`png`, `jpeg`, `webp`, `gif`, or `bmp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
+| `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                                    |
+| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                                                        |
+| `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                                       |
+| `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                                        |
+| `resizeToContainer(options?)`  | Resize the canvas to `canvasContainer.clientWidth/clientHeight`, optionally using fallback dimensions for hidden containers.                                                                          |
+| `relayout(options?)`           | Re-measure the host layout and refresh canvas geometry without reloading the current image or dropping overlays.                                                                                      |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
 preserving the container's scroll position across both successful loads and
@@ -794,7 +807,11 @@ import type {
     ImageEditorSelection,
     ImageEditorCallbackContext,
     ImageEditorOperation,
+    ElementTarget,
+    ElementMap,
     ElementIdMap,
+    ResizeToContainerOptions,
+    RelayoutOptions,
     FabricModule,
 } from '@bensitu/image-editor';
 ```

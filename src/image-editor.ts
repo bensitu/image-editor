@@ -10,7 +10,11 @@
 
 import type * as FabricNS from 'fabric';
 import { reportError, reportWarning } from './core/callback-reporter.js';
-import { resolveElementIds, type ElementKey } from './core/editor-elements.js';
+import {
+    resolveDomElement,
+    resolveElementTargets,
+    type ElementKey,
+} from './core/editor-elements.js';
 import {
     cloneResolvedMosaicConfig,
     cloneResolvedDrawConfig,
@@ -33,7 +37,7 @@ import type {
     CropModeOptions,
     DrawConfig,
     EditorToolMode,
-    ElementIdMap,
+    ElementMap,
     FabricModule,
     ImageEditorCallbackContext,
     ImageEditorOperation,
@@ -50,6 +54,8 @@ import type {
     MosaicConfig,
     RemoveAllAnnotationsOptions,
     RemoveAllMasksOptions,
+    RelayoutOptions,
+    ResizeToContainerOptions,
     ResolvedDrawConfig,
     ResolvedMosaicConfig,
     ResolvedOptions,
@@ -217,6 +223,44 @@ type InternalOperationOptions = {
 
 function getRuntimeDocument(canvasElement: HTMLCanvasElement | null | undefined): Document | null {
     return canvasElement?.ownerDocument ?? (typeof document !== 'undefined' ? document : null);
+}
+
+function isHtmlCanvasElement(element: HTMLElement | null): element is HTMLCanvasElement {
+    if (!element) return false;
+    const ownerWindow = element.ownerDocument?.defaultView;
+    const CanvasCtor = ownerWindow?.HTMLCanvasElement ?? globalThis.HTMLCanvasElement;
+    if (typeof CanvasCtor === 'function') return element instanceof CanvasCtor;
+    return element.tagName.toLowerCase() === 'canvas';
+}
+
+function describeElementTarget(target: unknown): string {
+    if (typeof target === 'string') return `"${target}"`;
+    if (target === null) return 'null';
+    if (target === undefined) return 'undefined';
+    return 'provided element';
+}
+
+function captureContainerScroll(
+    container: HTMLElement | null,
+): { left: number; top: number } | null {
+    return container ? { left: container.scrollLeft, top: container.scrollTop } : null;
+}
+
+function restoreContainerScroll(
+    container: HTMLElement | null,
+    scroll: { left: number; top: number } | null,
+): void {
+    if (!container || !scroll) return;
+    try {
+        container.scrollLeft = scroll.left;
+        container.scrollTop = scroll.top;
+    } catch (error) {
+        console.warn('[ImageEditor] scroll restore failed', error);
+    }
+}
+
+function isPositiveFiniteDimension(value: number): boolean {
+    return Number.isFinite(value) && value > 0;
 }
 
 // ─── ImageEditor ─────────────────────────────────────────────────────────────
@@ -493,7 +537,7 @@ export class ImageEditor {
     // ═══════════════════════════════════════════════════════════════════════
 
     /** Initializes DOM bindings, canvas state, and the optional initial image. */
-    init(idMap: ElementIdMap = {}): void {
+    init(elementMap: ElementMap = {}): void {
         if (!this.runtime.isFabricLoaded) {
             const globalFabric = (globalThis as unknown as { fabric?: unknown }).fabric;
             if (
@@ -508,14 +552,13 @@ export class ImageEditor {
         // Post-dispose init is a no-op to avoid recreating canvas resources.
         if (this.runtime.isDisposed) return;
 
-        this.runtime.elements = resolveElementIds(idMap);
+        this.runtime.elements = resolveElementTargets(elementMap);
 
         this.initCanvas();
         // Bindings are anchored to the canvas owner document.
         this.runtime.domBindings = new DomBindings(
-            (key) => this.runtime.elements[key],
+            (key) => this.resolveElement(key),
             () => this.runtime.isDisposed,
-            () => getRuntimeDocument(this.runtime.canvasElement),
         );
         this.runtime.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
@@ -538,28 +581,29 @@ export class ImageEditor {
     // ═══════════════════════════════════════════════════════════════════════
 
     private initCanvas(): void {
-        const id = this.runtime.elements.canvas;
-        const globalDocument = typeof document !== 'undefined' ? document : null;
-        const canvasElement =
-            id && globalDocument
-                ? (globalDocument.getElementById(id) as HTMLCanvasElement | null)
-                : null;
-        if (!canvasElement) throw new Error(`[ImageEditor] Canvas element not found: "${id}"`);
+        const canvasTarget = this.runtime.elements.canvas;
+        const canvasCandidate = resolveDomElement<HTMLElement>(
+            canvasTarget,
+            getRuntimeDocument(null),
+        );
+        if (!isHtmlCanvasElement(canvasCandidate)) {
+            throw new Error(
+                `[ImageEditor] Canvas element not found: ${describeElementTarget(canvasTarget)}`,
+            );
+        }
+
+        const canvasElement = canvasCandidate;
         this.runtime.canvasElement = canvasElement;
         const ownerDocument = canvasElement.ownerDocument;
 
-        const containerId = this.runtime.elements.canvasContainer;
-        if (containerId) {
-            this.runtime.containerElement =
-                ownerDocument.getElementById(containerId) ?? canvasElement.parentElement;
-        } else {
-            this.runtime.containerElement = canvasElement.parentElement;
-        }
+        this.runtime.containerElement =
+            resolveDomElement<HTMLElement>(this.runtime.elements.canvasContainer, ownerDocument) ??
+            canvasElement.parentElement;
 
-        const placeholderId = this.runtime.elements.imagePlaceholder;
-        this.runtime.placeholderElement = placeholderId
-            ? ownerDocument.getElementById(placeholderId)
-            : null;
+        this.runtime.placeholderElement = resolveDomElement<HTMLElement>(
+            this.runtime.elements.imagePlaceholder,
+            ownerDocument,
+        );
 
         let initialWidth = this.runtime.options.canvasWidth;
         let initialHeight = this.runtime.options.canvasHeight;
@@ -599,6 +643,12 @@ export class ImageEditor {
         this.runtime.canvas.on('object:rotating', onObjectEvent);
         this.runtime.canvas.on('object:modified', onObjectModified);
     }
+    private resolveElement<T extends HTMLElement>(
+        key: ElementKey,
+        ownerDocument: Document | null = getRuntimeDocument(this.runtime.canvasElement),
+    ): T | null {
+        return resolveDomElement<T>(this.runtime.elements[key] as string | T | null, ownerDocument);
+    }
 
     private getLiveCanvasOrThrow(operationName: string): FabricNS.Canvas {
         if (this.runtime.isDisposed || !this.runtime.canvas) {
@@ -620,13 +670,10 @@ export class ImageEditor {
             bindings: this.runtime.domBindings,
             rotationStep: this.runtime.options.rotationStep,
             getInputValue: (key) => {
-                const id = this.runtime.elements[key];
-                const element = id
-                    ? (ownerDocument.getElementById(id) as
-                          | HTMLInputElement
-                          | HTMLSelectElement
-                          | null)
-                    : null;
+                const element = this.resolveElement<HTMLInputElement | HTMLSelectElement>(
+                    key,
+                    ownerDocument,
+                );
                 return element?.value ?? '';
             },
             actions: createEditorDomEventActions(this.runtime, ownerDocument, {
@@ -802,13 +849,7 @@ export class ImageEditor {
         await loadImageFileImpl(
             {
                 options: this.runtime.options,
-                getInputElement: () => {
-                    const inputId = this.runtime.elements.imageInput;
-                    const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
-                    return inputId && ownerDocument
-                        ? (ownerDocument.getElementById(inputId) as HTMLInputElement | null)
-                        : null;
-                },
+                getInputElement: () => this.resolveElement<HTMLInputElement>('imageInput'),
                 loadImage: (dataUrl) => this.loadImage(dataUrl),
             },
             file,
@@ -1058,6 +1099,73 @@ export class ImageEditor {
         this.runtime.currentLayoutMode = mode;
     }
 
+    /**
+     * Resize the Fabric canvas to explicit CSS pixel dimensions.
+     * Invalid, non-finite, or non-positive dimensions are reported through
+     * `onWarning` and ignored.
+     */
+    setCanvasSize(widthPx: number, heightPx: number): void {
+        this.applyPublicCanvasSize(widthPx, heightPx, 'setCanvasSize');
+    }
+
+    /**
+     * Resize the Fabric canvas to the current container client size.
+     * Hidden containers can use `fallbackWidth` and `fallbackHeight`.
+     */
+    resizeToContainer(options: ResizeToContainerOptions = {}): void {
+        if (!this.canRunPublicLayoutOperation('resizeToContainer')) return;
+        const size = this.resolveContainerResizeSize(options);
+        if (!size) {
+            reportWarning(
+                this.runtime.options,
+                new TypeError('[ImageEditor] Container dimensions are not available.'),
+                'resizeToContainer ignored because no valid container or fallback size was available.',
+            );
+            return;
+        }
+        this.applyPublicCanvasSize(size.width, size.height, 'resizeToContainer', {
+            skipGuard: true,
+            preserveScroll: true,
+        });
+    }
+
+    /**
+     * Re-measure the host layout and refresh canvas geometry.
+     *
+     * This conservative relayout keeps the existing image and overlays in place;
+     * it does not reload the image or reset user transforms. When an image is
+     * already loaded, canvas bounds are recalculated around the current image
+     * geometry using the active layout mode.
+     */
+    relayout(options: RelayoutOptions = {}): void {
+        if (!this.canRunPublicLayoutOperation('relayout')) return;
+        if (options.mode !== undefined) {
+            if (!isLayoutMode(options.mode)) {
+                reportWarning(
+                    this.runtime.options,
+                    new TypeError(
+                        `[ImageEditor] Unsupported relayout mode ${JSON.stringify(options.mode)}. ` +
+                            'Expected "fit", "cover", or "expand".',
+                    ),
+                    'Ignored invalid relayout mode.',
+                );
+                return;
+            }
+            this.runtime.currentLayoutMode = options.mode;
+        }
+
+        const scroll = options.preserveScroll
+            ? captureContainerScroll(this.runtime.containerElement)
+            : null;
+        const viewport = this.runtime.containerElement ? this.measureLayoutViewport() : null;
+        if (viewport) this.setCanvasSizePx(viewport.width, viewport.height);
+        if (this.runtime.originalImage) {
+            this.updateCanvasSizeToImageBounds();
+        }
+        restoreContainerScroll(this.runtime.containerElement, scroll);
+        this.runtime.canvas?.renderAll();
+        this.refreshAfterCanvasLayoutChange('relayout');
+    }
     private getRuntimeOptions(): ResolvedOptions {
         if (this.runtime.currentLayoutMode === this.runtime.options.layoutMode)
             return this.runtime.options;
@@ -1286,6 +1394,73 @@ export class ImageEditor {
         return this.isSupportedImageMimeType(mimeType) ? mimeType : null;
     }
 
+    private canRunPublicLayoutOperation(operation: ImageEditorOperation): boolean {
+        if (this.runtime.isDisposed || !this.runtime.canvas) return false;
+        return this.canRunIdleOperation(operation);
+    }
+
+    private normalizeCanvasDimension(
+        value: number,
+        operation: ImageEditorOperation,
+    ): number | null {
+        const numericValue = Number(value);
+        if (isPositiveFiniteDimension(numericValue)) return Math.round(numericValue);
+        reportWarning(
+            this.runtime.options,
+            new TypeError(`[ImageEditor] ${operation} expected positive finite canvas dimensions.`),
+            `${operation} ignored invalid canvas dimensions.`,
+        );
+        return null;
+    }
+
+    private applyPublicCanvasSize(
+        widthPx: number,
+        heightPx: number,
+        operation: ImageEditorOperation,
+        options: { skipGuard?: boolean; preserveScroll?: boolean } = {},
+    ): boolean {
+        if (!options.skipGuard && !this.canRunPublicLayoutOperation(operation)) return false;
+        const width = this.normalizeCanvasDimension(widthPx, operation);
+        const height = this.normalizeCanvasDimension(heightPx, operation);
+        if (width === null || height === null) return false;
+
+        const scroll = options.preserveScroll
+            ? captureContainerScroll(this.runtime.containerElement)
+            : null;
+        this.setCanvasSizePx(width, height);
+        restoreContainerScroll(this.runtime.containerElement, scroll);
+        this.runtime.canvas?.renderAll();
+        this.refreshAfterCanvasLayoutChange(operation);
+        return true;
+    }
+
+    private resolveContainerResizeSize(
+        options: ResizeToContainerOptions,
+    ): { width: number; height: number } | null {
+        const container = this.runtime.containerElement;
+        const containerWidth = Math.floor(container?.clientWidth ?? 0);
+        const containerHeight = Math.floor(container?.clientHeight ?? 0);
+        if (containerWidth > 0 && containerHeight > 0) {
+            return { width: containerWidth, height: containerHeight };
+        }
+
+        const fallbackWidth = Number(options.fallbackWidth);
+        const fallbackHeight = Number(options.fallbackHeight);
+        if (isPositiveFiniteDimension(fallbackWidth) && isPositiveFiniteDimension(fallbackHeight)) {
+            return { width: Math.round(fallbackWidth), height: Math.round(fallbackHeight) };
+        }
+        return null;
+    }
+
+    private refreshAfterCanvasLayoutChange(operation: ImageEditorOperation): void {
+        const context = this.buildCallbackContext(operation, false);
+        this.updateInputs();
+        this.updateUi();
+        this.updatePlaceholderStatus();
+        this.emitImageChanged(context);
+        this.emitBusyChangeIfChanged(context);
+    }
+
     /**
      * Atomically resize the Fabric canvas. Routes through
      * {@link applyCanvasDimensions} so the canvas's lower (render) and
@@ -1303,7 +1478,6 @@ export class ImageEditor {
             this.runtime.containerElement,
         );
     }
-
     // ═══════════════════════════════════════════════════════════════════════
     // PRIVATE — geometry helpers
     // ═══════════════════════════════════════════════════════════════════════
@@ -2058,13 +2232,7 @@ export class ImageEditor {
                 textConfig: this.getTextConfig(),
                 drawConfig: this.getDrawConfig(),
             },
-            (key) => {
-                const id = this.runtime.elements[key];
-                const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
-                return id && ownerDocument
-                    ? (ownerDocument.getElementById(id) as HTMLInputElement | null)
-                    : null;
-            },
+            (key) => this.resolveElement<HTMLInputElement>(key),
         );
     }
 
@@ -2087,11 +2255,7 @@ export class ImageEditor {
             originalDisabledMap: this.runtime.elementOriginalDisabledMap,
             originalAriaDisabledMap: this.runtime.elementOriginalAriaDisabledMap,
             originalPointerEventsMap: this.runtime.elementOriginalPointerEventsMap,
-            getElement: (key) => {
-                const id = this.runtime.elements[key];
-                const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
-                return id && ownerDocument ? ownerDocument.getElementById(id) : null;
-            },
+            getElement: (key) => this.resolveElement(key),
         };
     }
 

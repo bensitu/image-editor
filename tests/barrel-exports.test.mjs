@@ -119,7 +119,11 @@ test('barrel re-exports documented public type names', async () => {
         'ImageEditorSelection',
         'ImageEditorCallbackContext',
         'ImageEditorOperation',
+        'ElementTarget',
+        'ElementMap',
         'ElementIdMap',
+        'ResizeToContainerOptions',
+        'RelayoutOptions',
         'FabricModule',
     ];
 

@@ -82,9 +82,9 @@ export interface EditorContextFactoryAccess {
     updateAnnotationList(): void;
     updateUi(): void;
     updateInputs(): void;
-    getMaskListElementId(): string | null | undefined;
+    getMaskListElement(): HTMLElement | null | undefined;
     handleMaskSelected(mask: MaskObject): void;
-    getAnnotationListElementId(): string | null | undefined;
+    getAnnotationListElement(): HTMLElement | null | undefined;
     handleAnnotationSelected(annotation: AnnotationObject): void;
     getMasks(): MaskObject[];
     getAnnotations(): AnnotationObject[];

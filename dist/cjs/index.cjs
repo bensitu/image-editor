@@ -25,7 +25,7 @@ function reportError(options, error, message) {
     }
 }
 
-const DEFAULT_ELEMENT_IDS = {
+const DEFAULT_ELEMENT_TARGETS = {
     canvas: 'canvas',
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
@@ -75,8 +75,31 @@ const DEFAULT_ELEMENT_IDS = {
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
 };
-function resolveElementIds(idMap) {
-    return { ...DEFAULT_ELEMENT_IDS, ...idMap };
+function isHTMLElementTarget(value) {
+    return (!!value &&
+        typeof value === 'object' &&
+        value.nodeType === 1 &&
+        typeof value.addEventListener === 'function');
+}
+function getFallbackDocument() {
+    return typeof document !== 'undefined' ? document : null;
+}
+function resolveDomElement(target, ownerDocument) {
+    if (target === null || target === undefined)
+        return null;
+    if (isHTMLElementTarget(target))
+        return target;
+    const lookupDocument = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : getFallbackDocument();
+    if (!lookupDocument)
+        return null;
+    return lookupDocument.getElementById(target);
+}
+function resolveElementTargets(elementMap = {}) {
+    const resolved = { ...DEFAULT_ELEMENT_TARGETS };
+    for (const [key, value] of Object.entries(elementMap)) {
+        resolved[key] = value === undefined ? null : value;
+    }
+    return resolved;
 }
 
 const FORMAT_ALIAS_TABLE = Object.freeze({
@@ -2575,13 +2598,11 @@ function getAnnotationListDocument(context) {
     return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
 }
 function renderAnnotationList(context) {
-    const listId = context.getListElementId();
-    if (!listId)
-        return;
-    const ownerDocument = getAnnotationListDocument(context);
-    const listEl = ownerDocument.getElementById(listId);
+    var _a;
+    const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
+    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getAnnotationListDocument(context);
     listEl.innerHTML = '';
     const canvas = context.canvas;
     getAnnotations(canvas).forEach((annotation) => {
@@ -2603,10 +2624,7 @@ function renderAnnotationList(context) {
     });
 }
 function updateAnnotationListSelection(context, selectedAnnotation) {
-    const listId = context.getListElementId();
-    if (!listId)
-        return;
-    const listEl = getAnnotationListDocument(context).getElementById(listId);
+    const listEl = context.getListElement();
     if (!listEl)
         return;
     const selectedId = selectedAnnotation ? String(selectedAnnotation.annotationId) : null;
@@ -7427,7 +7445,7 @@ class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
-            getListElementId: () => access.getMaskListElementId(),
+            getListElement: () => access.getMaskListElement(),
             onMaskSelected: (mask) => {
                 access.handleMaskSelected(mask);
             },
@@ -7445,7 +7463,7 @@ class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
-            getListElementId: () => access.getAnnotationListElementId(),
+            getListElement: () => access.getAnnotationListElement(),
             onAnnotationSelected: (annotation) => {
                 access.handleAnnotationSelected(annotation);
             },
@@ -7731,9 +7749,15 @@ function createEditorContextFactory(runtime, callbacks) {
         updateAnnotationList: () => callbacks.updateAnnotationList(),
         updateUi: () => callbacks.updateUi(),
         updateInputs: () => callbacks.updateInputs(),
-        getMaskListElementId: () => runtime.elements.maskList,
+        getMaskListElement: () => {
+            var _a;
+            return resolveDomElement(runtime.elements.maskList, (_a = runtime.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument);
+        },
         handleMaskSelected: (mask) => callbacks.handleSelectionChanged([mask]),
-        getAnnotationListElementId: () => runtime.elements.annotationList,
+        getAnnotationListElement: () => {
+            var _a;
+            return resolveDomElement(runtime.elements.annotationList, (_a = runtime.canvasElement) === null || _a === void 0 ? void 0 : _a.ownerDocument);
+        },
         handleAnnotationSelected: (annotation) => callbacks.handleSelectionChanged([annotation]),
         getMasks: () => callbacks.getMasks(),
         getAnnotations: () => callbacks.getAnnotations(),
@@ -8673,13 +8697,11 @@ function getMaskListDocument(context) {
     return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
 }
 function renderMaskList(context) {
-    const listId = context.getListElementId();
-    if (!listId)
-        return;
-    const ownerDocument = getMaskListDocument(context);
-    const listEl = ownerDocument.getElementById(listId);
+    var _a;
+    const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
+    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getMaskListDocument(context);
     listEl.innerHTML = '';
     const canvas = context.canvas;
     canvas
@@ -8706,10 +8728,7 @@ function renderMaskList(context) {
     });
 }
 function updateMaskListSelection(context, selectedMask) {
-    const listId = context.getListElementId();
-    if (!listId)
-        return;
-    const listEl = getMaskListDocument(context).getElementById(listId);
+    const listEl = context.getListElement();
     if (!listEl)
         return;
     const selectedId = selectedMask ? String(selectedMask.maskId) : null;
@@ -8750,14 +8769,14 @@ function safelyExitActiveSession(hasSession, canvas, exitSession, clearSession) 
 }
 
 class DomBindings {
-    constructor(resolveElementId, isDisposed, resolveDocument = () => typeof document !== 'undefined' ? document : null) {
+    constructor(resolveElement, isDisposed) {
         Object.defineProperty(this, "registry", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: []
         });
-        Object.defineProperty(this, "resolveElementId", {
+        Object.defineProperty(this, "resolveElement", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -8769,24 +8788,11 @@ class DomBindings {
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "resolveDocument", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.resolveElementId = resolveElementId;
+        this.resolveElement = resolveElement;
         this.isDisposed = isDisposed;
-        this.resolveDocument = resolveDocument;
     }
     bindIfExists(key, eventType, handler) {
-        const id = this.resolveElementId(key);
-        if (!id)
-            return false;
-        const ownerDocument = this.resolveDocument();
-        if (!ownerDocument)
-            return false;
-        const element = ownerDocument.getElementById(id);
+        const element = this.resolveElement(key);
         if (!element)
             return false;
         const wrapped = (event) => {
@@ -8795,22 +8801,13 @@ class DomBindings {
             handler(event);
         };
         element.addEventListener(eventType, wrapped);
-        this.registry.push({ elementKey: key, eventType, handler: wrapped });
+        this.registry.push({ elementKey: key, element, eventType, handler: wrapped });
         return true;
     }
     removeAll() {
         for (const entry of this.registry) {
-            const id = this.resolveElementId(entry.elementKey);
-            if (!id)
-                continue;
-            const ownerDocument = this.resolveDocument();
-            if (!ownerDocument)
-                continue;
-            const element = ownerDocument.getElementById(id);
-            if (!element)
-                continue;
             try {
-                element.removeEventListener(entry.eventType, entry.handler);
+                entry.element.removeEventListener(entry.eventType, entry.handler);
             }
             catch {
             }
@@ -9297,9 +9294,7 @@ function createEditorDomEventActions(runtime, ownerDocument, host) {
         },
         openImagePicker: () => {
             var _a;
-            const inputId = runtime.elements.imageInput;
-            if (inputId)
-                (_a = ownerDocument.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+            (_a = resolveDomElement(runtime.elements.imageInput, ownerDocument)) === null || _a === void 0 ? void 0 : _a.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
         zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
@@ -9398,10 +9393,7 @@ function createEditorDomEventActions(runtime, ownerDocument, host) {
     };
 }
 function getSelectedCropAspectRatio(runtime, ownerDocument) {
-    const inputId = runtime.elements.cropAspectRatioSelect;
-    const inputEl = inputId
-        ? ownerDocument.getElementById(inputId)
-        : null;
+    const inputEl = resolveDomElement(runtime.elements.cropAspectRatioSelect, ownerDocument);
     const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
     return (value || 'free');
 }
@@ -9530,6 +9522,9 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'loadImage',
     'loadFromState',
     'saveState',
+    'setCanvasSize',
+    'resizeToContainer',
+    'relayout',
     'scaleImage',
     'rotateImage',
     'flipHorizontal',
@@ -9609,6 +9604,42 @@ const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnim
 function getRuntimeDocument(canvasElement) {
     var _a;
     return (_a = canvasElement === null || canvasElement === void 0 ? void 0 : canvasElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
+}
+function isHtmlCanvasElement(element) {
+    var _a, _b;
+    if (!element)
+        return false;
+    const ownerWindow = (_a = element.ownerDocument) === null || _a === void 0 ? void 0 : _a.defaultView;
+    const CanvasCtor = (_b = ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.HTMLCanvasElement) !== null && _b !== void 0 ? _b : globalThis.HTMLCanvasElement;
+    if (typeof CanvasCtor === 'function')
+        return element instanceof CanvasCtor;
+    return element.tagName.toLowerCase() === 'canvas';
+}
+function describeElementTarget(target) {
+    if (typeof target === 'string')
+        return `"${target}"`;
+    if (target === null)
+        return 'null';
+    if (target === undefined)
+        return 'undefined';
+    return 'provided element';
+}
+function captureContainerScroll(container) {
+    return container ? { left: container.scrollLeft, top: container.scrollTop } : null;
+}
+function restoreContainerScroll(container, scroll) {
+    if (!container || !scroll)
+        return;
+    try {
+        container.scrollLeft = scroll.left;
+        container.scrollTop = scroll.top;
+    }
+    catch (error) {
+        console.warn('[ImageEditor] scroll restore failed', error);
+    }
+}
+function isPositiveFiniteDimension(value) {
+    return Number.isFinite(value) && value > 0;
 }
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
@@ -9812,7 +9843,7 @@ class ImageEditor {
             withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
         }, this.contextFactory);
     }
-    init(idMap = {}) {
+    init(elementMap = {}) {
         if (!this.runtime.isFabricLoaded) {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
@@ -9824,9 +9855,9 @@ class ImageEditor {
         }
         if (this.runtime.isDisposed)
             return;
-        this.runtime.elements = resolveElementIds(idMap);
+        this.runtime.elements = resolveElementTargets(elementMap);
         this.initCanvas();
-        this.runtime.domBindings = new DomBindings((key) => this.runtime.elements[key], () => this.runtime.isDisposed, () => getRuntimeDocument(this.runtime.canvasElement));
+        this.runtime.domBindings = new DomBindings((key) => this.resolveElement(key), () => this.runtime.isDisposed);
         this.runtime.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
@@ -9843,27 +9874,17 @@ class ImageEditor {
     }
     initCanvas() {
         var _a;
-        const id = this.runtime.elements.canvas;
-        const globalDocument = typeof document !== 'undefined' ? document : null;
-        const canvasElement = id && globalDocument
-            ? globalDocument.getElementById(id)
-            : null;
-        if (!canvasElement)
-            throw new Error(`[ImageEditor] Canvas element not found: "${id}"`);
+        const canvasTarget = this.runtime.elements.canvas;
+        const canvasCandidate = resolveDomElement(canvasTarget, getRuntimeDocument(null));
+        if (!isHtmlCanvasElement(canvasCandidate)) {
+            throw new Error(`[ImageEditor] Canvas element not found: ${describeElementTarget(canvasTarget)}`);
+        }
+        const canvasElement = canvasCandidate;
         this.runtime.canvasElement = canvasElement;
         const ownerDocument = canvasElement.ownerDocument;
-        const containerId = this.runtime.elements.canvasContainer;
-        if (containerId) {
-            this.runtime.containerElement =
-                (_a = ownerDocument.getElementById(containerId)) !== null && _a !== void 0 ? _a : canvasElement.parentElement;
-        }
-        else {
-            this.runtime.containerElement = canvasElement.parentElement;
-        }
-        const placeholderId = this.runtime.elements.imagePlaceholder;
-        this.runtime.placeholderElement = placeholderId
-            ? ownerDocument.getElementById(placeholderId)
-            : null;
+        this.runtime.containerElement =
+            (_a = resolveDomElement(this.runtime.elements.canvasContainer, ownerDocument)) !== null && _a !== void 0 ? _a : canvasElement.parentElement;
+        this.runtime.placeholderElement = resolveDomElement(this.runtime.elements.imagePlaceholder, ownerDocument);
         let initialWidth = this.runtime.options.canvasWidth;
         let initialHeight = this.runtime.options.canvasHeight;
         if (this.runtime.containerElement) {
@@ -9901,6 +9922,9 @@ class ImageEditor {
         this.runtime.canvas.on('object:rotating', onObjectEvent);
         this.runtime.canvas.on('object:modified', onObjectModified);
     }
+    resolveElement(key, ownerDocument = getRuntimeDocument(this.runtime.canvasElement)) {
+        return resolveDomElement(this.runtime.elements[key], ownerDocument);
+    }
     getLiveCanvasOrThrow(operationName) {
         if (this.runtime.isDisposed || !this.runtime.canvas) {
             throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
@@ -9918,10 +9942,7 @@ class ImageEditor {
             rotationStep: this.runtime.options.rotationStep,
             getInputValue: (key) => {
                 var _a;
-                const id = this.runtime.elements[key];
-                const element = id
-                    ? ownerDocument.getElementById(id)
-                    : null;
+                const element = this.resolveElement(key, ownerDocument);
                 return (_a = element === null || element === void 0 ? void 0 : element.value) !== null && _a !== void 0 ? _a : '';
             },
             actions: createEditorDomEventActions(this.runtime, ownerDocument, {
@@ -10076,13 +10097,7 @@ class ImageEditor {
     async loadImageFile(file) {
         await loadImageFile({
             options: this.runtime.options,
-            getInputElement: () => {
-                const inputId = this.runtime.elements.imageInput;
-                const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
-                return inputId && ownerDocument
-                    ? ownerDocument.getElementById(inputId)
-                    : null;
-            },
+            getInputElement: () => this.resolveElement('imageInput'),
             loadImage: (dataUrl) => this.loadImage(dataUrl),
         }, file);
     }
@@ -10215,6 +10230,47 @@ class ImageEditor {
             return;
         }
         this.runtime.currentLayoutMode = mode;
+    }
+    setCanvasSize(widthPx, heightPx) {
+        this.applyPublicCanvasSize(widthPx, heightPx, 'setCanvasSize');
+    }
+    resizeToContainer(options = {}) {
+        if (!this.canRunPublicLayoutOperation('resizeToContainer'))
+            return;
+        const size = this.resolveContainerResizeSize(options);
+        if (!size) {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] Container dimensions are not available.'), 'resizeToContainer ignored because no valid container or fallback size was available.');
+            return;
+        }
+        this.applyPublicCanvasSize(size.width, size.height, 'resizeToContainer', {
+            skipGuard: true,
+            preserveScroll: true,
+        });
+    }
+    relayout(options = {}) {
+        var _a;
+        if (!this.canRunPublicLayoutOperation('relayout'))
+            return;
+        if (options.mode !== undefined) {
+            if (!isLayoutMode(options.mode)) {
+                reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported relayout mode ${JSON.stringify(options.mode)}. ` +
+                    'Expected "fit", "cover", or "expand".'), 'Ignored invalid relayout mode.');
+                return;
+            }
+            this.runtime.currentLayoutMode = options.mode;
+        }
+        const scroll = options.preserveScroll
+            ? captureContainerScroll(this.runtime.containerElement)
+            : null;
+        const viewport = this.runtime.containerElement ? this.measureLayoutViewport() : null;
+        if (viewport)
+            this.setCanvasSizePx(viewport.width, viewport.height);
+        if (this.runtime.originalImage) {
+            this.updateCanvasSizeToImageBounds();
+        }
+        restoreContainerScroll(this.runtime.containerElement, scroll);
+        (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
+        this.refreshAfterCanvasLayoutChange('relayout');
     }
     getRuntimeOptions() {
         if (this.runtime.currentLayoutMode === this.runtime.options.layoutMode)
@@ -10398,6 +10454,58 @@ class ImageEditor {
         }
         const mimeType = source ? detectSourceMimeType(source) : null;
         return this.isSupportedImageMimeType(mimeType) ? mimeType : null;
+    }
+    canRunPublicLayoutOperation(operation) {
+        if (this.runtime.isDisposed || !this.runtime.canvas)
+            return false;
+        return this.canRunIdleOperation(operation);
+    }
+    normalizeCanvasDimension(value, operation) {
+        const numericValue = Number(value);
+        if (isPositiveFiniteDimension(numericValue))
+            return Math.round(numericValue);
+        reportWarning(this.runtime.options, new TypeError(`[ImageEditor] ${operation} expected positive finite canvas dimensions.`), `${operation} ignored invalid canvas dimensions.`);
+        return null;
+    }
+    applyPublicCanvasSize(widthPx, heightPx, operation, options = {}) {
+        var _a;
+        if (!options.skipGuard && !this.canRunPublicLayoutOperation(operation))
+            return false;
+        const width = this.normalizeCanvasDimension(widthPx, operation);
+        const height = this.normalizeCanvasDimension(heightPx, operation);
+        if (width === null || height === null)
+            return false;
+        const scroll = options.preserveScroll
+            ? captureContainerScroll(this.runtime.containerElement)
+            : null;
+        this.setCanvasSizePx(width, height);
+        restoreContainerScroll(this.runtime.containerElement, scroll);
+        (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
+        this.refreshAfterCanvasLayoutChange(operation);
+        return true;
+    }
+    resolveContainerResizeSize(options) {
+        var _a, _b;
+        const container = this.runtime.containerElement;
+        const containerWidth = Math.floor((_a = container === null || container === void 0 ? void 0 : container.clientWidth) !== null && _a !== void 0 ? _a : 0);
+        const containerHeight = Math.floor((_b = container === null || container === void 0 ? void 0 : container.clientHeight) !== null && _b !== void 0 ? _b : 0);
+        if (containerWidth > 0 && containerHeight > 0) {
+            return { width: containerWidth, height: containerHeight };
+        }
+        const fallbackWidth = Number(options.fallbackWidth);
+        const fallbackHeight = Number(options.fallbackHeight);
+        if (isPositiveFiniteDimension(fallbackWidth) && isPositiveFiniteDimension(fallbackHeight)) {
+            return { width: Math.round(fallbackWidth), height: Math.round(fallbackHeight) };
+        }
+        return null;
+    }
+    refreshAfterCanvasLayoutChange(operation) {
+        const context = this.buildCallbackContext(operation, false);
+        this.updateInputs();
+        this.updateUi();
+        this.updatePlaceholderStatus();
+        this.emitImageChanged(context);
+        this.emitBusyChangeIfChanged(context);
     }
     setCanvasSizePx(widthPx, heightPx) {
         if (!this.runtime.canvas)
@@ -10834,13 +10942,7 @@ class ImageEditor {
             mosaicConfig: this.getMosaicConfig(),
             textConfig: this.getTextConfig(),
             drawConfig: this.getDrawConfig(),
-        }, (key) => {
-            const id = this.runtime.elements[key];
-            const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
-            return id && ownerDocument
-                ? ownerDocument.getElementById(id)
-                : null;
-        });
+        }, (key) => this.resolveElement(key));
     }
     async mergeAnnotations() {
         await mergeAnnotationsAction(this.actionAccessFactory.buildExportActionAccess());
@@ -10859,11 +10961,7 @@ class ImageEditor {
             originalDisabledMap: this.runtime.elementOriginalDisabledMap,
             originalAriaDisabledMap: this.runtime.elementOriginalAriaDisabledMap,
             originalPointerEventsMap: this.runtime.elementOriginalPointerEventsMap,
-            getElement: (key) => {
-                const id = this.runtime.elements[key];
-                const ownerDocument = getRuntimeDocument(this.runtime.canvasElement);
-                return id && ownerDocument ? ownerDocument.getElementById(id) : null;
-            },
+            getElement: (key) => this.resolveElement(key),
         };
     }
     setControlEnabled(key, isEnabled) {

@@ -6,7 +6,7 @@
  */
 import type * as FabricNS from 'fabric';
 import { AnimationQueue } from '../animation/animation-queue.js';
-import type { ResolvedElementIdMap } from '../core/editor-elements.js';
+import type { ResolvedElementMap } from '../core/editor-elements.js';
 import { OperationGuard } from '../core/operation-guard.js';
 import type { BaseImageObject, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, LayoutMode, MaskObject, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedOptions, ResolvedTextAnnotationConfig } from '../core/public-types.js';
 import { HistoryManager } from '../history/history-manager.js';
@@ -32,7 +32,7 @@ export declare class EditorRuntime {
     canvasElement: HTMLCanvasElement | null;
     containerElement: HTMLElement | null;
     placeholderElement: HTMLElement | null;
-    elements: ResolvedElementIdMap;
+    elements: ResolvedElementMap;
     readonly elementOriginalDisabledMap: Map<keyof import("../index.js").ElementIdMap, boolean>;
     readonly elementOriginalAriaDisabledMap: Map<keyof import("../index.js").ElementIdMap, string | null>;
     readonly elementOriginalPointerEventsMap: Map<keyof import("../index.js").ElementIdMap, string>;

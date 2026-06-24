@@ -8,6 +8,7 @@
 import type * as FabricNS from 'fabric';
 
 import { cloneResolvedMosaicConfig } from '../core/default-options.js';
+import { resolveDomElement } from '../core/editor-elements.js';
 import type { OperationToken } from '../core/operation-guard.js';
 import type {
     AnnotationObject,
@@ -175,9 +176,17 @@ export function createEditorContextFactory(
         updateAnnotationList: () => callbacks.updateAnnotationList(),
         updateUi: () => callbacks.updateUi(),
         updateInputs: () => callbacks.updateInputs(),
-        getMaskListElementId: () => runtime.elements.maskList,
+        getMaskListElement: () =>
+            resolveDomElement<HTMLElement>(
+                runtime.elements.maskList,
+                runtime.canvasElement?.ownerDocument,
+            ),
         handleMaskSelected: (mask) => callbacks.handleSelectionChanged([mask]),
-        getAnnotationListElementId: () => runtime.elements.annotationList,
+        getAnnotationListElement: () =>
+            resolveDomElement<HTMLElement>(
+                runtime.elements.annotationList,
+                runtime.canvasElement?.ownerDocument,
+            ),
         handleAnnotationSelected: (annotation) => callbacks.handleSelectionChanged([annotation]),
         getMasks: () => callbacks.getMasks(),
         getAnnotations: () => callbacks.getAnnotations(),

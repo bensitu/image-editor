@@ -96,7 +96,11 @@ export type {
     ImageEditorCallbackContext,
     ImageEditorOperation,
     // DOM wiring
+    ElementTarget,
+    ElementMap,
     ElementIdMap,
+    ResizeToContainerOptions,
+    RelayoutOptions,
     // Fabric module type (for explicit injection)
     FabricModule,
 } from './core/public-types.js';

@@ -121,8 +121,8 @@ const presentKeysArb = fc.subarray(
  * `unmappedKey`, which returns `null` so `bindIfExists` exercises the
  * "missing key" path.
  */
-function makeBindings({ disposed = { value: false } } = {}) {
-    const resolve = (key) => (key === 'unmappedKey' ? null : key);
+function makeBindings({ disposed = { value: false }, ownerDocument = globalThis.document } = {}) {
+    const resolve = (key) => (key === 'unmappedKey' ? null : ownerDocument.getElementById(key));
     const isDisposed = () => disposed.value;
     return {
         bindings: new DomBindings(resolve, isDisposed),
@@ -377,9 +377,8 @@ test('bindIfExists resolves elements from the supplied owner document', () => {
     const ownerEvent = ownerDom.window.Event;
     let calls = 0;
     const registry = new DomBindings(
-        (key) => key,
+        (key) => ownerDocument.getElementById(key),
         () => false,
-        () => ownerDocument,
     );
 
     assert.equal(
@@ -394,4 +393,36 @@ test('bindIfExists resolves elements from the supplied owner document', () => {
     registry.removeAll();
     ownerDocument.getElementById('zoomInButton').dispatchEvent(new ownerEvent('click'));
     assert.equal(calls, 1, 'removeAll must detach from the owner document element');
+});
+
+test('removeAll() detaches from the originally-bound element when resolver changes', () => {
+    const dom = new JSDOM(
+        '<!DOCTYPE html><body><button id="old"></button><button id="next"></button></body>',
+    );
+    const { document, Event } = dom.window;
+    const oldButton = document.getElementById('old');
+    const nextButton = document.getElementById('next');
+    let current = oldButton;
+    let calls = 0;
+
+    const registry = new DomBindings(
+        () => current,
+        () => false,
+    );
+
+    assert.equal(
+        registry.bindIfExists('zoomInButton', 'click', () => {
+            calls += 1;
+        }),
+        true,
+    );
+    oldButton.dispatchEvent(new Event('click'));
+    assert.equal(calls, 1);
+
+    current = nextButton;
+    registry.removeAll();
+    oldButton.dispatchEvent(new Event('click'));
+    nextButton.dispatchEvent(new Event('click'));
+
+    assert.equal(calls, 1, 'cleanup must detach the listener from the original element');
 });

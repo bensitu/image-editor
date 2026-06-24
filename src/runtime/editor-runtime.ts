@@ -13,7 +13,7 @@ import {
     cloneResolvedMosaicConfig,
     cloneResolvedTextAnnotationConfig,
 } from '../core/default-options.js';
-import type { ElementKey, ResolvedElementIdMap } from '../core/editor-elements.js';
+import type { ElementKey, ResolvedElementMap } from '../core/editor-elements.js';
 import { OperationGuard } from '../core/operation-guard.js';
 import type {
     BaseImageObject,
@@ -54,7 +54,7 @@ export class EditorRuntime {
     canvasElement: HTMLCanvasElement | null = null;
     containerElement: HTMLElement | null = null;
     placeholderElement: HTMLElement | null = null;
-    elements: ResolvedElementIdMap = {} as ResolvedElementIdMap;
+    elements: ResolvedElementMap = {} as ResolvedElementMap;
     readonly elementOriginalDisabledMap = new Map<ElementKey, boolean>();
     readonly elementOriginalAriaDisabledMap = new Map<ElementKey, string | null>();
     readonly elementOriginalPointerEventsMap = new Map<ElementKey, string>();

@@ -62,7 +62,7 @@ import type { MaskObject } from '../core/public-types.js';
  * State the mask-list helpers read from the editor runtime and facade callbacks.
  *
  * The module does NOT own any of these slots — it only reads them so
- * ownership of the canvas and resolved DOM element ID map stays on the runtime.
+ * ownership of the canvas and resolved DOM element target map stays on the runtime.
  */
 export interface MaskListContext {
     /**
@@ -72,11 +72,9 @@ export interface MaskListContext {
      */
     canvas: FabricNS.Canvas | null;
     /**
-     * Returns the resolved DOM element ID for the mask list container, or a
-     * falsy value when the integrator omitted `maskList` from the `idMap`.
-     * The orchestrator's `elements.maskList` slot fills this role.
+     * Returns the resolved mask list container element, or a falsy value when the integrator omitted `maskList` from the element map.
      */
-    getListElementId(): string | null | undefined;
+    getListElement(): HTMLElement | null | undefined;
     /**
      * Invoked by the click handler after `setActiveObject(mask)` has run,
      * so the orchestrator can drive its selection-changed pipeline (label
@@ -88,16 +86,13 @@ export interface MaskListContext {
 /**
  * Re-render the mask list DOM from `canvas.getObjects`.
  *
- * No-op when the canvas is unset, the integrator did not supply a
- * `maskList` element ID, or the configured element does not exist in the
- * document. Tolerating partial DOM is intentional — the editor supports
+ * No-op when the canvas is unset or the integrator did not supply a `maskList` element. Tolerating partial DOM is intentional — the editor supports
  * being driven from code without any sidebar UI (the editor's
  * tolerated-bindings contract).
  *
  * Steps:
  *
- * 1. Resolve the list element via `context.getListElementId`. Bail out if
- *    missing.
+ * 1. Resolve the list element via `context.getListElement`. Bail out if missing.
  * 2. Clear the container with `innerHTML = ''`. This also detaches every
  *    `onclick` handler attached on the previous render, so there is no
  *    listener bookkeeping to track separately.
@@ -131,8 +126,7 @@ export declare function renderMaskList(context: MaskListContext): void;
  * lock-step with the stable `data-mask-id` identifier and tolerates any
  * label-text customization.
  *
- * No-op when the integrator did not supply a `maskList` element ID or the
- * configured element does not exist in the document.
+ * No-op when the integrator did not supply a `maskList` element.
  *
  * @param context - Orchestration context — see {@link MaskListContext}.
  * @param selectedMask - The currently selected mask, or `null` to clear the

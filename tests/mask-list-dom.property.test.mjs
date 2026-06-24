@@ -52,7 +52,7 @@ const { resolveOptions } = await import('../src/core/default-options.ts');
  * `<ul id="maskList">` host element, and return both the document and
  * the chosen list element ID. Returning the list ID (rather than
  * hardcoding it at the call site) keeps the helper symmetric with how
- * the orchestrator drives the module via `ctx.getListElementId()`.
+ * the orchestrator drives the module via `ctx.getListElement()`.
  */
 function installDom() {
     const dom = new JSDOM('<!DOCTYPE html><body></body>');
@@ -189,7 +189,7 @@ test('renderMaskList renders one <li> per mask in canvas order with data-mask-id
             const canvas = makeCanvas(masks);
             const ctx = {
                 canvas,
-                getListElementId: () => listId,
+                getListElement: () => document.getElementById(listId),
                 onMaskSelected: () => {},
             };
 
@@ -252,7 +252,7 @@ test('renderMaskList uses the canvas ownerDocument', () => {
     canvas.getElement = () => ownerDom.window.document.getElementById('c');
     const ctx = {
         canvas,
-        getListElementId: () => 'maskList',
+        getListElement: () => ownerDom.window.document.getElementById('maskList'),
         onMaskSelected: () => {},
     };
 
@@ -277,7 +277,7 @@ test('clicking a <li> selects by maskId lookup regardless of list ordering', () 
                 const selected = [];
                 const ctx = {
                     canvas,
-                    getListElementId: () => listId,
+                    getListElement: () => document.getElementById(listId),
                     onMaskSelected: (m) => selected.push(m),
                 };
 

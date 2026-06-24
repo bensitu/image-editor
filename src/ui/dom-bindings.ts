@@ -5,18 +5,17 @@
  *
  * ## Owned contracts
  *
- * - `bindIfExists(key, event, handler)` records the
- *   `{ elementKey, eventType, handler}` triple in an internal registry as
- *   the listener is attached.
- * - `removeAll` iterates the registry, calls
- *   `removeEventListener` for every recorded entry, and clears the registry
- *   afterwards.
- * - Every `removeEventListener` call is wrapped in
- *   `try/catch` so a second `dispose` (or a listener that has already been
- *   detached by other means) never throws. `removeAll` is idempotent.
- * - Every bound handler is wrapped so it consults the
- *   editor's `isDisposed` flag (via the `isDisposed` callback supplied to the
- *   constructor) and exits early without touching the canvas while disposed.
+ * - `bindIfExists(key, event, handler)` resolves the logical key to an
+ *   actual HTMLElement and records the bound `{ element, elementKey,
+ *   eventType, handler }` entry as the listener is attached.
+ * - `removeAll` iterates the registry, calls `removeEventListener` on the
+ *   originally-bound element reference for every recorded entry, and clears
+ *   the registry afterwards.
+ * - Every `removeEventListener` call is wrapped in `try/catch` so a second
+ *   `dispose` (or a listener that has already been detached by other means)
+ *   never throws. `removeAll` is idempotent.
+ * - Every bound handler is wrapped so it consults the editor's `isDisposed`
+ *   flag and exits early without touching the canvas while disposed.
  *
  * ## Why this lives in its own module
  *
@@ -37,11 +36,13 @@ export type { ElementKey };
 /**
  * Single entry in the bindings registry. The stored `handler` is the
  * disposed-aware wrapper that was actually passed to `addEventListener`, not
- * the user-supplied callback — that way `removeAll` can detach with the
- * exact same reference that was attached.
+ * the user-supplied callback. The stored `element` is the exact DOM node that
+ * received the listener so cleanup remains correct when frameworks replace
+ * nodes during re-render.
  */
 interface BindingEntry {
     elementKey: ElementKey;
+    element: HTMLElement;
     eventType: string;
     handler: EventListener;
 }
@@ -50,51 +51,28 @@ interface BindingEntry {
  * Lightweight registry of DOM event listeners owned by an editor instance.
  *
  * The class is intentionally small: it does not know about Fabric, the
- * animation queue, or the operation guard — it only knows how to look up an
- * element ID for a key and how to add/remove a listener. Disposed-state
+ * animation queue, or the operation guard. It only knows how to resolve an
+ * HTMLElement for a key and how to add/remove a listener. Disposed-state
  * awareness comes in via the `isDisposed` callback so the guard can stay the
- * single source of truth for the `isDisposed` flag (see
- * `core/operation-guard.ts`).
- *
- * Usage:
- *
- * ```ts
- * const bindings = new DomBindings(
- *   (key) => this.elements[key],
- *   () => this.guard.isDisposed(),
- * );
- * bindings.bindIfExists('zoomInButton', 'click', () =>
- *   this.scaleImage(s + step),
- * );
- * // ...
- * bindings.removeAll(); // called from dispose
- * ```
+ * single source of truth for the `isDisposed` flag.
  */
 export class DomBindings {
     private registry: BindingEntry[] = [];
-    private readonly resolveElementId: (key: ElementKey) => string | null | undefined;
+    private readonly resolveElement: (key: ElementKey) => HTMLElement | null | undefined;
     private readonly isDisposed: () => boolean;
-    private readonly resolveDocument: () => Document | null;
 
     /**
-     * @param resolveElementId - Returns the resolved DOM element ID for a given logical key, or a
-     *   falsy value when the integrator omitted that key from the `idMap`.
-     *   The orchestrator's `elements` table fills this role.
-     * @param isDisposed - Returns the editor's current `isDisposed` flag. Bound handlers
-     *   consult this on every dispatch and exit early when it returns
-     *   `true`.
-     * @param resolveDocument - Returns the document that owns the bound controls, or `null`
-     *   when the runtime has no DOM.
+     * @param resolveElement - Returns the DOM element for a given logical key, or a
+     *   falsy value when the integrator omitted that key from the element map.
+     * @param isDisposed - Returns the editor's current disposed flag. Bound handlers
+     *   consult this on every dispatch and exit early when it returns `true`.
      */
     constructor(
-        resolveElementId: (key: ElementKey) => string | null | undefined,
+        resolveElement: (key: ElementKey) => HTMLElement | null | undefined,
         isDisposed: () => boolean,
-        resolveDocument: () => Document | null = () =>
-            typeof document !== 'undefined' ? document : null,
     ) {
-        this.resolveElementId = resolveElementId;
+        this.resolveElement = resolveElement;
         this.isDisposed = isDisposed;
-        this.resolveDocument = resolveDocument;
     }
 
     /**
@@ -103,50 +81,36 @@ export class DomBindings {
      * detach it later. The handler is wrapped to short-circuit when the
      * editor has been disposed.
      *
-     * Missing keys and missing elements are silently ignored — the editor
-     * tolerates partial DOM as documented under {@link ElementIdMap}.
+     * Missing keys and missing elements are silently ignored. This lets the
+     * editor tolerate partial DOM and deliberately unmanaged framework refs.
      *
      * @returns `true` if the listener was attached, `false` if the element
      *          could not be resolved.
      */
     bindIfExists(key: ElementKey, eventType: string, handler: EventListener): boolean {
-        const id = this.resolveElementId(key);
-        if (!id) return false;
-        const ownerDocument = this.resolveDocument();
-        if (!ownerDocument) return false;
-        const element = ownerDocument.getElementById(id);
+        const element = this.resolveElement(key);
         if (!element) return false;
 
-        // Disposed-aware wrapper. Holding the wrapper (not the raw handler)
-        // in the registry guarantees removeAll detaches the exact same
-        // reference that addEventListener saw.
         const wrapped: EventListener = (event) => {
             if (this.isDisposed()) return;
             handler(event);
         };
 
         element.addEventListener(eventType, wrapped);
-        this.registry.push({ elementKey: key, eventType, handler: wrapped });
+        this.registry.push({ elementKey: key, element, eventType, handler: wrapped });
         return true;
     }
 
     /**
      * Detach every recorded listener and clear the registry. Each
      * `removeEventListener` call is wrapped in `try/catch` so an
-     * already-detached listener (for example because the host page swapped
-     * out the DOM node) does not abort the cleanup loop. Calling `removeAll`
-     * a second time is a no-op.
+     * already-detached listener or replaced DOM node does not abort the
+     * cleanup loop. Calling `removeAll` repeatedly is a no-op.
      */
     removeAll(): void {
         for (const entry of this.registry) {
-            const id = this.resolveElementId(entry.elementKey);
-            if (!id) continue;
-            const ownerDocument = this.resolveDocument();
-            if (!ownerDocument) continue;
-            const element = ownerDocument.getElementById(id);
-            if (!element) continue;
             try {
-                element.removeEventListener(entry.eventType, entry.handler);
+                entry.element.removeEventListener(entry.eventType, entry.handler);
             } catch {
                 // Element may already be detached or in a broken state; the
                 // contract is best-effort cleanup, so swallow and continue.
@@ -157,7 +121,7 @@ export class DomBindings {
 
     /**
      * Number of currently-registered listeners. Exposed for diagnostics and
-     * for the unit tests under `tests/units/dom-bindings.test.mjs`.
+     * for unit tests under `tests/units/dom-bindings.test.mjs`.
      */
     size(): number {
         return this.registry.length;

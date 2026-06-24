@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-06-25
+
+### Added
+
+- Add HTMLElement/ref-based `init()` targets while preserving existing string ID initialization.
+- Add public `setCanvasSize()`, `resizeToContainer()`, and `relayout()` APIs for responsive host layouts.
+- Add React, Vue, and SSR integration guides under `docs/frameworks/`.
+
+### Changed
+
+- Store actual DOM listener elements in `DomBindings` so cleanup detaches from the originally-bound node even if a framework replaces refs.
+- Export `ElementTarget`, `ElementMap`, `ResizeToContainerOptions`, and `RelayoutOptions` from the package root.
+
+### Documentation
+
+- Link framework integration guides from the README and document ref-based mounting and responsive relayout APIs.
+
 ## [2.4.1] - 2026-06-23
 
 ### Fixed
@@ -409,3 +426,5 @@ This release is a behavior-preserving migration of the v1 image editor onto a Ty
 ### Added
 
 - Initial release.
+
+

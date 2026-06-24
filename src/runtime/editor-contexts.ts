@@ -135,9 +135,9 @@ export interface EditorContextFactoryAccess {
     updateUi(): void;
     updateInputs(): void;
 
-    getMaskListElementId(): string | null | undefined;
+    getMaskListElement(): HTMLElement | null | undefined;
     handleMaskSelected(mask: MaskObject): void;
-    getAnnotationListElementId(): string | null | undefined;
+    getAnnotationListElement(): HTMLElement | null | undefined;
     handleAnnotationSelected(annotation: AnnotationObject): void;
     getMasks(): MaskObject[];
     getAnnotations(): AnnotationObject[];
@@ -313,7 +313,7 @@ export class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
-            getListElementId: () => access.getMaskListElementId(),
+            getListElement: () => access.getMaskListElement(),
             onMaskSelected: (mask) => {
                 access.handleMaskSelected(mask);
             },
@@ -333,7 +333,7 @@ export class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
-            getListElementId: () => access.getAnnotationListElementId(),
+            getListElement: () => access.getAnnotationListElement(),
             onAnnotationSelected: (annotation) => {
                 access.handleAnnotationSelected(annotation);
             },

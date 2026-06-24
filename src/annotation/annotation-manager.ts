@@ -31,7 +31,7 @@ export interface AnnotationManagerContext {
 
 export interface AnnotationListContext {
     canvas: FabricNS.Canvas | null;
-    getListElementId(): string | null | undefined;
+    getListElement(): HTMLElement | null | undefined;
     onAnnotationSelected(annotation: AnnotationObject): void;
 }
 
@@ -268,11 +268,9 @@ function getAnnotationListDocument(context: AnnotationListContext): Document {
 }
 
 export function renderAnnotationList(context: AnnotationListContext): void {
-    const listId = context.getListElementId();
-    if (!listId) return;
-    const ownerDocument = getAnnotationListDocument(context);
-    const listEl = ownerDocument.getElementById(listId);
+    const listEl = context.getListElement();
     if (!listEl || !context.canvas) return;
+    const ownerDocument = listEl.ownerDocument ?? getAnnotationListDocument(context);
 
     listEl.innerHTML = '';
     const canvas = context.canvas;
@@ -299,9 +297,7 @@ export function updateAnnotationListSelection(
     context: AnnotationListContext,
     selectedAnnotation: AnnotationObject | null,
 ): void {
-    const listId = context.getListElementId();
-    if (!listId) return;
-    const listEl = getAnnotationListDocument(context).getElementById(listId);
+    const listEl = context.getListElement();
     if (!listEl) return;
 
     const selectedId = selectedAnnotation ? String(selectedAnnotation.annotationId) : null;

@@ -169,7 +169,7 @@ export class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
-            getListElementId: () => access.getMaskListElementId(),
+            getListElement: () => access.getMaskListElement(),
             onMaskSelected: (mask) => {
                 access.handleMaskSelected(mask);
             },
@@ -187,7 +187,7 @@ export class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
-            getListElementId: () => access.getAnnotationListElementId(),
+            getListElement: () => access.getAnnotationListElement(),
             onAnnotationSelected: (annotation) => {
                 access.handleAnnotationSelected(annotation);
             },

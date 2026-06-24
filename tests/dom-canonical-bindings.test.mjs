@@ -416,3 +416,191 @@ test('init re-checks global Fabric when construction happened before Fabric load
         globalThis.fabric = originalFabric;
     }
 });
+
+function installMinimalRefDom() {
+    const dom = new JSDOM(
+        `<!doctype html><html><body>
+            <section data-editor="a">
+                <div class="container-a"><canvas></canvas></div>
+                <button class="zoom-in-a"></button>
+            </section>
+            <section data-editor="b">
+                <div class="container-b"><canvas></canvas></div>
+                <button class="zoom-in-b"></button>
+            </section>
+        </body></html>`,
+    );
+    globalThis.window = dom.window;
+    globalThis.document = dom.window.document;
+    globalThis.HTMLElement = dom.window.HTMLElement;
+    globalThis.HTMLCanvasElement = dom.window.HTMLCanvasElement;
+    globalThis.HTMLInputElement = dom.window.HTMLInputElement;
+    return dom.window;
+}
+
+function withoutOptionalControls(base) {
+    return {
+        imageInput: null,
+        uploadArea: null,
+        maskList: null,
+        annotationList: null,
+        zoomOutButton: null,
+        rotateLeftButton: null,
+        rotateRightButton: null,
+        flipHorizontalButton: null,
+        flipVerticalButton: null,
+        createMaskButton: null,
+        removeSelectedMaskButton: null,
+        removeAllMasksButton: null,
+        mergeMasksButton: null,
+        downloadImageButton: null,
+        resetImageTransformButton: null,
+        undoButton: null,
+        redoButton: null,
+        enterCropModeButton: null,
+        cropAspectRatioSelect: null,
+        applyCropButton: null,
+        cancelCropButton: null,
+        enterMosaicModeButton: null,
+        exitMosaicModeButton: null,
+        mosaicBrushSizeInput: null,
+        mosaicBlockSizeInput: null,
+        enterTextModeButton: null,
+        exitTextModeButton: null,
+        textColorInput: null,
+        textFontSizeInput: null,
+        enterDrawModeButton: null,
+        exitDrawModeButton: null,
+        drawColorInput: null,
+        drawBrushSizeInput: null,
+        removeSelectedAnnotationButton: null,
+        removeAllAnnotationsButton: null,
+        deleteSelectedObjectButton: null,
+        mergeAnnotationsButton: null,
+        bringSelectedObjectForwardButton: null,
+        sendSelectedObjectBackwardButton: null,
+        bringSelectedObjectToFrontButton: null,
+        sendSelectedObjectToBackButton: null,
+        ...base,
+    };
+}
+
+test('init accepts HTMLElement refs for canvas, container, and controls', () => {
+    const window = installDom();
+    const canvas = document.getElementById(CANONICAL_IDS.canvas);
+    const container = document.getElementById(CANONICAL_IDS.canvasContainer);
+    const zoomInButton = document.getElementById(CANONICAL_IDS.zoomInButton);
+    const editor = createEditor(
+        withoutOptionalControls({
+            canvas,
+            canvasContainer: container,
+            zoomInButton,
+        }),
+    );
+    const calls = [];
+    editor.scaleImage = (scale) => {
+        calls.push(scale);
+        return Promise.resolve();
+    };
+
+    zoomInButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.deepEqual(calls, [1.05]);
+});
+
+test('init accepts mixed HTMLElement and string targets', () => {
+    const window = installDom();
+    const canvas = document.getElementById(CANONICAL_IDS.canvas);
+    const editor = createEditor(
+        withoutOptionalControls({
+            canvas,
+            zoomOutButton: CANONICAL_IDS.zoomOutButton,
+        }),
+    );
+    const calls = [];
+    editor.scaleImage = (scale) => {
+        calls.push(scale);
+        return Promise.resolve();
+    };
+
+    document
+        .getElementById(CANONICAL_IDS.zoomOutButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.deepEqual(calls, [0.95]);
+});
+
+test('multiple HTMLElement-ref editors do not collide without IDs', () => {
+    const window = installMinimalRefDom();
+    const editorASection = document.querySelector('[data-editor="a"]');
+    const editorBSection = document.querySelector('[data-editor="b"]');
+    const editorA = new ImageEditor(makeFabricStub(), {
+        animationDuration: 0,
+        showPlaceholder: false,
+    });
+    const editorB = new ImageEditor(makeFabricStub(), {
+        animationDuration: 0,
+        showPlaceholder: false,
+    });
+    const calls = [];
+
+    editorA.init(
+        withoutOptionalControls({
+            canvas: editorASection.querySelector('canvas'),
+            canvasContainer: editorASection.querySelector('div'),
+            zoomInButton: editorASection.querySelector('button'),
+        }),
+    );
+    editorB.init(
+        withoutOptionalControls({
+            canvas: editorBSection.querySelector('canvas'),
+            canvasContainer: editorBSection.querySelector('div'),
+            zoomInButton: editorBSection.querySelector('button'),
+        }),
+    );
+    editorA.scaleImage = (scale) => {
+        calls.push(['a', scale]);
+        return Promise.resolve();
+    };
+    editorB.scaleImage = (scale) => {
+        calls.push(['b', scale]);
+        return Promise.resolve();
+    };
+
+    editorASection
+        .querySelector('button')
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    editorBSection
+        .querySelector('button')
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.deepEqual(calls, [
+        ['a', 1.05],
+        ['b', 1.05],
+    ]);
+});
+
+test('dispose remains idempotent and disables HTMLElement-ref handlers', () => {
+    const window = installDom();
+    const zoomInButton = document.getElementById(CANONICAL_IDS.zoomInButton);
+    const editor = createEditor(
+        withoutOptionalControls({
+            canvas: document.getElementById(CANONICAL_IDS.canvas),
+            zoomInButton,
+        }),
+    );
+    let calls = 0;
+    editor.scaleImage = () => {
+        calls += 1;
+        return Promise.resolve();
+    };
+
+    zoomInButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+    assert.equal(calls, 1);
+
+    assert.doesNotThrow(() => editor.dispose());
+    assert.doesNotThrow(() => editor.dispose());
+    zoomInButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.equal(calls, 1);
+});

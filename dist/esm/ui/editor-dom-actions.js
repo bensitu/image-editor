@@ -1,3 +1,4 @@
+import { resolveDomElement } from '../core/editor-elements.js';
 export function createEditorDomEventActions(runtime, ownerDocument, host) {
     return {
         reportAsyncActionError: (operation, error) => {
@@ -5,9 +6,7 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
         },
         openImagePicker: () => {
             var _a;
-            const inputId = runtime.elements.imageInput;
-            if (inputId)
-                (_a = ownerDocument.getElementById(inputId)) === null || _a === void 0 ? void 0 : _a.click();
+            (_a = resolveDomElement(runtime.elements.imageInput, ownerDocument)) === null || _a === void 0 ? void 0 : _a.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
         zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
@@ -106,10 +105,7 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
     };
 }
 function getSelectedCropAspectRatio(runtime, ownerDocument) {
-    const inputId = runtime.elements.cropAspectRatioSelect;
-    const inputEl = inputId
-        ? ownerDocument.getElementById(inputId)
-        : null;
+    const inputEl = resolveDomElement(runtime.elements.cropAspectRatioSelect, ownerDocument);
     const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
     return (value || 'free');
 }

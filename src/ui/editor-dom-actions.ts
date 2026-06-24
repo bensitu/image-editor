@@ -5,6 +5,7 @@
  * facade method calls and runtime-derived input values.
  */
 
+import { resolveDomElement } from '../core/editor-elements.js';
 import type { CropAspectRatio } from '../core/public-types.js';
 import type { EditorRuntime } from '../runtime/editor-runtime.js';
 import type { EditorDomEventActions } from './editor-dom-events.js';
@@ -61,8 +62,10 @@ export function createEditorDomEventActions(
             host.reportAsyncActionError(operation, error);
         },
         openImagePicker: () => {
-            const inputId = runtime.elements.imageInput;
-            if (inputId) ownerDocument.getElementById(inputId)?.click();
+            resolveDomElement<HTMLInputElement>(
+                runtime.elements.imageInput,
+                ownerDocument,
+            )?.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
         zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
@@ -165,10 +168,10 @@ function getSelectedCropAspectRatio(
     runtime: EditorRuntime,
     ownerDocument: Document,
 ): CropAspectRatio {
-    const inputId = runtime.elements.cropAspectRatioSelect;
-    const inputEl = inputId
-        ? (ownerDocument.getElementById(inputId) as HTMLInputElement | HTMLSelectElement | null)
-        : null;
+    const inputEl = resolveDomElement<HTMLInputElement | HTMLSelectElement>(
+        runtime.elements.cropAspectRatioSelect,
+        ownerDocument,
+    );
     const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
     return (value || 'free') as CropAspectRatio;
 }

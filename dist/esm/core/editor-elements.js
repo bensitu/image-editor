@@ -1,4 +1,4 @@
-const DEFAULT_ELEMENT_IDS = {
+const DEFAULT_ELEMENT_TARGETS = {
     canvas: 'canvas',
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
@@ -48,7 +48,33 @@ const DEFAULT_ELEMENT_IDS = {
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
 };
-export function resolveElementIds(idMap) {
-    return { ...DEFAULT_ELEMENT_IDS, ...idMap };
+function isHTMLElementTarget(value) {
+    return (!!value &&
+        typeof value === 'object' &&
+        value.nodeType === 1 &&
+        typeof value.addEventListener === 'function');
+}
+function getFallbackDocument() {
+    return typeof document !== 'undefined' ? document : null;
+}
+export function resolveDomElement(target, ownerDocument) {
+    if (target === null || target === undefined)
+        return null;
+    if (isHTMLElementTarget(target))
+        return target;
+    const lookupDocument = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : getFallbackDocument();
+    if (!lookupDocument)
+        return null;
+    return lookupDocument.getElementById(target);
+}
+export function resolveElementTargets(elementMap = {}) {
+    const resolved = { ...DEFAULT_ELEMENT_TARGETS };
+    for (const [key, value] of Object.entries(elementMap)) {
+        resolved[key] = value === undefined ? null : value;
+    }
+    return resolved;
+}
+export function resolveElementIds(idMap = {}) {
+    return resolveElementTargets(idMap);
 }
 //# sourceMappingURL=editor-elements.js.map

@@ -1,17 +1,23 @@
 /**
- * Canonical DOM element key resolution for ImageEditor.
+ * Canonical DOM target resolution for ImageEditor.
  *
- * The resolver merges user-provided IDs with built-in defaults so UI binding
- * modules can work with a complete key-to-ID table.
+ * The resolver merges user-provided string IDs, HTMLElement refs, and explicit
+ * null targets with built-in defaults so UI modules can work with a complete
+ * logical key table while still supporting framework-owned DOM nodes.
  */
 
 import type { ElementIdMap } from './public-types.js';
 
 export type ElementKey = keyof Required<ElementIdMap>;
 
-export type ResolvedElementIdMap = Record<ElementKey, string | null>;
+export type ResolvedElementTarget = string | HTMLElement | null;
 
-const DEFAULT_ELEMENT_IDS: ResolvedElementIdMap = {
+export type ResolvedElementMap = Record<ElementKey, ResolvedElementTarget>;
+
+/** @deprecated Use ResolvedElementMap. */
+export type ResolvedElementIdMap = ResolvedElementMap;
+
+const DEFAULT_ELEMENT_TARGETS: ResolvedElementMap = {
     canvas: 'canvas',
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
@@ -62,6 +68,41 @@ const DEFAULT_ELEMENT_IDS: ResolvedElementIdMap = {
     uploadArea: 'uploadArea',
 };
 
-export function resolveElementIds(idMap: ElementIdMap): ResolvedElementIdMap {
-    return { ...DEFAULT_ELEMENT_IDS, ...idMap } as ResolvedElementIdMap;
+function isHTMLElementTarget(value: unknown): value is HTMLElement {
+    return (
+        !!value &&
+        typeof value === 'object' &&
+        (value as { nodeType?: unknown }).nodeType === 1 &&
+        typeof (value as { addEventListener?: unknown }).addEventListener === 'function'
+    );
+}
+
+function getFallbackDocument(): Document | null {
+    return typeof document !== 'undefined' ? document : null;
+}
+
+export function resolveDomElement<T extends HTMLElement>(
+    target: string | HTMLElement | null | undefined,
+    ownerDocument?: Document | null,
+): T | null {
+    if (target === null || target === undefined) return null;
+    if (isHTMLElementTarget(target)) return target as T;
+    const lookupDocument = ownerDocument ?? getFallbackDocument();
+    if (!lookupDocument) return null;
+    return lookupDocument.getElementById(target) as T | null;
+}
+
+export function resolveElementTargets(elementMap: ElementIdMap = {}): ResolvedElementMap {
+    const resolved = { ...DEFAULT_ELEMENT_TARGETS } as ResolvedElementMap;
+    for (const [key, value] of Object.entries(elementMap) as Array<
+        [ElementKey, ResolvedElementTarget | undefined]
+    >) {
+        resolved[key] = value === undefined ? null : value;
+    }
+    return resolved;
+}
+
+/** @deprecated Use resolveElementTargets. */
+export function resolveElementIds(idMap: ElementIdMap = {}): ResolvedElementMap {
+    return resolveElementTargets(idMap);
 }
