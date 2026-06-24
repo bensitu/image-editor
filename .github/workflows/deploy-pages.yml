@@ -12,9 +12,6 @@ on:
 permissions:
     contents: read
 
-env:
-    PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
-
 concurrency:
     group: pages
     cancel-in-progress: true
@@ -23,6 +20,8 @@ jobs:
     build:
         name: Package demo site
         runs-on: ubuntu-latest
+        outputs:
+            pages_artifact_name: ${{ steps.pages_artifact.outputs.name }}
 
         steps:
             - name: Check out repository
@@ -31,10 +30,15 @@ jobs:
             - name: Verify demo entrypoint
               run: test -f docs/index.html
 
+            - name: Resolve Pages artifact name
+              id: pages_artifact
+              shell: bash
+              run: echo "name=github-pages-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
             - name: Upload Pages artifact
               uses: actions/upload-pages-artifact@v5
               with:
-                  name: ${{ env.PAGES_ARTIFACT_NAME }}
+                  name: ${{ steps.pages_artifact.outputs.name }}
                   path: docs
 
     deploy:
@@ -53,4 +57,4 @@ jobs:
               id: deployment
               uses: actions/deploy-pages@v5
               with:
-                  artifact_name: ${{ env.PAGES_ARTIFACT_NAME }}
+                  artifact_name: ${{ needs.build.outputs.pages_artifact_name }}
