@@ -18,7 +18,7 @@ const supportedLanguages = ['en', 'zh', 'ja', 'ko', 'fr', 'es'];
 // keep the demo localized while the API examples below remain language-neutral.
 const translations = {
     en: {
-        appSubtitle: 'Canvas mask, crop, transform, and export demo',
+        appSubtitle: 'Canvas image editing demo: annotate, mask, mosaic, crop, transform, and export.',
         legacyDemo: 'Legacy v1 demo',
         demoPreferences: 'Demo preferences',
         imageLoading: 'Image loading',
@@ -105,7 +105,7 @@ const translations = {
         errorEditorNotInitialized: 'Editor is not initialized',
     },
     zh: {
-        appSubtitle: '画布遮罩、裁剪、变换与导出演示',
+        appSubtitle: 'Canvas 图片编辑演示：标注、遮罩、马赛克、裁剪、变换与导出。',
         legacyDemo: '旧版 v1 演示',
         demoPreferences: '演示偏好设置',
         imageLoading: '图片加载',
@@ -192,7 +192,7 @@ const translations = {
         errorEditorNotInitialized: '编辑器未初始化',
     },
     ja: {
-        appSubtitle: 'キャンバスマスク、切り抜き、変形、書き出しデモ',
+        appSubtitle: 'Canvas画像編集デモ：注釈、マスク、モザイク、切り抜き、変形、エクスポート。',
         legacyDemo: '旧 v1 デモ',
         demoPreferences: 'デモ設定',
         imageLoading: '画像の読み込み',
@@ -279,7 +279,7 @@ const translations = {
         errorEditorNotInitialized: 'エディタが初期化されていません',
     },
     ko: {
-        appSubtitle: '캔버스 마스크, 자르기, 변형, 내보내기 데모',
+        appSubtitle: 'Canvas 이미지 편집 데모: 주석, 마스크, 모자이크, 자르기, 변형 및 내보내기.',
         legacyDemo: '레거시 v1 데모',
         demoPreferences: '데모 설정',
         imageLoading: '이미지 불러오기',
@@ -366,7 +366,7 @@ const translations = {
         errorEditorNotInitialized: '에디터가 초기화되지 않았습니다',
     },
     fr: {
-        appSubtitle: 'Démo de masques, recadrage, transformation et export canvas',
+        appSubtitle: 'Démo d’édition d’image Canvas : annotation, masque, mosaïque, recadrage, transformation et export.',
         legacyDemo: 'Démo v1 héritée',
         demoPreferences: 'Préférences de démo',
         imageLoading: "Chargement de l'image",
@@ -453,7 +453,7 @@ const translations = {
         errorEditorNotInitialized: "L'éditeur n'est pas initialisé",
     },
     es: {
-        appSubtitle: 'Demo de máscaras, recorte, transformación y exportación en canvas',
+        appSubtitle: 'Demo de edición de imágenes en Canvas: anotación, máscara, mosaico, recorte, transformación y exportación.',
         legacyDemo: 'Demo heredada v1',
         demoPreferences: 'Preferencias de demo',
         imageLoading: 'Carga de imagen',
