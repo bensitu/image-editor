@@ -132,6 +132,12 @@ export function moveSelectedEditableObject(access, operation) {
     access.saveState();
     access.updateMaskList();
     access.updateAnnotationList();
+    if (isMaskObject(object)) {
+        access.updateMaskListSelection(object);
+    }
+    else if (isAnnotationObject(object)) {
+        access.updateAnnotationListSelection(object);
+    }
     access.updateUi();
     const context = access.buildCallbackContext(operation, false);
     if (isMaskObject(object))

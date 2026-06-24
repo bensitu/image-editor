@@ -18,7 +18,9 @@ export interface EditableObjectActionAccess {
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
     saveState(): void;
     updateMaskList(): void;
+    updateMaskListSelection(mask: MaskObject | null): void;
     updateAnnotationList(): void;
+    updateAnnotationListSelection(annotation: AnnotationObject | null): void;
     updateUi(): void;
     emitMasksChanged(context: ImageEditorCallbackContext): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;

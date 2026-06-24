@@ -275,8 +275,14 @@ export class EditorActionAccessFactory {
             updateMaskList: () => {
                 callbacks.updateMaskList();
             },
+            updateMaskListSelection: (mask) => {
+                callbacks.updateMaskListSelection(mask);
+            },
             updateAnnotationList: () => {
                 callbacks.updateAnnotationList();
+            },
+            updateAnnotationListSelection: (annotation) => {
+                callbacks.updateAnnotationListSelection(annotation);
             },
             updateUi: () => {
                 callbacks.updateUi();

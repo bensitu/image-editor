@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Keep Text mode text creation active when clicking over non-text Fabric targets, including existing Draw annotations, so large draw strokes no longer block placing text inside their bounds.
+- Preserve Mask list and Annotation list selection highlights after layer-order actions rerender the lists, while keeping omitted list elements as safe no-ops.
 
 ### Documentation
 

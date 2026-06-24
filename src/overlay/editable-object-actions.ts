@@ -46,7 +46,9 @@ export interface EditableObjectActionAccess {
 
     saveState(): void;
     updateMaskList(): void;
+    updateMaskListSelection(mask: MaskObject | null): void;
     updateAnnotationList(): void;
+    updateAnnotationListSelection(annotation: AnnotationObject | null): void;
     updateUi(): void;
 
     emitMasksChanged(context: ImageEditorCallbackContext): void;
@@ -222,6 +224,11 @@ export function moveSelectedEditableObject(
     access.saveState();
     access.updateMaskList();
     access.updateAnnotationList();
+    if (isMaskObject(object)) {
+        access.updateMaskListSelection(object);
+    } else if (isAnnotationObject(object)) {
+        access.updateAnnotationListSelection(object);
+    }
     access.updateUi();
 
     const context = access.buildCallbackContext(operation, false);
