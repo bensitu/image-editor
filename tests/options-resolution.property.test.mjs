@@ -701,6 +701,73 @@ test('invalid overlay list orders fall back to front-to-back', () => {
     assert.equal(resolved.annotationListOrder, DEFAULT_OPTIONS.annotationListOrder);
 });
 
+test('invalid top-level runtime option values fall back to defaults', () => {
+    const resolved = resolveOptions({
+        backgroundColor: 123,
+        downsampleOnLoad: 'yes',
+        preserveSourceFormat: 'no',
+        downsampleMimeType: 'image/gif',
+        mergeMasksByDefault: 'true',
+        mergeAnnotationsByDefault: 0,
+        maskRotatable: 'yes',
+        maskLabelOnSelect: 1,
+        maskName: 42,
+        textAnnotationName: false,
+        drawAnnotationName: {},
+        groupSelection: 'false',
+        showPlaceholder: 'no',
+        initialImageBase64: 42,
+        defaultDownloadFileName: {},
+    });
+
+    assert.equal(resolved.backgroundColor, DEFAULT_OPTIONS.backgroundColor);
+    assert.equal(resolved.downsampleOnLoad, DEFAULT_OPTIONS.downsampleOnLoad);
+    assert.equal(resolved.preserveSourceFormat, DEFAULT_OPTIONS.preserveSourceFormat);
+    assert.equal(resolved.downsampleMimeType, DEFAULT_OPTIONS.downsampleMimeType);
+    assert.equal(resolved.mergeMasksByDefault, DEFAULT_OPTIONS.mergeMasksByDefault);
+    assert.equal(resolved.mergeAnnotationsByDefault, DEFAULT_OPTIONS.mergeAnnotationsByDefault);
+    assert.equal(resolved.maskRotatable, DEFAULT_OPTIONS.maskRotatable);
+    assert.equal(resolved.maskLabelOnSelect, DEFAULT_OPTIONS.maskLabelOnSelect);
+    assert.equal(resolved.maskName, DEFAULT_OPTIONS.maskName);
+    assert.equal(resolved.textAnnotationName, DEFAULT_OPTIONS.textAnnotationName);
+    assert.equal(resolved.drawAnnotationName, DEFAULT_OPTIONS.drawAnnotationName);
+    assert.equal(resolved.groupSelection, DEFAULT_OPTIONS.groupSelection);
+    assert.equal(resolved.showPlaceholder, DEFAULT_OPTIONS.showPlaceholder);
+    assert.equal(resolved.initialImageBase64, DEFAULT_OPTIONS.initialImageBase64);
+    assert.equal(resolved.defaultDownloadFileName, DEFAULT_OPTIONS.defaultDownloadFileName);
+});
+
+test('invalid crop runtime option values fall back to crop defaults', () => {
+    const resolved = resolveOptions({
+        crop: {
+            aspectRatio: { width: 16, height: '9' },
+            hideMasksDuringCrop: 'yes',
+            preserveMasksAfterCrop: 'no',
+            allowRotationOfCropRect: 1,
+            exportFileType: 'gif',
+            exportQuality: 'high',
+        },
+    });
+
+    assert.equal(resolved.crop.aspectRatio, DEFAULT_CROP.aspectRatio);
+    assert.equal(resolved.crop.hideMasksDuringCrop, DEFAULT_CROP.hideMasksDuringCrop);
+    assert.equal(resolved.crop.preserveMasksAfterCrop, DEFAULT_CROP.preserveMasksAfterCrop);
+    assert.equal(resolved.crop.allowRotationOfCropRect, DEFAULT_CROP.allowRotationOfCropRect);
+    assert.equal(resolved.crop.exportFileType, DEFAULT_CROP.exportFileType);
+    assert.equal(resolved.crop.exportQuality, DEFAULT_CROP.exportQuality);
+});
+
+test('valid object crop aspect ratios are copied into resolved options', () => {
+    const aspectRatio = { width: 2, height: 1 };
+    const resolved = resolveOptions({ crop: { aspectRatio } });
+
+    assert.deepEqual(resolved.crop.aspectRatio, aspectRatio);
+    assert.notEqual(resolved.crop.aspectRatio, aspectRatio);
+
+    aspectRatio.width = 4;
+    assert.deepEqual(resolved.crop.aspectRatio, { width: 2, height: 1 });
+});
+
 test('removed layout boolean options are ignored', () => {
     const removedExpandKey = 'expandCanvas' + 'ToImage';
     const removedFitKey = 'fitImage' + 'ToCanvas';

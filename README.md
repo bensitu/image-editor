@@ -314,6 +314,15 @@ The facade delegates most mutable implementation state through an internal
 entry points; consumers should continue to import from `@bensitu/image-editor`
 only.
 
+### Internal architecture
+
+Feature modules receive explicit Context Bundle objects such as
+`LoadImageContext`, `ExportServiceContext`, `CreateMaskContext`, and
+`CropControllerContext`. `ImageEditor` owns the runtime state and passes only
+the required dependencies and callbacks into stateless helpers. New internal
+features should follow this pattern instead of reading facade private fields
+directly.
+
 ### Object model
 
 Every editor-owned Fabric object carries strict `editorObjectKind` metadata:
@@ -631,7 +640,8 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 
 Pass an `ImageEditorOptions` object as the second constructor argument
 (or as the only argument when using the UMD global form). Unknown keys are
-ignored; nested `label` and `crop` objects are deep-merged with the defaults.
+ignored, unsupported runtime values fall back to documented defaults, and nested
+`label` and `crop` objects are deep-merged with the defaults.
 
 | Option                      | Default           | Description                                                                                                                                                                                                                                                                                   |
 | --------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -689,7 +699,7 @@ ignored; nested `label` and `crop` objects are deep-merged with the defaults.
 | `label`                     | see source        | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                                                                                                                                                                  |
 | `crop`                      | see source        | `CropConfig` (`minWidth`, `minHeight`, `padding`, `aspectRatio`, `hideMasksDuringCrop`, `preserveMasksAfterCrop`, `allowRotationOfCropRect`, `exportFileType`, `exportQuality`). `applyCrop()` preserves the current image format by default (`'source'`) and falls back to PNG when unknown. |
 
-`maskListOrder` and `annotationListOrder` affect only the sidebar DOM order. They do not change canvas z-order, object IDs, history, or export output.
+`maskListOrder` and `annotationListOrder` affect only the sidebar DOM order. They do not change canvas z-order, object IDs, history, or export output. Invalid runtime values fall back to `'front-to-back'`.
 
 `crop.exportFileType` defaults to `'source'`. Supported explicit values are
 `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, and full image MIME strings. PNG is

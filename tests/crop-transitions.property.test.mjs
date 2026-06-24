@@ -106,7 +106,7 @@ class MockCropRect {
 /**
  * Stand-in for `fabric.Canvas`. Records every method invocation in
  * `callOrder` so the property test can verify the pre-crop snapshot
- * was captured BEFORE the crop rectangle was added`).
+ * was captured before the crop rectangle was added.
  *
  * The mock implements every method the crop controller calls:
  *
@@ -116,7 +116,7 @@ class MockCropRect {
  *   - `bringObjectToFront`       (z-order on entry / preserved masks)
  *   - `setActiveObject`          (rect becomes active on entry)
  *   - `getWidth` / `getHeight`   (clamp the integer crop region)
- *   - `toDataURL`                (export the cropped JPEG)
+ *   - `toDataURL`                (export the cropped intermediate image)
  *   - `renderAll` /              (post-mutation repaint)
  *     `requestRenderAll`
  *   - `selection` setter

@@ -3,12 +3,10 @@
  * runtime {@link ResolvedOptions} object used by the editor.
  *
  * Behavior is defined by the documented option-resolution rules: every
- * required option falls back to a default, nested `label.textOptions` and
- * `crop` values merge with their defaults, callback values normalize to a
- * function or `null`, unknown top-level keys are ignored, top-level scalar
- * values remain internally mutable for controlled updates such as
- * `setLayoutMode()` stores its runtime mode separately, and returned
- * option objects are frozen.
+ * required option falls back to a default, runtime values normalize to the
+ * supported public value space, nested config objects merge with their
+ * defaults, callback values normalize to a function or `null`, unknown
+ * top-level keys are ignored, and returned option objects are frozen.
  *
  * @module
  */
@@ -77,12 +75,14 @@ export declare function getInvalidDrawConfigFields(input: DrawConfig): string[];
  * {@link ResolvedOptions} object.
  *
  * Behavior matrix:
- *  - Every top-level key is taken from `input` when supplied, else from
- *    {@link DEFAULT_OPTIONS}.
+ *  - Every recognized top-level key starts from {@link DEFAULT_OPTIONS}; user
+ *    values override it only after type / value normalization.
+ *  - Invalid scalar, enum, and boolean runtime values fall back to the
+ *    documented defaults instead of entering the resolved runtime options.
  *  - `label.textOptions` is deep-merged with {@link DEFAULT_LABEL_TEXT_OPTIONS}
  *    so user keys override defaults and unspecified keys remain.
- *  - `crop.*` is shallow-merged with {@link DEFAULT_CROP} so each field falls
- *    back to its documented default when unspecified.
+ *  - `crop.*` is shallow-merged with {@link DEFAULT_CROP}; invalid field values
+ *    fall back to their documented defaults.
  *  - Callback values are normalized: function values are kept, anything
  *    else becomes `null`.
  *  - Unknown top-level keys are silently dropped.

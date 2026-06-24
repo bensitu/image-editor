@@ -414,6 +414,71 @@ function normalizeExportArea(value) {
 function normalizeOverlayListOrder(value, fallback) {
     return value === 'front-to-back' || value === 'back-to-front' ? value : fallback;
 }
+function isImageMimeType(value) {
+    return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
+}
+function normalizeImageMimeTypeOption(value, fallback) {
+    if (value === null)
+        return null;
+    return isImageMimeType(value) ? value : fallback;
+}
+function normalizeNullableString(value, fallback) {
+    if (value === null)
+        return null;
+    return typeof value === 'string' ? value : fallback;
+}
+const CROP_ASPECT_RATIO_PRESETS$1 = new Set([
+    'free',
+    '1:1',
+    '3:4',
+    '4:3',
+    '3:2',
+    '2:3',
+    '9:16',
+    '16:9',
+]);
+function hasValidCropRatioParts(width, height) {
+    return (typeof width === 'number' &&
+        typeof height === 'number' &&
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0);
+}
+function normalizeCropAspectRatioOption(value) {
+    if (value === undefined || value === null)
+        return DEFAULT_CROP.aspectRatio;
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value > 0 ? value : DEFAULT_CROP.aspectRatio;
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (CROP_ASPECT_RATIO_PRESETS$1.has(trimmed))
+            return trimmed;
+        const parts = trimmed.split(':');
+        if (parts.length === 2) {
+            const width = Number(parts[0]);
+            const height = Number(parts[1]);
+            if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+                return trimmed;
+            }
+        }
+        return DEFAULT_CROP.aspectRatio;
+    }
+    if (isConfigObject(value) && hasValidCropRatioParts(value.width, value.height)) {
+        return { width: value.width, height: value.height };
+    }
+    return DEFAULT_CROP.aspectRatio;
+}
+function normalizeCropExportFileTypeOption(value) {
+    if (value === undefined || value === null)
+        return DEFAULT_CROP.exportFileType;
+    if (value === 'source')
+        return 'source';
+    return typeof value === 'string' && tryNormalizeImageFormat(value)
+        ? value
+        : DEFAULT_CROP.exportFileType;
+}
 function normalizeOptionalQuality(value) {
     if (value === undefined || value === null)
         return undefined;
@@ -742,7 +807,6 @@ function getInvalidDrawConfigFields(input) {
     return invalid;
 }
 function resolveOptions(input) {
-    var _a, _b, _c, _d, _e;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -771,6 +835,66 @@ function resolveOptions(input) {
         const value = raw[key];
         if (value === undefined)
             continue;
+        if (key === 'backgroundColor') {
+            resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
+            continue;
+        }
+        if (key === 'downsampleOnLoad') {
+            resolved.downsampleOnLoad = normalizeBoolean(value, DEFAULT_OPTIONS.downsampleOnLoad);
+            continue;
+        }
+        if (key === 'preserveSourceFormat') {
+            resolved.preserveSourceFormat = normalizeBoolean(value, DEFAULT_OPTIONS.preserveSourceFormat);
+            continue;
+        }
+        if (key === 'downsampleMimeType') {
+            resolved.downsampleMimeType = normalizeImageMimeTypeOption(value, DEFAULT_OPTIONS.downsampleMimeType);
+            continue;
+        }
+        if (key === 'mergeMasksByDefault') {
+            resolved.mergeMasksByDefault = normalizeBoolean(value, DEFAULT_OPTIONS.mergeMasksByDefault);
+            continue;
+        }
+        if (key === 'mergeAnnotationsByDefault') {
+            resolved.mergeAnnotationsByDefault = normalizeBoolean(value, DEFAULT_OPTIONS.mergeAnnotationsByDefault);
+            continue;
+        }
+        if (key === 'maskRotatable') {
+            resolved.maskRotatable = normalizeBoolean(value, DEFAULT_OPTIONS.maskRotatable);
+            continue;
+        }
+        if (key === 'maskLabelOnSelect') {
+            resolved.maskLabelOnSelect = normalizeBoolean(value, DEFAULT_OPTIONS.maskLabelOnSelect);
+            continue;
+        }
+        if (key === 'maskName') {
+            resolved.maskName = normalizeString(value, DEFAULT_OPTIONS.maskName);
+            continue;
+        }
+        if (key === 'textAnnotationName') {
+            resolved.textAnnotationName = normalizeString(value, DEFAULT_OPTIONS.textAnnotationName);
+            continue;
+        }
+        if (key === 'drawAnnotationName') {
+            resolved.drawAnnotationName = normalizeString(value, DEFAULT_OPTIONS.drawAnnotationName);
+            continue;
+        }
+        if (key === 'groupSelection') {
+            resolved.groupSelection = normalizeBoolean(value, DEFAULT_OPTIONS.groupSelection);
+            continue;
+        }
+        if (key === 'showPlaceholder') {
+            resolved.showPlaceholder = normalizeBoolean(value, DEFAULT_OPTIONS.showPlaceholder);
+            continue;
+        }
+        if (key === 'initialImageBase64') {
+            resolved.initialImageBase64 = normalizeNullableString(value, DEFAULT_OPTIONS.initialImageBase64);
+            continue;
+        }
+        if (key === 'defaultDownloadFileName') {
+            resolved.defaultDownloadFileName = normalizeString(value, DEFAULT_OPTIONS.defaultDownloadFileName);
+            continue;
+        }
         if (key === 'downsampleQuality') {
             resolved.downsampleQuality = normalizeQualityOption(value);
             continue;
@@ -895,14 +1019,14 @@ function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop = {
-        aspectRatio: (_a = userCrop.aspectRatio) !== null && _a !== void 0 ? _a : DEFAULT_CROP.aspectRatio,
+        aspectRatio: normalizeCropAspectRatioOption(userCrop.aspectRatio),
         minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
         minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
         padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),
-        hideMasksDuringCrop: (_b = userCrop.hideMasksDuringCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_c = userCrop.preserveMasksAfterCrop) !== null && _c !== void 0 ? _c : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_d = userCrop.allowRotationOfCropRect) !== null && _d !== void 0 ? _d : DEFAULT_CROP.allowRotationOfCropRect,
-        exportFileType: (_e = userCrop.exportFileType) !== null && _e !== void 0 ? _e : DEFAULT_CROP.exportFileType,
+        hideMasksDuringCrop: normalizeBoolean(userCrop.hideMasksDuringCrop, DEFAULT_CROP.hideMasksDuringCrop),
+        preserveMasksAfterCrop: normalizeBoolean(userCrop.preserveMasksAfterCrop, DEFAULT_CROP.preserveMasksAfterCrop),
+        allowRotationOfCropRect: normalizeBoolean(userCrop.allowRotationOfCropRect, DEFAULT_CROP.allowRotationOfCropRect),
+        exportFileType: normalizeCropExportFileTypeOption(userCrop.exportFileType),
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);
@@ -1010,6 +1134,188 @@ function markSessionObject(object, sessionObjectType) {
     sessionObject.editorObjectKind = 'session';
     sessionObject.sessionObjectType = sessionObjectType;
     return sessionObject;
+}
+
+function fixPrototype(self, ctor) {
+    Object.setPrototypeOf(self, ctor.prototype);
+}
+class ImageDecodeError extends Error {
+    constructor(message = 'Failed to decode image data URL.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageDecodeError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, ImageDecodeError);
+    }
+}
+class ImageLoadTimeoutError extends Error {
+    constructor(label, elapsedMs) {
+        super(`Image load timed out after ${elapsedMs}ms during ${label}`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageLoadTimeoutError'
+        });
+        Object.defineProperty(this, "label", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "elapsedMs", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.label = label;
+        this.elapsedMs = elapsedMs;
+        fixPrototype(this, ImageLoadTimeoutError);
+    }
+}
+class DownsampleError extends Error {
+    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'DownsampleError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, DownsampleError);
+    }
+}
+class MergeMasksError extends Error {
+    constructor(message = 'Failed to merge masks into the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'MergeMasksError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, MergeMasksError);
+    }
+}
+class MergeAnnotationsError extends Error {
+    constructor(message = 'Failed to merge annotations into the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'MergeAnnotationsError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, MergeAnnotationsError);
+    }
+}
+class CropApplyError extends Error {
+    constructor(message = 'Failed to apply crop to the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'CropApplyError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, CropApplyError);
+    }
+}
+class StateRestoreError extends Error {
+    constructor(message = 'Failed to restore editor state.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'StateRestoreError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, StateRestoreError);
+    }
+}
+class ExportNotReadyError extends Error {
+    constructor(operation = 'exportImageFile') {
+        super(`Cannot ${operation}: no image is loaded on the canvas.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ExportNotReadyError'
+        });
+        Object.defineProperty(this, "operation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.operation = operation;
+        fixPrototype(this, ExportNotReadyError);
+    }
+}
+class ExportError extends Error {
+    constructor(message = 'Failed to export image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ExportError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, ExportError);
+    }
 }
 
 const SNAPSHOT_CUSTOM_KEYS = [
@@ -1190,7 +1496,13 @@ async function loadFromState(input) {
     var _a, _b;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
     const jsonString = typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
-    const json = JSON.parse(jsonString);
+    let json;
+    try {
+        json = JSON.parse(jsonString);
+    }
+    catch (error) {
+        throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
+    }
     if (typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&
@@ -1533,12 +1845,7 @@ function isAnnotationUnlocked(annotation) {
 }
 
 function setObjectProps(object, props) {
-    try {
-        object.set(props);
-    }
-    catch {
-        Object.assign(object, props);
-    }
+    object.set(props);
 }
 function readBoolean(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;
@@ -2126,6 +2433,7 @@ class HistoryManager {
         this.maxSize = maxSize;
     }
     async execute(command) {
+        this.assertCanPush();
         await command.execute();
         this.pushAndTrim(command);
     }
@@ -2168,7 +2476,13 @@ class HistoryManager {
             this.isProcessing = false;
         }
     }
+    assertCanPush() {
+        if (!this.isProcessing)
+            return;
+        throw new Error('Cannot push to history while undo/redo is in flight.');
+    }
     pushAndTrim(command) {
+        this.assertCanPush();
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }
@@ -2476,12 +2790,11 @@ function snapshotAnnotation(annotation) {
     });
 }
 function setAnnotationProps(annotation, props) {
-    try {
-        annotation.set(props);
-    }
-    catch {
-        Object.assign(annotation, props);
-    }
+    annotation.set(props);
+}
+function getCurrentAnnotationListCanvas(context) {
+    var _a, _b;
+    return (_b = (_a = context.getCanvas) === null || _a === void 0 ? void 0 : _a.call(context)) !== null && _b !== void 0 ? _b : context.canvas;
 }
 function updateTextAnnotation(annotation, config) {
     const props = {};
@@ -2609,11 +2922,11 @@ function removeAllAnnotations(context, options = {}) {
 }
 function renderAnnotationList(context) {
     const listEl = context.getListElement();
-    if (!listEl || !context.canvas)
+    const canvas = getCurrentAnnotationListCanvas(context);
+    if (!listEl || !canvas)
         return;
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
-    const canvas = context.canvas;
     orderAnnotationsForList(getAnnotations(canvas), context.listOrder).forEach((annotation) => {
         const item = ownerDocument.createElement('li');
         item.className = 'list-group-item annotation-item';
@@ -2623,10 +2936,13 @@ function renderAnnotationList(context) {
             const id = Number(item.dataset.annotationId);
             if (!Number.isFinite(id))
                 return;
-            const target = getAnnotations(canvas).find((candidate) => candidate.annotationId === id);
+            const liveCanvas = getCurrentAnnotationListCanvas(context);
+            if (!liveCanvas)
+                return;
+            const target = getAnnotations(liveCanvas).find((candidate) => candidate.annotationId === id);
             if (!target)
                 return;
-            canvas.setActiveObject(target);
+            liveCanvas.setActiveObject(target);
             context.onAnnotationSelected(target);
         });
         listEl.appendChild(item);
@@ -2890,169 +3206,6 @@ function applyDrawBrushSizeInputAction(access, size) {
         return;
     }
     access.setDrawBrushSize(size);
-}
-
-function fixPrototype(self, ctor) {
-    Object.setPrototypeOf(self, ctor.prototype);
-}
-class ImageDecodeError extends Error {
-    constructor(message = 'Failed to decode image data URL.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageDecodeError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, ImageDecodeError);
-    }
-}
-class ImageLoadTimeoutError extends Error {
-    constructor(label, elapsedMs) {
-        super(`Image load timed out after ${elapsedMs}ms during ${label}`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageLoadTimeoutError'
-        });
-        Object.defineProperty(this, "label", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "elapsedMs", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.label = label;
-        this.elapsedMs = elapsedMs;
-        fixPrototype(this, ImageLoadTimeoutError);
-    }
-}
-class DownsampleError extends Error {
-    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'DownsampleError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, DownsampleError);
-    }
-}
-class MergeMasksError extends Error {
-    constructor(message = 'Failed to merge masks into the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'MergeMasksError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, MergeMasksError);
-    }
-}
-class MergeAnnotationsError extends Error {
-    constructor(message = 'Failed to merge annotations into the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'MergeAnnotationsError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, MergeAnnotationsError);
-    }
-}
-class CropApplyError extends Error {
-    constructor(message = 'Failed to apply crop to the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'CropApplyError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, CropApplyError);
-    }
-}
-class ExportNotReadyError extends Error {
-    constructor(operation = 'exportImageFile') {
-        super(`Cannot ${operation}: no image is loaded on the canvas.`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ExportNotReadyError'
-        });
-        Object.defineProperty(this, "operation", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.operation = operation;
-        fixPrototype(this, ExportNotReadyError);
-    }
-}
-class ExportError extends Error {
-    constructor(message = 'Failed to export image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ExportError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, ExportError);
-    }
 }
 
 const CROP_RECT_FILL = 'rgba(0,0,0,0.12)';
@@ -7460,6 +7613,7 @@ class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
+            getCanvas: () => access.getCanvas(),
             getListElement: () => access.getMaskListElement(),
             listOrder: access.getOptions().maskListOrder,
             onMaskSelected: (mask) => {
@@ -7479,6 +7633,7 @@ class EditorContextFactory {
         const access = this.access;
         return {
             canvas: access.getCanvas(),
+            getCanvas: () => access.getCanvas(),
             getListElement: () => access.getAnnotationListElement(),
             listOrder: access.getOptions().annotationListOrder,
             onAnnotationSelected: (annotation) => {
@@ -8714,17 +8869,21 @@ function hideAllMaskLabels(context) {
     });
 }
 
+function getCurrentMaskListCanvas(context) {
+    var _a, _b;
+    return (_b = (_a = context.getCanvas) === null || _a === void 0 ? void 0 : _a.call(context)) !== null && _b !== void 0 ? _b : context.canvas;
+}
 function orderMasksForList(masks, order) {
     const ordered = masks.slice();
     return order === 'back-to-front' ? ordered : ordered.reverse();
 }
 function renderMaskList(context) {
     const listEl = context.getListElement();
-    if (!listEl || !context.canvas)
+    const canvas = getCurrentMaskListCanvas(context);
+    if (!listEl || !canvas)
         return;
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
-    const canvas = context.canvas;
     orderMasksForList(canvas.getObjects().filter(isMaskObject), context.listOrder).forEach((mask) => {
         const listItemElement = ownerDocument.createElement('li');
         listItemElement.className = 'list-group-item mask-item';
@@ -8734,12 +8893,15 @@ function renderMaskList(context) {
             const id = Number(listItemElement.dataset.maskId);
             if (!Number.isFinite(id))
                 return;
-            const target = canvas
+            const liveCanvas = getCurrentMaskListCanvas(context);
+            if (!liveCanvas)
+                return;
+            const target = liveCanvas
                 .getObjects()
                 .find((o) => isMaskObject(o) && o.maskId === id);
             if (!target)
                 return;
-            canvas.setActiveObject(target);
+            liveCanvas.setActiveObject(target);
             context.onMaskSelected(target);
         });
         listEl.appendChild(listItemElement);

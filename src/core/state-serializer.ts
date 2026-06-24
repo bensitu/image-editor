@@ -53,6 +53,7 @@ import type {
 } from './public-types.js';
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
+import { StateRestoreError } from './errors.js';
 
 // ─── Snapshot wire format ────────────────────────────────────────────────────
 
@@ -589,7 +590,12 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
     // 1. Normalize the snapshot to a canonical JSON string and parse.
     const jsonString =
         typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
-    const json: CanvasJson = JSON.parse(jsonString) as CanvasJson;
+    let json: CanvasJson;
+    try {
+        json = JSON.parse(jsonString) as CanvasJson;
+    } catch (error) {
+        throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
+    }
 
     // 2. restore canvas pixel dimensions before
     //    Fabric touches the canvas. Guard against malformed payloads

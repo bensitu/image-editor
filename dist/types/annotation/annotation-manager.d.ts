@@ -16,6 +16,11 @@ export interface AnnotationManagerContext {
 }
 export interface AnnotationListContext {
     canvas: FabricNS.Canvas | null;
+    /**
+     * Returns the current canvas reference at click time. When omitted, the
+     * list falls back to `canvas` for legacy unit contexts.
+     */
+    getCanvas?(): FabricNS.Canvas | null;
     getListElement(): HTMLElement | null | undefined;
     /**
      * DOM render order for the annotation list. 'front-to-back' mirrors

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.4.2] - 2026-06-25
+## [2.5.0] - 2026-06-25
 
 ### Added
 
@@ -26,13 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Normalize invalid runtime option values for top-level booleans, strings, downsample MIME, crop aspect ratio, crop booleans, and crop export format so unsupported values fall back to documented defaults.
 - Keep Text mode text creation active when clicking over non-text Fabric targets, including existing Draw annotations, so large draw strokes no longer block placing text inside their bounds.
 - Preserve Mask list and Annotation list selection highlights after layer-order actions rerender the lists, while keeping omitted list elements as safe no-ops.
+- Wrap malformed `loadFromState` snapshot JSON in a semantic `StateRestoreError` for clearer consumer diagnostics.
+- Propagate Fabric annotation setter failures instead of falling back to raw property assignment that can bypass Fabric dirty/coordinate updates.
+- Prevent `HistoryManager.push()` from appending commands while undo/redo is in flight.
+- Resolve Mask list and Annotation list click selection against the current canvas reference so stale list handlers cannot operate on a disposed canvas after reinitialization.
 
 ### Documentation
 
 - Link framework integration guides from the README and document ref-based mounting and responsive relayout APIs.
 - Document mask and annotation list ordering options and their sidebar-only effect.
+- Document the internal Context Bundle pattern used by feature modules.
 
 ## [2.4.1] - 2026-06-23
 

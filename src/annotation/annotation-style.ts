@@ -22,11 +22,7 @@ function setObjectProps(
     object: FabricNS.FabricObject,
     props: Partial<FabricNS.FabricObjectProps>,
 ): void {
-    try {
-        object.set(props);
-    } catch {
-        Object.assign(object, props);
-    }
+    object.set(props);
 }
 
 function readBoolean(value: unknown, fallback: boolean): boolean {

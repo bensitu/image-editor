@@ -59,12 +59,11 @@ function snapshotAnnotation(annotation) {
     });
 }
 function setAnnotationProps(annotation, props) {
-    try {
-        annotation.set(props);
-    }
-    catch {
-        Object.assign(annotation, props);
-    }
+    annotation.set(props);
+}
+function getCurrentAnnotationListCanvas(context) {
+    var _a, _b;
+    return (_b = (_a = context.getCanvas) === null || _a === void 0 ? void 0 : _a.call(context)) !== null && _b !== void 0 ? _b : context.canvas;
 }
 function updateTextAnnotation(annotation, config) {
     const props = {};
@@ -192,11 +191,11 @@ export function removeAllAnnotations(context, options = {}) {
 }
 export function renderAnnotationList(context) {
     const listEl = context.getListElement();
-    if (!listEl || !context.canvas)
+    const canvas = getCurrentAnnotationListCanvas(context);
+    if (!listEl || !canvas)
         return;
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
-    const canvas = context.canvas;
     orderAnnotationsForList(getAnnotations(canvas), context.listOrder).forEach((annotation) => {
         const item = ownerDocument.createElement('li');
         item.className = 'list-group-item annotation-item';
@@ -206,10 +205,13 @@ export function renderAnnotationList(context) {
             const id = Number(item.dataset.annotationId);
             if (!Number.isFinite(id))
                 return;
-            const target = getAnnotations(canvas).find((candidate) => candidate.annotationId === id);
+            const liveCanvas = getCurrentAnnotationListCanvas(context);
+            if (!liveCanvas)
+                return;
+            const target = getAnnotations(liveCanvas).find((candidate) => candidate.annotationId === id);
             if (!target)
                 return;
-            canvas.setActiveObject(target);
+            liveCanvas.setActiveObject(target);
             context.onAnnotationSelected(target);
         });
         listEl.appendChild(item);

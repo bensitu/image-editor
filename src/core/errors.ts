@@ -193,6 +193,25 @@ export class CropApplyError extends Error {
 }
 
 /**
+ * Raised by `core/state-serializer.ts.loadFromState` when a snapshot cannot
+ * be parsed or restored as editor state.
+ *
+ * Surfaces to consumer as: rejection of the `loadFromState` promise.
+ */
+export class StateRestoreError extends Error {
+    public override readonly name = 'StateRestoreError';
+
+    /** Original parser or Fabric restore error. */
+    public readonly originalError: unknown;
+
+    constructor(message = 'Failed to restore editor state.', originalError: unknown = null) {
+        super(message);
+        this.originalError = originalError;
+        fixPrototype(this, StateRestoreError);
+    }
+}
+
+/**
  * Raised by `export/export-service.ts.exportImageFile` when
  * `isImageLoaded` is `false`. A console warning naming the missing image
  * is emitted alongside the rejection.

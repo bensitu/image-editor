@@ -120,6 +120,18 @@ export declare class CropApplyError extends Error {
     constructor(message?: string, originalError?: unknown);
 }
 /**
+ * Raised by `core/state-serializer.ts.loadFromState` when a snapshot cannot
+ * be parsed or restored as editor state.
+ *
+ * Surfaces to consumer as: rejection of the `loadFromState` promise.
+ */
+export declare class StateRestoreError extends Error {
+    readonly name = "StateRestoreError";
+    /** Original parser or Fabric restore error. */
+    readonly originalError: unknown;
+    constructor(message?: string, originalError?: unknown);
+}
+/**
  * Raised by `export/export-service.ts.exportImageFile` when
  * `isImageLoaded` is `false`. A console warning naming the missing image
  * is emitted alongside the rejection.

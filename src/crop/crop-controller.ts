@@ -225,7 +225,7 @@ export interface CropControllerContext {
     readonly canvas: FabricNS.Canvas;
     /** Resolved editor options — supplies `crop.padding`, `crop.minWidth`,
      *  `crop.minHeight`, `crop.allowRotationOfCropRect`, and
-     *  `downsampleQuality` (used as the cropped JPEG export quality). */
+     *  `downsampleQuality` (used as the lossy crop export fallback quality). */
     readonly options: ResolvedOptions;
     /** History manager that records the single crop command on success. */
     readonly historyManager: HistoryManager;
@@ -336,10 +336,7 @@ function finiteNumberOrFallback(value: unknown, fallback: number): number {
 }
 
 /**
- * Clamp the cropped JPEG export quality to `[0, 1]`. Matches legacy's
- * `_normalizeQuality`. A non-finite input falls back to the constant
- * fallback so `canvas.toDataURL` never receives `NaN`.
- *
+ * Map the current committed image MIME type to Fabric's export format token.
  */
 function imageMimeToFormat(mimeType: ImageMimeType | null): NormalizedImageFormat | null {
     if (mimeType === 'image/jpeg') return 'jpeg';
@@ -348,6 +345,9 @@ function imageMimeToFormat(mimeType: ImageMimeType | null): NormalizedImageForma
     return null;
 }
 
+/**
+ * Resolve lossy crop export quality to `[0, 1]` for JPEG/WebP outputs.
+ */
 function resolveLossyCropQuality(cropExportQuality: unknown, downsampleQuality: unknown): number {
     const cropQuality = Number(cropExportQuality);
     if (Number.isFinite(cropQuality)) {
@@ -530,7 +530,7 @@ function teardownSession(context: CropControllerContext, session: CropSession): 
  *
  * - `mask` — the live Fabric mask object. Removed from the canvas by
  *   {@link capturePreservedMasks} so the export does not bake the mask
- *   into the cropped JPEG (and so the inner `context.loadImage` clear does
+ *   into the cropped intermediate image (and so the inner `context.loadImage` clear does
  *   not dispose the captured reference); re-added by
  *   {@link reapplyPreservedMasks}.
  * - `left`, `top` — the mask's pre-crop top-left coordinates in canvas
@@ -583,7 +583,7 @@ function maskIntersectsRegion(
 /**
  * Capture every mask whose bounding rect intersects `cropRegion`,
  * record its pre-crop `left`, `top`, `angle`, `scaleX`, `scaleY`, and
- * remove it from the canvas so the cropped JPEG export does not bake
+ * remove it from the canvas so the cropped intermediate image export does not bake
  * the mask in (and so the inner `context.loadImage`'s `canvas.clear` does
  * not dispose the captured Fabric reference).
  *
@@ -1370,7 +1370,7 @@ export function cancelCrop(context: CropControllerContext): void {
 // ─── applyCrop ──────────────────────────────────────────────────────────────
 
 /**
- * Apply the active crop session: export the crop region as a JPEG data
+ * Apply the active crop session: export the crop region as an intermediate data
  * URL, reload it as the new base image through the transactional
  * loader, and push exactly one history entry whose `undo` restores the
  * pre-crop snapshot and whose `execute` re-applies the post-crop
@@ -1393,7 +1393,7 @@ export function cancelCrop(context: CropControllerContext): void {
  * 3a. **Capture preserved masks** — when
  *    `options.crop.preserveMasksAfterCrop === true`, capture each mask's
  *    pre-crop `left`, `top`, `angle`, `scaleX`, and `scaleY`, then
- *    remove the masks from the canvas so the cropped JPEG export does
+ *    remove the masks from the canvas so the cropped intermediate image export does
  *    not bake them in (and so the inner `context.loadImage`'s
  *    `canvas.clear` does not dispose the captured reference). Masks
  *    fully outside the crop region are removed without a record so
@@ -1408,8 +1408,8 @@ export function cancelCrop(context: CropControllerContext): void {
  *    the cropped image is exported.
  * 6. **Export the crop region** via `canvas.toDataURL` with the
  *    integer region as `left` / `top` / `width` / `height` (matches
- *    legacy's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
- *    at the configured downsample quality.
+ *    legacy's `_exportCanvasRegionToDataURL`). The cropped image uses the resolved crop export
+ *    format and lossy quality when applicable.
  * 7. **Reload the cropped image** through `context.loadImage`. The
  *    transactional loader either commits the new image or rolls back —
  *    a failure propagates here so the rollback path below catches it.
@@ -1490,7 +1490,7 @@ export async function applyCrop(context: CropControllerContext): Promise<void> {
         //     `preserveMasksAfterCrop` is `true`, capture each mask's
         //     pre-crop `left`, `top`, `angle`, `scaleX`, `scaleY`
         //     BEFORE the export and remove the masks from the canvas
-        //     so the cropped JPEG does not bake them in. Removing the
+        //     so the cropped intermediate image does not bake them in. Removing the
         //     masks BEFORE `context.loadImage` also keeps the captured
         //     Fabric reference alive across the loader's `canvas.clear`
         //     call (the masks are detached from the canvas but the
@@ -1508,7 +1508,7 @@ export async function applyCrop(context: CropControllerContext): Promise<void> {
             : [];
 
         // 4. Tear down session in place. Restoring per-object evented and
-        //    selectable BEFORE the export means the cropped JPEG sees
+        //    selectable BEFORE the export means the cropped intermediate image sees
         //    masks (and any other interactive objects) in their original
         //    visual state. Removing the crop rectangle here also keeps
         //    it out of the exported region.

@@ -186,7 +186,7 @@ export interface CropControllerContext {
     readonly canvas: FabricNS.Canvas;
     /** Resolved editor options — supplies `crop.padding`, `crop.minWidth`,
      *  `crop.minHeight`, `crop.allowRotationOfCropRect`, and
-     *  `downsampleQuality` (used as the cropped JPEG export quality). */
+     *  `downsampleQuality` (used as the lossy crop export fallback quality). */
     readonly options: ResolvedOptions;
     /** History manager that records the single crop command on success. */
     readonly historyManager: HistoryManager;
@@ -325,7 +325,7 @@ export declare function setCropAspectRatio(context: CropControllerContext, aspec
  */
 export declare function cancelCrop(context: CropControllerContext): void;
 /**
- * Apply the active crop session: export the crop region as a JPEG data
+ * Apply the active crop session: export the crop region as an intermediate data
  * URL, reload it as the new base image through the transactional
  * loader, and push exactly one history entry whose `undo` restores the
  * pre-crop snapshot and whose `execute` re-applies the post-crop
@@ -348,7 +348,7 @@ export declare function cancelCrop(context: CropControllerContext): void;
  * 3a. **Capture preserved masks** — when
  *    `options.crop.preserveMasksAfterCrop === true`, capture each mask's
  *    pre-crop `left`, `top`, `angle`, `scaleX`, and `scaleY`, then
- *    remove the masks from the canvas so the cropped JPEG export does
+ *    remove the masks from the canvas so the cropped intermediate image export does
  *    not bake them in (and so the inner `context.loadImage`'s
  *    `canvas.clear` does not dispose the captured reference). Masks
  *    fully outside the crop region are removed without a record so
@@ -363,8 +363,8 @@ export declare function cancelCrop(context: CropControllerContext): void;
  *    the cropped image is exported.
  * 6. **Export the crop region** via `canvas.toDataURL` with the
  *    integer region as `left` / `top` / `width` / `height` (matches
- *    legacy's `_exportCanvasRegionToDataURL`). The cropped image is JPEG
- *    at the configured downsample quality.
+ *    legacy's `_exportCanvasRegionToDataURL`). The cropped image uses the resolved crop export
+ *    format and lossy quality when applicable.
  * 7. **Reload the cropped image** through `context.loadImage`. The
  *    transactional loader either commits the new image or rolls back —
  *    a failure propagates here so the rollback path below catches it.

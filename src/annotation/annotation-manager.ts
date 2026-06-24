@@ -32,6 +32,11 @@ export interface AnnotationManagerContext {
 
 export interface AnnotationListContext {
     canvas: FabricNS.Canvas | null;
+    /**
+     * Returns the current canvas reference at click time. When omitted, the
+     * list falls back to `canvas` for legacy unit contexts.
+     */
+    getCanvas?(): FabricNS.Canvas | null;
     getListElement(): HTMLElement | null | undefined;
     /**
      * DOM render order for the annotation list. 'front-to-back' mirrors
@@ -109,11 +114,11 @@ function setAnnotationProps(
     annotation: AnnotationObject,
     props: Partial<FabricNS.FabricObjectProps> & Record<string, unknown>,
 ): void {
-    try {
-        annotation.set(props);
-    } catch {
-        Object.assign(annotation, props);
-    }
+    annotation.set(props);
+}
+
+function getCurrentAnnotationListCanvas(context: AnnotationListContext): FabricNS.Canvas | null {
+    return context.getCanvas?.() ?? context.canvas;
 }
 
 function updateTextAnnotation(
@@ -269,11 +274,11 @@ export function removeAllAnnotations(
 
 export function renderAnnotationList(context: AnnotationListContext): void {
     const listEl = context.getListElement();
-    if (!listEl || !context.canvas) return;
+    const canvas = getCurrentAnnotationListCanvas(context);
+    if (!listEl || !canvas) return;
     const ownerDocument = listEl.ownerDocument;
 
     listEl.innerHTML = '';
-    const canvas = context.canvas;
     orderAnnotationsForList(getAnnotations(canvas), context.listOrder).forEach((annotation) => {
         const item = ownerDocument.createElement('li');
         item.className = 'list-group-item annotation-item';
@@ -282,11 +287,13 @@ export function renderAnnotationList(context: AnnotationListContext): void {
         item.addEventListener('click', () => {
             const id = Number(item.dataset.annotationId);
             if (!Number.isFinite(id)) return;
-            const target = getAnnotations(canvas).find(
+            const liveCanvas = getCurrentAnnotationListCanvas(context);
+            if (!liveCanvas) return;
+            const target = getAnnotations(liveCanvas).find(
                 (candidate) => candidate.annotationId === id,
             );
             if (!target) return;
-            canvas.setActiveObject(target);
+            liveCanvas.setActiveObject(target);
             context.onAnnotationSelected(target);
         });
         listEl.appendChild(item);

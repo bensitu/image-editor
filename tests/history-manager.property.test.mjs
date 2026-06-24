@@ -447,6 +447,39 @@ test('isProcessing lock makes overlapping undo/redo calls no-ops', async () => {
     );
 });
 
+test('push rejects while undo or redo is in flight', async () => {
+    const undoManager = new HistoryManager(10);
+    const undoTracker = freshTracker();
+    undoManager.push(makeTrackedCommand(1, undoTracker, { undoDelay: 20 }));
+
+    const undoPromise = undoManager.undo();
+    assert.throws(
+        () => undoManager.push(makeTrackedCommand(2, undoTracker)),
+        /Cannot push to history while undo\/redo is in flight\./,
+    );
+    await withTimeout(undoPromise, 250, 'guarded undo');
+
+    assert.equal(undoManager.history.length, 1);
+    assert.equal(undoManager.currentIndex, -1);
+    assert.deepEqual(undoTracker.undos, [1]);
+
+    const redoManager = new HistoryManager(10);
+    const redoTracker = freshTracker();
+    redoManager.push(makeTrackedCommand(3, redoTracker, { executeDelay: 20 }));
+    await redoManager.undo();
+
+    const redoPromise = redoManager.redo();
+    assert.throws(
+        () => redoManager.push(makeTrackedCommand(4, redoTracker)),
+        /Cannot push to history while undo\/redo is in flight\./,
+    );
+    await withTimeout(redoPromise, 250, 'guarded redo');
+
+    assert.equal(redoManager.history.length, 1);
+    assert.equal(redoManager.currentIndex, 0);
+    assert.deepEqual(redoTracker.executes, [3]);
+});
+
 test('failed undo()/redo() leaves currentIndex unchanged and releases the lock', async () => {
     await fc.assert(
         fc.asyncProperty(

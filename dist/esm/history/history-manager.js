@@ -45,6 +45,7 @@ export class HistoryManager {
         this.maxSize = maxSize;
     }
     async execute(command) {
+        this.assertCanPush();
         await command.execute();
         this.pushAndTrim(command);
     }
@@ -87,7 +88,13 @@ export class HistoryManager {
             this.isProcessing = false;
         }
     }
+    assertCanPush() {
+        if (!this.isProcessing)
+            return;
+        throw new Error('Cannot push to history while undo/redo is in flight.');
+    }
     pushAndTrim(command) {
+        this.assertCanPush();
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }

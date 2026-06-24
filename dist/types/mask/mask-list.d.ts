@@ -72,6 +72,11 @@ export interface MaskListContext {
      */
     canvas: FabricNS.Canvas | null;
     /**
+     * Returns the current canvas reference at click time. When omitted, the
+     * list falls back to `canvas` for legacy unit contexts.
+     */
+    getCanvas?(): FabricNS.Canvas | null;
+    /**
      * Returns the resolved mask list container element, or a falsy value when the integrator omitted `maskList` from the element map.
      */
     getListElement(): HTMLElement | null | undefined;

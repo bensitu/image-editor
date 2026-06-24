@@ -75,6 +75,11 @@ export interface MaskListContext {
      */
     canvas: FabricNS.Canvas | null;
     /**
+     * Returns the current canvas reference at click time. When omitted, the
+     * list falls back to `canvas` for legacy unit contexts.
+     */
+    getCanvas?(): FabricNS.Canvas | null;
+    /**
      * Returns the resolved mask list container element, or a falsy value when the integrator omitted `maskList` from the element map.
      */
     getListElement(): HTMLElement | null | undefined;
@@ -90,6 +95,10 @@ export interface MaskListContext {
      * does for canvas-originated selections.
      */
     onMaskSelected(mask: MaskObject): void;
+}
+
+function getCurrentMaskListCanvas(context: MaskListContext): FabricNS.Canvas | null {
+    return context.getCanvas?.() ?? context.canvas;
 }
 
 function orderMasksForList(
@@ -132,15 +141,14 @@ function orderMasksForList(
  */
 export function renderMaskList(context: MaskListContext): void {
     const listEl = context.getListElement();
-    if (!listEl || !context.canvas) return;
+    const canvas = getCurrentMaskListCanvas(context);
+    if (!listEl || !canvas) return;
     const ownerDocument = listEl.ownerDocument;
 
     // Drop the previous DOM (and, by detaching the nodes, every click
     // handler we attached below). Rebuilding from scratch keeps the list in
     // exact sync with the configured list order without any incremental diff.
     listEl.innerHTML = '';
-
-    const canvas = context.canvas;
 
     orderMasksForList(canvas.getObjects().filter(isMaskObject), context.listOrder).forEach(
         (mask) => {
@@ -153,17 +161,18 @@ export function renderMaskList(context: MaskListContext): void {
             listItemElement.dataset.maskId = String(mask.maskId);
 
             listItemElement.addEventListener('click', () => {
-                // select by maskId lookup, NOT by list
-                // position. Re-read `canvas.getObjects` at click time so the
-                // lookup tolerates objects that were re-ordered or removed
-                // between render and click.
+                // select by maskId lookup, NOT by list position. Resolve the
+                // current canvas at click time so the lookup tolerates objects
+                // that were re-ordered, removed, or reinitialized after render.
                 const id = Number(listItemElement.dataset.maskId);
                 if (!Number.isFinite(id)) return;
-                const target = canvas
+                const liveCanvas = getCurrentMaskListCanvas(context);
+                if (!liveCanvas) return;
+                const target = liveCanvas
                     .getObjects()
                     .find((o) => isMaskObject(o) && o.maskId === id) as MaskObject | undefined;
                 if (!target) return;
-                canvas.setActiveObject(target);
+                liveCanvas.setActiveObject(target);
                 context.onMaskSelected(target);
             });
 

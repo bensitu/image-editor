@@ -1,12 +1,7 @@
 import { isTextAnnotationObject, } from '../core/public-types.js';
 import { isAnnotationLocked } from './annotation-lock.js';
 function setObjectProps(object, props) {
-    try {
-        object.set(props);
-    }
-    catch {
-        Object.assign(object, props);
-    }
+    object.set(props);
 }
 function readBoolean(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;

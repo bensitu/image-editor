@@ -1,5 +1,6 @@
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
+import { StateRestoreError } from './errors.js';
 export const SNAPSHOT_CUSTOM_KEYS = [
     'editorObjectKind',
     'sessionObjectType',
@@ -178,7 +179,13 @@ export async function loadFromState(input) {
     var _a, _b;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
     const jsonString = typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
-    const json = JSON.parse(jsonString);
+    let json;
+    try {
+        json = JSON.parse(jsonString);
+    }
+    catch (error) {
+        throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
+    }
     if (typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&

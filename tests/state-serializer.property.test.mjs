@@ -44,6 +44,7 @@ import fc from 'fast-check';
 
 const { saveState, loadFromState, SNAPSHOT_CUSTOM_KEYS } =
     await import('../src/core/state-serializer.ts');
+const { StateRestoreError } = await import('../src/core/errors.ts');
 
 // ─── Mock Fabric canvas ─────────────────────────────────────────────────────
 
@@ -129,8 +130,27 @@ function makeSetCanvasSize(canvas) {
     };
 }
 
-// ─── Arbitraries ────────────────────────────────────────────────────────────
+test('loadFromState wraps malformed JSON in StateRestoreError', async () => {
+    const canvas = new MockCanvas();
 
+    await assert.rejects(
+        () =>
+            loadFromState({
+                canvas,
+                jsonString: '{"objects":[',
+                setCanvasSize: makeSetCanvasSize(canvas),
+            }),
+        (error) => {
+            assert.equal(error instanceof StateRestoreError, true);
+            assert.equal(error.name, 'StateRestoreError');
+            assert.equal(error.message, 'loadFromState: snapshot JSON is malformed.');
+            assert.equal(error.originalError instanceof SyntaxError, true);
+            return true;
+        },
+    );
+});
+
+// ─── Arbitraries ────────────────────────────────────────────────────────────
 const dimensionArb = fc.record({
     width: fc.integer({ min: 320, max: 800 }),
     height: fc.integer({ min: 240, max: 600 }),

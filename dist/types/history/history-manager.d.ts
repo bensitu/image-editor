@@ -20,6 +20,12 @@
  *  was so the next click retries the same step instead of skipping past
  *  a failed restore.
  *
+ *  • {@link HistoryManager.push} and {@link HistoryManager.execute}
+ *  refuse to append a new command while an `undo` / `redo` is in
+ *  flight. The integrated editor normally prevents this via its
+ *  operation guard, and the history class enforces the same invariant
+ *  when used directly.
+ *
  *  • When the stack overflows past `maxSize`, the oldest entry is evicted
  *  and `currentIndex` stays the same numerically (the entry it pointed to
  *  has shifted one slot toward the front).
@@ -87,6 +93,8 @@ export declare class HistoryManager {
      * Pushes a command onto the history stack **without** calling
      * `execute`. Use this when the operation has already been performed
      * (for example `applyCrop`) and only the undo/redo wiring is needed.
+     *
+     * Throws when an `undo` / `redo` operation is already in flight.
      */
     push(command: Command): void;
     /** Returns `true` if there is at least one action to undo. */
@@ -112,6 +120,7 @@ export declare class HistoryManager {
      * advances after the awaited `command.execute` settles successfully.
      */
     redo(): Promise<void>;
+    private assertCanPush;
     /**
      * Shared push/trim path for {@link execute} and {@link push}.
      *

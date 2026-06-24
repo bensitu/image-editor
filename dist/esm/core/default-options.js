@@ -262,6 +262,71 @@ function normalizeExportArea(value) {
 function normalizeOverlayListOrder(value, fallback) {
     return value === 'front-to-back' || value === 'back-to-front' ? value : fallback;
 }
+function isImageMimeType(value) {
+    return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
+}
+function normalizeImageMimeTypeOption(value, fallback) {
+    if (value === null)
+        return null;
+    return isImageMimeType(value) ? value : fallback;
+}
+function normalizeNullableString(value, fallback) {
+    if (value === null)
+        return null;
+    return typeof value === 'string' ? value : fallback;
+}
+const CROP_ASPECT_RATIO_PRESETS = new Set([
+    'free',
+    '1:1',
+    '3:4',
+    '4:3',
+    '3:2',
+    '2:3',
+    '9:16',
+    '16:9',
+]);
+function hasValidCropRatioParts(width, height) {
+    return (typeof width === 'number' &&
+        typeof height === 'number' &&
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0);
+}
+function normalizeCropAspectRatioOption(value) {
+    if (value === undefined || value === null)
+        return DEFAULT_CROP.aspectRatio;
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value > 0 ? value : DEFAULT_CROP.aspectRatio;
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (CROP_ASPECT_RATIO_PRESETS.has(trimmed))
+            return trimmed;
+        const parts = trimmed.split(':');
+        if (parts.length === 2) {
+            const width = Number(parts[0]);
+            const height = Number(parts[1]);
+            if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+                return trimmed;
+            }
+        }
+        return DEFAULT_CROP.aspectRatio;
+    }
+    if (isConfigObject(value) && hasValidCropRatioParts(value.width, value.height)) {
+        return { width: value.width, height: value.height };
+    }
+    return DEFAULT_CROP.aspectRatio;
+}
+function normalizeCropExportFileTypeOption(value) {
+    if (value === undefined || value === null)
+        return DEFAULT_CROP.exportFileType;
+    if (value === 'source')
+        return 'source';
+    return typeof value === 'string' && tryNormalizeImageFormat(value)
+        ? value
+        : DEFAULT_CROP.exportFileType;
+}
 function normalizeOptionalQuality(value) {
     if (value === undefined || value === null)
         return undefined;
@@ -590,7 +655,6 @@ export function getInvalidDrawConfigFields(input) {
     return invalid;
 }
 export function resolveOptions(input) {
-    var _a, _b, _c, _d, _e;
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
     for (const key of Object.keys(raw)) {
@@ -619,6 +683,66 @@ export function resolveOptions(input) {
         const value = raw[key];
         if (value === undefined)
             continue;
+        if (key === 'backgroundColor') {
+            resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
+            continue;
+        }
+        if (key === 'downsampleOnLoad') {
+            resolved.downsampleOnLoad = normalizeBoolean(value, DEFAULT_OPTIONS.downsampleOnLoad);
+            continue;
+        }
+        if (key === 'preserveSourceFormat') {
+            resolved.preserveSourceFormat = normalizeBoolean(value, DEFAULT_OPTIONS.preserveSourceFormat);
+            continue;
+        }
+        if (key === 'downsampleMimeType') {
+            resolved.downsampleMimeType = normalizeImageMimeTypeOption(value, DEFAULT_OPTIONS.downsampleMimeType);
+            continue;
+        }
+        if (key === 'mergeMasksByDefault') {
+            resolved.mergeMasksByDefault = normalizeBoolean(value, DEFAULT_OPTIONS.mergeMasksByDefault);
+            continue;
+        }
+        if (key === 'mergeAnnotationsByDefault') {
+            resolved.mergeAnnotationsByDefault = normalizeBoolean(value, DEFAULT_OPTIONS.mergeAnnotationsByDefault);
+            continue;
+        }
+        if (key === 'maskRotatable') {
+            resolved.maskRotatable = normalizeBoolean(value, DEFAULT_OPTIONS.maskRotatable);
+            continue;
+        }
+        if (key === 'maskLabelOnSelect') {
+            resolved.maskLabelOnSelect = normalizeBoolean(value, DEFAULT_OPTIONS.maskLabelOnSelect);
+            continue;
+        }
+        if (key === 'maskName') {
+            resolved.maskName = normalizeString(value, DEFAULT_OPTIONS.maskName);
+            continue;
+        }
+        if (key === 'textAnnotationName') {
+            resolved.textAnnotationName = normalizeString(value, DEFAULT_OPTIONS.textAnnotationName);
+            continue;
+        }
+        if (key === 'drawAnnotationName') {
+            resolved.drawAnnotationName = normalizeString(value, DEFAULT_OPTIONS.drawAnnotationName);
+            continue;
+        }
+        if (key === 'groupSelection') {
+            resolved.groupSelection = normalizeBoolean(value, DEFAULT_OPTIONS.groupSelection);
+            continue;
+        }
+        if (key === 'showPlaceholder') {
+            resolved.showPlaceholder = normalizeBoolean(value, DEFAULT_OPTIONS.showPlaceholder);
+            continue;
+        }
+        if (key === 'initialImageBase64') {
+            resolved.initialImageBase64 = normalizeNullableString(value, DEFAULT_OPTIONS.initialImageBase64);
+            continue;
+        }
+        if (key === 'defaultDownloadFileName') {
+            resolved.defaultDownloadFileName = normalizeString(value, DEFAULT_OPTIONS.defaultDownloadFileName);
+            continue;
+        }
         if (key === 'downsampleQuality') {
             resolved.downsampleQuality = normalizeQualityOption(value);
             continue;
@@ -743,14 +867,14 @@ export function resolveOptions(input) {
     Object.freeze(label);
     const userCrop = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop = {
-        aspectRatio: (_a = userCrop.aspectRatio) !== null && _a !== void 0 ? _a : DEFAULT_CROP.aspectRatio,
+        aspectRatio: normalizeCropAspectRatioOption(userCrop.aspectRatio),
         minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
         minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
         padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),
-        hideMasksDuringCrop: (_b = userCrop.hideMasksDuringCrop) !== null && _b !== void 0 ? _b : DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop: (_c = userCrop.preserveMasksAfterCrop) !== null && _c !== void 0 ? _c : DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect: (_d = userCrop.allowRotationOfCropRect) !== null && _d !== void 0 ? _d : DEFAULT_CROP.allowRotationOfCropRect,
-        exportFileType: (_e = userCrop.exportFileType) !== null && _e !== void 0 ? _e : DEFAULT_CROP.exportFileType,
+        hideMasksDuringCrop: normalizeBoolean(userCrop.hideMasksDuringCrop, DEFAULT_CROP.hideMasksDuringCrop),
+        preserveMasksAfterCrop: normalizeBoolean(userCrop.preserveMasksAfterCrop, DEFAULT_CROP.preserveMasksAfterCrop),
+        allowRotationOfCropRect: normalizeBoolean(userCrop.allowRotationOfCropRect, DEFAULT_CROP.allowRotationOfCropRect),
+        exportFileType: normalizeCropExportFileTypeOption(userCrop.exportFileType),
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);

@@ -426,8 +426,6 @@ export interface LabelConfig {
 
 /**
  * Crop-mode configuration. Defaults are applied by `core/default-options.ts`.
- *
- * Defaults are applied by `core/default-options.ts`.
  */
 export interface CropConfig {
     /**

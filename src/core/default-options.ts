@@ -3,22 +3,23 @@
  * runtime {@link ResolvedOptions} object used by the editor.
  *
  * Behavior is defined by the documented option-resolution rules: every
- * required option falls back to a default, nested `label.textOptions` and
- * `crop` values merge with their defaults, callback values normalize to a
- * function or `null`, unknown top-level keys are ignored, top-level scalar
- * values remain internally mutable for controlled updates such as
- * `setLayoutMode()` stores its runtime mode separately, and returned
- * option objects are frozen.
+ * required option falls back to a default, runtime values normalize to the
+ * supported public value space, nested config objects merge with their
+ * defaults, callback values normalize to a function or `null`, unknown
+ * top-level keys are ignored, and returned option objects are frozen.
  *
  * @module
  */
 
 import type {
+    CropAspectRatio,
     CropConfig,
+    CropExportFileType,
     DefaultMaskConfig,
     DrawConfig,
     ExportArea,
     ImageEditorOptions,
+    ImageMimeType,
     LabelConfig,
     LayoutMode,
     MosaicConfig,
@@ -373,6 +374,83 @@ function normalizeExportArea(value: unknown): ExportArea {
 
 function normalizeOverlayListOrder(value: unknown, fallback: OverlayListOrder): OverlayListOrder {
     return value === 'front-to-back' || value === 'back-to-front' ? value : fallback;
+}
+
+function isImageMimeType(value: unknown): value is ImageMimeType {
+    return value === 'image/jpeg' || value === 'image/png' || value === 'image/webp';
+}
+
+function normalizeImageMimeTypeOption(
+    value: unknown,
+    fallback: ImageMimeType | null,
+): ImageMimeType | null {
+    if (value === null) return null;
+    return isImageMimeType(value) ? value : fallback;
+}
+
+function normalizeNullableString(value: unknown, fallback: string | null): string | null {
+    if (value === null) return null;
+    return typeof value === 'string' ? value : fallback;
+}
+
+const CROP_ASPECT_RATIO_PRESETS: ReadonlySet<string> = new Set([
+    'free',
+    '1:1',
+    '3:4',
+    '4:3',
+    '3:2',
+    '2:3',
+    '9:16',
+    '16:9',
+]);
+
+function hasValidCropRatioParts(width: unknown, height: unknown): boolean {
+    return (
+        typeof width === 'number' &&
+        typeof height === 'number' &&
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0
+    );
+}
+
+function normalizeCropAspectRatioOption(value: unknown): CropAspectRatio {
+    if (value === undefined || value === null) return DEFAULT_CROP.aspectRatio;
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value > 0 ? value : DEFAULT_CROP.aspectRatio;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (CROP_ASPECT_RATIO_PRESETS.has(trimmed)) return trimmed as CropAspectRatio;
+
+        const parts = trimmed.split(':');
+        if (parts.length === 2) {
+            const width = Number(parts[0]);
+            const height = Number(parts[1]);
+            if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+                return trimmed as CropAspectRatio;
+            }
+        }
+
+        return DEFAULT_CROP.aspectRatio;
+    }
+
+    if (isConfigObject(value) && hasValidCropRatioParts(value.width, value.height)) {
+        return { width: value.width as number, height: value.height as number };
+    }
+
+    return DEFAULT_CROP.aspectRatio;
+}
+
+function normalizeCropExportFileTypeOption(value: unknown): CropExportFileType {
+    if (value === undefined || value === null) return DEFAULT_CROP.exportFileType;
+    if (value === 'source') return 'source';
+    return typeof value === 'string' && tryNormalizeImageFormat(value)
+        ? (value as CropExportFileType)
+        : DEFAULT_CROP.exportFileType;
 }
 
 function normalizeOptionalQuality(value: unknown): number | undefined {
@@ -807,12 +885,14 @@ export function getInvalidDrawConfigFields(input: DrawConfig): string[] {
  * {@link ResolvedOptions} object.
  *
  * Behavior matrix:
- *  - Every top-level key is taken from `input` when supplied, else from
- *    {@link DEFAULT_OPTIONS}.
+ *  - Every recognized top-level key starts from {@link DEFAULT_OPTIONS}; user
+ *    values override it only after type / value normalization.
+ *  - Invalid scalar, enum, and boolean runtime values fall back to the
+ *    documented defaults instead of entering the resolved runtime options.
  *  - `label.textOptions` is deep-merged with {@link DEFAULT_LABEL_TEXT_OPTIONS}
  *    so user keys override defaults and unspecified keys remain.
- *  - `crop.*` is shallow-merged with {@link DEFAULT_CROP} so each field falls
- *    back to its documented default when unspecified.
+ *  - `crop.*` is shallow-merged with {@link DEFAULT_CROP}; invalid field values
+ *    fall back to their documented defaults.
  *  - Callback values are normalized: function values are kept, anything
  *    else becomes `null`.
  *  - Unknown top-level keys are silently dropped.
@@ -861,6 +941,90 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
 
         const value = raw[key];
         if (value === undefined) continue;
+        if (key === 'backgroundColor') {
+            resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
+            continue;
+        }
+        if (key === 'downsampleOnLoad') {
+            resolved.downsampleOnLoad = normalizeBoolean(value, DEFAULT_OPTIONS.downsampleOnLoad);
+            continue;
+        }
+        if (key === 'preserveSourceFormat') {
+            resolved.preserveSourceFormat = normalizeBoolean(
+                value,
+                DEFAULT_OPTIONS.preserveSourceFormat,
+            );
+            continue;
+        }
+        if (key === 'downsampleMimeType') {
+            resolved.downsampleMimeType = normalizeImageMimeTypeOption(
+                value,
+                DEFAULT_OPTIONS.downsampleMimeType,
+            );
+            continue;
+        }
+        if (key === 'mergeMasksByDefault') {
+            resolved.mergeMasksByDefault = normalizeBoolean(
+                value,
+                DEFAULT_OPTIONS.mergeMasksByDefault,
+            );
+            continue;
+        }
+        if (key === 'mergeAnnotationsByDefault') {
+            resolved.mergeAnnotationsByDefault = normalizeBoolean(
+                value,
+                DEFAULT_OPTIONS.mergeAnnotationsByDefault,
+            );
+            continue;
+        }
+        if (key === 'maskRotatable') {
+            resolved.maskRotatable = normalizeBoolean(value, DEFAULT_OPTIONS.maskRotatable);
+            continue;
+        }
+        if (key === 'maskLabelOnSelect') {
+            resolved.maskLabelOnSelect = normalizeBoolean(value, DEFAULT_OPTIONS.maskLabelOnSelect);
+            continue;
+        }
+        if (key === 'maskName') {
+            resolved.maskName = normalizeString(value, DEFAULT_OPTIONS.maskName);
+            continue;
+        }
+        if (key === 'textAnnotationName') {
+            resolved.textAnnotationName = normalizeString(
+                value,
+                DEFAULT_OPTIONS.textAnnotationName,
+            );
+            continue;
+        }
+        if (key === 'drawAnnotationName') {
+            resolved.drawAnnotationName = normalizeString(
+                value,
+                DEFAULT_OPTIONS.drawAnnotationName,
+            );
+            continue;
+        }
+        if (key === 'groupSelection') {
+            resolved.groupSelection = normalizeBoolean(value, DEFAULT_OPTIONS.groupSelection);
+            continue;
+        }
+        if (key === 'showPlaceholder') {
+            resolved.showPlaceholder = normalizeBoolean(value, DEFAULT_OPTIONS.showPlaceholder);
+            continue;
+        }
+        if (key === 'initialImageBase64') {
+            resolved.initialImageBase64 = normalizeNullableString(
+                value,
+                DEFAULT_OPTIONS.initialImageBase64,
+            );
+            continue;
+        }
+        if (key === 'defaultDownloadFileName') {
+            resolved.defaultDownloadFileName = normalizeString(
+                value,
+                DEFAULT_OPTIONS.defaultDownloadFileName,
+            );
+            continue;
+        }
         if (key === 'downsampleQuality') {
             resolved.downsampleQuality = normalizeQualityOption(value);
             continue;
@@ -1053,16 +1217,23 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     // ── Crop ──────────────────────────────────────────────
     const userCrop: CropConfig = raw.crop && typeof raw.crop === 'object' ? raw.crop : {};
     const crop: ResolvedCropConfig = {
-        aspectRatio: userCrop.aspectRatio ?? DEFAULT_CROP.aspectRatio,
+        aspectRatio: normalizeCropAspectRatioOption(userCrop.aspectRatio),
         minWidth: normalizePositiveFiniteNumber(userCrop.minWidth, DEFAULT_CROP.minWidth),
         minHeight: normalizePositiveFiniteNumber(userCrop.minHeight, DEFAULT_CROP.minHeight),
         padding: normalizeNonNegativeFiniteNumber(userCrop.padding, DEFAULT_CROP.padding),
-        hideMasksDuringCrop: userCrop.hideMasksDuringCrop ?? DEFAULT_CROP.hideMasksDuringCrop,
-        preserveMasksAfterCrop:
-            userCrop.preserveMasksAfterCrop ?? DEFAULT_CROP.preserveMasksAfterCrop,
-        allowRotationOfCropRect:
-            userCrop.allowRotationOfCropRect ?? DEFAULT_CROP.allowRotationOfCropRect,
-        exportFileType: userCrop.exportFileType ?? DEFAULT_CROP.exportFileType,
+        hideMasksDuringCrop: normalizeBoolean(
+            userCrop.hideMasksDuringCrop,
+            DEFAULT_CROP.hideMasksDuringCrop,
+        ),
+        preserveMasksAfterCrop: normalizeBoolean(
+            userCrop.preserveMasksAfterCrop,
+            DEFAULT_CROP.preserveMasksAfterCrop,
+        ),
+        allowRotationOfCropRect: normalizeBoolean(
+            userCrop.allowRotationOfCropRect,
+            DEFAULT_CROP.allowRotationOfCropRect,
+        ),
+        exportFileType: normalizeCropExportFileTypeOption(userCrop.exportFileType),
         exportQuality: normalizeOptionalQuality(userCrop.exportQuality),
     };
     Object.freeze(crop);

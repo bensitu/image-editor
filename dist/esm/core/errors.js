@@ -134,6 +134,25 @@ export class CropApplyError extends Error {
         fixPrototype(this, CropApplyError);
     }
 }
+export class StateRestoreError extends Error {
+    constructor(message = 'Failed to restore editor state.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'StateRestoreError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, StateRestoreError);
+    }
+}
 export class ExportNotReadyError extends Error {
     constructor(operation = 'exportImageFile') {
         super(`Cannot ${operation}: no image is loaded on the canvas.`);

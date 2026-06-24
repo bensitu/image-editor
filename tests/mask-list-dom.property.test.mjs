@@ -290,6 +290,29 @@ test('renderMaskList uses the canvas ownerDocument', () => {
     assert.equal(globalItems.length, 0);
 });
 
+test('renderMaskList click resolves the current canvas from context', () => {
+    const { document, listId } = installDom();
+    const oldMask = makeMask(11, 'oldMask');
+    const newMask = makeMask(11, 'newMask');
+    const oldCanvas = makeCanvas([oldMask]);
+    const newCanvas = makeCanvas([newMask]);
+    let currentCanvas = oldCanvas;
+    const selected = [];
+
+    renderMaskList({
+        canvas: oldCanvas,
+        getCanvas: () => currentCanvas,
+        getListElement: () => document.getElementById(listId),
+        onMaskSelected: (mask) => selected.push(mask),
+    });
+
+    currentCanvas = newCanvas;
+    document.querySelector('li.mask-item').click();
+
+    assert.equal(oldCanvas.activeObject, null);
+    assert.equal(newCanvas.activeObject, newMask);
+    assert.deepEqual(selected, [newMask]);
+});
 // ─── clicking selects by maskId regardless of list ordering ─
 
 test('clicking a <li> selects by maskId lookup regardless of list ordering', () => {
