@@ -70,9 +70,8 @@ class MockCanvas {
  * Why synchronous completion is sound: `animateProps` only counts
  * `onComplete` callbacks before resolving — it does not depend on the
  * `Animation[]` return value. Firing `onComplete` once per property
- * matches the Fabric v7 contract documented in
- * `fabric/fabric-animation.ts` and lets each iteration finish in a
- * single microtask.
+ * matches the Fabric v7 behavior wrapped by `fabric/fabric-animation.ts`
+ * and lets each iteration finish in a single microtask.
  *
  * Bookkeeping: we record the last `set({ scaleX, scaleY })` call so the
  * post-snap assertion can verify the controller's final write matches

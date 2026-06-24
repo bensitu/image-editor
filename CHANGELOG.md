@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Store actual DOM listener elements in `DomBindings` so cleanup detaches from the originally-bound node even if a framework replaces refs.
 - Export `ElementTarget`, `ElementMap`, `ResizeToContainerOptions`, and `RelayoutOptions` from the package root.
+- Remove unused legacy facade helpers from `ImageEditor`, including stale context-builder wrappers and the old private `getRuntimeOptions()` path; the runtime-owned `EditorRuntime.getRuntimeOptions()` remains the active source for current layout-mode options.
+- Remove the unused `ui-state` module and internal `ResolvedElementIdMap` / `resolveElementIds` compatibility aliases after the ref-based element map architecture replaced the old ID-only helper path.
+- Update internal merge-layout coverage to exercise the public `mergeMasks()` path instead of reading TypeScript-private facade methods at runtime.
+- Clarify test comments so the suite documents library behavior, source modules, package metadata, and build artifacts rather than demo pages or README/docs content.
 
 ### Documentation
 

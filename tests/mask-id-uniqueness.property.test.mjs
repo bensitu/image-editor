@@ -422,7 +422,7 @@ test('mask ID uniqueness across mixed createMask / mergeMasks (simulated removeA
                         removeAllMasks(model.removeCtx(), {
                             saveHistory: false,
                         });
-                        // Per `removeAllMasks` docs: maskCounter is
+                        // Per the `removeAllMasks` contract: maskCounter is
                         // NOT reset — only `lastMask` is cleared.
                         // We assert that explicitly.
                         assert.equal(

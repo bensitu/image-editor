@@ -5,10 +5,10 @@
  * values before the editor temporarily enables or disables controls.
  */
 
-import type { ElementKey, ResolvedElementIdMap } from '../core/editor-elements.js';
+import type { ElementKey, ResolvedElementMap } from '../core/editor-elements.js';
 
 export interface EditorControlElementContext {
-    elements: ResolvedElementIdMap;
+    elements: ResolvedElementMap;
     originalDisabledMap: Map<ElementKey, boolean>;
     originalAriaDisabledMap: Map<ElementKey, string | null>;
     originalPointerEventsMap: Map<ElementKey, string>;

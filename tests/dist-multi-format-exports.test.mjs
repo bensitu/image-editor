@@ -388,7 +388,7 @@ test('UMD bundle installs `ImageEditor` global with canonical surface', async ()
     // (`rollup.config.mjs`), so the inner class declaration is
     // renamed to a short identifier (e.g. `se`). The exported
     // *property* name remains `ImageEditor` (verified above) — that
-    // is the API contract from the documented contract. We therefore skip a
+    // is the API contract for the bundle surface. We therefore skip a
     // `Function.name` assertion on the UMD class to avoid coupling
     // the test to terser's name-mangling output.
     assert.equal(

@@ -446,7 +446,7 @@ ratio. Supported preset strings are `'free'`, `'1:1'`, `'3:4'`, `'4:3'`,
 `{ width, height }`. Per-call options override `crop.aspectRatio` from the
 constructor.
 
-When `cropAspectRatioSelect` is bound through `init(idMap)`, the built-in Crop
+When `cropAspectRatioSelect` is bound through `init(elementMap)`, the built-in Crop
 button uses the select's current value and changing the select while crop mode
 is open calls `setCropAspectRatio()` to resize the active crop rectangle.
 
@@ -716,7 +716,7 @@ source format cannot be determined. JPEG/WebP commits use
 
 ## Example workflow
 
-1. Construct `ImageEditor` with options and call `init(idMap)` to wire it up.
+1. Construct `ImageEditor` with options and call `init(elementMap)` to wire it up.
 2. Load an image via `loadImage(base64)` or the bound file input.
 3. Adjust with `scaleImage`, `rotateImage`, `flipHorizontal`, `flipVertical`,
    `resetImageTransform`, Crop mode, Mosaic mode, Text mode, or Draw mode.

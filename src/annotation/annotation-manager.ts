@@ -253,24 +253,10 @@ export function removeAllAnnotations(
     return removeAnnotationObjects(context, getAnnotations(context.canvas), options);
 }
 
-function getAnnotationListDocument(context: AnnotationListContext): Document {
-    const canvasLike = context.canvas as
-        | (FabricNS.Canvas & {
-              getElement?: () => HTMLCanvasElement | undefined;
-              lowerCanvasEl?: HTMLCanvasElement;
-          })
-        | null;
-    return (
-        canvasLike?.getElement?.()?.ownerDocument ??
-        canvasLike?.lowerCanvasEl?.ownerDocument ??
-        document
-    );
-}
-
 export function renderAnnotationList(context: AnnotationListContext): void {
     const listEl = context.getListElement();
     if (!listEl || !context.canvas) return;
-    const ownerDocument = listEl.ownerDocument ?? getAnnotationListDocument(context);
+    const ownerDocument = listEl.ownerDocument;
 
     listEl.innerHTML = '';
     const canvas = context.canvas;

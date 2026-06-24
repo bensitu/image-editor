@@ -242,6 +242,11 @@ function makeFabricStub() {
             this.objects.push(obj);
         }
 
+        remove(obj) {
+            const index = this.objects.indexOf(obj);
+            if (index >= 0) this.objects.splice(index, 1);
+        }
+
         sendObjectToBack(obj) {
             const idx = this.objects.indexOf(obj);
             if (idx > 0) {
@@ -278,6 +283,10 @@ function makeFabricStub() {
 
         getHeight() {
             return this.height;
+        }
+
+        toDataURL() {
+            return 'data:image/png;base64,MERGED';
         }
 
         toJSON(keys = []) {
@@ -569,6 +578,17 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
     canvas.setDimensions({ width: 620, height: 400 });
     setLastSnapshot(editor, editor.captureSnapshotInternal());
 
+    const mask = new image.constructor();
+    Object.assign(mask, {
+        editorObjectKind: 'mask',
+        maskId: 1,
+        maskUid: 'mask-1',
+        maskName: 'Mask 1',
+        originalAlpha: 0.5,
+        type: 'rect',
+    });
+    canvas.add(mask);
+
     editor.loadImageInternal = async () => {
         const mergedImage = new image.constructor();
         mergedImage.width = 1000;
@@ -583,9 +603,7 @@ test('merge load preserves the pre-merge displayed image geometry as the new bas
         setLastSnapshot(editor, editor.captureSnapshotInternal());
     };
 
-    const ctx = editor.buildMergeMasksContext();
-
-    await ctx.loadImage('data:image/png;base64,MERGED', { preserveScroll: true });
+    await editor.mergeMasks();
 
     assert.equal(canvas.width, 620);
     assert.equal(canvas.height, 400);

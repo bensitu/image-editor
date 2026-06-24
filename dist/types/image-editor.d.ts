@@ -47,7 +47,6 @@ export declare class ImageEditor {
     init(elementMap?: ElementMap): void;
     private initCanvas;
     private resolveElement;
-    private getLiveCanvasOrThrow;
     private bindDomEvents;
     private bindKeyboardEvents;
     private handleKeyboardEvent;
@@ -142,7 +141,6 @@ export declare class ImageEditor {
      * geometry using the active layout mode.
      */
     relayout(options?: RelayoutOptions): void;
-    private getRuntimeOptions;
     private buildCallbackContext;
     private getOperationContext;
     private emitOptionCallback;
@@ -186,7 +184,6 @@ export declare class ImageEditor {
     private alignObjectBoundingBoxToCanvasTopLeft;
     private buildDisplayGeometryContext;
     private measureLayoutViewport;
-    private getScrollbarStableViewportCanvasSize;
     /**
      * Resize the canvas to fit the transformed image bounds. Used by the
      * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
@@ -256,23 +253,8 @@ export declare class ImageEditor {
     removeSelectedMask(): void;
     /** Removes all masks and labels, or no-ops while guarded operations are active. */
     removeAllMasks(options?: RemoveAllMasksOptions): void;
-    /**
-     * Build the {@link CreateMaskContext} the mask factory reads/writes
-     * through. The runtime owns `maskCounter`, `lastMask`, the canvas,
-     * and history state; the context forwards access without duplicating
-     * those fields.
-     */
-    private buildCreateMaskContext;
-    /**
-     * Build the {@link RemoveMaskContext} the mask factory reads/writes
-     * through for `removeSelectedMask` / `removeAllMasks`. The runtime
-     * owns the canvas, history, and `lastMask`; the facade supplies the
-     * DOM and label callbacks the factory needs.
-     */
-    private buildRemoveMaskContext;
     private buildMaskLabelContext;
     private removeLabelForMask;
-    private createLabelForMask;
     private hideAllMaskLabels;
     private syncMaskLabel;
     private showLabelForMask;
@@ -308,7 +290,6 @@ export declare class ImageEditor {
     sendSelectedObjectBackward(): void;
     bringSelectedObjectToFront(): void;
     sendSelectedObjectToBack(): void;
-    private buildAnnotationManagerContext;
     private buildAnnotationListContext;
     private updateAnnotationList;
     private updateAnnotationListSelection;
@@ -338,21 +319,6 @@ export declare class ImageEditor {
      * Rejects when the operation is guarded because `Promise<File>` has no no-op value.
      */
     exportImageFile(options?: ImageExportOptions): Promise<File>;
-    /**
-     * Build the {@link ExportServiceContext} the export service reads
-     * through. The runtime owns the canvas, options, and `originalImage`
-     * reference; the context exposes only the export-facing accessors.
-     */
-    private buildExportServiceContext;
-    /**
-     * Build the {@link MergeMasksContext} the merge pipeline reads
-     * through. Extends the export-service context with the history
-     * manager, container element, transactional `loadImage`, and the
-     * `saveState`/`loadFromState`/`removeAllMasksNoHistory` callbacks
-     * the merge needs.
-     */
-    private buildMergeMasksContext;
-    private buildMergeAnnotationsContext;
     /**
      * Capture a snapshot string suitable for `loadFromState` without
      * pushing it onto the history stack. Used by the merge and crop

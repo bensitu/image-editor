@@ -192,11 +192,11 @@ function makeFabricStub() {
 /**
  * Install a fresh JSDOM document on `globalThis` and seed it with one
  * `<canvas>` plus the toolbar buttons the editor's `init()` binds.
- * Returns both the rebuilt id-map and a handle on the JSDOM `Event`
+ * Returns both the rebuilt element map and a handle on the JSDOM `Event`
  * constructor so tests can dispatch synthetic clicks without leaking
  * jsdom globals into the assertion code.
  *
- * The id-map mirrors `defaults` inside `init(idMap)` so every key the
+ * The element map mirrors `defaults` inside `init(elementMap)` so every key the
  * facade tries to resolve maps to a real element. Buttons that the
  * editor binds via `bindElementIfExists` therefore land in the bindings
  * registry; the post-dispose dispatch test relies on this so the

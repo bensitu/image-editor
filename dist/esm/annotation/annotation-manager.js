@@ -186,17 +186,11 @@ export function removeSelectedAnnotation(context) {
 export function removeAllAnnotations(context, options = {}) {
     return removeAnnotationObjects(context, getAnnotations(context.canvas), options);
 }
-function getAnnotationListDocument(context) {
-    var _a, _b, _c, _d, _e;
-    const canvasLike = context.canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
-}
 export function renderAnnotationList(context) {
-    var _a;
     const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
-    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getAnnotationListDocument(context);
+    const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
     getAnnotations(canvas).forEach((annotation) => {

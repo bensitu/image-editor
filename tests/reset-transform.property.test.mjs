@@ -121,8 +121,8 @@ function makeFabricImageMock(initial) {
 /**
  * Build a `TransformContext` whose `saveCanvasState` honours the
  * suppression flag toggled by `setSuppressSaveState`. This mirrors the
- * orchestrator wiring documented on
- * {@link TransformContext.saveCanvasState}: the orchestrator MUST treat
+ * orchestrator wiring around {@link TransformContext.saveCanvasState}:
+ * the orchestrator MUST treat
  * `saveCanvasState` as a no-op while the suppression flag is `true`,
  * which is what lets `resetImageTransform` collapse the chained
  * `scaleImage(1)` and `rotateImage(0)` per-operation entries into a

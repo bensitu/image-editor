@@ -2592,17 +2592,11 @@ function removeSelectedAnnotation(context) {
 function removeAllAnnotations(context, options = {}) {
     return removeAnnotationObjects(context, getAnnotations(context.canvas), options);
 }
-function getAnnotationListDocument(context) {
-    var _a, _b, _c, _d, _e;
-    const canvasLike = context.canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
-}
 function renderAnnotationList(context) {
-    var _a;
     const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
-    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getAnnotationListDocument(context);
+    const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
     getAnnotations(canvas).forEach((annotation) => {
@@ -8691,17 +8685,11 @@ function hideAllMaskLabels(context) {
     });
 }
 
-function getMaskListDocument(context) {
-    var _a, _b, _c, _d, _e;
-    const canvasLike = context.canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
-}
 function renderMaskList(context) {
-    var _a;
     const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
-    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getMaskListDocument(context);
+    const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
     canvas
@@ -9925,12 +9913,6 @@ class ImageEditor {
     resolveElement(key, ownerDocument = getRuntimeDocument(this.runtime.canvasElement)) {
         return resolveDomElement(this.runtime.elements[key], ownerDocument);
     }
-    getLiveCanvasOrThrow(operationName) {
-        if (this.runtime.isDisposed || !this.runtime.canvas) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
-        }
-        return this.runtime.canvas;
-    }
     bindDomEvents() {
         if (!this.runtime.domBindings)
             return;
@@ -10272,14 +10254,6 @@ class ImageEditor {
         (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
         this.refreshAfterCanvasLayoutChange('relayout');
     }
-    getRuntimeOptions() {
-        if (this.runtime.currentLayoutMode === this.runtime.options.layoutMode)
-            return this.runtime.options;
-        return Object.freeze({
-            ...this.runtime.options,
-            layoutMode: this.runtime.currentLayoutMode,
-        });
-    }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
     }
@@ -10552,9 +10526,6 @@ class ImageEditor {
     measureLayoutViewport(scrollbarSize) {
         return measureLayoutViewport(this.buildDisplayGeometryContext(), scrollbarSize);
     }
-    getScrollbarStableViewportCanvasSize(viewport) {
-        return getScrollbarStableViewportCanvasSize(viewport);
-    }
     updateCanvasSizeToImageBounds(options = {}) {
         updateCanvasSizeToImageBounds(this.buildDisplayGeometryContext(), options);
     }
@@ -10663,12 +10634,6 @@ class ImageEditor {
     removeAllMasks(options = {}) {
         removeAllMasksAction(this.actionAccessFactory.buildMaskActionAccess(), options);
     }
-    buildCreateMaskContext() {
-        return this.contextFactory.buildCreateMaskContext();
-    }
-    buildRemoveMaskContext() {
-        return this.contextFactory.buildRemoveMaskContext();
-    }
     buildMaskLabelContext() {
         return this.contextFactory.buildMaskLabelContext();
     }
@@ -10677,12 +10642,6 @@ class ImageEditor {
         if (!context)
             return;
         removeLabelForMask(context, mask);
-    }
-    createLabelForMask(mask) {
-        const context = this.buildMaskLabelContext();
-        if (!context)
-            return;
-        createLabelForMask(context, mask);
     }
     hideAllMaskLabels() {
         const context = this.buildMaskLabelContext();
@@ -10824,9 +10783,6 @@ class ImageEditor {
     sendSelectedObjectToBack() {
         this.moveSelectedEditableObject('sendSelectedObjectToBack');
     }
-    buildAnnotationManagerContext() {
-        return this.contextFactory.buildAnnotationManagerContext();
-    }
     buildAnnotationListContext() {
         return this.contextFactory.buildAnnotationListContext();
     }
@@ -10878,15 +10834,6 @@ class ImageEditor {
     }
     async exportImageFile(options) {
         return await exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
-    }
-    buildExportServiceContext() {
-        return this.contextFactory.buildExportServiceContext();
-    }
-    buildMergeMasksContext(operationToken) {
-        return this.contextFactory.buildMergeMasksContext(operationToken);
-    }
-    buildMergeAnnotationsContext(operationToken) {
-        return this.contextFactory.buildMergeAnnotationsContext(operationToken);
     }
     captureSnapshotInternal() {
         return captureSnapshotAction(this.actionAccessFactory.buildEditorStateActionAccess());

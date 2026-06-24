@@ -274,7 +274,7 @@ test('markDisposed forces a quiescent state mid-animation', async () => {
             const result = await animationPromise;
             assert.equal(result, 'done');
 
-            // the documented contract / dispose-safe settlement: post-dispose flags read
+            // the documented contract: dispose-safe settlement leaves post-dispose flags
             // as quiescent even though dispose was called mid-animation.
             assert.deepEqual(observedDuringDispose, {
                 isDisposed: true,

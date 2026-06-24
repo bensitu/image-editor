@@ -74,7 +74,4 @@ export function resolveElementTargets(elementMap = {}) {
     }
     return resolved;
 }
-export function resolveElementIds(idMap = {}) {
-    return resolveElementTargets(idMap);
-}
 //# sourceMappingURL=editor-elements.js.map

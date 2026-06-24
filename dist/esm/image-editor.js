@@ -16,7 +16,7 @@ import { applyMosaicConfigPatchAction, enterMosaicModeAction, exitMosaicModeActi
 import { downloadImageAction, exportImageBase64Action, exportImageFileAction, mergeAnnotationsAction, mergeMasksAction, } from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
-import { captureImageDisplayGeometry as captureImageDisplayGeometryImpl, getScrollbarStableViewportCanvasSize as getScrollbarStableViewportCanvasSizeImpl, measureLayoutViewport as measureLayoutViewportImpl, restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl, settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl, shouldNormalizeCanvasSizeAfterStateRestore as shouldNormalizeCanvasSizeAfterStateRestoreImpl, updateCanvasSizeToImageBounds as updateCanvasSizeToImageBoundsImpl, } from './image/display-geometry.js';
+import { captureImageDisplayGeometry as captureImageDisplayGeometryImpl, measureLayoutViewport as measureLayoutViewportImpl, restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl, settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl, shouldNormalizeCanvasSizeAfterStateRestore as shouldNormalizeCanvasSizeAfterStateRestoreImpl, updateCanvasSizeToImageBounds as updateCanvasSizeToImageBoundsImpl, } from './image/display-geometry.js';
 import { applyCanvasDimensions } from './image/layout-manager.js';
 import { TransformController } from './image/transform-controller.js';
 import { flipHorizontalAction, flipVerticalAction, resetImageTransformAction, rotateImageAction, scaleImageAction, } from './image/transform-actions.js';
@@ -26,7 +26,7 @@ import { EditorRuntime } from './runtime/editor-runtime.js';
 import { handleObjectModified as handleObjectModifiedImpl, handleObjectMovingScalingRotating as handleObjectMovingScalingRotatingImpl, handleSelectionChanged as handleSelectionChangedImpl, } from './selection/editor-selection-controller.js';
 import { deleteSelectedEditableObjects, moveSelectedEditableObject as moveSelectedEditableObjectImpl, removeAllAnnotationsAction, removeSelectedAnnotationAction, updateAnnotationAction, updateSelectedAnnotationAction, } from './overlay/editable-object-actions.js';
 import { createMaskAction, removeAllMasksAction as removeAllMasksActionImpl, removeSelectedMaskAction, } from './mask/mask-actions.js';
-import { createLabelForMask, hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
+import { hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
 import { renderMaskList, updateMaskListSelection } from './mask/mask-list.js';
 import { safelyDisposeCanvas, safelyExitActiveSession, safelyRemoveKeyboardListener, } from './lifecycle/editor-dispose.js';
 import { DomBindings } from './ui/dom-bindings.js';
@@ -366,12 +366,6 @@ export class ImageEditor {
     }
     resolveElement(key, ownerDocument = getRuntimeDocument(this.runtime.canvasElement)) {
         return resolveDomElement(this.runtime.elements[key], ownerDocument);
-    }
-    getLiveCanvasOrThrow(operationName) {
-        if (this.runtime.isDisposed || !this.runtime.canvas) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
-        }
-        return this.runtime.canvas;
     }
     bindDomEvents() {
         if (!this.runtime.domBindings)
@@ -714,14 +708,6 @@ export class ImageEditor {
         (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
         this.refreshAfterCanvasLayoutChange('relayout');
     }
-    getRuntimeOptions() {
-        if (this.runtime.currentLayoutMode === this.runtime.options.layoutMode)
-            return this.runtime.options;
-        return Object.freeze({
-            ...this.runtime.options,
-            layoutMode: this.runtime.currentLayoutMode,
-        });
-    }
     buildCallbackContext(operation, isInternalOperation = false) {
         return { operation, isInternalOperation };
     }
@@ -994,9 +980,6 @@ export class ImageEditor {
     measureLayoutViewport(scrollbarSize) {
         return measureLayoutViewportImpl(this.buildDisplayGeometryContext(), scrollbarSize);
     }
-    getScrollbarStableViewportCanvasSize(viewport) {
-        return getScrollbarStableViewportCanvasSizeImpl(viewport);
-    }
     updateCanvasSizeToImageBounds(options = {}) {
         updateCanvasSizeToImageBoundsImpl(this.buildDisplayGeometryContext(), options);
     }
@@ -1105,12 +1088,6 @@ export class ImageEditor {
     removeAllMasks(options = {}) {
         removeAllMasksActionImpl(this.actionAccessFactory.buildMaskActionAccess(), options);
     }
-    buildCreateMaskContext() {
-        return this.contextFactory.buildCreateMaskContext();
-    }
-    buildRemoveMaskContext() {
-        return this.contextFactory.buildRemoveMaskContext();
-    }
     buildMaskLabelContext() {
         return this.contextFactory.buildMaskLabelContext();
     }
@@ -1119,12 +1096,6 @@ export class ImageEditor {
         if (!context)
             return;
         removeLabelForMask(context, mask);
-    }
-    createLabelForMask(mask) {
-        const context = this.buildMaskLabelContext();
-        if (!context)
-            return;
-        createLabelForMask(context, mask);
     }
     hideAllMaskLabels() {
         const context = this.buildMaskLabelContext();
@@ -1266,9 +1237,6 @@ export class ImageEditor {
     sendSelectedObjectToBack() {
         this.moveSelectedEditableObject('sendSelectedObjectToBack');
     }
-    buildAnnotationManagerContext() {
-        return this.contextFactory.buildAnnotationManagerContext();
-    }
     buildAnnotationListContext() {
         return this.contextFactory.buildAnnotationListContext();
     }
@@ -1320,15 +1288,6 @@ export class ImageEditor {
     }
     async exportImageFile(options) {
         return await exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
-    }
-    buildExportServiceContext() {
-        return this.contextFactory.buildExportServiceContext();
-    }
-    buildMergeMasksContext(operationToken) {
-        return this.contextFactory.buildMergeMasksContext(operationToken);
-    }
-    buildMergeAnnotationsContext(operationToken) {
-        return this.contextFactory.buildMergeAnnotationsContext(operationToken);
     }
     captureSnapshotInternal() {
         return captureSnapshotAction(this.actionAccessFactory.buildEditorStateActionAccess());

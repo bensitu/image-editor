@@ -28,7 +28,7 @@
  *
  * Notes:
  *   - Prefer behavior-level assertions over implementation-detail checks.
- *   - Keep this file focused on dOM binding registry disposal only.
+ *   - Keep this file focused on DOM binding registry disposal only.
  */
 
 import { register } from 'node:module';
@@ -73,9 +73,9 @@ function installDom(elementIds) {
 // Use a small fixed pool of `ElementKey` strings so each generated
 // scenario can refer to keys that may or may not exist in the DOM.
 // The pool intentionally includes a mix of canonical keys from
-// `ElementIdMap` plus an "unknown" key the resolver maps to `null`,
-// so exercises both "key omitted from idMap" and
-// "key in idMap but element missing from DOM" paths.
+// `ElementMap` plus an "unknown" key the resolver maps to `null`,
+// so exercises both "key omitted from element map" and
+// "key mapped but element missing from DOM" paths.
 const KEY_POOL = [
     'zoomInButton',
     'zoomOutButton',
@@ -117,7 +117,7 @@ const presentKeysArb = fc.subarray(
 
 /**
  * Build a resolver and disposed-flag for `DomBindings`. The resolver
- * returns the key itself as the element ID for every key except
+ * returns the element from `ownerDocument` for every key except
  * `unmappedKey`, which returns `null` so `bindIfExists` exercises the
  * "missing key" path.
  */

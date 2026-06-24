@@ -87,20 +87,6 @@ export interface MaskListContext {
     onMaskSelected(mask: MaskObject): void;
 }
 
-function getMaskListDocument(context: MaskListContext): Document {
-    const canvasLike = context.canvas as
-        | (FabricNS.Canvas & {
-              getElement?: () => HTMLCanvasElement | undefined;
-              lowerCanvasEl?: HTMLCanvasElement;
-          })
-        | null;
-    return (
-        canvasLike?.getElement?.()?.ownerDocument ??
-        canvasLike?.lowerCanvasEl?.ownerDocument ??
-        document
-    );
-}
-
 /**
  * Re-render the mask list DOM from `canvas.getObjects`.
  *
@@ -134,7 +120,7 @@ function getMaskListDocument(context: MaskListContext): Document {
 export function renderMaskList(context: MaskListContext): void {
     const listEl = context.getListElement();
     if (!listEl || !context.canvas) return;
-    const ownerDocument = listEl.ownerDocument ?? getMaskListDocument(context);
+    const ownerDocument = listEl.ownerDocument;
 
     // Drop the previous DOM (and, by detaching the nodes, every click
     // handler we attached below). Rebuilding from scratch keeps the list in

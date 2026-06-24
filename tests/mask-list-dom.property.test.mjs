@@ -101,7 +101,7 @@ function makeMask(id, name) {
 
 /**
  * Minimal fake `fabric.Canvas`. Holds an ordered object list (the
- * canvas object order the documented contract / the documented contract keys off), records the most
+ * canvas object order the documented contract keys off), records the most
  * recent `setActiveObject` argument so the click assertions can read
  * it back, and supports the small subset of methods the label manager
  * touches (`add` / `remove` / `bringObjectToFront` / `renderAll`).
@@ -132,7 +132,7 @@ function makeCanvas(objects) {
  * Minimal fake Fabric module. Only `FabricText` is invoked — the label
  * manager calls `new fabric.FabricText(text, opts)` to build the default
  * label overlay.  The constructor records the constructor arguments
- * so the the documented contract assertion can read back the rendered text.
+ * so the documented contract assertion can read back the rendered text.
  */
 function makeFabric() {
     function FabricText(txt, opts) {

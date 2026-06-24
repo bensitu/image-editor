@@ -1,15 +1,9 @@
 import { isMaskObject } from '../core/public-types.js';
-function getMaskListDocument(context) {
-    var _a, _b, _c, _d, _e;
-    const canvasLike = context.canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike === null || canvasLike === void 0 ? void 0 : canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
-}
 export function renderMaskList(context) {
-    var _a;
     const listEl = context.getListElement();
     if (!listEl || !context.canvas)
         return;
-    const ownerDocument = (_a = listEl.ownerDocument) !== null && _a !== void 0 ? _a : getMaskListDocument(context);
+    const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
     canvas

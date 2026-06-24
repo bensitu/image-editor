@@ -58,7 +58,6 @@ import type {
     ResizeToContainerOptions,
     ResolvedDrawConfig,
     ResolvedMosaicConfig,
-    ResolvedOptions,
     ResolvedTextAnnotationConfig,
     TextAnnotationConfig,
     TextAnnotationObject,
@@ -69,7 +68,6 @@ import {
     renderAnnotationList,
     updateAnnotationListSelection,
     type AnnotationListContext,
-    type AnnotationManagerContext,
 } from './annotation/annotation-manager.js';
 import {
     exitTextMode as exitTextModeImpl,
@@ -115,11 +113,7 @@ import {
     exitMosaicModeAction,
     resetMosaicConfigAction,
 } from './mosaic/mosaic-actions.js';
-import {
-    type ExportServiceContext,
-    type MergeAnnotationsContext,
-    type MergeMasksContext,
-} from './export/export-service.js';
+
 import {
     downloadImageAction,
     exportImageBase64Action,
@@ -131,7 +125,6 @@ import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
 import {
     captureImageDisplayGeometry as captureImageDisplayGeometryImpl,
-    getScrollbarStableViewportCanvasSize as getScrollbarStableViewportCanvasSizeImpl,
     measureLayoutViewport as measureLayoutViewportImpl,
     restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl,
     settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl,
@@ -166,14 +159,13 @@ import {
     updateAnnotationAction,
     updateSelectedAnnotationAction,
 } from './overlay/editable-object-actions.js';
-import { type CreateMaskContext, type RemoveMaskContext } from './mask/mask-factory.js';
+
 import {
     createMaskAction,
     removeAllMasksAction as removeAllMasksActionImpl,
     removeSelectedMaskAction,
 } from './mask/mask-actions.js';
 import {
-    createLabelForMask,
     hideAllMaskLabels,
     removeLabelForMask,
     showLabelForMask,
@@ -648,13 +640,6 @@ export class ImageEditor {
         ownerDocument: Document | null = getRuntimeDocument(this.runtime.canvasElement),
     ): T | null {
         return resolveDomElement<T>(this.runtime.elements[key] as string | T | null, ownerDocument);
-    }
-
-    private getLiveCanvasOrThrow(operationName: string): FabricNS.Canvas {
-        if (this.runtime.isDisposed || !this.runtime.canvas) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" after dispose.`);
-        }
-        return this.runtime.canvas;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1166,14 +1151,6 @@ export class ImageEditor {
         this.runtime.canvas?.renderAll();
         this.refreshAfterCanvasLayoutChange('relayout');
     }
-    private getRuntimeOptions(): ResolvedOptions {
-        if (this.runtime.currentLayoutMode === this.runtime.options.layoutMode)
-            return this.runtime.options;
-        return Object.freeze({
-            ...this.runtime.options,
-            layoutMode: this.runtime.currentLayoutMode,
-        }) as ResolvedOptions;
-    }
 
     private buildCallbackContext(
         operation: ImageEditorOperation,
@@ -1532,10 +1509,6 @@ export class ImageEditor {
         return measureLayoutViewportImpl(this.buildDisplayGeometryContext(), scrollbarSize);
     }
 
-    private getScrollbarStableViewportCanvasSize(viewport: ViewportSize): ViewportSize {
-        return getScrollbarStableViewportCanvasSizeImpl(viewport);
-    }
-
     /**
      * Resize the canvas to fit the transformed image bounds. Used by the
      * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
@@ -1730,30 +1703,6 @@ export class ImageEditor {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PRIVATE — mask context builders
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * Build the {@link CreateMaskContext} the mask factory reads/writes
-     * through. The runtime owns `maskCounter`, `lastMask`, the canvas,
-     * and history state; the context forwards access without duplicating
-     * those fields.
-     */
-    private buildCreateMaskContext(): CreateMaskContext {
-        return this.contextFactory.buildCreateMaskContext();
-    }
-
-    /**
-     * Build the {@link RemoveMaskContext} the mask factory reads/writes
-     * through for `removeSelectedMask` / `removeAllMasks`. The runtime
-     * owns the canvas, history, and `lastMask`; the facade supplies the
-     * DOM and label callbacks the factory needs.
-     */
-    private buildRemoveMaskContext(): RemoveMaskContext {
-        return this.contextFactory.buildRemoveMaskContext();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
     // PRIVATE — mask label helpers
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -1765,12 +1714,6 @@ export class ImageEditor {
         const context = this.buildMaskLabelContext();
         if (!context) return;
         removeLabelForMask(context, mask);
-    }
-
-    private createLabelForMask(mask: MaskObject): void {
-        const context = this.buildMaskLabelContext();
-        if (!context) return;
-        createLabelForMask(context, mask);
     }
 
     private hideAllMaskLabels(): void {
@@ -1971,10 +1914,6 @@ export class ImageEditor {
         this.moveSelectedEditableObject('sendSelectedObjectToBack');
     }
 
-    private buildAnnotationManagerContext(): AnnotationManagerContext {
-        return this.contextFactory.buildAnnotationManagerContext();
-    }
-
     private buildAnnotationListContext(): AnnotationListContext {
         return this.contextFactory.buildAnnotationListContext();
     }
@@ -2088,34 +2027,6 @@ export class ImageEditor {
             this.actionAccessFactory.buildExportActionAccess(),
             options,
         );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // PRIVATE — export / merge context builders
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * Build the {@link ExportServiceContext} the export service reads
-     * through. The runtime owns the canvas, options, and `originalImage`
-     * reference; the context exposes only the export-facing accessors.
-     */
-    private buildExportServiceContext(): ExportServiceContext {
-        return this.contextFactory.buildExportServiceContext();
-    }
-
-    /**
-     * Build the {@link MergeMasksContext} the merge pipeline reads
-     * through. Extends the export-service context with the history
-     * manager, container element, transactional `loadImage`, and the
-     * `saveState`/`loadFromState`/`removeAllMasksNoHistory` callbacks
-     * the merge needs.
-     */
-    private buildMergeMasksContext(operationToken?: OperationToken): MergeMasksContext {
-        return this.contextFactory.buildMergeMasksContext(operationToken);
-    }
-
-    private buildMergeAnnotationsContext(operationToken?: OperationToken): MergeAnnotationsContext {
-        return this.contextFactory.buildMergeAnnotationsContext(operationToken);
     }
 
     /**

@@ -9,10 +9,6 @@ import type { ElementIdMap } from './public-types.js';
 export type ElementKey = keyof Required<ElementIdMap>;
 export type ResolvedElementTarget = string | HTMLElement | null;
 export type ResolvedElementMap = Record<ElementKey, ResolvedElementTarget>;
-/** @deprecated Use ResolvedElementMap. */
-export type ResolvedElementIdMap = ResolvedElementMap;
 export declare function resolveDomElement<T extends HTMLElement>(target: string | HTMLElement | null | undefined, ownerDocument?: Document | null): T | null;
 export declare function resolveElementTargets(elementMap?: ElementIdMap): ResolvedElementMap;
-/** @deprecated Use resolveElementTargets. */
-export declare function resolveElementIds(idMap?: ElementIdMap): ResolvedElementMap;
 //# sourceMappingURL=editor-elements.d.ts.map

@@ -682,11 +682,10 @@ test('failed applyCrop — rejects with CropApplyError, no history entry pushed,
                 `the documented contract: failure must reject with CropApplyError; got ${rejection?.name ?? typeof rejection}`,
             );
 
-            // the documented contract — the rollback path calls
+            // the library contract — the rollback path calls
             // `loadFromState` with the pre-crop snapshot. There may
-            // be additional restores in the documented error
-            // documentation, but the most recent must target the
-            // pre-crop snapshot.
+            // be additional restores in the public error path, but
+            // the most recent must target the pre-crop snapshot.
             assert.ok(
                 loadFromStateCalls.length >= 1,
                 'the documented contract: failure path must call loadFromState to restore the pre-crop snapshot',

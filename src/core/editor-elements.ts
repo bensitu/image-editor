@@ -14,9 +14,6 @@ export type ResolvedElementTarget = string | HTMLElement | null;
 
 export type ResolvedElementMap = Record<ElementKey, ResolvedElementTarget>;
 
-/** @deprecated Use ResolvedElementMap. */
-export type ResolvedElementIdMap = ResolvedElementMap;
-
 const DEFAULT_ELEMENT_TARGETS: ResolvedElementMap = {
     canvas: 'canvas',
     canvasContainer: null,
@@ -100,9 +97,4 @@ export function resolveElementTargets(elementMap: ElementIdMap = {}): ResolvedEl
         resolved[key] = value === undefined ? null : value;
     }
     return resolved;
-}
-
-/** @deprecated Use resolveElementTargets. */
-export function resolveElementIds(idMap: ElementIdMap = {}): ResolvedElementMap {
-    return resolveElementTargets(idMap);
 }

@@ -49,10 +49,9 @@ const { saveState, loadFromState, SNAPSHOT_CUSTOM_KEYS } =
 
 /**
  * Stand-in for `fabric.Canvas` covering only the four methods the state
- * serializer touches. The implementation mirrors the public contract
- * documented at:
- *   https://fabricjs.com/api/classes/canvas/  (toJSON, loadFromJSON,
- *   discardActiveObject, getObjects)
+ * serializer touches. The implementation mirrors the subset of Fabric
+ * behavior this library relies on: toJSON, loadFromJSON,
+ * discardActiveObject, and getObjects.
  *
  *   - `discardActiveObject()` is a no-op (the unit under test is the
  *     serializer; ActiveSelection construction lives in the facade).

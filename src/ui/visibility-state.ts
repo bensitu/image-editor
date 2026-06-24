@@ -68,7 +68,7 @@
  * code path.
  *
  * @param placeholderElement - The placeholder DOM element shown when no image is loaded, or `null`
- *   when the host page omitted the placeholder slot from the `idMap`.
+ *   when the host page omitted the placeholder slot from the element map.
  * @param containerElement - The canvas container DOM element wrapping the live `<canvas>`, or
  *   `null` when no container is available.
  * @param show - `true` to make the placeholder visible (and hide the canvas container);
