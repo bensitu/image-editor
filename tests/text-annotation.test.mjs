@@ -9,6 +9,7 @@
  * Scope:
  *   - createTextAnnotation enters edit mode for new text.
  *   - The default text is selected so the first user keystroke replaces it.
+ *   - Text mode creates text over non-text overlays instead of selecting them.
  *
  * Environment:
  *   - Node.js ESM
@@ -26,7 +27,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { resolveOptions } = await import('../src/core/default-options.ts');
-const { createTextAnnotation } = await import('../src/annotation/text-controller.ts');
+const { markAnnotationObject } = await import('../src/core/editor-object-kind.ts');
+const { createTextAnnotation, enterTextMode } =
+    await import('../src/annotation/text-controller.ts');
 
 class FakeTextbox {
     constructor(text, props = {}) {
@@ -38,6 +41,7 @@ class FakeTextbox {
 
     set(props) {
         Object.assign(this, props);
+        return this;
     }
 
     on(event, callback) {
@@ -60,10 +64,24 @@ class FakeTextbox {
     }
 }
 
+class FakeRect {
+    constructor(props = {}) {
+        Object.assign(this, props);
+    }
+
+    set(props) {
+        Object.assign(this, props);
+        return this;
+    }
+}
+
 class FakeCanvas {
     constructor() {
         this.objects = [];
         this.activeObject = null;
+        this.handlers = new Map();
+        this.selection = true;
+        this.defaultCursor = 'default';
     }
 
     add(object) {
@@ -95,6 +113,16 @@ class FakeCanvas {
     }
 
     renderAll() {}
+
+    requestRenderAll() {}
+
+    on(event, callback) {
+        this.handlers.set(event, callback);
+    }
+
+    off(event, callback) {
+        if (this.handlers.get(event) === callback) this.handlers.delete(event);
+    }
 }
 
 function makeContext() {
@@ -102,11 +130,13 @@ function makeContext() {
     const canvas = new FakeCanvas();
     let annotationCounter = 0;
     let saveCount = 0;
+    let textSession = null;
 
     return {
         context: {
             fabric: {
                 Textbox: FakeTextbox,
+                Rect: FakeRect,
             },
             canvas,
             options,
@@ -117,8 +147,10 @@ function makeContext() {
             setAnnotationCounter: (value) => {
                 annotationCounter = value;
             },
-            getTextSession: () => null,
-            setTextSession: () => {},
+            getTextSession: () => textSession,
+            setTextSession: (session) => {
+                textSession = session;
+            },
             saveCanvasState: () => {
                 saveCount += 1;
             },
@@ -145,5 +177,44 @@ test('createTextAnnotation selects the default text after entering edit mode', (
     assert.equal(annotation.selectionStart, 0);
     assert.equal(annotation.selectionEnd, 4);
     assert.equal(canvas.activeObject, annotation);
+    assert.equal(getSaveCount(), 1);
+});
+
+test('Text mode click on a draw annotation creates text at the pointer', () => {
+    const { context, canvas, getSaveCount } = makeContext();
+    const drawAnnotation = markAnnotationObject(
+        {
+            type: 'path',
+            set(props) {
+                Object.assign(this, props);
+                return this;
+            },
+        },
+        {
+            annotationId: 99,
+            annotationType: 'draw',
+            annotationName: 'draw99',
+        },
+    );
+    canvas.add(drawAnnotation);
+
+    enterTextMode(context);
+    const handler = canvas.handlers.get('mouse:down');
+
+    assert.equal(typeof handler, 'function');
+    handler({
+        target: drawAnnotation,
+        scenePoint: { x: 320, y: 180 },
+    });
+
+    const textAnnotation = canvas
+        .getObjects()
+        .find((object) => object !== drawAnnotation && object.annotationType === 'text');
+    assert.ok(textAnnotation);
+    assert.equal(textAnnotation.left, 320);
+    assert.equal(textAnnotation.top, 180);
+    assert.equal(textAnnotation.isEditing, true);
+    assert.equal(canvas.activeObject, textAnnotation);
+    assert.notEqual(canvas.activeObject, drawAnnotation);
     assert.equal(getSaveCount(), 1);
 });

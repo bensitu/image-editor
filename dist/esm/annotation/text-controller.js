@@ -1,6 +1,6 @@
 import { markAnnotationObject } from '../core/editor-object-kind.js';
 import { placeAnnotationObject } from '../core/layer-order.js';
-import { isEditableOverlayObject, isTextAnnotationObject, } from '../core/public-types.js';
+import { isTextAnnotationObject, } from '../core/public-types.js';
 import { mergeTextAnnotationConfigPatch } from '../core/default-options.js';
 import { getObjectBBox } from '../utils/canvas-region.js';
 import { resolveNumeric } from '../utils/number.js';
@@ -159,14 +159,9 @@ function handleTextModePointer(context, event) {
     var _a, _b;
     const fabricEvent = event;
     const target = fabricEvent.target;
-    if (target) {
-        if (isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
-            context.canvas.setActiveObject(target);
-            (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
-        }
-        else if (isEditableOverlayObject(target)) {
-            context.canvas.setActiveObject(target);
-        }
+    if (target && isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
+        context.canvas.setActiveObject(target);
+        (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         return;
     }
     const pointer = getPointerFromFabricEvent(context.canvas, event);

@@ -12,7 +12,6 @@ import type * as FabricNS from 'fabric';
 import { markAnnotationObject } from '../core/editor-object-kind.js';
 import { placeAnnotationObject } from '../core/layer-order.js';
 import {
-    isEditableOverlayObject,
     isTextAnnotationObject,
     type AnnotationObject,
     type FabricModule,
@@ -257,13 +256,9 @@ export function createTextAnnotation(
 function handleTextModePointer(context: TextControllerContext, event: unknown): void {
     const fabricEvent = event as { target?: FabricNS.FabricObject };
     const target = fabricEvent.target;
-    if (target) {
-        if (isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
-            context.canvas.setActiveObject(target);
-            (target as TextWithEditTag).enterEditing?.();
-        } else if (isEditableOverlayObject(target)) {
-            context.canvas.setActiveObject(target);
-        }
+    if (target && isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
+        context.canvas.setActiveObject(target);
+        (target as TextWithEditTag).enterEditing?.();
         return;
     }
 

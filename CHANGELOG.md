@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update internal merge-layout coverage to exercise the public `mergeMasks()` path instead of reading TypeScript-private facade methods at runtime.
 - Clarify test comments so the suite documents library behavior, source modules, package metadata, and build artifacts rather than demo pages or README/docs content.
 
+### Fixed
+
+- Keep Text mode text creation active when clicking over non-text Fabric targets, including existing Draw annotations, so large draw strokes no longer block placing text inside their bounds.
+
 ### Documentation
 
 - Link framework integration guides from the README and document ref-based mounting and responsive relayout APIs.

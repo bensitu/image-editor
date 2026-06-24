@@ -1981,14 +1981,9 @@ function handleTextModePointer(context, event) {
     var _a, _b;
     const fabricEvent = event;
     const target = fabricEvent.target;
-    if (target) {
-        if (isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
-            context.canvas.setActiveObject(target);
-            (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
-        }
-        else if (isEditableOverlayObject(target)) {
-            context.canvas.setActiveObject(target);
-        }
+    if (target && isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
+        context.canvas.setActiveObject(target);
+        (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         return;
     }
     const pointer = getPointerFromFabricEvent(context.canvas, event);
