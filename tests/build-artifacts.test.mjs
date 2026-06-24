@@ -245,6 +245,21 @@ test('public types declaration exposes defaultLayoutMode and omits removed layou
         /\bdefaultLayoutMode\??:\s*LayoutMode\b/,
         `${ARTIFACTS.publicTypes} must expose \`defaultLayoutMode\` on ImageEditorOptions`,
     );
+    assert.match(
+        text,
+        /\bexport\s+type\s+OverlayListOrder\b/,
+        `${ARTIFACTS.publicTypes} must export \`OverlayListOrder\` for the package root re-export`,
+    );
+    assert.match(
+        text,
+        /\bmaskListOrder\??:\s*OverlayListOrder\b/,
+        `${ARTIFACTS.publicTypes} must expose \`maskListOrder\` on ImageEditorOptions`,
+    );
+    assert.match(
+        text,
+        /\bannotationListOrder\??:\s*OverlayListOrder\b/,
+        `${ARTIFACTS.publicTypes} must expose \`annotationListOrder\` on ImageEditorOptions`,
+    );
     for (const removedKey of removedLayoutKeys) {
         assert.equal(
             text.includes(removedKey),

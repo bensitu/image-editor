@@ -9,7 +9,7 @@
  *
  * - When the mask list DOM container is bound,
  *   {@link renderMaskList} renders exactly one `<li>` per mask currently on
- *   the canvas, in canvas object order. The list is rebuilt from scratch on
+ *   the canvas, in the configured list order. The list is rebuilt from scratch on
  *   every call so it stays in sync with `canvas.getObjects` after creates,
  *   removals, undo/redo, and JSON restores.
  *
@@ -58,7 +58,7 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { MaskObject } from '../core/public-types.js';
+import type { MaskObject, OverlayListOrder } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 
 /**
@@ -79,12 +79,25 @@ export interface MaskListContext {
      */
     getListElement(): HTMLElement | null | undefined;
     /**
+     * DOM render order for the mask list. 'front-to-back' mirrors layer-panel
+     * behavior by showing the topmost overlay first.
+     */
+    listOrder?: OverlayListOrder;
+    /**
      * Invoked by the click handler after `setActiveObject(mask)` has run,
      * so the orchestrator can drive its selection-changed pipeline (label
      * overlay, hover/selection styling, list highlight) the same way it
      * does for canvas-originated selections.
      */
     onMaskSelected(mask: MaskObject): void;
+}
+
+function orderMasksForList(
+    masks: readonly MaskObject[],
+    order: OverlayListOrder | undefined,
+): MaskObject[] {
+    const ordered = masks.slice();
+    return order === 'back-to-front' ? ordered : ordered.reverse();
 }
 
 /**
@@ -101,7 +114,7 @@ export interface MaskListContext {
  *    `onclick` handler attached on the previous render, so there is no
  *    listener bookkeeping to track separately.
  * 3. For each {@link MaskObject} returned by `canvas.getObjects` (in
- *    canvas object order), build a fresh `<li>`:
+ *    the configured list order), build a fresh `<li>`:
  *      - class `list-group-item mask-item` (part of the stable DOM
  *        contract so existing CSS keeps working);
  *      - `textContent` set to `mask.maskName` (the label-text contract
@@ -124,15 +137,13 @@ export function renderMaskList(context: MaskListContext): void {
 
     // Drop the previous DOM (and, by detaching the nodes, every click
     // handler we attached below). Rebuilding from scratch keeps the list in
-    // exact sync with the canvas object order without any incremental diff.
+    // exact sync with the configured list order without any incremental diff.
     listEl.innerHTML = '';
 
     const canvas = context.canvas;
 
-    canvas
-        .getObjects()
-        .filter(isMaskObject)
-        .forEach((mask) => {
+    orderMasksForList(canvas.getObjects().filter(isMaskObject), context.listOrder).forEach(
+        (mask) => {
             const listItemElement = ownerDocument.createElement('li');
             // Class names are part of the documented DOM contract so existing
             // CSS / theme overrides keep working.
@@ -157,7 +168,8 @@ export function renderMaskList(context: MaskListContext): void {
             });
 
             listEl.appendChild(listItemElement);
-        });
+        },
+    );
 }
 
 /**

@@ -17,6 +17,7 @@ import {
     type AnnotationObject,
     type AnnotationUpdateConfig,
     type DrawAnnotationObject,
+    type OverlayListOrder,
     type RemoveAllAnnotationsOptions,
     type TextAnnotationObject,
 } from '../core/public-types.js';
@@ -32,6 +33,11 @@ export interface AnnotationManagerContext {
 export interface AnnotationListContext {
     canvas: FabricNS.Canvas | null;
     getListElement(): HTMLElement | null | undefined;
+    /**
+     * DOM render order for the annotation list. 'front-to-back' mirrors
+     * layer-panel behavior by showing the topmost overlay first.
+     */
+    listOrder?: OverlayListOrder;
     onAnnotationSelected(annotation: AnnotationObject): void;
 }
 
@@ -56,6 +62,14 @@ export function getActiveSelectionObjects(canvas: FabricNS.Canvas): FabricNS.Fab
 
 export function getAnnotations(canvas: FabricNS.Canvas): AnnotationObject[] {
     return canvas.getObjects().filter(isAnnotationObject).slice();
+}
+
+function orderAnnotationsForList(
+    annotations: readonly AnnotationObject[],
+    order: OverlayListOrder | undefined,
+): AnnotationObject[] {
+    const ordered = annotations.slice();
+    return order === 'back-to-front' ? ordered : ordered.reverse();
 }
 
 export function getSelectedAnnotations(canvas: FabricNS.Canvas): AnnotationObject[] {
@@ -260,7 +274,7 @@ export function renderAnnotationList(context: AnnotationListContext): void {
 
     listEl.innerHTML = '';
     const canvas = context.canvas;
-    getAnnotations(canvas).forEach((annotation) => {
+    orderAnnotationsForList(getAnnotations(canvas), context.listOrder).forEach((annotation) => {
         const item = ownerDocument.createElement('li');
         item.className = 'list-group-item annotation-item';
         item.textContent = annotation.annotationName;

@@ -1,4 +1,8 @@
 import { isMaskObject } from '../core/public-types.js';
+function orderMasksForList(masks, order) {
+    const ordered = masks.slice();
+    return order === 'back-to-front' ? ordered : ordered.reverse();
+}
 export function renderMaskList(context) {
     const listEl = context.getListElement();
     if (!listEl || !context.canvas)
@@ -6,10 +10,7 @@ export function renderMaskList(context) {
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
-    canvas
-        .getObjects()
-        .filter(isMaskObject)
-        .forEach((mask) => {
+    orderMasksForList(canvas.getObjects().filter(isMaskObject), context.listOrder).forEach((mask) => {
         const listItemElement = ownerDocument.createElement('li');
         listItemElement.className = 'list-group-item mask-item';
         listItemElement.textContent = mask.maskName;

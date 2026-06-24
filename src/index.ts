@@ -48,6 +48,7 @@ export type {
     LayoutMode,
     EditorObjectKind,
     EditorToolMode,
+    OverlayListOrder,
     AnnotationType,
     SessionObjectType,
     EditorObjectMeta,

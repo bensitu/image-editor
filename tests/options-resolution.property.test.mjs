@@ -78,6 +78,8 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'maskName',
     'textAnnotationName',
     'drawAnnotationName',
+    'maskListOrder',
+    'annotationListOrder',
     'groupSelection',
     'showPlaceholder',
     'initialImageBase64',
@@ -182,6 +184,8 @@ function topLevelScalarOverridesArb() {
             maskName: fc.string(),
             textAnnotationName: fc.string(),
             drawAnnotationName: fc.string(),
+            maskListOrder: fc.constantFrom('front-to-back', 'back-to-front'),
+            annotationListOrder: fc.constantFrom('front-to-back', 'back-to-front'),
             groupSelection: fc.boolean(),
             showPlaceholder: fc.boolean(),
             initialImageBase64: fc.option(fc.string(), { nil: null }),
@@ -685,6 +689,16 @@ test('defaultLayoutMode normalizes invalid values to expand', () => {
         assert.equal(resolved.defaultLayoutMode, 'expand');
         assert.equal(resolved.layoutMode, 'expand');
     }
+});
+
+test('invalid overlay list orders fall back to front-to-back', () => {
+    const resolved = resolveOptions({
+        maskListOrder: 'top-first',
+        annotationListOrder: 123,
+    });
+
+    assert.equal(resolved.maskListOrder, DEFAULT_OPTIONS.maskListOrder);
+    assert.equal(resolved.annotationListOrder, DEFAULT_OPTIONS.annotationListOrder);
 });
 
 test('removed layout boolean options are ignored', () => {

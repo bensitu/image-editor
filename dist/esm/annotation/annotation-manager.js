@@ -23,6 +23,10 @@ export function getActiveSelectionObjects(canvas) {
 export function getAnnotations(canvas) {
     return canvas.getObjects().filter(isAnnotationObject).slice();
 }
+function orderAnnotationsForList(annotations, order) {
+    const ordered = annotations.slice();
+    return order === 'back-to-front' ? ordered : ordered.reverse();
+}
 export function getSelectedAnnotations(canvas) {
     return getActiveSelectionObjects(canvas).filter(isAnnotationObject);
 }
@@ -193,7 +197,7 @@ export function renderAnnotationList(context) {
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
-    getAnnotations(canvas).forEach((annotation) => {
+    orderAnnotationsForList(getAnnotations(canvas), context.listOrder).forEach((annotation) => {
         const item = ownerDocument.createElement('li');
         item.className = 'list-group-item annotation-item';
         item.textContent = annotation.annotationName;

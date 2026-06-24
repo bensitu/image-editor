@@ -8,7 +8,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import { type AnnotationObject, type AnnotationUpdateConfig, type RemoveAllAnnotationsOptions } from '../core/public-types.js';
+import { type AnnotationObject, type AnnotationUpdateConfig, type OverlayListOrder, type RemoveAllAnnotationsOptions } from '../core/public-types.js';
 export interface AnnotationManagerContext {
     canvas: FabricNS.Canvas;
     saveCanvasState(): void;
@@ -17,6 +17,11 @@ export interface AnnotationManagerContext {
 export interface AnnotationListContext {
     canvas: FabricNS.Canvas | null;
     getListElement(): HTMLElement | null | undefined;
+    /**
+     * DOM render order for the annotation list. 'front-to-back' mirrors
+     * layer-panel behavior by showing the topmost overlay first.
+     */
+    listOrder?: OverlayListOrder;
     onAnnotationSelected(annotation: AnnotationObject): void;
 }
 export declare function getActiveSelectionObjects(canvas: FabricNS.Canvas): FabricNS.FabricObject[];

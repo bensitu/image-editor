@@ -23,6 +23,7 @@ import type {
     LayoutMode,
     MosaicConfig,
     MosaicOutputFileType,
+    OverlayListOrder,
     ResolvedCropConfig,
     ResolvedDrawConfig,
     ResolvedMosaicConfig,
@@ -36,6 +37,7 @@ import { tryNormalizeImageFormat } from '../export/export-format.js';
 
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({}) as DefaultMaskConfig;
 const DEFAULT_LAYOUT_MODE: LayoutMode = 'expand';
+const DEFAULT_OVERLAY_LIST_ORDER: OverlayListOrder = 'front-to-back';
 
 /**
  * Documented defaults for every top-level option except the nested
@@ -95,6 +97,8 @@ export const DEFAULT_OPTIONS: Omit<
     maskName: 'mask',
     textAnnotationName: 'text',
     drawAnnotationName: 'draw',
+    maskListOrder: DEFAULT_OVERLAY_LIST_ORDER,
+    annotationListOrder: DEFAULT_OVERLAY_LIST_ORDER,
 
     groupSelection: false,
 
@@ -247,6 +251,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'maskName',
     'textAnnotationName',
     'drawAnnotationName',
+    'maskListOrder',
+    'annotationListOrder',
     'groupSelection',
     'showPlaceholder',
     'initialImageBase64',
@@ -363,6 +369,10 @@ function normalizeMaxExportPixels(value: unknown): number {
 
 function normalizeExportArea(value: unknown): ExportArea {
     return value === 'canvas' || value === 'image' ? value : DEFAULT_OPTIONS.exportAreaByDefault;
+}
+
+function normalizeOverlayListOrder(value: unknown, fallback: OverlayListOrder): OverlayListOrder {
+    return value === 'front-to-back' || value === 'back-to-front' ? value : fallback;
 }
 
 function normalizeOptionalQuality(value: unknown): number | undefined {
@@ -861,6 +871,20 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         }
         if (key === 'exportAreaByDefault') {
             resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
+        if (key === 'maskListOrder') {
+            resolved.maskListOrder = normalizeOverlayListOrder(
+                value,
+                DEFAULT_OPTIONS.maskListOrder,
+            );
+            continue;
+        }
+        if (key === 'annotationListOrder') {
+            resolved.annotationListOrder = normalizeOverlayListOrder(
+                value,
+                DEFAULT_OPTIONS.annotationListOrder,
+            );
             continue;
         }
         if (key === 'defaultLayoutMode') {

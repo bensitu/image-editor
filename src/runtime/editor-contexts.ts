@@ -314,6 +314,7 @@ export class EditorContextFactory {
         return {
             canvas: access.getCanvas(),
             getListElement: () => access.getMaskListElement(),
+            listOrder: access.getOptions().maskListOrder,
             onMaskSelected: (mask) => {
                 access.handleMaskSelected(mask);
             },
@@ -334,6 +335,7 @@ export class EditorContextFactory {
         return {
             canvas: access.getCanvas(),
             getListElement: () => access.getAnnotationListElement(),
+            listOrder: access.getOptions().annotationListOrder,
             onAnnotationSelected: (annotation) => {
                 access.handleAnnotationSelected(annotation);
             },

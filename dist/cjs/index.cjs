@@ -157,6 +157,7 @@ function resolveExportFormat(options, downsampleQuality) {
 
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 const DEFAULT_LAYOUT_MODE = 'expand';
+const DEFAULT_OVERLAY_LIST_ORDER = 'front-to-back';
 const DEFAULT_OPTIONS = {
     canvasWidth: 800,
     canvasHeight: 600,
@@ -190,6 +191,8 @@ const DEFAULT_OPTIONS = {
     maskName: 'mask',
     textAnnotationName: 'text',
     drawAnnotationName: 'draw',
+    maskListOrder: DEFAULT_OVERLAY_LIST_ORDER,
+    annotationListOrder: DEFAULT_OVERLAY_LIST_ORDER,
     groupSelection: false,
     showPlaceholder: true,
     initialImageBase64: null,
@@ -302,6 +305,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maskName',
     'textAnnotationName',
     'drawAnnotationName',
+    'maskListOrder',
+    'annotationListOrder',
     'groupSelection',
     'showPlaceholder',
     'initialImageBase64',
@@ -405,6 +410,9 @@ function normalizeMaxExportPixels(value) {
 }
 function normalizeExportArea(value) {
     return value === 'canvas' || value === 'image' ? value : DEFAULT_OPTIONS.exportAreaByDefault;
+}
+function normalizeOverlayListOrder(value, fallback) {
+    return value === 'front-to-back' || value === 'back-to-front' ? value : fallback;
 }
 function normalizeOptionalQuality(value) {
     if (value === undefined || value === null)
@@ -773,6 +781,14 @@ function resolveOptions(input) {
         }
         if (key === 'exportAreaByDefault') {
             resolved.exportAreaByDefault = normalizeExportArea(value);
+            continue;
+        }
+        if (key === 'maskListOrder') {
+            resolved.maskListOrder = normalizeOverlayListOrder(value, DEFAULT_OPTIONS.maskListOrder);
+            continue;
+        }
+        if (key === 'annotationListOrder') {
+            resolved.annotationListOrder = normalizeOverlayListOrder(value, DEFAULT_OPTIONS.annotationListOrder);
             continue;
         }
         if (key === 'defaultLayoutMode') {
@@ -2424,6 +2440,10 @@ function getActiveSelectionObjects(canvas) {
 function getAnnotations(canvas) {
     return canvas.getObjects().filter(isAnnotationObject).slice();
 }
+function orderAnnotationsForList(annotations, order) {
+    const ordered = annotations.slice();
+    return order === 'back-to-front' ? ordered : ordered.reverse();
+}
 function getSelectedAnnotations(canvas) {
     return getActiveSelectionObjects(canvas).filter(isAnnotationObject);
 }
@@ -2594,7 +2614,7 @@ function renderAnnotationList(context) {
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
-    getAnnotations(canvas).forEach((annotation) => {
+    orderAnnotationsForList(getAnnotations(canvas), context.listOrder).forEach((annotation) => {
         const item = ownerDocument.createElement('li');
         item.className = 'list-group-item annotation-item';
         item.textContent = annotation.annotationName;
@@ -7441,6 +7461,7 @@ class EditorContextFactory {
         return {
             canvas: access.getCanvas(),
             getListElement: () => access.getMaskListElement(),
+            listOrder: access.getOptions().maskListOrder,
             onMaskSelected: (mask) => {
                 access.handleMaskSelected(mask);
             },
@@ -7459,6 +7480,7 @@ class EditorContextFactory {
         return {
             canvas: access.getCanvas(),
             getListElement: () => access.getAnnotationListElement(),
+            listOrder: access.getOptions().annotationListOrder,
             onAnnotationSelected: (annotation) => {
                 access.handleAnnotationSelected(annotation);
             },
@@ -8692,6 +8714,10 @@ function hideAllMaskLabels(context) {
     });
 }
 
+function orderMasksForList(masks, order) {
+    const ordered = masks.slice();
+    return order === 'back-to-front' ? ordered : ordered.reverse();
+}
 function renderMaskList(context) {
     const listEl = context.getListElement();
     if (!listEl || !context.canvas)
@@ -8699,10 +8725,7 @@ function renderMaskList(context) {
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
     const canvas = context.canvas;
-    canvas
-        .getObjects()
-        .filter(isMaskObject)
-        .forEach((mask) => {
+    orderMasksForList(canvas.getObjects().filter(isMaskObject), context.listOrder).forEach((mask) => {
         const listItemElement = ownerDocument.createElement('li');
         listItemElement.className = 'list-group-item mask-item';
         listItemElement.textContent = mask.maskName;

@@ -62,6 +62,7 @@ async function createSourceEditorWithLists(t, options = {}) {
         canvasHeight: 240,
         animationDuration: 0,
         showPlaceholder: false,
+        ...(options.editorOptions ?? {}),
     });
     editor.init(ids);
     t.after(() => disposeEditor(editor));
@@ -134,6 +135,58 @@ function requireListItem(listId, selector) {
     return item;
 }
 
+function listDatasetValues(listId, selector, key) {
+    const list = document.getElementById(listId);
+    assert.ok(list, `list ${listId} must exist`);
+    return Array.from(list.querySelectorAll(selector)).map((item) => item.dataset[key]);
+}
+
+test('mask and annotation lists default to front-to-back order', async (t) => {
+    const { editor, ids } = await createSourceEditorWithLists(t);
+    const mask1 = editor.createMask({ name: 'Mask ' });
+    const mask2 = editor.createMask({ name: 'Mask ' });
+    const annotation1 = editor.createTextAnnotation({ text: 'First', enterEditing: false });
+    const annotation2 = editor.createTextAnnotation({ text: 'Second', enterEditing: false });
+    assert.ok(mask1);
+    assert.ok(mask2);
+    assert.ok(annotation1);
+    assert.ok(annotation2);
+
+    assert.deepEqual(listDatasetValues(ids.maskList, '.mask-item', 'maskId'), [
+        String(mask2.maskId),
+        String(mask1.maskId),
+    ]);
+    assert.deepEqual(listDatasetValues(ids.annotationList, '.annotation-item', 'annotationId'), [
+        String(annotation2.annotationId),
+        String(annotation1.annotationId),
+    ]);
+});
+
+test('mask and annotation lists can use back-to-front order', async (t) => {
+    const { editor, ids } = await createSourceEditorWithLists(t, {
+        editorOptions: {
+            maskListOrder: 'back-to-front',
+            annotationListOrder: 'back-to-front',
+        },
+    });
+    const mask1 = editor.createMask({ name: 'Mask ' });
+    const mask2 = editor.createMask({ name: 'Mask ' });
+    const annotation1 = editor.createTextAnnotation({ text: 'First', enterEditing: false });
+    const annotation2 = editor.createTextAnnotation({ text: 'Second', enterEditing: false });
+    assert.ok(mask1);
+    assert.ok(mask2);
+    assert.ok(annotation1);
+    assert.ok(annotation2);
+
+    assert.deepEqual(listDatasetValues(ids.maskList, '.mask-item', 'maskId'), [
+        String(mask1.maskId),
+        String(mask2.maskId),
+    ]);
+    assert.deepEqual(listDatasetValues(ids.annotationList, '.annotation-item', 'annotationId'), [
+        String(annotation1.annotationId),
+        String(annotation2.annotationId),
+    ]);
+});
 test('layer operations preserve mask list highlight after rerender', async (t) => {
     const { editor, ids } = await createSourceEditorWithLists(t);
     const mask = editor.createMask({ name: 'Mask ' });

@@ -8,7 +8,7 @@
  *   object list rather than the full editor facade.
  *
  * Scope:
- *   - renderMaskList emits one li per mask in canvas order with data-mask-id.
+ *   - renderMaskList emits one li per mask in configured list order with data-mask-id.
  *   - Clicking a list item selects the matching mask by ID lookup regardless of list
  *     order.
  *   - Active CSS class state follows the selected mask ID.
@@ -101,7 +101,7 @@ function makeMask(id, name) {
 
 /**
  * Minimal fake `fabric.Canvas`. Holds an ordered object list (the
- * canvas object order the documented contract keys off), records the most
+ * underlying Fabric object order), records the most
  * recent `setActiveObject` argument so the click assertions can read
  * it back, and supports the small subset of methods the label manager
  * touches (`add` / `remove` / `bringObjectToFront` / `renderAll`).
@@ -182,7 +182,7 @@ function permutationArb(items) {
 
 // ─── Canonical DOM render ─────────────────────────────────────
 
-test('renderMaskList renders one <li> per mask in canvas order with data-mask-id', () => {
+test('renderMaskList defaults to front-to-back order with data-mask-id', () => {
     fc.assert(
         fc.property(maskListArb, (masks) => {
             const { document, listId } = installDom();
@@ -212,12 +212,13 @@ test('renderMaskList renders one <li> per mask in canvas order with data-mask-id
                 'the documented contract: <ul> must contain only mask-item children',
             );
 
-            // ── the documented contract — canvas object order is preserved ──────────
-            masks.forEach((mask, i) => {
+            // ── the documented contract — front-to-back order is the default ────────
+            const expectedOrder = masks.slice().reverse();
+            expectedOrder.forEach((mask, i) => {
                 assert.equal(
                     items[i].dataset.maskId,
                     String(mask.maskId),
-                    `the documented contract: <li>[${i}].data-mask-id must equal canvas object [${i}].maskId`,
+                    'the documented contract: mask list defaults to front-to-back order',
                 );
             });
 
@@ -233,6 +234,30 @@ test('renderMaskList renders one <li> per mask in canvas order with data-mask-id
                     mask,
                     `the documented contract: every <li> must correspond to a mask on the canvas (got data-mask-id=${id})`,
                 );
+            });
+            return true;
+        }),
+        { numRuns: 100 },
+    );
+});
+
+test('renderMaskList can render back-to-front order', () => {
+    fc.assert(
+        fc.property(maskListArb, (masks) => {
+            const { document, listId } = installDom();
+            const canvas = makeCanvas(masks);
+            const ctx = {
+                canvas,
+                getListElement: () => document.getElementById(listId),
+                listOrder: 'back-to-front',
+                onMaskSelected: () => {},
+            };
+
+            renderMaskList(ctx);
+
+            const items = Array.from(document.querySelectorAll('li.mask-item'));
+            masks.forEach((mask, i) => {
+                assert.equal(items[i].dataset.maskId, String(mask.maskId));
             });
             return true;
         }),

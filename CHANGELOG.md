@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add HTMLElement/ref-based `init()` targets while preserving existing string ID initialization.
 - Add public `setCanvasSize()`, `resizeToContainer()`, and `relayout()` APIs for responsive host layouts.
 - Add React, Vue, and SSR integration guides under `docs/frameworks/`.
+- Add `maskListOrder` and `annotationListOrder` options so integrators can choose front-to-back or back-to-front sidebar ordering.
 
 ### Changed
 
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove the unused `ui-state` module and internal `ResolvedElementIdMap` / `resolveElementIds` compatibility aliases after the ref-based element map architecture replaced the old ID-only helper path.
 - Update internal merge-layout coverage to exercise the public `mergeMasks()` path instead of reading TypeScript-private facade methods at runtime.
 - Clarify test comments so the suite documents library behavior, source modules, package metadata, and build artifacts rather than demo pages or README/docs content.
+- Render Mask list and Annotation list in front-to-back order by default so topmost and newly added overlays appear first; set the corresponding list order option to `back-to-front` to retain the previous Fabric object-order display.
 
 ### Fixed
 
@@ -30,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - Link framework integration guides from the README and document ref-based mounting and responsive relayout APIs.
+- Document mask and annotation list ordering options and their sidebar-only effect.
 
 ## [2.4.1] - 2026-06-23
 

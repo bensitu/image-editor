@@ -89,6 +89,14 @@ export type SessionObjectType =
 
 export type EditorToolMode = 'crop' | 'mosaic' | 'text' | 'draw';
 
+/**
+ * Render order for mask and annotation sidebar lists.
+ *
+ * - 'front-to-back' shows the topmost canvas overlay first.
+ * - 'back-to-front' follows Fabric object order from bottom to top.
+ */
+export type OverlayListOrder = 'front-to-back' | 'back-to-front';
+
 export interface EditorObjectMeta {
     editorObjectKind: EditorObjectKind;
 }
@@ -1162,6 +1170,10 @@ export interface ImageEditorOptions {
     textAnnotationName?: string;
     /** Name prefix for auto-generated draw annotations. @default 'draw' */
     drawAnnotationName?: string;
+    /** Mask list render order. @default 'front-to-back' */
+    maskListOrder?: OverlayListOrder;
+    /** Annotation list render order. @default 'front-to-back' */
+    annotationListOrder?: OverlayListOrder;
 
     /** Allow multi-object group selection on the canvas. @default false */
     groupSelection?: boolean;
