@@ -25,7 +25,6 @@ import { mergeTextAnnotationConfigPatch } from '../core/default-options.js';
 import { getObjectBBox } from '../utils/canvas-region.js';
 import { resolveNumeric } from '../utils/number.js';
 import { getPointerFromFabricEvent } from '../utils/pointer.js';
-import { markSessionObject } from '../core/editor-object-kind.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
 import { isAnnotationUnlocked } from './annotation-lock.js';
 
@@ -151,11 +150,11 @@ export function attachTextEditingHandlers(
         const cancel = textObject.imageEditorTextEditingCancel === true;
         if (initial !== undefined) {
             textObject.imageEditorTextEditingHandledChange = true;
-            setTimeout(() => {
+            queueMicrotask(() => {
                 if (textObject.imageEditorTextEditingHandledChange === true) {
                     delete textObject.imageEditorTextEditingHandledChange;
                 }
-            }, 0);
+            });
         }
         if (cancel && initial !== undefined) {
             textObject.set({ text: initial } as Partial<FabricNS.TextboxProps>);
@@ -303,17 +302,6 @@ export function enterTextMode(context: TextControllerContext): void {
             canvas.defaultCursor = previousDefaultCursor ?? 'default';
         },
     };
-    const preview = new context.fabric.Rect({
-        left: -1,
-        top: -1,
-        width: 1,
-        height: 1,
-        selectable: false,
-        evented: false,
-        visible: false,
-        excludeFromExport: true,
-    });
-    markSessionObject(preview, 'textPreview');
     context.setTextSession(session);
     context.updateUi();
 }

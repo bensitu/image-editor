@@ -40,7 +40,7 @@ export function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, pre
     var _a;
     const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
+    const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : null;
     if (!documentForCanvas) {
         throw new DownsampleError('Failed to obtain an owner document for downsampling.');
     }

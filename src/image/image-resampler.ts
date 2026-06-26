@@ -219,10 +219,7 @@ export function resampleImage(
     // Offscreen raster. We use a plain detached <canvas> rather than
     // `OffscreenCanvas` for broader browser support; the failure semantics
     // (null context => DownsampleError) are identical either way.
-    const documentForCanvas =
-        ownerDocument ??
-        imageElement.ownerDocument ??
-        (typeof document !== 'undefined' ? document : null);
+    const documentForCanvas = ownerDocument ?? imageElement.ownerDocument ?? null;
     if (!documentForCanvas) {
         throw new DownsampleError('Failed to obtain an owner document for downsampling.');
     }

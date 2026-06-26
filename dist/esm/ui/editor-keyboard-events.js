@@ -12,15 +12,30 @@ export function bindEditorKeyboardEvents(access) {
     access.setKeyboardBinding(ownerDocument, handler);
     ownerDocument.addEventListener('keydown', handler);
 }
-export function isNativeTextInputActive(keyboardDocument) {
-    const activeElement = keyboardDocument === null || keyboardDocument === void 0 ? void 0 : keyboardDocument.activeElement;
-    if (!activeElement)
+function isNativeEditableElement(element) {
+    var _a;
+    if (!element)
         return false;
-    const tagName = activeElement.tagName.toLowerCase();
+    const activeElement = element;
+    const tagName = String((_a = activeElement.tagName) !== null && _a !== void 0 ? _a : '').toLowerCase();
     return (tagName === 'input' ||
         tagName === 'textarea' ||
         tagName === 'select' ||
         activeElement.isContentEditable === true);
+}
+function getDeepActiveElement(root) {
+    var _a, _b;
+    let activeElement = (_a = root === null || root === void 0 ? void 0 : root.activeElement) !== null && _a !== void 0 ? _a : null;
+    while ((_b = activeElement === null || activeElement === void 0 ? void 0 : activeElement.shadowRoot) === null || _b === void 0 ? void 0 : _b.activeElement) {
+        activeElement = activeElement.shadowRoot.activeElement;
+    }
+    return activeElement;
+}
+export function isNativeTextInputActive(keyboardDocument, event) {
+    const composedPath = typeof (event === null || event === void 0 ? void 0 : event.composedPath) === 'function' ? event.composedPath() : undefined;
+    if (composedPath === null || composedPath === void 0 ? void 0 : composedPath.some(isNativeEditableElement))
+        return true;
+    return isNativeEditableElement(getDeepActiveElement(keyboardDocument));
 }
 export function isFabricTextEditingActive(canvas) {
     const activeObject = canvas === null || canvas === void 0 ? void 0 : canvas.getActiveObject();
@@ -33,7 +48,7 @@ export function handleEditorKeyboardEvent(access, event) {
         return;
     const canvas = access.getCanvas();
     if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (isNativeTextInputActive(access.getKeyboardDocument()) ||
+        if (isNativeTextInputActive(access.getKeyboardDocument(), event) ||
             isFabricTextEditingActive(canvas)) {
             return;
         }

@@ -37,7 +37,7 @@ import {
 } from '../mask/mask-factory.js';
 import type { MaskLabelManagerContext } from '../mask/mask-label-manager.js';
 import type { MaskListContext } from '../mask/mask-list.js';
-import { reattachMaskHoverHandlers } from '../mask/mask-style.js';
+import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mask-style.js';
 import type { MosaicControllerContext, MosaicSession } from '../mosaic/mosaic-controller.js';
 import type { OperationGuard, OperationToken } from '../core/operation-guard.js';
 import {
@@ -209,6 +209,75 @@ export class EditorContextFactory {
             getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
+            },
+            setCanvasSize: (width, height) => {
+                access.setCanvasSize(width, height);
+            },
+            applyRollbackRestoredState: (restoredState) => {
+                access.hideAllMaskLabels();
+                const canvas = access.getCanvas();
+                const originalImage = restoredState.originalImage;
+                access.setOriginalImage(originalImage);
+                if (originalImage) {
+                    originalImage.set({
+                        originX: 'left',
+                        originY: 'top',
+                        selectable: false,
+                        evented: false,
+                        hasControls: false,
+                        hoverCursor: 'default',
+                    });
+                    canvas?.sendObjectToBack(originalImage);
+                }
+                const restoredMasks = restoredState.masks;
+                access.setLastMask(
+                    restoredMasks.reduce<MaskObject | null>(
+                        (lastMask, maskObject) =>
+                            !lastMask || maskObject.maskId > lastMask.maskId
+                                ? maskObject
+                                : lastMask,
+                        null,
+                    ),
+                );
+                restoredMasks.forEach((maskObject) => {
+                    applyMaskUnselectedStyle(maskObject);
+                    reattachMaskHoverHandlers(maskObject);
+                });
+                syncAnnotationRuntimeStates(restoredState.annotations);
+                attachTextEditingHandlersToAnnotations(
+                    this.buildTextControllerContext(),
+                    restoredState.annotations,
+                );
+                access.updateMaskList();
+                access.updateAnnotationList();
+                access.updateInputs();
+                access.updateUi();
+            },
+            resetAfterRollbackFailure: () => {
+                const canvas = access.getCanvas();
+                try {
+                    canvas?.clear();
+                    if (canvas) {
+                        canvas.backgroundColor = access.getOptions().backgroundColor;
+                        canvas.renderAll();
+                    }
+                } catch {
+                    /* Best-effort cleanup after a failed rollback. */
+                }
+                access.setOriginalImage(null);
+                access.setIsImageLoadedToCanvas(false);
+                access.setCurrentImageMimeType(null);
+                access.setLastSnapshot(null);
+                access.setLastMask(null);
+                access.setMaskCounter(0);
+                access.setAnnotationCounter(0);
+                access.setCurrentScale(1);
+                access.setCurrentRotation(0);
+                access.setBaseImageScale(1);
+                access.updateMaskList();
+                access.updateAnnotationList();
+                access.updateInputs();
+                access.updateUi();
             },
             setPlaceholderVisible: (show) => {
                 access.setPlaceholderVisible(show);

@@ -132,12 +132,23 @@ export declare class StateRestoreError extends Error {
     constructor(message?: string, originalError?: unknown);
 }
 /**
+ * Raised by facade-level operation guards when a public operation is attempted
+ * while the editor is disposed, loading, animating, or in an incompatible tool
+ * mode.
+ */
+export declare class IdleGuardError extends Error {
+    readonly name = "IdleGuardError";
+    /** Name of the operation that was attempted. */
+    readonly operation: string;
+    constructor(operation: string, reason: string);
+}
+/**
  * Raised by `export/export-service.ts.exportImageFile` when
  * `isImageLoaded` is `false`. A console warning naming the missing image
  * is emitted alongside the rejection.
  *
- * Note: `exportImageBase64` and `downloadImage` do NOT raise this error —
- * they resolve to `''` or no-op respectively, and emit the same warning.
+ * Note: `downloadImage` does NOT raise this error for the no-image path; it
+ * resolves as a no-op and emits the same warning.
  *
  * Surfaces to consumer as: rejection of the `exportImageFile` promise.
  *
@@ -146,7 +157,7 @@ export declare class ExportNotReadyError extends Error {
     readonly name = "ExportNotReadyError";
     /** Name of the export operation that was attempted. */
     readonly operation: string;
-    constructor(operation?: string);
+    constructor(operation?: string, reason?: string);
 }
 /**
  * Raised by export helpers when an image is loaded but the export pipeline

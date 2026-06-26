@@ -8,6 +8,7 @@
 import type * as FabricNS from 'fabric';
 
 import type { OperationToken } from '../core/operation-guard.js';
+import { ExportNotReadyError } from '../core/errors.js';
 import {
     isAnnotationObject,
     isMaskObject,
@@ -122,8 +123,10 @@ export async function exportImageBase64Action(
     access: ExportActionAccess,
     options?: ImageExportOptions,
 ): Promise<string> {
-    if (!access.getCanvas()) return '';
-    if (!access.canRunIdleOperation('exportImageBase64', options)) return '';
+    if (!access.getCanvas()) {
+        throw new ExportNotReadyError('exportImageBase64', 'editor is not initialized');
+    }
+    access.assertIdleForOperation('exportImageBase64', options);
     access.finalizeActiveTextEditingIfNeeded();
 
     return await runBusyOperationWithoutUi(

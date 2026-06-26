@@ -540,14 +540,17 @@ test('history and state APIs are guarded while another operation is active', asy
         await editor.loadFromState(snapshot);
         await editor.undo();
         await editor.redo();
-        const base64 = await editor.exportImageBase64();
+        await assert.rejects(
+            () => editor.exportImageBase64(),
+            /exportImageBase64 is running/,
+            'exportImageBase64 must reject while another export operation is active',
+        );
         await assert.rejects(
             () => editor.exportImageFile(),
             /exportImageBase64 is running/,
             'exportImageFile must reject while another export operation is active',
         );
 
-        assert.equal(base64, '', 'exportImageBase64 must no-op while busy');
         assert.equal(
             getCurrentRotation(editor),
             90,

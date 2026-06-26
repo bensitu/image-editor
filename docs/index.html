@@ -37,7 +37,10 @@
             <header class="demo-header">
                 <div>
                     <h1>ImageEditor</h1>
-                    <p data-i18n="appSubtitle">Canvas image editing demo: annotate, mask, mosaic, crop, transform, and export.</p>
+                    <p data-i18n="appSubtitle">
+                        Canvas image editing demo: annotate, mask, mosaic, crop, transform, and
+                        export.
+                    </p>
                 </div>
                 <div
                     class="header-actions"
@@ -699,7 +702,7 @@
                     ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
                     : '../node_modules/fabric/dist/index.min.js';
                 const imageEditorSrc = isGitHubPages
-                    ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@2.3.0/dist/umd/image-editor.umd.js'
+                    ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.umd.js'
                     : '../dist/umd/image-editor.umd.js';
 
                 function loadScript(src) {

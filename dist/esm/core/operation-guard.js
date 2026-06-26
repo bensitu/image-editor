@@ -1,3 +1,4 @@
+import { IdleGuardError } from './errors.js';
 export class OperationGuard {
     constructor() {
         Object.defineProperty(this, "isAnimationActive", {
@@ -119,38 +120,36 @@ export class OperationGuard {
     }
     assertNotAnimating(operationLabel) {
         if (this.isAnimationActive) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
         }
     }
     assertIdleForOperation(operationLabel, token) {
         var _a;
         if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+            throw new IdleGuardError(operationLabel, 'after dispose');
         }
         const ownOperation = this.isOwnOperation(token);
         if (this.isAnimationActive) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
         }
         if (this.isLoadingActive && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+            throw new IdleGuardError(operationLabel, 'while an image is loading');
         }
         if (this.currentOperationToken && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+            throw new IdleGuardError(operationLabel, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
         }
     }
     assertCanQueueAnimation(operationLabel, token) {
         var _a;
         if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+            throw new IdleGuardError(operationLabel, 'after dispose');
         }
         const ownOperation = this.isOwnOperation(token);
         if (this.isLoadingActive && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+            throw new IdleGuardError(operationLabel, 'while an image is loading');
         }
         if (this.currentOperationToken && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+            throw new IdleGuardError(operationLabel, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
         }
     }
 }

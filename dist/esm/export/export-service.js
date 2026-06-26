@@ -338,12 +338,21 @@ function getJpegBackgroundColor(backgroundColor, ownerDocument) {
 }
 const colorValidationContexts = new WeakMap();
 function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#ffffff') {
+    var _a, _b;
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
         return '#ffffff';
+    const css = (_b = (_a = ownerDocument.defaultView) === null || _a === void 0 ? void 0 : _a.CSS) !== null && _b !== void 0 ? _b : globalThis.CSS;
+    const supportsColor = typeof (css === null || css === void 0 ? void 0 : css.supports) === 'function' ? css.supports('color', value) : null;
+    if (supportsColor === false)
+        return fallback;
     const context = createColorValidationContext(ownerDocument);
     if (!context)
-        return fallback;
+        return supportsColor === true ? value : fallback;
+    if (supportsColor === true) {
+        context.fillStyle = value;
+        return context.fillStyle;
+    }
     context.fillStyle = '#000001';
     const firstSentinel = context.fillStyle;
     context.fillStyle = value;
@@ -433,12 +442,7 @@ function dataUrlToBytes(dataUrl) {
     }
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
-        const buffer = new ArrayBuffer(binary.length);
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < binary.length; i += 1) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes;
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
     }
     const bufferCtor = globalThis.Buffer;
     if (bufferCtor && typeof bufferCtor.from === 'function') {
@@ -518,7 +522,7 @@ async function renderExportDataUrl(context, resolved) {
 export async function exportImageBase64(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
-        return '';
+        throw new ExportNotReadyError('exportImageBase64');
     }
     const resolved = resolveExportOptions(context, options);
     return renderExportDataUrl(context, resolved);

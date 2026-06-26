@@ -8,7 +8,8 @@
  *
  * Scope:
  *   - An explicit ownerDocument takes precedence over image and global documents.
- *   - The image element ownerDocument is used before global document fallback.
+ *   - The image element ownerDocument is used when no explicit owner is passed.
+ *   - Missing owner documents fail clearly instead of falling back to global document.
  *
  * Out of scope:
  *   - resampling quality
@@ -31,6 +32,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { resampleImage } = await import('../src/image/image-resampler.ts');
+const { DownsampleError } = await import('../src/core/errors.ts');
 
 function makeDocumentRecorder(label) {
     const calls = [];
@@ -95,7 +97,7 @@ test('resampleImage creates its offscreen canvas from the provided ownerDocument
     }
 });
 
-test('resampleImage falls back to the image ownerDocument before global document', () => {
+test('resampleImage falls back to the image ownerDocument', () => {
     const imageOwner = makeDocumentRecorder('image');
     const global = makeDocumentRecorder('global');
     const previousDocument = globalThis.document;
@@ -111,6 +113,38 @@ test('resampleImage falls back to the image ownerDocument before global document
         resampleImage(imageElement, 60, 40, 'image/png', true, undefined, 0.7);
 
         assert.equal(imageOwner.calls.length, 1);
+        assert.equal(global.calls.length, 0);
+    } finally {
+        if (previousDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = previousDocument;
+        }
+    }
+});
+
+test('resampleImage rejects when no explicit or image ownerDocument is available', () => {
+    const global = makeDocumentRecorder('global');
+    const previousDocument = globalThis.document;
+    globalThis.document = global.document;
+
+    try {
+        assert.throws(
+            () =>
+                resampleImage(
+                    {
+                        naturalWidth: 120,
+                        naturalHeight: 80,
+                    },
+                    60,
+                    40,
+                    'image/png',
+                    true,
+                    undefined,
+                    0.7,
+                ),
+            DownsampleError,
+        );
         assert.equal(global.calls.length, 0);
     } finally {
         if (previousDocument === undefined) {

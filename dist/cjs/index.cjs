@@ -25,6 +25,207 @@ function reportError(options, error, message) {
     }
 }
 
+function fixPrototype(self, ctor) {
+    Object.setPrototypeOf(self, ctor.prototype);
+}
+class ImageDecodeError extends Error {
+    constructor(message = 'Failed to decode image data URL.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageDecodeError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, ImageDecodeError);
+    }
+}
+class ImageLoadTimeoutError extends Error {
+    constructor(label, elapsedMs) {
+        super(`Image load timed out after ${elapsedMs}ms during ${label}`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageLoadTimeoutError'
+        });
+        Object.defineProperty(this, "label", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "elapsedMs", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.label = label;
+        this.elapsedMs = elapsedMs;
+        fixPrototype(this, ImageLoadTimeoutError);
+    }
+}
+class DownsampleError extends Error {
+    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'DownsampleError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, DownsampleError);
+    }
+}
+class MergeMasksError extends Error {
+    constructor(message = 'Failed to merge masks into the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'MergeMasksError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, MergeMasksError);
+    }
+}
+class MergeAnnotationsError extends Error {
+    constructor(message = 'Failed to merge annotations into the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'MergeAnnotationsError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, MergeAnnotationsError);
+    }
+}
+class CropApplyError extends Error {
+    constructor(message = 'Failed to apply crop to the image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'CropApplyError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, CropApplyError);
+    }
+}
+class StateRestoreError extends Error {
+    constructor(message = 'Failed to restore editor state.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'StateRestoreError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, StateRestoreError);
+    }
+}
+class IdleGuardError extends Error {
+    constructor(operation, reason) {
+        super(`[ImageEditor] Cannot run "${operation}" ${reason}.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'IdleGuardError'
+        });
+        Object.defineProperty(this, "operation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.operation = operation;
+        fixPrototype(this, IdleGuardError);
+    }
+}
+class ExportNotReadyError extends Error {
+    constructor(operation = 'exportImageFile', reason = 'no image is loaded on the canvas') {
+        super(`Cannot ${operation}: ${reason}.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ExportNotReadyError'
+        });
+        Object.defineProperty(this, "operation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.operation = operation;
+        fixPrototype(this, ExportNotReadyError);
+    }
+}
+class ExportError extends Error {
+    constructor(message = 'Failed to export image.', originalError = null) {
+        super(message);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ExportError'
+        });
+        Object.defineProperty(this, "originalError", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.originalError = originalError;
+        fixPrototype(this, ExportError);
+    }
+}
+
 const DEFAULT_ELEMENT_TARGETS = {
     canvas: 'canvas',
     canvasContainer: null,
@@ -766,7 +967,58 @@ function normalizeDrawConfig(input, fallback) {
     return mergeDrawConfigPatch(fallback, input);
 }
 function areResolvedTextAnnotationConfigsEqual(left, right) {
-    return JSON.stringify(left) === JSON.stringify(right);
+    return (left.text === right.text &&
+        left.left === right.left &&
+        left.top === right.top &&
+        left.width === right.width &&
+        left.fontSize === right.fontSize &&
+        left.fontFamily === right.fontFamily &&
+        left.fontWeight === right.fontWeight &&
+        left.fill === right.fill &&
+        left.backgroundColor === right.backgroundColor &&
+        left.textAlign === right.textAlign &&
+        left.angle === right.angle &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.editable === right.editable &&
+        left.enterEditing === right.enterEditing &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked &&
+        areStyleRecordsEqual(left.styles, right.styles));
+}
+function areStyleRecordsEqual(left, right) {
+    return areStyleValuesEqual(left, right, new WeakMap());
+}
+function areStyleValuesEqual(left, right, seen) {
+    if (Object.is(left, right))
+        return true;
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object')
+        return false;
+    let seenRights = seen.get(left);
+    if (seenRights === null || seenRights === void 0 ? void 0 : seenRights.has(right))
+        return true;
+    if (!seenRights) {
+        seenRights = new WeakSet();
+        seen.set(left, seenRights);
+    }
+    seenRights.add(right);
+    if (Array.isArray(left) || Array.isArray(right)) {
+        return (Array.isArray(left) &&
+            Array.isArray(right) &&
+            left.length === right.length &&
+            left.every((value, index) => areStyleValuesEqual(value, right[index], seen)));
+    }
+    const leftRecord = left;
+    const rightRecord = right;
+    const leftKeys = Object.keys(leftRecord);
+    const rightKeys = Object.keys(rightRecord);
+    if (leftKeys.length !== rightKeys.length)
+        return false;
+    return leftKeys.every((key) => {
+        if (!hasOwn(rightRecord, key))
+            return false;
+        return areStyleValuesEqual(leftRecord[key], rightRecord[key], seen);
+    });
 }
 function areResolvedDrawConfigsEqual(left, right) {
     return (left.brushSize === right.brushSize &&
@@ -995,7 +1247,6 @@ function resolveOptions(input) {
     resolved.onError = normalizeCallback(raw.onError);
     resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
-    resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
     if (resolved.minScale > resolved.maxScale) {
         const minScale = resolved.minScale;
         resolved.minScale = resolved.maxScale;
@@ -1136,188 +1387,7 @@ function markSessionObject(object, sessionObjectType) {
     return sessionObject;
 }
 
-function fixPrototype(self, ctor) {
-    Object.setPrototypeOf(self, ctor.prototype);
-}
-class ImageDecodeError extends Error {
-    constructor(message = 'Failed to decode image data URL.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageDecodeError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, ImageDecodeError);
-    }
-}
-class ImageLoadTimeoutError extends Error {
-    constructor(label, elapsedMs) {
-        super(`Image load timed out after ${elapsedMs}ms during ${label}`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageLoadTimeoutError'
-        });
-        Object.defineProperty(this, "label", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "elapsedMs", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.label = label;
-        this.elapsedMs = elapsedMs;
-        fixPrototype(this, ImageLoadTimeoutError);
-    }
-}
-class DownsampleError extends Error {
-    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'DownsampleError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, DownsampleError);
-    }
-}
-class MergeMasksError extends Error {
-    constructor(message = 'Failed to merge masks into the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'MergeMasksError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, MergeMasksError);
-    }
-}
-class MergeAnnotationsError extends Error {
-    constructor(message = 'Failed to merge annotations into the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'MergeAnnotationsError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, MergeAnnotationsError);
-    }
-}
-class CropApplyError extends Error {
-    constructor(message = 'Failed to apply crop to the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'CropApplyError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, CropApplyError);
-    }
-}
-class StateRestoreError extends Error {
-    constructor(message = 'Failed to restore editor state.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'StateRestoreError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, StateRestoreError);
-    }
-}
-class ExportNotReadyError extends Error {
-    constructor(operation = 'exportImageFile') {
-        super(`Cannot ${operation}: no image is loaded on the canvas.`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ExportNotReadyError'
-        });
-        Object.defineProperty(this, "operation", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.operation = operation;
-        fixPrototype(this, ExportNotReadyError);
-    }
-}
-class ExportError extends Error {
-    constructor(message = 'Failed to export image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ExportError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, ExportError);
-    }
-}
-
+const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const SNAPSHOT_CUSTOM_KEYS = [
     'editorObjectKind',
     'sessionObjectType',
@@ -1493,7 +1563,7 @@ function saveState(input) {
     return JSON.stringify(jsonObj);
 }
 async function loadFromState(input) {
-    var _a, _b;
+    var _a, _b, _c;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
     const jsonString = typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
     let json;
@@ -1507,11 +1577,12 @@ async function loadFromState(input) {
         json.width > 0 &&
         typeof json.height === 'number' &&
         json.height > 0) {
+        assertRestoredCanvasSizeAllowed(json.width, json.height, (_a = input.maxCanvasPixels) !== null && _a !== void 0 ? _a : DEFAULT_MAX_RESTORE_CANVAS_PIXELS);
         setCanvasSize(json.width, json.height);
     }
     await canvas.loadFromJSON(json);
     const objects = canvas.getObjects();
-    restoreEditorObjectPropsFromJson(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
+    restoreEditorObjectPropsFromJson(objects, (_b = json.objects) !== null && _b !== void 0 ? _b : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -1553,7 +1624,7 @@ async function loadFromState(input) {
         .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
     const masks = objects.filter(isMaskObject);
     const annotations = objects.filter(isAnnotationObject);
-    const originalImage = (_b = objects.find(isBaseImageObject)) !== null && _b !== void 0 ? _b : null;
+    const originalImage = (_c = objects.find(isBaseImageObject)) !== null && _c !== void 0 ? _c : null;
     return {
         editorState,
         maxMaskId,
@@ -1564,6 +1635,15 @@ async function loadFromState(input) {
         annotations,
         jsonString,
     };
+}
+function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels) {
+    const safeMaxCanvasPixels = Number.isFinite(maxCanvasPixels) && maxCanvasPixels > 0
+        ? Math.floor(maxCanvasPixels)
+        : DEFAULT_MAX_RESTORE_CANVAS_PIXELS;
+    const pixelCount = width * height;
+    if (!Number.isFinite(pixelCount) || pixelCount > safeMaxCanvasPixels) {
+        throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`);
+    }
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;
@@ -2206,11 +2286,11 @@ function attachTextEditingHandlers(context, annotation) {
         const cancel = textObject.imageEditorTextEditingCancel === true;
         if (initial !== undefined) {
             textObject.imageEditorTextEditingHandledChange = true;
-            setTimeout(() => {
+            queueMicrotask(() => {
                 if (textObject.imageEditorTextEditingHandledChange === true) {
                     delete textObject.imageEditorTextEditingHandledChange;
                 }
-            }, 0);
+            });
         }
         if (cancel && initial !== undefined) {
             textObject.set({ text: initial });
@@ -2344,17 +2424,6 @@ function enterTextMode(context) {
             canvas.defaultCursor = previousDefaultCursor !== null && previousDefaultCursor !== void 0 ? previousDefaultCursor : 'default';
         },
     };
-    const preview = new context.fabric.Rect({
-        left: -1,
-        top: -1,
-        width: 1,
-        height: 1,
-        selectable: false,
-        evented: false,
-        visible: false,
-        excludeFromExport: true,
-    });
-    markSessionObject(preview, 'textPreview');
     context.setTextSession(session);
     context.updateUi();
 }
@@ -2515,6 +2584,7 @@ async function loadFromStateAction(access, jsonString, options) {
             canvas,
             jsonString,
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
+            maxCanvasPixels: access.getOptions().maxExportPixels,
         });
         if (access.isDisposed() || !access.getCanvas())
             return;
@@ -3588,14 +3658,14 @@ function enterCropMode(context, cropModeOptions = {}) {
     let rectTop;
     let rectWidth;
     let rectHeight;
+    const available = resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding);
     if (aspectRatio === null) {
-        rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
-        rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
-        rectWidth = minCropWidth;
-        rectHeight = minCropHeight;
+        rectWidth = Math.max(minCropWidth, available.width);
+        rectHeight = Math.max(minCropHeight, available.height);
+        rectLeft = Math.min(boundsLeft + maxCropWidth - rectWidth, Math.max(boundsLeft, available.left + (available.width - rectWidth) / 2));
+        rectTop = Math.min(boundsTop + maxCropHeight - rectHeight, Math.max(boundsTop, available.top + (available.height - rectHeight) / 2));
     }
     else {
-        const available = resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding);
         const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
         rectWidth = fitted.width;
         rectHeight = fitted.height;
@@ -3940,7 +4010,7 @@ function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSo
     var _a;
     const { width, height } = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, maxWidth, maxHeight);
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
-    const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
+    const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : null;
     if (!documentForCanvas) {
         throw new DownsampleError('Failed to obtain an owner document for downsampling.');
     }
@@ -3958,10 +4028,15 @@ function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSo
     return { dataUrl, width, height, mimeType };
 }
 
-function withTimeout(promise, ms, label) {
+function withTimeout(promise, ms, label, onTimeout) {
     return new Promise((resolve, reject) => {
         const start = Date.now();
         const timeoutId = setTimeout(() => {
+            try {
+                onTimeout === null || onTimeout === void 0 ? void 0 : onTimeout();
+            }
+            catch {
+            }
             reject(new ImageLoadTimeoutError(label, Date.now() - start));
         }, ms);
         promise.then((value) => {
@@ -5306,12 +5381,21 @@ function getJpegBackgroundColor(backgroundColor, ownerDocument) {
 }
 const colorValidationContexts = new WeakMap();
 function resolveCanvasFillStyle(backgroundColor, ownerDocument, fallback = '#ffffff') {
+    var _a, _b;
     const value = String(backgroundColor !== null && backgroundColor !== void 0 ? backgroundColor : '').trim();
     if (!value || isTransparentCssColor(value))
         return '#ffffff';
+    const css = (_b = (_a = ownerDocument.defaultView) === null || _a === void 0 ? void 0 : _a.CSS) !== null && _b !== void 0 ? _b : globalThis.CSS;
+    const supportsColor = typeof (css === null || css === void 0 ? void 0 : css.supports) === 'function' ? css.supports('color', value) : null;
+    if (supportsColor === false)
+        return fallback;
     const context = createColorValidationContext(ownerDocument);
     if (!context)
-        return fallback;
+        return supportsColor === true ? value : fallback;
+    if (supportsColor === true) {
+        context.fillStyle = value;
+        return context.fillStyle;
+    }
     context.fillStyle = '#000001';
     const firstSentinel = context.fillStyle;
     context.fillStyle = value;
@@ -5401,12 +5485,7 @@ function dataUrlToBytes(dataUrl) {
     }
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
-        const buffer = new ArrayBuffer(binary.length);
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < binary.length; i += 1) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes;
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
     }
     const bufferCtor = globalThis.Buffer;
     if (bufferCtor && typeof bufferCtor.from === 'function') {
@@ -5486,7 +5565,7 @@ async function renderExportDataUrl(context, resolved) {
 async function exportImageBase64(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
-        return '';
+        throw new ExportNotReadyError('exportImageBase64');
     }
     const resolved = resolveExportOptions(context, options);
     return renderExportDataUrl(context, resolved);
@@ -5637,10 +5716,10 @@ async function downloadImageAction(access, options) {
     });
 }
 async function exportImageBase64Action(access, options) {
-    if (!access.getCanvas())
-        return '';
-    if (!access.canRunIdleOperation('exportImageBase64', options))
-        return '';
+    if (!access.getCanvas()) {
+        throw new ExportNotReadyError('exportImageBase64', 'editor is not initialized');
+    }
+    access.assertIdleForOperation('exportImageBase64', options);
     access.finalizeActiveTextEditingIfNeeded();
     return await runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageBase64', async () => await exportImageBase64(access.buildExportServiceContext(), options));
 }
@@ -5655,8 +5734,6 @@ const SUPPORTED_IMAGE_EXTENSIONS = {
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     webp: 'image/webp',
-    gif: 'image/gif',
-    bmp: 'image/bmp',
 };
 const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
 function isSupportedImageDataUrl(value) {
@@ -5938,10 +6015,9 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
-        originalImage: context.getOriginalImage(),
         isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
         lastSnapshot: context.getLastSnapshot(),
-        canvasJson: serializeCanvas(context.canvas),
+        stateJson: captureRollbackState(context),
         maskCounter: context.getMaskCounter(),
         annotationCounter: context.getAnnotationCounter(),
         currentScale: context.getCurrentScale(),
@@ -5950,18 +6026,26 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         currentImageMimeType: context.getCurrentImageMimeType(),
     };
     try {
+        const loadDeadline = Date.now() + context.options.imageLoadTimeoutMs;
         context.setPlaceholderVisible(false);
         const decode = startImageDecode(imageBase64);
         let imageElement;
         try {
-            imageElement = await withTimeout(decode.promise, context.options.imageLoadTimeoutMs, 'image decode');
+            imageElement = await withTimeout(decode.promise, getRemainingLoadTimeout(loadDeadline), 'image decode');
         }
         catch (error) {
             decode.cleanup(true);
             throw error;
         }
         const loadSource = maybeDownsample(imageElement, imageBase64, context.options, getCanvasDocument(context.canvas));
-        const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
+        const fabricAbort = createAbortController();
+        const fabricCrossOrigin = 'anonymous';
+        const fabricLoadOptions = fabricAbort
+            ? { crossOrigin: fabricCrossOrigin, signal: fabricAbort.signal }
+            : { crossOrigin: fabricCrossOrigin };
+        const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, fabricLoadOptions), getRemainingLoadTimeout(loadDeadline), 'FabricImage.fromURL', () => {
+            fabricAbort === null || fabricAbort === void 0 ? void 0 : fabricAbort.abort();
+        });
         context.canvas.discardActiveObject();
         context.canvas.clear();
         context.canvas.backgroundColor = context.options.backgroundColor;
@@ -6060,9 +6144,9 @@ function maybeDownsample(imageElement, originalDataUrl, options, ownerDocument) 
     };
 }
 function getCanvasDocument(canvas) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     const canvasLike = canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : (typeof document !== 'undefined' ? document : undefined));
+    return (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument;
 }
 function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;
@@ -6082,28 +6166,47 @@ function computeLayout(context, fabricImage) {
     }
     return computeExpandLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
 }
-function serializeCanvas(canvas) {
-    canvas.discardActiveObject();
-    const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
-    return JSON.stringify(json);
+function captureRollbackState(context) {
+    return saveState({
+        canvas: context.canvas,
+        currentScale: context.getCurrentScale(),
+        currentRotation: context.getCurrentRotation(),
+        baseImageScale: context.getBaseImageScale(),
+        currentImageMimeType: context.getCurrentImageMimeType(),
+    });
+}
+function getRemainingLoadTimeout(deadline) {
+    return Math.max(1, deadline - Date.now());
+}
+function createAbortController() {
+    return typeof AbortController === 'function' ? new AbortController() : null;
 }
 async function replayRollback(context, bundle) {
     try {
-        await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
+        const restoredState = await loadFromState({
+            canvas: context.canvas,
+            jsonString: bundle.stateJson,
+            setCanvasSize: (width, height) => {
+                context.setCanvasSize(width, height);
+            },
+            maxCanvasPixels: context.options.maxExportPixels,
+        });
+        context.applyRollbackRestoredState(restoredState);
+        context.setOriginalImage(restoredState.originalImage);
+        context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas && restoredState.originalImage !== null);
+        context.setLastSnapshot(bundle.lastSnapshot);
+        context.setMaskCounter(Math.max(bundle.maskCounter, restoredState.maxMaskId));
+        context.setAnnotationCounter(Math.max(bundle.annotationCounter, restoredState.maxAnnotationId));
+        context.setCurrentScale(bundle.currentScale);
+        context.setCurrentRotation(bundle.currentRotation);
+        context.setBaseImageScale(bundle.baseImageScale);
+        context.setCurrentImageMimeType(bundle.currentImageMimeType);
         context.canvas.renderAll();
     }
     catch (rollbackError) {
-        console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
+        reportWarning(context.options, rollbackError, 'loadImage rollback failed while restoring the previous canvas state; editor state was cleared.');
+        context.resetAfterRollbackFailure();
     }
-    context.setOriginalImage(bundle.originalImage);
-    context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
-    context.setLastSnapshot(bundle.lastSnapshot);
-    context.setMaskCounter(bundle.maskCounter);
-    context.setAnnotationCounter(bundle.annotationCounter);
-    context.setCurrentScale(bundle.currentScale);
-    context.setCurrentRotation(bundle.currentRotation);
-    context.setBaseImageScale(bundle.baseImageScale);
-    context.setCurrentImageMimeType(bundle.currentImageMimeType);
     if (context.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {
@@ -6141,8 +6244,6 @@ async function loadImageFile(context, file) {
     }
     try {
         await context.loadImage(dataUrl);
-    }
-    catch {
     }
     finally {
         resetFileInput(inputElement);
@@ -7513,6 +7614,66 @@ class EditorContextFactory {
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
             },
+            setCanvasSize: (width, height) => {
+                access.setCanvasSize(width, height);
+            },
+            applyRollbackRestoredState: (restoredState) => {
+                access.hideAllMaskLabels();
+                const canvas = access.getCanvas();
+                const originalImage = restoredState.originalImage;
+                access.setOriginalImage(originalImage);
+                if (originalImage) {
+                    originalImage.set({
+                        originX: 'left',
+                        originY: 'top',
+                        selectable: false,
+                        evented: false,
+                        hasControls: false,
+                        hoverCursor: 'default',
+                    });
+                    canvas === null || canvas === void 0 ? void 0 : canvas.sendObjectToBack(originalImage);
+                }
+                const restoredMasks = restoredState.masks;
+                access.setLastMask(restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId
+                    ? maskObject
+                    : lastMask, null));
+                restoredMasks.forEach((maskObject) => {
+                    applyMaskUnselectedStyle(maskObject);
+                    reattachMaskHoverHandlers(maskObject);
+                });
+                syncAnnotationRuntimeStates(restoredState.annotations);
+                attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), restoredState.annotations);
+                access.updateMaskList();
+                access.updateAnnotationList();
+                access.updateInputs();
+                access.updateUi();
+            },
+            resetAfterRollbackFailure: () => {
+                const canvas = access.getCanvas();
+                try {
+                    canvas === null || canvas === void 0 ? void 0 : canvas.clear();
+                    if (canvas) {
+                        canvas.backgroundColor = access.getOptions().backgroundColor;
+                        canvas.renderAll();
+                    }
+                }
+                catch {
+                }
+                access.setOriginalImage(null);
+                access.setIsImageLoadedToCanvas(false);
+                access.setCurrentImageMimeType(null);
+                access.setLastSnapshot(null);
+                access.setLastMask(null);
+                access.setMaskCounter(0);
+                access.setAnnotationCounter(0);
+                access.setCurrentScale(1);
+                access.setCurrentRotation(0);
+                access.setBaseImageScale(1);
+                access.updateMaskList();
+                access.updateAnnotationList();
+                access.updateInputs();
+                access.updateUi();
+            },
             setPlaceholderVisible: (show) => {
                 access.setPlaceholderVisible(show);
             },
@@ -8141,38 +8302,36 @@ class OperationGuard {
     }
     assertNotAnimating(operationLabel) {
         if (this.isAnimationActive) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
         }
     }
     assertIdleForOperation(operationLabel, token) {
         var _a;
         if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+            throw new IdleGuardError(operationLabel, 'after dispose');
         }
         const ownOperation = this.isOwnOperation(token);
         if (this.isAnimationActive) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`);
+            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
         }
         if (this.isLoadingActive && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+            throw new IdleGuardError(operationLabel, 'while an image is loading');
         }
         if (this.currentOperationToken && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+            throw new IdleGuardError(operationLabel, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
         }
     }
     assertCanQueueAnimation(operationLabel, token) {
         var _a;
         if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+            throw new IdleGuardError(operationLabel, 'after dispose');
         }
         const ownOperation = this.isOwnOperation(token);
         if (this.isLoadingActive && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`);
+            throw new IdleGuardError(operationLabel, 'while an image is loading');
         }
         if (this.currentOperationToken && !ownOperation) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" while ` +
-                `${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running.`);
+            throw new IdleGuardError(operationLabel, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
         }
     }
 }
@@ -9613,15 +9772,30 @@ function bindEditorKeyboardEvents(access) {
     access.setKeyboardBinding(ownerDocument, handler);
     ownerDocument.addEventListener('keydown', handler);
 }
-function isNativeTextInputActive(keyboardDocument) {
-    const activeElement = keyboardDocument === null || keyboardDocument === void 0 ? void 0 : keyboardDocument.activeElement;
-    if (!activeElement)
+function isNativeEditableElement(element) {
+    var _a;
+    if (!element)
         return false;
-    const tagName = activeElement.tagName.toLowerCase();
+    const activeElement = element;
+    const tagName = String((_a = activeElement.tagName) !== null && _a !== void 0 ? _a : '').toLowerCase();
     return (tagName === 'input' ||
         tagName === 'textarea' ||
         tagName === 'select' ||
         activeElement.isContentEditable === true);
+}
+function getDeepActiveElement(root) {
+    var _a, _b;
+    let activeElement = (_a = root === null || root === void 0 ? void 0 : root.activeElement) !== null && _a !== void 0 ? _a : null;
+    while ((_b = activeElement === null || activeElement === void 0 ? void 0 : activeElement.shadowRoot) === null || _b === void 0 ? void 0 : _b.activeElement) {
+        activeElement = activeElement.shadowRoot.activeElement;
+    }
+    return activeElement;
+}
+function isNativeTextInputActive(keyboardDocument, event) {
+    const composedPath = typeof (event === null || event === void 0 ? void 0 : event.composedPath) === 'function' ? event.composedPath() : undefined;
+    if (composedPath === null || composedPath === void 0 ? void 0 : composedPath.some(isNativeEditableElement))
+        return true;
+    return isNativeEditableElement(getDeepActiveElement(keyboardDocument));
 }
 function isFabricTextEditingActive(canvas) {
     const activeObject = canvas === null || canvas === void 0 ? void 0 : canvas.getActiveObject();
@@ -9634,7 +9808,7 @@ function handleEditorKeyboardEvent(access, event) {
         return;
     const canvas = access.getCanvas();
     if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (isNativeTextInputActive(access.getKeyboardDocument()) ||
+        if (isNativeTextInputActive(access.getKeyboardDocument(), event) ||
             isFabricTextEditingActive(canvas)) {
             return;
         }
@@ -9852,6 +10026,14 @@ class ImageEditor {
                 `${JSON.stringify(rawDefaultLayoutMode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Invalid defaultLayoutMode fell back to "expand".');
         }
+        const rawDefaultMaskConfig = detected.options
+            .defaultMaskConfig;
+        if (rawDefaultMaskConfig &&
+            typeof rawDefaultMaskConfig === 'object' &&
+            !Array.isArray(rawDefaultMaskConfig) &&
+            ('onCreate' in rawDefaultMaskConfig || 'fabricGenerator' in rawDefaultMaskConfig)) {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] defaultMaskConfig does not support onCreate or fabricGenerator. Pass those fields to createMask() instead.'), 'Ignored unsupported defaultMaskConfig lifecycle/factory fields.');
+        }
         this.contextFactory = this.createContextFactory();
         this.actionAccessFactory = this.createActionAccessFactory();
     }
@@ -10028,6 +10210,7 @@ class ImageEditor {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
                 typeof globalFabric.Canvas !== 'function') {
+                reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: fabric.js is not loaded. Pass a Fabric module or load Fabric before init().');
                 return;
             }
             this.runtime.fabricModule = globalFabric;
@@ -10035,6 +10218,10 @@ class ImageEditor {
         }
         if (this.runtime.isDisposed)
             return;
+        if (this.runtime.canvas || this.runtime.domBindings || this.runtime.keyboardHandler) {
+            reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: editor is already initialized. Call dispose() before reinitializing.');
+            return;
+        }
         this.runtime.elements = resolveElementTargets(elementMap);
         this.initCanvas();
         this.runtime.domBindings = new DomBindings((key) => this.resolveElement(key), () => this.runtime.isDisposed);
@@ -10279,14 +10466,28 @@ class ImageEditor {
         return this.loadImageInternal(base64, options);
     }
     async loadImageInternal(base64, options = {}) {
-        if (!this.runtime.isFabricLoaded || !this.runtime.canvas)
+        if (!this.runtime.isFabricLoaded || !this.runtime.canvas) {
+            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is not initialized.');
             return;
-        if (this.runtime.isDisposed)
+        }
+        if (this.runtime.isDisposed) {
+            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is disposed.');
             return;
-        if (!isSupportedImageDataUrl(base64))
+        }
+        if (!isSupportedImageDataUrl(base64)) {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] Unsupported image Data URL.'), 'loadImage skipped: input is not a supported PNG, JPEG, or WebP Data URL.');
             return;
-        if (!this.canRunIdleOperation('loadImage', options))
-            return;
+        }
+        try {
+            this.assertIdleForOperation('loadImage', options);
+        }
+        catch (error) {
+            if (this.isExpectedIdleGuardError(error, 'loadImage')) {
+                reportWarning(this.runtime.options, error, error.message);
+                return;
+            }
+            throw error;
+        }
         this.finalizeActiveTextEditingIfNeeded();
         const callbackContext = this.getOperationContext('loadImage', options);
         const previousImage = this.runtime.originalImage;
@@ -10353,10 +10554,10 @@ class ImageEditor {
         if (activeToolMode &&
             !this.runtime.operationGuard.isOwnOperation(token) &&
             !canRunOperationInToolMode(activeToolMode, operationName)) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`);
+            throw new IdleGuardError(operationName, `while ${activeToolMode} mode is active`);
         }
         if (this.runtime.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
+            throw new IdleGuardError(operationName, 'while an animation is queued');
         }
     }
     canRunIdleOperation(operationName, options) {
@@ -10372,8 +10573,7 @@ class ImageEditor {
         }
     }
     isExpectedIdleGuardError(error, operationName) {
-        return (error instanceof Error &&
-            error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
+        return error instanceof IdleGuardError && error.operation === operationName;
     }
     assertCanQueueAnimation(operationName, options) {
         const token = this.getInternalOperationToken(options);
@@ -10396,6 +10596,9 @@ class ImageEditor {
         return (this.runtime.operationGuard.isBusy() ||
             this.runtime.animQueue.isBusy() ||
             this.isToolModeActive());
+    }
+    isProcessing() {
+        return this.runtime.operationGuard.isBusy() || this.runtime.animQueue.isBusy();
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
@@ -10481,7 +10684,8 @@ class ImageEditor {
             displayWidth = Math.max(0, Number(bounds.width) || 0);
             displayHeight = Math.max(0, Number(bounds.height) || 0);
         }
-        catch {
+        catch (error) {
+            reportWarning(this.runtime.options, error, 'getImageInfo used fallback dimensions because Fabric getBoundingRect failed.');
             displayWidth = Math.max(0, (Number(this.runtime.originalImage.width) || 0) *
                 Math.abs(Number(this.runtime.originalImage.scaleX) || 1));
             displayHeight = Math.max(0, (Number(this.runtime.originalImage.height) || 0) *

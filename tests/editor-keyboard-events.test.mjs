@@ -34,6 +34,13 @@ function createEvent(key) {
     };
 }
 
+function createEventWithPath(key, path) {
+    return {
+        ...createEvent(key),
+        composedPath: () => path,
+    };
+}
+
 function createAccess(overrides = {}) {
     const calls = [];
     const access = {
@@ -109,6 +116,20 @@ test('Delete and Backspace are ignored while native editable controls own focus'
             assert.deepEqual(access.calls, [], `${key} ignored for ${activeElement.tagName}`);
         }
     }
+});
+
+test('Delete is ignored while a Shadow DOM input owns focus through composed path', () => {
+    const shadowInput = {
+        tagName: 'INPUT',
+        isContentEditable: false,
+    };
+    const access = createAccess({
+        getKeyboardDocument: () => ({ activeElement: { tagName: 'BODY' } }),
+    });
+
+    handleEditorKeyboardEvent(access, createEventWithPath('Delete', [shadowInput]));
+
+    assert.deepEqual(access.calls, []);
 });
 test('Escape finalizes active Fabric text editing without committing', () => {
     const textObject = {

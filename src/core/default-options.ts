@@ -838,7 +838,67 @@ export function areResolvedTextAnnotationConfigsEqual(
     left: ResolvedTextAnnotationConfig,
     right: ResolvedTextAnnotationConfig,
 ): boolean {
-    return JSON.stringify(left) === JSON.stringify(right);
+    return (
+        left.text === right.text &&
+        left.left === right.left &&
+        left.top === right.top &&
+        left.width === right.width &&
+        left.fontSize === right.fontSize &&
+        left.fontFamily === right.fontFamily &&
+        left.fontWeight === right.fontWeight &&
+        left.fill === right.fill &&
+        left.backgroundColor === right.backgroundColor &&
+        left.textAlign === right.textAlign &&
+        left.angle === right.angle &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.editable === right.editable &&
+        left.enterEditing === right.enterEditing &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked &&
+        areStyleRecordsEqual(left.styles, right.styles)
+    );
+}
+
+function areStyleRecordsEqual(left: unknown, right: unknown): boolean {
+    return areStyleValuesEqual(left, right, new WeakMap<object, WeakSet<object>>());
+}
+
+function areStyleValuesEqual(
+    left: unknown,
+    right: unknown,
+    seen: WeakMap<object, WeakSet<object>>,
+): boolean {
+    if (Object.is(left, right)) return true;
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+
+    let seenRights = seen.get(left);
+    if (seenRights?.has(right)) return true;
+    if (!seenRights) {
+        seenRights = new WeakSet<object>();
+        seen.set(left, seenRights);
+    }
+    seenRights.add(right);
+
+    if (Array.isArray(left) || Array.isArray(right)) {
+        return (
+            Array.isArray(left) &&
+            Array.isArray(right) &&
+            left.length === right.length &&
+            left.every((value, index) => areStyleValuesEqual(value, right[index], seen))
+        );
+    }
+
+    const leftRecord = left as Record<string, unknown>;
+    const rightRecord = right as Record<string, unknown>;
+    const leftKeys = Object.keys(leftRecord);
+    const rightKeys = Object.keys(rightRecord);
+    if (leftKeys.length !== rightKeys.length) return false;
+
+    return leftKeys.every((key) => {
+        if (!hasOwn(rightRecord, key)) return false;
+        return areStyleValuesEqual(leftRecord[key], rightRecord[key], seen);
+    });
 }
 
 export function areResolvedDrawConfigsEqual(
@@ -1180,7 +1240,6 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         raw.onWarning,
     );
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
-    resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
     if (resolved.minScale > resolved.maxScale) {
         const minScale = resolved.minScale;
         resolved.minScale = resolved.maxScale;

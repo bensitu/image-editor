@@ -21,10 +21,7 @@
 /**
  * Supported image extensions and the MIME type each one resolves to.
  *
- * Supported file extensions: `png`, `jpg`/`jpeg`, `webp`, `gif`, `bmp`.
- * GIF and BMP are accepted as static raster input for canvas editing. GIF
- * animation and GIF/BMP source-format preservation are not retained; exports
- * are emitted through the editor's JPEG, PNG, or WebP export options.
+ * Supported file extensions: `png`, `jpg`/`jpeg`, `webp`.
  *
  * Keys are lowercase extensions without the leading `.`.
  */
@@ -33,8 +30,6 @@ export const SUPPORTED_IMAGE_EXTENSIONS: Record<string, string> = {
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     webp: 'image/webp',
-    gif: 'image/gif',
-    bmp: 'image/bmp',
 };
 
 export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));

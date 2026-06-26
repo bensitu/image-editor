@@ -1,7 +1,7 @@
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
-import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
+import { loadFromState, saveState } from '../core/state-serializer.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
 import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -21,10 +21,9 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
-        originalImage: context.getOriginalImage(),
         isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
         lastSnapshot: context.getLastSnapshot(),
-        canvasJson: serializeCanvas(context.canvas),
+        stateJson: captureRollbackState(context),
         maskCounter: context.getMaskCounter(),
         annotationCounter: context.getAnnotationCounter(),
         currentScale: context.getCurrentScale(),
@@ -33,18 +32,26 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         currentImageMimeType: context.getCurrentImageMimeType(),
     };
     try {
+        const loadDeadline = Date.now() + context.options.imageLoadTimeoutMs;
         context.setPlaceholderVisible(false);
         const decode = startImageDecode(imageBase64);
         let imageElement;
         try {
-            imageElement = await withTimeout(decode.promise, context.options.imageLoadTimeoutMs, 'image decode');
+            imageElement = await withTimeout(decode.promise, getRemainingLoadTimeout(loadDeadline), 'image decode');
         }
         catch (error) {
             decode.cleanup(true);
             throw error;
         }
         const loadSource = maybeDownsample(imageElement, imageBase64, context.options, getCanvasDocument(context.canvas));
-        const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }), context.options.imageLoadTimeoutMs, 'FabricImage.fromURL');
+        const fabricAbort = createAbortController();
+        const fabricCrossOrigin = 'anonymous';
+        const fabricLoadOptions = fabricAbort
+            ? { crossOrigin: fabricCrossOrigin, signal: fabricAbort.signal }
+            : { crossOrigin: fabricCrossOrigin };
+        const fabricImage = await withTimeout(context.fabric.FabricImage.fromURL(loadSource.dataUrl, fabricLoadOptions), getRemainingLoadTimeout(loadDeadline), 'FabricImage.fromURL', () => {
+            fabricAbort === null || fabricAbort === void 0 ? void 0 : fabricAbort.abort();
+        });
         context.canvas.discardActiveObject();
         context.canvas.clear();
         context.canvas.backgroundColor = context.options.backgroundColor;
@@ -143,9 +150,9 @@ function maybeDownsample(imageElement, originalDataUrl, options, ownerDocument) 
     };
 }
 function getCanvasDocument(canvas) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     const canvasLike = canvas;
-    return ((_e = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : (typeof document !== 'undefined' ? document : undefined));
+    return (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument;
 }
 function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;
@@ -165,28 +172,47 @@ function computeLayout(context, fabricImage) {
     }
     return computeExpandLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
 }
-function serializeCanvas(canvas) {
-    canvas.discardActiveObject();
-    const json = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
-    return JSON.stringify(json);
+function captureRollbackState(context) {
+    return saveState({
+        canvas: context.canvas,
+        currentScale: context.getCurrentScale(),
+        currentRotation: context.getCurrentRotation(),
+        baseImageScale: context.getBaseImageScale(),
+        currentImageMimeType: context.getCurrentImageMimeType(),
+    });
+}
+function getRemainingLoadTimeout(deadline) {
+    return Math.max(1, deadline - Date.now());
+}
+function createAbortController() {
+    return typeof AbortController === 'function' ? new AbortController() : null;
 }
 async function replayRollback(context, bundle) {
     try {
-        await context.canvas.loadFromJSON(JSON.parse(bundle.canvasJson));
+        const restoredState = await loadFromState({
+            canvas: context.canvas,
+            jsonString: bundle.stateJson,
+            setCanvasSize: (width, height) => {
+                context.setCanvasSize(width, height);
+            },
+            maxCanvasPixels: context.options.maxExportPixels,
+        });
+        context.applyRollbackRestoredState(restoredState);
+        context.setOriginalImage(restoredState.originalImage);
+        context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas && restoredState.originalImage !== null);
+        context.setLastSnapshot(bundle.lastSnapshot);
+        context.setMaskCounter(Math.max(bundle.maskCounter, restoredState.maxMaskId));
+        context.setAnnotationCounter(Math.max(bundle.annotationCounter, restoredState.maxAnnotationId));
+        context.setCurrentScale(bundle.currentScale);
+        context.setCurrentRotation(bundle.currentRotation);
+        context.setBaseImageScale(bundle.baseImageScale);
+        context.setCurrentImageMimeType(bundle.currentImageMimeType);
         context.canvas.renderAll();
     }
     catch (rollbackError) {
-        console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
+        reportWarning(context.options, rollbackError, 'loadImage rollback failed while restoring the previous canvas state; editor state was cleared.');
+        context.resetAfterRollbackFailure();
     }
-    context.setOriginalImage(bundle.originalImage);
-    context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
-    context.setLastSnapshot(bundle.lastSnapshot);
-    context.setMaskCounter(bundle.maskCounter);
-    context.setAnnotationCounter(bundle.annotationCounter);
-    context.setCurrentScale(bundle.currentScale);
-    context.setCurrentRotation(bundle.currentRotation);
-    context.setBaseImageScale(bundle.baseImageScale);
-    context.setCurrentImageMimeType(bundle.currentImageMimeType);
     if (context.containerElement) {
         try {
             if (bundle.containerScrollTop !== null) {

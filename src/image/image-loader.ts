@@ -105,7 +105,7 @@ import type {
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject } from '../core/editor-object-kind.js';
 import { ImageDecodeError } from '../core/errors.js';
-import { saveState, SNAPSHOT_CUSTOM_KEYS } from '../core/state-serializer.js';
+import { loadFromState, saveState, type LoadFromStateResult } from '../core/state-serializer.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
 import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -146,17 +146,15 @@ export interface RollbackBundle {
     containerScrollTop: number | null;
     /** Container `scrollLeft` immediately before the loader started. */
     containerScrollLeft: number | null;
-    /** The previously-committed `originalImage` reference, if any. */
-    originalImage: BaseImageObject | null;
     /** Whether an image was already committed before this call. */
     isImageLoadedToCanvas: boolean;
     /** Snapshot string used as the history baseline before the call. */
     lastSnapshot: string | null;
     /**
-     * Full canvas JSON serialization captured via `canvas.toJSON` with the
-     * editor's custom keys. Restored via `loadFromJSON` on rollback.
+     * Normal editor state snapshot captured via `saveState`, with session-only
+     * objects filtered and editor metadata embedded.
      */
-    canvasJson: string;
+    stateJson: string;
     /** Mask counter value before the loader reset it to 0. */
     maskCounter: number;
     /** Annotation counter value before the loader reset it to 0. */
@@ -248,6 +246,21 @@ export interface LoadImageContext {
     /** Writes the MIME type of the currently committed image. */
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
 
+    /** Sets canvas dimensions while restoring the rollback snapshot. */
+    setCanvasSize(width: number, height: number): void;
+
+    /**
+     * Re-applies facade-owned runtime wiring after `loadFromState` has
+     * deserialized the rollback snapshot.
+     */
+    applyRollbackRestoredState(restoredState: LoadFromStateResult): void;
+
+    /**
+     * Clears canvas/runtime references if rollback deserialization itself
+     * fails and the previous live canvas cannot be trusted.
+     */
+    resetAfterRollbackFailure(): void;
+
     /**
      * Toggle placeholder/canvas-container visibility via
      * `ui/visibility-state.ts`. `show === false` means "an image is now on
@@ -335,10 +348,9 @@ export async function loadImage(
         placeholderHidden,
         containerScrollTop,
         containerScrollLeft,
-        originalImage: context.getOriginalImage(),
         isImageLoadedToCanvas: context.getIsImageLoadedToCanvas(),
         lastSnapshot: context.getLastSnapshot(),
-        canvasJson: serializeCanvas(context.canvas),
+        stateJson: captureRollbackState(context),
         maskCounter: context.getMaskCounter(),
         annotationCounter: context.getAnnotationCounter(),
         currentScale: context.getCurrentScale(),
@@ -348,6 +360,8 @@ export async function loadImage(
     };
 
     try {
+        const loadDeadline = Date.now() + context.options.imageLoadTimeoutMs;
+
         // 3. First mutation — hide the placeholder via the visibility
         //    helper. The bundle holds the prior value so rollback can
         //    restore it.
@@ -359,7 +373,7 @@ export async function loadImage(
         try {
             imageElement = await withTimeout(
                 decode.promise,
-                context.options.imageLoadTimeoutMs,
+                getRemainingLoadTimeout(loadDeadline),
                 'image decode',
             );
         } catch (error) {
@@ -381,10 +395,18 @@ export async function loadImage(
         // 6. Fabric image creation under the same
         //    timeout. Cross-origin is requested so canvases stay
         //    untainted for export.
+        const fabricAbort = createAbortController();
+        const fabricCrossOrigin = 'anonymous' as const;
+        const fabricLoadOptions = fabricAbort
+            ? { crossOrigin: fabricCrossOrigin, signal: fabricAbort.signal }
+            : { crossOrigin: fabricCrossOrigin };
         const fabricImage = await withTimeout(
-            context.fabric.FabricImage.fromURL(loadSource.dataUrl, { crossOrigin: 'anonymous' }),
-            context.options.imageLoadTimeoutMs,
+            context.fabric.FabricImage.fromURL(loadSource.dataUrl, fabricLoadOptions),
+            getRemainingLoadTimeout(loadDeadline),
             'FabricImage.fromURL',
+            () => {
+                fabricAbort?.abort();
+            },
         );
 
         // 7. Apply the new image to the canvas. Discard any prior
@@ -597,11 +619,7 @@ function getCanvasDocument(canvas: FabricNS.Canvas): Document | undefined {
         getElement?: () => HTMLCanvasElement | undefined;
         lowerCanvasEl?: HTMLCanvasElement;
     };
-    return (
-        canvasLike.getElement?.()?.ownerDocument ??
-        canvasLike.lowerCanvasEl?.ownerDocument ??
-        (typeof document !== 'undefined' ? document : undefined)
-    );
+    return canvasLike.getElement?.()?.ownerDocument ?? canvasLike.lowerCanvasEl?.ownerDocument;
 }
 
 /**
@@ -658,14 +676,22 @@ function computeLayout(context: LoadImageContext, fabricImage: FabricNS.FabricIm
  * selections are discarded first to keep the wrapper out of the rolled-back
  * snapshot.
  */
-function serializeCanvas(canvas: FabricNS.Canvas): string {
-    canvas.discardActiveObject();
-    const json = (
-        canvas as unknown as {
-            toJSON(propertiesToInclude: readonly string[]): unknown;
-        }
-    ).toJSON(SNAPSHOT_CUSTOM_KEYS);
-    return JSON.stringify(json);
+function captureRollbackState(context: LoadImageContext): string {
+    return saveState({
+        canvas: context.canvas,
+        currentScale: context.getCurrentScale(),
+        currentRotation: context.getCurrentRotation(),
+        baseImageScale: context.getBaseImageScale(),
+        currentImageMimeType: context.getCurrentImageMimeType(),
+    });
+}
+
+function getRemainingLoadTimeout(deadline: number): number {
+    return Math.max(1, deadline - Date.now());
+}
+
+function createAbortController(): AbortController | null {
+    return typeof AbortController === 'function' ? new AbortController() : null;
 }
 
 /**
@@ -676,35 +702,42 @@ function serializeCanvas(canvas: FabricNS.Canvas): string {
  * so a defective rollback cannot mask the cause.
  */
 async function replayRollback(context: LoadImageContext, bundle: RollbackBundle): Promise<void> {
-    // 1. Restore canvas JSON via Fabric's loadFromJSON. If this fails
-    //    (malformed snapshot, dispose race) we log and continue — the
-    //    facade's higher-level rollback paths cannot do better than
-    //    surfacing the original error.
+    // 1. Restore through the same state deserializer used by history restore.
+    //    This path re-applies editor metadata and filters session-only objects.
     try {
-        await (
-            context.canvas as unknown as {
-                loadFromJSON(json: unknown): Promise<FabricNS.Canvas>;
-            }
-        ).loadFromJSON(JSON.parse(bundle.canvasJson));
+        const restoredState = await loadFromState({
+            canvas: context.canvas,
+            jsonString: bundle.stateJson,
+            setCanvasSize: (width, height) => {
+                context.setCanvasSize(width, height);
+            },
+            maxCanvasPixels: context.options.maxExportPixels,
+        });
+        context.applyRollbackRestoredState(restoredState);
+        context.setOriginalImage(restoredState.originalImage);
+        context.setIsImageLoadedToCanvas(
+            bundle.isImageLoadedToCanvas && restoredState.originalImage !== null,
+        );
+        context.setLastSnapshot(bundle.lastSnapshot);
+        context.setMaskCounter(Math.max(bundle.maskCounter, restoredState.maxMaskId));
+        context.setAnnotationCounter(
+            Math.max(bundle.annotationCounter, restoredState.maxAnnotationId),
+        );
+        context.setCurrentScale(bundle.currentScale);
+        context.setCurrentRotation(bundle.currentRotation);
+        context.setBaseImageScale(bundle.baseImageScale);
+        context.setCurrentImageMimeType(bundle.currentImageMimeType);
         context.canvas.renderAll();
     } catch (rollbackError) {
-        console.warn('[ImageEditor] rollback: loadFromJSON failed', rollbackError);
+        reportWarning(
+            context.options,
+            rollbackError,
+            'loadImage rollback failed while restoring the previous canvas state; editor state was cleared.',
+        );
+        context.resetAfterRollbackFailure();
     }
 
-    // 2. Restore editor scalar state. Done after the canvas restore so
-    //    handlers reading these fields during render see the rolled-back
-    //    values.
-    context.setOriginalImage(bundle.originalImage);
-    context.setIsImageLoadedToCanvas(bundle.isImageLoadedToCanvas);
-    context.setLastSnapshot(bundle.lastSnapshot);
-    context.setMaskCounter(bundle.maskCounter);
-    context.setAnnotationCounter(bundle.annotationCounter);
-    context.setCurrentScale(bundle.currentScale);
-    context.setCurrentRotation(bundle.currentRotation);
-    context.setBaseImageScale(bundle.baseImageScale);
-    context.setCurrentImageMimeType(bundle.currentImageMimeType);
-
-    // 3. Restore container scroll. After `loadFromJSON` Fabric may have
+    // 2. Restore container scroll. After `loadFromJSON` Fabric may have
     //    resized the canvas, which itself can mutate scroll metrics on
     //    the container; restoring scroll last guarantees the captured
     //    values stick (will rely on the same ordering).
@@ -721,7 +754,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
         }
     }
 
-    // 4. Restore placeholder visibility. The visibility helper is total
+    // 3. Restore placeholder visibility. The visibility helper is total
     //    and never throws on null inputs.
     if (bundle.placeholderHidden !== null) {
         // `setPlaceholderVisible(show)` takes the *placeholder* visibility

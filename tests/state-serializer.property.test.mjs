@@ -150,6 +150,32 @@ test('loadFromState wraps malformed JSON in StateRestoreError', async () => {
     );
 });
 
+test('loadFromState rejects oversized canvas dimensions before resizing', async () => {
+    const canvas = new MockCanvas();
+    let resized = false;
+
+    await assert.rejects(
+        () =>
+            loadFromState({
+                canvas,
+                jsonString: {
+                    version: '7.0.0',
+                    width: 100000,
+                    height: 100000,
+                    objects: [],
+                },
+                setCanvasSize: () => {
+                    resized = true;
+                },
+                maxCanvasPixels: 1000000,
+            }),
+        (error) =>
+            error instanceof StateRestoreError && /exceeds maxCanvasPixels/.test(error.message),
+    );
+
+    assert.equal(resized, false);
+});
+
 // ─── Arbitraries ────────────────────────────────────────────────────────────
 const dimensionArb = fc.record({
     width: fc.integer({ min: 320, max: 800 }),

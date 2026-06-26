@@ -252,7 +252,13 @@ async function withFakeCanvasDom(fn) {
             },
             set fillStyle(value) {
                 const raw = String(value).toLowerCase();
-                const accepted = new Set(['#000001', '#000002', '#ffffff', '#ff0000']);
+                const accepted = new Set([
+                    '#000001',
+                    '#000002',
+                    '#ffffff',
+                    '#ff0000',
+                    'rebeccapurple',
+                ]);
                 if (accepted.has(raw)) fillStyle = raw;
             },
             fillRect() {
@@ -302,13 +308,16 @@ async function withFakeCanvasDom(fn) {
 
 // ─── the documented contract — no-image gates ──────────────────────────────────────
 
-test('exportImageBase64: resolves to "" and warns when no image is loaded', async () => {
+test('exportImageBase64: rejects with ExportNotReadyError and warns when no image is loaded', async () => {
     const ctx = makeContext({ isImageLoaded: () => false });
-    let result;
+    let rejected;
     const warnings = await captureWarnings(async () => {
-        result = await exportImageBase64(ctx);
+        rejected = await exportImageBase64(ctx).then(
+            () => null,
+            (err) => err,
+        );
     });
-    assert.equal(result, '', 'must resolve to an empty string');
+    assert.ok(rejected instanceof ExportNotReadyError, 'must reject with ExportNotReadyError');
     assert.equal(warnings.length, 1, 'must emit exactly one console.warn');
     const message = String(warnings[0][0] ?? '');
     assert.match(message, /exportImageBase64/, 'warning must name the operation');
@@ -664,6 +673,60 @@ test('exportImageBase64: JPEG background keeps valid canvas colors', async () =>
 
         assert.equal(fills.at(-1), '#ff0000');
     });
+});
+
+test('exportImageBase64: JPEG background uses CSS.supports when available', async () => {
+    const previousCss = globalThis.CSS;
+    try {
+        globalThis.CSS = {
+            supports(property, value) {
+                return property === 'color' && value === 'rebeccapurple';
+            },
+        };
+        await withFakeCanvasDom(async (fills) => {
+            const canvas = makeMockCanvas(
+                'data:image/png;base64,' + Buffer.from('png').toString('base64'),
+            );
+            const ctx = makeContext({
+                canvas,
+                options: { backgroundColor: 'rebeccapurple' },
+                getOriginalImage: () => makeFakeOriginalImage(),
+            });
+
+            await exportImageBase64(ctx, { exportArea: 'image', fileType: 'jpeg' });
+
+            assert.equal(fills.at(-1), 'rebeccapurple');
+        });
+    } finally {
+        globalThis.CSS = previousCss;
+    }
+});
+
+test('exportImageBase64: JPEG background rejects CSS.supports invalid colors', async () => {
+    const previousCss = globalThis.CSS;
+    try {
+        globalThis.CSS = {
+            supports() {
+                return false;
+            },
+        };
+        await withFakeCanvasDom(async (fills) => {
+            const canvas = makeMockCanvas(
+                'data:image/png;base64,' + Buffer.from('png').toString('base64'),
+            );
+            const ctx = makeContext({
+                canvas,
+                options: { backgroundColor: '#ff0000' },
+                getOriginalImage: () => makeFakeOriginalImage(),
+            });
+
+            await exportImageBase64(ctx, { exportArea: 'image', fileType: 'jpeg' });
+
+            assert.equal(fills.at(-1), '#ffffff');
+        });
+    } finally {
+        globalThis.CSS = previousCss;
+    }
 });
 
 test('exportImageBase64: WebP image-area edge sealing preserves WebP output', async () => {

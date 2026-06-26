@@ -55,6 +55,8 @@ import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-ty
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 import { StateRestoreError } from './errors.js';
 
+const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
+
 // ─── Snapshot wire format ────────────────────────────────────────────────────
 
 /**
@@ -492,6 +494,11 @@ export interface LoadFromStateInput {
      * before `loadFromJSON`.
      */
     setCanvasSize: (width: number, height: number) => void;
+    /**
+     * Upper bound for restored canvas area. Defaults to 50 million pixels,
+     * matching the default export pixel budget.
+     */
+    maxCanvasPixels?: number;
 }
 
 /**
@@ -606,6 +613,11 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
         typeof json.height === 'number' &&
         json.height > 0
     ) {
+        assertRestoredCanvasSizeAllowed(
+            json.width,
+            json.height,
+            input.maxCanvasPixels ?? DEFAULT_MAX_RESTORE_CANVAS_PIXELS,
+        );
         setCanvasSize(json.width, json.height);
     }
 
@@ -688,6 +700,23 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
         annotations,
         jsonString,
     };
+}
+
+function assertRestoredCanvasSizeAllowed(
+    width: number,
+    height: number,
+    maxCanvasPixels: number,
+): void {
+    const safeMaxCanvasPixels =
+        Number.isFinite(maxCanvasPixels) && maxCanvasPixels > 0
+            ? Math.floor(maxCanvasPixels)
+            : DEFAULT_MAX_RESTORE_CANVAS_PIXELS;
+    const pixelCount = width * height;
+    if (!Number.isFinite(pixelCount) || pixelCount > safeMaxCanvasPixels) {
+        throw new StateRestoreError(
+            `loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`,
+        );
+    }
 }
 
 /**

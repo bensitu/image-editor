@@ -1,3 +1,4 @@
+import { ExportNotReadyError } from '../core/errors.js';
 import { isAnnotationObject, isMaskObject, } from '../core/public-types.js';
 import { runBusyOperation, runBusyOperationWithoutUi } from '../runtime/editor-operation-runner.js';
 import { downloadImage as downloadImageImpl, exportImageBase64 as exportImageBase64Impl, exportImageFile as exportImageFileImpl, mergeAnnotations as mergeAnnotationsImpl, mergeMasks as mergeMasksImpl, } from './export-service.js';
@@ -55,10 +56,10 @@ export async function downloadImageAction(access, options) {
     });
 }
 export async function exportImageBase64Action(access, options) {
-    if (!access.getCanvas())
-        return '';
-    if (!access.canRunIdleOperation('exportImageBase64', options))
-        return '';
+    if (!access.getCanvas()) {
+        throw new ExportNotReadyError('exportImageBase64', 'editor is not initialized');
+    }
+    access.assertIdleForOperation('exportImageBase64', options);
     access.finalizeActiveTextEditingIfNeeded();
     return await runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageBase64', async () => await exportImageBase64Impl(access.buildExportServiceContext(), options));
 }

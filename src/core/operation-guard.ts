@@ -40,6 +40,8 @@
  * @module
  */
 
+import { IdleGuardError } from './errors.js';
+
 /**
  * Read-only view of the guard state. Useful for diagnostics, property
  * tests, and `fabric/fabric-animation.ts` callbacks that only need to
@@ -265,9 +267,7 @@ export class OperationGuard {
      */
     assertNotAnimating(operationLabel: string): void {
         if (this.isAnimationActive) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`,
-            );
+            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
         }
     }
 
@@ -278,23 +278,19 @@ export class OperationGuard {
      */
     assertIdleForOperation(operationLabel: string, token?: OperationToken | null): void {
         if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+            throw new IdleGuardError(operationLabel, 'after dispose');
         }
         const ownOperation = this.isOwnOperation(token);
         if (this.isAnimationActive) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationLabel}" while an animation is in progress.`,
-            );
+            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
         }
         if (this.isLoadingActive && !ownOperation) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`,
-            );
+            throw new IdleGuardError(operationLabel, 'while an image is loading');
         }
         if (this.currentOperationToken && !ownOperation) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationLabel}" while ` +
-                    `${this.currentOperationName ?? 'another operation'} is running.`,
+            throw new IdleGuardError(
+                operationLabel,
+                `while ${this.currentOperationName ?? 'another operation'} is running`,
             );
         }
     }
@@ -306,18 +302,16 @@ export class OperationGuard {
      */
     assertCanQueueAnimation(operationLabel: string, token?: OperationToken | null): void {
         if (this.isDisposedFlag) {
-            throw new Error(`[ImageEditor] Cannot run "${operationLabel}" after dispose.`);
+            throw new IdleGuardError(operationLabel, 'after dispose');
         }
         const ownOperation = this.isOwnOperation(token);
         if (this.isLoadingActive && !ownOperation) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationLabel}" while an image is loading.`,
-            );
+            throw new IdleGuardError(operationLabel, 'while an image is loading');
         }
         if (this.currentOperationToken && !ownOperation) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationLabel}" while ` +
-                    `${this.currentOperationName ?? 'another operation'} is running.`,
+            throw new IdleGuardError(
+                operationLabel,
+                `while ${this.currentOperationName ?? 'another operation'} is running`,
             );
         }
     }

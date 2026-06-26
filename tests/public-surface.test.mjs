@@ -53,6 +53,7 @@ const CANONICAL_METHODS = Object.freeze([
     'loadImage',
     'isImageLoaded',
     'isBusy',
+    'isProcessing',
     'setLayoutMode',
     'setCanvasSize',
     'resizeToContainer',
@@ -203,7 +204,13 @@ test('every canonical method from the documented contract is a function on Image
 test('canonical method set includes the documented introspection methods', () => {
     // Spot-check these names so a future refactor that drops one of them
     // fails this test by name rather than by index.
-    for (const introspector of ['isImageLoaded', 'isBusy', 'saveState', 'loadFromState']) {
+    for (const introspector of [
+        'isImageLoaded',
+        'isBusy',
+        'isProcessing',
+        'saveState',
+        'loadFromState',
+    ]) {
         assert.equal(
             typeof NamedImageEditor.prototype[introspector],
             'function',

@@ -3,8 +3,6 @@ export const SUPPORTED_IMAGE_EXTENSIONS = {
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     webp: 'image/webp',
-    gif: 'image/gif',
-    bmp: 'image/bmp',
 };
 export const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
 export function isSupportedImageDataUrl(value) {

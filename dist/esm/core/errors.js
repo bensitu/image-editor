@@ -153,9 +153,28 @@ export class StateRestoreError extends Error {
         fixPrototype(this, StateRestoreError);
     }
 }
+export class IdleGuardError extends Error {
+    constructor(operation, reason) {
+        super(`[ImageEditor] Cannot run "${operation}" ${reason}.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'IdleGuardError'
+        });
+        Object.defineProperty(this, "operation", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.operation = operation;
+        fixPrototype(this, IdleGuardError);
+    }
+}
 export class ExportNotReadyError extends Error {
-    constructor(operation = 'exportImageFile') {
-        super(`Cannot ${operation}: no image is loaded on the canvas.`);
+    constructor(operation = 'exportImageFile', reason = 'no image is loaded on the canvas') {
+        super(`Cannot ${operation}: ${reason}.`);
         Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,

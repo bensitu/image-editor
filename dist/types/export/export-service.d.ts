@@ -29,7 +29,7 @@
  *
  *   | entry point          | shape on no image                   |
  *   | -------------------- | ----------------------------------- |
- *   | `exportImageBase64`  | resolves to `''`                    |
+ *   | `exportImageBase64`  | rejects with `ExportNotReadyError`  |
  *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
  *   | `downloadImage`      | resolves without throwing           |
  *
@@ -161,7 +161,7 @@ export interface ExportServiceContext {
  *                 and `format` are accepted; when
  *                 both are supplied, `fileType` wins.
  * @returns        Resolves to a `data:image/...;base64...` URL on
- *                 success, or `''` when no image is loaded.
+ *                 success.
  *
  */
 export declare function exportImageBase64(context: ExportServiceContext, options?: ImageExportOptions): Promise<string>;

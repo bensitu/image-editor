@@ -54,16 +54,34 @@ export function bindEditorKeyboardEvents(access: EditorKeyboardBindingAccess): v
     ownerDocument.addEventListener('keydown', handler);
 }
 
-export function isNativeTextInputActive(keyboardDocument: Document | null): boolean {
-    const activeElement = keyboardDocument?.activeElement;
-    if (!activeElement) return false;
-    const tagName = activeElement.tagName.toLowerCase();
+function isNativeEditableElement(element: unknown): boolean {
+    if (!element) return false;
+    const activeElement = element as HTMLElement & { tagName?: string };
+    const tagName = String(activeElement.tagName ?? '').toLowerCase();
     return (
         tagName === 'input' ||
         tagName === 'textarea' ||
         tagName === 'select' ||
-        (activeElement as HTMLElement).isContentEditable === true
+        activeElement.isContentEditable === true
     );
+}
+
+function getDeepActiveElement(root: Document | ShadowRoot | null): Element | null {
+    let activeElement = root?.activeElement ?? null;
+    while (activeElement?.shadowRoot?.activeElement) {
+        activeElement = activeElement.shadowRoot.activeElement;
+    }
+    return activeElement;
+}
+
+export function isNativeTextInputActive(
+    keyboardDocument: Document | null,
+    event?: KeyboardEvent,
+): boolean {
+    const composedPath =
+        typeof event?.composedPath === 'function' ? event.composedPath() : undefined;
+    if (composedPath?.some(isNativeEditableElement)) return true;
+    return isNativeEditableElement(getDeepActiveElement(keyboardDocument));
 }
 
 export function isFabricTextEditingActive(canvas: FabricNS.Canvas | null): boolean {
@@ -83,7 +101,7 @@ export function handleEditorKeyboardEvent(
     const canvas = access.getCanvas();
     if (event.key === 'Delete' || event.key === 'Backspace') {
         if (
-            isNativeTextInputActive(access.getKeyboardDocument()) ||
+            isNativeTextInputActive(access.getKeyboardDocument(), event) ||
             isFabricTextEditingActive(canvas)
         ) {
             return;

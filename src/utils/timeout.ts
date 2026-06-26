@@ -83,10 +83,20 @@ import { ImageLoadTimeoutError } from '../core/errors.js';
  *   rejects with the wrapped promise's reason, or rejects with
  *   {@link ImageLoadTimeoutError} if the timer fires first.
  */
-export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+export function withTimeout<T>(
+    promise: Promise<T>,
+    ms: number,
+    label: string,
+    onTimeout?: () => void,
+): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const start = Date.now();
         const timeoutId = setTimeout(() => {
+            try {
+                onTimeout?.();
+            } catch {
+                /* Timeout rejection remains the public failure. */
+            }
             reject(new ImageLoadTimeoutError(label, Date.now() - start));
         }, ms);
 

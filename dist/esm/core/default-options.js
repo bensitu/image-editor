@@ -614,7 +614,58 @@ export function normalizeDrawConfig(input, fallback) {
     return mergeDrawConfigPatch(fallback, input);
 }
 export function areResolvedTextAnnotationConfigsEqual(left, right) {
-    return JSON.stringify(left) === JSON.stringify(right);
+    return (left.text === right.text &&
+        left.left === right.left &&
+        left.top === right.top &&
+        left.width === right.width &&
+        left.fontSize === right.fontSize &&
+        left.fontFamily === right.fontFamily &&
+        left.fontWeight === right.fontWeight &&
+        left.fill === right.fill &&
+        left.backgroundColor === right.backgroundColor &&
+        left.textAlign === right.textAlign &&
+        left.angle === right.angle &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.editable === right.editable &&
+        left.enterEditing === right.enterEditing &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked &&
+        areStyleRecordsEqual(left.styles, right.styles));
+}
+function areStyleRecordsEqual(left, right) {
+    return areStyleValuesEqual(left, right, new WeakMap());
+}
+function areStyleValuesEqual(left, right, seen) {
+    if (Object.is(left, right))
+        return true;
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object')
+        return false;
+    let seenRights = seen.get(left);
+    if (seenRights === null || seenRights === void 0 ? void 0 : seenRights.has(right))
+        return true;
+    if (!seenRights) {
+        seenRights = new WeakSet();
+        seen.set(left, seenRights);
+    }
+    seenRights.add(right);
+    if (Array.isArray(left) || Array.isArray(right)) {
+        return (Array.isArray(left) &&
+            Array.isArray(right) &&
+            left.length === right.length &&
+            left.every((value, index) => areStyleValuesEqual(value, right[index], seen)));
+    }
+    const leftRecord = left;
+    const rightRecord = right;
+    const leftKeys = Object.keys(leftRecord);
+    const rightKeys = Object.keys(rightRecord);
+    if (leftKeys.length !== rightKeys.length)
+        return false;
+    return leftKeys.every((key) => {
+        if (!hasOwn(rightRecord, key))
+            return false;
+        return areStyleValuesEqual(leftRecord[key], rightRecord[key], seen);
+    });
 }
 export function areResolvedDrawConfigsEqual(left, right) {
     return (left.brushSize === right.brushSize &&
@@ -843,7 +894,6 @@ export function resolveOptions(input) {
     resolved.onError = normalizeCallback(raw.onError);
     resolved.onWarning = normalizeCallback(raw.onWarning);
     resolved.maxHistorySize = normalizeMaxHistorySize(resolved.maxHistorySize);
-    resolved.maxExportPixels = normalizeMaxExportPixels(resolved.maxExportPixels);
     if (resolved.minScale > resolved.maxScale) {
         const minScale = resolved.minScale;
         resolved.minScale = resolved.maxScale;

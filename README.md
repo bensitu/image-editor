@@ -353,15 +353,16 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 
 ### Image loading
 
-| Method                         | Description                                                                                                                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadImage(base64, options?)`  | Load a supported raster image data URL (`png`, `jpeg`, `webp`, `gif`, or `bmp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
-| `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                                    |
-| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                                                        |
-| `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                                       |
-| `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                                        |
-| `resizeToContainer(options?)`  | Resize the canvas to `canvasContainer.clientWidth/clientHeight`, optionally using fallback dimensions for hidden containers.                                                                          |
-| `relayout(options?)`           | Re-measure the host layout and refresh canvas geometry without reloading the current image or dropping overlays.                                                                                      |
+| Method                         | Description                                                                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadImage(base64, options?)`  | Load a supported raster image data URL (`png`, `jpeg`, or `webp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
+| `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                      |
+| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                                          |
+| `isProcessing()`               | Returns `true` while an async load, export/merge transaction, or animation is active, excluding tool modes.                                                                             |
+| `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                         |
+| `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                          |
+| `resizeToContainer(options?)`  | Resize the canvas to `canvasContainer.clientWidth/clientHeight`, optionally using fallback dimensions for hidden containers.                                                            |
+| `relayout(options?)`           | Re-measure the host layout and refresh canvas geometry without reloading the current image or dropping overlays.                                                                        |
 
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
 preserving the container's scroll position across both successful loads and
@@ -385,10 +386,8 @@ await editor.loadImage(imageB);
 Invalid JavaScript `defaultLayoutMode` values fall back to `'expand'`.
 Invalid `setLayoutMode()` calls are ignored and preserve the current mode.
 
-File-input helpers accept JPG, PNG, WebP, GIF, and BMP files. GIF and BMP are
-decoded as static raster input for canvas editing; GIF animation and BMP/GIF
-source-format preservation are not retained. Export output remains controlled by
-the JPEG, PNG, or WebP export options.
+File-input helpers accept JPG, PNG, and WebP files. Export output remains
+controlled by the JPEG, PNG, or WebP export options.
 
 ### Transforms
 
@@ -581,13 +580,13 @@ base image below overlays and session objects above overlays.
 
 ### Merge and export
 
-| Method                        | Description                                                                                    |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `mergeMasks()`                | Bake masks into the base image atomically. Returns `Promise<void>`.                            |
-| `mergeAnnotations()`          | Bake annotations into the base image atomically. Returns `Promise<void>`.                      |
-| `exportImageBase64(options?)` | Returns `Promise<string>` (data URL). Resolves to `''` with a warning when no image is loaded. |
-| `exportImageFile(options?)`   | Returns `Promise<File>`. Rejects when no image is loaded.                                      |
-| `downloadImage(options?)`     | Returns `Promise<void>` and triggers a browser download. No-op when no image is loaded.        |
+| Method                        | Description                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| `mergeMasks()`                | Bake masks into the base image atomically. Returns `Promise<void>`.                               |
+| `mergeAnnotations()`          | Bake annotations into the base image atomically. Returns `Promise<void>`.                         |
+| `exportImageBase64(options?)` | Returns `Promise<string>` (data URL). Rejects when no image is loaded or the editor is not ready. |
+| `exportImageFile(options?)`   | Returns `Promise<File>`. Rejects when no image is loaded.                                         |
+| `downloadImage(options?)`     | Returns `Promise<void>` and triggers a browser download. No-op when no image is loaded.           |
 
 All export APIs use the same `ImageExportOptions` shape:
 

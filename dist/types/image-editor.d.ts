@@ -113,6 +113,12 @@ export declare class ImageEditor {
      */
     isBusy(): boolean;
     /**
+     * Returns `true` only while an async load, merge/export transaction, or
+     * animation is processing. Unlike `isBusy()`, active tool modes are not
+     * counted.
+     */
+    isProcessing(): boolean;
+    /**
      * Selects the layout strategy used by subsequent image loads.
      *
      * The current canvas is not re-laid out immediately; call this before
@@ -311,7 +317,7 @@ export declare class ImageEditor {
     downloadImage(options?: ImageExportOptions): Promise<void>;
     /**
      * Exports the canvas as a Base64 data URL.
-     * Returns `''` when no image is loaded or the operation is currently guarded.
+     * Rejects when no image is loaded or the operation is currently guarded.
      */
     exportImageBase64(options?: ImageExportOptions): Promise<string>;
     /**

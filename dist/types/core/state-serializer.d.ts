@@ -246,6 +246,11 @@ export interface LoadFromStateInput {
      * before `loadFromJSON`.
      */
     setCanvasSize: (width: number, height: number) => void;
+    /**
+     * Upper bound for restored canvas area. Defaults to 50 million pixels,
+     * matching the default export pixel budget.
+     */
+    maxCanvasPixels?: number;
 }
 /**
  * Output of {@link loadFromState}. The state serializer performs the

@@ -183,6 +183,7 @@ class MockCanvas {
      */
     async loadFromJSON(json) {
         this.calls.push('loadFromJSON');
+        if (this.failLoadFromJSON) throw new Error('rollback restore failed');
         if (typeof json.width === 'number') this.width = json.width;
         if (typeof json.height === 'number') this.height = json.height;
         if (typeof json.background === 'string') {
@@ -347,6 +348,24 @@ function makeContext({ failFromUrl = false } = {}) {
         placeholderElement,
         viewportCache: new ViewportCache(),
         ...holder,
+        setCanvasSize: (width, height) => {
+            canvas.setDimensions({ width, height });
+        },
+        applyRollbackRestoredState: (restoredState) => {
+            holder.state.originalImage = restoredState.originalImage;
+        },
+        resetAfterRollbackFailure: () => {
+            canvas.clear();
+            holder.state.originalImage = null;
+            holder.state.isImageLoadedToCanvas = false;
+            holder.state.lastSnapshot = null;
+            holder.state.maskCounter = 0;
+            holder.state.annotationCounter = 0;
+            holder.state.currentScale = 1;
+            holder.state.currentRotation = 0;
+            holder.state.baseImageScale = 1;
+            holder.state.currentImageMimeType = null;
+        },
     };
 
     return { ctx, holder, initial, canvas, placeholderElement, containerElement };
@@ -558,6 +577,182 @@ test('failure restores editor scalar state', async () => {
         }),
         { numRuns: 30 },
     );
+});
+
+test('failure restores from deserialized canvas objects instead of stale object references', async () => {
+    installImageStub('success');
+    const { ctx, holder, canvas } = makeContext({ failFromUrl: true });
+    const staleImage = {
+        type: 'image',
+        editorObjectKind: 'baseImage',
+        width: 100,
+        height: 80,
+        left: 0,
+        top: 0,
+        opacity: 1,
+    };
+    holder.state.originalImage = staleImage;
+    holder.state.isImageLoadedToCanvas = true;
+    canvas.objects = [staleImage];
+
+    await assert.rejects(() => loadImage(ctx, VALID_PNG_DATA_URL));
+
+    assert.notEqual(holder.state.originalImage, staleImage);
+    assert.equal(holder.state.originalImage, canvas.objects[0]);
+    assert.equal(holder.state.originalImage.editorObjectKind, 'baseImage');
+});
+
+test('rollback snapshot filters session-only objects', async () => {
+    installImageStub('success');
+    const { ctx, canvas } = makeContext({ failFromUrl: true });
+    const baseImage = {
+        type: 'image',
+        editorObjectKind: 'baseImage',
+        width: 100,
+        height: 80,
+        left: 0,
+        top: 0,
+        opacity: 1,
+    };
+    const mask = {
+        type: 'rect',
+        editorObjectKind: 'mask',
+        maskId: 4,
+        maskUid: 'mask-4',
+        maskName: 'mask4',
+        originalAlpha: 0.5,
+        left: 1,
+        top: 2,
+    };
+    const cropRect = { type: 'rect', editorObjectKind: 'session', sessionObjectType: 'cropRect' };
+    const mosaicPreview = { type: 'rect', isMosaicPreview: true };
+    const maskLabel = { type: 'textbox', maskLabel: true };
+    canvas.objects = [baseImage, mask, cropRect, mosaicPreview, maskLabel];
+
+    await assert.rejects(() => loadImage(ctx, VALID_PNG_DATA_URL));
+
+    assert.deepEqual(
+        canvas.objects.map((object) => object.editorObjectKind ?? object.sessionObjectType),
+        ['baseImage', 'mask'],
+    );
+    assert.equal(
+        canvas.objects.some((object) => object.isMosaicPreview),
+        false,
+    );
+    assert.equal(
+        canvas.objects.some((object) => object.maskLabel),
+        false,
+    );
+});
+
+test('rollback deserialization failure clears runtime instead of restoring stale references', async () => {
+    installImageStub('success');
+    const { ctx, holder, canvas } = makeContext({ failFromUrl: true });
+    const staleImage = {
+        type: 'image',
+        editorObjectKind: 'baseImage',
+        width: 100,
+        height: 80,
+    };
+    holder.state.originalImage = staleImage;
+    holder.state.isImageLoadedToCanvas = true;
+    canvas.objects = [staleImage];
+    canvas.failLoadFromJSON = true;
+
+    await assert.rejects(() => loadImage(ctx, VALID_PNG_DATA_URL));
+
+    assert.equal(holder.state.originalImage, null);
+    assert.equal(holder.state.isImageLoadedToCanvas, false);
+    assert.equal(holder.state.lastSnapshot, null);
+    assert.equal(canvas.objects.length, 0);
+});
+
+test('image load timeout is a total deadline and aborts the Fabric load phase', async () => {
+    const document = installDom();
+    const OriginalImage = globalThis.Image;
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const originalDateNow = Date.now;
+    const timers = [];
+    let now = 1000;
+    let imageInstance;
+    let fabricSignal;
+
+    class ControlledImage {
+        constructor() {
+            this.naturalWidth = 100;
+            this.naturalHeight = 100;
+            this.listeners = new Map();
+            imageInstance = {
+                dispatch: (event) => {
+                    this.listeners.get(event)?.();
+                },
+            };
+        }
+        addEventListener(event, handler) {
+            this.listeners.set(event, handler);
+        }
+        removeEventListener(event) {
+            this.listeners.delete(event);
+        }
+        set src(value) {
+            this.source = value;
+        }
+    }
+
+    globalThis.Image = ControlledImage;
+    globalThis.setTimeout = (callback, ms) => {
+        const timer = { callback, ms, cleared: false };
+        timers.push(timer);
+        return timer;
+    };
+    globalThis.clearTimeout = (timer) => {
+        if (timer) timer.cleared = true;
+    };
+    Date.now = () => now;
+
+    try {
+        const { ctx } = makeContext();
+        ctx.options = resolveOptions({
+            canvasWidth: 800,
+            canvasHeight: 600,
+            downsampleOnLoad: false,
+            imageLoadTimeoutMs: 30,
+            backgroundColor: 'transparent',
+        });
+        ctx.fabric = {
+            FabricImage: {
+                fromURL: (_url, options) => {
+                    fabricSignal = options?.signal;
+                    return new Promise(() => undefined);
+                },
+            },
+        };
+        document.body.appendChild(ctx.containerElement);
+
+        const loadPromise = loadImage(ctx, VALID_PNG_DATA_URL);
+        assert.equal(timers[0].ms, 30);
+
+        now = 1025;
+        imageInstance.dispatch('load');
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.equal(timers[1].ms, 5);
+        assert.equal(fabricSignal?.aborted, false);
+        timers[1].callback();
+
+        await assert.rejects(
+            () => loadPromise,
+            (error) => error?.name === 'ImageLoadTimeoutError' && /FabricImage/.test(error.message),
+        );
+        assert.equal(fabricSignal.aborted, true);
+    } finally {
+        globalThis.Image = OriginalImage;
+        globalThis.setTimeout = originalSetTimeout;
+        globalThis.clearTimeout = originalClearTimeout;
+        Date.now = originalDateNow;
+    }
 });
 
 test('failure restores current image MIME', async () => {

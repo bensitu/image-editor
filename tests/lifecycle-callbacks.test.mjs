@@ -131,18 +131,80 @@ test('onImageCleared fires on successful replacement but not on failed rollback'
 
 test('unsupported image data URLs are ignored before load lifecycle callbacks', async (t) => {
     const events = [];
+    const warnings = [];
     const { editor } = createSourceEditor({
         onImageLoadStart: (context) => events.push(['start', context.operation]),
         onImageLoaded: (_info, context) => events.push(['loaded', context.operation]),
         onImageChanged: (_state, context) => events.push(['changed', context.operation]),
         onBusyChange: (isBusy, context) => events.push(['busy', context.operation, isBusy]),
+        onWarning: (error, message) => warnings.push({ error, message }),
     });
     t.after(() => disposeEditor(editor));
 
     await editor.loadImage('data:image/svg+xml;base64,PHN2Zy8+');
 
     assert.deepEqual(events, []);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /supported PNG, JPEG, or WebP/);
     assert.equal(editor.isImageLoaded(), false);
+});
+
+test('init reports missing Fabric instead of silently returning', () => {
+    const previousFabric = globalThis.fabric;
+    const originalConsoleError = console.error;
+    const warnings = [];
+    try {
+        delete globalThis.fabric;
+        console.error = () => {};
+        const editor = new ImageEditor({
+            onWarning: (error, message) => warnings.push({ error, message }),
+        });
+
+        editor.init();
+    } finally {
+        console.error = originalConsoleError;
+        if (previousFabric === undefined) {
+            delete globalThis.fabric;
+        } else {
+            globalThis.fabric = previousFabric;
+        }
+    }
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /fabric\.js is not loaded/i);
+});
+
+test('init is idempotent and warns on repeated initialization', (t) => {
+    const warnings = [];
+    const { editor, ids } = createSourceEditor({
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+    t.after(() => disposeEditor(editor));
+
+    editor.init(ids);
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /already initialized/i);
+});
+
+test('defaultMaskConfig warns when per-call hooks are provided', () => {
+    installFabricDom();
+    resetEditorDom();
+    const warnings = [];
+
+    const editor = new ImageEditor(fabric, {
+        defaultMaskConfig: {
+            onCreate() {},
+            fabricGenerator() {
+                return null;
+            },
+        },
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+
+    assert.ok(editor);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /defaultMaskConfig/);
 });
 
 test('onImageChanged reports load, mask, undo, redo, and loadFromState state transitions', async (t) => {

@@ -49,8 +49,6 @@ export async function loadImageFile(context: LoadImageFileContext, file: File): 
 
     try {
         await context.loadImage(dataUrl);
-    } catch {
-        // loadImage already reports transactional load failures through onError.
     } finally {
         resetFileInput(inputElement);
     }

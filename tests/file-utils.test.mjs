@@ -46,8 +46,8 @@ const { inferImageMimeType, isSupportedImageDataUrl, readFileAsDataUrl } =
 test('inferImageMimeType accepts supported browser MIME types', () => {
     for (const [name, type] of [
         ['photo.png', 'image/png'],
-        ['photo.gif', 'image/gif'],
-        ['photo.bmp', 'image/bmp'],
+        ['photo.jpg', 'image/jpeg'],
+        ['photo.webp', 'image/webp'],
     ]) {
         const file = new File(['x'], name, { type });
         assert.equal(inferImageMimeType(file), type);
@@ -57,13 +57,15 @@ test('inferImageMimeType accepts supported browser MIME types', () => {
 test('inferImageMimeType rejects unsupported image MIME types', () => {
     const file = new File(['x'], 'vector.svg', { type: 'image/svg+xml' });
     assert.equal(inferImageMimeType(file), null);
+    assert.equal(inferImageMimeType(new File(['x'], 'anim.gif', { type: 'image/gif' })), null);
+    assert.equal(inferImageMimeType(new File(['x'], 'bitmap.bmp', { type: 'image/bmp' })), null);
 });
 
 test('inferImageMimeType falls back to supported file extensions when MIME is empty', () => {
     for (const [name, type] of [
         ['photo.webp', 'image/webp'],
-        ['photo.gif', 'image/gif'],
-        ['photo.bmp', 'image/bmp'],
+        ['photo.jpeg', 'image/jpeg'],
+        ['photo.png', 'image/png'],
     ]) {
         const file = new File(['x'], name, { type: '' });
         assert.equal(inferImageMimeType(file), type);
@@ -74,8 +76,8 @@ test('isSupportedImageDataUrl rejects unsupported image MIME types', () => {
     assert.equal(isSupportedImageDataUrl('data:image/png;base64,AAAA'), true);
     assert.equal(isSupportedImageDataUrl('data:image/jpeg;base64,AAAA'), true);
     assert.equal(isSupportedImageDataUrl('data:image/webp;base64,AAAA'), true);
-    assert.equal(isSupportedImageDataUrl('data:image/gif;base64,AAAA'), true);
-    assert.equal(isSupportedImageDataUrl('data:image/bmp;base64,AAAA'), true);
+    assert.equal(isSupportedImageDataUrl('data:image/gif;base64,AAAA'), false);
+    assert.equal(isSupportedImageDataUrl('data:image/bmp;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/svg+xml;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/avif;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:text/plain;base64,AAAA'), false);

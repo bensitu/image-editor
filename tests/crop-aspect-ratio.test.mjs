@@ -253,8 +253,8 @@ test('each crop aspect-ratio preset creates the expected initial ratio', () => {
         const rect = getSession().cropRect;
         if (expected === null) {
             assert.equal(getSession().aspectRatio, null);
-            assert.equal(rect.width, 40);
-            assert.equal(rect.height, 30);
+            assert.equal(rect.width, 336);
+            assert.equal(rect.height, 216);
             assertCropControls(rect, { middleEdgesVisible: true, rotationVisible: false });
         } else {
             assertApprox(getSession().aspectRatio, expected, `${aspectRatio} session ratio`);
@@ -323,7 +323,7 @@ test('locked-ratio crop prioritizes fitting the image when min size cannot fit',
     assert.ok(rect.top + rect.height <= 40 + 1e-6, 'bottom stays in image bounds');
 });
 
-test('enterCropMode without ratio preserves free-crop initial rectangle', () => {
+test('enterCropMode without ratio starts with the padded image rectangle', () => {
     const { context, getSession } = makeContext({
         imageRect: { left: 10, top: 20, width: 300, height: 200 },
         crop: { minWidth: 80, minHeight: 60, padding: 10 },
@@ -334,8 +334,8 @@ test('enterCropMode without ratio preserves free-crop initial rectangle', () => 
     const rect = getSession().cropRect;
     assert.equal(rect.left, 20);
     assert.equal(rect.top, 30);
-    assert.equal(rect.width, 80);
-    assert.equal(rect.height, 60);
+    assert.equal(rect.width, 280);
+    assert.equal(rect.height, 180);
 });
 
 test('enterCropMode creates the largest centered preset-ratio rectangle inside padded image bounds', () => {

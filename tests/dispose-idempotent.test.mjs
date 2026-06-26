@@ -514,10 +514,12 @@ test('post-dispose async public methods resolve safely without touching the canv
     await assert.doesNotReject(editor.redo(), 'post-dispose redo must resolve without throwing');
 
     // ── exportImageBase64 ─────────────────────────
-    // Export gates on a missing runtime canvas, so the documented
-    // empty-string no-op shape is preserved after dispose.
-    const base64 = await editor.exportImageBase64();
-    assert.equal(base64, '', 'post-dispose exportImageBase64 must resolve to the empty string');
+    // Export gates on a missing runtime canvas, so the failure is explicit.
+    await assert.rejects(
+        () => editor.exportImageBase64(),
+        /editor is not initialized/,
+        'post-dispose exportImageBase64 must reject clearly',
+    );
 
     // ── loadFromState ───────────────────────────────────
     // `loadFromState` short-circuits on a missing runtime canvas. A subsequent

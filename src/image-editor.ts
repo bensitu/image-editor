@@ -10,6 +10,7 @@
 
 import type * as FabricNS from 'fabric';
 import { reportError, reportWarning } from './core/callback-reporter.js';
+import { IdleGuardError } from './core/errors.js';
 import {
     resolveDomElement,
     resolveElementTargets,
@@ -325,6 +326,22 @@ export class ImageEditor {
                 'Invalid defaultLayoutMode fell back to "expand".',
             );
         }
+        const rawDefaultMaskConfig = (detected.options as Record<string, unknown>)
+            .defaultMaskConfig;
+        if (
+            rawDefaultMaskConfig &&
+            typeof rawDefaultMaskConfig === 'object' &&
+            !Array.isArray(rawDefaultMaskConfig) &&
+            ('onCreate' in rawDefaultMaskConfig || 'fabricGenerator' in rawDefaultMaskConfig)
+        ) {
+            reportWarning(
+                this.runtime.options,
+                new TypeError(
+                    '[ImageEditor] defaultMaskConfig does not support onCreate or fabricGenerator. Pass those fields to createMask() instead.',
+                ),
+                'Ignored unsupported defaultMaskConfig lifecycle/factory fields.',
+            );
+        }
 
         this.contextFactory = this.createContextFactory();
         this.actionAccessFactory = this.createActionAccessFactory();
@@ -536,6 +553,11 @@ export class ImageEditor {
                 !globalFabric ||
                 typeof (globalFabric as { Canvas?: unknown }).Canvas !== 'function'
             ) {
+                reportWarning(
+                    this.runtime.options,
+                    null,
+                    '[ImageEditor] init() skipped: fabric.js is not loaded. Pass a Fabric module or load Fabric before init().',
+                );
                 return;
             }
             this.runtime.fabricModule = globalFabric as FabricModule;
@@ -543,6 +565,14 @@ export class ImageEditor {
         }
         // Post-dispose init is a no-op to avoid recreating canvas resources.
         if (this.runtime.isDisposed) return;
+        if (this.runtime.canvas || this.runtime.domBindings || this.runtime.keyboardHandler) {
+            reportWarning(
+                this.runtime.options,
+                null,
+                '[ImageEditor] init() skipped: editor is already initialized. Call dispose() before reinitializing.',
+            );
+            return;
+        }
 
         this.runtime.elements = resolveElementTargets(elementMap);
 
@@ -886,11 +916,36 @@ export class ImageEditor {
     ): Promise<void> {
         // Fabric-unavailable and disposed gates mirror "init and
         // loadImage are no-ops" contract.
-        if (!this.runtime.isFabricLoaded || !this.runtime.canvas) return;
-        if (this.runtime.isDisposed) return;
-        if (!isSupportedImageDataUrl(base64)) return;
+        if (!this.runtime.isFabricLoaded || !this.runtime.canvas) {
+            reportWarning(
+                this.runtime.options,
+                null,
+                'loadImage skipped: editor is not initialized.',
+            );
+            return;
+        }
+        if (this.runtime.isDisposed) {
+            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is disposed.');
+            return;
+        }
+        if (!isSupportedImageDataUrl(base64)) {
+            reportWarning(
+                this.runtime.options,
+                new TypeError('[ImageEditor] Unsupported image Data URL.'),
+                'loadImage skipped: input is not a supported PNG, JPEG, or WebP Data URL.',
+            );
+            return;
+        }
 
-        if (!this.canRunIdleOperation('loadImage', options)) return;
+        try {
+            this.assertIdleForOperation('loadImage', options);
+        } catch (error) {
+            if (this.isExpectedIdleGuardError(error, 'loadImage')) {
+                reportWarning(this.runtime.options, error, (error as Error).message);
+                return;
+            }
+            throw error;
+        }
         this.finalizeActiveTextEditingIfNeeded();
         const callbackContext = this.getOperationContext('loadImage', options);
         const previousImage = this.runtime.originalImage;
@@ -992,14 +1047,10 @@ export class ImageEditor {
             !this.runtime.operationGuard.isOwnOperation(token) &&
             !canRunOperationInToolMode(activeToolMode, operationName)
         ) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`,
-            );
+            throw new IdleGuardError(operationName, `while ${activeToolMode} mode is active`);
         }
         if (this.runtime.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
-            throw new Error(
-                `[ImageEditor] Cannot run "${operationName}" while an animation is queued.`,
-            );
+            throw new IdleGuardError(operationName, 'while an animation is queued');
         }
     }
 
@@ -1016,10 +1067,7 @@ export class ImageEditor {
     }
 
     private isExpectedIdleGuardError(error: unknown, operationName: string): boolean {
-        return (
-            error instanceof Error &&
-            error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `)
-        );
+        return error instanceof IdleGuardError && error.operation === operationName;
     }
 
     private assertCanQueueAnimation(operationName: string, options?: object | null): void {
@@ -1058,6 +1106,15 @@ export class ImageEditor {
             this.runtime.animQueue.isBusy() ||
             this.isToolModeActive()
         );
+    }
+
+    /**
+     * Returns `true` only while an async load, merge/export transaction, or
+     * animation is processing. Unlike `isBusy()`, active tool modes are not
+     * counted.
+     */
+    isProcessing(): boolean {
+        return this.runtime.operationGuard.isBusy() || this.runtime.animQueue.isBusy();
     }
 
     /**
@@ -1209,7 +1266,12 @@ export class ImageEditor {
             const bounds = this.runtime.originalImage.getBoundingRect();
             displayWidth = Math.max(0, Number(bounds.width) || 0);
             displayHeight = Math.max(0, Number(bounds.height) || 0);
-        } catch {
+        } catch (error) {
+            reportWarning(
+                this.runtime.options,
+                error,
+                'getImageInfo used fallback dimensions because Fabric getBoundingRect failed.',
+            );
             displayWidth = Math.max(
                 0,
                 (Number(this.runtime.originalImage.width) || 0) *
@@ -2009,7 +2071,7 @@ export class ImageEditor {
 
     /**
      * Exports the canvas as a Base64 data URL.
-     * Returns `''` when no image is loaded or the operation is currently guarded.
+     * Rejects when no image is loaded or the operation is currently guarded.
      */
     async exportImageBase64(options?: ImageExportOptions): Promise<string> {
         return await exportImageBase64Action(

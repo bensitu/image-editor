@@ -29,7 +29,7 @@
  *
  *   | entry point          | shape on no image                   |
  *   | -------------------- | ----------------------------------- |
- *   | `exportImageBase64`  | resolves to `''`                    |
+ *   | `exportImageBase64`  | rejects with `ExportNotReadyError`  |
  *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
  *   | `downloadImage`      | resolves without throwing           |
  *
@@ -708,8 +708,17 @@ function resolveCanvasFillStyle(
 ): string {
     const value = String(backgroundColor ?? '').trim();
     if (!value || isTransparentCssColor(value)) return '#ffffff';
+    const css = ownerDocument.defaultView?.CSS ?? globalThis.CSS;
+    const supportsColor = typeof css?.supports === 'function' ? css.supports('color', value) : null;
+    if (supportsColor === false) return fallback;
+
     const context = createColorValidationContext(ownerDocument);
-    if (!context) return fallback;
+    if (!context) return supportsColor === true ? value : fallback;
+
+    if (supportsColor === true) {
+        context.fillStyle = value;
+        return context.fillStyle;
+    }
 
     context.fillStyle = '#000001';
     const firstSentinel = context.fillStyle;
@@ -819,16 +828,7 @@ function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
     }
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
-        // Explicitly allocate a fresh ArrayBuffer so the resulting
-        // Uint8Array's `buffer` is typed as `ArrayBuffer` (rather than
-        // `ArrayBufferLike`, which the lib.dom `BlobPart` union rejects
-        // because it admits `SharedArrayBuffer`).
-        const buffer = new ArrayBuffer(binary.length);
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < binary.length; i += 1) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes;
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
     }
 
     const bufferCtor = (
@@ -1014,7 +1014,7 @@ async function renderExportDataUrl(
  *                 and `format` are accepted; when
  *                 both are supplied, `fileType` wins.
  * @returns        Resolves to a `data:image/...;base64...` URL on
- *                 success, or `''` when no image is loaded.
+ *                 success.
  *
  */
 export async function exportImageBase64(
@@ -1023,7 +1023,7 @@ export async function exportImageBase64(
 ): Promise<string> {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded('exportImageBase64');
-        return '';
+        throw new ExportNotReadyError('exportImageBase64');
     }
 
     const resolved = resolveExportOptions(context, options);

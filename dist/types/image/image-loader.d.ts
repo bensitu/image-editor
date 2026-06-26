@@ -94,6 +94,7 @@
  */
 import type * as FabricNS from 'fabric';
 import type { BaseImageObject, FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import { type LoadFromStateResult } from '../core/state-serializer.js';
 import { type ViewportCache } from './layout-manager.js';
 /**
  * Snapshot of every field the loader is about to mutate, captured before
@@ -114,17 +115,15 @@ export interface RollbackBundle {
     containerScrollTop: number | null;
     /** Container `scrollLeft` immediately before the loader started. */
     containerScrollLeft: number | null;
-    /** The previously-committed `originalImage` reference, if any. */
-    originalImage: BaseImageObject | null;
     /** Whether an image was already committed before this call. */
     isImageLoadedToCanvas: boolean;
     /** Snapshot string used as the history baseline before the call. */
     lastSnapshot: string | null;
     /**
-     * Full canvas JSON serialization captured via `canvas.toJSON` with the
-     * editor's custom keys. Restored via `loadFromJSON` on rollback.
+     * Normal editor state snapshot captured via `saveState`, with session-only
+     * objects filtered and editor metadata embedded.
      */
-    canvasJson: string;
+    stateJson: string;
     /** Mask counter value before the loader reset it to 0. */
     maskCounter: number;
     /** Annotation counter value before the loader reset it to 0. */
@@ -203,6 +202,18 @@ export interface LoadImageContext {
     getCurrentImageMimeType(): ImageMimeType | null;
     /** Writes the MIME type of the currently committed image. */
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    /** Sets canvas dimensions while restoring the rollback snapshot. */
+    setCanvasSize(width: number, height: number): void;
+    /**
+     * Re-applies facade-owned runtime wiring after `loadFromState` has
+     * deserialized the rollback snapshot.
+     */
+    applyRollbackRestoredState(restoredState: LoadFromStateResult): void;
+    /**
+     * Clears canvas/runtime references if rollback deserialization itself
+     * fails and the previous live canvas cannot be trusted.
+     */
+    resetAfterRollbackFailure(): void;
     /**
      * Toggle placeholder/canvas-container visibility via
      * `ui/visibility-state.ts`. `show === false` means "an image is now on

@@ -20,8 +20,6 @@ export async function loadImageFile(context, file) {
     try {
         await context.loadImage(dataUrl);
     }
-    catch {
-    }
     finally {
         resetFileInput(inputElement);
     }

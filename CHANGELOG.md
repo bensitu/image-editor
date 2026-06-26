@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-06-26
+
+### Added
+
+- Add `isProcessing()` as a focused runtime-state API for checking active async work without treating tool modes as processing.
+
+### Changed
+
+- Limit accepted image load inputs to the browser-supported PNG, JPEG, and WebP formats documented for the editor.
+- Start free crop sessions from the padded image area so the initial crop rectangle matches the visible editing region.
+- Require DOM-backed canvas creation for resampling instead of falling back to the global document.
+
+### Fixed
+
+- Restore failed image loads from serialized editor state instead of stale Fabric object references, including rollback filtering for session-only objects and a safe reset path when rollback deserialization fails.
+- Enforce image-load timeouts as a total deadline and abort Fabric image loading when the deadline expires.
+- Reject no-image Base64 exports with `ExportNotReadyError` instead of returning an empty string.
+- Reject oversized serialized canvas dimensions before applying them during state restore.
+- Report warnings for lifecycle and API diagnostics that previously failed silently, including missing Fabric, repeated initialization, unsupported load inputs, unsupported `defaultMaskConfig` hooks, and fallback image info.
+- Preserve keyboard delete/backspace safety for editable controls inside Shadow DOM.
+- Validate export background colors with `CSS.supports()` when available.
+- Propagate file-input image load failures while still resetting the input value.
+
 ## [2.5.0] - 2026-06-25
 
 ### Added

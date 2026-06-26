@@ -359,8 +359,8 @@ test('enterCropMode clamps crop rectangle movement and scaling inside image boun
     cropRect.scaleY = 1;
     movingHandler();
 
-    assert.equal(cropRect.left, 550, 'right edge must clamp inside the image content bound');
-    assert.equal(cropRect.top, 350, 'bottom edge must clamp inside the image content bound');
+    assert.equal(cropRect.left, 20, 'right edge must clamp inside the image content bound');
+    assert.equal(cropRect.top, 20, 'bottom edge must clamp inside the image content bound');
 });
 
 test('applyCrop can export the full image content bounds', async () => {

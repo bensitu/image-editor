@@ -116,6 +116,7 @@ export async function loadFromStateAction(
             canvas,
             jsonString,
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
+            maxCanvasPixels: access.getOptions().maxExportPixels,
         });
 
         if (access.isDisposed() || !access.getCanvas()) return;

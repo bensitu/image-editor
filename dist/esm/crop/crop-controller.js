@@ -385,14 +385,14 @@ export function enterCropMode(context, cropModeOptions = {}) {
     let rectTop;
     let rectWidth;
     let rectHeight;
+    const available = resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding);
     if (aspectRatio === null) {
-        rectLeft = Math.min(boundsLeft + maxCropWidth - 1, Math.max(boundsLeft, Math.floor(imageBounds.left + padding)));
-        rectTop = Math.min(boundsTop + maxCropHeight - 1, Math.max(boundsTop, Math.floor(imageBounds.top + padding)));
-        rectWidth = minCropWidth;
-        rectHeight = minCropHeight;
+        rectWidth = Math.max(minCropWidth, available.width);
+        rectHeight = Math.max(minCropHeight, available.height);
+        rectLeft = Math.min(boundsLeft + maxCropWidth - rectWidth, Math.max(boundsLeft, available.left + (available.width - rectWidth) / 2));
+        rectTop = Math.min(boundsTop + maxCropHeight - rectHeight, Math.max(boundsTop, available.top + (available.height - rectHeight) / 2));
     }
     else {
-        const available = resolvePaddedCropArea(boundsLeft, boundsTop, maxCropWidth, maxCropHeight, padding);
         const fitted = fitAspectRatioInside(available.width, available.height, aspectRatio);
         rectWidth = fitted.width;
         rectHeight = fitted.height;

@@ -212,12 +212,30 @@ export class StateRestoreError extends Error {
 }
 
 /**
+ * Raised by facade-level operation guards when a public operation is attempted
+ * while the editor is disposed, loading, animating, or in an incompatible tool
+ * mode.
+ */
+export class IdleGuardError extends Error {
+    public override readonly name = 'IdleGuardError';
+
+    /** Name of the operation that was attempted. */
+    public readonly operation: string;
+
+    constructor(operation: string, reason: string) {
+        super(`[ImageEditor] Cannot run "${operation}" ${reason}.`);
+        this.operation = operation;
+        fixPrototype(this, IdleGuardError);
+    }
+}
+
+/**
  * Raised by `export/export-service.ts.exportImageFile` when
  * `isImageLoaded` is `false`. A console warning naming the missing image
  * is emitted alongside the rejection.
  *
- * Note: `exportImageBase64` and `downloadImage` do NOT raise this error —
- * they resolve to `''` or no-op respectively, and emit the same warning.
+ * Note: `downloadImage` does NOT raise this error for the no-image path; it
+ * resolves as a no-op and emits the same warning.
  *
  * Surfaces to consumer as: rejection of the `exportImageFile` promise.
  *
@@ -228,8 +246,8 @@ export class ExportNotReadyError extends Error {
     /** Name of the export operation that was attempted. */
     public readonly operation: string;
 
-    constructor(operation = 'exportImageFile') {
-        super(`Cannot ${operation}: no image is loaded on the canvas.`);
+    constructor(operation = 'exportImageFile', reason = 'no image is loaded on the canvas') {
+        super(`Cannot ${operation}: ${reason}.`);
         this.operation = operation;
         fixPrototype(this, ExportNotReadyError);
     }

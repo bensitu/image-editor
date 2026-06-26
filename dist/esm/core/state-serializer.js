@@ -1,6 +1,7 @@
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 import { StateRestoreError } from './errors.js';
+const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 export const SNAPSHOT_CUSTOM_KEYS = [
     'editorObjectKind',
     'sessionObjectType',
@@ -176,7 +177,7 @@ export function saveState(input) {
     return JSON.stringify(jsonObj);
 }
 export async function loadFromState(input) {
-    var _a, _b;
+    var _a, _b, _c;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
     const jsonString = typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
     let json;
@@ -190,11 +191,12 @@ export async function loadFromState(input) {
         json.width > 0 &&
         typeof json.height === 'number' &&
         json.height > 0) {
+        assertRestoredCanvasSizeAllowed(json.width, json.height, (_a = input.maxCanvasPixels) !== null && _a !== void 0 ? _a : DEFAULT_MAX_RESTORE_CANVAS_PIXELS);
         setCanvasSize(json.width, json.height);
     }
     await canvas.loadFromJSON(json);
     const objects = canvas.getObjects();
-    restoreEditorObjectPropsFromJson(objects, (_a = json.objects) !== null && _a !== void 0 ? _a : []);
+    restoreEditorObjectPropsFromJson(objects, (_b = json.objects) !== null && _b !== void 0 ? _b : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -236,7 +238,7 @@ export async function loadFromState(input) {
         .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
     const masks = objects.filter(isMaskObject);
     const annotations = objects.filter(isAnnotationObject);
-    const originalImage = (_b = objects.find(isBaseImageObject)) !== null && _b !== void 0 ? _b : null;
+    const originalImage = (_c = objects.find(isBaseImageObject)) !== null && _c !== void 0 ? _c : null;
     return {
         editorState,
         maxMaskId,
@@ -247,6 +249,15 @@ export async function loadFromState(input) {
         annotations,
         jsonString,
     };
+}
+function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels) {
+    const safeMaxCanvasPixels = Number.isFinite(maxCanvasPixels) && maxCanvasPixels > 0
+        ? Math.floor(maxCanvasPixels)
+        : DEFAULT_MAX_RESTORE_CANVAS_PIXELS;
+    const pixelCount = width * height;
+    if (!Number.isFinite(pixelCount) || pixelCount > safeMaxCanvasPixels) {
+        throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`);
+    }
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;

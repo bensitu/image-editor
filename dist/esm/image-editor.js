@@ -1,4 +1,5 @@
 import { reportError, reportWarning } from './core/callback-reporter.js';
+import { IdleGuardError } from './core/errors.js';
 import { resolveDomElement, resolveElementTargets, } from './core/editor-elements.js';
 import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedTextAnnotationConfig, isLayoutMode, resolveOptions, } from './core/default-options.js';
 import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
@@ -113,6 +114,14 @@ export class ImageEditor {
             reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
                 `${JSON.stringify(rawDefaultLayoutMode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Invalid defaultLayoutMode fell back to "expand".');
+        }
+        const rawDefaultMaskConfig = detected.options
+            .defaultMaskConfig;
+        if (rawDefaultMaskConfig &&
+            typeof rawDefaultMaskConfig === 'object' &&
+            !Array.isArray(rawDefaultMaskConfig) &&
+            ('onCreate' in rawDefaultMaskConfig || 'fabricGenerator' in rawDefaultMaskConfig)) {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] defaultMaskConfig does not support onCreate or fabricGenerator. Pass those fields to createMask() instead.'), 'Ignored unsupported defaultMaskConfig lifecycle/factory fields.');
         }
         this.contextFactory = this.createContextFactory();
         this.actionAccessFactory = this.createActionAccessFactory();
@@ -290,6 +299,7 @@ export class ImageEditor {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
                 typeof globalFabric.Canvas !== 'function') {
+                reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: fabric.js is not loaded. Pass a Fabric module or load Fabric before init().');
                 return;
             }
             this.runtime.fabricModule = globalFabric;
@@ -297,6 +307,10 @@ export class ImageEditor {
         }
         if (this.runtime.isDisposed)
             return;
+        if (this.runtime.canvas || this.runtime.domBindings || this.runtime.keyboardHandler) {
+            reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: editor is already initialized. Call dispose() before reinitializing.');
+            return;
+        }
         this.runtime.elements = resolveElementTargets(elementMap);
         this.initCanvas();
         this.runtime.domBindings = new DomBindings((key) => this.resolveElement(key), () => this.runtime.isDisposed);
@@ -541,14 +555,28 @@ export class ImageEditor {
         return this.loadImageInternal(base64, options);
     }
     async loadImageInternal(base64, options = {}) {
-        if (!this.runtime.isFabricLoaded || !this.runtime.canvas)
+        if (!this.runtime.isFabricLoaded || !this.runtime.canvas) {
+            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is not initialized.');
             return;
-        if (this.runtime.isDisposed)
+        }
+        if (this.runtime.isDisposed) {
+            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is disposed.');
             return;
-        if (!isSupportedImageDataUrl(base64))
+        }
+        if (!isSupportedImageDataUrl(base64)) {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] Unsupported image Data URL.'), 'loadImage skipped: input is not a supported PNG, JPEG, or WebP Data URL.');
             return;
-        if (!this.canRunIdleOperation('loadImage', options))
-            return;
+        }
+        try {
+            this.assertIdleForOperation('loadImage', options);
+        }
+        catch (error) {
+            if (this.isExpectedIdleGuardError(error, 'loadImage')) {
+                reportWarning(this.runtime.options, error, error.message);
+                return;
+            }
+            throw error;
+        }
         this.finalizeActiveTextEditingIfNeeded();
         const callbackContext = this.getOperationContext('loadImage', options);
         const previousImage = this.runtime.originalImage;
@@ -615,10 +643,10 @@ export class ImageEditor {
         if (activeToolMode &&
             !this.runtime.operationGuard.isOwnOperation(token) &&
             !canRunOperationInToolMode(activeToolMode, operationName)) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" while ${activeToolMode} mode is active.`);
+            throw new IdleGuardError(operationName, `while ${activeToolMode} mode is active`);
         }
         if (this.runtime.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
-            throw new Error(`[ImageEditor] Cannot run "${operationName}" while an animation is queued.`);
+            throw new IdleGuardError(operationName, 'while an animation is queued');
         }
     }
     canRunIdleOperation(operationName, options) {
@@ -634,8 +662,7 @@ export class ImageEditor {
         }
     }
     isExpectedIdleGuardError(error, operationName) {
-        return (error instanceof Error &&
-            error.message.startsWith(`[ImageEditor] Cannot run "${operationName}" `));
+        return error instanceof IdleGuardError && error.operation === operationName;
     }
     assertCanQueueAnimation(operationName, options) {
         const token = this.getInternalOperationToken(options);
@@ -658,6 +685,9 @@ export class ImageEditor {
         return (this.runtime.operationGuard.isBusy() ||
             this.runtime.animQueue.isBusy() ||
             this.isToolModeActive());
+    }
+    isProcessing() {
+        return this.runtime.operationGuard.isBusy() || this.runtime.animQueue.isBusy();
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
@@ -743,7 +773,8 @@ export class ImageEditor {
             displayWidth = Math.max(0, Number(bounds.width) || 0);
             displayHeight = Math.max(0, Number(bounds.height) || 0);
         }
-        catch {
+        catch (error) {
+            reportWarning(this.runtime.options, error, 'getImageInfo used fallback dimensions because Fabric getBoundingRect failed.');
             displayWidth = Math.max(0, (Number(this.runtime.originalImage.width) || 0) *
                 Math.abs(Number(this.runtime.originalImage.scaleX) || 1));
             displayHeight = Math.max(0, (Number(this.runtime.originalImage.height) || 0) *

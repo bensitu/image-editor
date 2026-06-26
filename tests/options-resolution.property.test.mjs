@@ -43,6 +43,7 @@ import {
     DEFAULT_MOSAIC_CONFIG,
     DEFAULT_TEXT_ANNOTATION_CONFIG,
     DEFAULT_DRAW_CONFIG,
+    areResolvedTextAnnotationConfigsEqual,
 } from '../src/core/default-options.ts';
 
 // ─── Documented option-key inventories ─────────────────────────────────────
@@ -879,6 +880,32 @@ test('maxExportPixels is normalized to a positive integer', () => {
     assert.equal(resolveOptions({ maxExportPixels: null }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: -10 }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: Number.NaN }).maxExportPixels, 50000000);
+});
+
+test('text annotation config equality is stable across style key order', () => {
+    const left = {
+        ...DEFAULT_TEXT_ANNOTATION_CONFIG,
+        styles: {
+            stroke: '#123456',
+            shadow: { blur: 4, color: '#000' },
+        },
+    };
+    const right = {
+        ...DEFAULT_TEXT_ANNOTATION_CONFIG,
+        styles: {
+            shadow: { color: '#000', blur: 4 },
+            stroke: '#123456',
+        },
+    };
+
+    assert.equal(areResolvedTextAnnotationConfigsEqual(left, right), true);
+    assert.equal(
+        areResolvedTextAnnotationConfigsEqual(left, {
+            ...right,
+            styles: { ...right.styles, stroke: '#654321' },
+        }),
+        false,
+    );
 });
 
 test('invalid numeric options fall back to finite defaults', () => {

@@ -18,7 +18,8 @@ const supportedLanguages = ['en', 'zh', 'ja', 'ko', 'fr', 'es'];
 // keep the demo localized while the API examples below remain language-neutral.
 const translations = {
     en: {
-        appSubtitle: 'Canvas image editing demo: annotate, mask, mosaic, crop, transform, and export.',
+        appSubtitle:
+            'Canvas image editing demo: annotate, mask, mosaic, crop, transform, and export.',
         legacyDemo: 'Legacy v1 demo',
         demoPreferences: 'Demo preferences',
         imageLoading: 'Image loading',
@@ -366,7 +367,8 @@ const translations = {
         errorEditorNotInitialized: '에디터가 초기화되지 않았습니다',
     },
     fr: {
-        appSubtitle: 'Démo d’édition d’image Canvas : annotation, masque, mosaïque, recadrage, transformation et export.',
+        appSubtitle:
+            'Démo d’édition d’image Canvas : annotation, masque, mosaïque, recadrage, transformation et export.',
         legacyDemo: 'Démo v1 héritée',
         demoPreferences: 'Préférences de démo',
         imageLoading: "Chargement de l'image",
@@ -453,7 +455,8 @@ const translations = {
         errorEditorNotInitialized: "L'éditeur n'est pas initialisé",
     },
     es: {
-        appSubtitle: 'Demo de edición de imágenes en Canvas: anotación, máscara, mosaico, recorte, transformación y exportación.',
+        appSubtitle:
+            'Demo de edición de imágenes en Canvas: anotación, máscara, mosaico, recorte, transformación y exportación.',
         legacyDemo: 'Demo heredada v1',
         demoPreferences: 'Preferencias de demo',
         imageLoading: 'Carga de imagen',

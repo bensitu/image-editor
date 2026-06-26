@@ -3,7 +3,7 @@ import { removeAllAnnotations as removeAllAnnotationsImpl, } from '../annotation
 import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
 import { exportImageBase64 as exportImageBase64Impl, } from '../export/export-service.js';
 import { removeAllMasks as removeAllMasksImpl, } from '../mask/mask-factory.js';
-import { reattachMaskHoverHandlers } from '../mask/mask-style.js';
+import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mask-style.js';
 import { isMaskObject, } from '../core/public-types.js';
 export class EditorContextFactory {
     constructor(access) {
@@ -68,6 +68,66 @@ export class EditorContextFactory {
             getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
+            },
+            setCanvasSize: (width, height) => {
+                access.setCanvasSize(width, height);
+            },
+            applyRollbackRestoredState: (restoredState) => {
+                access.hideAllMaskLabels();
+                const canvas = access.getCanvas();
+                const originalImage = restoredState.originalImage;
+                access.setOriginalImage(originalImage);
+                if (originalImage) {
+                    originalImage.set({
+                        originX: 'left',
+                        originY: 'top',
+                        selectable: false,
+                        evented: false,
+                        hasControls: false,
+                        hoverCursor: 'default',
+                    });
+                    canvas === null || canvas === void 0 ? void 0 : canvas.sendObjectToBack(originalImage);
+                }
+                const restoredMasks = restoredState.masks;
+                access.setLastMask(restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId
+                    ? maskObject
+                    : lastMask, null));
+                restoredMasks.forEach((maskObject) => {
+                    applyMaskUnselectedStyle(maskObject);
+                    reattachMaskHoverHandlers(maskObject);
+                });
+                syncAnnotationRuntimeStates(restoredState.annotations);
+                attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), restoredState.annotations);
+                access.updateMaskList();
+                access.updateAnnotationList();
+                access.updateInputs();
+                access.updateUi();
+            },
+            resetAfterRollbackFailure: () => {
+                const canvas = access.getCanvas();
+                try {
+                    canvas === null || canvas === void 0 ? void 0 : canvas.clear();
+                    if (canvas) {
+                        canvas.backgroundColor = access.getOptions().backgroundColor;
+                        canvas.renderAll();
+                    }
+                }
+                catch {
+                }
+                access.setOriginalImage(null);
+                access.setIsImageLoadedToCanvas(false);
+                access.setCurrentImageMimeType(null);
+                access.setLastSnapshot(null);
+                access.setLastMask(null);
+                access.setMaskCounter(0);
+                access.setAnnotationCounter(0);
+                access.setCurrentScale(1);
+                access.setCurrentRotation(0);
+                access.setBaseImageScale(1);
+                access.updateMaskList();
+                access.updateAnnotationList();
+                access.updateInputs();
+                access.updateUi();
             },
             setPlaceholderVisible: (show) => {
                 access.setPlaceholderVisible(show);
