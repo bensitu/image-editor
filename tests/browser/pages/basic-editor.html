@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ImageEditor browser test harness</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                min-height: 100%;
+                background: #f8fafc;
+                font-family: Arial, Helvetica, sans-serif;
+            }
+
+            body {
+                padding: 24px;
+            }
+
+            #editor-root {
+                display: grid;
+                gap: 16px;
+                width: 420px;
+            }
+
+            #canvas-container {
+                width: max-content;
+                min-width: 320px;
+                min-height: 240px;
+                background: #ffffff;
+                border: 1px solid #cbd5e1;
+            }
+
+            #export-preview {
+                display: block;
+                width: auto;
+                height: auto;
+                image-rendering: pixelated;
+            }
+
+            .hidden-controls {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <main id="editor-root">
+            <div id="image-placeholder" aria-hidden="true"></div>
+            <div id="canvas-container">
+                <canvas id="editor-canvas"></canvas>
+            </div>
+            <img id="export-preview" alt="Latest exported output" />
+            <ul id="mask-list" class="hidden-controls"></ul>
+            <ul id="annotation-list" class="hidden-controls"></ul>
+        </main>
+        <script type="module" src="./basic-editor.ts"></script>
+    </body>
+</html>

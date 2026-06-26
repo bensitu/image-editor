@@ -11,6 +11,8 @@ export default tseslint.config(
             'coverage/**',
             '*.tgz',
             'release-notes.md',
+            'playwright-report/**',
+            'test-results/**',
             'examples/*/dist/**',
             'examples/*/.next/**',
         ],
@@ -28,6 +30,7 @@ export default tseslint.config(
                 ...globals.node,
                 ...globals.es2022,
                 ImageEditor: 'readonly',
+                __imageEditorTest: 'readonly',
             },
         },
         rules: {

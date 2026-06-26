@@ -847,6 +847,26 @@ build:umd` in order, emitting:
 
 `npm test` runs the Node-based unit and property tests under `tests/`.
 
+### Browser tests
+
+```bash
+npm run test:e2e
+npm run test:browser
+```
+
+E2E browser tests validate core editor behavior in Chromium through Playwright.
+
+### Visual regression tests
+
+```bash
+npm run test:visual
+npm run test:visual:update
+```
+
+Visual tests compare deterministic exported-image screenshots. Run
+`npm run test:visual:update` after intentional rendering changes, then review
+the updated snapshots before committing them.
+
 For the full local release gate, run:
 
 ```bash
@@ -856,14 +876,17 @@ npm run typecheck
 npm test
 npm run build
 npm run package:check
+npm run test:e2e
 npm audit --audit-level=high
 npm pack --dry-run
 ```
 
 `npm run ci` combines format, lint, typecheck, tests, build, and package
-linting. The test suite also supports a clean checkout where `dist/` has not
-been built yet; integration helpers use source modules until build artifacts
-exist, while partial `dist/` trees still fail the artifact checks.
+linting. Playwright visual tests are kept outside the default CI command until
+they are stable across supported environments. The test suite also supports a
+clean checkout where `dist/` has not been built yet; integration helpers use
+source modules until build artifacts exist, while partial `dist/` trees still
+fail the artifact checks.
 
 ## Browser support
 
