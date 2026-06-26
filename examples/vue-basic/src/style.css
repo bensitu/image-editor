@@ -1,0 +1,124 @@
+:root {
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        sans-serif;
+    color: #1f2937;
+    background: #f6f7fb;
+}
+
+body {
+    margin: 0;
+}
+
+button,
+input {
+    font: inherit;
+}
+
+.app-shell {
+    min-height: 100vh;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.top-bar h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.editor-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 16px;
+    align-items: start;
+}
+
+.canvas-panel {
+    min-height: 620px;
+    overflow: auto;
+    background: #ffffff;
+    border: 1px solid #d6dbe5;
+}
+
+.side-panel {
+    background: #ffffff;
+    border: 1px solid #d6dbe5;
+    padding: 16px;
+}
+
+.button-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.button-grid button {
+    min-height: 36px;
+    border: 1px solid #b8c0cc;
+    background: #ffffff;
+    color: #1f2937;
+    cursor: pointer;
+}
+
+.button-grid button:disabled {
+    color: #8b95a5;
+    background: #f1f3f7;
+    cursor: not-allowed;
+}
+
+.state-list {
+    display: grid;
+    gap: 10px;
+    margin: 18px 0 0;
+}
+
+.state-list div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid #edf0f5;
+    padding-bottom: 8px;
+}
+
+.state-list dt {
+    color: #5d6675;
+}
+
+.state-list dd {
+    margin: 0;
+    text-align: right;
+}
+
+.message {
+    margin: 16px 0 0;
+    color: #8a3b12;
+}
+
+@media (max-width: 860px) {
+    .app-shell {
+        padding: 16px;
+    }
+
+    .top-bar,
+    .editor-layout {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .canvas-panel {
+        min-height: 420px;
+    }
+}

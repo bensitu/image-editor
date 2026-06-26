@@ -1,0 +1,30 @@
+{
+    "name": "@bensitu/image-editor-next-client-only-example",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "next dev --webpack",
+        "build": "next build --webpack",
+        "start": "next start"
+    },
+    "dependencies": {
+        "@bensitu/image-editor": "file:../..",
+        "fabric": "^7.0.0",
+        "next": "^16.2.9",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^24.0.0",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "typescript": "^5.4.0"
+    },
+    "overrides": {
+        "postcss": "^8.5.10"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

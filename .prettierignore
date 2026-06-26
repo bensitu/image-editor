@@ -4,3 +4,5 @@ coverage
 *.tgz
 release-notes.md
 CHANGELOG.md
+examples/*/dist
+examples/*/.next

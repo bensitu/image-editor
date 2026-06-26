@@ -89,6 +89,12 @@ and dispose the editor inside client-side lifecycle hooks.
 - [Vue integration](docs/frameworks/vue.md)
 - [SSR / Next.js / Nuxt](docs/frameworks/ssr.md)
 
+Runnable examples:
+
+- [React basic example](examples/react-basic)
+- [Vue basic example](examples/vue-basic)
+- [Next.js client-only example](examples/next-client-only)
+
 ## Dual entry-point convention
 
 `ImageEditor`'s constructor accepts the Fabric module either explicitly (ESM
