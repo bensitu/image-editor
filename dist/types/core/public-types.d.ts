@@ -218,7 +218,7 @@ export interface ImageEditorState {
     canvasHeight: number;
 }
 /**
- * Public selection payload for mask selection changes.
+ * Public selection payload for mask and annotation selection changes.
  */
 export interface ImageEditorSelection {
     selectedMask: MaskObject | null;
@@ -956,7 +956,7 @@ export interface ImageEditorOptions {
     onMasksChanged?: (masks: MaskObject[], context: ImageEditorCallbackContext) => void;
     /** Called after the annotation collection changes. */
     onAnnotationsChanged?: (annotations: AnnotationObject[], context: ImageEditorCallbackContext) => void;
-    /** Called after mask selection changes. */
+    /** Called after mask or annotation selection changes. */
     onSelectionChange?: (selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void;
     /**
      * Called when the editor reports an error.

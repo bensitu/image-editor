@@ -59,6 +59,7 @@ const ARTIFACTS = Object.freeze({
     umd: 'dist/umd/image-editor.umd.js',
     types: 'dist/types/index.d.ts',
     cjsTypes: 'dist/types/index.d.cts',
+    imageEditorTypes: 'dist/types/image-editor.d.ts',
     publicTypes: 'dist/types/core/public-types.d.ts',
 });
 
@@ -209,6 +210,47 @@ test('CJS types bundle declares the `ImageEditor` symbol', async () => {
     );
 });
 
+test('ImageEditor declarations expose v2.6.0 read-only methods', async () => {
+    if (!distIsBuilt) return;
+    const { text: rootText } = await readArtifact(ARTIFACTS.types);
+    const { text } = await readArtifact(ARTIFACTS.imageEditorTypes);
+    const rootNames = [
+        'getEditorState',
+        'getImageInfo',
+        'getMasks',
+        'getSelection',
+        'getActiveToolMode',
+        'ImageEditorState',
+        'ImageInfo',
+        'ImageEditorSelection',
+        'EditorToolMode',
+    ];
+    const methodSignatures = [
+        [/^\s{4}getEditorState\(\):\s*ImageEditorState;/m, 'getEditorState(): ImageEditorState'],
+        [/^\s{4}getImageInfo\(\):\s*ImageInfo\s*\|\s*null;/m, 'getImageInfo(): ImageInfo | null'],
+        [/^\s{4}getMasks\(\):\s*MaskObject\[\];/m, 'getMasks(): MaskObject[]'],
+        [
+            /^\s{4}getSelection\(\):\s*ImageEditorSelection;/m,
+            'getSelection(): ImageEditorSelection',
+        ],
+        [
+            /^\s{4}getActiveToolMode\(\):\s*EditorToolMode\s*\|\s*null;/m,
+            'getActiveToolMode(): EditorToolMode | null',
+        ],
+    ];
+
+    for (const name of rootNames) {
+        assert.match(
+            rootText,
+            new RegExp(`\\b${name}\\b`),
+            `${ARTIFACTS.types} must mention ${name}`,
+        );
+    }
+    for (const [pattern, signature] of methodSignatures) {
+        assert.match(text, pattern, `${ARTIFACTS.imageEditorTypes} must declare ${signature}`);
+    }
+});
+
 test('public types declaration exports ResolvedMaskConfig', async () => {
     if (!distIsBuilt) return;
     const { text } = await readArtifact(ARTIFACTS.publicTypes);
@@ -266,5 +308,24 @@ test('public types declaration exposes defaultLayoutMode and omits removed layou
             false,
             `${ARTIFACTS.publicTypes} must not expose removed layout option ${removedKey}`,
         );
+    }
+});
+
+test('public types declaration exposes v2.6.0 lifecycle callbacks', async () => {
+    if (!distIsBuilt) return;
+    const { text } = await readArtifact(ARTIFACTS.publicTypes);
+    const callbackPatterns = [
+        [
+            /\bonToolModeChange\??:\s*\(\s*activeToolMode:\s*EditorToolMode\s*\|\s*null,\s*previousToolMode:\s*EditorToolMode\s*\|\s*null,\s*context:\s*ImageEditorCallbackContext\s*\)\s*=>\s*void;/,
+            'onToolModeChange(activeToolMode, previousToolMode, context)',
+        ],
+        [
+            /\bonHistoryChange\??:\s*\(\s*history:\s*\{\s*canUndo:\s*boolean;\s*canRedo:\s*boolean;\s*\},\s*context:\s*ImageEditorCallbackContext\s*\)\s*=>\s*void;/,
+            'onHistoryChange({ canUndo, canRedo }, context)',
+        ],
+    ];
+
+    for (const [pattern, signature] of callbackPatterns) {
+        assert.match(text, pattern, `${ARTIFACTS.publicTypes} must declare ${signature}`);
     }
 });

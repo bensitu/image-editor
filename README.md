@@ -370,8 +370,60 @@ const state = editor.getEditorState();
 const imageInfo = editor.getImageInfo();
 const masks = editor.getMasks();
 const selection = editor.getSelection();
-const activeTool = editor.getActiveToolMode();
+const activeToolMode = editor.getActiveToolMode();
 ```
+
+The read-only methods and lifecycle callbacks use these public payload types:
+
+```ts
+interface ImageInfo {
+    width: number;
+    height: number;
+    displayWidth: number;
+    displayHeight: number;
+    scale: number;
+    rotation: number;
+    canvasWidth: number;
+    canvasHeight: number;
+}
+
+interface ImageEditorState {
+    hasImage: boolean;
+    image: ImageInfo | null;
+    maskCount: number;
+    annotationCount: number;
+    currentScale: number;
+    currentRotation: number;
+    isFlippedHorizontally: boolean;
+    isFlippedVertically: boolean;
+    isBusy: boolean;
+    activeToolMode: EditorToolMode | null;
+    isCropMode: boolean;
+    isMosaicMode: boolean;
+    isTextMode: boolean;
+    isDrawMode: boolean;
+    canUndo: boolean;
+    canRedo: boolean;
+    canvasWidth: number;
+    canvasHeight: number;
+}
+
+interface ImageEditorSelection {
+    selectedMask: MaskObject | null;
+    selectedMasks: MaskObject[];
+    selectedAnnotation: AnnotationObject | null;
+    selectedAnnotations: AnnotationObject[];
+    selectedObjectKind: 'mask' | 'annotation' | null;
+}
+
+interface ImageEditorCallbackContext {
+    operation: ImageEditorOperation;
+    isInternalOperation?: boolean;
+}
+```
+
+`ImageEditorOperation` is the public union of operation names that can trigger
+callbacks, such as `'loadImage'`, `'createMask'`, `'undo'`, and `'dispose'`.
 
 Use `defaultLayoutMode` to choose the initial image-load strategy, then call
 `setLayoutMode()` when a UI should change how future images are placed:
@@ -534,6 +586,7 @@ setters.
 | ------------------------------------ | -------------------------------------------------------------------------- |
 | `getAnnotations()`                   | Return current annotation objects in canvas order. Masks are not included. |
 | `enterTextMode()` / `exitTextMode()` | Click empty canvas space to create editable text annotations.              |
+| `isTextMode()`                       | Returns `true` while Text mode is active.                                  |
 | `createTextAnnotation(config?)`      | Create a text annotation directly and return it.                           |
 | `getTextConfig()`                    | Return a defensive copy of the current Text config.                        |
 | `setTextConfig(config)`              | Patch current Text config without history.                                 |
@@ -541,6 +594,7 @@ setters.
 | `setTextColor(color)`                | Convenience setter for text fill color.                                    |
 | `setTextFontSize(size)`              | Convenience setter for text font size.                                     |
 | `enterDrawMode()` / `exitDrawMode()` | Use Fabric free drawing; each stroke becomes a Draw annotation.            |
+| `isDrawMode()`                       | Returns `true` while Draw mode is active.                                  |
 | `getDrawConfig()`                    | Return a defensive copy of the current Draw config.                        |
 | `setDrawConfig(config)`              | Patch current Draw config without history.                                 |
 | `resetDrawConfig()`                  | Restore Draw config from constructor defaults.                             |
@@ -689,17 +743,17 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `showPlaceholder`           | `true`            | Show a placeholder element while no image is loaded.                                                                                                                                                                                                                                          |
 | `initialImageBase64`        | `null`            | Base64 data URL auto-loaded after construction.                                                                                                                                                                                                                                               |
 | `defaultDownloadFileName`   | `'edited_image'`  | Default filename base used by `exportImageFile()` and `downloadImage()`. The resolved export format supplies or corrects the extension.                                                                                                                                                       |
-| `onImageLoadStart`          | `null`            | Called before a valid image load begins.                                                                                                                                                                                                                                                      |
-| `onImageLoaded`             | `null`            | Called as `(info, context)` once after a successful `loadImage`. Extra arguments are ignored by existing zero-argument JavaScript handlers.                                                                                                                                                   |
-| `onImageCleared`            | `null`            | Called when a committed image is replaced or cleared.                                                                                                                                                                                                                                         |
-| `onImageChanged`            | `null`            | Called with a safe editor state snapshot after visible editor state changes.                                                                                                                                                                                                                  |
-| `onBusyChange`              | `null`            | Called only when the public busy state changes.                                                                                                                                                                                                                                               |
+| `onImageLoadStart`          | `null`            | Called as `(context)` before a valid image load begins.                                                                                                                                                                                                                                       |
+| `onImageLoaded`             | `null`            | Called as `(imageInfo, context)` once after a successful `loadImage`. Extra arguments are ignored by existing zero-argument JavaScript handlers.                                                                                                                                              |
+| `onImageCleared`            | `null`            | Called as `(previousImage, context)` when a committed image is replaced or cleared.                                                                                                                                                                                                           |
+| `onImageChanged`            | `null`            | Called as `(state, context)` with a safe editor state snapshot after visible editor state changes.                                                                                                                                                                                            |
+| `onBusyChange`              | `null`            | Called as `(isBusy, context)` only when the public busy state changes.                                                                                                                                                                                                                        |
 | `onToolModeChange`          | `null`            | Called as `(activeToolMode, previousToolMode, context)` only when the active tool mode changes.                                                                                                                                                                                               |
 | `onHistoryChange`           | `null`            | Called as `({ canUndo, canRedo }, context)` only when undo/redo availability changes.                                                                                                                                                                                                         |
-| `onEditorDisposed`          | `null`            | Called once when `dispose()` performs teardown.                                                                                                                                                                                                                                               |
-| `onMasksChanged`            | `null`            | Called with a shallow copy of current mask objects after the mask collection changes.                                                                                                                                                                                                         |
-| `onAnnotationsChanged`      | `null`            | Called with a shallow copy of current annotation objects after the annotation collection changes.                                                                                                                                                                                             |
-| `onSelectionChange`         | `null`            | Called with selected object payload after selection changes.                                                                                                                                                                                                                                  |
+| `onEditorDisposed`          | `null`            | Called as `(context)` once when `dispose()` performs teardown.                                                                                                                                                                                                                                |
+| `onMasksChanged`            | `null`            | Called as `(masks, context)` with a shallow copy of current mask objects after the mask collection changes.                                                                                                                                                                                   |
+| `onAnnotationsChanged`      | `null`            | Called as `(annotations, context)` with a shallow copy of current annotation objects after the annotation collection changes.                                                                                                                                                                 |
+| `onSelectionChange`         | `null`            | Called as `(selection, context)` with selected mask and annotation payload after selection changes.                                                                                                                                                                                           |
 | `onError`                   | `null`            | Called as `(error, message)` when the editor reports an error.                                                                                                                                                                                                                                |
 | `onWarning`                 | `null`            | Called as `(error, message)` when the editor reports a recoverable warning.                                                                                                                                                                                                                   |
 | `label`                     | see source        | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                                                                                                                                                                  |
@@ -707,18 +761,26 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 
 ```ts
 const editor = new ImageEditor(fabric, {
-    onToolModeChange(active, previous, context) {
+    onToolModeChange(activeToolMode, previousToolMode, context) {
         console.log('tool mode changed', {
-            active,
-            previous,
+            activeToolMode,
+            previousToolMode,
             operation: context.operation,
         });
     },
     onHistoryChange(history, context) {
-        console.log('history changed', history, context.operation);
+        console.log('history changed', {
+            canUndo: history.canUndo,
+            canRedo: history.canRedo,
+            operation: context.operation,
+        });
     },
 });
 ```
+
+Lifecycle callback exceptions are caught and logged so a faulty host callback
+does not replace or mask the editor operation. `onError` and `onWarning`
+callbacks use the same isolation.
 
 `maskListOrder` and `annotationListOrder` affect only the sidebar DOM order. They do not change canvas z-order, object IDs, history, or export output. Invalid runtime values fall back to `'front-to-back'`.
 

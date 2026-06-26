@@ -379,7 +379,7 @@ export interface ImageEditorState {
 }
 
 /**
- * Public selection payload for mask selection changes.
+ * Public selection payload for mask and annotation selection changes.
  */
 export interface ImageEditorSelection {
     selectedMask: MaskObject | null;
@@ -1223,7 +1223,7 @@ export interface ImageEditorOptions {
         annotations: AnnotationObject[],
         context: ImageEditorCallbackContext,
     ) => void;
-    /** Called after mask selection changes. */
+    /** Called after mask or annotation selection changes. */
     onSelectionChange?: (
         selection: ImageEditorSelection,
         context: ImageEditorCallbackContext,

@@ -9,8 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add public read-only accessors for editor state, image info, masks, selection, and active tool mode.
-- Add `onToolModeChange` and `onHistoryChange` lifecycle callbacks for framework integrations.
+- Add public read-only state accessors:
+  - `getEditorState(): ImageEditorState`
+  - `getImageInfo(): ImageInfo | null`
+  - `getMasks(): MaskObject[]`
+  - `getSelection(): ImageEditorSelection`
+  - `getActiveToolMode(): EditorToolMode | null`
+- Add `onToolModeChange(activeToolMode, previousToolMode, context)` for framework integrations that mirror active tool state.
+- Add `onHistoryChange({ canUndo, canRedo }, context)` for framework integrations that mirror undo/redo availability.
+
+### Changed
+
+- Align README examples, public TypeScript declarations, generated declaration checks, and changelog notes for the v2.6.0 public API.
 
 ## [2.5.1] - 2026-06-26
 
