@@ -46,6 +46,8 @@ export const DEFAULT_OPTIONS = {
     onImageCleared: null,
     onImageChanged: null,
     onBusyChange: null,
+    onToolModeChange: null,
+    onHistoryChange: null,
     onEditorDisposed: null,
     onMasksChanged: null,
     onAnnotationsChanged: null,
@@ -164,6 +166,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'onImageCleared',
     'onImageChanged',
     'onBusyChange',
+    'onToolModeChange',
+    'onHistoryChange',
     'onEditorDisposed',
     'onMasksChanged',
     'onAnnotationsChanged',
@@ -723,6 +727,8 @@ export function resolveOptions(input) {
             key === 'onImageCleared' ||
             key === 'onImageChanged' ||
             key === 'onBusyChange' ||
+            key === 'onToolModeChange' ||
+            key === 'onHistoryChange' ||
             key === 'onEditorDisposed' ||
             key === 'onMasksChanged' ||
             key === 'onAnnotationsChanged' ||
@@ -887,6 +893,8 @@ export function resolveOptions(input) {
     resolved.onImageCleared = normalizeCallback(raw.onImageCleared);
     resolved.onImageChanged = normalizeCallback(raw.onImageChanged);
     resolved.onBusyChange = normalizeCallback(raw.onBusyChange);
+    resolved.onToolModeChange = normalizeCallback(raw.onToolModeChange);
+    resolved.onHistoryChange = normalizeCallback(raw.onHistoryChange);
     resolved.onEditorDisposed = normalizeCallback(raw.onEditorDisposed);
     resolved.onMasksChanged = normalizeCallback(raw.onMasksChanged);
     resolved.onAnnotationsChanged = normalizeCallback(raw.onAnnotationsChanged);

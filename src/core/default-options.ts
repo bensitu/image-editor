@@ -116,6 +116,8 @@ export const DEFAULT_OPTIONS: Omit<
     onImageCleared: null,
     onImageChanged: null,
     onBusyChange: null,
+    onToolModeChange: null,
+    onHistoryChange: null,
     onEditorDisposed: null,
     onMasksChanged: null,
     onAnnotationsChanged: null,
@@ -263,6 +265,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'onImageCleared',
     'onImageChanged',
     'onBusyChange',
+    'onToolModeChange',
+    'onHistoryChange',
     'onEditorDisposed',
     'onMasksChanged',
     'onAnnotationsChanged',
@@ -989,6 +993,8 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
             key === 'onImageCleared' ||
             key === 'onImageChanged' ||
             key === 'onBusyChange' ||
+            key === 'onToolModeChange' ||
+            key === 'onHistoryChange' ||
             key === 'onEditorDisposed' ||
             key === 'onMasksChanged' ||
             key === 'onAnnotationsChanged' ||
@@ -1223,6 +1229,12 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
     resolved.onBusyChange = normalizeCallback<NonNullable<ImageEditorOptions['onBusyChange']>>(
         raw.onBusyChange,
     );
+    resolved.onToolModeChange = normalizeCallback<
+        NonNullable<ImageEditorOptions['onToolModeChange']>
+    >(raw.onToolModeChange);
+    resolved.onHistoryChange = normalizeCallback<
+        NonNullable<ImageEditorOptions['onHistoryChange']>
+    >(raw.onHistoryChange);
     resolved.onEditorDisposed = normalizeCallback<
         NonNullable<ImageEditorOptions['onEditorDisposed']>
     >(raw.onEditorDisposed);

@@ -263,6 +263,18 @@ export class EditorRuntime {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "lastEmittedToolMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "lastEmittedHistoryState", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "activeStateRestoreOperation", {
             enumerable: true,
             configurable: true,
@@ -286,6 +298,10 @@ export class EditorRuntime {
         this.defaultDrawConfig = options.defaultDrawConfig;
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
         this.historyManager = new HistoryManager(options.maxHistorySize);
+        this.lastEmittedHistoryState = {
+            canUndo: this.historyManager.canUndo(),
+            canRedo: this.historyManager.canRedo(),
+        };
     }
     getRuntimeOptions() {
         if (this.currentLayoutMode === this.options.layoutMode)

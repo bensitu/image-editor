@@ -8,7 +8,7 @@ import type * as FabricNS from 'fabric';
 import { AnimationQueue } from '../animation/animation-queue.js';
 import type { ResolvedElementMap } from '../core/editor-elements.js';
 import { OperationGuard } from '../core/operation-guard.js';
-import type { BaseImageObject, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, LayoutMode, MaskObject, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedOptions, ResolvedTextAnnotationConfig } from '../core/public-types.js';
+import type { BaseImageObject, EditorToolMode, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, LayoutMode, MaskObject, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedOptions, ResolvedTextAnnotationConfig } from '../core/public-types.js';
 import { HistoryManager } from '../history/history-manager.js';
 import type { TransformController } from '../image/transform-controller.js';
 import { ViewportCache } from '../image/layout-manager.js';
@@ -61,6 +61,11 @@ export declare class EditorRuntime {
     isDisposed: boolean;
     shouldSuppressSaveState: boolean;
     lastEmittedIsBusy: boolean | null;
+    lastEmittedToolMode: EditorToolMode | null;
+    lastEmittedHistoryState: {
+        canUndo: boolean;
+        canRedo: boolean;
+    };
     activeStateRestoreOperation: ImageEditorOperation | null;
     nextSelectionChangeContext: ImageEditorCallbackContext | null;
     constructor(fabricModule: FabricModule, isFabricLoaded: boolean, options: ResolvedOptions);

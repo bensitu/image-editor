@@ -309,20 +309,6 @@ and the documented public types. Internal helpers (animation queue, command, his
 manager, controllers, services, managers, utility modules) are intentionally
 not exported and may change without notice.
 
-The facade delegates most mutable implementation state through an internal
-`EditorRuntime` plus action/context adapters. This does not add any public
-entry points; consumers should continue to import from `@bensitu/image-editor`
-only.
-
-### Internal architecture
-
-Feature modules receive explicit Context Bundle objects such as
-`LoadImageContext`, `ExportServiceContext`, `CreateMaskContext`, and
-`CropControllerContext`. `ImageEditor` owns the runtime state and passes only
-the required dependencies and callbacks into stateless helpers. New internal
-features should follow this pattern instead of reading facade private fields
-directly.
-
 ### Object model
 
 Every editor-owned Fabric object carries strict `editorObjectKind` metadata:
@@ -367,6 +353,25 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 `LoadImageOptions` currently includes `preserveScroll?: boolean` for
 preserving the container's scroll position across both successful loads and
 rollback paths.
+
+### Read-only state
+
+| Method                | Description                                                                      |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `getEditorState()`    | Return a safe snapshot of image, transform, tool-mode, busy, and history state.  |
+| `getImageInfo()`      | Return committed image dimensions/display geometry, or `null` before image load. |
+| `getMasks()`          | Return a shallow copy of current mask objects in canvas order.                   |
+| `getAnnotations()`    | Return a shallow copy of current annotation objects in canvas order.             |
+| `getSelection()`      | Return the current selected masks/annotations in the `onSelectionChange` shape.  |
+| `getActiveToolMode()` | Return `'crop'`, `'mosaic'`, `'text'`, `'draw'`, or `null`.                      |
+
+```ts
+const state = editor.getEditorState();
+const imageInfo = editor.getImageInfo();
+const masks = editor.getMasks();
+const selection = editor.getSelection();
+const activeTool = editor.getActiveToolMode();
+```
 
 Use `defaultLayoutMode` to choose the initial image-load strategy, then call
 `setLayoutMode()` when a UI should change how future images are placed:
@@ -689,6 +694,8 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `onImageCleared`            | `null`            | Called when a committed image is replaced or cleared.                                                                                                                                                                                                                                         |
 | `onImageChanged`            | `null`            | Called with a safe editor state snapshot after visible editor state changes.                                                                                                                                                                                                                  |
 | `onBusyChange`              | `null`            | Called only when the public busy state changes.                                                                                                                                                                                                                                               |
+| `onToolModeChange`          | `null`            | Called as `(activeToolMode, previousToolMode, context)` only when the active tool mode changes.                                                                                                                                                                                               |
+| `onHistoryChange`           | `null`            | Called as `({ canUndo, canRedo }, context)` only when undo/redo availability changes.                                                                                                                                                                                                         |
 | `onEditorDisposed`          | `null`            | Called once when `dispose()` performs teardown.                                                                                                                                                                                                                                               |
 | `onMasksChanged`            | `null`            | Called with a shallow copy of current mask objects after the mask collection changes.                                                                                                                                                                                                         |
 | `onAnnotationsChanged`      | `null`            | Called with a shallow copy of current annotation objects after the annotation collection changes.                                                                                                                                                                                             |
@@ -697,6 +704,21 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `onWarning`                 | `null`            | Called as `(error, message)` when the editor reports a recoverable warning.                                                                                                                                                                                                                   |
 | `label`                     | see source        | `LabelConfig` for selected-mask labels (`getText`, `textOptions`, `create`).                                                                                                                                                                                                                  |
 | `crop`                      | see source        | `CropConfig` (`minWidth`, `minHeight`, `padding`, `aspectRatio`, `hideMasksDuringCrop`, `preserveMasksAfterCrop`, `allowRotationOfCropRect`, `exportFileType`, `exportQuality`). `applyCrop()` preserves the current image format by default (`'source'`) and falls back to PNG when unknown. |
+
+```ts
+const editor = new ImageEditor(fabric, {
+    onToolModeChange(active, previous, context) {
+        console.log('tool mode changed', {
+            active,
+            previous,
+            operation: context.operation,
+        });
+    },
+    onHistoryChange(history, context) {
+        console.log('history changed', history, context.operation);
+    },
+});
+```
 
 `maskListOrder` and `annotationListOrder` affect only the sidebar DOM order. They do not change canvas z-order, object IDs, history, or export output. Invalid runtime values fall back to `'front-to-back'`.
 

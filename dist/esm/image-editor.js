@@ -5,7 +5,7 @@ import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedTextAn
 import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
 import { isAnnotationObject, isMaskObject } from './core/public-types.js';
-import { getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
+import { getActiveSelectionObjects, getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
 import { exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
 import { exitDrawMode as exitDrawModeImpl, } from './annotation/draw-controller.js';
 import { createTextAnnotationAction, enterDrawModeAction, enterTextModeAction, exitDrawModeAction, exitTextModeAction, } from './annotation/annotation-mode-actions.js';
@@ -128,7 +128,9 @@ export class ImageEditor {
     }
     createContextFactory() {
         return createEditorContextFactory(this.runtime, {
-            saveCanvasState: () => this.saveState(),
+            saveCanvasState: () => {
+                this.saveStateInternal();
+            },
             saveCanvasStateWithAnimationBypass: () => {
                 this.saveStateInternal(this.withAnimationQueueBypass());
             },
@@ -238,7 +240,7 @@ export class ImageEditor {
                 this.updateUi();
             },
             saveState: () => {
-                this.saveState();
+                this.saveStateInternal();
             },
             removeLabelForMask: (mask) => {
                 this.removeLabelForMask(mask);
@@ -761,8 +763,9 @@ export class ImageEditor {
         }
     }
     getImageInfo() {
-        if (!this.runtime.canvas || !this.runtime.originalImage)
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.isImageLoaded()) {
             return null;
+        }
         const canvasWidth = this.runtime.canvas.getWidth();
         const canvasHeight = this.runtime.canvas.getHeight();
         let displayWidth;
@@ -853,6 +856,8 @@ export class ImageEditor {
     }
     emitImageChanged(context) {
         this.emitOptionCallback('onImageChanged', [this.getEditorState(), context]);
+        this.emitToolModeChangeIfChanged(context);
+        this.emitHistoryChangeIfChanged(context);
     }
     emitMasksChanged(context) {
         this.emitOptionCallback('onMasksChanged', [this.getMasks(), context]);
@@ -866,6 +871,25 @@ export class ImageEditor {
             return;
         this.runtime.lastEmittedIsBusy = isBusy;
         this.emitOptionCallback('onBusyChange', [isBusy, context]);
+    }
+    emitToolModeChangeIfChanged(context) {
+        const activeToolMode = this.getActiveToolMode();
+        const previousToolMode = this.runtime.lastEmittedToolMode;
+        if (previousToolMode === activeToolMode)
+            return;
+        this.runtime.lastEmittedToolMode = activeToolMode;
+        this.emitOptionCallback('onToolModeChange', [activeToolMode, previousToolMode, context]);
+    }
+    emitHistoryChangeIfChanged(context) {
+        const history = {
+            canUndo: this.runtime.historyManager.canUndo(),
+            canRedo: this.runtime.historyManager.canRedo(),
+        };
+        const previous = this.runtime.lastEmittedHistoryState;
+        if (previous.canUndo === history.canUndo && previous.canRedo === history.canRedo)
+            return;
+        this.runtime.lastEmittedHistoryState = history;
+        this.emitOptionCallback('onHistoryChange', [history, context]);
     }
     buildSelection(selected) {
         var _a, _b;
@@ -883,6 +907,11 @@ export class ImageEditor {
             selectedAnnotations,
             selectedObjectKind,
         };
+    }
+    getSelection() {
+        if (!this.runtime.canvas)
+            return this.buildSelection([]);
+        return this.buildSelection(getActiveSelectionObjects(this.runtime.canvas));
     }
     withSelectionChangeContext(context, callback) {
         const previous = this.runtime.nextSelectionChangeContext;
@@ -1058,6 +1087,7 @@ export class ImageEditor {
     }
     saveState() {
         this.saveStateInternal();
+        this.emitHistoryChangeIfChanged(this.buildCallbackContext('saveState', false));
     }
     saveStateInternal(options) {
         saveStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), options);
@@ -1075,6 +1105,7 @@ export class ImageEditor {
             this.runtime.activeStateRestoreOperation = 'undo';
             try {
                 await this.runtime.historyManager.undo();
+                this.emitHistoryChangeIfChanged(context);
             }
             finally {
                 this.runtime.activeStateRestoreOperation = null;
@@ -1099,6 +1130,7 @@ export class ImageEditor {
             this.runtime.activeStateRestoreOperation = 'redo';
             try {
                 await this.runtime.historyManager.redo();
+                this.emitHistoryChangeIfChanged(context);
             }
             finally {
                 this.runtime.activeStateRestoreOperation = null;

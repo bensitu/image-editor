@@ -65,6 +65,7 @@ import type {
 } from './core/public-types.js';
 import { isAnnotationObject, isMaskObject } from './core/public-types.js';
 import {
+    getActiveSelectionObjects,
     getAnnotations as getAnnotationsImpl,
     renderAnnotationList,
     updateAnnotationListSelection,
@@ -349,7 +350,9 @@ export class ImageEditor {
 
     private createContextFactory(): EditorContextFactory {
         return createEditorContextFactory(this.runtime, {
-            saveCanvasState: () => this.saveState(),
+            saveCanvasState: () => {
+                this.saveStateInternal();
+            },
             saveCanvasStateWithAnimationBypass: () => {
                 this.saveStateInternal(this.withAnimationQueueBypass());
             },
@@ -482,7 +485,7 @@ export class ImageEditor {
                     this.updateUi();
                 },
                 saveState: () => {
-                    this.saveState();
+                    this.saveStateInternal();
                 },
                 removeLabelForMask: (mask) => {
                     this.removeLabelForMask(mask);
@@ -1238,6 +1241,8 @@ export class ImageEditor {
             | 'onImageCleared'
             | 'onImageChanged'
             | 'onBusyChange'
+            | 'onToolModeChange'
+            | 'onHistoryChange'
             | 'onEditorDisposed'
             | 'onMasksChanged'
             | 'onAnnotationsChanged'
@@ -1255,8 +1260,10 @@ export class ImageEditor {
         }
     }
 
-    private getImageInfo(): ImageInfo | null {
-        if (!this.runtime.canvas || !this.runtime.originalImage) return null;
+    getImageInfo(): ImageInfo | null {
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.isImageLoaded()) {
+            return null;
+        }
         const canvasWidth = this.runtime.canvas.getWidth();
         const canvasHeight = this.runtime.canvas.getHeight();
         let displayWidth: number;
@@ -1295,7 +1302,7 @@ export class ImageEditor {
         };
     }
 
-    private getMasks(): MaskObject[] {
+    getMasks(): MaskObject[] {
         if (!this.runtime.canvas) return [];
         return this.runtime.canvas.getObjects().filter(isMaskObject).slice();
     }
@@ -1326,7 +1333,7 @@ export class ImageEditor {
         };
     }
 
-    private getActiveToolMode(): EditorToolMode | null {
+    getActiveToolMode(): EditorToolMode | null {
         return getActiveToolModeFromSnapshot(this.buildToolModeSnapshot());
     }
 
@@ -1334,7 +1341,7 @@ export class ImageEditor {
         return isToolModeActiveFromSnapshot(this.buildToolModeSnapshot());
     }
 
-    private getEditorState(): ImageEditorState {
+    getEditorState(): ImageEditorState {
         const canvasWidth = this.runtime.canvas ? this.runtime.canvas.getWidth() : 0;
         const canvasHeight = this.runtime.canvas ? this.runtime.canvas.getHeight() : 0;
         const image = this.getImageInfo();
@@ -1362,6 +1369,8 @@ export class ImageEditor {
 
     private emitImageChanged(context: ImageEditorCallbackContext): void {
         this.emitOptionCallback('onImageChanged', [this.getEditorState(), context]);
+        this.emitToolModeChangeIfChanged(context);
+        this.emitHistoryChangeIfChanged(context);
     }
 
     private emitMasksChanged(context: ImageEditorCallbackContext): void {
@@ -1377,6 +1386,27 @@ export class ImageEditor {
         if (this.runtime.lastEmittedIsBusy === isBusy) return;
         this.runtime.lastEmittedIsBusy = isBusy;
         this.emitOptionCallback('onBusyChange', [isBusy, context]);
+    }
+
+    private emitToolModeChangeIfChanged(context: ImageEditorCallbackContext): void {
+        const activeToolMode = this.getActiveToolMode();
+        const previousToolMode = this.runtime.lastEmittedToolMode;
+        if (previousToolMode === activeToolMode) return;
+
+        this.runtime.lastEmittedToolMode = activeToolMode;
+        this.emitOptionCallback('onToolModeChange', [activeToolMode, previousToolMode, context]);
+    }
+
+    private emitHistoryChangeIfChanged(context: ImageEditorCallbackContext): void {
+        const history = {
+            canUndo: this.runtime.historyManager.canUndo(),
+            canRedo: this.runtime.historyManager.canRedo(),
+        };
+        const previous = this.runtime.lastEmittedHistoryState;
+        if (previous.canUndo === history.canUndo && previous.canRedo === history.canRedo) return;
+
+        this.runtime.lastEmittedHistoryState = history;
+        this.emitOptionCallback('onHistoryChange', [history, context]);
     }
 
     private buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection {
@@ -1395,6 +1425,11 @@ export class ImageEditor {
             selectedAnnotations,
             selectedObjectKind,
         };
+    }
+
+    getSelection(): ImageEditorSelection {
+        if (!this.runtime.canvas) return this.buildSelection([]);
+        return this.buildSelection(getActiveSelectionObjects(this.runtime.canvas));
     }
 
     private withSelectionChangeContext<T>(
@@ -1679,6 +1714,7 @@ export class ImageEditor {
      */
     saveState(): void {
         this.saveStateInternal();
+        this.emitHistoryChangeIfChanged(this.buildCallbackContext('saveState', false));
     }
 
     private saveStateInternal(options?: InternalOperationOptions | null): void {
@@ -1708,6 +1744,7 @@ export class ImageEditor {
             this.runtime.activeStateRestoreOperation = 'undo';
             try {
                 await this.runtime.historyManager.undo();
+                this.emitHistoryChangeIfChanged(context);
             } finally {
                 this.runtime.activeStateRestoreOperation = null;
             }
@@ -1734,6 +1771,7 @@ export class ImageEditor {
             this.runtime.activeStateRestoreOperation = 'redo';
             try {
                 await this.runtime.historyManager.redo();
+                this.emitHistoryChangeIfChanged(context);
             } finally {
                 this.runtime.activeStateRestoreOperation = null;
             }

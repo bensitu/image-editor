@@ -1203,6 +1203,17 @@ export interface ImageEditorOptions {
     onImageChanged?: (state: ImageEditorState, context: ImageEditorCallbackContext) => void;
     /** Called when the public busy state changes. */
     onBusyChange?: (isBusy: boolean, context: ImageEditorCallbackContext) => void;
+    /** Called when the active tool mode changes. */
+    onToolModeChange?: (
+        activeToolMode: EditorToolMode | null,
+        previousToolMode: EditorToolMode | null,
+        context: ImageEditorCallbackContext,
+    ) => void;
+    /** Called when undo/redo availability changes. */
+    onHistoryChange?: (
+        history: { canUndo: boolean; canRedo: boolean },
+        context: ImageEditorCallbackContext,
+    ) => void;
     /** Called once after `dispose()` tears down the editor. */
     onEditorDisposed?: (context: ImageEditorCallbackContext) => void;
     /** Called after the mask collection changes. */
@@ -1270,6 +1281,8 @@ export interface ResolvedOptions extends Required<
         | 'onImageCleared'
         | 'onImageChanged'
         | 'onBusyChange'
+        | 'onToolModeChange'
+        | 'onHistoryChange'
         | 'onEditorDisposed'
         | 'onMasksChanged'
         | 'onAnnotationsChanged'
@@ -1299,6 +1312,19 @@ export interface ResolvedOptions extends Required<
         | null;
     onImageChanged: ((state: ImageEditorState, context: ImageEditorCallbackContext) => void) | null;
     onBusyChange: ((isBusy: boolean, context: ImageEditorCallbackContext) => void) | null;
+    onToolModeChange:
+        | ((
+              activeToolMode: EditorToolMode | null,
+              previousToolMode: EditorToolMode | null,
+              context: ImageEditorCallbackContext,
+          ) => void)
+        | null;
+    onHistoryChange:
+        | ((
+              history: { canUndo: boolean; canRedo: boolean },
+              context: ImageEditorCallbackContext,
+          ) => void)
+        | null;
     onEditorDisposed: ((context: ImageEditorCallbackContext) => void) | null;
     onMasksChanged: ((masks: MaskObject[], context: ImageEditorCallbackContext) => void) | null;
     onAnnotationsChanged:

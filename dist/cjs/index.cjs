@@ -403,6 +403,8 @@ const DEFAULT_OPTIONS = {
     onImageCleared: null,
     onImageChanged: null,
     onBusyChange: null,
+    onToolModeChange: null,
+    onHistoryChange: null,
     onEditorDisposed: null,
     onMasksChanged: null,
     onAnnotationsChanged: null,
@@ -517,6 +519,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'onImageCleared',
     'onImageChanged',
     'onBusyChange',
+    'onToolModeChange',
+    'onHistoryChange',
     'onEditorDisposed',
     'onMasksChanged',
     'onAnnotationsChanged',
@@ -1076,6 +1080,8 @@ function resolveOptions(input) {
             key === 'onImageCleared' ||
             key === 'onImageChanged' ||
             key === 'onBusyChange' ||
+            key === 'onToolModeChange' ||
+            key === 'onHistoryChange' ||
             key === 'onEditorDisposed' ||
             key === 'onMasksChanged' ||
             key === 'onAnnotationsChanged' ||
@@ -1240,6 +1246,8 @@ function resolveOptions(input) {
     resolved.onImageCleared = normalizeCallback(raw.onImageCleared);
     resolved.onImageChanged = normalizeCallback(raw.onImageChanged);
     resolved.onBusyChange = normalizeCallback(raw.onBusyChange);
+    resolved.onToolModeChange = normalizeCallback(raw.onToolModeChange);
+    resolved.onHistoryChange = normalizeCallback(raw.onHistoryChange);
     resolved.onEditorDisposed = normalizeCallback(raw.onEditorDisposed);
     resolved.onMasksChanged = normalizeCallback(raw.onMasksChanged);
     resolved.onAnnotationsChanged = normalizeCallback(raw.onAnnotationsChanged);
@@ -8596,6 +8604,18 @@ class EditorRuntime {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "lastEmittedToolMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "lastEmittedHistoryState", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "activeStateRestoreOperation", {
             enumerable: true,
             configurable: true,
@@ -8619,6 +8639,10 @@ class EditorRuntime {
         this.defaultDrawConfig = options.defaultDrawConfig;
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
         this.historyManager = new HistoryManager(options.maxHistorySize);
+        this.lastEmittedHistoryState = {
+            canUndo: this.historyManager.canUndo(),
+            canRedo: this.historyManager.canRedo(),
+        };
     }
     getRuntimeOptions() {
         if (this.currentLayoutMode === this.options.layoutMode)
@@ -10039,7 +10063,9 @@ class ImageEditor {
     }
     createContextFactory() {
         return createEditorContextFactory(this.runtime, {
-            saveCanvasState: () => this.saveState(),
+            saveCanvasState: () => {
+                this.saveStateInternal();
+            },
             saveCanvasStateWithAnimationBypass: () => {
                 this.saveStateInternal(this.withAnimationQueueBypass());
             },
@@ -10149,7 +10175,7 @@ class ImageEditor {
                 this.updateUi();
             },
             saveState: () => {
-                this.saveState();
+                this.saveStateInternal();
             },
             removeLabelForMask: (mask) => {
                 this.removeLabelForMask(mask);
@@ -10672,8 +10698,9 @@ class ImageEditor {
         }
     }
     getImageInfo() {
-        if (!this.runtime.canvas || !this.runtime.originalImage)
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.isImageLoaded()) {
             return null;
+        }
         const canvasWidth = this.runtime.canvas.getWidth();
         const canvasHeight = this.runtime.canvas.getHeight();
         let displayWidth;
@@ -10764,6 +10791,8 @@ class ImageEditor {
     }
     emitImageChanged(context) {
         this.emitOptionCallback('onImageChanged', [this.getEditorState(), context]);
+        this.emitToolModeChangeIfChanged(context);
+        this.emitHistoryChangeIfChanged(context);
     }
     emitMasksChanged(context) {
         this.emitOptionCallback('onMasksChanged', [this.getMasks(), context]);
@@ -10777,6 +10806,25 @@ class ImageEditor {
             return;
         this.runtime.lastEmittedIsBusy = isBusy;
         this.emitOptionCallback('onBusyChange', [isBusy, context]);
+    }
+    emitToolModeChangeIfChanged(context) {
+        const activeToolMode = this.getActiveToolMode();
+        const previousToolMode = this.runtime.lastEmittedToolMode;
+        if (previousToolMode === activeToolMode)
+            return;
+        this.runtime.lastEmittedToolMode = activeToolMode;
+        this.emitOptionCallback('onToolModeChange', [activeToolMode, previousToolMode, context]);
+    }
+    emitHistoryChangeIfChanged(context) {
+        const history = {
+            canUndo: this.runtime.historyManager.canUndo(),
+            canRedo: this.runtime.historyManager.canRedo(),
+        };
+        const previous = this.runtime.lastEmittedHistoryState;
+        if (previous.canUndo === history.canUndo && previous.canRedo === history.canRedo)
+            return;
+        this.runtime.lastEmittedHistoryState = history;
+        this.emitOptionCallback('onHistoryChange', [history, context]);
     }
     buildSelection(selected) {
         var _a, _b;
@@ -10794,6 +10842,11 @@ class ImageEditor {
             selectedAnnotations,
             selectedObjectKind,
         };
+    }
+    getSelection() {
+        if (!this.runtime.canvas)
+            return this.buildSelection([]);
+        return this.buildSelection(getActiveSelectionObjects(this.runtime.canvas));
     }
     withSelectionChangeContext(context, callback) {
         const previous = this.runtime.nextSelectionChangeContext;
@@ -10969,6 +11022,7 @@ class ImageEditor {
     }
     saveState() {
         this.saveStateInternal();
+        this.emitHistoryChangeIfChanged(this.buildCallbackContext('saveState', false));
     }
     saveStateInternal(options) {
         saveStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), options);
@@ -10986,6 +11040,7 @@ class ImageEditor {
             this.runtime.activeStateRestoreOperation = 'undo';
             try {
                 await this.runtime.historyManager.undo();
+                this.emitHistoryChangeIfChanged(context);
             }
             finally {
                 this.runtime.activeStateRestoreOperation = null;
@@ -11010,6 +11065,7 @@ class ImageEditor {
             this.runtime.activeStateRestoreOperation = 'redo';
             try {
                 await this.runtime.historyManager.redo();
+                this.emitHistoryChangeIfChanged(context);
             }
             finally {
                 this.runtime.activeStateRestoreOperation = null;

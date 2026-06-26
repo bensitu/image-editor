@@ -6,6 +6,11 @@
  * - Editor object runtime type guards.
  * - The documented public types listed below.
  *
+ * Read-only integration helpers on `ImageEditor` include `getEditorState()`,
+ * `getImageInfo()`, `getMasks()`, `getSelection()`, and
+ * `getActiveToolMode()`. Lifecycle options include `onToolModeChange` and
+ * `onHistoryChange`.
+ *
  * Internal helpers (animation queue, command, history manager, controllers,
  * services, managers, and utility modules) are intentionally not re-exported;
  * they are implementation details and may change without notice.

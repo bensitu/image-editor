@@ -8,7 +8,7 @@
  * @module
  */
 import type { CanvasJson } from './core/state-serializer.js';
-import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, ElementMap, FabricModule, ImageEditorOptions, ImageExportOptions, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, RelayoutOptions, ResizeToContainerOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, EditorToolMode, ElementMap, FabricModule, ImageEditorSelection, ImageEditorState, ImageEditorOptions, ImageExportOptions, ImageInfo, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, RelayoutOptions, ResizeToContainerOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking/annotation, animated transforms,
  * crop, undo/redo, mosaic and multi-format export.
@@ -150,20 +150,23 @@ export declare class ImageEditor {
     private buildCallbackContext;
     private getOperationContext;
     private emitOptionCallback;
-    private getImageInfo;
-    private getMasks;
+    getImageInfo(): ImageInfo | null;
+    getMasks(): MaskObject[];
     getAnnotations(): AnnotationObject[];
     private getMaskCollectionSignature;
     private getAnnotationCollectionSignature;
     private buildToolModeSnapshot;
-    private getActiveToolMode;
+    getActiveToolMode(): EditorToolMode | null;
     private isToolModeActive;
-    private getEditorState;
+    getEditorState(): ImageEditorState;
     private emitImageChanged;
     private emitMasksChanged;
     private emitAnnotationsChanged;
     private emitBusyChangeIfChanged;
+    private emitToolModeChangeIfChanged;
+    private emitHistoryChangeIfChanged;
     private buildSelection;
+    getSelection(): ImageEditorSelection;
     private withSelectionChangeContext;
     private isSupportedImageMimeType;
     private inferCurrentImageMimeType;

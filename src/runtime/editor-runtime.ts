@@ -17,6 +17,7 @@ import type { ElementKey, ResolvedElementMap } from '../core/editor-elements.js'
 import { OperationGuard } from '../core/operation-guard.js';
 import type {
     BaseImageObject,
+    EditorToolMode,
     FabricModule,
     ImageEditorCallbackContext,
     ImageEditorOperation,
@@ -88,6 +89,8 @@ export class EditorRuntime {
     isDisposed = false;
     shouldSuppressSaveState = false;
     lastEmittedIsBusy: boolean | null = null;
+    lastEmittedToolMode: EditorToolMode | null = null;
+    lastEmittedHistoryState: { canUndo: boolean; canRedo: boolean };
     activeStateRestoreOperation: ImageEditorOperation | null = null;
     nextSelectionChangeContext: ImageEditorCallbackContext | null = null;
 
@@ -103,6 +106,10 @@ export class EditorRuntime {
         this.defaultDrawConfig = options.defaultDrawConfig;
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
         this.historyManager = new HistoryManager(options.maxHistorySize);
+        this.lastEmittedHistoryState = {
+            canUndo: this.historyManager.canUndo(),
+            canRedo: this.historyManager.canRedo(),
+        };
     }
 
     getRuntimeOptions(): ResolvedOptions {
