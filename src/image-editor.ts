@@ -1209,8 +1209,7 @@ export class ImageEditor {
         args: unknown[],
     ): void {
         const callback = this.runtime.options[callbackName] as
-            | ((...callbackArgs: never[]) => unknown)
-            | null;
+            ((...callbackArgs: never[]) => unknown) | null;
         if (typeof callback !== 'function') return;
         try {
             callback(...(args as never[]));

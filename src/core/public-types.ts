@@ -50,13 +50,7 @@ export type ImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
  * (`'image/png'`) for ergonomic interop.
  */
 export type ImageFileType =
-    | 'jpeg'
-    | 'jpg'
-    | 'png'
-    | 'webp'
-    | 'image/jpeg'
-    | 'image/png'
-    | 'image/webp';
+    'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp';
 
 /**
  * Normalized format token after collapsing `'jpg'` to `'jpeg'` and stripping
@@ -128,20 +122,10 @@ export type CropExportFileType = ImageFileType | 'source';
 export type MosaicOutputFileType = ImageFileType | 'source';
 
 export type CropAspectRatioPreset =
-    | 'free'
-    | '1:1'
-    | '3:4'
-    | '4:3'
-    | '3:2'
-    | '2:3'
-    | '9:16'
-    | '16:9';
+    'free' | '1:1' | '3:4' | '4:3' | '3:2' | '2:3' | '9:16' | '16:9';
 
 export type CropAspectRatio =
-    | CropAspectRatioPreset
-    | number
-    | `${number}:${number}`
-    | { width: number; height: number };
+    CropAspectRatioPreset | number | `${number}:${number}` | { width: number; height: number };
 
 export interface CropModeOptions {
     /**
@@ -645,9 +629,7 @@ export interface DrawAnnotationUpdateConfig extends CommonAnnotationUpdateConfig
 }
 
 export type AnnotationUpdateConfig =
-    | TextAnnotationUpdateConfig
-    | DrawAnnotationUpdateConfig
-    | CommonAnnotationUpdateConfig;
+    TextAnnotationUpdateConfig | DrawAnnotationUpdateConfig | CommonAnnotationUpdateConfig;
 
 // ─── Mask config primitives ──────────────────────────────────────────────────
 
@@ -831,10 +813,7 @@ export interface RemoveAllAnnotationsOptions {
  * unmanaged by the editor.
  */
 export type ElementTarget<TElement extends HTMLElement = HTMLElement> =
-    | string
-    | TElement
-    | null
-    | undefined;
+    string | TElement | null | undefined;
 
 /**
  * Mapping from logical control names to DOM targets on the page.
@@ -1339,11 +1318,9 @@ export interface ResolvedOptions extends Required<
     onEditorDisposed: ((context: ImageEditorCallbackContext) => void) | null;
     onMasksChanged: ((masks: MaskObject[], context: ImageEditorCallbackContext) => void) | null;
     onAnnotationsChanged:
-        | ((annotations: AnnotationObject[], context: ImageEditorCallbackContext) => void)
-        | null;
+        ((annotations: AnnotationObject[], context: ImageEditorCallbackContext) => void) | null;
     onSelectionChange:
-        | ((selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void)
-        | null;
+        ((selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void) | null;
     onError: ((error: unknown, message: string) => void) | null;
     onWarning: ((error: unknown, message: string) => void) | null;
 }
