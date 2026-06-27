@@ -77,6 +77,9 @@ export const DEFAULT_OPTIONS: Omit<
     preserveSourceFormat: true,
     downsampleMimeType: null,
 
+    // File loading
+    autoOrientImage: true,
+
     // Image-load timeout
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
@@ -238,6 +241,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'downsampleQuality',
     'preserveSourceFormat',
     'downsampleMimeType',
+    'autoOrientImage',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
@@ -1027,6 +1031,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
                 value,
                 DEFAULT_OPTIONS.downsampleMimeType,
             );
+            continue;
+        }
+        if (key === 'autoOrientImage') {
+            resolved.autoOrientImage = normalizeBoolean(value, DEFAULT_OPTIONS.autoOrientImage);
             continue;
         }
         if (key === 'mergeMasksByDefault') {

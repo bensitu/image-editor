@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `getActiveToolMode(): EditorToolMode | null`
 - Add `onToolModeChange(activeToolMode, previousToolMode, context)` for framework integrations that mirror active tool state.
 - Add `onHistoryChange({ canUndo, canRedo }, context)` for framework integrations that mirror undo/redo availability.
+- Add `autoOrientImage` to normalize supported JPEG EXIF orientation during file-input loading.
 
 ### Changed
 

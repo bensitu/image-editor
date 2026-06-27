@@ -64,6 +64,7 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'downsampleQuality',
     'preserveSourceFormat',
     'downsampleMimeType',
+    'autoOrientImage',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
@@ -167,6 +168,7 @@ function topLevelScalarOverridesArb() {
                 fc.constantFrom('image/png', 'image/jpeg', 'image/webp'),
                 { nil: null },
             ),
+            autoOrientImage: fc.boolean(),
             imageLoadTimeoutMs: fc.integer({ min: 1, max: 600000 }),
             maxHistorySize: fc.integer({ min: 1, max: 500 }),
             exportMultiplier: fc.double({
@@ -404,6 +406,17 @@ test('options resolution completeness and deep-merge', () => {
                 );
             } else {
                 assert.equal(resolved.preserveSourceFormat, input.preserveSourceFormat);
+            }
+
+            // `autoOrientImage` defaults to the documented file-loading behavior.
+            if (!('autoOrientImage' in input)) {
+                assert.equal(
+                    resolved.autoOrientImage,
+                    true,
+                    'default autoOrientImage must be true',
+                );
+            } else {
+                assert.equal(resolved.autoOrientImage, input.autoOrientImage);
             }
 
             // `imageLoadTimeoutMs` defaults to the documented timeout.
@@ -712,6 +725,7 @@ test('invalid top-level runtime option values fall back to defaults', () => {
         downsampleOnLoad: 'yes',
         preserveSourceFormat: 'no',
         downsampleMimeType: 'image/gif',
+        autoOrientImage: 'yes',
         mergeMasksByDefault: 'true',
         mergeAnnotationsByDefault: 0,
         maskRotatable: 'yes',
@@ -729,6 +743,7 @@ test('invalid top-level runtime option values fall back to defaults', () => {
     assert.equal(resolved.downsampleOnLoad, DEFAULT_OPTIONS.downsampleOnLoad);
     assert.equal(resolved.preserveSourceFormat, DEFAULT_OPTIONS.preserveSourceFormat);
     assert.equal(resolved.downsampleMimeType, DEFAULT_OPTIONS.downsampleMimeType);
+    assert.equal(resolved.autoOrientImage, DEFAULT_OPTIONS.autoOrientImage);
     assert.equal(resolved.mergeMasksByDefault, DEFAULT_OPTIONS.mergeMasksByDefault);
     assert.equal(resolved.mergeAnnotationsByDefault, DEFAULT_OPTIONS.mergeAnnotationsByDefault);
     assert.equal(resolved.maskRotatable, DEFAULT_OPTIONS.maskRotatable);
@@ -855,6 +870,7 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
             );
         }
         assert.equal(resolved.preserveSourceFormat, true);
+        assert.equal(resolved.autoOrientImage, true);
         assert.equal(resolved.imageLoadTimeoutMs, 30000);
         assert.equal(resolved.crop.preserveMasksAfterCrop, false);
         assert.equal(Object.isFrozen(resolved), true);

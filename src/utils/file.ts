@@ -10,6 +10,8 @@
  * - Reading the file as a base64 data URL so the result can be routed
  *   through the existing transactional `loadImage` pipeline (and therefore
  *   inherit its rollback behavior on decode/Fabric/timeout failure).
+ * - Reading the file as an ArrayBuffer for lightweight metadata probes such
+ *   as JPEG EXIF orientation parsing.
  * - Resetting the file input value after every attempt so selecting the
  *   same file again triggers a fresh `change` event.
  *
@@ -113,6 +115,37 @@ export function readFileAsDataUrl(file: File): Promise<string> {
             reject(new Error('FileReader read aborted'));
         };
         reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Read a `File` as an ArrayBuffer.
+ *
+ * Uses the native Blob API when available and falls back to FileReader for
+ * older browser-like environments.
+ */
+export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+    if (typeof file.arrayBuffer === 'function') {
+        return file.arrayBuffer();
+    }
+
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            if (result instanceof ArrayBuffer) {
+                resolve(result);
+            } else {
+                reject(new Error('FileReader returned a non-ArrayBuffer result'));
+            }
+        };
+        reader.onerror = () => {
+            reject(reader.error ?? new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
+        reader.readAsArrayBuffer(file);
     });
 }
 

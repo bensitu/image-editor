@@ -19,6 +19,7 @@ export const DEFAULT_OPTIONS = {
     downsampleQuality: 0.92,
     preserveSourceFormat: true,
     downsampleMimeType: null,
+    autoOrientImage: true,
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
     exportMultiplier: 1,
@@ -139,6 +140,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'downsampleQuality',
     'preserveSourceFormat',
     'downsampleMimeType',
+    'autoOrientImage',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
@@ -754,6 +756,10 @@ export function resolveOptions(input) {
         }
         if (key === 'downsampleMimeType') {
             resolved.downsampleMimeType = normalizeImageMimeTypeOption(value, DEFAULT_OPTIONS.downsampleMimeType);
+            continue;
+        }
+        if (key === 'autoOrientImage') {
+            resolved.autoOrientImage = normalizeBoolean(value, DEFAULT_OPTIONS.autoOrientImage);
             continue;
         }
         if (key === 'mergeMasksByDefault') {

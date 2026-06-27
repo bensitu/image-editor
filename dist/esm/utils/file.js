@@ -49,6 +49,31 @@ export function readFileAsDataUrl(file) {
         reader.readAsDataURL(file);
     });
 }
+export function readFileAsArrayBuffer(file) {
+    if (typeof file.arrayBuffer === 'function') {
+        return file.arrayBuffer();
+    }
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            if (result instanceof ArrayBuffer) {
+                resolve(result);
+            }
+            else {
+                reject(new Error('FileReader returned a non-ArrayBuffer result'));
+            }
+        };
+        reader.onerror = () => {
+            var _a;
+            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
 export function resetFileInput(input) {
     if (!input)
         return;

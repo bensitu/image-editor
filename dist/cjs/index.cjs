@@ -376,6 +376,7 @@ const DEFAULT_OPTIONS = {
     downsampleQuality: 0.92,
     preserveSourceFormat: true,
     downsampleMimeType: null,
+    autoOrientImage: true,
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
     exportMultiplier: 1,
@@ -492,6 +493,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'downsampleQuality',
     'preserveSourceFormat',
     'downsampleMimeType',
+    'autoOrientImage',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
@@ -1107,6 +1109,10 @@ function resolveOptions(input) {
         }
         if (key === 'downsampleMimeType') {
             resolved.downsampleMimeType = normalizeImageMimeTypeOption(value, DEFAULT_OPTIONS.downsampleMimeType);
+            continue;
+        }
+        if (key === 'autoOrientImage') {
+            resolved.autoOrientImage = normalizeBoolean(value, DEFAULT_OPTIONS.autoOrientImage);
             continue;
         }
         if (key === 'mergeMasksByDefault') {
@@ -4209,7 +4215,7 @@ function applyCircularMosaicToImageData(options) {
 }
 
 const MAX_PENDING_MOSAIC_POINTS = 4096;
-function getCanvasDocument$2(context) {
+function getCanvasDocument$3(context) {
     var _a, _b, _c, _d, _e;
     const element = (_b = (_a = context.canvas).getElement) === null || _b === void 0 ? void 0 : _b.call(_a);
     return ((_e = (_c = element === null || element === void 0 ? void 0 : element.ownerDocument) !== null && _c !== void 0 ? _c : (_d = context.canvas.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument) !== null && _e !== void 0 ? _e : document);
@@ -4550,7 +4556,7 @@ function pushMosaicHistory(context, after) {
 async function getOrCreateRasterCache(context, session, source) {
     if (session.rasterCache)
         return session.rasterCache;
-    const ownerDocument = getCanvasDocument$2(context);
+    const ownerDocument = getCanvasDocument$3(context);
     const decoded = await decodeImageSource(ownerDocument, source);
     const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = decoded.width;
@@ -5433,7 +5439,7 @@ function createColorValidationContext(ownerDocument) {
         return null;
     }
 }
-function getCanvasDocument$1(canvas) {
+function getCanvasDocument$2(canvas) {
     var _a, _b, _c, _d;
     const canvasLike = canvas;
     const ownerDocument = (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument;
@@ -5511,7 +5517,7 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
     }
     const imageElement = await loadImageElement(sourceDataUrl);
     const { width, height } = getImageDimensions(imageElement);
-    const ownerDocument = getCanvasDocument$1(canvas);
+    const ownerDocument = getCanvasDocument$2(canvas);
     const offscreenCanvas = ownerDocument.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
@@ -5556,10 +5562,10 @@ async function renderExportDataUrl(context, resolved) {
                 ? { format: 'png', mimeType: 'image/png', quality: undefined }
                 : resolved.format;
             if (hasPartialEdges(partialEdges)) {
-                dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat, getCanvasDocument$1(context.canvas));
+                dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat, getCanvasDocument$2(context.canvas));
             }
             if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality, getCanvasDocument$1(context.canvas));
+                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality, getCanvasDocument$2(context.canvas));
             }
         }
         return dataUrl;
@@ -5611,7 +5617,7 @@ async function downloadImage(context, options) {
 }
 function triggerFileDownload(context, file) {
     var _a;
-    const ownerDocument = getCanvasDocument$1(context.canvas);
+    const ownerDocument = getCanvasDocument$2(context.canvas);
     const objectUrl = URL.createObjectURL(file);
     const link = ownerDocument.createElement('a');
     link.download = file.name;
@@ -5786,6 +5792,31 @@ function readFileAsDataUrl(file) {
             reject(new Error('FileReader read aborted'));
         };
         reader.readAsDataURL(file);
+    });
+}
+function readFileAsArrayBuffer(file) {
+    if (typeof file.arrayBuffer === 'function') {
+        return file.arrayBuffer();
+    }
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            if (result instanceof ArrayBuffer) {
+                resolve(result);
+            }
+            else {
+                reject(new Error('FileReader returned a non-ArrayBuffer result'));
+            }
+        };
+        reader.onerror = () => {
+            var _a;
+            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
+        reader.readAsArrayBuffer(file);
     });
 }
 function resetFileInput(input) {
@@ -6045,7 +6076,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
             decode.cleanup(true);
             throw error;
         }
-        const loadSource = maybeDownsample(imageElement, imageBase64, context.options, getCanvasDocument(context.canvas));
+        const loadSource = maybeDownsample(imageElement, imageBase64, context.options, getCanvasDocument$1(context.canvas));
         const fabricAbort = createAbortController();
         const fabricCrossOrigin = 'anonymous';
         const fabricLoadOptions = fabricAbort
@@ -6151,7 +6182,7 @@ function maybeDownsample(imageElement, originalDataUrl, options, ownerDocument) 
         mimeType: actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : resampledImage.mimeType,
     };
 }
-function getCanvasDocument(canvas) {
+function getCanvasDocument$1(canvas) {
     var _a, _b, _c, _d;
     const canvasLike = canvas;
     return (_c = (_b = (_a = canvasLike.getElement) === null || _a === void 0 ? void 0 : _a.call(canvasLike)) === null || _b === void 0 ? void 0 : _b.ownerDocument) !== null && _c !== void 0 ? _c : (_d = canvasLike.lowerCanvasEl) === null || _d === void 0 ? void 0 : _d.ownerDocument;
@@ -6233,7 +6264,249 @@ async function replayRollback(context, bundle) {
     }
 }
 
+const JPEG_MARKER_PREFIX = 0xff;
+const JPEG_SOI = 0xd8;
+const JPEG_SOS = 0xda;
+const JPEG_EOI = 0xd9;
+const JPEG_APP1 = 0xe1;
+const TIFF_TAG_ORIENTATION = 0x0112;
+const TIFF_TYPE_SHORT = 3;
+const TIFF_TYPE_LONG = 4;
+const EXIF_HEADER = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
+function isValidOrientation(value) {
+    return Number.isInteger(value) && value >= 1 && value <= 8;
+}
+function readUint16(view, offset, littleEndian) {
+    if (offset < 0 || offset + 2 > view.byteLength)
+        return null;
+    return view.getUint16(offset, littleEndian);
+}
+function readUint32(view, offset, littleEndian) {
+    if (offset < 0 || offset + 4 > view.byteLength)
+        return null;
+    return view.getUint32(offset, littleEndian);
+}
+function hasExifHeader(view, offset, end) {
+    if (offset + EXIF_HEADER.length > end)
+        return false;
+    return EXIF_HEADER.every((byte, index) => view.getUint8(offset + index) === byte);
+}
+function isStandaloneMarker(marker) {
+    return marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7);
+}
+function readJpegExifOrientation(buffer) {
+    const view = new DataView(buffer);
+    if (view.byteLength < 4)
+        return null;
+    if (view.getUint8(0) !== JPEG_MARKER_PREFIX || view.getUint8(1) !== JPEG_SOI) {
+        return null;
+    }
+    let offset = 2;
+    while (offset < view.byteLength) {
+        if (view.getUint8(offset) !== JPEG_MARKER_PREFIX)
+            return null;
+        while (offset < view.byteLength && view.getUint8(offset) === JPEG_MARKER_PREFIX) {
+            offset += 1;
+        }
+        if (offset >= view.byteLength)
+            return null;
+        const marker = view.getUint8(offset);
+        offset += 1;
+        if (marker === JPEG_SOS || marker === JPEG_EOI)
+            return null;
+        if (isStandaloneMarker(marker))
+            continue;
+        if (offset + 2 > view.byteLength)
+            return null;
+        const segmentLength = view.getUint16(offset, false);
+        if (segmentLength < 2)
+            return null;
+        const segmentStart = offset + 2;
+        const segmentEnd = offset + segmentLength;
+        if (segmentEnd > view.byteLength)
+            return null;
+        if (marker === JPEG_APP1 && hasExifHeader(view, segmentStart, segmentEnd)) {
+            return readExifSegmentOrientation(view, segmentStart + EXIF_HEADER.length, segmentEnd);
+        }
+        offset = segmentEnd;
+    }
+    return null;
+}
+function readExifSegmentOrientation(view, tiffStart, segmentEnd) {
+    if (tiffStart + 8 > segmentEnd)
+        return null;
+    const byteOrderA = view.getUint8(tiffStart);
+    const byteOrderB = view.getUint8(tiffStart + 1);
+    const littleEndian = byteOrderA === 0x49 && byteOrderB === 0x49
+        ? true
+        : byteOrderA === 0x4d && byteOrderB === 0x4d
+            ? false
+            : null;
+    if (littleEndian === null)
+        return null;
+    const tiffMagic = readUint16(view, tiffStart + 2, littleEndian);
+    if (tiffMagic !== 0x002a)
+        return null;
+    const ifdOffset = readUint32(view, tiffStart + 4, littleEndian);
+    if (ifdOffset === null)
+        return null;
+    const ifdStart = tiffStart + ifdOffset;
+    if (ifdStart < tiffStart || ifdStart + 2 > segmentEnd)
+        return null;
+    const entryCount = readUint16(view, ifdStart, littleEndian);
+    if (entryCount === null)
+        return null;
+    const entriesStart = ifdStart + 2;
+    const entriesEnd = entriesStart + entryCount * 12;
+    if (entriesEnd > segmentEnd)
+        return null;
+    for (let index = 0; index < entryCount; index += 1) {
+        const entryOffset = entriesStart + index * 12;
+        const tag = readUint16(view, entryOffset, littleEndian);
+        if (tag !== TIFF_TAG_ORIENTATION)
+            continue;
+        const type = readUint16(view, entryOffset + 2, littleEndian);
+        const count = readUint32(view, entryOffset + 4, littleEndian);
+        if (count !== 1)
+            return null;
+        const value = type === TIFF_TYPE_SHORT
+            ? readUint16(view, entryOffset + 8, littleEndian)
+            : type === TIFF_TYPE_LONG
+                ? readUint32(view, entryOffset + 8, littleEndian)
+                : null;
+        if (value === null)
+            return null;
+        return isValidOrientation(value) ? value : null;
+    }
+    return null;
+}
+function isJpegFile(file) {
+    var _a, _b;
+    const type = (_b = (_a = file.type) === null || _a === void 0 ? void 0 : _a.toLowerCase()) !== null && _b !== void 0 ? _b : '';
+    if (type)
+        return type === 'image/jpeg';
+    return /\.(?:jpe?g)$/i.test(file.name);
+}
+async function readFileOrientation(file) {
+    try {
+        return readJpegExifOrientation(await readFileAsArrayBuffer(file));
+    }
+    catch {
+        return null;
+    }
+}
+async function tryCreateRawImageBitmap(file) {
+    if (typeof createImageBitmap !== 'function')
+        return null;
+    try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'none' });
+        if (!hasPositiveDimensions(bitmap.width, bitmap.height)) {
+            bitmap.close();
+            return null;
+        }
+        return {
+            source: bitmap,
+            width: bitmap.width,
+            height: bitmap.height,
+            close: () => {
+                bitmap.close();
+            },
+        };
+    }
+    catch {
+        return null;
+    }
+}
+async function decodeImageElement(dataUrl) {
+    const load = startImageElementLoad(dataUrl, {
+        validate: (imageElement) => hasPositiveDimensions(imageElement.naturalWidth, imageElement.naturalHeight)
+            ? null
+            : new Error('Image has no natural dimensions.'),
+        createError: () => new Error('Failed to decode image for EXIF orientation normalization.'),
+    });
+    const imageElement = await load.promise;
+    return {
+        source: imageElement,
+        width: imageElement.naturalWidth,
+        height: imageElement.naturalHeight,
+        close: () => {
+            load.cleanup(true);
+        },
+    };
+}
+function hasPositiveDimensions(width, height) {
+    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+}
+function getCanvasDocument(ownerDocument) {
+    const resolvedDocument = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : (typeof document !== 'undefined' ? document : null);
+    if (!resolvedDocument) {
+        throw new Error('A document is required to normalize JPEG EXIF orientation.');
+    }
+    return resolvedDocument;
+}
+function createCanvas(ownerDocument) {
+    return getCanvasDocument(ownerDocument).createElement('canvas');
+}
+function isRotatedRightAngle(orientation) {
+    return orientation >= 5 && orientation <= 8;
+}
+function applyOrientationTransform(context, orientation, width, height) {
+    switch (orientation) {
+        case 2:
+            context.transform(-1, 0, 0, 1, width, 0);
+            break;
+        case 3:
+            context.transform(-1, 0, 0, -1, width, height);
+            break;
+        case 4:
+            context.transform(1, 0, 0, -1, 0, height);
+            break;
+        case 5:
+            context.transform(0, 1, 1, 0, 0, 0);
+            break;
+        case 6:
+            context.transform(0, 1, -1, 0, height, 0);
+            break;
+        case 7:
+            context.transform(0, -1, -1, 0, height, width);
+            break;
+        case 8:
+            context.transform(0, -1, 1, 0, 0, width);
+            break;
+    }
+}
+function drawOrientedImage(decoded, orientation, options, ownerDocument) {
+    const canvas = createCanvas(ownerDocument);
+    const outputWidth = isRotatedRightAngle(orientation) ? decoded.height : decoded.width;
+    const outputHeight = isRotatedRightAngle(orientation) ? decoded.width : decoded.height;
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+    const context = canvas.getContext('2d');
+    if (!context) {
+        throw new Error('Unable to create a canvas context for JPEG EXIF orientation.');
+    }
+    applyOrientationTransform(context, orientation, decoded.width, decoded.height);
+    context.drawImage(decoded.source, 0, 0, decoded.width, decoded.height);
+    return canvas.toDataURL('image/jpeg', options.downsampleQuality);
+}
+async function normalizeJpegOrientationIfNeeded(file, dataUrl, options, ownerDocument) {
+    var _a;
+    if (!options.autoOrientImage || !isJpegFile(file))
+        return null;
+    const orientation = await readFileOrientation(file);
+    if (orientation === null || orientation === 1)
+        return null;
+    const decoded = (_a = (await tryCreateRawImageBitmap(file))) !== null && _a !== void 0 ? _a : (await decodeImageElement(dataUrl));
+    try {
+        return drawOrientedImage(decoded, orientation, options, ownerDocument);
+    }
+    finally {
+        decoded.close();
+    }
+}
+
 async function loadImageFile(context, file) {
+    var _a;
     const inputElement = context.getInputElement();
     const mime = inferImageMimeType(file);
     if (!mime) {
@@ -6251,6 +6524,13 @@ async function loadImageFile(context, file) {
         return;
     }
     try {
+        try {
+            dataUrl =
+                (_a = (await normalizeJpegOrientationIfNeeded(file, dataUrl, context.options, inputElement === null || inputElement === void 0 ? void 0 : inputElement.ownerDocument))) !== null && _a !== void 0 ? _a : dataUrl;
+        }
+        catch (error) {
+            reportWarning(context.options, error, 'JPEG EXIF orientation normalization failed; loading the original file data.');
+        }
         await context.loadImage(dataUrl);
     }
     finally {

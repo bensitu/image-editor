@@ -7,6 +7,7 @@
 
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import type { ResolvedOptions } from '../core/public-types.js';
+import { normalizeJpegOrientationIfNeeded } from './exif-orientation.js';
 import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from '../utils/file.js';
 
 export interface LoadImageFileContext {
@@ -48,6 +49,21 @@ export async function loadImageFile(context: LoadImageFileContext, file: File): 
     }
 
     try {
+        try {
+            dataUrl =
+                (await normalizeJpegOrientationIfNeeded(
+                    file,
+                    dataUrl,
+                    context.options,
+                    inputElement?.ownerDocument,
+                )) ?? dataUrl;
+        } catch (error) {
+            reportWarning(
+                context.options,
+                error,
+                'JPEG EXIF orientation normalization failed; loading the original file data.',
+            );
+        }
         await context.loadImage(dataUrl);
     } finally {
         resetFileInput(inputElement);

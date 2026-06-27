@@ -311,6 +311,17 @@ test('public types declaration exposes defaultLayoutMode and omits removed layou
     }
 });
 
+test('public types declaration exposes JPEG auto-orientation option', async () => {
+    if (!distIsBuilt) return;
+    const { text } = await readArtifact(ARTIFACTS.publicTypes);
+
+    assert.match(
+        text,
+        /\bautoOrientImage\??:\s*boolean\b/,
+        `${ARTIFACTS.publicTypes} must expose \`autoOrientImage\` on ImageEditorOptions`,
+    );
+});
+
 test('public types declaration exposes v2.6.0 lifecycle callbacks', async () => {
     if (!distIsBuilt) return;
     const { text } = await readArtifact(ARTIFACTS.publicTypes);

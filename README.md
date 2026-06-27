@@ -360,6 +360,13 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 preserving the container's scroll position across both successful loads and
 rollback paths.
 
+File-input loading normalizes supported JPEG EXIF orientation by default, so
+phone photos with sideways encoded pixels are displayed upright. Set
+`autoOrientImage: false` to preserve the raw encoded orientation. This applies
+only to JPEG files loaded through the file-input path; PNG/WebP files and
+`loadImage(dataUrl)` use the existing path, and arbitrary EXIF metadata is not
+preserved.
+
 ### Read-only state
 
 | Method                | Description                                                                      |
@@ -724,6 +731,7 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `downsampleQuality`         | `0.92`            | Lossy quality used when downsampling and exporting.                                                                                                                                                                                                                                           |
 | `preserveSourceFormat`      | `true`            | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                                                                                                                                                               |
 | `downsampleMimeType`        | `null`            | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                                                                                                                                                              |
+| `autoOrientImage`           | `true`            | Normalize supported JPEG EXIF orientation during file-input loading. Set to `false` to preserve raw encoded orientation.                                                                                                                                                                      |
 | `imageLoadTimeoutMs`        | `30000`           | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                                                |
 | `exportMultiplier`          | `1`               | Output resolution multiplier.                                                                                                                                                                                                                                                                 |
 | `maxExportPixels`           | `50000000`        | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                                                    |

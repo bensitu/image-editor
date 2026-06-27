@@ -10,6 +10,8 @@
  * - Reading the file as a base64 data URL so the result can be routed
  *   through the existing transactional `loadImage` pipeline (and therefore
  *   inherit its rollback behavior on decode/Fabric/timeout failure).
+ * - Reading the file as an ArrayBuffer for lightweight metadata probes such
+ *   as JPEG EXIF orientation parsing.
  * - Resetting the file input value after every attempt so selecting the
  *   same file again triggers a fresh `change` event.
  *
@@ -73,6 +75,13 @@ export declare function inferImageMimeType(file: File): string | null;
  *          result.
  */
 export declare function readFileAsDataUrl(file: File): Promise<string>;
+/**
+ * Read a `File` as an ArrayBuffer.
+ *
+ * Uses the native Blob API when available and falls back to FileReader for
+ * older browser-like environments.
+ */
+export declare function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer>;
 /**
  * Reset a file input element's value so selecting the same file again
  * triggers a fresh `change` event.

@@ -859,6 +859,15 @@ export interface ImageEditorOptions {
      */
     downsampleMimeType?: ImageMimeType | null;
     /**
+     * Normalize supported JPEG EXIF orientation values during file-input loading.
+     *
+     * Applies only to JPEG files loaded through the editor's file-loading path.
+     * `loadImage(dataUrl)` keeps using the supplied image data as-is.
+     *
+     * @default true
+     */
+    autoOrientImage?: boolean;
+    /**
      * Maximum duration (ms) for both decode and Fabric image creation steps
      * during `loadImage`. @default 30000
      */
