@@ -177,7 +177,7 @@ export declare function computeCoverLayout(imageWidth: number, imageHeight: numb
  * preserve the image's natural aspect ratio and top-left placement.
  *
  */
-export declare function computeExpandLayout(imageWidth: number, imageHeight: number, optionsCanvasWidth: number, optionsCanvasHeight: number, containerSize: ViewportSize): LayoutResult;
+export declare function computeExpandLayout(imageWidth: number, imageHeight: number, containerSize: ViewportSize): LayoutResult;
 /**
  * Apply canvas pixel dimensions atomically and force a synchronous
  * reflow on the container.

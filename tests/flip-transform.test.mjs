@@ -42,7 +42,7 @@ import {
     loadFixtureImage,
     resetEditorDom,
 } from './helpers/fabric-environment.mjs';
-import { getCropSession, requireOriginalImage } from './helpers/editor-internals.mjs';
+import { requireOriginalImage } from './helpers/editor-internals.mjs';
 
 const { default: ImageEditor } = await import('../src/index.ts');
 
@@ -144,13 +144,13 @@ test('flip APIs are no-ops without an image and after dispose', async () => {
 
 test('flip APIs are blocked while tool modes are active', async (t) => {
     const cases = [
-        ['crop', (editor) => editor.enterCropMode(), (editor) => getCropSession(editor) !== null],
-        ['mosaic', (editor) => editor.enterMosaicMode(), (editor) => editor.isMosaicMode()],
-        ['text', (editor) => editor.enterTextMode(), (editor) => editor.isTextMode()],
-        ['draw', (editor) => editor.enterDrawMode(), (editor) => editor.isDrawMode()],
+        ['crop', (editor) => editor.enterCropMode()],
+        ['mosaic', (editor) => editor.enterMosaicMode()],
+        ['text', (editor) => editor.enterTextMode()],
+        ['draw', (editor) => editor.enterDrawMode()],
     ];
 
-    for (const [mode, enterMode, isModeActive] of cases) {
+    for (const [mode, enterMode] of cases) {
         await t.test(mode, async (subtest) => {
             const { editor } = createSourceEditor();
             subtest.after(() => disposeEditor(editor));
@@ -158,7 +158,7 @@ test('flip APIs are blocked while tool modes are active', async (t) => {
             await loadFixtureImage(editor, { width: 120, height: 80 });
             enterMode(editor);
 
-            assert.equal(isModeActive(editor), true);
+            assert.equal(editor.getActiveToolMode(), mode);
             await assert.rejects(
                 () => editor.flipHorizontal(),
                 new RegExp(`Cannot run "flipHorizontal" while ${mode} mode is active`),

@@ -41,8 +41,7 @@ export declare class ImageEditor {
      * normalization are delegated to the adapter/resolver modules.
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
-    private createContextFactory;
-    private createActionAccessFactory;
+    private createRuntimeWiring;
     /** Initializes DOM bindings, canvas state, and the optional initial image. */
     init(elementMap?: ElementMap): void;
     private initCanvas;

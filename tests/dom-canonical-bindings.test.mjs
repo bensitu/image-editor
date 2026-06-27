@@ -33,7 +33,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import {
-    getEditorCanvas,
     requireEditorCanvas,
     setCropSession,
     setCurrentScale,
@@ -428,7 +427,7 @@ test('init re-checks global Fabric when construction happened before Fabric load
 
         globalThis.fabric = makeFabricStub();
         assert.doesNotThrow(() => editor.init(CANONICAL_IDS));
-        assert.ok(getEditorCanvas(editor), 'init must recover once global Fabric is available');
+        assert.equal(editor.getEditorState().canvasWidth, 800);
     } finally {
         console.error = originalConsoleError;
         globalThis.fabric = originalFabric;

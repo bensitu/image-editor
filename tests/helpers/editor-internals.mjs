@@ -1,18 +1,19 @@
 /**
  * Test-only accessors for ImageEditor runtime state.
  *
- * These helpers keep internal tests explicit about implementation-level state
- * without depending on legacy TypeScript-private field names on the facade.
+ * Prefer public ImageEditor APIs in integration tests. Use these helpers only
+ * for implementation-level tests that need Fabric objects, runtime sessions,
+ * or guard/history internals that are intentionally not public.
  */
 
 import assert from 'node:assert/strict';
 
-export function getEditorRuntime(editor) {
+function getEditorRuntime(editor) {
     assert.ok(editor.runtime, 'expected ImageEditor runtime to exist');
     return editor.runtime;
 }
 
-export function getEditorCanvas(editor) {
+function getEditorCanvas(editor) {
     return getEditorRuntime(editor).canvas;
 }
 
@@ -22,7 +23,7 @@ export function requireEditorCanvas(editor) {
     return canvas;
 }
 
-export function getOriginalImage(editor) {
+function getOriginalImage(editor) {
     return getEditorRuntime(editor).originalImage;
 }
 
@@ -42,10 +43,6 @@ export function getHistoryManager(editor) {
 
 export function getOperationGuard(editor) {
     return getEditorRuntime(editor).operationGuard;
-}
-
-export function getCropSession(editor) {
-    return getEditorRuntime(editor).cropSession;
 }
 
 export function setCropSession(editor, session) {

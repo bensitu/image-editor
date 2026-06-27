@@ -39,7 +39,6 @@ import {
     waitForCanvasCallbacks,
 } from './helpers/fabric-environment.mjs';
 import {
-    getEditorCanvas,
     getHistoryManager,
     getMosaicSession,
     requireEditorCanvas,
@@ -149,8 +148,26 @@ test('dispose cleans an active Mosaic preview object', async () => {
     assert.equal(getPreviewObjects(editor).length, 1);
     disposeEditor(editor);
 
-    assert.equal(getEditorCanvas(editor), null);
-    assert.equal(editor.isMosaicMode(), false);
+    assert.deepEqual(editor.getEditorState(), {
+        hasImage: false,
+        image: null,
+        maskCount: 0,
+        annotationCount: 0,
+        currentScale: 1,
+        currentRotation: 0,
+        isFlippedHorizontally: false,
+        isFlippedVertically: false,
+        isBusy: false,
+        activeToolMode: null,
+        isCropMode: false,
+        isMosaicMode: false,
+        isTextMode: false,
+        isDrawMode: false,
+        canUndo: false,
+        canRedo: false,
+        canvasWidth: 0,
+        canvasHeight: 0,
+    });
 });
 
 test('Mosaic click commits pixels into the base image and supports undo/redo', async () => {

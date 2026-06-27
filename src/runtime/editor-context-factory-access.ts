@@ -1,8 +1,9 @@
 /**
  * Builds editor context factories from the shared runtime state.
  *
- * This adapter keeps module-facing context objects explicit while avoiding
- * duplicated state forwarding code inside the ImageEditor facade.
+ * The facade wiring module supplies callback groups to this adapter, keeping
+ * module-facing context objects explicit while avoiding duplicated state
+ * forwarding code in ImageEditor.
  */
 
 import type * as FabricNS from 'fabric';
@@ -21,7 +22,7 @@ import { setPlaceholderVisible as setPlaceholderVisibleImpl } from '../ui/visibi
 import { EditorContextFactory } from './editor-contexts.js';
 import type { EditorRuntime } from './editor-runtime.js';
 
-export interface EditorContextFactoryCallbacks {
+export interface EditorContextStateCallbacks {
     saveCanvasState(): void;
     saveCanvasStateWithAnimationBypass(): void;
     captureSnapshot(): string;
@@ -39,19 +40,34 @@ export interface EditorContextFactoryCallbacks {
         operationToken: OperationToken | undefined,
         snapshot: string,
     ): Promise<void>;
+}
+
+export interface EditorContextDisplayCallbacks {
     setCanvasSize(widthPx: number, heightPx: number): void;
     updateCanvasSizeToImageBounds(): void;
     alignObjectBoundingBoxToCanvasTopLeft(object: FabricNS.FabricObject): void;
+}
+
+export interface EditorContextMaskLabelCallbacks {
     syncMaskLabel(mask: MaskObject): void;
     removeLabelForMask(mask: MaskObject): void;
     hideAllMaskLabels(): void;
+}
+
+export interface EditorContextUiCallbacks {
     updateMaskList(): void;
     updateAnnotationList(): void;
     updateUi(): void;
     updateInputs(): void;
+}
+
+export interface EditorContextSelectionCallbacks {
     handleSelectionChanged(selected: FabricNS.FabricObject[]): void;
     getMasks(): MaskObject[];
     getAnnotations(): AnnotationObject[];
+}
+
+export interface EditorContextCallbackEmitters {
     emitImageChanged(context: ImageEditorCallbackContext): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
@@ -60,6 +76,15 @@ export interface EditorContextFactoryCallbacks {
         isInternalOperation?: boolean,
     ): ImageEditorCallbackContext;
 }
+
+export interface EditorContextFactoryCallbacks
+    extends
+        EditorContextStateCallbacks,
+        EditorContextDisplayCallbacks,
+        EditorContextMaskLabelCallbacks,
+        EditorContextUiCallbacks,
+        EditorContextSelectionCallbacks,
+        EditorContextCallbackEmitters {}
 
 export function createEditorContextFactory(
     runtime: EditorRuntime,

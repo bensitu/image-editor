@@ -424,8 +424,6 @@ export function computeCoverLayout(
 export function computeExpandLayout(
     imageWidth: number,
     imageHeight: number,
-    optionsCanvasWidth: number,
-    optionsCanvasHeight: number,
     containerSize: ViewportSize,
 ): LayoutResult {
     const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));

@@ -58,8 +58,6 @@ const containerArb = fc.record({
 const inputsArb = fc.record({
     imageWidth: dimArb,
     imageHeight: dimArb,
-    optsCanvasWidth: dimArb,
-    optsCanvasHeight: dimArb,
     container: containerArb,
 });
 
@@ -68,13 +66,7 @@ const inputsArb = fc.record({
 test('canvas dimensions equal max(viewport, floor(image)) per axis', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
-            const out = computeExpandLayout(
-                input.imageWidth,
-                input.imageHeight,
-                input.optsCanvasWidth,
-                input.optsCanvasHeight,
-                input.container,
-            );
+            const out = computeExpandLayout(input.imageWidth, input.imageHeight, input.container);
             const expectedW = Math.max(input.container.width, Math.floor(input.imageWidth));
             const expectedH = Math.max(input.container.height, Math.floor(input.imageHeight));
             assert.equal(
@@ -104,13 +96,7 @@ test('canvas dimensions equal max(viewport, floor(image)) per axis', () => {
 test('expand layout fixes baseImageScale to 1', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
-            const out = computeExpandLayout(
-                input.imageWidth,
-                input.imageHeight,
-                input.optsCanvasWidth,
-                input.optsCanvasHeight,
-                input.container,
-            );
+            const out = computeExpandLayout(input.imageWidth, input.imageHeight, input.container);
             assert.equal(
                 out.baseImageScale,
                 1,
@@ -128,13 +114,7 @@ test('expand layout fixes baseImageScale to 1', () => {
 test('image is placed at (0, 0) with imageScale === 1', () => {
     fc.assert(
         fc.property(inputsArb, (input) => {
-            const out = computeExpandLayout(
-                input.imageWidth,
-                input.imageHeight,
-                input.optsCanvasWidth,
-                input.optsCanvasHeight,
-                input.container,
-            );
+            const out = computeExpandLayout(input.imageWidth, input.imageHeight, input.container);
             assert.equal(
                 out.imageLeft,
                 0,

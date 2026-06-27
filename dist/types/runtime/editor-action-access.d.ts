@@ -7,8 +7,7 @@
 import type * as FabricNS from 'fabric';
 import type { AnnotationConfigActionAccess } from '../annotation/annotation-config-actions.js';
 import type { AnnotationModeActionAccess } from '../annotation/annotation-mode-actions.js';
-import type { AnnotationObject, ImageEditorSelection } from '../core/public-types.js';
-import type { ImageEditorCallbackContext, ImageEditorOperation, MaskObject } from '../core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, ImageEditorCallbackContext, ImageEditorOperation, ImageEditorSelection, MaskObject } from '../core/public-types.js';
 import type { CropActionAccess } from '../crop/crop-actions.js';
 import type { ExportActionAccess } from '../export/export-actions.js';
 import type { EditorStateActionAccess } from '../history/editor-state-actions.js';
@@ -20,18 +19,33 @@ import type { EditorSelectionControllerAccess } from '../selection/editor-select
 import type { BusyOperationAccess } from './editor-operation-runner.js';
 import type { EditorContextFactory } from './editor-contexts.js';
 import type { EditorRuntime } from './editor-runtime.js';
-export interface EditorActionCallbacks {
+export interface EditorActionOperationCallbacks {
     canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     assertIdleForOperation(operation: ImageEditorOperation, options?: object | null): void;
     assertCanQueueAnimation(operation: ImageEditorOperation): void;
     finalizeActiveTextEditingIfNeeded(): void;
-    buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
     withSelectionChangeContext<T>(context: ImageEditorCallbackContext, callback: () => T): T;
+    withAnimationQueueBypass(): object;
+}
+export interface EditorActionCallbackEmitters {
+    buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
+    emitImageCleared(image: NonNullable<EditorRuntime['originalImage']>, context: ImageEditorCallbackContext): void;
+    emitSelectionChange(selection: ImageEditorSelection, context: ImageEditorCallbackContext): void;
+    emitMasksChanged(context: ImageEditorCallbackContext): void;
+    emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
+    emitImageChanged(context: ImageEditorCallbackContext): void;
+    emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
+    reportWarning(error: unknown, message: string): void;
+}
+export interface EditorActionSelectionCallbacks {
     buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection;
+    handleSelectionChanged(selected: FabricNS.FabricObject[]): void;
     getMasks(): MaskObject[];
     getAnnotations(): AnnotationObject[];
     getMaskCollectionSignature(): string;
     getAnnotationCollectionSignature(): string;
+}
+export interface EditorActionDisplayCallbacks {
     inferCurrentImageMimeType(): ReturnType<EditorStateActionAccess['getCurrentImageMimeType']>;
     shouldNormalizeCanvasSizeAfterStateRestore(): boolean;
     updateCanvasSizeToImageBounds(options: {
@@ -40,6 +54,8 @@ export interface EditorActionCallbacks {
     alignObjectBoundingBoxToCanvasTopLeft(object: FabricNS.FabricObject): void;
     settleFitCoverScrollbarsAfterStateRestore(): void;
     setCanvasSize(widthPx: number, heightPx: number): void;
+}
+export interface EditorActionUiCallbacks {
     refreshUiAfterQueuedAnimation(): void;
     updateInputs(): void;
     updateMaskList(): void;
@@ -47,25 +63,24 @@ export interface EditorActionCallbacks {
     updateAnnotationList(): void;
     updateAnnotationListSelection(annotation: AnnotationObject | null): void;
     updateUi(): void;
-    saveState(): void;
+}
+export interface EditorActionMaskLabelCallbacks {
     removeLabelForMask(mask: MaskObject): void;
     showLabelForMask(mask: MaskObject): void;
     syncMaskLabel(mask: MaskObject): void;
     hideAllMaskLabels(): void;
-    handleSelectionChanged(selected: FabricNS.FabricObject[]): void;
-    updateSelectedAnnotation(config: object): void;
+}
+export interface EditorActionConfigCallbacks {
+    updateSelectedAnnotation(config: AnnotationUpdateConfig): void;
     setTextColor(color: string): void;
     setTextFontSize(size: number): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
-    emitImageCleared(image: NonNullable<EditorRuntime['originalImage']>, context: ImageEditorCallbackContext): void;
-    emitSelectionChange(selection: ImageEditorSelection, context: ImageEditorCallbackContext): void;
-    emitMasksChanged(context: ImageEditorCallbackContext): void;
-    emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
-    emitImageChanged(context: ImageEditorCallbackContext): void;
-    emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
-    reportWarning(error: unknown, message: string): void;
-    withAnimationQueueBypass(): object;
+}
+export interface EditorActionHistoryCallbacks {
+    saveState(): void;
+}
+export interface EditorActionCallbacks extends EditorActionOperationCallbacks, EditorActionCallbackEmitters, EditorActionSelectionCallbacks, EditorActionDisplayCallbacks, EditorActionUiCallbacks, EditorActionMaskLabelCallbacks, EditorActionConfigCallbacks, EditorActionHistoryCallbacks {
 }
 export declare class EditorActionAccessFactory {
     private readonly runtime;

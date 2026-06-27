@@ -144,9 +144,12 @@ import {
     rotateImageAction,
     scaleImageAction,
 } from './image/transform-actions.js';
-import { EditorContextFactory } from './runtime/editor-contexts.js';
-import { EditorActionAccessFactory } from './runtime/editor-action-access.js';
-import { createEditorContextFactory } from './runtime/editor-context-factory-access.js';
+import type { EditorActionAccessFactory } from './runtime/editor-action-access.js';
+import {
+    createEditorRuntimeWiring,
+    type EditorRuntimeWiring,
+} from './runtime/editor-facade-wiring.js';
+import type { EditorContextFactory } from './runtime/editor-contexts.js';
 import { EditorRuntime } from './runtime/editor-runtime.js';
 import {
     handleObjectModified as handleObjectModifiedImpl,
@@ -344,91 +347,14 @@ export class ImageEditor {
             );
         }
 
-        this.contextFactory = this.createContextFactory();
-        this.actionAccessFactory = this.createActionAccessFactory();
+        const wiring = this.createRuntimeWiring();
+        this.contextFactory = wiring.contextFactory;
+        this.actionAccessFactory = wiring.actionAccessFactory;
     }
 
-    private createContextFactory(): EditorContextFactory {
-        return createEditorContextFactory(this.runtime, {
-            saveCanvasState: () => {
-                this.saveStateInternal();
-            },
-            saveCanvasStateWithAnimationBypass: () => {
-                this.saveStateInternal(this.withAnimationQueueBypass());
-            },
-            captureSnapshot: () => this.captureSnapshotInternal(),
-            loadImageForOperation: (operationToken, base64, providedOptions) =>
-                this.loadImageInternal(
-                    base64,
-                    this.withInternalOperationOptions(operationToken, providedOptions ?? {}),
-                ),
-            loadMergedImage: async (operationToken, base64, providedOptions) => {
-                const geometry = this.captureImageDisplayGeometry();
-                await this.loadImageInternal(
-                    base64,
-                    this.withInternalOperationOptions(operationToken, providedOptions ?? {}),
-                );
-                this.restoreMergedImageDisplayGeometry(geometry);
-            },
-            loadFromStateForOperation: (operationToken, snapshot) =>
-                this.loadFromStateInternal(
-                    snapshot,
-                    this.withInternalOperationOptions(
-                        operationToken,
-                        this.withAnimationQueueBypass(),
-                    ),
-                ),
-            setCanvasSize: (widthPx, heightPx) => {
-                this.setCanvasSizePx(widthPx, heightPx);
-            },
-            updateCanvasSizeToImageBounds: () => this.updateCanvasSizeToImageBounds(),
-            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
-                this.alignObjectBoundingBoxToCanvasTopLeft(object);
-            },
-            syncMaskLabel: (mask) => {
-                this.syncMaskLabel(mask);
-            },
-            removeLabelForMask: (mask) => {
-                this.removeLabelForMask(mask);
-            },
-            hideAllMaskLabels: () => {
-                this.hideAllMaskLabels();
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateAnnotationList: () => {
-                this.updateAnnotationList();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            handleSelectionChanged: (selected) => {
-                this.handleSelectionChanged(selected);
-            },
-            getMasks: () => this.getMasks(),
-            getAnnotations: () => this.getAnnotations(),
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-            buildCallbackContext: (operation, isInternalOperation) =>
-                this.buildCallbackContext(operation, isInternalOperation),
-        });
-    }
-
-    private createActionAccessFactory(): EditorActionAccessFactory {
-        return new EditorActionAccessFactory(
-            this.runtime,
-            {
+    private createRuntimeWiring(): EditorRuntimeWiring {
+        return createEditorRuntimeWiring(this.runtime, {
+            operations: {
                 canRunIdleOperation: (operation, options) =>
                     this.canRunIdleOperation(operation, options),
                 assertIdleForOperation: (operation, options) => {
@@ -440,15 +366,32 @@ export class ImageEditor {
                 finalizeActiveTextEditingIfNeeded: () => {
                     this.finalizeActiveTextEditingIfNeeded();
                 },
-                buildCallbackContext: (operation, isInternalOperation) =>
-                    this.buildCallbackContext(operation, isInternalOperation),
                 withSelectionChangeContext: (context, callback) =>
                     this.withSelectionChangeContext(context, callback),
-                buildSelection: (selected) => this.buildSelection(selected),
-                getMasks: () => this.getMasks(),
-                getAnnotations: () => this.getAnnotations(),
-                getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
-                getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
+                withInternalOperationOptions: <T extends object>(
+                    token: OperationToken | null | undefined,
+                    options: T = {} as T,
+                ) => this.withInternalOperationOptions(token, options),
+                withAnimationQueueBypass: <T extends object>(options: T = {} as T) =>
+                    this.withAnimationQueueBypass(options),
+            },
+            state: {
+                saveCanvasState: (options) => {
+                    this.saveStateInternal(options as InternalOperationOptions | null | undefined);
+                },
+                captureSnapshot: () => this.captureSnapshotInternal(),
+                loadImage: (base64, options) =>
+                    this.loadImageInternal(
+                        base64,
+                        options as LoadImageOptions & InternalOperationOptions,
+                    ),
+                loadFromState: (snapshot, options) =>
+                    this.loadFromStateInternal(
+                        snapshot,
+                        options as InternalOperationOptions | null | undefined,
+                    ),
+            },
+            display: {
                 inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
                 shouldNormalizeCanvasSizeAfterStateRestore: () =>
                     this.shouldNormalizeCanvasSizeAfterStateRestore(),
@@ -463,6 +406,22 @@ export class ImageEditor {
                 setCanvasSize: (widthPx, heightPx) => {
                     this.setCanvasSizePx(widthPx, heightPx);
                 },
+                captureImageDisplayGeometry: () => this.captureImageDisplayGeometry(),
+                restoreMergedImageDisplayGeometry: (geometry) => {
+                    this.restoreMergedImageDisplayGeometry(geometry);
+                },
+            },
+            selection: {
+                buildSelection: (selected) => this.buildSelection(selected),
+                handleSelectionChanged: (selected) => {
+                    this.handleSelectionChanged(selected);
+                },
+                getMasks: () => this.getMasks(),
+                getAnnotations: () => this.getAnnotations(),
+                getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
+                getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
+            },
+            ui: {
                 refreshUiAfterQueuedAnimation: () => {
                     this.refreshUiAfterQueuedAnimation();
                 },
@@ -484,9 +443,8 @@ export class ImageEditor {
                 updateUi: () => {
                     this.updateUi();
                 },
-                saveState: () => {
-                    this.saveStateInternal();
-                },
+            },
+            labels: {
                 removeLabelForMask: (mask) => {
                     this.removeLabelForMask(mask);
                 },
@@ -499,11 +457,10 @@ export class ImageEditor {
                 hideAllMaskLabels: () => {
                     this.hideAllMaskLabels();
                 },
-                handleSelectionChanged: (selected) => {
-                    this.handleSelectionChanged(selected);
-                },
+            },
+            config: {
                 updateSelectedAnnotation: (config) => {
-                    this.updateSelectedAnnotation(config as AnnotationUpdateConfig);
+                    this.updateSelectedAnnotation(config);
                 },
                 setTextColor: (color) => {
                     this.setTextColor(color);
@@ -517,6 +474,10 @@ export class ImageEditor {
                 setDrawBrushSize: (size) => {
                     this.setDrawBrushSize(size);
                 },
+            },
+            callbacks: {
+                buildCallbackContext: (operation, isInternalOperation) =>
+                    this.buildCallbackContext(operation, isInternalOperation),
                 emitImageCleared: (image, context) => {
                     this.emitOptionCallback('onImageCleared', [image, context]);
                 },
@@ -538,10 +499,8 @@ export class ImageEditor {
                 reportWarning: (error, message) => {
                     reportWarning(this.runtime.options, error, message);
                 },
-                withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
             },
-            this.contextFactory,
-        );
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════

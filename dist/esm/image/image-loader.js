@@ -170,7 +170,7 @@ function computeLayout(context, fabricImage) {
     if (strategy === 'cover') {
         return computeCoverLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport, scrollbarSize);
     }
-    return computeExpandLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
+    return computeExpandLayout(imageWidth, imageHeight, viewport);
 }
 function captureRollbackState(context) {
     return saveState({

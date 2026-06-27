@@ -17,11 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `getActiveToolMode(): EditorToolMode | null`
 - Add `onToolModeChange(activeToolMode, previousToolMode, context)` for framework integrations that mirror active tool state.
 - Add `onHistoryChange({ canUndo, canRedo }, context)` for framework integrations that mirror undo/redo availability.
+- Add React, Vue, and Next.js client-only integration examples.
+- Add Playwright browser E2E tests for core integration behavior.
+- Add Playwright visual regression coverage for export, crop, and Mosaic behavior.
 - Add `autoOrientImage` to normalize supported JPEG EXIF orientation during file-input loading.
 
 ### Changed
 
-- Align README examples, public TypeScript declarations, generated declaration checks, and changelog notes for the v2.6.0 public API.
+- Align README examples, browser test commands, public TypeScript declarations, generated declaration checks, and changelog notes for the v2.6.0 public API.
+
+### Fixed
+
+- Reject `exportImageFile()` before editor initialization with the same clear `ExportNotReadyError` used by `exportImageBase64()`.
+- Round DOM zoom step calculations to stable precision so repeated Zoom In/Out button clicks do not accumulate floating-point drift.
+- Consolidate `dispose()` runtime cleanup through `EditorRuntime.resetAfterDispose()` so disposed state stays consistent as runtime fields evolve.
+- Serialize overlapping `HistoryManager.execute()` calls so command bodies cannot interleave and corrupt history ordering.
+- Skip duplicate DOM input application when an `input` event is followed by a `change` event with the same value.
 
 ## [2.5.1] - 2026-06-26
 

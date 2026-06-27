@@ -6055,7 +6055,7 @@ function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, options
         baseImageScale: coverScale,
     };
 }
-function computeExpandLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
+function computeExpandLayout(imageWidth, imageHeight, containerSize) {
     const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
     const canvasHeight = Math.max(containerSize.height, Math.floor(imageHeight));
     return {
@@ -6237,7 +6237,7 @@ function computeLayout(context, fabricImage) {
     if (strategy === 'cover') {
         return computeCoverLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport, scrollbarSize);
     }
-    return computeExpandLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
+    return computeExpandLayout(imageWidth, imageHeight, viewport);
 }
 function captureRollbackState(context) {
     return saveState({
@@ -8429,6 +8429,186 @@ function createEditorContextFactory(runtime, callbacks) {
     });
 }
 
+function createEditorRuntimeWiring(runtime, hooks) {
+    const contextFactory = createContextFactory(runtime, hooks);
+    return {
+        contextFactory,
+        actionAccessFactory: new EditorActionAccessFactory(runtime, createActionCallbacks(hooks), contextFactory),
+    };
+}
+function createContextFactory(runtime, hooks) {
+    return createEditorContextFactory(runtime, {
+        saveCanvasState: () => {
+            hooks.state.saveCanvasState();
+        },
+        saveCanvasStateWithAnimationBypass: () => {
+            hooks.state.saveCanvasState(hooks.operations.withAnimationQueueBypass());
+        },
+        captureSnapshot: () => hooks.state.captureSnapshot(),
+        loadImageForOperation: (operationToken, base64, providedOptions) => hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
+        loadMergedImage: async (operationToken, base64, providedOptions) => {
+            const geometry = hooks.display.captureImageDisplayGeometry();
+            await hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
+            hooks.display.restoreMergedImageDisplayGeometry(geometry);
+        },
+        loadFromStateForOperation: (operationToken, snapshot) => hooks.state.loadFromState(snapshot, hooks.operations.withInternalOperationOptions(operationToken, hooks.operations.withAnimationQueueBypass())),
+        setCanvasSize: (widthPx, heightPx) => {
+            hooks.display.setCanvasSize(widthPx, heightPx);
+        },
+        updateCanvasSizeToImageBounds: () => hooks.display.updateCanvasSizeToImageBounds(),
+        alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+            hooks.display.alignObjectBoundingBoxToCanvasTopLeft(object);
+        },
+        syncMaskLabel: (mask) => {
+            hooks.labels.syncMaskLabel(mask);
+        },
+        removeLabelForMask: (mask) => {
+            hooks.labels.removeLabelForMask(mask);
+        },
+        hideAllMaskLabels: () => {
+            hooks.labels.hideAllMaskLabels();
+        },
+        updateMaskList: () => {
+            hooks.ui.updateMaskList();
+        },
+        updateAnnotationList: () => {
+            hooks.ui.updateAnnotationList();
+        },
+        updateUi: () => {
+            hooks.ui.updateUi();
+        },
+        updateInputs: () => {
+            hooks.ui.updateInputs();
+        },
+        handleSelectionChanged: (selected) => {
+            hooks.selection.handleSelectionChanged(selected);
+        },
+        getMasks: () => hooks.selection.getMasks(),
+        getAnnotations: () => hooks.selection.getAnnotations(),
+        emitImageChanged: (context) => {
+            hooks.callbacks.emitImageChanged(context);
+        },
+        emitAnnotationsChanged: (context) => {
+            hooks.callbacks.emitAnnotationsChanged(context);
+        },
+        emitBusyChangeIfChanged: (context) => {
+            hooks.callbacks.emitBusyChangeIfChanged(context);
+        },
+        buildCallbackContext: (operation, isInternalOperation) => hooks.callbacks.buildCallbackContext(operation, isInternalOperation !== null && isInternalOperation !== void 0 ? isInternalOperation : false),
+    });
+}
+function createActionCallbacks(hooks) {
+    return {
+        canRunIdleOperation: (operation, options) => hooks.operations.canRunIdleOperation(operation, options),
+        assertIdleForOperation: (operation, options) => {
+            hooks.operations.assertIdleForOperation(operation, options);
+        },
+        assertCanQueueAnimation: (operation) => {
+            hooks.operations.assertCanQueueAnimation(operation);
+        },
+        finalizeActiveTextEditingIfNeeded: () => {
+            hooks.operations.finalizeActiveTextEditingIfNeeded();
+        },
+        buildCallbackContext: (operation, isInternalOperation) => hooks.callbacks.buildCallbackContext(operation, isInternalOperation),
+        withSelectionChangeContext: (context, callback) => hooks.operations.withSelectionChangeContext(context, callback),
+        buildSelection: (selected) => hooks.selection.buildSelection(selected),
+        getMasks: () => hooks.selection.getMasks(),
+        getAnnotations: () => hooks.selection.getAnnotations(),
+        getMaskCollectionSignature: () => hooks.selection.getMaskCollectionSignature(),
+        getAnnotationCollectionSignature: () => hooks.selection.getAnnotationCollectionSignature(),
+        inferCurrentImageMimeType: () => hooks.display.inferCurrentImageMimeType(),
+        shouldNormalizeCanvasSizeAfterStateRestore: () => hooks.display.shouldNormalizeCanvasSizeAfterStateRestore(),
+        updateCanvasSizeToImageBounds: (options) => {
+            hooks.display.updateCanvasSizeToImageBounds(options);
+        },
+        alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+            hooks.display.alignObjectBoundingBoxToCanvasTopLeft(object);
+        },
+        settleFitCoverScrollbarsAfterStateRestore: () => {
+            hooks.display.settleFitCoverScrollbarsAfterStateRestore();
+        },
+        setCanvasSize: (widthPx, heightPx) => {
+            hooks.display.setCanvasSize(widthPx, heightPx);
+        },
+        refreshUiAfterQueuedAnimation: () => {
+            hooks.ui.refreshUiAfterQueuedAnimation();
+        },
+        updateInputs: () => {
+            hooks.ui.updateInputs();
+        },
+        updateMaskList: () => {
+            hooks.ui.updateMaskList();
+        },
+        updateMaskListSelection: (mask) => {
+            hooks.ui.updateMaskListSelection(mask);
+        },
+        updateAnnotationList: () => {
+            hooks.ui.updateAnnotationList();
+        },
+        updateAnnotationListSelection: (annotation) => {
+            hooks.ui.updateAnnotationListSelection(annotation);
+        },
+        updateUi: () => {
+            hooks.ui.updateUi();
+        },
+        saveState: () => {
+            hooks.state.saveCanvasState();
+        },
+        removeLabelForMask: (mask) => {
+            hooks.labels.removeLabelForMask(mask);
+        },
+        showLabelForMask: (mask) => {
+            hooks.labels.showLabelForMask(mask);
+        },
+        syncMaskLabel: (mask) => {
+            hooks.labels.syncMaskLabel(mask);
+        },
+        hideAllMaskLabels: () => {
+            hooks.labels.hideAllMaskLabels();
+        },
+        handleSelectionChanged: (selected) => {
+            hooks.selection.handleSelectionChanged(selected);
+        },
+        updateSelectedAnnotation: (config) => {
+            hooks.config.updateSelectedAnnotation(config);
+        },
+        setTextColor: (color) => {
+            hooks.config.setTextColor(color);
+        },
+        setTextFontSize: (size) => {
+            hooks.config.setTextFontSize(size);
+        },
+        setDrawColor: (color) => {
+            hooks.config.setDrawColor(color);
+        },
+        setDrawBrushSize: (size) => {
+            hooks.config.setDrawBrushSize(size);
+        },
+        emitImageCleared: (image, context) => {
+            hooks.callbacks.emitImageCleared(image, context);
+        },
+        emitSelectionChange: (selection, context) => {
+            hooks.callbacks.emitSelectionChange(selection, context);
+        },
+        emitMasksChanged: (context) => {
+            hooks.callbacks.emitMasksChanged(context);
+        },
+        emitAnnotationsChanged: (context) => {
+            hooks.callbacks.emitAnnotationsChanged(context);
+        },
+        emitImageChanged: (context) => {
+            hooks.callbacks.emitImageChanged(context);
+        },
+        emitBusyChangeIfChanged: (context) => {
+            hooks.callbacks.emitBusyChangeIfChanged(context);
+        },
+        reportWarning: (error, message) => {
+            hooks.callbacks.reportWarning(error, message);
+        },
+        withAnimationQueueBypass: () => hooks.operations.withAnimationQueueBypass(),
+    };
+}
+
 class AnimationQueue {
     constructor() {
         Object.defineProperty(this, "queue", {
@@ -10385,178 +10565,142 @@ class ImageEditor {
             ('onCreate' in rawDefaultMaskConfig || 'fabricGenerator' in rawDefaultMaskConfig)) {
             reportWarning(this.runtime.options, new TypeError('[ImageEditor] defaultMaskConfig does not support onCreate or fabricGenerator. Pass those fields to createMask() instead.'), 'Ignored unsupported defaultMaskConfig lifecycle/factory fields.');
         }
-        this.contextFactory = this.createContextFactory();
-        this.actionAccessFactory = this.createActionAccessFactory();
+        const wiring = this.createRuntimeWiring();
+        this.contextFactory = wiring.contextFactory;
+        this.actionAccessFactory = wiring.actionAccessFactory;
     }
-    createContextFactory() {
-        return createEditorContextFactory(this.runtime, {
-            saveCanvasState: () => {
-                this.saveStateInternal();
+    createRuntimeWiring() {
+        return createEditorRuntimeWiring(this.runtime, {
+            operations: {
+                canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
+                assertIdleForOperation: (operation, options) => {
+                    this.assertIdleForOperation(operation, options);
+                },
+                assertCanQueueAnimation: (operation) => {
+                    this.assertCanQueueAnimation(operation);
+                },
+                finalizeActiveTextEditingIfNeeded: () => {
+                    this.finalizeActiveTextEditingIfNeeded();
+                },
+                withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
+                withInternalOperationOptions: (token, options = {}) => this.withInternalOperationOptions(token, options),
+                withAnimationQueueBypass: (options = {}) => this.withAnimationQueueBypass(options),
             },
-            saveCanvasStateWithAnimationBypass: () => {
-                this.saveStateInternal(this.withAnimationQueueBypass());
+            state: {
+                saveCanvasState: (options) => {
+                    this.saveStateInternal(options);
+                },
+                captureSnapshot: () => this.captureSnapshotInternal(),
+                loadImage: (base64, options) => this.loadImageInternal(base64, options),
+                loadFromState: (snapshot, options) => this.loadFromStateInternal(snapshot, options),
             },
-            captureSnapshot: () => this.captureSnapshotInternal(),
-            loadImageForOperation: (operationToken, base64, providedOptions) => this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
-            loadMergedImage: async (operationToken, base64, providedOptions) => {
-                const geometry = this.captureImageDisplayGeometry();
-                await this.loadImageInternal(base64, this.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
-                this.restoreMergedImageDisplayGeometry(geometry);
+            display: {
+                inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
+                shouldNormalizeCanvasSizeAfterStateRestore: () => this.shouldNormalizeCanvasSizeAfterStateRestore(),
+                updateCanvasSizeToImageBounds: (options) => this.updateCanvasSizeToImageBounds(options),
+                alignObjectBoundingBoxToCanvasTopLeft: (object) => {
+                    this.alignObjectBoundingBoxToCanvasTopLeft(object);
+                },
+                settleFitCoverScrollbarsAfterStateRestore: () => {
+                    this.settleFitCoverScrollbarsAfterStateRestore();
+                },
+                setCanvasSize: (widthPx, heightPx) => {
+                    this.setCanvasSizePx(widthPx, heightPx);
+                },
+                captureImageDisplayGeometry: () => this.captureImageDisplayGeometry(),
+                restoreMergedImageDisplayGeometry: (geometry) => {
+                    this.restoreMergedImageDisplayGeometry(geometry);
+                },
             },
-            loadFromStateForOperation: (operationToken, snapshot) => this.loadFromStateInternal(snapshot, this.withInternalOperationOptions(operationToken, this.withAnimationQueueBypass())),
-            setCanvasSize: (widthPx, heightPx) => {
-                this.setCanvasSizePx(widthPx, heightPx);
+            selection: {
+                buildSelection: (selected) => this.buildSelection(selected),
+                handleSelectionChanged: (selected) => {
+                    this.handleSelectionChanged(selected);
+                },
+                getMasks: () => this.getMasks(),
+                getAnnotations: () => this.getAnnotations(),
+                getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
+                getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
             },
-            updateCanvasSizeToImageBounds: () => this.updateCanvasSizeToImageBounds(),
-            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
-                this.alignObjectBoundingBoxToCanvasTopLeft(object);
+            ui: {
+                refreshUiAfterQueuedAnimation: () => {
+                    this.refreshUiAfterQueuedAnimation();
+                },
+                updateInputs: () => {
+                    this.updateInputs();
+                },
+                updateMaskList: () => {
+                    this.updateMaskList();
+                },
+                updateMaskListSelection: (mask) => {
+                    this.updateMaskListSelection(mask);
+                },
+                updateAnnotationList: () => {
+                    this.updateAnnotationList();
+                },
+                updateAnnotationListSelection: (annotation) => {
+                    this.updateAnnotationListSelection(annotation);
+                },
+                updateUi: () => {
+                    this.updateUi();
+                },
             },
-            syncMaskLabel: (mask) => {
-                this.syncMaskLabel(mask);
+            labels: {
+                removeLabelForMask: (mask) => {
+                    this.removeLabelForMask(mask);
+                },
+                showLabelForMask: (mask) => {
+                    this.showLabelForMask(mask);
+                },
+                syncMaskLabel: (mask) => {
+                    this.syncMaskLabel(mask);
+                },
+                hideAllMaskLabels: () => {
+                    this.hideAllMaskLabels();
+                },
             },
-            removeLabelForMask: (mask) => {
-                this.removeLabelForMask(mask);
+            config: {
+                updateSelectedAnnotation: (config) => {
+                    this.updateSelectedAnnotation(config);
+                },
+                setTextColor: (color) => {
+                    this.setTextColor(color);
+                },
+                setTextFontSize: (size) => {
+                    this.setTextFontSize(size);
+                },
+                setDrawColor: (color) => {
+                    this.setDrawColor(color);
+                },
+                setDrawBrushSize: (size) => {
+                    this.setDrawBrushSize(size);
+                },
             },
-            hideAllMaskLabels: () => {
-                this.hideAllMaskLabels();
+            callbacks: {
+                buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
+                emitImageCleared: (image, context) => {
+                    this.emitOptionCallback('onImageCleared', [image, context]);
+                },
+                emitSelectionChange: (selection, context) => {
+                    this.emitOptionCallback('onSelectionChange', [selection, context]);
+                },
+                emitMasksChanged: (context) => {
+                    this.emitMasksChanged(context);
+                },
+                emitAnnotationsChanged: (context) => {
+                    this.emitAnnotationsChanged(context);
+                },
+                emitImageChanged: (context) => {
+                    this.emitImageChanged(context);
+                },
+                emitBusyChangeIfChanged: (context) => {
+                    this.emitBusyChangeIfChanged(context);
+                },
+                reportWarning: (error, message) => {
+                    reportWarning(this.runtime.options, error, message);
+                },
             },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateAnnotationList: () => {
-                this.updateAnnotationList();
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            handleSelectionChanged: (selected) => {
-                this.handleSelectionChanged(selected);
-            },
-            getMasks: () => this.getMasks(),
-            getAnnotations: () => this.getAnnotations(),
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
         });
-    }
-    createActionAccessFactory() {
-        return new EditorActionAccessFactory(this.runtime, {
-            canRunIdleOperation: (operation, options) => this.canRunIdleOperation(operation, options),
-            assertIdleForOperation: (operation, options) => {
-                this.assertIdleForOperation(operation, options);
-            },
-            assertCanQueueAnimation: (operation) => {
-                this.assertCanQueueAnimation(operation);
-            },
-            finalizeActiveTextEditingIfNeeded: () => {
-                this.finalizeActiveTextEditingIfNeeded();
-            },
-            buildCallbackContext: (operation, isInternalOperation) => this.buildCallbackContext(operation, isInternalOperation),
-            withSelectionChangeContext: (context, callback) => this.withSelectionChangeContext(context, callback),
-            buildSelection: (selected) => this.buildSelection(selected),
-            getMasks: () => this.getMasks(),
-            getAnnotations: () => this.getAnnotations(),
-            getMaskCollectionSignature: () => this.getMaskCollectionSignature(),
-            getAnnotationCollectionSignature: () => this.getAnnotationCollectionSignature(),
-            inferCurrentImageMimeType: () => this.inferCurrentImageMimeType(),
-            shouldNormalizeCanvasSizeAfterStateRestore: () => this.shouldNormalizeCanvasSizeAfterStateRestore(),
-            updateCanvasSizeToImageBounds: (options) => this.updateCanvasSizeToImageBounds(options),
-            alignObjectBoundingBoxToCanvasTopLeft: (object) => {
-                this.alignObjectBoundingBoxToCanvasTopLeft(object);
-            },
-            settleFitCoverScrollbarsAfterStateRestore: () => {
-                this.settleFitCoverScrollbarsAfterStateRestore();
-            },
-            setCanvasSize: (widthPx, heightPx) => {
-                this.setCanvasSizePx(widthPx, heightPx);
-            },
-            refreshUiAfterQueuedAnimation: () => {
-                this.refreshUiAfterQueuedAnimation();
-            },
-            updateInputs: () => {
-                this.updateInputs();
-            },
-            updateMaskList: () => {
-                this.updateMaskList();
-            },
-            updateMaskListSelection: (mask) => {
-                this.updateMaskListSelection(mask);
-            },
-            updateAnnotationList: () => {
-                this.updateAnnotationList();
-            },
-            updateAnnotationListSelection: (annotation) => {
-                this.updateAnnotationListSelection(annotation);
-            },
-            updateUi: () => {
-                this.updateUi();
-            },
-            saveState: () => {
-                this.saveStateInternal();
-            },
-            removeLabelForMask: (mask) => {
-                this.removeLabelForMask(mask);
-            },
-            showLabelForMask: (mask) => {
-                this.showLabelForMask(mask);
-            },
-            syncMaskLabel: (mask) => {
-                this.syncMaskLabel(mask);
-            },
-            hideAllMaskLabels: () => {
-                this.hideAllMaskLabels();
-            },
-            handleSelectionChanged: (selected) => {
-                this.handleSelectionChanged(selected);
-            },
-            updateSelectedAnnotation: (config) => {
-                this.updateSelectedAnnotation(config);
-            },
-            setTextColor: (color) => {
-                this.setTextColor(color);
-            },
-            setTextFontSize: (size) => {
-                this.setTextFontSize(size);
-            },
-            setDrawColor: (color) => {
-                this.setDrawColor(color);
-            },
-            setDrawBrushSize: (size) => {
-                this.setDrawBrushSize(size);
-            },
-            emitImageCleared: (image, context) => {
-                this.emitOptionCallback('onImageCleared', [image, context]);
-            },
-            emitSelectionChange: (selection, context) => {
-                this.emitOptionCallback('onSelectionChange', [selection, context]);
-            },
-            emitMasksChanged: (context) => {
-                this.emitMasksChanged(context);
-            },
-            emitAnnotationsChanged: (context) => {
-                this.emitAnnotationsChanged(context);
-            },
-            emitImageChanged: (context) => {
-                this.emitImageChanged(context);
-            },
-            emitBusyChangeIfChanged: (context) => {
-                this.emitBusyChangeIfChanged(context);
-            },
-            reportWarning: (error, message) => {
-                reportWarning(this.runtime.options, error, message);
-            },
-            withAnimationQueueBypass: () => this.withAnimationQueueBypass(),
-        }, this.contextFactory);
     }
     init(elementMap = {}) {
         if (!this.runtime.isFabricLoaded) {

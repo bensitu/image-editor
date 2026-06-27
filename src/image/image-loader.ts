@@ -660,13 +660,7 @@ function computeLayout(context: LoadImageContext, fabricImage: FabricNS.FabricIm
             scrollbarSize,
         );
     }
-    return computeExpandLayout(
-        imageWidth,
-        imageHeight,
-        context.options.canvasWidth,
-        context.options.canvasHeight,
-        viewport,
-    );
+    return computeExpandLayout(imageWidth, imageHeight, viewport);
 }
 
 /**

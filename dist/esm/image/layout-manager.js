@@ -185,7 +185,7 @@ export function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, 
         baseImageScale: coverScale,
     };
 }
-export function computeExpandLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
+export function computeExpandLayout(imageWidth, imageHeight, containerSize) {
     const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
     const canvasHeight = Math.max(containerSize.height, Math.floor(imageHeight));
     return {
