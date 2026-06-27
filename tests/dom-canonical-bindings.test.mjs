@@ -36,6 +36,7 @@ import {
     getEditorCanvas,
     requireEditorCanvas,
     setCropSession,
+    setCurrentScale,
     setDrawSession,
     setTextSession,
 } from './helpers/editor-internals.mjs';
@@ -297,6 +298,23 @@ test('Mosaic DOM buttons and size inputs call the public Mosaic API', () => {
     assert.deepEqual(calls, ['enter', 'exit', ['brush', 72], ['block', 11]]);
 });
 
+test('number DOM inputs skip duplicate change events after input', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.setMosaicBrushSize = (value) => calls.push(value);
+
+    const brushInput = document.getElementById(CANONICAL_IDS.mosaicBrushSizeInput);
+    brushInput.value = '72';
+    brushInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    brushInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    brushInput.value = '73';
+    brushInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    assert.deepEqual(calls, [72, 73]);
+});
+
 test('Crop ratio select is passed to enterCropMode and live crop updates', () => {
     const window = installDom();
     const editor = createEditor();
@@ -506,6 +524,28 @@ test('init accepts HTMLElement refs for canvas, container, and controls', () => 
     zoomInButton.dispatchEvent(new window.Event('click', { bubbles: true }));
 
     assert.deepEqual(calls, [1.05]);
+});
+
+test('zoom DOM actions round scale steps to stable precision', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.scaleImage = (scale) => {
+        calls.push(scale);
+        return Promise.resolve();
+    };
+
+    setCurrentScale(editor, 1.95);
+    document
+        .getElementById(CANONICAL_IDS.zoomInButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    setCurrentScale(editor, 2);
+    document
+        .getElementById(CANONICAL_IDS.zoomOutButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.deepEqual(calls, [2, 1.95]);
 });
 
 test('init accepts mixed HTMLElement and string targets', () => {

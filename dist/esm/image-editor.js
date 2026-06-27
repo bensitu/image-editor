@@ -1347,10 +1347,10 @@ export class ImageEditor {
         await downloadImageAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     async exportImageBase64(options) {
-        return await exportImageBase64Action(this.actionAccessFactory.buildExportActionAccess(), options);
+        return exportImageBase64Action(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     async exportImageFile(options) {
-        return await exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
+        return exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     captureSnapshotInternal() {
         return captureSnapshotAction(this.actionAccessFactory.buildEditorStateActionAccess());
@@ -1465,21 +1465,8 @@ export class ImageEditor {
         });
         if (this.runtime.canvas) {
             safelyDisposeCanvas(this.runtime.canvas);
-            this.runtime.canvas = null;
-            this.runtime.canvasElement = null;
-            this.runtime.isImageLoadedToCanvas = false;
         }
-        this.runtime.originalImage = null;
-        this.runtime.currentImageMimeType = null;
-        this.runtime.lastMask = null;
-        this.runtime.maskCounter = 0;
-        this.runtime.annotationCounter = 0;
-        this.runtime.currentScale = 1;
-        this.runtime.currentRotation = 0;
-        this.runtime.baseImageScale = 1;
-        this.runtime.lastSnapshot = null;
-        this.runtime.transformController = null;
-        this.runtime.viewportCache.clear();
+        this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
         }

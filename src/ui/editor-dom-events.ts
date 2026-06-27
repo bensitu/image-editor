@@ -261,8 +261,12 @@ function bindStringInput(
     key: 'textColorInput' | 'drawColorInput',
     applyValue: (value: string) => void,
 ): void {
+    let lastAppliedValue: string | null = null;
     const handler: EventListener = (event) => {
-        applyValue(getEventInputValue(event));
+        const value = getEventInputValue(event);
+        if (value === lastAppliedValue) return;
+        lastAppliedValue = value;
+        applyValue(value);
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
@@ -277,8 +281,12 @@ function bindNumberInput(
         | 'drawBrushSizeInput',
     applyValue: (value: number) => void,
 ): void {
+    let lastAppliedValue: number | null = null;
     const handler: EventListener = (event) => {
-        applyValue(parseEventInputNumber(event));
+        const value = parseEventInputNumber(event);
+        if (lastAppliedValue !== null && Object.is(value, lastAppliedValue)) return;
+        lastAppliedValue = value;
+        applyValue(value);
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);

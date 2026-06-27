@@ -161,15 +161,25 @@ function bindMosaicEvents(context) {
     });
 }
 function bindStringInput(context, key, applyValue) {
+    let lastAppliedValue = null;
     const handler = (event) => {
-        applyValue(getEventInputValue(event));
+        const value = getEventInputValue(event);
+        if (value === lastAppliedValue)
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
 }
 function bindNumberInput(context, key, applyValue) {
+    let lastAppliedValue = null;
     const handler = (event) => {
-        applyValue(parseEventInputNumber(event));
+        const value = parseEventInputNumber(event);
+        if (lastAppliedValue !== null && Object.is(value, lastAppliedValue))
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);

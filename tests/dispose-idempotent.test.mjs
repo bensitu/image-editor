@@ -520,6 +520,11 @@ test('post-dispose async public methods resolve safely without touching the canv
         /editor is not initialized/,
         'post-dispose exportImageBase64 must reject clearly',
     );
+    await assert.rejects(
+        () => editor.exportImageFile(),
+        /editor is not initialized/,
+        'post-dispose exportImageFile must reject clearly',
+    );
 
     // ── loadFromState ───────────────────────────────────
     // `loadFromState` short-circuits on a missing runtime canvas. A subsequent

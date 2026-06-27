@@ -36,6 +36,18 @@ export class HistoryManager {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "queuedExecuteCount", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "executeTail", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: Promise.resolve()
+        });
         Object.defineProperty(this, "maxSize", {
             enumerable: true,
             configurable: true,
@@ -45,9 +57,27 @@ export class HistoryManager {
         this.maxSize = maxSize;
     }
     async execute(command) {
-        this.assertCanPush();
-        await command.execute();
-        this.pushAndTrim(command);
+        this.queuedExecuteCount += 1;
+        const execution = this.executeTail.then(async () => {
+            try {
+                if (this.isProcessing) {
+                    throw new Error('Cannot push to history while undo/redo is in flight.');
+                }
+                this.isProcessing = true;
+                try {
+                    await command.execute();
+                    this.pushAndTrim(command, { skipProcessingCheck: true });
+                }
+                finally {
+                    this.isProcessing = false;
+                }
+            }
+            finally {
+                this.queuedExecuteCount -= 1;
+            }
+        });
+        this.executeTail = execution.catch(() => { });
+        return execution;
     }
     push(command) {
         this.pushAndTrim(command);
@@ -59,7 +89,7 @@ export class HistoryManager {
         return this.currentIndex < this.history.length - 1;
     }
     async undo() {
-        if (this.isProcessing || !this.canUndo())
+        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canUndo())
             return;
         this.isProcessing = true;
         try {
@@ -74,7 +104,7 @@ export class HistoryManager {
         }
     }
     async redo() {
-        if (this.isProcessing || !this.canRedo())
+        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canRedo())
             return;
         this.isProcessing = true;
         try {
@@ -89,12 +119,13 @@ export class HistoryManager {
         }
     }
     assertCanPush() {
-        if (!this.isProcessing)
+        if (!this.isProcessing && this.queuedExecuteCount === 0)
             return;
         throw new Error('Cannot push to history while undo/redo is in flight.');
     }
-    pushAndTrim(command) {
-        this.assertCanPush();
+    pushAndTrim(command, options) {
+        if (!(options === null || options === void 0 ? void 0 : options.skipProcessingCheck))
+            this.assertCanPush();
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }

@@ -10,6 +10,10 @@
  *  that immediately follow `saveState`). {@link HistoryManager.execute}
  *  awaits the command before pushing it.
  *
+ *  • {@link HistoryManager.execute} calls are serialized through an
+ *  internal queue so command bodies cannot overlap even when callers do not
+ *  await the first returned promise before starting the next one.
+ *
  *  • {@link HistoryManager.undo} and {@link HistoryManager.redo} are
  *  **async** and protected by an internal `isProcessing` lock. Overlapping
  *  calls (rapid clicks) become no-ops that resolve without touching the
@@ -20,11 +24,10 @@
  *  was so the next click retries the same step instead of skipping past
  *  a failed restore.
  *
- *  • {@link HistoryManager.push} and {@link HistoryManager.execute}
- *  refuse to append a new command while an `undo` / `redo` is in
- *  flight. The integrated editor normally prevents this via its
- *  operation guard, and the history class enforces the same invariant
- *  when used directly.
+ *  • {@link HistoryManager.push} refuses to append a new command while
+ *  another history operation is in flight. The integrated editor normally
+ *  prevents this via its operation guard, and the history class enforces
+ *  the same invariant when used directly.
  *
  *  • When the stack overflows past `maxSize`, the oldest entry is evicted
  *  and `currentIndex` stays the same numerically (the entry it pointed to
@@ -74,6 +77,8 @@ export declare class HistoryManager {
     private history;
     private currentIndex;
     private isProcessing;
+    private queuedExecuteCount;
+    private executeTail;
     /** Maximum number of commands retained. */
     readonly maxSize: number;
     /**
@@ -105,7 +110,7 @@ export declare class HistoryManager {
      * Undoes the most recent command.
      *
      * Resolves as a no-op if {@link canUndo} is `false` or another
-     * `undo` / `redo` is currently in flight (overlapping calls are
+     * history operation is currently in flight (overlapping calls are
      * rejected via the `isProcessing` lock). The `currentIndex` only moves
      * after the awaited `command.undo` settles successfully; if it
      * rejects, the pointer stays where it was so a subsequent click
@@ -116,7 +121,7 @@ export declare class HistoryManager {
      * Re-executes the next command.
      *
      * Resolves as a no-op if {@link canRedo} is `false` or another
-     * `undo` / `redo` is currently in flight. The `currentIndex` only
+     * history operation is currently in flight. The `currentIndex` only
      * advances after the awaited `command.execute` settles successfully.
      */
     redo(): Promise<void>;

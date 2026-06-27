@@ -61,11 +61,14 @@ export async function exportImageBase64Action(access, options) {
     }
     access.assertIdleForOperation('exportImageBase64', options);
     access.finalizeActiveTextEditingIfNeeded();
-    return await runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageBase64', async () => await exportImageBase64Impl(access.buildExportServiceContext(), options));
+    return runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageBase64', () => exportImageBase64Impl(access.buildExportServiceContext(), options));
 }
 export async function exportImageFileAction(access, options) {
+    if (!access.getCanvas()) {
+        throw new ExportNotReadyError('exportImageFile', 'editor is not initialized');
+    }
     access.assertIdleForOperation('exportImageFile', options);
     access.finalizeActiveTextEditingIfNeeded();
-    return await runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageFile', async () => await exportImageFileImpl(access.buildExportServiceContext(), options));
+    return runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageFile', () => exportImageFileImpl(access.buildExportServiceContext(), options));
 }
 //# sourceMappingURL=export-actions.js.map

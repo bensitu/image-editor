@@ -2507,6 +2507,18 @@ class HistoryManager {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "queuedExecuteCount", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "executeTail", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: Promise.resolve()
+        });
         Object.defineProperty(this, "maxSize", {
             enumerable: true,
             configurable: true,
@@ -2516,9 +2528,27 @@ class HistoryManager {
         this.maxSize = maxSize;
     }
     async execute(command) {
-        this.assertCanPush();
-        await command.execute();
-        this.pushAndTrim(command);
+        this.queuedExecuteCount += 1;
+        const execution = this.executeTail.then(async () => {
+            try {
+                if (this.isProcessing) {
+                    throw new Error('Cannot push to history while undo/redo is in flight.');
+                }
+                this.isProcessing = true;
+                try {
+                    await command.execute();
+                    this.pushAndTrim(command, { skipProcessingCheck: true });
+                }
+                finally {
+                    this.isProcessing = false;
+                }
+            }
+            finally {
+                this.queuedExecuteCount -= 1;
+            }
+        });
+        this.executeTail = execution.catch(() => { });
+        return execution;
     }
     push(command) {
         this.pushAndTrim(command);
@@ -2530,7 +2560,7 @@ class HistoryManager {
         return this.currentIndex < this.history.length - 1;
     }
     async undo() {
-        if (this.isProcessing || !this.canUndo())
+        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canUndo())
             return;
         this.isProcessing = true;
         try {
@@ -2545,7 +2575,7 @@ class HistoryManager {
         }
     }
     async redo() {
-        if (this.isProcessing || !this.canRedo())
+        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canRedo())
             return;
         this.isProcessing = true;
         try {
@@ -2560,12 +2590,13 @@ class HistoryManager {
         }
     }
     assertCanPush() {
-        if (!this.isProcessing)
+        if (!this.isProcessing && this.queuedExecuteCount === 0)
             return;
         throw new Error('Cannot push to history while undo/redo is in flight.');
     }
-    pushAndTrim(command) {
-        this.assertCanPush();
+    pushAndTrim(command, options) {
+        if (!(options === null || options === void 0 ? void 0 : options.skipProcessingCheck))
+            this.assertCanPush();
         if (this.currentIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.currentIndex + 1);
         }
@@ -5735,12 +5766,15 @@ async function exportImageBase64Action(access, options) {
     }
     access.assertIdleForOperation('exportImageBase64', options);
     access.finalizeActiveTextEditingIfNeeded();
-    return await runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageBase64', async () => await exportImageBase64(access.buildExportServiceContext(), options));
+    return runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageBase64', () => exportImageBase64(access.buildExportServiceContext(), options));
 }
 async function exportImageFileAction(access, options) {
+    if (!access.getCanvas()) {
+        throw new ExportNotReadyError('exportImageFile', 'editor is not initialized');
+    }
     access.assertIdleForOperation('exportImageFile', options);
     access.finalizeActiveTextEditingIfNeeded();
-    return await runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageFile', async () => await exportImageFile(access.buildExportServiceContext(), options));
+    return runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageFile', () => exportImageFile(access.buildExportServiceContext(), options));
 }
 
 const SUPPORTED_IMAGE_EXTENSIONS = {
@@ -9907,15 +9941,25 @@ function bindMosaicEvents(context) {
     });
 }
 function bindStringInput(context, key, applyValue) {
+    let lastAppliedValue = null;
     const handler = (event) => {
-        applyValue(getEventInputValue(event));
+        const value = getEventInputValue(event);
+        if (value === lastAppliedValue)
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
 }
 function bindNumberInput(context, key, applyValue) {
+    let lastAppliedValue = null;
     const handler = (event) => {
-        applyValue(parseEventInputNumber(event));
+        const value = parseEventInputNumber(event);
+        if (lastAppliedValue !== null && Object.is(value, lastAppliedValue))
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
@@ -9930,6 +9974,9 @@ function bindEditorDomEvents(context) {
     bindMosaicEvents(context);
 }
 
+function normalizeStepScale(value) {
+    return Math.round(value * 1000000) / 1000000;
+}
 function createEditorDomEventActions(runtime, ownerDocument, host) {
     return {
         reportAsyncActionError: (operation, error) => {
@@ -9940,8 +9987,8 @@ function createEditorDomEventActions(runtime, ownerDocument, host) {
             (_a = resolveDomElement(runtime.elements.imageInput, ownerDocument)) === null || _a === void 0 ? void 0 : _a.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
-        zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
-        zoomOut: () => host.scaleImage(runtime.currentScale - runtime.options.scaleStep),
+        zoomIn: () => host.scaleImage(normalizeStepScale(runtime.currentScale + runtime.options.scaleStep)),
+        zoomOut: () => host.scaleImage(normalizeStepScale(runtime.currentScale - runtime.options.scaleStep)),
         resetImageTransform: () => host.resetImageTransform(),
         flipHorizontal: () => host.flipHorizontal(),
         flipVertical: () => host.flipVertical(),
@@ -11562,10 +11609,10 @@ class ImageEditor {
         await downloadImageAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     async exportImageBase64(options) {
-        return await exportImageBase64Action(this.actionAccessFactory.buildExportActionAccess(), options);
+        return exportImageBase64Action(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     async exportImageFile(options) {
-        return await exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
+        return exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
     captureSnapshotInternal() {
         return captureSnapshotAction(this.actionAccessFactory.buildEditorStateActionAccess());
@@ -11680,21 +11727,8 @@ class ImageEditor {
         });
         if (this.runtime.canvas) {
             safelyDisposeCanvas(this.runtime.canvas);
-            this.runtime.canvas = null;
-            this.runtime.canvasElement = null;
-            this.runtime.isImageLoadedToCanvas = false;
         }
-        this.runtime.originalImage = null;
-        this.runtime.currentImageMimeType = null;
-        this.runtime.lastMask = null;
-        this.runtime.maskCounter = 0;
-        this.runtime.annotationCounter = 0;
-        this.runtime.currentScale = 1;
-        this.runtime.currentRotation = 0;
-        this.runtime.baseImageScale = 1;
-        this.runtime.lastSnapshot = null;
-        this.runtime.transformController = null;
-        this.runtime.viewportCache.clear();
+        this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
         }

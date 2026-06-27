@@ -1,4 +1,7 @@
 import { resolveDomElement } from '../core/editor-elements.js';
+function normalizeStepScale(value) {
+    return Math.round(value * 1000000) / 1000000;
+}
 export function createEditorDomEventActions(runtime, ownerDocument, host) {
     return {
         reportAsyncActionError: (operation, error) => {
@@ -9,8 +12,8 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
             (_a = resolveDomElement(runtime.elements.imageInput, ownerDocument)) === null || _a === void 0 ? void 0 : _a.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
-        zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
-        zoomOut: () => host.scaleImage(runtime.currentScale - runtime.options.scaleStep),
+        zoomIn: () => host.scaleImage(normalizeStepScale(runtime.currentScale + runtime.options.scaleStep)),
+        zoomOut: () => host.scaleImage(normalizeStepScale(runtime.currentScale - runtime.options.scaleStep)),
         resetImageTransform: () => host.resetImageTransform(),
         flipHorizontal: () => host.flipHorizontal(),
         flipVertical: () => host.flipVertical(),

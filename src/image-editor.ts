@@ -2112,10 +2112,7 @@ export class ImageEditor {
      * Rejects when no image is loaded or the operation is currently guarded.
      */
     async exportImageBase64(options?: ImageExportOptions): Promise<string> {
-        return await exportImageBase64Action(
-            this.actionAccessFactory.buildExportActionAccess(),
-            options,
-        );
+        return exportImageBase64Action(this.actionAccessFactory.buildExportActionAccess(), options);
     }
 
     /**
@@ -2123,10 +2120,7 @@ export class ImageEditor {
      * Rejects when the operation is guarded because `Promise<File>` has no no-op value.
      */
     async exportImageFile(options?: ImageExportOptions): Promise<File> {
-        return await exportImageFileAction(
-            this.actionAccessFactory.buildExportActionAccess(),
-            options,
-        );
+        return exportImageFileAction(this.actionAccessFactory.buildExportActionAccess(), options);
     }
 
     /**
@@ -2382,31 +2376,8 @@ export class ImageEditor {
 
         if (this.runtime.canvas) {
             safelyDisposeCanvas(this.runtime.canvas);
-            this.runtime.canvas = null;
-            this.runtime.canvasElement = null;
-            this.runtime.isImageLoadedToCanvas = false;
         }
-        this.runtime.originalImage = null;
-        this.runtime.currentImageMimeType = null;
-        this.runtime.lastMask = null;
-        this.runtime.maskCounter = 0;
-        this.runtime.annotationCounter = 0;
-        this.runtime.currentScale = 1;
-        this.runtime.currentRotation = 0;
-        this.runtime.baseImageScale = 1;
-        this.runtime.lastSnapshot = null;
-
-        // Drop the transform controller — the Fabric canvas reference
-        // it captured via `TransformContext.canvas` is now disposed, so
-        // the controller would crash if a queued entry somehow ran
-        // after dispose. The animQueue.clear above already settles
-        // pending entries, but null'ing the controller defends against
-        // re-init paths that recreate state after dispose.
-        this.runtime.transformController = null;
-
-        // Clear the layout-manager viewport cache so a re-instantiation of
-        // the editor on the same DOM does not inherit stale measurements.
-        this.runtime.viewportCache.clear();
+        this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
         }

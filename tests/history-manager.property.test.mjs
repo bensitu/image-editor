@@ -234,6 +234,43 @@ test('execute awaits command success before pushing and rejected commands are no
     assert.deepEqual(tracker.executes, [1, 2]);
 });
 
+test('overlapping execute() calls run command bodies serially', async () => {
+    const hm = new HistoryManager(5);
+    const events = [];
+    let releaseFirst;
+
+    const first = new Command(
+        async () => {
+            events.push('first:start');
+            await new Promise((resolve) => {
+                releaseFirst = resolve;
+            });
+            events.push('first:end');
+        },
+        async () => {},
+    );
+    const second = new Command(
+        async () => {
+            events.push('second:start');
+        },
+        async () => {},
+    );
+
+    const firstPromise = hm.execute(first);
+    const secondPromise = hm.execute(second);
+    await delay(0);
+
+    assert.deepEqual(events, ['first:start']);
+    assert.equal(hm.history.length, 0, 'in-flight execute must not push before it resolves');
+
+    releaseFirst();
+    await Promise.all([firstPromise, secondPromise]);
+
+    assert.deepEqual(events, ['first:start', 'first:end', 'second:start']);
+    assert.equal(hm.history.length, 2);
+    assert.equal(hm.currentIndex, 1);
+});
+
 test('async undo/redo move currentIndex by exactly ±1 per successful awaited call', async () => {
     await fc.assert(
         fc.asyncProperty(

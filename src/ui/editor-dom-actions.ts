@@ -52,6 +52,10 @@ export interface EditorDomActionHost {
     setDrawBrushSize(size: number): void;
 }
 
+function normalizeStepScale(value: number): number {
+    return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 export function createEditorDomEventActions(
     runtime: EditorRuntime,
     ownerDocument: Document,
@@ -68,8 +72,10 @@ export function createEditorDomEventActions(
             )?.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
-        zoomIn: () => host.scaleImage(runtime.currentScale + runtime.options.scaleStep),
-        zoomOut: () => host.scaleImage(runtime.currentScale - runtime.options.scaleStep),
+        zoomIn: () =>
+            host.scaleImage(normalizeStepScale(runtime.currentScale + runtime.options.scaleStep)),
+        zoomOut: () =>
+            host.scaleImage(normalizeStepScale(runtime.currentScale - runtime.options.scaleStep)),
         resetImageTransform: () => host.resetImageTransform(),
         flipHorizontal: () => host.flipHorizontal(),
         flipVertical: () => host.flipVertical(),

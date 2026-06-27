@@ -10,6 +10,10 @@
  *  that immediately follow `saveState`). {@link HistoryManager.execute}
  *  awaits the command before pushing it.
  *
+ *  • {@link HistoryManager.execute} calls are serialized through an
+ *  internal queue so command bodies cannot overlap even when callers do not
+ *  await the first returned promise before starting the next one.
+ *
  *  • {@link HistoryManager.undo} and {@link HistoryManager.redo} are
  *  **async** and protected by an internal `isProcessing` lock. Overlapping
  *  calls (rapid clicks) become no-ops that resolve without touching the
@@ -20,11 +24,10 @@
  *  was so the next click retries the same step instead of skipping past
  *  a failed restore.
  *
- *  • {@link HistoryManager.push} and {@link HistoryManager.execute}
- *  refuse to append a new command while an `undo` / `redo` is in
- *  flight. The integrated editor normally prevents this via its
- *  operation guard, and the history class enforces the same invariant
- *  when used directly.
+ *  • {@link HistoryManager.push} refuses to append a new command while
+ *  another history operation is in flight. The integrated editor normally
+ *  prevents this via its operation guard, and the history class enforces
+ *  the same invariant when used directly.
  *
  *  • When the stack overflows past `maxSize`, the oldest entry is evicted
  *  and `currentIndex` stays the same numerically (the entry it pointed to
@@ -80,6 +83,8 @@ export class HistoryManager {
     private history: Command[] = [];
     private currentIndex = -1;
     private isProcessing = false;
+    private queuedExecuteCount = 0;
+    private executeTail: Promise<void> = Promise.resolve();
 
     /** Maximum number of commands retained. */
     readonly maxSize: number;
@@ -100,9 +105,25 @@ export class HistoryManager {
      * should become undoable synchronously.
      */
     async execute(command: Command): Promise<void> {
-        this.assertCanPush();
-        await command.execute();
-        this.pushAndTrim(command);
+        this.queuedExecuteCount += 1;
+        const execution = this.executeTail.then(async () => {
+            try {
+                if (this.isProcessing) {
+                    throw new Error('Cannot push to history while undo/redo is in flight.');
+                }
+                this.isProcessing = true;
+                try {
+                    await command.execute();
+                    this.pushAndTrim(command, { skipProcessingCheck: true });
+                } finally {
+                    this.isProcessing = false;
+                }
+            } finally {
+                this.queuedExecuteCount -= 1;
+            }
+        });
+        this.executeTail = execution.catch(() => {});
+        return execution;
     }
 
     /**
@@ -130,14 +151,14 @@ export class HistoryManager {
      * Undoes the most recent command.
      *
      * Resolves as a no-op if {@link canUndo} is `false` or another
-     * `undo` / `redo` is currently in flight (overlapping calls are
+     * history operation is currently in flight (overlapping calls are
      * rejected via the `isProcessing` lock). The `currentIndex` only moves
      * after the awaited `command.undo` settles successfully; if it
      * rejects, the pointer stays where it was so a subsequent click
      * retries the same step.
      */
     async undo(): Promise<void> {
-        if (this.isProcessing || !this.canUndo()) return;
+        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canUndo()) return;
         this.isProcessing = true;
         try {
             const cmd = this.history[this.currentIndex];
@@ -154,11 +175,11 @@ export class HistoryManager {
      * Re-executes the next command.
      *
      * Resolves as a no-op if {@link canRedo} is `false` or another
-     * `undo` / `redo` is currently in flight. The `currentIndex` only
+     * history operation is currently in flight. The `currentIndex` only
      * advances after the awaited `command.execute` settles successfully.
      */
     async redo(): Promise<void> {
-        if (this.isProcessing || !this.canRedo()) return;
+        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canRedo()) return;
         this.isProcessing = true;
         try {
             const cmd = this.history[this.currentIndex + 1];
@@ -172,7 +193,7 @@ export class HistoryManager {
     }
 
     private assertCanPush(): void {
-        if (!this.isProcessing) return;
+        if (!this.isProcessing && this.queuedExecuteCount === 0) return;
         throw new Error('Cannot push to history while undo/redo is in flight.');
     }
 
@@ -185,8 +206,8 @@ export class HistoryManager {
      * (overflow past `maxSize`).
      *
      */
-    private pushAndTrim(command: Command): void {
-        this.assertCanPush();
+    private pushAndTrim(command: Command, options?: { skipProcessingCheck?: boolean }): void {
+        if (!options?.skipProcessingCheck) this.assertCanPush();
 
         // Discard redo history on a new branch.
         if (this.currentIndex < this.history.length - 1) {
