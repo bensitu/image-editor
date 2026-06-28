@@ -39,9 +39,10 @@
  *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
  *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
- *   No intermediate `<canvas>` element is created, and sub-pixel
- *   width/height values are floored to integer pixels through the
- *   {@link floorRegion} helper before Fabric receives the region.
+ *   Sub-pixel width/height values are floored to integer pixels through
+ *   the {@link floorRegion} helper before Fabric receives the region.
+ *   Offscreen canvas post-processing is reserved for partial-edge
+ *   sealing and JPEG background compositing.
  * - When `mergeMasks` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
@@ -627,23 +628,14 @@ function loadImageElement(dataUrl: string): Promise<HTMLImageElement> {
     }).promise;
 }
 
-async function sealPartialTransparentEdges(
-    dataUrl: string,
+function sealPartialTransparentEdges(
+    canvasContext: CanvasRenderingContext2D,
+    width: number,
+    height: number,
     edges: PartialExportEdges | null,
-    target: ResolvedExportFormat,
-    ownerDocument: Document,
-): Promise<string> {
-    if (!hasPartialEdges(edges)) return dataUrl;
+): void {
+    if (!hasPartialEdges(edges)) return;
 
-    const imageElement = await loadImageElement(dataUrl);
-    const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = ownerDocument.createElement('canvas');
-    offscreenCanvas.width = width;
-    offscreenCanvas.height = height;
-    const canvasContext = offscreenCanvas.getContext('2d');
-    if (!canvasContext) throw new Error('2D canvas context is unavailable');
-
-    canvasContext.drawImage(imageElement, 0, 0, width, height);
     const imageData = canvasContext.getImageData(0, 0, width, height);
     const pixels = imageData.data;
 
@@ -690,9 +682,6 @@ async function sealPartialTransparentEdges(
     }
 
     canvasContext.putImageData(imageData, 0, 0);
-    return target.quality === undefined
-        ? offscreenCanvas.toDataURL(target.mimeType)
-        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 
 function getJpegBackgroundColor(backgroundColor: unknown, ownerDocument: Document): string {
@@ -791,12 +780,17 @@ function isZeroCssAlpha(value: string): boolean {
     return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
 
-async function convertDataUrlToOpaqueJpeg(
+async function postProcessRegionDataUrl(
     dataUrl: string,
+    edges: PartialExportEdges | null,
+    target: ResolvedExportFormat,
     backgroundColor: unknown,
-    quality: number | undefined,
     ownerDocument: Document,
 ): Promise<string> {
+    const shouldSealEdges = hasPartialEdges(edges);
+    const shouldCompositeJpegBackground = target.format === 'jpeg';
+    if (!shouldSealEdges && !shouldCompositeJpegBackground) return dataUrl;
+
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
     const offscreenCanvas = ownerDocument.createElement('canvas');
@@ -804,10 +798,22 @@ async function convertDataUrlToOpaqueJpeg(
     offscreenCanvas.height = height;
     const canvasContext = offscreenCanvas.getContext('2d');
     if (!canvasContext) throw new Error('2D canvas context is unavailable');
-    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
-    canvasContext.fillRect(0, 0, width, height);
     canvasContext.drawImage(imageElement, 0, 0, width, height);
-    return offscreenCanvas.toDataURL('image/jpeg', quality);
+
+    if (shouldSealEdges) {
+        sealPartialTransparentEdges(canvasContext, width, height, edges);
+    }
+
+    if (shouldCompositeJpegBackground) {
+        canvasContext.globalCompositeOperation = 'destination-over';
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
+        canvasContext.fillRect(0, 0, width, height);
+        canvasContext.globalCompositeOperation = 'source-over';
+    }
+
+    return target.quality === undefined
+        ? offscreenCanvas.toDataURL(target.mimeType)
+        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 
 /**
@@ -828,7 +834,11 @@ function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
     }
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
-        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        const bytes = new Uint8Array(binary.length) as Uint8Array<ArrayBuffer>;
+        for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes;
     }
 
     const bufferCtor = (
@@ -947,29 +957,14 @@ async function renderExportDataUrl(
             ),
         );
 
-        if (region) {
-            const sealedFormat =
-                resolved.format.format === 'jpeg'
-                    ? ({ format: 'png', mimeType: 'image/png', quality: undefined } as const)
-                    : resolved.format;
-
-            if (hasPartialEdges(partialEdges)) {
-                dataUrl = await sealPartialTransparentEdges(
-                    dataUrl,
-                    partialEdges,
-                    sealedFormat,
-                    getCanvasDocument(context.canvas),
-                );
-            }
-
-            if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(
-                    dataUrl,
-                    context.options.backgroundColor,
-                    resolved.format.quality,
-                    getCanvasDocument(context.canvas),
-                );
-            }
+        if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
+            dataUrl = await postProcessRegionDataUrl(
+                dataUrl,
+                partialEdges,
+                resolved.format,
+                context.options.backgroundColor,
+                getCanvasDocument(context.canvas),
+            );
         }
 
         return dataUrl;

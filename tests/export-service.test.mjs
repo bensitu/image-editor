@@ -224,6 +224,11 @@ async function withFakeCanvasDom(fn) {
     const previousDocument = globalThis.document;
     const previousImage = globalThis.Image;
     const fills = [];
+    const stats = {
+        canvasCount: 0,
+        getImageDataCalls: 0,
+        toDataUrlTypes: [],
+    };
 
     class FakeImage {
         constructor() {
@@ -266,6 +271,7 @@ async function withFakeCanvasDom(fn) {
             },
             drawImage() {},
             getImageData() {
+                stats.getImageDataCalls += 1;
                 return { data: new Uint8ClampedArray(2 * 2 * 4) };
             },
             putImageData() {},
@@ -276,6 +282,7 @@ async function withFakeCanvasDom(fn) {
     globalThis.document = {
         createElement(tag) {
             assert.equal(String(tag).toLowerCase(), 'canvas');
+            stats.canvasCount += 1;
             return {
                 width: 0,
                 height: 0,
@@ -284,6 +291,7 @@ async function withFakeCanvasDom(fn) {
                     return createContext();
                 },
                 toDataURL(type) {
+                    stats.toDataUrlTypes.push(type);
                     return `data:${type};base64,${Buffer.from('jpeg').toString('base64')}`;
                 },
             };
@@ -291,7 +299,7 @@ async function withFakeCanvasDom(fn) {
     };
 
     try {
-        await fn(fills);
+        await fn(fills, stats);
     } finally {
         if (previousDocument === undefined) {
             delete globalThis.document;
@@ -727,6 +735,27 @@ test('exportImageBase64: JPEG background rejects CSS.supports invalid colors', a
     } finally {
         globalThis.CSS = previousCss;
     }
+});
+
+test('exportImageBase64: JPEG image-area partial-edge post-processing uses one offscreen encode', async () => {
+    await withFakeCanvasDom(async (_fills, stats) => {
+        const canvas = makeMockCanvas(
+            'data:image/png;base64,' + Buffer.from('png').toString('base64'),
+        );
+        const ctx = makeContext({
+            canvas,
+            options: { backgroundColor: 'transparent' },
+            getOriginalImage: () =>
+                makeFakeOriginalImage({ left: 10.25, top: 20, width: 30, height: 40 }),
+        });
+
+        const result = await exportImageBase64(ctx, { exportArea: 'image', fileType: 'jpeg' });
+
+        assert.match(result, /^data:image\/jpeg;base64,/);
+        assert.equal(stats.canvasCount, 1);
+        assert.equal(stats.getImageDataCalls, 1);
+        assert.deepEqual(stats.toDataUrlTypes, ['image/jpeg']);
+    });
 });
 
 test('exportImageBase64: WebP image-area edge sealing preserves WebP output', async () => {
