@@ -882,6 +882,9 @@ function initEditor() {
         onBusyChange: updateDemoControls,
         onMasksChanged: updateDemoControls,
         onAnnotationsChanged: updateDemoControls,
+        onToolModeChange: updateDemoControls,
+        onHistoryChange: updateDemoControls,
+        onSelectionChange: updateDemoControls,
     });
 
     editor.init({
@@ -968,15 +971,18 @@ function isEditorBusy() {
 }
 
 function canLoadImage() {
-    return !!editor && !isEditorBusy();
+    return !!editor && !isEditorBusy() && editor.getActiveToolMode() === null;
 }
 
 function updateDemoControls() {
     // The editor owns controls passed to `init`, but this demo also has
-    // host-page controls (`load`, shape select, upload area) that need to
-    // follow the same busy/loaded state.
+    // host-page controls (`load`, shape select, export options, upload area)
+    // that need to follow the same public state as framework integrations.
     const hasLoadedImage = !!editor && editor.isImageLoaded();
     const isBusy = isEditorBusy();
+    const activeToolMode = editor ? editor.getActiveToolMode() : null;
+    const canUseImageActions = hasLoadedImage && !isBusy && activeToolMode === null;
+    const canLoad = !!editor && !isBusy && activeToolMode === null;
     const createMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
     const loadImageButtonElement = getOptionalElement('loadImageButton');
@@ -984,17 +990,16 @@ function updateDemoControls() {
     const exportMergeMasksInput = getOptionalElement('exportMergeMasksInput');
     const exportMergeAnnotationsInput = getOptionalElement('exportMergeAnnotationsInput');
 
-    if (createMaskButtonElement) createMaskButtonElement.disabled = !hasLoadedImage || isBusy;
-    if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy;
-    if (loadImageButtonElement) loadImageButtonElement.disabled = isBusy;
-    if (downloadImageButtonElement) downloadImageButtonElement.disabled = !hasLoadedImage || isBusy;
-    if (exportMergeMasksInput) exportMergeMasksInput.disabled = !hasLoadedImage || isBusy;
-    if (exportMergeAnnotationsInput)
-        exportMergeAnnotationsInput.disabled = !hasLoadedImage || isBusy;
-    if (imageInputElement) imageInputElement.disabled = isBusy;
+    if (createMaskButtonElement) createMaskButtonElement.disabled = !canUseImageActions;
+    if (maskShapeSelectElement) maskShapeSelectElement.disabled = isBusy || activeToolMode !== null;
+    if (loadImageButtonElement) loadImageButtonElement.disabled = !canLoad;
+    if (downloadImageButtonElement) downloadImageButtonElement.disabled = !canUseImageActions;
+    if (exportMergeMasksInput) exportMergeMasksInput.disabled = !canUseImageActions;
+    if (exportMergeAnnotationsInput) exportMergeAnnotationsInput.disabled = !canUseImageActions;
+    if (imageInputElement) imageInputElement.disabled = !canLoad;
     if (uploadAreaElement) {
-        uploadAreaElement.classList.toggle('disabled', isBusy);
-        uploadAreaElement.setAttribute('aria-disabled', isBusy ? 'true' : 'false');
+        uploadAreaElement.classList.toggle('disabled', !canLoad);
+        uploadAreaElement.setAttribute('aria-disabled', canLoad ? 'false' : 'true');
     }
 }
 
@@ -1006,7 +1011,8 @@ function getSelectedMaskConfig() {
 }
 
 function handleCreateMaskButtonClick() {
-    if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
+    if (!editor || !editor.isImageLoaded() || isEditorBusy() || editor.getActiveToolMode() !== null)
+        return;
     // `createMask` returns the created object, but the demo only needs the
     // editor's callbacks/UI refresh to reflect the new mask.
     editor.createMask(getSelectedMaskConfig());
