@@ -33,15 +33,17 @@
  *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
  *   | `downloadImage`      | resolves without throwing           |
  *
- * Each path emits a single `console.warn` naming the missing image so
- * the consumer's logs identify which export attempt was skipped.
+ * Each path reports a single warning naming the missing image through
+ * the public `onWarning` callback so consumers can route diagnostics
+ * consistently.
  * - When `exportArea` resolves
  *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
  *   as `left`/`top`/`width`/`height` to Fabric's `toDataURL` options.
- *   No intermediate `<canvas>` element is created, and sub-pixel
- *   width/height values are floored to integer pixels through the
- *   {@link floorRegion} helper before Fabric receives the region.
+ *   Sub-pixel width/height values are floored to integer pixels through
+ *   the {@link floorRegion} helper before Fabric receives the region.
+ *   Offscreen canvas post-processing is reserved for partial-edge
+ *   sealing and JPEG background compositing.
  * - When `mergeMasks` is
  *   `true`, every mask's live style (`opacity`, `fill`, `stroke`,
  *   `strokeWidth`, `selectable`, `lockRotation`) is captured BEFORE the
@@ -135,7 +137,7 @@ export interface ExportServiceContext {
  * Steps, in order:
  *
  * 1. **No-image gate** — when `context.isImageLoaded`
- *    is `false`, emit a `console.warn` and resolve to `''` without
+ *    is `false`, report an `onWarning` and resolve to `''` without
  *    touching the canvas.
  * 2. **Discard ActiveSelection** — call
  *    `canvas.discardActiveObject` once before computing the export
@@ -190,7 +192,7 @@ export declare function exportImageFile(context: ExportServiceContext, options?:
  * is rendered, an object URL is created, and an `<a>` element is appended
  * to the document so Firefox dispatches the click.
  *
- * No-image gate emits the same `console.warn` as the
+ * No-image gate emits the same `onWarning` as the
  * other entry points and returns without touching the DOM.
  *
  * Errors raised by the underlying export reject the returned promise so the
@@ -323,8 +325,8 @@ export interface MergeAnnotationsContext extends ExportServiceContext, OverlayMe
  * On any failure between step 3 and step 10, the pre-merge snapshot
  * captured in step 3 is restored via `context.loadFromState` and the
  * promise rejects with {@link MergeMasksError} wrapping the original
- * cause. A failure inside the rollback itself is
- * logged via `console.warn` but does not mask the original error.
+ * cause. A failure inside the rollback itself is reported via
+ * `onWarning` but does not mask the original error.
  *
  * @param context - Editor dependency bundle — see {@link MergeMasksContext}.
  * @returns   Resolves on success; rejects with

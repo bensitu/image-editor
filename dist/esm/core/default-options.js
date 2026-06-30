@@ -20,10 +20,12 @@ export const DEFAULT_OPTIONS = {
     preserveSourceFormat: true,
     downsampleMimeType: null,
     autoOrientImage: true,
+    autoOrientImageQuality: null,
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
     exportMultiplier: 1,
     maxExportPixels: 50000000,
+    maxExportDimension: 16384,
     exportAreaByDefault: 'image',
     mergeMasksByDefault: true,
     mergeAnnotationsByDefault: true,
@@ -141,10 +143,12 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'preserveSourceFormat',
     'downsampleMimeType',
     'autoOrientImage',
+    'autoOrientImageQuality',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
+    'maxExportDimension',
     'exportAreaByDefault',
     'mergeMasksByDefault',
     'mergeAnnotationsByDefault',
@@ -256,10 +260,24 @@ function normalizeQualityOption(value) {
         return DEFAULT_OPTIONS.downsampleQuality;
     return Math.max(0, Math.min(1, numeric));
 }
+function normalizeNullableQualityOption(value) {
+    if (value == null)
+        return null;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return null;
+    return Math.max(0, Math.min(1, numeric));
+}
 function normalizeMaxExportPixels(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0)
         return DEFAULT_OPTIONS.maxExportPixels;
+    return Math.max(1, Math.floor(numeric));
+}
+function normalizeMaxExportDimension(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return DEFAULT_OPTIONS.maxExportDimension;
     return Math.max(1, Math.floor(numeric));
 }
 function normalizeExportArea(value) {
@@ -762,6 +780,10 @@ export function resolveOptions(input) {
             resolved.autoOrientImage = normalizeBoolean(value, DEFAULT_OPTIONS.autoOrientImage);
             continue;
         }
+        if (key === 'autoOrientImageQuality') {
+            resolved.autoOrientImageQuality = normalizeNullableQualityOption(value);
+            continue;
+        }
         if (key === 'mergeMasksByDefault') {
             resolved.mergeMasksByDefault = normalizeBoolean(value, DEFAULT_OPTIONS.mergeMasksByDefault);
             continue;
@@ -812,6 +834,10 @@ export function resolveOptions(input) {
         }
         if (key === 'maxExportPixels') {
             resolved.maxExportPixels = normalizeMaxExportPixels(value);
+            continue;
+        }
+        if (key === 'maxExportDimension') {
+            resolved.maxExportDimension = normalizeMaxExportDimension(value);
             continue;
         }
         if (key === 'exportAreaByDefault') {

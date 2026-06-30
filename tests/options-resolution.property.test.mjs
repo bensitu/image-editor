@@ -65,10 +65,12 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'preserveSourceFormat',
     'downsampleMimeType',
     'autoOrientImage',
+    'autoOrientImageQuality',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
+    'maxExportDimension',
     'exportAreaByDefault',
     'mergeMasksByDefault',
     'mergeAnnotationsByDefault',
@@ -169,6 +171,10 @@ function topLevelScalarOverridesArb() {
                 { nil: null },
             ),
             autoOrientImage: fc.boolean(),
+            autoOrientImageQuality: fc.option(
+                fc.double({ min: 0, max: 1, noNaN: true, noDefaultInfinity: true }),
+                { nil: null },
+            ),
             imageLoadTimeoutMs: fc.integer({ min: 1, max: 600000 }),
             maxHistorySize: fc.integer({ min: 1, max: 500 }),
             exportMultiplier: fc.double({
@@ -178,6 +184,7 @@ function topLevelScalarOverridesArb() {
                 noDefaultInfinity: true,
             }),
             maxExportPixels: fc.integer({ min: 1, max: 100000000 }),
+            maxExportDimension: fc.integer({ min: 1, max: 32768 }),
             exportAreaByDefault: fc.constantFrom('image', 'canvas'),
             mergeMasksByDefault: fc.boolean(),
             mergeAnnotationsByDefault: fc.boolean(),
@@ -726,6 +733,7 @@ test('invalid top-level runtime option values fall back to defaults', () => {
         preserveSourceFormat: 'no',
         downsampleMimeType: 'image/gif',
         autoOrientImage: 'yes',
+        autoOrientImageQuality: 'high',
         mergeMasksByDefault: 'true',
         mergeAnnotationsByDefault: 0,
         maskRotatable: 'yes',
@@ -744,6 +752,7 @@ test('invalid top-level runtime option values fall back to defaults', () => {
     assert.equal(resolved.preserveSourceFormat, DEFAULT_OPTIONS.preserveSourceFormat);
     assert.equal(resolved.downsampleMimeType, DEFAULT_OPTIONS.downsampleMimeType);
     assert.equal(resolved.autoOrientImage, DEFAULT_OPTIONS.autoOrientImage);
+    assert.equal(resolved.autoOrientImageQuality, DEFAULT_OPTIONS.autoOrientImageQuality);
     assert.equal(resolved.mergeMasksByDefault, DEFAULT_OPTIONS.mergeMasksByDefault);
     assert.equal(resolved.mergeAnnotationsByDefault, DEFAULT_OPTIONS.mergeAnnotationsByDefault);
     assert.equal(resolved.maskRotatable, DEFAULT_OPTIONS.maskRotatable);
@@ -871,6 +880,7 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         }
         assert.equal(resolved.preserveSourceFormat, true);
         assert.equal(resolved.autoOrientImage, true);
+        assert.equal(resolved.autoOrientImageQuality, null);
         assert.equal(resolved.imageLoadTimeoutMs, 30000);
         assert.equal(resolved.crop.preserveMasksAfterCrop, false);
         assert.equal(Object.isFrozen(resolved), true);
@@ -885,6 +895,7 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         }
         assert.equal(resolved.maxHistorySize, 50);
         assert.equal(resolved.maxExportPixels, 50000000);
+        assert.equal(resolved.maxExportDimension, 16384);
     }
 });
 
@@ -900,6 +911,24 @@ test('maxExportPixels is normalized to a positive integer', () => {
     assert.equal(resolveOptions({ maxExportPixels: null }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: -10 }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: Number.NaN }).maxExportPixels, 50000000);
+});
+
+test('maxExportDimension is normalized to a positive integer', () => {
+    assert.equal(resolveOptions({ maxExportDimension: 123.9 }).maxExportDimension, 123);
+    assert.equal(resolveOptions({ maxExportDimension: null }).maxExportDimension, 16384);
+    assert.equal(resolveOptions({ maxExportDimension: -10 }).maxExportDimension, 16384);
+    assert.equal(resolveOptions({ maxExportDimension: Number.NaN }).maxExportDimension, 16384);
+});
+
+test('autoOrientImageQuality is normalized to a nullable JPEG quality', () => {
+    assert.equal(resolveOptions({ autoOrientImageQuality: 0.75 }).autoOrientImageQuality, 0.75);
+    assert.equal(resolveOptions({ autoOrientImageQuality: 5 }).autoOrientImageQuality, 1);
+    assert.equal(resolveOptions({ autoOrientImageQuality: -1 }).autoOrientImageQuality, 0);
+    assert.equal(resolveOptions({ autoOrientImageQuality: null }).autoOrientImageQuality, null);
+    assert.equal(
+        resolveOptions({ autoOrientImageQuality: Number.NaN }).autoOrientImageQuality,
+        null,
+    );
 });
 
 test('text annotation config equality is stable across style key order', () => {

@@ -1,4 +1,5 @@
 import { isAnnotationObject, isMaskObject, isSessionObject } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 import { ExportError, ExportNotReadyError } from '../core/errors.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox, getPartialExportEdges, hasMeaningfulCanvasRegion, } from '../utils/canvas-region.js';
@@ -45,9 +46,14 @@ function assertExportPixelBudget(context, multiplier, region) {
     const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
     const pixelCount = outputWidth * outputHeight;
     const maxPixels = context.options.maxExportPixels;
+    const maxDimension = context.options.maxExportDimension;
     if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
         throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
             `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`);
+    }
+    if (outputWidth > maxDimension || outputHeight > maxDimension) {
+        throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
+            `exceeds maxExportDimension (${maxDimension}).`);
     }
 }
 function computeExportRegion(context, exportArea) {
@@ -269,18 +275,9 @@ function loadImageElement(dataUrl) {
         createError: () => new Error('Failed to decode export data URL'),
     }).promise;
 }
-async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument) {
+function sealPartialTransparentEdges(canvasContext, width, height, edges) {
     if (!hasPartialEdges(edges))
-        return dataUrl;
-    const imageElement = await loadImageElement(dataUrl);
-    const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = ownerDocument.createElement('canvas');
-    offscreenCanvas.width = width;
-    offscreenCanvas.height = height;
-    const canvasContext = offscreenCanvas.getContext('2d');
-    if (!canvasContext)
-        throw new Error('2D canvas context is unavailable');
-    canvasContext.drawImage(imageElement, 0, 0, width, height);
+        return;
     const imageData = canvasContext.getImageData(0, 0, width, height);
     const pixels = imageData.data;
     const sealPixel = (x, y, fallbackX, fallbackY) => {
@@ -329,9 +326,6 @@ async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument
         sealPixel(width - 1, height - 1, width - 2, height - 2);
     }
     canvasContext.putImageData(imageData, 0, 0);
-    return target.quality === undefined
-        ? offscreenCanvas.toDataURL(target.mimeType)
-        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function getJpegBackgroundColor(backgroundColor, ownerDocument) {
     return resolveCanvasFillStyle(backgroundColor, ownerDocument);
@@ -419,7 +413,11 @@ function isZeroCssAlpha(value) {
     const numericAlpha = Number.parseFloat(alpha);
     return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
-async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality, ownerDocument) {
+async function postProcessRegionDataUrl(dataUrl, edges, target, backgroundColor, ownerDocument) {
+    const shouldSealEdges = hasPartialEdges(edges);
+    const shouldCompositeJpegBackground = target.format === 'jpeg';
+    if (!shouldSealEdges && !shouldCompositeJpegBackground)
+        return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
     const offscreenCanvas = ownerDocument.createElement('canvas');
@@ -428,10 +426,19 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality, own
     const canvasContext = offscreenCanvas.getContext('2d');
     if (!canvasContext)
         throw new Error('2D canvas context is unavailable');
-    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
-    canvasContext.fillRect(0, 0, width, height);
     canvasContext.drawImage(imageElement, 0, 0, width, height);
-    return offscreenCanvas.toDataURL('image/jpeg', quality);
+    if (shouldSealEdges) {
+        sealPartialTransparentEdges(canvasContext, width, height, edges);
+    }
+    if (shouldCompositeJpegBackground) {
+        canvasContext.globalCompositeOperation = 'destination-over';
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
+        canvasContext.fillRect(0, 0, width, height);
+        canvasContext.globalCompositeOperation = 'source-over';
+    }
+    return target.quality === undefined
+        ? offscreenCanvas.toDataURL(target.mimeType)
+        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function dataUrlToBytes(dataUrl) {
     var _a;
@@ -442,7 +449,11 @@ function dataUrlToBytes(dataUrl) {
     }
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
-        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes;
     }
     const bufferCtor = globalThis.Buffer;
     if (bufferCtor && typeof bufferCtor.from === 'function') {
@@ -475,8 +486,8 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
     canvasContext.drawImage(imageElement, 0, 0, width, height);
     return offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
-function warnNoImageLoaded(operation) {
-    console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
+function warnNoImageLoaded(options, operation) {
+    reportWarning(options, null, `${operation} skipped: no image is loaded on the canvas.`);
 }
 function extensionForFormat(format) {
     return format === 'jpeg' ? 'jpg' : format;
@@ -500,16 +511,8 @@ async function renderExportDataUrl(context, resolved) {
         const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
         let dataUrl = await withSessionObjectsHidden(context, async () => withMaskExportState(context, resolved.mergeMasks, async () => withAnnotationsExportState(context, resolved.mergeAnnotations, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region))));
-        if (region) {
-            const sealedFormat = resolved.format.format === 'jpeg'
-                ? { format: 'png', mimeType: 'image/png', quality: undefined }
-                : resolved.format;
-            if (hasPartialEdges(partialEdges)) {
-                dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat, getCanvasDocument(context.canvas));
-            }
-            if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality, getCanvasDocument(context.canvas));
-            }
+        if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
+            dataUrl = await postProcessRegionDataUrl(dataUrl, partialEdges, resolved.format, context.options.backgroundColor, getCanvasDocument(context.canvas));
         }
         return dataUrl;
     }
@@ -521,7 +524,7 @@ async function renderExportDataUrl(context, resolved) {
 }
 export async function exportImageBase64(context, options) {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageBase64');
+        warnNoImageLoaded(context.options, 'exportImageBase64');
         throw new ExportNotReadyError('exportImageBase64');
     }
     const resolved = resolveExportOptions(context, options);
@@ -530,7 +533,7 @@ export async function exportImageBase64(context, options) {
 export async function exportImageFile(context, options) {
     var _a;
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageFile');
+        warnNoImageLoaded(context.options, 'exportImageFile');
         throw new ExportNotReadyError('exportImageFile');
     }
     const providedOptions = options !== null && options !== void 0 ? options : {};
@@ -549,7 +552,7 @@ export async function exportImageFile(context, options) {
 }
 export async function downloadImage(context, options) {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('downloadImage');
+        warnNoImageLoaded(context.options, 'downloadImage');
         return;
     }
     if (options !== undefined && options !== null && typeof options !== 'object') {

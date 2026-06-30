@@ -1,5 +1,6 @@
 import { MergeAnnotationsError, MergeMasksError } from '../core/errors.js';
 import { normalizeLayerOrder } from '../core/layer-order.js';
+import { reportWarning } from '../core/callback-reporter.js';
 import { Command } from '../history/history-manager.js';
 function createMergeError(operation, error) {
     if (operation === 'mergeAnnotations') {
@@ -54,7 +55,7 @@ export async function flattenOverlayGroupToBaseImage(context, options) {
                     context.containerElement.scrollLeft = preScrollLeft;
             }
             catch (scrollError) {
-                console.warn(`[ImageEditor] ${options.operation}: scroll restore failed`, scrollError);
+                reportWarning(context.options, scrollError, `${options.operation}: scroll restore failed.`);
             }
         }
         const afterSnapshot = context.captureSnapshot();
@@ -67,7 +68,7 @@ export async function flattenOverlayGroupToBaseImage(context, options) {
             await context.loadFromState(beforeSnapshot);
         }
         catch (rollbackError) {
-            console.warn(`[ImageEditor] ${options.operation}: rollback failed`, rollbackError);
+            reportWarning(context.options, rollbackError, `${options.operation}: rollback failed.`);
         }
         throw createMergeError(options.operation, error);
     }

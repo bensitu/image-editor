@@ -258,6 +258,23 @@ test('normalizeJpegOrientationIfNeeded swaps dimensions for orientation 6 and 8'
     }
 });
 
+test('normalizeJpegOrientationIfNeeded uses autoOrientImageQuality when provided', async () => {
+    const bitmap = installImageBitmapStub({ width: 2, height: 3 });
+    const documentStub = createCanvasDocumentStub();
+    try {
+        const result = await normalizeJpegOrientationIfNeeded(
+            makeFileForOrientation(6),
+            'data:image/jpeg;base64,ORIGINAL',
+            resolveOptions({ downsampleQuality: 0.5, autoOrientImageQuality: 0.97 }),
+            documentStub,
+        );
+
+        assert.equal(result, 'data:image/jpeg;width=3;height=2;quality=0.97');
+    } finally {
+        bitmap.restore();
+    }
+});
+
 test('normalizeJpegOrientationIfNeeded rotates orientation 3 without swapping dimensions', async () => {
     const bitmap = installImageBitmapStub({ width: 2, height: 3 });
     const documentStub = createCanvasDocumentStub();

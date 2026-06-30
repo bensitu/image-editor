@@ -9,7 +9,7 @@
  *   link creation.
  *
  * Scope:
- *   - No-image calls warn and either return an empty string or throw
+ *   - No-image calls report warnings and either return an empty string or throw
  *     ExportNotReadyError as appropriate.
  *   - exportImageBase64 and downloadImage discard the active selection before
  *     exporting.
@@ -100,6 +100,7 @@ function makeContext(overrides = {}) {
         downsampleQuality: 0.92,
         exportMultiplier: 1,
         maxExportPixels: 50000000,
+        maxExportDimension: 16384,
         exportAreaByDefault: 'image',
         mergeMasksByDefault: true,
         mergeAnnotationsByDefault: true,
@@ -192,19 +193,6 @@ function makeCanvasWithMask({ expectedMaskVisible, expectedBaked }) {
         },
     };
     return { canvas, mask };
-}
-
-/** Replace `console.warn` for the duration of `fn` and return captured calls. */
-async function captureWarnings(fn) {
-    const original = console.warn;
-    const warnings = [];
-    console.warn = (...args) => warnings.push(args);
-    try {
-        await fn();
-    } finally {
-        console.warn = original;
-    }
-    return warnings;
 }
 
 /** Replace `console.error` for the duration of `fn`. */
@@ -317,46 +305,59 @@ async function withFakeCanvasDom(fn) {
 // ─── the documented contract — no-image gates ──────────────────────────────────────
 
 test('exportImageBase64: rejects with ExportNotReadyError and warns when no image is loaded', async () => {
-    const ctx = makeContext({ isImageLoaded: () => false });
-    let rejected;
-    const warnings = await captureWarnings(async () => {
-        rejected = await exportImageBase64(ctx).then(
-            () => null,
-            (err) => err,
-        );
+    const warnings = [];
+    const ctx = makeContext({
+        isImageLoaded: () => false,
+        options: {
+            onWarning: (error, message) => warnings.push({ error, message }),
+        },
     });
+    let rejected;
+    rejected = await exportImageBase64(ctx).then(
+        () => null,
+        (err) => err,
+    );
     assert.ok(rejected instanceof ExportNotReadyError, 'must reject with ExportNotReadyError');
-    assert.equal(warnings.length, 1, 'must emit exactly one console.warn');
-    const message = String(warnings[0][0] ?? '');
+    assert.equal(warnings.length, 1, 'must emit exactly one onWarning');
+    const message = warnings[0].message;
     assert.match(message, /exportImageBase64/, 'warning must name the operation');
     assert.match(message, /no image is loaded/i, 'warning must identify the missing image');
+    assert.equal(warnings[0].error, null);
     assert.equal(ctx.canvas.callOrder.length, 0, 'no-image gate must skip every canvas method');
 });
 
 test('exportImageFile: rejects with ExportNotReadyError and warns when no image is loaded', async () => {
-    const ctx = makeContext({ isImageLoaded: () => false });
-    let rejected;
-    const warnings = await captureWarnings(async () => {
-        rejected = await exportImageFile(ctx).then(
-            () => null,
-            (err) => err,
-        );
+    const warnings = [];
+    const ctx = makeContext({
+        isImageLoaded: () => false,
+        options: {
+            onWarning: (error, message) => warnings.push({ error, message }),
+        },
     });
+    let rejected;
+    rejected = await exportImageFile(ctx).then(
+        () => null,
+        (err) => err,
+    );
     assert.ok(rejected instanceof ExportNotReadyError, 'must reject with ExportNotReadyError');
-    assert.equal(warnings.length, 1, 'must emit exactly one console.warn');
-    assert.match(String(warnings[0][0] ?? ''), /exportImageFile/);
+    assert.equal(warnings.length, 1, 'must emit exactly one onWarning');
+    assert.match(warnings[0].message, /exportImageFile/);
     assert.equal(ctx.canvas.callOrder.length, 0);
 });
 
 test('downloadImage: returns Promise<void> and warns when no image is loaded', async () => {
-    const ctx = makeContext({ isImageLoaded: () => false });
-    const warnings = await captureWarnings(async () => {
-        const ret = downloadImage(ctx);
-        assert.ok(ret instanceof Promise, 'downloadImage returns a promise');
-        await ret;
+    const warnings = [];
+    const ctx = makeContext({
+        isImageLoaded: () => false,
+        options: {
+            onWarning: (error, message) => warnings.push({ error, message }),
+        },
     });
+    const ret = downloadImage(ctx);
+    assert.ok(ret instanceof Promise, 'downloadImage returns a promise');
+    await ret;
     assert.equal(warnings.length, 1);
-    assert.match(String(warnings[0][0] ?? ''), /downloadImage/);
+    assert.match(warnings[0].message, /downloadImage/);
     assert.equal(ctx.canvas.callOrder.length, 0, 'must touch no canvas method');
 });
 
@@ -626,6 +627,22 @@ test('exportImageBase64: rejects oversized outputs before rendering', async () =
         () => exportImageBase64(ctx, { multiplier: 2 }),
         /maxExportPixels/,
         'oversized export must fail with a clear maxExportPixels error',
+    );
+    assert.equal(canvas.toDataURLArgs.length, 0, 'oversized export must not render');
+});
+
+test('exportImageBase64: rejects outputs beyond the max export dimension before rendering', async () => {
+    const canvas = {
+        ...makeMockCanvas(),
+        width: 20000,
+        height: 2500,
+    };
+    const ctx = makeContext({ canvas });
+
+    await assert.rejects(
+        () => exportImageBase64(ctx, { exportArea: 'canvas', fileType: 'png' }),
+        /maxExportDimension/,
+        'single-axis oversized export must fail with a clear maxExportDimension error',
     );
     assert.equal(canvas.toDataURLArgs.length, 0, 'oversized export must not render');
 });

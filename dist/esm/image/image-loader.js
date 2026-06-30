@@ -94,7 +94,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
                 }
             }
             catch (error) {
-                console.warn('[ImageEditor] preserveScroll restore failed', error);
+                reportWarning(context.options, error, 'preserveScroll restore failed.');
             }
         }
     }
@@ -223,7 +223,7 @@ async function replayRollback(context, bundle) {
             }
         }
         catch (rollbackError) {
-            console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
+            reportWarning(context.options, rollbackError, 'loadImage rollback scroll restore failed.');
         }
     }
     if (bundle.placeholderHidden !== null) {

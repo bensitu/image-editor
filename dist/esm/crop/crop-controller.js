@@ -1,3 +1,4 @@
+import { reportWarning } from '../core/callback-reporter.js';
 import { CropApplyError } from '../core/errors.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
 import { isMaskObject } from '../core/public-types.js';
@@ -604,7 +605,7 @@ export async function applyCrop(context) {
             await context.loadFromState(beforeJson);
         }
         catch (rollbackError) {
-            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
+            reportWarning(context.options, rollbackError, 'applyCrop rollback failed.');
         }
         if (error instanceof CropApplyError)
             throw error;

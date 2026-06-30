@@ -377,10 +377,12 @@ const DEFAULT_OPTIONS = {
     preserveSourceFormat: true,
     downsampleMimeType: null,
     autoOrientImage: true,
+    autoOrientImageQuality: null,
     imageLoadTimeoutMs: 30000,
     maxHistorySize: 50,
     exportMultiplier: 1,
     maxExportPixels: 50000000,
+    maxExportDimension: 16384,
     exportAreaByDefault: 'image',
     mergeMasksByDefault: true,
     mergeAnnotationsByDefault: true,
@@ -494,10 +496,12 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'preserveSourceFormat',
     'downsampleMimeType',
     'autoOrientImage',
+    'autoOrientImageQuality',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
+    'maxExportDimension',
     'exportAreaByDefault',
     'mergeMasksByDefault',
     'mergeAnnotationsByDefault',
@@ -609,10 +613,24 @@ function normalizeQualityOption(value) {
         return DEFAULT_OPTIONS.downsampleQuality;
     return Math.max(0, Math.min(1, numeric));
 }
+function normalizeNullableQualityOption(value) {
+    if (value == null)
+        return null;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return null;
+    return Math.max(0, Math.min(1, numeric));
+}
 function normalizeMaxExportPixels(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0)
         return DEFAULT_OPTIONS.maxExportPixels;
+    return Math.max(1, Math.floor(numeric));
+}
+function normalizeMaxExportDimension(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return DEFAULT_OPTIONS.maxExportDimension;
     return Math.max(1, Math.floor(numeric));
 }
 function normalizeExportArea(value) {
@@ -1115,6 +1133,10 @@ function resolveOptions(input) {
             resolved.autoOrientImage = normalizeBoolean(value, DEFAULT_OPTIONS.autoOrientImage);
             continue;
         }
+        if (key === 'autoOrientImageQuality') {
+            resolved.autoOrientImageQuality = normalizeNullableQualityOption(value);
+            continue;
+        }
         if (key === 'mergeMasksByDefault') {
             resolved.mergeMasksByDefault = normalizeBoolean(value, DEFAULT_OPTIONS.mergeMasksByDefault);
             continue;
@@ -1165,6 +1187,10 @@ function resolveOptions(input) {
         }
         if (key === 'maxExportPixels') {
             resolved.maxExportPixels = normalizeMaxExportPixels(value);
+            continue;
+        }
+        if (key === 'maxExportDimension') {
+            resolved.maxExportDimension = normalizeMaxExportDimension(value);
             continue;
         }
         if (key === 'exportAreaByDefault') {
@@ -3922,7 +3948,7 @@ async function applyCrop(context) {
             await context.loadFromState(beforeJson);
         }
         catch (rollbackError) {
-            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
+            reportWarning(context.options, rollbackError, 'applyCrop rollback failed.');
         }
         if (error instanceof CropApplyError)
             throw error;
@@ -5074,7 +5100,7 @@ async function flattenOverlayGroupToBaseImage(context, options) {
                     context.containerElement.scrollLeft = preScrollLeft;
             }
             catch (scrollError) {
-                console.warn(`[ImageEditor] ${options.operation}: scroll restore failed`, scrollError);
+                reportWarning(context.options, scrollError, `${options.operation}: scroll restore failed.`);
             }
         }
         const afterSnapshot = context.captureSnapshot();
@@ -5087,7 +5113,7 @@ async function flattenOverlayGroupToBaseImage(context, options) {
             await context.loadFromState(beforeSnapshot);
         }
         catch (rollbackError) {
-            console.warn(`[ImageEditor] ${options.operation}: rollback failed`, rollbackError);
+            reportWarning(context.options, rollbackError, `${options.operation}: rollback failed.`);
         }
         throw createMergeError(options.operation, error);
     }
@@ -5133,9 +5159,14 @@ function assertExportPixelBudget(context, multiplier, region) {
     const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
     const pixelCount = outputWidth * outputHeight;
     const maxPixels = context.options.maxExportPixels;
+    const maxDimension = context.options.maxExportDimension;
     if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
         throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
             `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`);
+    }
+    if (outputWidth > maxDimension || outputHeight > maxDimension) {
+        throw new RangeError(`[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
+            `exceeds maxExportDimension (${maxDimension}).`);
     }
 }
 function computeExportRegion(context, exportArea) {
@@ -5357,18 +5388,9 @@ function loadImageElement(dataUrl) {
         createError: () => new Error('Failed to decode export data URL'),
     }).promise;
 }
-async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument) {
+function sealPartialTransparentEdges(canvasContext, width, height, edges) {
     if (!hasPartialEdges(edges))
-        return dataUrl;
-    const imageElement = await loadImageElement(dataUrl);
-    const { width, height } = getImageDimensions(imageElement);
-    const offscreenCanvas = ownerDocument.createElement('canvas');
-    offscreenCanvas.width = width;
-    offscreenCanvas.height = height;
-    const canvasContext = offscreenCanvas.getContext('2d');
-    if (!canvasContext)
-        throw new Error('2D canvas context is unavailable');
-    canvasContext.drawImage(imageElement, 0, 0, width, height);
+        return;
     const imageData = canvasContext.getImageData(0, 0, width, height);
     const pixels = imageData.data;
     const sealPixel = (x, y, fallbackX, fallbackY) => {
@@ -5417,9 +5439,6 @@ async function sealPartialTransparentEdges(dataUrl, edges, target, ownerDocument
         sealPixel(width - 1, height - 1, width - 2, height - 2);
     }
     canvasContext.putImageData(imageData, 0, 0);
-    return target.quality === undefined
-        ? offscreenCanvas.toDataURL(target.mimeType)
-        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function getJpegBackgroundColor(backgroundColor, ownerDocument) {
     return resolveCanvasFillStyle(backgroundColor, ownerDocument);
@@ -5507,7 +5526,11 @@ function isZeroCssAlpha(value) {
     const numericAlpha = Number.parseFloat(alpha);
     return Number.isFinite(numericAlpha) && numericAlpha === 0;
 }
-async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality, ownerDocument) {
+async function postProcessRegionDataUrl(dataUrl, edges, target, backgroundColor, ownerDocument) {
+    const shouldSealEdges = hasPartialEdges(edges);
+    const shouldCompositeJpegBackground = target.format === 'jpeg';
+    if (!shouldSealEdges && !shouldCompositeJpegBackground)
+        return dataUrl;
     const imageElement = await loadImageElement(dataUrl);
     const { width, height } = getImageDimensions(imageElement);
     const offscreenCanvas = ownerDocument.createElement('canvas');
@@ -5516,10 +5539,19 @@ async function convertDataUrlToOpaqueJpeg(dataUrl, backgroundColor, quality, own
     const canvasContext = offscreenCanvas.getContext('2d');
     if (!canvasContext)
         throw new Error('2D canvas context is unavailable');
-    canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
-    canvasContext.fillRect(0, 0, width, height);
     canvasContext.drawImage(imageElement, 0, 0, width, height);
-    return offscreenCanvas.toDataURL('image/jpeg', quality);
+    if (shouldSealEdges) {
+        sealPartialTransparentEdges(canvasContext, width, height, edges);
+    }
+    if (shouldCompositeJpegBackground) {
+        canvasContext.globalCompositeOperation = 'destination-over';
+        canvasContext.fillStyle = getJpegBackgroundColor(backgroundColor, ownerDocument);
+        canvasContext.fillRect(0, 0, width, height);
+        canvasContext.globalCompositeOperation = 'source-over';
+    }
+    return target.quality === undefined
+        ? offscreenCanvas.toDataURL(target.mimeType)
+        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
 function dataUrlToBytes(dataUrl) {
     var _a;
@@ -5530,7 +5562,11 @@ function dataUrlToBytes(dataUrl) {
     }
     if (typeof globalThis.atob === 'function') {
         const binary = globalThis.atob(base64);
-        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes;
     }
     const bufferCtor = globalThis.Buffer;
     if (bufferCtor && typeof bufferCtor.from === 'function') {
@@ -5563,8 +5599,8 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
     canvasContext.drawImage(imageElement, 0, 0, width, height);
     return offscreenCanvas.toDataURL(target.mimeType, target.quality);
 }
-function warnNoImageLoaded(operation) {
-    console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
+function warnNoImageLoaded(options, operation) {
+    reportWarning(options, null, `${operation} skipped: no image is loaded on the canvas.`);
 }
 function extensionForFormat(format) {
     return format === 'jpeg' ? 'jpg' : format;
@@ -5588,16 +5624,8 @@ async function renderExportDataUrl(context, resolved) {
         const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
         const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
         let dataUrl = await withSessionObjectsHidden(context, async () => withMaskExportState(context, resolved.mergeMasks, async () => withAnnotationsExportState(context, resolved.mergeAnnotations, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region))));
-        if (region) {
-            const sealedFormat = resolved.format.format === 'jpeg'
-                ? { format: 'png', mimeType: 'image/png', quality: undefined }
-                : resolved.format;
-            if (hasPartialEdges(partialEdges)) {
-                dataUrl = await sealPartialTransparentEdges(dataUrl, partialEdges, sealedFormat, getCanvasDocument$2(context.canvas));
-            }
-            if (resolved.format.format === 'jpeg') {
-                dataUrl = await convertDataUrlToOpaqueJpeg(dataUrl, context.options.backgroundColor, resolved.format.quality, getCanvasDocument$2(context.canvas));
-            }
+        if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
+            dataUrl = await postProcessRegionDataUrl(dataUrl, partialEdges, resolved.format, context.options.backgroundColor, getCanvasDocument$2(context.canvas));
         }
         return dataUrl;
     }
@@ -5609,7 +5637,7 @@ async function renderExportDataUrl(context, resolved) {
 }
 async function exportImageBase64(context, options) {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageBase64');
+        warnNoImageLoaded(context.options, 'exportImageBase64');
         throw new ExportNotReadyError('exportImageBase64');
     }
     const resolved = resolveExportOptions(context, options);
@@ -5618,7 +5646,7 @@ async function exportImageBase64(context, options) {
 async function exportImageFile(context, options) {
     var _a;
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageFile');
+        warnNoImageLoaded(context.options, 'exportImageFile');
         throw new ExportNotReadyError('exportImageFile');
     }
     const providedOptions = options !== null && options !== void 0 ? options : {};
@@ -5637,7 +5665,7 @@ async function exportImageFile(context, options) {
 }
 async function downloadImage(context, options) {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('downloadImage');
+        warnNoImageLoaded(context.options, 'downloadImage');
         return;
     }
     if (options !== undefined && options !== null && typeof options !== 'object') {
@@ -6161,7 +6189,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
                 }
             }
             catch (error) {
-                console.warn('[ImageEditor] preserveScroll restore failed', error);
+                reportWarning(context.options, error, 'preserveScroll restore failed.');
             }
         }
     }
@@ -6290,7 +6318,7 @@ async function replayRollback(context, bundle) {
             }
         }
         catch (rollbackError) {
-            console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
+            reportWarning(context.options, rollbackError, 'loadImage rollback scroll restore failed.');
         }
     }
     if (bundle.placeholderHidden !== null) {
@@ -6510,6 +6538,7 @@ function applyOrientationTransform(context, orientation, width, height) {
     }
 }
 function drawOrientedImage(decoded, orientation, options, ownerDocument) {
+    var _a;
     const canvas = createCanvas(ownerDocument);
     const outputWidth = isRotatedRightAngle(orientation) ? decoded.height : decoded.width;
     const outputHeight = isRotatedRightAngle(orientation) ? decoded.width : decoded.height;
@@ -6521,7 +6550,7 @@ function drawOrientedImage(decoded, orientation, options, ownerDocument) {
     }
     applyOrientationTransform(context, orientation, decoded.width, decoded.height);
     context.drawImage(decoded.source, 0, 0, decoded.width, decoded.height);
-    return canvas.toDataURL('image/jpeg', options.downsampleQuality);
+    return canvas.toDataURL('image/jpeg', (_a = options.autoOrientImageQuality) !== null && _a !== void 0 ? _a : options.downsampleQuality);
 }
 async function normalizeJpegOrientationIfNeeded(file, dataUrl, options, ownerDocument) {
     var _a;
@@ -6835,7 +6864,7 @@ class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
+            reportWarning(this.context.options, error, 'scaleImage origin pre-anchor failed.');
         }
         try {
             await this.context.guard.runAnimation(() => animateProps(imageObject, { scaleX: targetAbs, scaleY: targetAbs }, {
@@ -6844,7 +6873,7 @@ class TransformController {
             }, this.context.guard));
         }
         catch (error) {
-            console.warn('[ImageEditor] scaleImage animation error', error);
+            reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
         }
         if (this.context.guard.isDisposed())
@@ -6873,7 +6902,7 @@ class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
+            reportWarning(this.context.options, error, 'rotateImage origin pre-anchor failed.');
         }
         let animationFailed = false;
         try {
@@ -6884,7 +6913,7 @@ class TransformController {
         }
         catch (error) {
             animationFailed = true;
-            console.warn('[ImageEditor] rotateImage animation error', error);
+            reportWarning(this.context.options, error, 'rotateImage animation failed.');
         }
         finally {
             if (this.context.guard.isDisposed()) {
@@ -6906,7 +6935,7 @@ class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
+            reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
         this.context.saveCanvasState();
     }
@@ -6936,7 +6965,7 @@ class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn(`[ImageEditor] ${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed`, error);
+            reportWarning(this.context.options, error, `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`);
             return;
         }
         if (this.context.guard.isDisposed())
@@ -10512,7 +10541,7 @@ function describeElementTarget(target) {
 function captureContainerScroll(container) {
     return container ? { left: container.scrollLeft, top: container.scrollTop } : null;
 }
-function restoreContainerScroll(container, scroll) {
+function restoreContainerScroll(container, scroll, options) {
     if (!container || !scroll)
         return;
     try {
@@ -10520,7 +10549,7 @@ function restoreContainerScroll(container, scroll) {
         container.scrollTop = scroll.top;
     }
     catch (error) {
-        console.warn('[ImageEditor] scroll restore failed', error);
+        reportWarning(options, error, 'Scroll restore failed.');
     }
 }
 function isPositiveFiniteDimension(value) {
@@ -11142,7 +11171,7 @@ class ImageEditor {
         if (this.runtime.originalImage) {
             this.updateCanvasSizeToImageBounds();
         }
-        restoreContainerScroll(this.runtime.containerElement, scroll);
+        restoreContainerScroll(this.runtime.containerElement, scroll, this.runtime.options);
         (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
         this.refreshAfterCanvasLayoutChange('relayout');
     }
@@ -11373,7 +11402,7 @@ class ImageEditor {
             ? captureContainerScroll(this.runtime.containerElement)
             : null;
         this.setCanvasSizePx(width, height);
-        restoreContainerScroll(this.runtime.containerElement, scroll);
+        restoreContainerScroll(this.runtime.containerElement, scroll, this.runtime.options);
         (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
         this.refreshAfterCanvasLayoutChange(operation);
         return true;

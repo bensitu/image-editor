@@ -1088,10 +1088,18 @@ export interface ImageEditorOptions {
      *
      * Applies only to JPEG files loaded through the editor's file-loading path.
      * `loadImage(dataUrl)` keeps using the supplied image data as-is.
+     * Non-identity orientations are normalized through a canvas and therefore
+     * re-encoded as JPEG.
      *
      * @default true
      */
     autoOrientImage?: boolean;
+    /**
+     * JPEG quality used when `autoOrientImage` re-encodes a rotated or mirrored
+     * file-input JPEG. `null` falls back to `downsampleQuality`.
+     * @default null
+     */
+    autoOrientImageQuality?: number | null;
 
     // Image-load timeout
     /**
@@ -1117,6 +1125,12 @@ export interface ImageEditorOptions {
      * Invalid values fall back to the default guard. @default 50000000
      */
     maxExportPixels?: number | null;
+    /**
+     * Maximum output width or height after applying the export multiplier.
+     * This guards browser canvas single-dimension limits. Invalid values fall
+     * back to the default guard. @default 16384
+     */
+    maxExportDimension?: number | null;
     /**
      * Default export region for exportImageBase64/exportImageFile/downloadImage.
      * @default 'image'
@@ -1281,10 +1295,12 @@ export interface ResolvedOptions extends Required<
         | 'onWarning'
         | 'downsampleQuality'
         | 'maxExportPixels'
+        | 'maxExportDimension'
     >
 > {
     downsampleQuality: number;
     maxExportPixels: number;
+    maxExportDimension: number;
     /** Current layout mode used by future image loads. */
     layoutMode: LayoutMode;
     label: LabelConfig;

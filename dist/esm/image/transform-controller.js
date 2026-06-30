@@ -1,3 +1,4 @@
+import { reportWarning } from '../core/callback-reporter.js';
 import { animateProps, restoreOrigin } from '../fabric/fabric-animation.js';
 export class TransformController {
     constructor(context) {
@@ -29,7 +30,7 @@ export class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
+            reportWarning(this.context.options, error, 'scaleImage origin pre-anchor failed.');
         }
         try {
             await this.context.guard.runAnimation(() => animateProps(imageObject, { scaleX: targetAbs, scaleY: targetAbs }, {
@@ -38,7 +39,7 @@ export class TransformController {
             }, this.context.guard));
         }
         catch (error) {
-            console.warn('[ImageEditor] scaleImage animation error', error);
+            reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
         }
         if (this.context.guard.isDisposed())
@@ -67,7 +68,7 @@ export class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
+            reportWarning(this.context.options, error, 'rotateImage origin pre-anchor failed.');
         }
         let animationFailed = false;
         try {
@@ -78,7 +79,7 @@ export class TransformController {
         }
         catch (error) {
             animationFailed = true;
-            console.warn('[ImageEditor] rotateImage animation error', error);
+            reportWarning(this.context.options, error, 'rotateImage animation failed.');
         }
         finally {
             if (this.context.guard.isDisposed()) {
@@ -100,7 +101,7 @@ export class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
+            reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
         this.context.saveCanvasState();
     }
@@ -130,7 +131,7 @@ export class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            console.warn(`[ImageEditor] ${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed`, error);
+            reportWarning(this.context.options, error, `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`);
             return;
         }
         if (this.context.guard.isDisposed())

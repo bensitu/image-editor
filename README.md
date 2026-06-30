@@ -362,10 +362,12 @@ rollback paths.
 
 File-input loading normalizes supported JPEG EXIF orientation by default, so
 phone photos with sideways encoded pixels are displayed upright. Set
-`autoOrientImage: false` to preserve the raw encoded orientation. This applies
-only to JPEG files loaded through the file-input path; PNG/WebP files and
-`loadImage(dataUrl)` use the existing path, and arbitrary EXIF metadata is not
-preserved.
+`autoOrientImage: false` to preserve the raw encoded orientation. Non-identity
+orientations are normalized through a canvas and re-encoded as JPEG; set
+`autoOrientImageQuality` to control that JPEG quality independently, or leave it
+`null` to use `downsampleQuality`. This applies only to JPEG files loaded
+through the file-input path; PNG/WebP files and `loadImage(dataUrl)` use the
+existing path, and arbitrary EXIF metadata is not preserved.
 
 ### Read-only state
 
@@ -732,9 +734,11 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `preserveSourceFormat`      | `true`            | Preserve PNG/WebP MIME through downsampling unless `downsampleMimeType` is set.                                                                                                                                                                                                               |
 | `downsampleMimeType`        | `null`            | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                                                                                                                                                              |
 | `autoOrientImage`           | `true`            | Normalize supported JPEG EXIF orientation during file-input loading. Set to `false` to preserve raw encoded orientation.                                                                                                                                                                      |
+| `autoOrientImageQuality`    | `null`            | JPEG quality used when `autoOrientImage` re-encodes a rotated or mirrored file-input JPEG. `null` falls back to `downsampleQuality`.                                                                                                                                                          |
 | `imageLoadTimeoutMs`        | `30000`           | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                                                |
 | `exportMultiplier`          | `1`               | Output resolution multiplier.                                                                                                                                                                                                                                                                 |
 | `maxExportPixels`           | `50000000`        | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                                                    |
+| `maxExportDimension`        | `16384`           | Maximum output width or height after applying the export multiplier. Guards browser canvas single-dimension limits; invalid values fall back to this default.                                                                                                                                 |
 | `maxHistorySize`            | `50`              | Maximum undo-history entries. Snapshots may include full image data URLs, so large images can duplicate memory across history entries. Lower this for memory-constrained pages.                                                                                                               |
 | `exportAreaByDefault`       | `'image'`         | Default export region for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                                        |
 | `mergeMasksByDefault`       | `true`            | Default mask rendering behavior for `exportImageBase64`, `exportImageFile`, and `downloadImage`.                                                                                                                                                                                              |

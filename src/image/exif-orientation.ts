@@ -280,7 +280,10 @@ function drawOrientedImage(
 
     applyOrientationTransform(context, orientation, decoded.width, decoded.height);
     context.drawImage(decoded.source, 0, 0, decoded.width, decoded.height);
-    return canvas.toDataURL('image/jpeg', options.downsampleQuality);
+    return canvas.toDataURL(
+        'image/jpeg',
+        options.autoOrientImageQuality ?? options.downsampleQuality,
+    );
 }
 
 /**

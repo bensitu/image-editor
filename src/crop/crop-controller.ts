@@ -123,6 +123,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { reportWarning } from '../core/callback-reporter.js';
 import { CropApplyError } from '../core/errors.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
 import type {
@@ -1592,7 +1593,7 @@ export async function applyCrop(context: CropControllerContext): Promise<void> {
         try {
             await context.loadFromState(beforeJson);
         } catch (rollbackError) {
-            console.warn('[ImageEditor] applyCrop: rollback failed', rollbackError);
+            reportWarning(context.options, rollbackError, 'applyCrop rollback failed.');
         }
 
         if (error instanceof CropApplyError) throw error;

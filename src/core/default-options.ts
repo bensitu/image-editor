@@ -79,6 +79,7 @@ export const DEFAULT_OPTIONS: Omit<
 
     // File loading
     autoOrientImage: true,
+    autoOrientImageQuality: null,
 
     // Image-load timeout
     imageLoadTimeoutMs: 30000,
@@ -87,6 +88,7 @@ export const DEFAULT_OPTIONS: Omit<
     // Export
     exportMultiplier: 1,
     maxExportPixels: 50000000,
+    maxExportDimension: 16384,
     exportAreaByDefault: 'image',
     mergeMasksByDefault: true,
     mergeAnnotationsByDefault: true,
@@ -242,10 +244,12 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'preserveSourceFormat',
     'downsampleMimeType',
     'autoOrientImage',
+    'autoOrientImageQuality',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
     'maxExportPixels',
+    'maxExportDimension',
     'exportAreaByDefault',
     'mergeMasksByDefault',
     'mergeAnnotationsByDefault',
@@ -370,9 +374,22 @@ function normalizeQualityOption(value: unknown): number {
     return Math.max(0, Math.min(1, numeric));
 }
 
+function normalizeNullableQualityOption(value: unknown): number | null {
+    if (value == null) return null;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Math.max(0, Math.min(1, numeric));
+}
+
 function normalizeMaxExportPixels(value: unknown): number {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_OPTIONS.maxExportPixels;
+    return Math.max(1, Math.floor(numeric));
+}
+
+function normalizeMaxExportDimension(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_OPTIONS.maxExportDimension;
     return Math.max(1, Math.floor(numeric));
 }
 
@@ -1037,6 +1054,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
             resolved.autoOrientImage = normalizeBoolean(value, DEFAULT_OPTIONS.autoOrientImage);
             continue;
         }
+        if (key === 'autoOrientImageQuality') {
+            resolved.autoOrientImageQuality = normalizeNullableQualityOption(value);
+            continue;
+        }
         if (key === 'mergeMasksByDefault') {
             resolved.mergeMasksByDefault = normalizeBoolean(
                 value,
@@ -1105,6 +1126,10 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         }
         if (key === 'maxExportPixels') {
             resolved.maxExportPixels = normalizeMaxExportPixels(value);
+            continue;
+        }
+        if (key === 'maxExportDimension') {
+            resolved.maxExportDimension = normalizeMaxExportDimension(value);
             continue;
         }
         if (key === 'exportAreaByDefault') {

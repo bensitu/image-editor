@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.6.1] - 2026-06-30
 
+### Added
+
+- Add `autoOrientImageQuality` so EXIF orientation normalization can use a JPEG quality independent from `downsampleQuality`.
+- Add `maxExportDimension` to guard browser canvas single-dimension limits during export.
+
 ### Fixed
 
 - Decode `exportImageFile()` data URLs with a preallocated byte buffer instead of a per-character `Uint8Array.from()` callback.
@@ -32,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Align README examples, browser test commands, public TypeScript declarations, generated declaration checks, and changelog notes for the v2.6.0 public API.
+- Route recoverable internal restore/rollback warnings through `onWarning` instead of direct `console.warn` calls.
+- Clarify `HistoryManager.pushAndTrim()` overflow index handling so future maintenance preserves the current pointer arithmetic.
 
 ### Fixed
 

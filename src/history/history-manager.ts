@@ -217,8 +217,11 @@ export class HistoryManager {
         this.history.push(command);
 
         if (this.history.length > this.maxSize) {
-            // Oldest entry evicted; currentIndex stays the same numerically
-            // because the entry it pointed to has shifted one slot forward.
+            // The append temporarily places the new command at
+            // currentIndex + 1. Evicting the oldest entry shifts every
+            // remaining command one slot toward the front, so the new
+            // command ends up at the existing numeric currentIndex.
+            // Incrementing here would point past the retained stack.
             this.history.shift();
         } else {
             this.currentIndex++;

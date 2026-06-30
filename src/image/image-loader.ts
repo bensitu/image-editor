@@ -483,7 +483,7 @@ export async function loadImage(
                     context.containerElement.scrollLeft = bundle.containerScrollLeft;
                 }
             } catch (error) {
-                console.warn('[ImageEditor] preserveScroll restore failed', error);
+                reportWarning(context.options, error, 'preserveScroll restore failed.');
             }
         }
 
@@ -691,7 +691,7 @@ function createAbortController(): AbortController | null {
 /**
  * Replay the rollback bundle in the documented reverse-of-capture order.
  *
- * Errors thrown during the rollback itself are logged via `console.warn`
+ * Errors thrown during the rollback itself are reported via `onWarning`
  * and swallowed: the loader must always reject with the *original* error,
  * so a defective rollback cannot mask the cause.
  */
@@ -744,7 +744,11 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
                 context.containerElement.scrollLeft = bundle.containerScrollLeft;
             }
         } catch (rollbackError) {
-            console.warn('[ImageEditor] rollback: scroll restore failed', rollbackError);
+            reportWarning(
+                context.options,
+                rollbackError,
+                'loadImage rollback scroll restore failed.',
+            );
         }
     }
 

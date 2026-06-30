@@ -18,6 +18,7 @@ import type {
     MaskObject,
     ResolvedOptions,
 } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 import { Command, type HistoryManager } from '../history/history-manager.js';
 
 export type OverlayMergeOperation = 'mergeMasks' | 'mergeAnnotations';
@@ -114,9 +115,10 @@ export async function flattenOverlayGroupToBaseImage<
                 if (preScrollTop !== null) context.containerElement.scrollTop = preScrollTop;
                 if (preScrollLeft !== null) context.containerElement.scrollLeft = preScrollLeft;
             } catch (scrollError) {
-                console.warn(
-                    `[ImageEditor] ${options.operation}: scroll restore failed`,
+                reportWarning(
+                    context.options,
                     scrollError,
+                    `${options.operation}: scroll restore failed.`,
                 );
             }
         }
@@ -134,7 +136,7 @@ export async function flattenOverlayGroupToBaseImage<
         try {
             await context.loadFromState(beforeSnapshot);
         } catch (rollbackError) {
-            console.warn(`[ImageEditor] ${options.operation}: rollback failed`, rollbackError);
+            reportWarning(context.options, rollbackError, `${options.operation}: rollback failed.`);
         }
         throw createMergeError(options.operation, error);
     }

@@ -214,6 +214,7 @@ function applyOrientationTransform(context, orientation, width, height) {
     }
 }
 function drawOrientedImage(decoded, orientation, options, ownerDocument) {
+    var _a;
     const canvas = createCanvas(ownerDocument);
     const outputWidth = isRotatedRightAngle(orientation) ? decoded.height : decoded.width;
     const outputHeight = isRotatedRightAngle(orientation) ? decoded.width : decoded.height;
@@ -225,7 +226,7 @@ function drawOrientedImage(decoded, orientation, options, ownerDocument) {
     }
     applyOrientationTransform(context, orientation, decoded.width, decoded.height);
     context.drawImage(decoded.source, 0, 0, decoded.width, decoded.height);
-    return canvas.toDataURL('image/jpeg', options.downsampleQuality);
+    return canvas.toDataURL('image/jpeg', (_a = options.autoOrientImageQuality) !== null && _a !== void 0 ? _a : options.downsampleQuality);
 }
 export async function normalizeJpegOrientationIfNeeded(file, dataUrl, options, ownerDocument) {
     var _a;

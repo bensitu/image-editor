@@ -69,7 +69,7 @@ function describeElementTarget(target) {
 function captureContainerScroll(container) {
     return container ? { left: container.scrollLeft, top: container.scrollTop } : null;
 }
-function restoreContainerScroll(container, scroll) {
+function restoreContainerScroll(container, scroll, options) {
     if (!container || !scroll)
         return;
     try {
@@ -77,7 +77,7 @@ function restoreContainerScroll(container, scroll) {
         container.scrollTop = scroll.top;
     }
     catch (error) {
-        console.warn('[ImageEditor] scroll restore failed', error);
+        reportWarning(options, error, 'Scroll restore failed.');
     }
 }
 function isPositiveFiniteDimension(value) {
@@ -699,7 +699,7 @@ export class ImageEditor {
         if (this.runtime.originalImage) {
             this.updateCanvasSizeToImageBounds();
         }
-        restoreContainerScroll(this.runtime.containerElement, scroll);
+        restoreContainerScroll(this.runtime.containerElement, scroll, this.runtime.options);
         (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
         this.refreshAfterCanvasLayoutChange('relayout');
     }
@@ -930,7 +930,7 @@ export class ImageEditor {
             ? captureContainerScroll(this.runtime.containerElement)
             : null;
         this.setCanvasSizePx(width, height);
-        restoreContainerScroll(this.runtime.containerElement, scroll);
+        restoreContainerScroll(this.runtime.containerElement, scroll, this.runtime.options);
         (_a = this.runtime.canvas) === null || _a === void 0 ? void 0 : _a.renderAll();
         this.refreshAfterCanvasLayoutChange(operation);
         return true;

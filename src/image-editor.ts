@@ -57,6 +57,7 @@ import type {
     RemoveAllMasksOptions,
     RelayoutOptions,
     ResizeToContainerOptions,
+    ResolvedOptions,
     ResolvedDrawConfig,
     ResolvedMosaicConfig,
     ResolvedTextAnnotationConfig,
@@ -246,13 +247,14 @@ function captureContainerScroll(
 function restoreContainerScroll(
     container: HTMLElement | null,
     scroll: { left: number; top: number } | null,
+    options: ResolvedOptions,
 ): void {
     if (!container || !scroll) return;
     try {
         container.scrollLeft = scroll.left;
         container.scrollTop = scroll.top;
     } catch (error) {
-        console.warn('[ImageEditor] scroll restore failed', error);
+        reportWarning(options, error, 'Scroll restore failed.');
     }
 }
 
@@ -1166,7 +1168,7 @@ export class ImageEditor {
         if (this.runtime.originalImage) {
             this.updateCanvasSizeToImageBounds();
         }
-        restoreContainerScroll(this.runtime.containerElement, scroll);
+        restoreContainerScroll(this.runtime.containerElement, scroll, this.runtime.options);
         this.runtime.canvas?.renderAll();
         this.refreshAfterCanvasLayoutChange('relayout');
     }
@@ -1460,7 +1462,7 @@ export class ImageEditor {
             ? captureContainerScroll(this.runtime.containerElement)
             : null;
         this.setCanvasSizePx(width, height);
-        restoreContainerScroll(this.runtime.containerElement, scroll);
+        restoreContainerScroll(this.runtime.containerElement, scroll, this.runtime.options);
         this.runtime.canvas?.renderAll();
         this.refreshAfterCanvasLayoutChange(operation);
         return true;

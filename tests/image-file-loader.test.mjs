@@ -161,7 +161,10 @@ test('loadImageFile normalizes JPEG EXIF orientation when enabled', async () => 
     try {
         await loadImageFile(
             {
-                options: resolveOptions({ downsampleQuality: 0.7 }),
+                options: resolveOptions({
+                    downsampleQuality: 0.7,
+                    autoOrientImageQuality: 0.85,
+                }),
                 getInputElement: () => input,
                 loadImage: async (dataUrl) => {
                     loadCalls.push(dataUrl);
@@ -170,7 +173,7 @@ test('loadImageFile normalizes JPEG EXIF orientation when enabled', async () => 
             new File([makeJpegWithOrientation(6)], 'photo.jpg', { type: 'image/jpeg' }),
         );
 
-        assert.deepEqual(loadCalls, ['data:image/jpeg;width=3;height=2;quality=0.7']);
+        assert.deepEqual(loadCalls, ['data:image/jpeg;width=3;height=2;quality=0.85']);
         assert.equal(bitmap.calls.length, 1);
         assert.equal(input.value, '');
     } finally {

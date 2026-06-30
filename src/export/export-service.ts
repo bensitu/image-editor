@@ -33,8 +33,9 @@
  *   | `exportImageFile`    | rejects with `ExportNotReadyError`  |
  *   | `downloadImage`      | resolves without throwing           |
  *
- * Each path emits a single `console.warn` naming the missing image so
- * the consumer's logs identify which export attempt was skipped.
+ * Each path reports a single warning naming the missing image through
+ * the public `onWarning` callback so consumers can route diagnostics
+ * consistently.
  * - When `exportArea` resolves
  *   to `'image'` and a valid `originalImage` exists, the export region is
  *   computed from `originalImage.getBoundingRect` and passed directly
@@ -105,6 +106,7 @@ import type {
     NormalizedImageFormat,
     ResolvedOptions,
 } from '../core/public-types.js';
+import { reportWarning } from '../core/callback-reporter.js';
 import { ExportError, ExportNotReadyError } from '../core/errors.js';
 import type { HistoryManager } from '../history/history-manager.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
@@ -263,11 +265,18 @@ function assertExportPixelBudget(
     const outputHeight = Math.max(1, Math.ceil(sourceHeight * multiplier));
     const pixelCount = outputWidth * outputHeight;
     const maxPixels = context.options.maxExportPixels;
+    const maxDimension = context.options.maxExportDimension;
 
     if (!Number.isFinite(pixelCount) || pixelCount > maxPixels) {
         throw new RangeError(
             `[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
                 `(${pixelCount} pixels) exceeds maxExportPixels (${maxPixels}).`,
+        );
+    }
+    if (outputWidth > maxDimension || outputHeight > maxDimension) {
+        throw new RangeError(
+            `[ImageEditor] Export size ${outputWidth}x${outputHeight} ` +
+                `exceeds maxExportDimension (${maxDimension}).`,
         );
     }
 }
@@ -904,8 +913,8 @@ async function reencodeDataUrlAs(
 }
 
 /** Single source of truth for the "no image" warning text. */
-function warnNoImageLoaded(operation: string): void {
-    console.warn(`[ImageEditor] ${operation} skipped: no image is loaded on the canvas.`);
+function warnNoImageLoaded(options: ResolvedOptions, operation: string): void {
+    reportWarning(options, null, `${operation} skipped: no image is loaded on the canvas.`);
 }
 
 function extensionForFormat(format: NormalizedImageFormat): string {
@@ -983,7 +992,7 @@ async function renderExportDataUrl(
  * Steps, in order:
  *
  * 1. **No-image gate** — when `context.isImageLoaded`
- *    is `false`, emit a `console.warn` and resolve to `''` without
+ *    is `false`, report an `onWarning` and resolve to `''` without
  *    touching the canvas.
  * 2. **Discard ActiveSelection** — call
  *    `canvas.discardActiveObject` once before computing the export
@@ -1017,7 +1026,7 @@ export async function exportImageBase64(
     options?: ImageExportOptions,
 ): Promise<string> {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageBase64');
+        warnNoImageLoaded(context.options, 'exportImageBase64');
         throw new ExportNotReadyError('exportImageBase64');
     }
 
@@ -1049,7 +1058,7 @@ export async function exportImageFile(
     options?: ImageExportOptions,
 ): Promise<File> {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('exportImageFile');
+        warnNoImageLoaded(context.options, 'exportImageFile');
         throw new ExportNotReadyError('exportImageFile');
     }
 
@@ -1086,7 +1095,7 @@ export async function exportImageFile(
  * is rendered, an object URL is created, and an `<a>` element is appended
  * to the document so Firefox dispatches the click.
  *
- * No-image gate emits the same `console.warn` as the
+ * No-image gate emits the same `onWarning` as the
  * other entry points and returns without touching the DOM.
  *
  * Errors raised by the underlying export reject the returned promise so the
@@ -1101,7 +1110,7 @@ export async function downloadImage(
     options?: ImageExportOptions,
 ): Promise<void> {
     if (!context.isImageLoaded()) {
-        warnNoImageLoaded('downloadImage');
+        warnNoImageLoaded(context.options, 'downloadImage');
         return;
     }
 
@@ -1269,8 +1278,8 @@ export interface MergeAnnotationsContext
  * On any failure between step 3 and step 10, the pre-merge snapshot
  * captured in step 3 is restored via `context.loadFromState` and the
  * promise rejects with {@link MergeMasksError} wrapping the original
- * cause. A failure inside the rollback itself is
- * logged via `console.warn` but does not mask the original error.
+ * cause. A failure inside the rollback itself is reported via
+ * `onWarning` but does not mask the original error.
  *
  * @param context - Editor dependency bundle — see {@link MergeMasksContext}.
  * @returns   Resolves on success; rejects with

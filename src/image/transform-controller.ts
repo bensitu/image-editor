@@ -78,6 +78,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { reportWarning } from '../core/callback-reporter.js';
 import type { ResolvedOptions } from '../core/public-types.js';
 import type { OperationGuard } from '../core/operation-guard.js';
 import { animateProps, restoreOrigin } from '../fabric/fabric-animation.js';
@@ -262,7 +263,7 @@ export class TransformController {
             imageObject.setPositionByOrigin(topLeft, 'left', 'top');
             imageObject.setCoords();
         } catch (error) {
-            console.warn('[ImageEditor] scaleImage: origin pre-anchor failed', error);
+            reportWarning(this.context.options, error, 'scaleImage origin pre-anchor failed.');
         }
 
         try {
@@ -280,7 +281,7 @@ export class TransformController {
                 ),
             );
         } catch (error) {
-            console.warn('[ImageEditor] scaleImage animation error', error);
+            reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
         }
 
@@ -354,7 +355,7 @@ export class TransformController {
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.setCoords();
         } catch (error) {
-            console.warn('[ImageEditor] rotateImage: origin pre-anchor failed', error);
+            reportWarning(this.context.options, error, 'rotateImage origin pre-anchor failed.');
         }
 
         let animationFailed = false;
@@ -372,7 +373,7 @@ export class TransformController {
             );
         } catch (error) {
             animationFailed = true;
-            console.warn('[ImageEditor] rotateImage animation error', error);
+            reportWarning(this.context.options, error, 'rotateImage animation failed.');
         } finally {
             // when dispose interrupts the rotation
             // animation, the post-animation origin restore below is
@@ -402,7 +403,7 @@ export class TransformController {
             imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
             imageObject.setCoords();
         } catch (error) {
-            console.warn('[ImageEditor] rotateImage: origin post-restore failed', error);
+            reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
 
         // record a snapshot so the new rotation is undoable.
@@ -437,9 +438,10 @@ export class TransformController {
             imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
             imageObject.setCoords();
         } catch (error) {
-            console.warn(
-                `[ImageEditor] ${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed`,
+            reportWarning(
+                this.context.options,
                 error,
+                `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`,
             );
             return;
         }
