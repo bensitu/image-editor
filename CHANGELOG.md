@@ -5,12 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.6.1] - 2026-06-30
+## [2.6.1] - 2026-07-01
 
 ### Added
 
 - Add `autoOrientImageQuality` so EXIF orientation normalization can use a JPEG quality independent from `downsampleQuality`.
 - Add `maxExportDimension` to guard browser canvas single-dimension limits during export.
+
+### Changed
+
+- Document that `getMasks()` and `getAnnotations()` return shallow array snapshots containing live Fabric object references, and that direct object mutation bypasses editor history and callbacks.
 
 ### Fixed
 

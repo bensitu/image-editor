@@ -375,8 +375,8 @@ existing path, and arbitrary EXIF metadata is not preserved.
 | --------------------- | -------------------------------------------------------------------------------- |
 | `getEditorState()`    | Return a safe snapshot of image, transform, tool-mode, busy, and history state.  |
 | `getImageInfo()`      | Return committed image dimensions/display geometry, or `null` before image load. |
-| `getMasks()`          | Return a shallow copy of current mask objects in canvas order.                   |
-| `getAnnotations()`    | Return a shallow copy of current annotation objects in canvas order.             |
+| `getMasks()`          | Return a shallow array snapshot of current live mask objects in canvas order.    |
+| `getAnnotations()`    | Return a shallow array snapshot of current live annotation objects.              |
 | `getSelection()`      | Return the current selected masks/annotations in the `onSelectionChange` shape.  |
 | `getActiveToolMode()` | Return `'crop'`, `'mosaic'`, `'text'`, `'draw'`, or `null`.                      |
 
@@ -387,6 +387,14 @@ const masks = editor.getMasks();
 const selection = editor.getSelection();
 const activeToolMode = editor.getActiveToolMode();
 ```
+
+`getEditorState()` and `getImageInfo()` return defensive data snapshots.
+`getMasks()`, `getAnnotations()`, and object references inside
+`getSelection()` / lifecycle callbacks are different: they return new arrays or
+payload objects, but the mask and annotation elements are the live Fabric
+objects on the canvas. Treat those objects as read-only from integration code.
+Direct mutations such as `mask.set(...)` or `annotation.set(...)` bypass editor
+history, metadata synchronization, and change callbacks.
 
 The read-only methods and lifecycle callbacks use these public payload types:
 
@@ -597,29 +605,29 @@ operations. Text mode still allows `exitTextMode`, `createTextAnnotation`, and
 Text config setters; Draw mode still allows `exitDrawMode` and Draw config
 setters.
 
-| Method                               | Description                                                                |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| `getAnnotations()`                   | Return current annotation objects in canvas order. Masks are not included. |
-| `enterTextMode()` / `exitTextMode()` | Click empty canvas space to create editable text annotations.              |
-| `isTextMode()`                       | Returns `true` while Text mode is active.                                  |
-| `createTextAnnotation(config?)`      | Create a text annotation directly and return it.                           |
-| `getTextConfig()`                    | Return a defensive copy of the current Text config.                        |
-| `setTextConfig(config)`              | Patch current Text config without history.                                 |
-| `resetTextConfig()`                  | Restore Text config from constructor defaults.                             |
-| `setTextColor(color)`                | Convenience setter for text fill color.                                    |
-| `setTextFontSize(size)`              | Convenience setter for text font size.                                     |
-| `enterDrawMode()` / `exitDrawMode()` | Use Fabric free drawing; each stroke becomes a Draw annotation.            |
-| `isDrawMode()`                       | Returns `true` while Draw mode is active.                                  |
-| `getDrawConfig()`                    | Return a defensive copy of the current Draw config.                        |
-| `setDrawConfig(config)`              | Patch current Draw config without history.                                 |
-| `resetDrawConfig()`                  | Restore Draw config from constructor defaults.                             |
-| `setDrawColor(color)`                | Convenience setter for brush color.                                        |
-| `setDrawBrushSize(size)`             | Convenience setter for brush size.                                         |
-| `updateAnnotation(id, config)`       | Update an annotation by id.                                                |
-| `updateSelectedAnnotation(config)`   | Update selected annotation objects.                                        |
-| `removeSelectedAnnotation()`         | Remove selected unlocked annotations.                                      |
-| `removeAllAnnotations(options?)`     | Remove annotations only. Masks are preserved.                              |
-| `deleteSelectedObject()`             | Convenience deletion for selected masks and unlocked annotations.          |
+| Method                               | Description                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `getAnnotations()`                   | Return a shallow array snapshot of current live annotation objects. Masks are not included. |
+| `enterTextMode()` / `exitTextMode()` | Click empty canvas space to create editable text annotations.                               |
+| `isTextMode()`                       | Returns `true` while Text mode is active.                                                   |
+| `createTextAnnotation(config?)`      | Create a text annotation directly and return it.                                            |
+| `getTextConfig()`                    | Return a defensive copy of the current Text config.                                         |
+| `setTextConfig(config)`              | Patch current Text config without history.                                                  |
+| `resetTextConfig()`                  | Restore Text config from constructor defaults.                                              |
+| `setTextColor(color)`                | Convenience setter for text fill color.                                                     |
+| `setTextFontSize(size)`              | Convenience setter for text font size.                                                      |
+| `enterDrawMode()` / `exitDrawMode()` | Use Fabric free drawing; each stroke becomes a Draw annotation.                             |
+| `isDrawMode()`                       | Returns `true` while Draw mode is active.                                                   |
+| `getDrawConfig()`                    | Return a defensive copy of the current Draw config.                                         |
+| `setDrawConfig(config)`              | Patch current Draw config without history.                                                  |
+| `resetDrawConfig()`                  | Restore Draw config from constructor defaults.                                              |
+| `setDrawColor(color)`                | Convenience setter for brush color.                                                         |
+| `setDrawBrushSize(size)`             | Convenience setter for brush size.                                                          |
+| `updateAnnotation(id, config)`       | Update an annotation by id.                                                                 |
+| `updateSelectedAnnotation(config)`   | Update selected annotation objects.                                                         |
+| `removeSelectedAnnotation()`         | Remove selected unlocked annotations.                                                       |
+| `removeAllAnnotations(options?)`     | Remove annotations only. Masks are preserved.                                               |
+| `deleteSelectedObject()`             | Convenience deletion for selected masks and unlocked annotations.                           |
 
 ```ts
 editor.enterTextMode();

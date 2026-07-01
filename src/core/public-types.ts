@@ -149,6 +149,11 @@ export interface CropModeOptions {
  * Returned from {@link ImageEditor.createMask} and exposed in mask-related
  * event callbacks.
  *
+ * Instances returned by `getMasks()`, `getSelection()`, and lifecycle
+ * callbacks are live Fabric objects. Treat them as read-only unless an
+ * ImageEditor method explicitly asks you to pass one back. Direct mutation
+ * bypasses editor history, metadata synchronization, and change callbacks.
+ *
  * The marker flags `isCropRect` and `maskLabel` identify session-only objects
  * (the active crop rectangle and label overlays). They are filtered out of
  * history snapshots by the state serializer.
@@ -171,6 +176,14 @@ export interface MaskObject extends FabricNS.FabricObject {
     labelObject?: FabricNS.FabricObject;
 }
 
+/**
+ * A Fabric.js object augmented with annotation-specific runtime properties.
+ *
+ * Instances returned by `getAnnotations()`, `getSelection()`, and lifecycle
+ * callbacks are live Fabric objects. Treat them as read-only unless an
+ * ImageEditor method explicitly asks you to pass one back. Direct mutation
+ * bypasses editor history, metadata synchronization, and change callbacks.
+ */
 export interface AnnotationObject extends FabricNS.FabricObject {
     editorObjectKind: 'annotation';
     annotationId: number;

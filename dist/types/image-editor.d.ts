@@ -150,7 +150,23 @@ export declare class ImageEditor {
     private getOperationContext;
     private emitOptionCallback;
     getImageInfo(): ImageInfo | null;
+    /**
+     * Return a new array containing the current mask objects in canvas order.
+     *
+     * The array is a snapshot of membership only; each item is the live Fabric
+     * mask object on the canvas. Treat those objects as read-only from
+     * integration code. Direct Fabric mutations such as `mask.set(...)` bypass
+     * editor history, metadata synchronization, and lifecycle callbacks.
+     */
     getMasks(): MaskObject[];
+    /**
+     * Return a new array containing the current annotation objects in canvas order.
+     *
+     * The array is a snapshot of membership only; each item is the live Fabric
+     * annotation object on the canvas. Treat those objects as read-only from
+     * integration code. Direct Fabric mutations such as `annotation.set(...)`
+     * bypass editor history, metadata synchronization, and lifecycle callbacks.
+     */
     getAnnotations(): AnnotationObject[];
     private getMaskCollectionSignature;
     private getAnnotationCollectionSignature;

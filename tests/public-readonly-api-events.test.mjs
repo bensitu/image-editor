@@ -61,7 +61,7 @@ async function captureConsoleError(fn) {
     return calls;
 }
 
-test('public read-only accessors return safe snapshots and current collections', async (t) => {
+test('public read-only accessors return defensive state snapshots and live object collections', async (t) => {
     const selections = [];
     const { editor } = createSourceEditor({
         onSelectionChange: (selection) => selections.push(selection),
@@ -107,7 +107,7 @@ test('public read-only accessors return safe snapshots and current collections',
 
     const masks = editor.getMasks();
     assert.equal(masks.length, 1);
-    assert.equal(masks[0], mask);
+    assert.equal(masks[0], mask, 'getMasks returns live Fabric object references');
     masks.pop();
     assert.equal(editor.getMasks().length, 1, 'getMasks must not expose the internal array');
 
@@ -124,6 +124,22 @@ test('public read-only accessors return safe snapshots and current collections',
     assert.deepEqual(
         selection.selectedMasks.map((selectedMask) => selectedMask.maskId),
         lastSelection.selectedMasks.map((selectedMask) => selectedMask.maskId),
+    );
+
+    const annotation = editor.createTextAnnotation({ text: 'Note', enterEditing: false });
+    assert.ok(annotation);
+    const annotations = editor.getAnnotations();
+    assert.equal(annotations.length, 1);
+    assert.equal(
+        annotations[0],
+        annotation,
+        'getAnnotations returns live Fabric object references',
+    );
+    annotations.pop();
+    assert.equal(
+        editor.getAnnotations().length,
+        1,
+        'getAnnotations must not expose the internal array',
     );
 });
 
