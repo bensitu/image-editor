@@ -557,6 +557,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'defaultTextConfig',
     'defaultDrawConfig',
 ]);
+const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
@@ -572,19 +573,26 @@ function isConfigObject(value) {
 function copyDefaultMaskConfigValue(value) {
     return Array.isArray(value) ? [...value] : value;
 }
+function canCopyObjectConfigKey(key) {
+    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
 function normalizeDefaultMaskConfig(value) {
     if (!isConfigObject(value))
         return EMPTY_DEFAULT_MASK_CONFIG;
-    const normalized = {};
+    const normalized = Object.create(null);
     for (const [key, optionValue] of Object.entries(value)) {
+        if (!canCopyObjectConfigKey(key))
+            continue;
         if (key === 'onCreate' || key === 'fabricGenerator' || key === 'styles')
             continue;
         normalized[key] = copyDefaultMaskConfigValue(optionValue);
     }
     const styles = value.styles;
     if (isConfigObject(styles)) {
-        const copiedStyles = {};
+        const copiedStyles = Object.create(null);
         for (const [key, styleValue] of Object.entries(styles)) {
+            if (!canCopyObjectConfigKey(key))
+                continue;
             copiedStyles[key] = copyDefaultMaskConfigValue(styleValue);
         }
         Object.freeze(copiedStyles);
@@ -1744,6 +1752,29 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
         }
     });
     const consumedCanvasIndexes = new Set();
+    const canvasIndexesByMaskUid = new Map();
+    canvasObjs.forEach((canvasObj, index) => {
+        const maskUid = canvasObj.maskUid;
+        if (typeof maskUid !== 'string')
+            return;
+        const indexes = canvasIndexesByMaskUid.get(maskUid);
+        if (indexes) {
+            indexes.push(index);
+        }
+        else {
+            canvasIndexesByMaskUid.set(maskUid, [index]);
+        }
+    });
+    const takeUnconsumedCanvasIndex = (indexes) => {
+        if (!indexes)
+            return -1;
+        while (indexes.length > 0) {
+            const index = indexes.shift();
+            if (!consumedCanvasIndexes.has(index))
+                return index;
+        }
+        return -1;
+    };
     for (const jObj of jsonObjs) {
         if (jObj.editorObjectKind !== 'mask' || typeof jObj.maskId !== 'number')
             continue;
@@ -1753,11 +1784,7 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
         const jUid = typeof jObj.maskUid === 'string' ? jObj.maskUid : null;
         let matchIndex = -1;
         if (jUid) {
-            matchIndex = canvasObjs.findIndex((o, index) => {
-                if (consumedCanvasIndexes.has(index))
-                    return false;
-                return o.maskUid === jUid;
-            });
+            matchIndex = takeUnconsumedCanvasIndex(canvasIndexesByMaskUid.get(jUid));
         }
         if (matchIndex < 0) {
             matchIndex = canvasObjs.findIndex((o, index) => {
@@ -7628,6 +7655,15 @@ function validateNumericInputs(options, config) {
     }
     return true;
 }
+function resolveMaskNumericField(options, fieldName, value, axis, fallback, canvas) {
+    try {
+        return resolveNumeric(value, axis, fallback, canvas, options);
+    }
+    catch (error) {
+        reportWarning(options, error, `createMask skipped: ${fieldName} resolver threw.`);
+        return null;
+    }
+}
 function resolvePolygonPoints(options, points) {
     if (!Array.isArray(points) || points.length < 3) {
         warnInvalidMask(options, 'polygon masks require at least three points');
@@ -7644,6 +7680,14 @@ function resolvePolygonPoints(options, points) {
         return null;
     }
     return resolvedPoints;
+}
+function resizeMaskCanvas(context, width, height) {
+    if (context.expandCanvasIfNeeded) {
+        context.expandCanvasIfNeeded(width, height);
+    }
+    else {
+        context.canvas.setDimensions({ width, height });
+    }
 }
 function polygonArea(points) {
     let area = 0;
@@ -7689,20 +7733,40 @@ function createMask(context, config = {}) {
         top = (_f = previousMask.top) !== null && _f !== void 0 ? _f : firstOffset;
     }
     else {
-        left = resolveNumeric(mergedConfig.left, 'x', firstOffset, canvas, options);
-        top = resolveNumeric(mergedConfig.top, 'y', firstOffset, canvas, options);
+        const resolvedLeft = resolveMaskNumericField(options, 'left', mergedConfig.left, 'x', firstOffset, canvas);
+        const resolvedTop = resolveMaskNumericField(options, 'top', mergedConfig.top, 'y', firstOffset, canvas);
+        if (resolvedLeft === null || resolvedTop === null)
+            return null;
+        left = resolvedLeft;
+        top = resolvedTop;
     }
-    resolvedConfig.width = resolveNumeric(mergedConfig.width, 'x', options.defaultMaskWidth, canvas, options);
-    resolvedConfig.height = resolveNumeric(mergedConfig.height, 'y', options.defaultMaskHeight, canvas, options);
-    const rx = mergedConfig.rx !== undefined
-        ? resolveNumeric(mergedConfig.rx, 'x', 0, canvas, options)
-        : undefined;
-    const ry = mergedConfig.ry !== undefined
-        ? resolveNumeric(mergedConfig.ry, 'y', 0, canvas, options)
-        : undefined;
-    const radius = shapeType === 'circle'
-        ? resolveNumeric(mergedConfig.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options)
-        : undefined;
+    const resolvedWidth = resolveMaskNumericField(options, 'width', mergedConfig.width, 'x', options.defaultMaskWidth, canvas);
+    const resolvedHeight = resolveMaskNumericField(options, 'height', mergedConfig.height, 'y', options.defaultMaskHeight, canvas);
+    if (resolvedWidth === null || resolvedHeight === null)
+        return null;
+    resolvedConfig.width = resolvedWidth;
+    resolvedConfig.height = resolvedHeight;
+    let rx;
+    if (mergedConfig.rx !== undefined) {
+        const resolvedRx = resolveMaskNumericField(options, 'rx', mergedConfig.rx, 'x', 0, canvas);
+        if (resolvedRx === null)
+            return null;
+        rx = resolvedRx;
+    }
+    let ry;
+    if (mergedConfig.ry !== undefined) {
+        const resolvedRy = resolveMaskNumericField(options, 'ry', mergedConfig.ry, 'y', 0, canvas);
+        if (resolvedRy === null)
+            return null;
+        ry = resolvedRy;
+    }
+    let radius;
+    if (shapeType === 'circle') {
+        const resolvedRadius = resolveMaskNumericField(options, 'radius', mergedConfig.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas);
+        if (resolvedRadius === null)
+            return null;
+        radius = resolvedRadius;
+    }
     const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
     if (!validateFiniteField(options, 'left', left) ||
         !validateFiniteField(options, 'top', top) ||
@@ -7719,24 +7783,40 @@ function createMask(context, config = {}) {
         (shapeType === 'polygon' && polygonPoints === null)) {
         return null;
     }
+    let preExpandCanvasSize = null;
     if (options.layoutMode === 'expand') {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            if (context.expandCanvasIfNeeded) {
-                context.expandCanvasIfNeeded(nextWidth, nextHeight);
-            }
-            else {
-                canvas.setDimensions({ width: nextWidth, height: nextHeight });
-            }
+            preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
+            resizeMaskCanvas(context, nextWidth, nextHeight);
         }
     }
+    const rollbackCanvasExpansion = () => {
+        if (!preExpandCanvasSize)
+            return;
+        try {
+            resizeMaskCanvas(context, preExpandCanvasSize.width, preExpandCanvasSize.height);
+        }
+        catch (error) {
+            reportWarning(options, error, 'createMask rollback canvas size failed.');
+        }
+    };
     let mask;
     if (typeof config.fabricGenerator === 'function') {
-        const generated = config.fabricGenerator(resolvedConfig, canvas, options);
+        let generated;
+        try {
+            generated = config.fabricGenerator(resolvedConfig, canvas, options);
+        }
+        catch (error) {
+            rollbackCanvasExpansion();
+            reportWarning(options, error, 'createMask skipped: fabricGenerator threw.');
+            return null;
+        }
         if (!isFabricObjectLike(generated)) {
+            rollbackCanvasExpansion();
             reportWarning(options, generated, 'createMask skipped: fabricGenerator did not return a Fabric object.');
             return null;
         }
@@ -10015,11 +10095,14 @@ function parseEventInputNumber(event) {
     return parseFloat(event.target.value);
 }
 function handleAsyncAction(context, operation, action) {
-    void Promise.resolve()
-        .then(action)
-        .catch((error) => {
+    try {
+        void Promise.resolve(action()).catch((error) => {
+            context.actions.reportAsyncActionError(operation, error);
+        });
+    }
+    catch (error) {
         context.actions.reportAsyncActionError(operation, error);
-    });
+    }
 }
 function getEventInputValue(event) {
     return event.target.value;
@@ -10031,35 +10114,36 @@ function bindUploadEvents(context) {
     bindElement(context, 'imageInput', 'change', (event) => {
         var _a;
         const file = (_a = event.target.files) === null || _a === void 0 ? void 0 : _a[0];
-        if (file)
-            void context.actions.loadImageFile(file);
+        if (file) {
+            handleAsyncAction(context, 'loadImageFile', () => context.actions.loadImageFile(file));
+        }
     });
 }
 function bindTransformEvents(context) {
     bindElement(context, 'zoomInButton', 'click', () => {
-        void context.actions.zoomIn();
+        handleAsyncAction(context, 'zoomIn', () => context.actions.zoomIn());
     });
     bindElement(context, 'zoomOutButton', 'click', () => {
-        void context.actions.zoomOut();
+        handleAsyncAction(context, 'zoomOut', () => context.actions.zoomOut());
     });
     bindElement(context, 'resetImageTransformButton', 'click', () => {
-        void context.actions.resetImageTransform();
+        handleAsyncAction(context, 'resetImageTransform', () => context.actions.resetImageTransform());
     });
     bindElement(context, 'flipHorizontalButton', 'click', () => {
-        void context.actions.flipHorizontal();
+        handleAsyncAction(context, 'flipHorizontal', () => context.actions.flipHorizontal());
     });
     bindElement(context, 'flipVerticalButton', 'click', () => {
-        void context.actions.flipVertical();
+        handleAsyncAction(context, 'flipVertical', () => context.actions.flipVertical());
     });
     bindElement(context, 'rotateLeftButton', 'click', () => {
         const parsedStep = parseInputNumber(context, 'rotateLeftDegreesInput');
         const step = Number.isNaN(parsedStep) ? context.rotationStep : parsedStep;
-        void context.actions.rotateLeft(step);
+        handleAsyncAction(context, 'rotateLeft', () => context.actions.rotateLeft(step));
     });
     bindElement(context, 'rotateRightButton', 'click', () => {
         const parsedStep = parseInputNumber(context, 'rotateRightDegreesInput');
         const step = Number.isNaN(parsedStep) ? context.rotationStep : parsedStep;
-        void context.actions.rotateRight(step);
+        handleAsyncAction(context, 'rotateRight', () => context.actions.rotateRight(step));
     });
 }
 function bindMaskEvents(context) {
@@ -10073,12 +10157,12 @@ function bindMaskEvents(context) {
         context.actions.removeAllMasks();
     });
     bindElement(context, 'mergeMasksButton', 'click', () => {
-        void context.actions.mergeMasks();
+        handleAsyncAction(context, 'mergeMasks', () => context.actions.mergeMasks());
     });
 }
 function bindAnnotationEvents(context) {
     bindElement(context, 'mergeAnnotationsButton', 'click', () => {
-        void context.actions.mergeAnnotations();
+        handleAsyncAction(context, 'mergeAnnotations', () => context.actions.mergeAnnotations());
     });
     bindElement(context, 'enterTextModeButton', 'click', () => {
         context.actions.enterTextMode();

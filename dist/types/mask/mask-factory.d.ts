@@ -19,7 +19,11 @@
  *   angle, and the merged `styles` block.
  * - When `config.fabricGenerator` is supplied it is
  *   called with `(resolvedConfig, canvas, options)` and its return value is
- *   used verbatim as the mask object.
+ *   used verbatim as the mask object. Thrown generator errors and invalid
+ *   return values are reported through `onWarning` and abort creation before
+ *   any mask, history entry, or counter update is committed.
+ * - Function-valued numeric fields are isolated at the factory boundary:
+ *   if a resolver throws, creation reports a warning and returns `null`.
  * - Post-create order is fixed: add to canvas →
  *   update list DOM → `setActiveObject` (when `selectable !== false`) →
  *   `saveState` → `config.onCreate(mask, canvas)`.

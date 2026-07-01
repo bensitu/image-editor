@@ -123,13 +123,15 @@ function makeFabric() {
  * post-construct path.
  */
 function makeCanvas() {
+    let width = 800;
+    let height = 600;
     return {
         objects: [],
         getWidth() {
-            return 800;
+            return width;
         },
         getHeight() {
-            return 600;
+            return height;
         },
         add(o) {
             this.objects.push(o);
@@ -143,7 +145,10 @@ function makeCanvas() {
         bringObjectToFront() {},
         setActiveObject() {},
         discardActiveObject() {},
-        setDimensions() {},
+        setDimensions(nextDimensions) {
+            if (typeof nextDimensions.width === 'number') width = nextDimensions.width;
+            if (typeof nextDimensions.height === 'number') height = nextDimensions.height;
+        },
         renderAll() {},
         requestRenderAll() {},
     };
@@ -252,11 +257,45 @@ test('invalid fabricGenerator result is rejected without canvas or history write
     assert.match(warnings[0].message, /fabricGenerator/);
 });
 
+test('throwing fabricGenerator warns and rolls back expand sizing before returning null', () => {
+    const warnings = [];
+    const ctx = makeContext({
+        options: {
+            onWarning: (error, message) => {
+                warnings.push({ error, message });
+            },
+        },
+    });
+    const initialWidth = ctx.canvas.getWidth();
+    const initialHeight = ctx.canvas.getHeight();
+
+    const result = createMask(ctx, {
+        left: initialWidth - 5,
+        width: 50,
+        fabricGenerator: () => {
+            throw new Error('generator failed');
+        },
+    });
+
+    assert.equal(result, null, 'throwing custom generator must abort mask creation');
+    assert.equal(ctx.canvas.objects.length, 0, 'no mask must be added after generator failure');
+    assert.equal(ctx.canvas.getWidth(), initialWidth, 'failed generator must roll back width');
+    assert.equal(ctx.canvas.getHeight(), initialHeight, 'failed generator must roll back height');
+    assert.equal(warnings.length, 1, 'throwing generator must emit one warning');
+    assert.match(warnings[0].message, /fabricGenerator threw/);
+    assert.equal(warnings[0].error.message, 'generator failed');
+});
+
 test('invalid mask configs are rejected without canvas, counter, list, or history writes', () => {
     const cases = [
         { width: 'abc' },
         { width: -1 },
         { left: () => Infinity },
+        {
+            left: () => {
+                throw new Error('left failed');
+            },
+        },
         { shape: 'polygon', points: [] },
         {
             shape: 'polygon',

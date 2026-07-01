@@ -19,7 +19,11 @@
  *   angle, and the merged `styles` block.
  * - When `config.fabricGenerator` is supplied it is
  *   called with `(resolvedConfig, canvas, options)` and its return value is
- *   used verbatim as the mask object.
+ *   used verbatim as the mask object. Thrown generator errors and invalid
+ *   return values are reported through `onWarning` and abort creation before
+ *   any mask, history entry, or counter update is committed.
+ * - Function-valued numeric fields are isolated at the factory boundary:
+ *   if a resolver throws, creation reports a warning and returns `null`.
  * - Post-create order is fixed: add to canvas →
  *   update list DOM → `setActiveObject` (when `selectable !== false`) →
  *   `saveState` → `config.onCreate(mask, canvas)`.
@@ -234,6 +238,25 @@ function validateNumericInputs(options: ResolvedOptions, config: MaskConfig): bo
     return true;
 }
 
+function resolveMaskNumericField(
+    options: ResolvedOptions,
+    fieldName: string,
+    value: MaskConfig[keyof Pick<
+        MaskConfig,
+        'left' | 'top' | 'width' | 'height' | 'rx' | 'ry' | 'radius'
+    >],
+    axis: 'x' | 'y',
+    fallback: number,
+    canvas: FabricNS.Canvas,
+): number | null {
+    try {
+        return resolveNumeric(value, axis, fallback, canvas, options);
+    } catch (error) {
+        reportWarning(options, error, `createMask skipped: ${fieldName} resolver threw.`);
+        return null;
+    }
+}
+
 function resolvePolygonPoints(
     options: ResolvedOptions,
     points: MaskConfig['points'],
@@ -255,6 +278,14 @@ function resolvePolygonPoints(
         return null;
     }
     return resolvedPoints;
+}
+
+function resizeMaskCanvas(context: CreateMaskContext, width: number, height: number): void {
+    if (context.expandCanvasIfNeeded) {
+        context.expandCanvasIfNeeded(width, height);
+    } else {
+        context.canvas.setDimensions({ width, height });
+    }
 }
 
 function polygonArea(points: Array<{ x: number; y: number }>): number {
@@ -337,44 +368,73 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         left = Math.round(previousRight + (resolvedConfig.gap ?? 5));
         top = previousMask.top ?? firstOffset;
     } else {
-        left = resolveNumeric(mergedConfig.left, 'x', firstOffset, canvas, options);
-        top = resolveNumeric(mergedConfig.top, 'y', firstOffset, canvas, options);
+        const resolvedLeft = resolveMaskNumericField(
+            options,
+            'left',
+            mergedConfig.left,
+            'x',
+            firstOffset,
+            canvas,
+        );
+        const resolvedTop = resolveMaskNumericField(
+            options,
+            'top',
+            mergedConfig.top,
+            'y',
+            firstOffset,
+            canvas,
+        );
+        if (resolvedLeft === null || resolvedTop === null) return null;
+        left = resolvedLeft;
+        top = resolvedTop;
     }
 
     // ── Resolve dimensions (axis-aware percentages) ──
-    resolvedConfig.width = resolveNumeric(
+    const resolvedWidth = resolveMaskNumericField(
+        options,
+        'width',
         mergedConfig.width,
         'x',
         options.defaultMaskWidth,
         canvas,
-        options,
     );
-    resolvedConfig.height = resolveNumeric(
+    const resolvedHeight = resolveMaskNumericField(
+        options,
+        'height',
         mergedConfig.height,
         'y',
         options.defaultMaskHeight,
         canvas,
-        options,
     );
+    if (resolvedWidth === null || resolvedHeight === null) return null;
+    resolvedConfig.width = resolvedWidth;
+    resolvedConfig.height = resolvedHeight;
 
-    const rx =
-        mergedConfig.rx !== undefined
-            ? resolveNumeric(mergedConfig.rx, 'x', 0, canvas, options)
-            : undefined;
-    const ry =
-        mergedConfig.ry !== undefined
-            ? resolveNumeric(mergedConfig.ry, 'y', 0, canvas, options)
-            : undefined;
-    const radius =
-        shapeType === 'circle'
-            ? resolveNumeric(
-                  mergedConfig.radius,
-                  'x',
-                  Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
-                  canvas,
-                  options,
-              )
-            : undefined;
+    let rx: number | undefined;
+    if (mergedConfig.rx !== undefined) {
+        const resolvedRx = resolveMaskNumericField(options, 'rx', mergedConfig.rx, 'x', 0, canvas);
+        if (resolvedRx === null) return null;
+        rx = resolvedRx;
+    }
+    let ry: number | undefined;
+    if (mergedConfig.ry !== undefined) {
+        const resolvedRy = resolveMaskNumericField(options, 'ry', mergedConfig.ry, 'y', 0, canvas);
+        if (resolvedRy === null) return null;
+        ry = resolvedRy;
+    }
+    let radius: number | undefined;
+    if (shapeType === 'circle') {
+        const resolvedRadius = resolveMaskNumericField(
+            options,
+            'radius',
+            mergedConfig.radius,
+            'x',
+            Math.min(resolvedConfig.width, resolvedConfig.height) / 2,
+            canvas,
+        );
+        if (resolvedRadius === null) return null;
+        radius = resolvedRadius;
+    }
     const polygonPoints =
         shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
 
@@ -401,26 +461,41 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     // ── Expand canvas only when placement would overflow ─────────────────
     //    Never use viewport dimensions as a floor here — that would shrink a
     //    wider-than-viewport canvas (removing its scrollbar).
+    let preExpandCanvasSize: { width: number; height: number } | null = null;
     if (options.layoutMode === 'expand') {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            if (context.expandCanvasIfNeeded) {
-                context.expandCanvasIfNeeded(nextWidth, nextHeight);
-            } else {
-                canvas.setDimensions({ width: nextWidth, height: nextHeight });
-            }
+            preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
+            resizeMaskCanvas(context, nextWidth, nextHeight);
         }
     }
+
+    const rollbackCanvasExpansion = (): void => {
+        if (!preExpandCanvasSize) return;
+        try {
+            resizeMaskCanvas(context, preExpandCanvasSize.width, preExpandCanvasSize.height);
+        } catch (error) {
+            reportWarning(options, error, 'createMask rollback canvas size failed.');
+        }
+    };
 
     // ── Build the Fabric shape ──────────────────
     let mask: FabricNS.FabricObject;
 
     if (typeof config.fabricGenerator === 'function') {
-        const generated = config.fabricGenerator(resolvedConfig, canvas, options) as unknown;
+        let generated: unknown;
+        try {
+            generated = config.fabricGenerator(resolvedConfig, canvas, options) as unknown;
+        } catch (error) {
+            rollbackCanvasExpansion();
+            reportWarning(options, error, 'createMask skipped: fabricGenerator threw.');
+            return null;
+        }
         if (!isFabricObjectLike(generated)) {
+            rollbackCanvasExpansion();
             reportWarning(
                 options,
                 generated,

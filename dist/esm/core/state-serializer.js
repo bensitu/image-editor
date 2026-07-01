@@ -300,6 +300,29 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
         }
     });
     const consumedCanvasIndexes = new Set();
+    const canvasIndexesByMaskUid = new Map();
+    canvasObjs.forEach((canvasObj, index) => {
+        const maskUid = canvasObj.maskUid;
+        if (typeof maskUid !== 'string')
+            return;
+        const indexes = canvasIndexesByMaskUid.get(maskUid);
+        if (indexes) {
+            indexes.push(index);
+        }
+        else {
+            canvasIndexesByMaskUid.set(maskUid, [index]);
+        }
+    });
+    const takeUnconsumedCanvasIndex = (indexes) => {
+        if (!indexes)
+            return -1;
+        while (indexes.length > 0) {
+            const index = indexes.shift();
+            if (!consumedCanvasIndexes.has(index))
+                return index;
+        }
+        return -1;
+    };
     for (const jObj of jsonObjs) {
         if (jObj.editorObjectKind !== 'mask' || typeof jObj.maskId !== 'number')
             continue;
@@ -309,11 +332,7 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
         const jUid = typeof jObj.maskUid === 'string' ? jObj.maskUid : null;
         let matchIndex = -1;
         if (jUid) {
-            matchIndex = canvasObjs.findIndex((o, index) => {
-                if (consumedCanvasIndexes.has(index))
-                    return false;
-                return o.maskUid === jUid;
-            });
+            matchIndex = takeUnconsumedCanvasIndex(canvasIndexesByMaskUid.get(jUid));
         }
         if (matchIndex < 0) {
             matchIndex = canvasObjs.findIndex((o, index) => {

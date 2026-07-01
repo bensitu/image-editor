@@ -288,6 +288,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'defaultDrawConfig',
 ]);
 
+const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /**
  * Coerces a callback option to a function or `null`.
  * Non-function values — `undefined`, `null`, primitives, plain objects — all
@@ -314,19 +316,25 @@ function copyDefaultMaskConfigValue(value: unknown): unknown {
     return Array.isArray(value) ? [...value] : value;
 }
 
+function canCopyObjectConfigKey(key: string): boolean {
+    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
+
 function normalizeDefaultMaskConfig(value: unknown): DefaultMaskConfig {
     if (!isConfigObject(value)) return EMPTY_DEFAULT_MASK_CONFIG;
 
-    const normalized: Record<string, unknown> = {};
+    const normalized = Object.create(null) as Record<string, unknown>;
     for (const [key, optionValue] of Object.entries(value)) {
+        if (!canCopyObjectConfigKey(key)) continue;
         if (key === 'onCreate' || key === 'fabricGenerator' || key === 'styles') continue;
         normalized[key] = copyDefaultMaskConfigValue(optionValue);
     }
 
     const styles = value.styles;
     if (isConfigObject(styles)) {
-        const copiedStyles: Record<string, unknown> = {};
+        const copiedStyles = Object.create(null) as Record<string, unknown>;
         for (const [key, styleValue] of Object.entries(styles)) {
+            if (!canCopyObjectConfigKey(key)) continue;
             copiedStyles[key] = copyDefaultMaskConfigValue(styleValue);
         }
         Object.freeze(copiedStyles);

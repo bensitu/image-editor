@@ -88,6 +88,15 @@ function validateNumericInputs(options, config) {
     }
     return true;
 }
+function resolveMaskNumericField(options, fieldName, value, axis, fallback, canvas) {
+    try {
+        return resolveNumeric(value, axis, fallback, canvas, options);
+    }
+    catch (error) {
+        reportWarning(options, error, `createMask skipped: ${fieldName} resolver threw.`);
+        return null;
+    }
+}
 function resolvePolygonPoints(options, points) {
     if (!Array.isArray(points) || points.length < 3) {
         warnInvalidMask(options, 'polygon masks require at least three points');
@@ -104,6 +113,14 @@ function resolvePolygonPoints(options, points) {
         return null;
     }
     return resolvedPoints;
+}
+function resizeMaskCanvas(context, width, height) {
+    if (context.expandCanvasIfNeeded) {
+        context.expandCanvasIfNeeded(width, height);
+    }
+    else {
+        context.canvas.setDimensions({ width, height });
+    }
 }
 function polygonArea(points) {
     let area = 0;
@@ -149,20 +166,40 @@ export function createMask(context, config = {}) {
         top = (_f = previousMask.top) !== null && _f !== void 0 ? _f : firstOffset;
     }
     else {
-        left = resolveNumeric(mergedConfig.left, 'x', firstOffset, canvas, options);
-        top = resolveNumeric(mergedConfig.top, 'y', firstOffset, canvas, options);
+        const resolvedLeft = resolveMaskNumericField(options, 'left', mergedConfig.left, 'x', firstOffset, canvas);
+        const resolvedTop = resolveMaskNumericField(options, 'top', mergedConfig.top, 'y', firstOffset, canvas);
+        if (resolvedLeft === null || resolvedTop === null)
+            return null;
+        left = resolvedLeft;
+        top = resolvedTop;
     }
-    resolvedConfig.width = resolveNumeric(mergedConfig.width, 'x', options.defaultMaskWidth, canvas, options);
-    resolvedConfig.height = resolveNumeric(mergedConfig.height, 'y', options.defaultMaskHeight, canvas, options);
-    const rx = mergedConfig.rx !== undefined
-        ? resolveNumeric(mergedConfig.rx, 'x', 0, canvas, options)
-        : undefined;
-    const ry = mergedConfig.ry !== undefined
-        ? resolveNumeric(mergedConfig.ry, 'y', 0, canvas, options)
-        : undefined;
-    const radius = shapeType === 'circle'
-        ? resolveNumeric(mergedConfig.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas, options)
-        : undefined;
+    const resolvedWidth = resolveMaskNumericField(options, 'width', mergedConfig.width, 'x', options.defaultMaskWidth, canvas);
+    const resolvedHeight = resolveMaskNumericField(options, 'height', mergedConfig.height, 'y', options.defaultMaskHeight, canvas);
+    if (resolvedWidth === null || resolvedHeight === null)
+        return null;
+    resolvedConfig.width = resolvedWidth;
+    resolvedConfig.height = resolvedHeight;
+    let rx;
+    if (mergedConfig.rx !== undefined) {
+        const resolvedRx = resolveMaskNumericField(options, 'rx', mergedConfig.rx, 'x', 0, canvas);
+        if (resolvedRx === null)
+            return null;
+        rx = resolvedRx;
+    }
+    let ry;
+    if (mergedConfig.ry !== undefined) {
+        const resolvedRy = resolveMaskNumericField(options, 'ry', mergedConfig.ry, 'y', 0, canvas);
+        if (resolvedRy === null)
+            return null;
+        ry = resolvedRy;
+    }
+    let radius;
+    if (shapeType === 'circle') {
+        const resolvedRadius = resolveMaskNumericField(options, 'radius', mergedConfig.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas);
+        if (resolvedRadius === null)
+            return null;
+        radius = resolvedRadius;
+    }
     const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
     if (!validateFiniteField(options, 'left', left) ||
         !validateFiniteField(options, 'top', top) ||
@@ -179,24 +216,40 @@ export function createMask(context, config = {}) {
         (shapeType === 'polygon' && polygonPoints === null)) {
         return null;
     }
+    let preExpandCanvasSize = null;
     if (options.layoutMode === 'expand') {
         const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
         const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
         const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
         const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
         if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            if (context.expandCanvasIfNeeded) {
-                context.expandCanvasIfNeeded(nextWidth, nextHeight);
-            }
-            else {
-                canvas.setDimensions({ width: nextWidth, height: nextHeight });
-            }
+            preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
+            resizeMaskCanvas(context, nextWidth, nextHeight);
         }
     }
+    const rollbackCanvasExpansion = () => {
+        if (!preExpandCanvasSize)
+            return;
+        try {
+            resizeMaskCanvas(context, preExpandCanvasSize.width, preExpandCanvasSize.height);
+        }
+        catch (error) {
+            reportWarning(options, error, 'createMask rollback canvas size failed.');
+        }
+    };
     let mask;
     if (typeof config.fabricGenerator === 'function') {
-        const generated = config.fabricGenerator(resolvedConfig, canvas, options);
+        let generated;
+        try {
+            generated = config.fabricGenerator(resolvedConfig, canvas, options);
+        }
+        catch (error) {
+            rollbackCanvasExpansion();
+            reportWarning(options, error, 'createMask skipped: fabricGenerator threw.');
+            return null;
+        }
         if (!isFabricObjectLike(generated)) {
+            rollbackCanvasExpansion();
             reportWarning(options, generated, 'createMask skipped: fabricGenerator did not return a Fabric object.');
             return null;
         }

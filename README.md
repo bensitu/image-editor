@@ -343,6 +343,10 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 | `init(elementMap?)` | Bind the editor to DOM elements. Pass string IDs, HTMLElement refs, or `null` for unmanaged optional controls. |
 | `dispose()`         | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent.                           |
 
+`dispose()` is synchronous and starts Fabric canvas teardown. If an integration
+must immediately create another editor on the same `<canvas>` element, wait for
+the next microtask or animation frame before reusing that element.
+
 ### Image loading
 
 | Method                         | Description                                                                                                                                                                             |
@@ -716,6 +720,10 @@ State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
 | `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.  |
 | `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed. |
 | `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed. |
+
+`loadFromState()` is designed for snapshots produced by this editor's
+`saveState()`. If snapshots come from external storage or user-controlled
+input, validate or reject untrusted JSON before passing it to the editor.
 
 ## Configuration options
 

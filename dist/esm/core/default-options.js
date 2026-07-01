@@ -186,6 +186,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'defaultTextConfig',
     'defaultDrawConfig',
 ]);
+const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
@@ -201,19 +202,26 @@ function isConfigObject(value) {
 function copyDefaultMaskConfigValue(value) {
     return Array.isArray(value) ? [...value] : value;
 }
+function canCopyObjectConfigKey(key) {
+    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
 function normalizeDefaultMaskConfig(value) {
     if (!isConfigObject(value))
         return EMPTY_DEFAULT_MASK_CONFIG;
-    const normalized = {};
+    const normalized = Object.create(null);
     for (const [key, optionValue] of Object.entries(value)) {
+        if (!canCopyObjectConfigKey(key))
+            continue;
         if (key === 'onCreate' || key === 'fabricGenerator' || key === 'styles')
             continue;
         normalized[key] = copyDefaultMaskConfigValue(optionValue);
     }
     const styles = value.styles;
     if (isConfigObject(styles)) {
-        const copiedStyles = {};
+        const copiedStyles = Object.create(null);
         for (const [key, styleValue] of Object.entries(styles)) {
+            if (!canCopyObjectConfigKey(key))
+                continue;
             copiedStyles[key] = copyDefaultMaskConfigValue(styleValue);
         }
         Object.freeze(copiedStyles);

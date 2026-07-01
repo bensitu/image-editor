@@ -858,6 +858,35 @@ test('defaultMaskConfig is copied, frozen, and filters per-call hooks', () => {
     assert.deepEqual(resolved.defaultMaskConfig.styles.strokeDashArray, [6, 4]);
 });
 
+test('defaultMaskConfig drops unsafe object keys while preserving safe config', () => {
+    const inputDefaultMaskConfig = JSON.parse(
+        `{
+            "__proto__": { "polluted": true },
+            "constructor": { "polluted": true },
+            "prototype": { "polluted": true },
+            "width": 140,
+            "styles": {
+                "__proto__": { "polluted": true },
+                "constructor": { "polluted": true },
+                "prototype": { "polluted": true },
+                "stroke": "#ff0000"
+            }
+        }`,
+    );
+
+    const resolved = resolveOptions({ defaultMaskConfig: inputDefaultMaskConfig });
+
+    assert.equal(Object.getPrototypeOf(resolved.defaultMaskConfig), null);
+    assert.equal(Object.getPrototypeOf(resolved.defaultMaskConfig.styles), null);
+    assert.equal(resolved.defaultMaskConfig.width, 140);
+    assert.equal(resolved.defaultMaskConfig.styles.stroke, '#ff0000');
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+        assert.equal(Object.hasOwn(resolved.defaultMaskConfig, key), false);
+        assert.equal(Object.hasOwn(resolved.defaultMaskConfig.styles, key), false);
+    }
+    assert.equal({}.polluted, undefined);
+});
+
 test('invalid defaultMaskConfig values resolve to a frozen empty object', () => {
     for (const defaultMaskConfig of [undefined, null, false, 123, 'mask', [], () => ({})]) {
         const resolved = resolveOptions({ defaultMaskConfig });

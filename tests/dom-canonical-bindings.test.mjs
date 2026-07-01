@@ -59,6 +59,7 @@ const CANONICAL_IDS = Object.freeze({
     removeSelectedMaskButton: 'customRemoveSelectedMaskButton',
     removeAllMasksButton: 'customRemoveAllMasksButton',
     mergeMasksButton: 'customMergeMasksButton',
+    mergeAnnotationsButton: 'customMergeAnnotationsButton',
     downloadImageButton: 'customDownloadImageButton',
     maskList: 'customMaskList',
     zoomInButton: 'customZoomInButton',
@@ -145,6 +146,7 @@ function installDom() {
             <button id="${CANONICAL_IDS.removeSelectedMaskButton}"></button>
             <button id="${CANONICAL_IDS.removeAllMasksButton}"></button>
             <button id="${CANONICAL_IDS.mergeMasksButton}"></button>
+            <button id="${CANONICAL_IDS.mergeAnnotationsButton}"></button>
             <button id="${CANONICAL_IDS.downloadImageButton}"></button>
             <button id="${CANONICAL_IDS.zoomInButton}"></button>
             <button id="${CANONICAL_IDS.zoomOutButton}"></button>
@@ -245,6 +247,65 @@ test('download, undo, and redo DOM buttons report async rejections', async () =>
             ['downloadImage failed.', 'download failed'],
             ['undo failed.', 'undo failed'],
             ['redo failed.', 'redo failed'],
+        ],
+    );
+});
+
+test('transform, merge, and image-input DOM actions report async rejections', async () => {
+    const window = installDom();
+    const errors = [];
+    const editor = createEditor(CANONICAL_IDS, {
+        onError: (error, message) => {
+            errors.push({ error, message });
+        },
+    });
+    editor.loadImageFile = () => Promise.reject(new Error('file failed'));
+    editor.scaleImage = (scale) => Promise.reject(new Error(`scale ${scale}`));
+    editor.resetImageTransform = () => Promise.reject(new Error('reset failed'));
+    editor.flipHorizontal = () => Promise.reject(new Error('flip horizontal failed'));
+    editor.flipVertical = () => Promise.reject(new Error('flip vertical failed'));
+    editor.rotateImage = (rotation) => Promise.reject(new Error(`rotate ${rotation}`));
+    editor.mergeMasks = () => Promise.reject(new Error('merge masks failed'));
+    editor.mergeAnnotations = () => Promise.reject(new Error('merge annotations failed'));
+
+    const imageInput = document.getElementById(CANONICAL_IDS.imageInput);
+    Object.defineProperty(imageInput, 'files', {
+        configurable: true,
+        value: [new window.File(['x'], 'x.png', { type: 'image/png' })],
+    });
+    imageInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    for (const key of [
+        'zoomInButton',
+        'zoomOutButton',
+        'resetImageTransformButton',
+        'flipHorizontalButton',
+        'flipVerticalButton',
+        'rotateLeftButton',
+        'rotateRightButton',
+        'mergeMasksButton',
+        'mergeAnnotationsButton',
+    ]) {
+        document
+            .getElementById(CANONICAL_IDS[key])
+            .dispatchEvent(new window.Event('click', { bubbles: true }));
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(
+        errors.map((entry) => [entry.message, entry.error.message]),
+        [
+            ['loadImageFile failed.', 'file failed'],
+            ['zoomIn failed.', 'scale 1.05'],
+            ['zoomOut failed.', 'scale 0.95'],
+            ['resetImageTransform failed.', 'reset failed'],
+            ['flipHorizontal failed.', 'flip horizontal failed'],
+            ['flipVertical failed.', 'flip vertical failed'],
+            ['rotateLeft failed.', 'rotate -90'],
+            ['rotateRight failed.', 'rotate 90'],
+            ['mergeMasks failed.', 'merge masks failed'],
+            ['mergeAnnotations failed.', 'merge annotations failed'],
         ],
     );
 });

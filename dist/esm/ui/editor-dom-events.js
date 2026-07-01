@@ -8,11 +8,14 @@ function parseEventInputNumber(event) {
     return parseFloat(event.target.value);
 }
 function handleAsyncAction(context, operation, action) {
-    void Promise.resolve()
-        .then(action)
-        .catch((error) => {
+    try {
+        void Promise.resolve(action()).catch((error) => {
+            context.actions.reportAsyncActionError(operation, error);
+        });
+    }
+    catch (error) {
         context.actions.reportAsyncActionError(operation, error);
-    });
+    }
 }
 function getEventInputValue(event) {
     return event.target.value;
@@ -24,35 +27,36 @@ function bindUploadEvents(context) {
     bindElement(context, 'imageInput', 'change', (event) => {
         var _a;
         const file = (_a = event.target.files) === null || _a === void 0 ? void 0 : _a[0];
-        if (file)
-            void context.actions.loadImageFile(file);
+        if (file) {
+            handleAsyncAction(context, 'loadImageFile', () => context.actions.loadImageFile(file));
+        }
     });
 }
 function bindTransformEvents(context) {
     bindElement(context, 'zoomInButton', 'click', () => {
-        void context.actions.zoomIn();
+        handleAsyncAction(context, 'zoomIn', () => context.actions.zoomIn());
     });
     bindElement(context, 'zoomOutButton', 'click', () => {
-        void context.actions.zoomOut();
+        handleAsyncAction(context, 'zoomOut', () => context.actions.zoomOut());
     });
     bindElement(context, 'resetImageTransformButton', 'click', () => {
-        void context.actions.resetImageTransform();
+        handleAsyncAction(context, 'resetImageTransform', () => context.actions.resetImageTransform());
     });
     bindElement(context, 'flipHorizontalButton', 'click', () => {
-        void context.actions.flipHorizontal();
+        handleAsyncAction(context, 'flipHorizontal', () => context.actions.flipHorizontal());
     });
     bindElement(context, 'flipVerticalButton', 'click', () => {
-        void context.actions.flipVertical();
+        handleAsyncAction(context, 'flipVertical', () => context.actions.flipVertical());
     });
     bindElement(context, 'rotateLeftButton', 'click', () => {
         const parsedStep = parseInputNumber(context, 'rotateLeftDegreesInput');
         const step = Number.isNaN(parsedStep) ? context.rotationStep : parsedStep;
-        void context.actions.rotateLeft(step);
+        handleAsyncAction(context, 'rotateLeft', () => context.actions.rotateLeft(step));
     });
     bindElement(context, 'rotateRightButton', 'click', () => {
         const parsedStep = parseInputNumber(context, 'rotateRightDegreesInput');
         const step = Number.isNaN(parsedStep) ? context.rotationStep : parsedStep;
-        void context.actions.rotateRight(step);
+        handleAsyncAction(context, 'rotateRight', () => context.actions.rotateRight(step));
     });
 }
 function bindMaskEvents(context) {
@@ -66,12 +70,12 @@ function bindMaskEvents(context) {
         context.actions.removeAllMasks();
     });
     bindElement(context, 'mergeMasksButton', 'click', () => {
-        void context.actions.mergeMasks();
+        handleAsyncAction(context, 'mergeMasks', () => context.actions.mergeMasks());
     });
 }
 function bindAnnotationEvents(context) {
     bindElement(context, 'mergeAnnotationsButton', 'click', () => {
-        void context.actions.mergeAnnotations();
+        handleAsyncAction(context, 'mergeAnnotations', () => context.actions.mergeAnnotations());
     });
     bindElement(context, 'enterTextModeButton', 'click', () => {
         context.actions.enterTextMode();
