@@ -49,13 +49,18 @@ test('barrel exports ImageEditor as both named and default', async () => {
 
     assert.match(
         source,
-        /export\s*\{\s*ImageEditor\s*\}/,
+        /export\s*\{\s*ImageEditor(?:\s*,\s*ImageEditor\s+as\s+default)?\s*\}\s+from\s+['"]\.\/image-editor\.js['"]/,
         'barrel must contain `export { ImageEditor }` (named export)',
     );
     assert.match(
         source,
-        /export\s+default\s+ImageEditor\b/,
-        'barrel must contain `export default ImageEditor`',
+        /ImageEditor\s+as\s+default/,
+        'barrel must re-export ImageEditor as the default export',
+    );
+    assert.doesNotMatch(
+        source,
+        /import\s*\{\s*ImageEditor\s*\}\s+from\s+['"]\.\/image-editor\.js['"]/,
+        'barrel should not import ImageEditor just to re-export it',
     );
 });
 

@@ -1,6 +1,6 @@
 import { reportError, reportWarning } from './core/callback-reporter.js';
 import { IdleGuardError } from './core/errors.js';
-import { resolveDomElement, resolveElementTargets, } from './core/editor-elements.js';
+import { isCanvasElement, isInputElement, isInputOrSelectElement, resolveDomElement, resolveElementTargets, } from './core/editor-elements.js';
 import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedTextAnnotationConfig, isLayoutMode, resolveOptions, } from './core/default-options.js';
 import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
@@ -46,16 +46,6 @@ const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnim
 function getRuntimeDocument(canvasElement) {
     var _a;
     return (_a = canvasElement === null || canvasElement === void 0 ? void 0 : canvasElement.ownerDocument) !== null && _a !== void 0 ? _a : (typeof document !== 'undefined' ? document : null);
-}
-function isHtmlCanvasElement(element) {
-    var _a, _b;
-    if (!element)
-        return false;
-    const ownerWindow = (_a = element.ownerDocument) === null || _a === void 0 ? void 0 : _a.defaultView;
-    const CanvasCtor = (_b = ownerWindow === null || ownerWindow === void 0 ? void 0 : ownerWindow.HTMLCanvasElement) !== null && _b !== void 0 ? _b : globalThis.HTMLCanvasElement;
-    if (typeof CanvasCtor === 'function')
-        return element instanceof CanvasCtor;
-    return element.tagName.toLowerCase() === 'canvas';
 }
 function describeElementTarget(target) {
     if (typeof target === 'string')
@@ -296,8 +286,8 @@ export class ImageEditor {
     initCanvas() {
         var _a;
         const canvasTarget = this.runtime.elements.canvas;
-        const canvasCandidate = resolveDomElement(canvasTarget, getRuntimeDocument(null));
-        if (!isHtmlCanvasElement(canvasCandidate)) {
+        const canvasCandidate = resolveDomElement(canvasTarget, getRuntimeDocument(null), isCanvasElement);
+        if (!canvasCandidate) {
             throw new Error(`[ImageEditor] Canvas element not found: ${describeElementTarget(canvasTarget)}`);
         }
         const canvasElement = canvasCandidate;
@@ -343,8 +333,8 @@ export class ImageEditor {
         this.runtime.canvas.on('object:rotating', onObjectEvent);
         this.runtime.canvas.on('object:modified', onObjectModified);
     }
-    resolveElement(key, ownerDocument = getRuntimeDocument(this.runtime.canvasElement)) {
-        return resolveDomElement(this.runtime.elements[key], ownerDocument);
+    resolveElement(key, ownerDocument = getRuntimeDocument(this.runtime.canvasElement), guard) {
+        return resolveDomElement(this.runtime.elements[key], ownerDocument, guard);
     }
     bindDomEvents() {
         if (!this.runtime.domBindings)
@@ -357,7 +347,7 @@ export class ImageEditor {
             rotationStep: this.runtime.options.rotationStep,
             getInputValue: (key) => {
                 var _a;
-                const element = this.resolveElement(key, ownerDocument);
+                const element = this.resolveElement(key, ownerDocument, isInputOrSelectElement);
                 return (_a = element === null || element === void 0 ? void 0 : element.value) !== null && _a !== void 0 ? _a : '';
             },
             actions: createEditorDomEventActions(this.runtime, ownerDocument, {
@@ -512,7 +502,7 @@ export class ImageEditor {
     async loadImageFile(file) {
         await loadImageFileImpl({
             options: this.runtime.options,
-            getInputElement: () => this.resolveElement('imageInput'),
+            getInputElement: () => this.resolveElement('imageInput', undefined, isInputElement),
             loadImage: (dataUrl) => this.loadImage(dataUrl),
         }, file);
     }
@@ -1369,7 +1359,7 @@ export class ImageEditor {
             mosaicConfig: this.getMosaicConfig(),
             textConfig: this.getTextConfig(),
             drawConfig: this.getDrawConfig(),
-        }, (key) => this.resolveElement(key));
+        }, (key) => this.resolveElement(key, undefined, isInputElement));
     }
     async mergeAnnotations() {
         await mergeAnnotationsAction(this.actionAccessFactory.buildExportActionAccess());

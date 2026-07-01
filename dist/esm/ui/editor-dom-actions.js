@@ -1,4 +1,4 @@
-import { resolveDomElement } from '../core/editor-elements.js';
+import { isInputElement, isInputOrSelectElement, resolveDomElement, } from '../core/editor-elements.js';
 function normalizeStepScale(value) {
     return Math.round(value * 1000000) / 1000000;
 }
@@ -9,7 +9,7 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
         },
         openImagePicker: () => {
             var _a;
-            (_a = resolveDomElement(runtime.elements.imageInput, ownerDocument)) === null || _a === void 0 ? void 0 : _a.click();
+            (_a = resolveDomElement(runtime.elements.imageInput, ownerDocument, isInputElement)) === null || _a === void 0 ? void 0 : _a.click();
         },
         loadImageFile: (file) => host.loadImageFile(file),
         zoomIn: () => host.scaleImage(normalizeStepScale(runtime.currentScale + runtime.options.scaleStep)),
@@ -108,7 +108,7 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
     };
 }
 function getSelectedCropAspectRatio(runtime, ownerDocument) {
-    const inputEl = resolveDomElement(runtime.elements.cropAspectRatioSelect, ownerDocument);
+    const inputEl = resolveDomElement(runtime.elements.cropAspectRatioSelect, ownerDocument, isInputOrSelectElement);
     const value = inputEl && 'value' in inputEl ? String(inputEl.value).trim() : '';
     return (value || 'free');
 }

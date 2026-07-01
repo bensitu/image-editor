@@ -29,10 +29,7 @@
  * @module
  */
 
-import { ImageEditor } from './image-editor.js';
-
-export { ImageEditor };
-export default ImageEditor;
+export { ImageEditor, ImageEditor as default } from './image-editor.js';
 
 export {
     isAnnotationObject,

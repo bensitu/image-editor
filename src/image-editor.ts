@@ -12,8 +12,12 @@ import type * as FabricNS from 'fabric';
 import { reportError, reportWarning } from './core/callback-reporter.js';
 import { IdleGuardError } from './core/errors.js';
 import {
+    isCanvasElement,
+    isInputElement,
+    isInputOrSelectElement,
     resolveDomElement,
     resolveElementTargets,
+    type DomElementGuard,
     type ElementKey,
 } from './core/editor-elements.js';
 import {
@@ -211,7 +215,18 @@ import {
 import { isSupportedImageDataUrl } from './utils/file.js';
 import { detectSourceMimeType } from './image/image-resampler.js';
 
+/**
+ * Private marker used only by facade-created option objects. Matching tokens
+ * let one public operation call another guarded operation without looking
+ * like overlapping consumer work.
+ */
 const INTERNAL_OPERATION_TOKEN = Symbol('ImageEditorInternalOperation');
+
+/**
+ * Private marker for calls already serialized by the animation queue. Missing
+ * this marker is safe: the call is treated as a normal public operation and
+ * remains blocked while queued animation work is active.
+ */
 const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnimationQueue');
 
 type InternalOperationOptions = {
@@ -223,14 +238,6 @@ function getRuntimeDocument(canvasElement: HTMLCanvasElement | null | undefined)
     return canvasElement?.ownerDocument ?? (typeof document !== 'undefined' ? document : null);
 }
 
-function isHtmlCanvasElement(element: HTMLElement | null): element is HTMLCanvasElement {
-    if (!element) return false;
-    const ownerWindow = element.ownerDocument?.defaultView;
-    const CanvasCtor = ownerWindow?.HTMLCanvasElement ?? globalThis.HTMLCanvasElement;
-    if (typeof CanvasCtor === 'function') return element instanceof CanvasCtor;
-    return element.tagName.toLowerCase() === 'canvas';
-}
-
 function describeElementTarget(target: unknown): string {
     if (typeof target === 'string') return `"${target}"`;
     if (target === null) return 'null';
@@ -238,12 +245,20 @@ function describeElementTarget(target: unknown): string {
     return 'provided element';
 }
 
+/**
+ * Capture scroll offsets before a canvas-size mutation that may temporarily
+ * disturb container scrollbars.
+ */
 function captureContainerScroll(
     container: HTMLElement | null,
 ): { left: number; top: number } | null {
     return container ? { left: container.scrollLeft, top: container.scrollTop } : null;
 }
 
+/**
+ * Best-effort restore of scroll offsets captured before a layout mutation.
+ * Failures are reported through the public warning callback.
+ */
 function restoreContainerScroll(
     container: HTMLElement | null,
     scroll: { left: number; top: number } | null,
@@ -568,11 +583,12 @@ export class ImageEditor {
 
     private initCanvas(): void {
         const canvasTarget = this.runtime.elements.canvas;
-        const canvasCandidate = resolveDomElement<HTMLElement>(
+        const canvasCandidate = resolveDomElement<HTMLCanvasElement>(
             canvasTarget,
             getRuntimeDocument(null),
+            isCanvasElement,
         );
-        if (!isHtmlCanvasElement(canvasCandidate)) {
+        if (!canvasCandidate) {
             throw new Error(
                 `[ImageEditor] Canvas element not found: ${describeElementTarget(canvasTarget)}`,
             );
@@ -631,9 +647,10 @@ export class ImageEditor {
     }
     private resolveElement<T extends HTMLElement>(
         key: ElementKey,
-        ownerDocument: Document | null = getRuntimeDocument(this.runtime.canvasElement),
+        ownerDocument: Document | null | undefined = getRuntimeDocument(this.runtime.canvasElement),
+        guard?: DomElementGuard<T>,
     ): T | null {
-        return resolveDomElement<T>(this.runtime.elements[key] as string | T | null, ownerDocument);
+        return resolveDomElement<T>(this.runtime.elements[key], ownerDocument, guard);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -652,6 +669,7 @@ export class ImageEditor {
                 const element = this.resolveElement<HTMLInputElement | HTMLSelectElement>(
                     key,
                     ownerDocument,
+                    isInputOrSelectElement,
                 );
                 return element?.value ?? '';
             },
@@ -828,7 +846,8 @@ export class ImageEditor {
         await loadImageFileImpl(
             {
                 options: this.runtime.options,
-                getInputElement: () => this.resolveElement<HTMLInputElement>('imageInput'),
+                getInputElement: () =>
+                    this.resolveElement<HTMLInputElement>('imageInput', undefined, isInputElement),
                 loadImage: (dataUrl) => this.loadImage(dataUrl),
             },
             file,
@@ -2213,7 +2232,7 @@ export class ImageEditor {
                 textConfig: this.getTextConfig(),
                 drawConfig: this.getDrawConfig(),
             },
-            (key) => this.resolveElement<HTMLInputElement>(key),
+            (key) => this.resolveElement<HTMLInputElement>(key, undefined, isInputElement),
         );
     }
 

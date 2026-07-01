@@ -41,6 +41,8 @@ import {
 } from './helpers/editor-internals.mjs';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
+const { isCanvasElement, isInputElement, isInputOrSelectElement, resolveDomElement } =
+    await import('../src/core/editor-elements.ts');
 
 const CANONICAL_IDS = Object.freeze({
     canvas: 'customCanvas',
@@ -642,4 +644,35 @@ test('dispose remains idempotent and disables HTMLElement-ref handlers', () => {
     zoomInButton.dispatchEvent(new window.Event('click', { bubbles: true }));
 
     assert.equal(calls, 1);
+});
+
+test('resolveDomElement returns null when a subtype guard rejects the resolved element', () => {
+    installDom();
+
+    const canvas = document.getElementById(CANONICAL_IDS.canvas);
+    const placeholder = document.getElementById(CANONICAL_IDS.imagePlaceholder);
+    const imageInput = document.getElementById(CANONICAL_IDS.imageInput);
+    const cropSelect = document.getElementById(CANONICAL_IDS.cropAspectRatioSelect);
+
+    assert.equal(resolveDomElement(CANONICAL_IDS.canvas, document, isCanvasElement), canvas);
+    assert.equal(
+        resolveDomElement(CANONICAL_IDS.imagePlaceholder, document, isCanvasElement),
+        null,
+        'a non-canvas ID must not be returned as HTMLCanvasElement',
+    );
+    assert.equal(resolveDomElement(imageInput, document, isInputElement), imageInput);
+    assert.equal(
+        resolveDomElement(cropSelect, document, isInputElement),
+        null,
+        'a select element must not be returned as HTMLInputElement',
+    );
+    assert.equal(
+        resolveDomElement(CANONICAL_IDS.cropAspectRatioSelect, document, isInputOrSelectElement),
+        cropSelect,
+    );
+    assert.equal(
+        resolveDomElement(placeholder, document, isInputOrSelectElement),
+        null,
+        'a generic HTMLElement must not be returned as an input/select control',
+    );
 });

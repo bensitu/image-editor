@@ -14,6 +14,10 @@ export type ResolvedElementTarget = string | HTMLElement | null;
 
 export type ResolvedElementMap = Record<ElementKey, ResolvedElementTarget>;
 
+export type DomElementGuard<TElement extends HTMLElement> = (
+    element: HTMLElement,
+) => element is TElement;
+
 const DEFAULT_ELEMENT_TARGETS: ResolvedElementMap = {
     canvas: 'canvas',
     canvasContainer: null,
@@ -78,15 +82,47 @@ function getFallbackDocument(): Document | null {
     return typeof document !== 'undefined' ? document : null;
 }
 
-export function resolveDomElement<T extends HTMLElement>(
+function hasTagName(element: HTMLElement, tagName: string): boolean {
+    return element.tagName.toLowerCase() === tagName;
+}
+
+export function isCanvasElement(element: HTMLElement): element is HTMLCanvasElement {
+    return hasTagName(element, 'canvas');
+}
+
+export function isInputElement(element: HTMLElement): element is HTMLInputElement {
+    return hasTagName(element, 'input');
+}
+
+export function isSelectElement(element: HTMLElement): element is HTMLSelectElement {
+    return hasTagName(element, 'select');
+}
+
+export function isInputOrSelectElement(
+    element: HTMLElement,
+): element is HTMLInputElement | HTMLSelectElement {
+    return isInputElement(element) || isSelectElement(element);
+}
+
+/**
+ * Resolve a string ID or direct HTMLElement reference to a DOM element.
+ *
+ * When `guard` is supplied, the resolved element must satisfy that runtime
+ * predicate or `null` is returned. Callers that need a specific subtype
+ * should pass a guard instead of relying on the generic type parameter alone.
+ */
+export function resolveDomElement<T extends HTMLElement = HTMLElement>(
     target: string | HTMLElement | null | undefined,
     ownerDocument?: Document | null,
+    guard?: DomElementGuard<T>,
 ): T | null {
     if (target === null || target === undefined) return null;
-    if (isHTMLElementTarget(target)) return target as T;
-    const lookupDocument = ownerDocument ?? getFallbackDocument();
-    if (!lookupDocument) return null;
-    return lookupDocument.getElementById(target) as T | null;
+    const element = isHTMLElementTarget(target)
+        ? target
+        : (ownerDocument ?? getFallbackDocument())?.getElementById(target);
+    if (!element) return null;
+    if (guard && !guard(element)) return null;
+    return element as T;
 }
 
 export function resolveElementTargets(elementMap: ElementIdMap = {}): ResolvedElementMap {

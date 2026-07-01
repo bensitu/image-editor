@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Document that `getMasks()` and `getAnnotations()` return shallow array snapshots containing live Fabric object references, and that direct object mutation bypasses editor history and callbacks.
+- Re-export `ImageEditor` from the package barrel without a local implementation import, and guard DOM element subtype resolution at runtime for canvas/input/select controls.
 
 ### Fixed
 

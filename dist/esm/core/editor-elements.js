@@ -57,15 +57,33 @@ function isHTMLElementTarget(value) {
 function getFallbackDocument() {
     return typeof document !== 'undefined' ? document : null;
 }
-export function resolveDomElement(target, ownerDocument) {
+function hasTagName(element, tagName) {
+    return element.tagName.toLowerCase() === tagName;
+}
+export function isCanvasElement(element) {
+    return hasTagName(element, 'canvas');
+}
+export function isInputElement(element) {
+    return hasTagName(element, 'input');
+}
+export function isSelectElement(element) {
+    return hasTagName(element, 'select');
+}
+export function isInputOrSelectElement(element) {
+    return isInputElement(element) || isSelectElement(element);
+}
+export function resolveDomElement(target, ownerDocument, guard) {
+    var _a;
     if (target === null || target === undefined)
         return null;
-    if (isHTMLElementTarget(target))
-        return target;
-    const lookupDocument = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : getFallbackDocument();
-    if (!lookupDocument)
+    const element = isHTMLElementTarget(target)
+        ? target
+        : (_a = (ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : getFallbackDocument())) === null || _a === void 0 ? void 0 : _a.getElementById(target);
+    if (!element)
         return null;
-    return lookupDocument.getElementById(target);
+    if (guard && !guard(element))
+        return null;
+    return element;
 }
 export function resolveElementTargets(elementMap = {}) {
     const resolved = { ...DEFAULT_ELEMENT_TARGETS };
