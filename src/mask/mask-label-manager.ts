@@ -167,7 +167,7 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
     if (!labelTextObject) {
         // index is the stable creation index, not the
         // live list position. legacy passed `this.maskCounter` here.
-        const indexForGetText = mask.maskId - 1;
+        const indexForGetText = Math.max(0, mask.maskId - 1);
         let labelText = mask.maskName;
         if (typeof options.label.getText === 'function') {
             try {

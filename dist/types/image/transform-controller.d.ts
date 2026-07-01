@@ -56,8 +56,8 @@
  * 3. The dispose flag on {@link TransformContext.guard} lets animation
  *    callbacks consult `guard.isDisposed()` before touching the canvas.
  *    Rotation animations also restore the `'left'/'top'` origin via
- *    {@link restoreOrigin} when dispose interrupts the animation so a
- *    post-dispose inspector or a re-init that reuses the image reference
+ *    {@link restoreOrigin} when an animation is interrupted so a
+ *    post-failure inspector or a re-init that reuses the image reference
  *    still sees the documented origin.
  *
  * ## Why a class with a context bundle?
@@ -203,8 +203,9 @@ export declare class TransformController {
      *    drift on the last tick does not leak into history.
      * 6. Run the optional {@link TransformContext.afterTransformSnap}
      *    hook for canvas resize / mask label sync.
-     * 7. Call {@link TransformContext.saveCanvasState} so the new state
-     *    is undoable. When dispose ran during the
+     * 7. Call {@link TransformContext.saveCanvasState} in a `finally`
+     *    after the hook so the new state is undoable even if post-snap
+     *    UI sync fails. When dispose ran during the
      *    animation, the controller exits without snapping or saving so
      *    no torn-down canvas reference is touched.
      *
@@ -240,14 +241,11 @@ export declare class TransformController {
      *    hook for canvas resize and mask label sync.
      * 8. Call {@link TransformContext.saveCanvasState}.
      *
-     * If dispose runs during the animation, step 6's origin restore
-     * branch is skipped — leaving the image in the temporary
-     * centre-origin state. The controller invokes
-     * {@link restoreOrigin} from `finally` so a post-dispose inspector
-     * still sees the documented `'left'/'top'` origin. `restoreOrigin`
-     * is documented as silent
-     * best-effort cleanup so it cannot mask the original animation
-     * error.
+     * If the animation fails before step 6, the catch path restores the
+     * previous logical rotation, canvas angle, and `'left'/'top'` origin.
+     * If dispose runs during the animation, the controller invokes
+     * {@link restoreOrigin} from `finally` as silent best-effort cleanup
+     * so a post-dispose inspector still sees the documented origin.
      *
      * @param degrees - Target rotation angle in degrees. Non-finite values are no-ops.
      * @returns A promise that resolves once the animation has settled and

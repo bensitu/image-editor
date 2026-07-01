@@ -79,6 +79,12 @@ export interface CanvasJsonObject {
     left?: number;
     /** Top-edge pixel coordinate. */
     top?: number;
+    /** Fabric rotation in degrees. */
+    angle?: number;
+    /** Fabric horizontal scale. */
+    scaleX?: number;
+    /** Fabric vertical scale. */
+    scaleY?: number;
     /** Stable mask identifier. */
     maskId?: number;
     /** Stable internal mask identifier used for deterministic restore. */
@@ -266,6 +272,29 @@ function serializedPositionMatches(
     );
 }
 
+function serializedNumberMatches(
+    liveValue: unknown,
+    jsonValue: unknown,
+    fallback: number,
+    tolerance: number,
+): boolean {
+    const jsonNumber = readFiniteNumber(jsonValue);
+    if (jsonNumber === null) return true;
+    const liveNumber = readFiniteNumber(liveValue) ?? fallback;
+    return Math.abs(liveNumber - jsonNumber) < tolerance;
+}
+
+function serializedTransformMatches(
+    liveObject: FabricNS.FabricObject,
+    jsonObject: CanvasJsonObject,
+): boolean {
+    return (
+        serializedNumberMatches(liveObject.angle, jsonObject.angle, 0, 0.5) &&
+        serializedNumberMatches(liveObject.scaleX, jsonObject.scaleX, 1, 0.0001) &&
+        serializedNumberMatches(liveObject.scaleY, jsonObject.scaleY, 1, 0.0001)
+    );
+}
+
 function serializedObjectMatches(
     liveObject: FabricNS.FabricObject,
     jsonObject: CanvasJsonObject,
@@ -297,7 +326,8 @@ function serializedObjectMatches(
 
     return (
         serializedTypeMatches(liveObject, jsonObject) &&
-        serializedPositionMatches(liveObject, jsonObject)
+        serializedPositionMatches(liveObject, jsonObject) &&
+        serializedTransformMatches(liveObject, jsonObject)
     );
 }
 
@@ -946,7 +976,11 @@ function restoreEditorObjectPropsFromJson(
             matchIndex = canvasObjs.findIndex((o, index) => {
                 if (consumedCanvasIndexes.has(index)) return false;
                 if (jType && o.type !== jType) return false;
-                return Math.abs((o.left ?? 0) - jLeft) < 0.5 && Math.abs((o.top ?? 0) - jTop) < 0.5;
+                return (
+                    Math.abs((o.left ?? 0) - jLeft) < 0.5 &&
+                    Math.abs((o.top ?? 0) - jTop) < 0.5 &&
+                    serializedTransformMatches(o, jObj)
+                );
             });
         }
         if (matchIndex < 0) continue;

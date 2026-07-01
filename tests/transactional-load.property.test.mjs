@@ -199,7 +199,7 @@ class MockCanvas {
 /**
  * Build a fake Fabric image with the shape `loadImage` reads/writes:
  *   - dimensions (`width`, `height`),
- *   - scale (via `scale(s)` and `set({ scaleX, scaleY })`),
+ *   - absolute scale fields (`set({ scaleX, scaleY })`),
  *   - position (`left`, `top` via `set`),
  *   - the marker properties the loader sets via `fimg.set(...)`.
  *
@@ -221,10 +221,6 @@ function makeFabricImage() {
         evented: false,
         set(props) {
             Object.assign(this, props);
-        },
-        scale(s) {
-            this.scaleX = s;
-            this.scaleY = s;
         },
     };
 }

@@ -212,3 +212,31 @@ test('busy state disables normal action controls', () => {
     assert.equal(finalState.get('imageInput'), false);
     assert.equal(finalState.get('mosaicBrushSizeInput'), true);
 });
+
+test('disposed state disables every known control in normal and active modes', () => {
+    for (const modeFlags of [
+        {},
+        { isInCropMode: true },
+        { isInTextMode: true },
+        { isInDrawMode: true },
+        { isInMosaicMode: true },
+    ]) {
+        const { finalState } = collectControlState(
+            makeSnapshot({
+                hasImage: true,
+                hasMasks: true,
+                hasAnnotations: true,
+                hasSelectedMask: true,
+                hasSelectedAnnotation: true,
+                hasSelectedEditableObject: true,
+                isDefaultTransform: false,
+                canUndo: true,
+                canRedo: true,
+                isDisposed: true,
+                ...modeFlags,
+            }),
+        );
+
+        assertOnlyEnabled(finalState, []);
+    }
+});

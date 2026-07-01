@@ -19,8 +19,12 @@ function createContextFactory(runtime, hooks) {
         loadImageForOperation: (operationToken, base64, providedOptions) => hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
         loadMergedImage: async (operationToken, base64, providedOptions) => {
             const geometry = hooks.display.captureImageDisplayGeometry();
-            await hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
-            hooks.display.restoreMergedImageDisplayGeometry(geometry);
+            try {
+                await hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
+            }
+            finally {
+                hooks.display.restoreMergedImageDisplayGeometry(geometry);
+            }
         },
         loadFromStateForOperation: (operationToken, snapshot) => hooks.state.loadFromState(snapshot, hooks.operations.withInternalOperationOptions(operationToken, hooks.operations.withAnimationQueueBypass())),
         setCanvasSize: (widthPx, heightPx) => {

@@ -64,6 +64,12 @@ export interface CanvasJsonObject {
     left?: number;
     /** Top-edge pixel coordinate. */
     top?: number;
+    /** Fabric rotation in degrees. */
+    angle?: number;
+    /** Fabric horizontal scale. */
+    scaleX?: number;
+    /** Fabric vertical scale. */
+    scaleY?: number;
     /** Stable mask identifier. */
     maskId?: number;
     /** Stable internal mask identifier used for deterministic restore. */

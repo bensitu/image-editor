@@ -34,7 +34,7 @@ export function createLabelForMask(context, mask) {
         }
     }
     if (!labelTextObject) {
-        const indexForGetText = mask.maskId - 1;
+        const indexForGetText = Math.max(0, mask.maskId - 1);
         let labelText = mask.maskName;
         if (typeof options.label.getText === 'function') {
             try {

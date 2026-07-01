@@ -428,6 +428,49 @@ test('rotateImage rolls back runtime state when animation fails', async () => {
 
     assert.equal(state.currentRotation, 45);
     assert.equal(image.angle, 45);
+    assert.equal(image.originX, 'left');
+    assert.equal(image.originY, 'top');
+});
+
+test('scaleImage records history when afterTransformSnap throws after a successful animation', async () => {
+    const canvas = new MockCanvas();
+    const guard = new OperationGuard();
+    const image = makeFabricImageMock({ scaleX: 1, scaleY: 1, angle: 0 });
+    const state = {
+        currentScale: 1,
+        currentRotation: 0,
+        baseImageScale: 1,
+    };
+    let saveCalls = 0;
+    const controller = new TransformController({
+        canvas,
+        options: resolveOptions({ animationDuration: 1 }),
+        guard,
+        getOriginalImage: () => image,
+        getCurrentScale: () => state.currentScale,
+        setCurrentScale: (n) => {
+            state.currentScale = n;
+        },
+        getCurrentRotation: () => state.currentRotation,
+        setCurrentRotation: (n) => {
+            state.currentRotation = n;
+        },
+        getBaseImageScale: () => state.baseImageScale,
+        saveCanvasState: () => {
+            saveCalls += 1;
+        },
+        setSuppressSaveState: () => {},
+        afterTransformSnap: () => {
+            throw new Error('snap failed');
+        },
+    });
+
+    await assert.rejects(() => controller.scaleImage(2), /snap failed/);
+
+    assert.equal(saveCalls, 1);
+    assert.equal(state.currentScale, 2);
+    assert.equal(image.scaleX, 2);
+    assert.equal(image.scaleY, 2);
 });
 
 test('flipHorizontal toggles only base image flipX and records one history entry', async () => {

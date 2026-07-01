@@ -368,8 +368,11 @@ function pushMosaicHistory(context, after) {
     context.setLastSnapshot(after);
 }
 async function getOrCreateRasterCache(context, session, source) {
-    if (session.rasterCache)
-        return session.rasterCache;
+    if (session.rasterCache) {
+        if (session.rasterCache.source === source)
+            return session.rasterCache;
+        releaseMosaicRasterCache(session);
+    }
     const ownerDocument = getCanvasDocument(context);
     const decoded = await decodeImageSource(ownerDocument, source);
     const offscreenCanvas = ownerDocument.createElement('canvas');

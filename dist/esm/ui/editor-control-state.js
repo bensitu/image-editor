@@ -114,6 +114,12 @@ function setModeControlState(controlKeys, enabledKeys, snapshot, setEnabled) {
     });
 }
 export function applyEditorControlState(snapshot, setEnabled) {
+    if (snapshot.isDisposed) {
+        CROP_MODE_CONTROL_KEYS.forEach((key) => {
+            setEnabled(key, false);
+        });
+        return;
+    }
     if (snapshot.isInCropMode) {
         setModeControlState(CROP_MODE_CONTROL_KEYS, CROP_MODE_ENABLED_KEYS, snapshot, setEnabled);
         return;

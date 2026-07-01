@@ -57,7 +57,8 @@ export interface EditorDomActionHost {
 }
 
 function normalizeStepScale(value: number): number {
-    return Math.round(value * 1_000_000) / 1_000_000;
+    const rounded = Math.round(value * 1_000_000) / 1_000_000;
+    return Number.isFinite(rounded) ? rounded : 1;
 }
 
 export function createEditorDomEventActions(

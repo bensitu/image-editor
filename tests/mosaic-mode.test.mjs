@@ -301,6 +301,35 @@ test('Mosaic commit refreshes the raster cache to the committed source', async (
     }
 });
 
+test('Mosaic rebuilds a stale raster cache when the base image source changed', async () => {
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 14, blockSize: 4 },
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 48, height: 48 }));
+        const canvas = requireEditorCanvas(editor);
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        canvas.fire('mouse:down', { scenePoint: center });
+        await waitForCanvasCallbacks(250);
+
+        const session = getMosaicSession(editor);
+        assert.ok(session?.rasterCache, 'mousedown should create the raster cache');
+        const staleCache = session.rasterCache;
+        staleCache.source = 'data:image/png;base64,stale';
+
+        canvas.fire('mouse:move', { scenePoint: { x: center.x + 2, y: center.y + 2 } });
+        await waitForCanvasCallbacks(250);
+
+        assert.notEqual(session.rasterCache, staleCache);
+        assert.equal(session.rasterCache.source, requireOriginalImage(editor).getSrc());
+        assert.equal(staleCache.offscreenCanvas.width, 0);
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
 test('Mosaic mouseout hides preview without cancelling an active drag', async () => {
     const { editor } = await createEditor({
         defaultMosaicConfig: { brushSize: 14, blockSize: 4 },

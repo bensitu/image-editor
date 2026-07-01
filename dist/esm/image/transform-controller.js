@@ -56,9 +56,13 @@ export class TransformController {
             return;
         imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
         imageObject.setCoords();
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
-        this.context.saveCanvasState();
+        try {
+            if (this.context.afterTransformSnap)
+                this.context.afterTransformSnap();
+        }
+        finally {
+            this.context.saveCanvasState();
+        }
     }
     async rotateImage(degrees) {
         if (!Number.isFinite(degrees))
@@ -95,6 +99,7 @@ export class TransformController {
             if (!this.context.guard.isDisposed()) {
                 imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
                 imageObject.setCoords();
+                restoreOrigin(imageObject, 'left', 'top');
                 if (this.context.afterTransformSnap)
                     this.context.afterTransformSnap();
             }
@@ -111,8 +116,6 @@ export class TransformController {
             return;
         imageObject.set('angle', degrees);
         imageObject.setCoords();
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
         try {
             const newTopLeft = computeTopLeftPoint(imageObject);
             imageObject.set({ originX: 'left', originY: 'top' });
@@ -122,7 +125,13 @@ export class TransformController {
         catch (error) {
             reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
-        this.context.saveCanvasState();
+        try {
+            if (this.context.afterTransformSnap)
+                this.context.afterTransformSnap();
+        }
+        finally {
+            this.context.saveCanvasState();
+        }
     }
     async flipHorizontal() {
         await this.flipImage('flipX');

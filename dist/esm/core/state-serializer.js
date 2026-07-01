@@ -52,6 +52,19 @@ function serializedPositionMatches(liveObject, jsonObject) {
     return (Math.abs(((_a = liveObject.left) !== null && _a !== void 0 ? _a : 0) - jsonLeft) < 0.5 &&
         Math.abs(((_b = liveObject.top) !== null && _b !== void 0 ? _b : 0) - jsonTop) < 0.5);
 }
+function serializedNumberMatches(liveValue, jsonValue, fallback, tolerance) {
+    var _a;
+    const jsonNumber = readFiniteNumber(jsonValue);
+    if (jsonNumber === null)
+        return true;
+    const liveNumber = (_a = readFiniteNumber(liveValue)) !== null && _a !== void 0 ? _a : fallback;
+    return Math.abs(liveNumber - jsonNumber) < tolerance;
+}
+function serializedTransformMatches(liveObject, jsonObject) {
+    return (serializedNumberMatches(liveObject.angle, jsonObject.angle, 0, 0.5) &&
+        serializedNumberMatches(liveObject.scaleX, jsonObject.scaleX, 1, 0.0001) &&
+        serializedNumberMatches(liveObject.scaleY, jsonObject.scaleY, 1, 0.0001));
+}
 function serializedObjectMatches(liveObject, jsonObject) {
     const live = liveObject;
     if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
@@ -73,7 +86,8 @@ function serializedObjectMatches(liveObject, jsonObject) {
         return false;
     }
     return (serializedTypeMatches(liveObject, jsonObject) &&
-        serializedPositionMatches(liveObject, jsonObject));
+        serializedPositionMatches(liveObject, jsonObject) &&
+        serializedTransformMatches(liveObject, jsonObject));
 }
 function findCanvasObjectForJson(canvasObjects, jsonObject, preferredIndex, consumedIndexes) {
     const preferred = canvasObjects[preferredIndex];
@@ -408,7 +422,9 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                     return false;
                 if (jType && o.type !== jType)
                     return false;
-                return Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 && Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5;
+                return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
+                    Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5 &&
+                    serializedTransformMatches(o, jObj));
             });
         }
         if (matchIndex < 0)

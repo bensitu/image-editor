@@ -86,7 +86,9 @@ function runQueuedTransformAction(
     });
     access.emitBusyChangeIfChanged(context);
     return job.finally(() => {
-        access.refreshUiAfterQueuedAnimation();
-        access.emitBusyChangeIfChanged(context);
+        if (!access.isDisposed()) {
+            access.refreshUiAfterQueuedAnimation();
+            access.emitBusyChangeIfChanged(context);
+        }
     });
 }

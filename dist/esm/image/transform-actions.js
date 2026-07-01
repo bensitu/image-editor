@@ -45,8 +45,10 @@ function runQueuedTransformAction(access, operation, runControllerAction) {
     });
     access.emitBusyChangeIfChanged(context);
     return job.finally(() => {
-        access.refreshUiAfterQueuedAnimation();
-        access.emitBusyChangeIfChanged(context);
+        if (!access.isDisposed()) {
+            access.refreshUiAfterQueuedAnimation();
+            access.emitBusyChangeIfChanged(context);
+        }
     });
 }
 //# sourceMappingURL=transform-actions.js.map

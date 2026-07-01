@@ -276,6 +276,11 @@ const DEFAULT_ELEMENT_TARGETS = Object.freeze({
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
 });
+const ELEMENT_KEYS = Object.freeze(Object.keys(DEFAULT_ELEMENT_TARGETS));
+const ELEMENT_KEY_SET = new Set(ELEMENT_KEYS);
+function isElementKey(value) {
+    return ELEMENT_KEY_SET.has(value);
+}
 function isHTMLElementTarget(value) {
     return (!!value &&
         typeof value === 'object' &&
@@ -316,6 +321,8 @@ function resolveDomElement(target, ownerDocument, guard) {
 function resolveElementTargets(elementMap = {}) {
     const resolved = { ...DEFAULT_ELEMENT_TARGETS };
     for (const [key, value] of Object.entries(elementMap)) {
+        if (!isElementKey(key))
+            continue;
         resolved[key] = value === undefined ? null : value;
     }
     return resolved;
@@ -1538,6 +1545,19 @@ function serializedPositionMatches(liveObject, jsonObject) {
     return (Math.abs(((_a = liveObject.left) !== null && _a !== void 0 ? _a : 0) - jsonLeft) < 0.5 &&
         Math.abs(((_b = liveObject.top) !== null && _b !== void 0 ? _b : 0) - jsonTop) < 0.5);
 }
+function serializedNumberMatches(liveValue, jsonValue, fallback, tolerance) {
+    var _a;
+    const jsonNumber = readFiniteNumber(jsonValue);
+    if (jsonNumber === null)
+        return true;
+    const liveNumber = (_a = readFiniteNumber(liveValue)) !== null && _a !== void 0 ? _a : fallback;
+    return Math.abs(liveNumber - jsonNumber) < tolerance;
+}
+function serializedTransformMatches(liveObject, jsonObject) {
+    return (serializedNumberMatches(liveObject.angle, jsonObject.angle, 0, 0.5) &&
+        serializedNumberMatches(liveObject.scaleX, jsonObject.scaleX, 1, 0.0001) &&
+        serializedNumberMatches(liveObject.scaleY, jsonObject.scaleY, 1, 0.0001));
+}
 function serializedObjectMatches(liveObject, jsonObject) {
     const live = liveObject;
     if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
@@ -1559,7 +1579,8 @@ function serializedObjectMatches(liveObject, jsonObject) {
         return false;
     }
     return (serializedTypeMatches(liveObject, jsonObject) &&
-        serializedPositionMatches(liveObject, jsonObject));
+        serializedPositionMatches(liveObject, jsonObject) &&
+        serializedTransformMatches(liveObject, jsonObject));
 }
 function findCanvasObjectForJson(canvasObjects, jsonObject, preferredIndex, consumedIndexes) {
     const preferred = canvasObjects[preferredIndex];
@@ -1894,7 +1915,9 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                     return false;
                 if (jType && o.type !== jType)
                     return false;
-                return Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 && Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5;
+                return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
+                    Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5 &&
+                    serializedTransformMatches(o, jObj));
             });
         }
         if (matchIndex < 0)
@@ -4805,8 +4828,11 @@ function pushMosaicHistory(context, after) {
     context.setLastSnapshot(after);
 }
 async function getOrCreateRasterCache(context, session, source) {
-    if (session.rasterCache)
-        return session.rasterCache;
+    if (session.rasterCache) {
+        if (session.rasterCache.source === source)
+            return session.rasterCache;
+        releaseMosaicRasterCache(session);
+    }
     const ownerDocument = getCanvasDocument$3(context);
     const decoded = await decodeImageSource(ownerDocument, source);
     const offscreenCanvas = ownerDocument.createElement('canvas');
@@ -6651,8 +6677,12 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         });
         const layout = computeLayout(context, baseImage);
         applyCanvasDimensions(context.canvas, layout.canvasWidth, layout.canvasHeight, context.containerElement);
-        baseImage.set({ left: layout.imageLeft, top: layout.imageTop });
-        baseImage.scale(layout.imageScale);
+        baseImage.set({
+            left: layout.imageLeft,
+            top: layout.imageTop,
+            scaleX: layout.imageScale,
+            scaleY: layout.imageScale,
+        });
         context.canvas.add(baseImage);
         context.canvas.sendObjectToBack(baseImage);
         context.setOriginalImage(baseImage);
@@ -7375,9 +7405,13 @@ class TransformController {
             return;
         imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
         imageObject.setCoords();
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
-        this.context.saveCanvasState();
+        try {
+            if (this.context.afterTransformSnap)
+                this.context.afterTransformSnap();
+        }
+        finally {
+            this.context.saveCanvasState();
+        }
     }
     async rotateImage(degrees) {
         if (!Number.isFinite(degrees))
@@ -7414,6 +7448,7 @@ class TransformController {
             if (!this.context.guard.isDisposed()) {
                 imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
                 imageObject.setCoords();
+                restoreOrigin(imageObject, 'left', 'top');
                 if (this.context.afterTransformSnap)
                     this.context.afterTransformSnap();
             }
@@ -7430,8 +7465,6 @@ class TransformController {
             return;
         imageObject.set('angle', degrees);
         imageObject.setCoords();
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
         try {
             const newTopLeft = computeTopLeftPoint(imageObject);
             imageObject.set({ originX: 'left', originY: 'top' });
@@ -7441,7 +7474,13 @@ class TransformController {
         catch (error) {
             reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
-        this.context.saveCanvasState();
+        try {
+            if (this.context.afterTransformSnap)
+                this.context.afterTransformSnap();
+        }
+        finally {
+            this.context.saveCanvasState();
+        }
     }
     async flipHorizontal() {
         await this.flipImage('flipX');
@@ -7558,8 +7597,10 @@ function runQueuedTransformAction(access, operation, runControllerAction) {
     });
     access.emitBusyChangeIfChanged(context);
     return job.finally(() => {
-        access.refreshUiAfterQueuedAnimation();
-        access.emitBusyChangeIfChanged(context);
+        if (!access.isDisposed()) {
+            access.refreshUiAfterQueuedAnimation();
+            access.emitBusyChangeIfChanged(context);
+        }
     });
 }
 
@@ -9046,8 +9087,12 @@ function createContextFactory(runtime, hooks) {
         loadImageForOperation: (operationToken, base64, providedOptions) => hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {})),
         loadMergedImage: async (operationToken, base64, providedOptions) => {
             const geometry = hooks.display.captureImageDisplayGeometry();
-            await hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
-            hooks.display.restoreMergedImageDisplayGeometry(geometry);
+            try {
+                await hooks.state.loadImage(base64, hooks.operations.withInternalOperationOptions(operationToken, providedOptions !== null && providedOptions !== void 0 ? providedOptions : {}));
+            }
+            finally {
+                hooks.display.restoreMergedImageDisplayGeometry(geometry);
+            }
         },
         loadFromStateForOperation: (operationToken, snapshot) => hooks.state.loadFromState(snapshot, hooks.operations.withInternalOperationOptions(operationToken, hooks.operations.withAnimationQueueBypass())),
         setCanvasSize: (widthPx, heightPx) => {
@@ -10096,7 +10141,7 @@ function createLabelForMask(context, mask) {
         }
     }
     if (!labelTextObject) {
-        const indexForGetText = mask.maskId - 1;
+        const indexForGetText = Math.max(0, mask.maskId - 1);
         let labelText = mask.maskName;
         if (typeof options.label.getText === 'function') {
             try {
@@ -10431,6 +10476,12 @@ function setModeControlState(controlKeys, enabledKeys, snapshot, setEnabled) {
     });
 }
 function applyEditorControlState(snapshot, setEnabled) {
+    if (snapshot.isDisposed) {
+        CROP_MODE_CONTROL_KEYS.forEach((key) => {
+            setEnabled(key, false);
+        });
+        return;
+    }
     if (snapshot.isInCropMode) {
         setModeControlState(CROP_MODE_CONTROL_KEYS, CROP_MODE_ENABLED_KEYS, snapshot, setEnabled);
         return;
@@ -10798,7 +10849,8 @@ function bindEditorDomEvents(context) {
 }
 
 function normalizeStepScale(value) {
-    return Math.round(value * 1000000) / 1000000;
+    const rounded = Math.round(value * 1000000) / 1000000;
+    return Number.isFinite(rounded) ? rounded : 1;
 }
 function createEditorDomEventActions(runtime, ownerDocument, host) {
     return {

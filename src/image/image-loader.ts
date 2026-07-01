@@ -443,8 +443,12 @@ export async function loadImage(
             layout.canvasHeight,
             context.containerElement,
         );
-        baseImage.set({ left: layout.imageLeft, top: layout.imageTop });
-        baseImage.scale(layout.imageScale);
+        baseImage.set({
+            left: layout.imageLeft,
+            top: layout.imageTop,
+            scaleX: layout.imageScale,
+            scaleY: layout.imageScale,
+        });
 
         context.canvas.add(baseImage);
         context.canvas.sendObjectToBack(baseImage);

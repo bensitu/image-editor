@@ -1,6 +1,7 @@
 import { isInputElement, isInputOrSelectElement, resolveDomElement, } from '../core/editor-elements.js';
 function normalizeStepScale(value) {
-    return Math.round(value * 1000000) / 1000000;
+    const rounded = Math.round(value * 1000000) / 1000000;
+    return Number.isFinite(rounded) ? rounded : 1;
 }
 export function createEditorDomEventActions(runtime, ownerDocument, host) {
     return {

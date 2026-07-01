@@ -48,6 +48,11 @@ const DEFAULT_ELEMENT_TARGETS = Object.freeze({
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
 });
+const ELEMENT_KEYS = Object.freeze(Object.keys(DEFAULT_ELEMENT_TARGETS));
+const ELEMENT_KEY_SET = new Set(ELEMENT_KEYS);
+function isElementKey(value) {
+    return ELEMENT_KEY_SET.has(value);
+}
 function isHTMLElementTarget(value) {
     return (!!value &&
         typeof value === 'object' &&
@@ -88,6 +93,8 @@ export function resolveDomElement(target, ownerDocument, guard) {
 export function resolveElementTargets(elementMap = {}) {
     const resolved = { ...DEFAULT_ELEMENT_TARGETS };
     for (const [key, value] of Object.entries(elementMap)) {
+        if (!isElementKey(key))
+            continue;
         resolved[key] = value === undefined ? null : value;
     }
     return resolved;

@@ -455,6 +455,28 @@ test('label text uses options.label.getText(mask, mask.maskId - 1)', () => {
     );
 });
 
+test('label text clamps maskId zero to a non-negative getText index', () => {
+    installDom();
+    const mask = makeMask(0, 'mask0');
+    const canvas = makeCanvas([mask]);
+    const fabric = makeFabric();
+    const calls = [];
+    const options = resolveOptions({
+        maskLabelOnSelect: true,
+        label: {
+            getText: (_mask, idx) => {
+                calls.push(idx);
+                return `idx:${idx}`;
+            },
+        },
+    });
+
+    createLabelForMask({ fabric, canvas, options }, mask);
+
+    assert.deepEqual(calls, [0]);
+    assert.equal(mask.labelObject.text, 'idx:0');
+});
+
 test('label.getText errors fall back to the mask name and report a warning', () => {
     installDom();
     const mask = makeMask(3, 'mask3');

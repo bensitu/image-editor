@@ -29,10 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Refresh the Mosaic raster cache after a committed stroke so subsequent strokes in the same session use current pixels.
+- Rebuild stale Mosaic raster caches when the active base image source changes during an open Mosaic session.
 - Release DOM, session, configuration, event, history, and Fabric references from `dispose()` more completely.
+- Disable all editor controls after disposal, including controls that were active inside tool modes.
 - Match live Fabric objects to serialized canvas JSON by stable editor metadata before falling back to positional matching.
+- Include legacy mask angle and scale fields when matching same-position masks during state restore.
 - Keep preserved crop masks aligned when the committed cropped image is scaled by the active layout mode.
 - Roll back runtime scale and rotation state when Fabric transform animations fail to start or complete.
+- Restore the temporary rotation origin after non-dispose animation failures, and still record transform history when post-snap UI sync fails.
+- Restore merged-image display geometry even when the inner transactional image load rejects.
 - Decode `exportImageFile()` data URLs with a preallocated byte buffer instead of a per-character `Uint8Array.from()` callback.
 - Combine JPEG image-area partial-edge sealing and opaque background compositing into one offscreen canvas pass to avoid repeated decode/encode work.
 - Route all asynchronous DOM toolbar action failures through `onError`, including image input, transform, and merge controls.
@@ -46,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent default browser handling for editor-owned Delete, Backspace, and Escape shortcuts.
 - Accept supported image data URLs with case-insensitive `data:image/...` schemes.
 - Keep Mosaic dragging active when the pointer leaves and re-enters the canvas before mouseup.
+- Set newly-loaded base image scale fields absolutely instead of relying on Fabric's multiplicative `scale()` helper.
+- Ignore unknown DOM element-map keys at runtime.
+- Avoid post-dispose UI refreshes from queued transform finalizers.
+- Clamp DOM zoom-step calculations back to a finite fallback and clamp mask-label callback indexes to non-negative values.
 - Drop unsafe object-copy keys while normalizing `defaultMaskConfig` and its `styles` object.
 - Index `loadFromState()` mask restoration by `maskUid` before falling back to legacy positional matching.
 - Suppress public `onSelectionChange` callbacks during export and merge-only active selection teardown/restoration.

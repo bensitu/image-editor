@@ -159,14 +159,17 @@ function createContextFactory(
             ),
         loadMergedImage: async (operationToken, base64, providedOptions) => {
             const geometry = hooks.display.captureImageDisplayGeometry();
-            await hooks.state.loadImage(
-                base64,
-                hooks.operations.withInternalOperationOptions(
-                    operationToken,
-                    providedOptions ?? {},
-                ),
-            );
-            hooks.display.restoreMergedImageDisplayGeometry(geometry);
+            try {
+                await hooks.state.loadImage(
+                    base64,
+                    hooks.operations.withInternalOperationOptions(
+                        operationToken,
+                        providedOptions ?? {},
+                    ),
+                );
+            } finally {
+                hooks.display.restoreMergedImageDisplayGeometry(geometry);
+            }
         },
         loadFromStateForOperation: (operationToken, snapshot) =>
             hooks.state.loadFromState(

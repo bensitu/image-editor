@@ -563,7 +563,10 @@ async function getOrCreateRasterCache(
     session: MosaicSession,
     source: string,
 ): Promise<MosaicRasterCache | null> {
-    if (session.rasterCache) return session.rasterCache;
+    if (session.rasterCache) {
+        if (session.rasterCache.source === source) return session.rasterCache;
+        releaseMosaicRasterCache(session);
+    }
 
     const ownerDocument = getCanvasDocument(context);
     const decoded = await decodeImageSource(ownerDocument, source);

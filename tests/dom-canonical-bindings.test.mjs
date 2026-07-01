@@ -41,8 +41,13 @@ import {
 } from './helpers/editor-internals.mjs';
 
 const { ImageEditor } = await import('../src/image-editor.ts');
-const { isCanvasElement, isInputElement, isInputOrSelectElement, resolveDomElement } =
-    await import('../src/core/editor-elements.ts');
+const {
+    isCanvasElement,
+    isInputElement,
+    isInputOrSelectElement,
+    resolveDomElement,
+    resolveElementTargets,
+} = await import('../src/core/editor-elements.ts');
 
 const CANONICAL_IDS = Object.freeze({
     canvas: 'customCanvas',
@@ -736,4 +741,14 @@ test('resolveDomElement returns null when a subtype guard rejects the resolved e
         null,
         'a generic HTMLElement must not be returned as an input/select control',
     );
+});
+
+test('resolveElementTargets ignores unknown runtime keys', () => {
+    const resolved = resolveElementTargets({
+        canvas: 'customCanvas',
+        __unknownElementKey: 'should-not-be-copied',
+    });
+
+    assert.equal(resolved.canvas, 'customCanvas');
+    assert.equal(Object.prototype.hasOwnProperty.call(resolved, '__unknownElementKey'), false);
 });

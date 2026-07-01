@@ -861,3 +861,74 @@ test('loadFromState restores duplicate-position masks one-to-one', async () => {
     assert.equal(byUid.get('uid-102').originalStroke, '#abcdef');
     assert.equal(byUid.get('uid-102').originalStrokeWidth, 6);
 });
+
+test('loadFromState legacy mask fallback matches duplicate positions by transform', async () => {
+    const snapshot = {
+        version: '6.0.0',
+        width: 320,
+        height: 240,
+        objects: [
+            {
+                editorObjectKind: 'mask',
+                type: 'rect',
+                left: 20,
+                top: 30,
+                angle: 15,
+                scaleX: 1,
+                scaleY: 1,
+                maskId: 201,
+                maskName: 'small',
+                originalAlpha: 0.4,
+            },
+            {
+                editorObjectKind: 'mask',
+                type: 'rect',
+                left: 20,
+                top: 30,
+                angle: 45,
+                scaleX: 2,
+                scaleY: 3,
+                maskId: 202,
+                maskName: 'large',
+                originalAlpha: 0.8,
+            },
+        ],
+        _editorState: {
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: 1,
+            currentImageMimeType: 'image/png',
+        },
+    };
+
+    const canvas = new MockCanvas();
+    canvas.loadFromJSON = async function loadFromJSON(json) {
+        this.objects = json.objects.toReversed().map((o) => ({
+            type: o.type,
+            left: o.left,
+            top: o.top,
+            angle: o.angle,
+            scaleX: o.scaleX,
+            scaleY: o.scaleY,
+            maskId: 999,
+            maskName: 'stale',
+            originalAlpha: 0.1,
+        }));
+        return this;
+    };
+
+    const result = await loadFromState({
+        canvas,
+        jsonString: snapshot,
+        setCanvasSize: makeSetCanvasSize(canvas),
+    });
+
+    const byName = new Map(result.objects.map((object) => [object.maskName, object]));
+    assert.equal(byName.get('small').maskId, 201);
+    assert.equal(byName.get('small').angle, 15);
+    assert.equal(byName.get('small').scaleX, 1);
+    assert.equal(byName.get('large').maskId, 202);
+    assert.equal(byName.get('large').angle, 45);
+    assert.equal(byName.get('large').scaleX, 2);
+    assert.equal(byName.get('large').scaleY, 3);
+});

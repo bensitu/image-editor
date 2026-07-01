@@ -69,6 +69,13 @@ const DEFAULT_ELEMENT_TARGETS: Readonly<ResolvedElementMap> = Object.freeze({
     uploadArea: 'uploadArea',
 });
 
+const ELEMENT_KEYS = Object.freeze(Object.keys(DEFAULT_ELEMENT_TARGETS)) as readonly ElementKey[];
+const ELEMENT_KEY_SET = new Set<string>(ELEMENT_KEYS);
+
+function isElementKey(value: string): value is ElementKey {
+    return ELEMENT_KEY_SET.has(value);
+}
+
 function isHTMLElementTarget(value: unknown): value is HTMLElement {
     return (
         !!value &&
@@ -127,9 +134,8 @@ export function resolveDomElement<T extends HTMLElement = HTMLElement>(
 
 export function resolveElementTargets(elementMap: ElementIdMap = {}): ResolvedElementMap {
     const resolved = { ...DEFAULT_ELEMENT_TARGETS } as ResolvedElementMap;
-    for (const [key, value] of Object.entries(elementMap) as Array<
-        [ElementKey, ResolvedElementTarget | undefined]
-    >) {
+    for (const [key, value] of Object.entries(elementMap)) {
+        if (!isElementKey(key)) continue;
         resolved[key] = value === undefined ? null : value;
     }
     return resolved;
