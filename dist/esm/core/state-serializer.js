@@ -2,7 +2,7 @@ import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-ty
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 import { StateRestoreError } from './errors.js';
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
-export const SNAPSHOT_CUSTOM_KEYS = [
+export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'editorObjectKind',
     'sessionObjectType',
     'maskId',
@@ -33,15 +33,74 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'annotationEvented',
     'annotationHasControls',
     'annotationEditable',
-];
+]);
+function readFiniteNumber(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+function serializedTypeMatches(liveObject, jsonObject) {
+    const jsonType = typeof jsonObject.type === 'string' ? jsonObject.type.toLowerCase() : '';
+    const liveType = typeof liveObject.type === 'string' ? liveObject.type.toLowerCase() : '';
+    return !jsonType || liveType === jsonType;
+}
+function serializedPositionMatches(liveObject, jsonObject) {
+    var _a, _b;
+    const jsonLeft = readFiniteNumber(jsonObject.left);
+    const jsonTop = readFiniteNumber(jsonObject.top);
+    if (jsonLeft === null || jsonTop === null)
+        return true;
+    return (Math.abs(((_a = liveObject.left) !== null && _a !== void 0 ? _a : 0) - jsonLeft) < 0.5 &&
+        Math.abs(((_b = liveObject.top) !== null && _b !== void 0 ? _b : 0) - jsonTop) < 0.5);
+}
+function serializedObjectMatches(liveObject, jsonObject) {
+    const live = liveObject;
+    if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
+        return live.maskUid === jsonObject.maskUid;
+    }
+    if (typeof jsonObject.maskId === 'number' && typeof live.maskId === 'number') {
+        return live.maskId === jsonObject.maskId;
+    }
+    if (typeof jsonObject.annotationId === 'number' && typeof live.annotationId === 'number') {
+        return live.annotationId === jsonObject.annotationId;
+    }
+    if (typeof jsonObject.sessionObjectType === 'string' &&
+        typeof live.sessionObjectType === 'string') {
+        return live.sessionObjectType === jsonObject.sessionObjectType;
+    }
+    if (typeof jsonObject.editorObjectKind === 'string' &&
+        typeof live.editorObjectKind === 'string' &&
+        live.editorObjectKind !== jsonObject.editorObjectKind) {
+        return false;
+    }
+    return (serializedTypeMatches(liveObject, jsonObject) &&
+        serializedPositionMatches(liveObject, jsonObject));
+}
+function findCanvasObjectForJson(canvasObjects, jsonObject, preferredIndex, consumedIndexes) {
+    const preferred = canvasObjects[preferredIndex];
+    if (preferred &&
+        !consumedIndexes.has(preferredIndex) &&
+        serializedObjectMatches(preferred, jsonObject)) {
+        consumedIndexes.add(preferredIndex);
+        return { object: preferred, index: preferredIndex };
+    }
+    const matchedIndex = canvasObjects.findIndex((candidate, index) => !consumedIndexes.has(index) && serializedObjectMatches(candidate, jsonObject));
+    if (matchedIndex < 0)
+        return null;
+    consumedIndexes.add(matchedIndex);
+    return { object: canvasObjects[matchedIndex], index: matchedIndex };
+}
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
         return;
+    const consumedIndexes = new Set();
     for (let index = 0; index < jsonObjects.length; index += 1) {
-        const liveObject = canvasObjects[index];
         const jsonObject = jsonObjects[index];
-        if (!liveObject || !jsonObject)
+        if (!jsonObject)
             continue;
+        const match = findCanvasObjectForJson(canvasObjects, jsonObject, index, consumedIndexes);
+        if (!match)
+            continue;
+        const liveObject = match.object;
         if (typeof liveObject.editorObjectKind === 'string') {
             jsonObject.editorObjectKind = liveObject.editorObjectKind;
         }
@@ -57,8 +116,9 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         if (typeof liveObject.originalAlpha === 'number') {
             jsonObject.originalAlpha = liveObject.originalAlpha;
         }
-        if ('originalStroke' in liveObject)
+        if (liveObject.originalStroke !== undefined) {
             jsonObject.originalStroke = liveObject.originalStroke;
+        }
         if (typeof liveObject.originalStrokeWidth === 'number') {
             jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
         }
@@ -261,8 +321,15 @@ function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels) {
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;
+    const consumedMetadataIndexes = new Set();
     jsonObjs.forEach((jObj, index) => {
-        const canvasObj = canvasObjs[index];
+        if (jObj.editorObjectKind !== 'baseImage' &&
+            jObj.editorObjectKind !== 'annotation' &&
+            jObj.editorObjectKind !== 'session') {
+            return;
+        }
+        const match = findCanvasObjectForJson(canvasObjs, jObj, index, consumedMetadataIndexes);
+        const canvasObj = match === null || match === void 0 ? void 0 : match.object;
         if (!canvasObj)
             return;
         if (jObj.editorObjectKind === 'baseImage') {

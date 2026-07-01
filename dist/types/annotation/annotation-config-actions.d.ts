@@ -17,7 +17,7 @@ export interface AnnotationConfigActionAccess {
     getCurrentDrawConfig(): ResolvedDrawConfig;
     setCurrentDrawConfig(config: ResolvedDrawConfig): void;
     getDefaultDrawConfig(): ResolvedDrawConfig;
-    canRunIdleOperation(operation: ImageEditorOperation): boolean;
+    canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     buildDrawControllerContext(): DrawControllerContext;
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
     updateSelectedAnnotation(config: AnnotationUpdateConfig): void;

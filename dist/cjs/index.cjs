@@ -226,7 +226,7 @@ class ExportError extends Error {
     }
 }
 
-const DEFAULT_ELEMENT_TARGETS = {
+const DEFAULT_ELEMENT_TARGETS = Object.freeze({
     canvas: 'canvas',
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
@@ -275,7 +275,7 @@ const DEFAULT_ELEMENT_TARGETS = {
     mosaicBrushSizeInput: 'mosaicBrushSizeInput',
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
-};
+});
 function isHTMLElementTarget(value) {
     return (!!value &&
         typeof value === 'object' &&
@@ -574,11 +574,22 @@ function normalizeLayoutMode(value) {
 function isConfigObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
-function copyDefaultMaskConfigValue(value) {
-    return Array.isArray(value) ? [...value] : value;
-}
 function canCopyObjectConfigKey(key) {
     return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
+function copyDefaultMaskConfigValue(value) {
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((item) => copyDefaultMaskConfigValue(item)));
+    }
+    if (!isConfigObject(value))
+        return value;
+    const copy = Object.create(null);
+    for (const [key, nestedValue] of Object.entries(value)) {
+        if (!canCopyObjectConfigKey(key))
+            continue;
+        copy[key] = copyDefaultMaskConfigValue(nestedValue);
+    }
+    return Object.freeze(copy);
 }
 function normalizeDefaultMaskConfig(value) {
     if (!isConfigObject(value))
@@ -742,9 +753,8 @@ function normalizeCropExportFileTypeOption(value) {
         return DEFAULT_CROP.exportFileType;
     if (value === 'source')
         return 'source';
-    return typeof value === 'string' && tryNormalizeImageFormat(value)
-        ? value
-        : DEFAULT_CROP.exportFileType;
+    const normalized = typeof value === 'string' ? tryNormalizeImageFormat(value) : null;
+    return normalized !== null && normalized !== void 0 ? normalized : DEFAULT_CROP.exportFileType;
 }
 function normalizeOptionalQuality(value) {
     if (value === undefined || value === null)
@@ -1440,7 +1450,7 @@ function markMaskObject(object, meta) {
     mask.maskUid = meta.maskUid;
     mask.maskName = meta.maskName;
     mask.originalAlpha = meta.originalAlpha;
-    if ('originalStroke' in meta)
+    if (meta.originalStroke !== undefined)
         mask.originalStroke = meta.originalStroke;
     if (typeof meta.originalStrokeWidth === 'number') {
         mask.originalStrokeWidth = meta.originalStrokeWidth;
@@ -1478,7 +1488,7 @@ function markSessionObject(object, sessionObjectType) {
 }
 
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
-const SNAPSHOT_CUSTOM_KEYS = [
+const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'editorObjectKind',
     'sessionObjectType',
     'maskId',
@@ -1509,15 +1519,74 @@ const SNAPSHOT_CUSTOM_KEYS = [
     'annotationEvented',
     'annotationHasControls',
     'annotationEditable',
-];
+]);
+function readFiniteNumber(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+function serializedTypeMatches(liveObject, jsonObject) {
+    const jsonType = typeof jsonObject.type === 'string' ? jsonObject.type.toLowerCase() : '';
+    const liveType = typeof liveObject.type === 'string' ? liveObject.type.toLowerCase() : '';
+    return !jsonType || liveType === jsonType;
+}
+function serializedPositionMatches(liveObject, jsonObject) {
+    var _a, _b;
+    const jsonLeft = readFiniteNumber(jsonObject.left);
+    const jsonTop = readFiniteNumber(jsonObject.top);
+    if (jsonLeft === null || jsonTop === null)
+        return true;
+    return (Math.abs(((_a = liveObject.left) !== null && _a !== void 0 ? _a : 0) - jsonLeft) < 0.5 &&
+        Math.abs(((_b = liveObject.top) !== null && _b !== void 0 ? _b : 0) - jsonTop) < 0.5);
+}
+function serializedObjectMatches(liveObject, jsonObject) {
+    const live = liveObject;
+    if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
+        return live.maskUid === jsonObject.maskUid;
+    }
+    if (typeof jsonObject.maskId === 'number' && typeof live.maskId === 'number') {
+        return live.maskId === jsonObject.maskId;
+    }
+    if (typeof jsonObject.annotationId === 'number' && typeof live.annotationId === 'number') {
+        return live.annotationId === jsonObject.annotationId;
+    }
+    if (typeof jsonObject.sessionObjectType === 'string' &&
+        typeof live.sessionObjectType === 'string') {
+        return live.sessionObjectType === jsonObject.sessionObjectType;
+    }
+    if (typeof jsonObject.editorObjectKind === 'string' &&
+        typeof live.editorObjectKind === 'string' &&
+        live.editorObjectKind !== jsonObject.editorObjectKind) {
+        return false;
+    }
+    return (serializedTypeMatches(liveObject, jsonObject) &&
+        serializedPositionMatches(liveObject, jsonObject));
+}
+function findCanvasObjectForJson(canvasObjects, jsonObject, preferredIndex, consumedIndexes) {
+    const preferred = canvasObjects[preferredIndex];
+    if (preferred &&
+        !consumedIndexes.has(preferredIndex) &&
+        serializedObjectMatches(preferred, jsonObject)) {
+        consumedIndexes.add(preferredIndex);
+        return { object: preferred, index: preferredIndex };
+    }
+    const matchedIndex = canvasObjects.findIndex((candidate, index) => !consumedIndexes.has(index) && serializedObjectMatches(candidate, jsonObject));
+    if (matchedIndex < 0)
+        return null;
+    consumedIndexes.add(matchedIndex);
+    return { object: canvasObjects[matchedIndex], index: matchedIndex };
+}
 function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
     if (!Array.isArray(jsonObjects))
         return;
+    const consumedIndexes = new Set();
     for (let index = 0; index < jsonObjects.length; index += 1) {
-        const liveObject = canvasObjects[index];
         const jsonObject = jsonObjects[index];
-        if (!liveObject || !jsonObject)
+        if (!jsonObject)
             continue;
+        const match = findCanvasObjectForJson(canvasObjects, jsonObject, index, consumedIndexes);
+        if (!match)
+            continue;
+        const liveObject = match.object;
         if (typeof liveObject.editorObjectKind === 'string') {
             jsonObject.editorObjectKind = liveObject.editorObjectKind;
         }
@@ -1533,8 +1602,9 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         if (typeof liveObject.originalAlpha === 'number') {
             jsonObject.originalAlpha = liveObject.originalAlpha;
         }
-        if ('originalStroke' in liveObject)
+        if (liveObject.originalStroke !== undefined) {
             jsonObject.originalStroke = liveObject.originalStroke;
+        }
         if (typeof liveObject.originalStrokeWidth === 'number') {
             jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
         }
@@ -1737,8 +1807,15 @@ function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels) {
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;
+    const consumedMetadataIndexes = new Set();
     jsonObjs.forEach((jObj, index) => {
-        const canvasObj = canvasObjs[index];
+        if (jObj.editorObjectKind !== 'baseImage' &&
+            jObj.editorObjectKind !== 'annotation' &&
+            jObj.editorObjectKind !== 'session') {
+            return;
+        }
+        const match = findCanvasObjectForJson(canvasObjs, jObj, index, consumedMetadataIndexes);
+        const canvasObj = match === null || match === void 0 ? void 0 : match.object;
         if (!canvasObj)
             return;
         if (jObj.editorObjectKind === 'baseImage') {
@@ -2620,7 +2697,8 @@ class HistoryManager {
             writable: true,
             value: void 0
         });
-        this.maxSize = maxSize;
+        const normalizedMaxSize = Number.isFinite(maxSize) ? Math.floor(maxSize) : 50;
+        this.maxSize = Math.max(1, normalizedMaxSize);
     }
     async execute(command) {
         this.queuedExecuteCount += 1;
@@ -2647,6 +2725,13 @@ class HistoryManager {
     }
     push(command) {
         this.pushAndTrim(command);
+    }
+    clear() {
+        this.history = [];
+        this.currentIndex = -1;
+        this.isProcessing = false;
+        this.queuedExecuteCount = 0;
+        this.executeTail = Promise.resolve();
     }
     canUndo() {
         return this.currentIndex >= 0;
@@ -3522,6 +3607,24 @@ function teardownSession(context, session) {
     catch {
     }
 }
+function finitePositiveRatio(numerator, denominator) {
+    const ratio = Number(numerator) / Number(denominator);
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+function resolvePostCropMaskPlacement(context, cropRegion) {
+    const postCropImage = context.getOriginalImage();
+    if (!postCropImage) {
+        return { left: 0, top: 0, scaleX: 1, scaleY: 1 };
+    }
+    postCropImage.setCoords();
+    const imageBounds = postCropImage.getBoundingRect();
+    return {
+        left: finiteNumberOrFallback(imageBounds.left, 0),
+        top: finiteNumberOrFallback(imageBounds.top, 0),
+        scaleX: finitePositiveRatio(imageBounds.width, cropRegion.width),
+        scaleY: finitePositiveRatio(imageBounds.height, cropRegion.height),
+    };
+}
 function maskIntersectsRegion(mask, region) {
     const bbox = getObjectBBox(mask);
     return (bbox.left < region.left + region.width &&
@@ -3564,16 +3667,17 @@ function reapplyPreservedMasks(context, cropRegion, records) {
     if (records.length === 0)
         return;
     const { canvas } = context;
+    const placement = resolvePostCropMaskPlacement(context, cropRegion);
     let maxRestoredId = 0;
     for (const record of records) {
         try {
             restoreMaskStyleBackup(record.styleBackup);
             record.mask.set({
-                left: record.left - cropRegion.left,
-                top: record.top - cropRegion.top,
+                left: placement.left + (record.left - cropRegion.left) * placement.scaleX,
+                top: placement.top + (record.top - cropRegion.top) * placement.scaleY,
                 angle: record.angle,
-                scaleX: record.scaleX,
-                scaleY: record.scaleY,
+                scaleX: record.scaleX * placement.scaleX,
+                scaleY: record.scaleY * placement.scaleY,
                 visible: true,
             });
             record.mask.setCoords();
@@ -4485,6 +4589,27 @@ function releaseMosaicRasterCache(session) {
     }
     session.rasterCache = null;
 }
+async function refreshMosaicRasterCacheFromSource(context, session, source) {
+    const rasterCache = session.rasterCache;
+    if (!rasterCache)
+        return;
+    const ownerDocument = getCanvasDocument$3(context);
+    const decoded = await decodeImageSource(ownerDocument, source);
+    rasterCache.offscreenCanvas.width = decoded.width;
+    rasterCache.offscreenCanvas.height = decoded.height;
+    const renderingContext = rasterCache.offscreenCanvas.getContext('2d');
+    if (!renderingContext) {
+        releaseMosaicRasterCache(session);
+        return;
+    }
+    renderingContext.clearRect(0, 0, decoded.width, decoded.height);
+    renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
+    rasterCache.renderingContext = renderingContext;
+    rasterCache.imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
+    rasterCache.source = source;
+    rasterCache.width = decoded.width;
+    rasterCache.height = decoded.height;
+}
 function hidePreview(context) {
     var _a;
     const circle = (_a = context.getMosaicSession()) === null || _a === void 0 ? void 0 : _a.previewCircle;
@@ -4805,7 +4930,13 @@ async function commitMosaicChanges(context, session, callbackContext) {
         replaceBaseImage(context, originalImage, nextImage, output.mimeType);
         const after = context.captureSnapshot();
         pushMosaicHistory(context, after);
-        rasterCache.source = nextDataUrl;
+        try {
+            await refreshMosaicRasterCacheFromSource(context, session, nextDataUrl);
+        }
+        catch (error) {
+            releaseMosaicRasterCache(session);
+            reportWarning(context.options, error, 'Mosaic cache refresh failed after commit; the next stroke will rebuild it.');
+        }
         session.hasUncommittedChanges = false;
     }
     finally {
@@ -4883,11 +5014,6 @@ function installMosaicHandlers(context, session) {
     });
     attachCanvasHandler(context, session, 'mouse:out', () => {
         hidePreview(context);
-        const currentSession = context.getMosaicSession();
-        if (currentSession === null || currentSession === void 0 ? void 0 : currentSession.isPointerDown) {
-            currentSession.isPointerDown = false;
-            requestMosaicCommit(context, currentSession);
-        }
     });
     attachCanvasHandler(context, session, 'mouse:down', (event) => {
         const pointer = getPointerFromFabricEvent(context.canvas, event);
@@ -5698,14 +5824,42 @@ function warnNoImageLoaded(options, operation) {
 function extensionForFormat(format) {
     return format === 'jpeg' ? 'jpg' : format;
 }
+const MAX_EXPORT_FILE_BASENAME_LENGTH = 120;
+function replaceUnsafeFileNameCharacters(value) {
+    let output = '';
+    let lastWasReplacement = false;
+    for (const char of value) {
+        const code = char.charCodeAt(0);
+        const unsafe = code <= 31 || code === 127 || '<>:"|?*'.includes(char);
+        if (unsafe) {
+            if (!lastWasReplacement)
+                output += '_';
+            lastWasReplacement = true;
+            continue;
+        }
+        output += char;
+        lastWasReplacement = false;
+    }
+    return output;
+}
+function sanitizeFileNameBase(value) {
+    const withoutPathSeparators = value.replace(/[\\/]+/g, '_');
+    const sanitized = replaceUnsafeFileNameCharacters(withoutPathSeparators)
+        .replace(/\.\.+/g, '.')
+        .replace(/^\.+|\.+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_EXPORT_FILE_BASENAME_LENGTH)
+        .trim();
+    return sanitized || 'edited_image';
+}
 function resolveFileName(baseName, format) {
     const fallback = 'edited_image';
     const trimmed = String(baseName || fallback).trim() || fallback;
     const ext = extensionForFormat(format.format);
-    if (/\.(jpe?g|png|webp)$/i.test(trimmed)) {
-        return trimmed.replace(/\.(jpe?g|png|webp)$/i, `.${ext}`);
-    }
-    return `${trimmed}.${ext}`;
+    const baseWithoutExtension = trimmed.replace(/\.(jpe?g|png|webp)$/i, '');
+    const safeBase = sanitizeFileNameBase(baseWithoutExtension);
+    return `${safeBase}.${ext}`;
 }
 async function renderExportDataUrl(context, resolved, validateMimeType = true) {
     const render = async () => {
@@ -5916,9 +6070,9 @@ const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSI
 function isSupportedImageDataUrl(value) {
     if (typeof value !== 'string')
         return false;
-    if (!value.startsWith('data:image/'))
+    if (!value.toLowerCase().startsWith('data:image/'))
         return false;
-    const match = /^data:(image\/[^;,]+)(?:[;,])/.exec(value);
+    const match = /^data:(image\/[^;,]+)(?:[;,])/i.exec(value);
     if (!match)
         return false;
     return SUPPORTED_IMAGE_MIME_TYPES.has(match[1].toLowerCase());
@@ -7126,7 +7280,7 @@ function animateProps(object, props, options, guard) {
         unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
         try {
             const animationResult = object.animate(props, {
-                duration: options.duration,
+                duration,
                 onChange: () => {
                     var _a;
                     if (guard.isDisposed())
@@ -7185,6 +7339,9 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        const previousScale = this.context.getCurrentScale();
+        const previousScaleX = imageObject.scaleX;
+        const previousScaleY = imageObject.scaleY;
         const clamped = Math.max(this.context.options.minScale, Math.min(this.context.options.maxScale, factor));
         this.context.setCurrentScale(clamped);
         const targetAbs = this.context.getBaseImageScale() * clamped;
@@ -7204,6 +7361,13 @@ class TransformController {
             }, this.context.guard));
         }
         catch (error) {
+            this.context.setCurrentScale(previousScale);
+            if (!this.context.guard.isDisposed()) {
+                imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
+                imageObject.setCoords();
+                if (this.context.afterTransformSnap)
+                    this.context.afterTransformSnap();
+            }
             reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
         }
@@ -7225,6 +7389,8 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        const previousRotation = this.context.getCurrentRotation();
+        const previousAngle = imageObject.angle;
         this.context.setCurrentRotation(degrees);
         try {
             const centre = imageObject.getCenterPoint();
@@ -7244,6 +7410,13 @@ class TransformController {
         }
         catch (error) {
             animationFailed = true;
+            this.context.setCurrentRotation(previousRotation);
+            if (!this.context.guard.isDisposed()) {
+                imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
+                imageObject.setCoords();
+                if (this.context.afterTransformSnap)
+                    this.context.afterTransformSnap();
+            }
             reportWarning(this.context.options, error, 'rotateImage animation failed.');
         }
         finally {
@@ -7637,7 +7810,7 @@ class EditorActionAccessFactory {
                 runtime.mosaicSession !== null ||
                 runtime.textSession !== null ||
                 runtime.drawSession !== null,
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
@@ -7710,7 +7883,7 @@ class EditorActionAccessFactory {
                 runtime.currentDrawConfig = config;
             },
             getDefaultDrawConfig: () => runtime.defaultDrawConfig,
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
             updateSelectedAnnotation: (config) => {
@@ -7793,7 +7966,7 @@ class EditorActionAccessFactory {
             getOptions: () => runtime.options,
             isDisposed: () => runtime.isDisposed,
             isImageLoaded: () => runtime.isImageLoaded(),
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             buildMosaicControllerContext: () => this.contextFactory.buildMosaicControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
             updateInputs: () => {
@@ -7820,7 +7993,7 @@ class EditorActionAccessFactory {
                 runtime.cropSession = session;
             },
             isImageLoaded: () => runtime.isImageLoaded(),
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             buildCropControllerContext: (token) => this.contextFactory.buildCropControllerContext(token),
             buildBusyOperationAccess: () => this.buildBusyOperationAccess(),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
@@ -9589,8 +9762,10 @@ class EditorRuntime {
     }
     isImageLoaded() {
         var _a, _b;
+        const FabricImageCtor = this.fabricModule.FabricImage;
         return !!(this.originalImage &&
-            this.originalImage instanceof this.fabricModule.FabricImage &&
+            typeof FabricImageCtor === 'function' &&
+            this.originalImage instanceof FabricImageCtor &&
             ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
             ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
     }
@@ -9600,6 +9775,12 @@ class EditorRuntime {
     resetAfterDispose() {
         this.canvas = null;
         this.canvasElement = null;
+        this.containerElement = null;
+        this.placeholderElement = null;
+        this.elements = {};
+        this.elementOriginalDisabledMap.clear();
+        this.elementOriginalAriaDisabledMap.clear();
+        this.elementOriginalPointerEventsMap.clear();
         this.isImageLoadedToCanvas = false;
         this.originalImage = null;
         this.currentImageMimeType = null;
@@ -9610,7 +9791,25 @@ class EditorRuntime {
         this.currentRotation = 0;
         this.baseImageScale = 1;
         this.lastSnapshot = null;
+        this.historyManager.clear();
         this.transformController = null;
+        this.cropSession = null;
+        this.mosaicSession = null;
+        this.textSession = null;
+        this.drawSession = null;
+        this.domBindings = null;
+        this.keyboardDocument = null;
+        this.keyboardHandler = null;
+        this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
+        this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
+        this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.shouldSuppressSaveState = false;
+        this.shouldSuppressSelectionChange = false;
+        this.lastEmittedIsBusy = null;
+        this.lastEmittedToolMode = null;
+        this.lastEmittedHistoryState = { canUndo: false, canRedo: false };
+        this.activeStateRestoreOperation = null;
+        this.nextSelectionChangeContext = null;
         this.viewportCache.clear();
     }
 }
@@ -10787,6 +10986,7 @@ function handleEditorKeyboardEvent(access, event) {
             isFabricTextEditingActive(canvas)) {
             return;
         }
+        event.preventDefault();
         access.deleteSelectedObject();
         return;
     }
@@ -10798,15 +10998,19 @@ function handleEditorKeyboardEvent(access, event) {
         return;
     }
     if (access.hasTextSession()) {
+        event.preventDefault();
         access.exitTextMode();
     }
     else if (access.hasDrawSession()) {
+        event.preventDefault();
         access.exitDrawMode();
     }
     else if (access.hasMosaicSession()) {
+        event.preventDefault();
         access.exitMosaicMode();
     }
     else if (access.hasCropSession()) {
+        event.preventDefault();
         access.cancelCrop();
     }
 }
@@ -10815,6 +11019,7 @@ const CROP_SESSION_ALLOWED_OPERATIONS = new Set([
     'setCropAspectRatio',
     'applyCrop',
     'cancelCrop',
+    'saveState',
 ]);
 const MOSAIC_SESSION_ALLOWED_OPERATIONS = new Set([
     'exitMosaicMode',

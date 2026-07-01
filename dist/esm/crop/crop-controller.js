@@ -110,6 +110,24 @@ function teardownSession(context, session) {
     catch {
     }
 }
+function finitePositiveRatio(numerator, denominator) {
+    const ratio = Number(numerator) / Number(denominator);
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+function resolvePostCropMaskPlacement(context, cropRegion) {
+    const postCropImage = context.getOriginalImage();
+    if (!postCropImage) {
+        return { left: 0, top: 0, scaleX: 1, scaleY: 1 };
+    }
+    postCropImage.setCoords();
+    const imageBounds = postCropImage.getBoundingRect();
+    return {
+        left: finiteNumberOrFallback(imageBounds.left, 0),
+        top: finiteNumberOrFallback(imageBounds.top, 0),
+        scaleX: finitePositiveRatio(imageBounds.width, cropRegion.width),
+        scaleY: finitePositiveRatio(imageBounds.height, cropRegion.height),
+    };
+}
 function maskIntersectsRegion(mask, region) {
     const bbox = getObjectBBox(mask);
     return (bbox.left < region.left + region.width &&
@@ -152,16 +170,17 @@ function reapplyPreservedMasks(context, cropRegion, records) {
     if (records.length === 0)
         return;
     const { canvas } = context;
+    const placement = resolvePostCropMaskPlacement(context, cropRegion);
     let maxRestoredId = 0;
     for (const record of records) {
         try {
             restoreMaskStyleBackup(record.styleBackup);
             record.mask.set({
-                left: record.left - cropRegion.left,
-                top: record.top - cropRegion.top,
+                left: placement.left + (record.left - cropRegion.left) * placement.scaleX,
+                top: placement.top + (record.top - cropRegion.top) * placement.scaleY,
                 angle: record.angle,
-                scaleX: record.scaleX,
-                scaleY: record.scaleY,
+                scaleX: record.scaleX * placement.scaleX,
+                scaleY: record.scaleY * placement.scaleY,
                 visible: true,
             });
             record.mask.setCoords();

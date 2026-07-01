@@ -90,6 +90,7 @@ test('crop mode allows only crop-session operations', () => {
     assert.equal(allowed.has('setCropAspectRatio'), true);
     assert.equal(allowed.has('applyCrop'), true);
     assert.equal(allowed.has('cancelCrop'), true);
+    assert.equal(allowed.has('saveState'), true);
     assert.equal(canRunOperationInToolMode('crop', 'scaleImage'), false);
 });
 

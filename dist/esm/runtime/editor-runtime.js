@@ -325,8 +325,10 @@ export class EditorRuntime {
     }
     isImageLoaded() {
         var _a, _b;
+        const FabricImageCtor = this.fabricModule.FabricImage;
         return !!(this.originalImage &&
-            this.originalImage instanceof this.fabricModule.FabricImage &&
+            typeof FabricImageCtor === 'function' &&
+            this.originalImage instanceof FabricImageCtor &&
             ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
             ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
     }
@@ -336,6 +338,12 @@ export class EditorRuntime {
     resetAfterDispose() {
         this.canvas = null;
         this.canvasElement = null;
+        this.containerElement = null;
+        this.placeholderElement = null;
+        this.elements = {};
+        this.elementOriginalDisabledMap.clear();
+        this.elementOriginalAriaDisabledMap.clear();
+        this.elementOriginalPointerEventsMap.clear();
         this.isImageLoadedToCanvas = false;
         this.originalImage = null;
         this.currentImageMimeType = null;
@@ -346,7 +354,25 @@ export class EditorRuntime {
         this.currentRotation = 0;
         this.baseImageScale = 1;
         this.lastSnapshot = null;
+        this.historyManager.clear();
         this.transformController = null;
+        this.cropSession = null;
+        this.mosaicSession = null;
+        this.textSession = null;
+        this.drawSession = null;
+        this.domBindings = null;
+        this.keyboardDocument = null;
+        this.keyboardHandler = null;
+        this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
+        this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
+        this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.shouldSuppressSaveState = false;
+        this.shouldSuppressSelectionChange = false;
+        this.lastEmittedIsBusy = null;
+        this.lastEmittedToolMode = null;
+        this.lastEmittedHistoryState = { canUndo: false, canRedo: false };
+        this.activeStateRestoreOperation = null;
+        this.nextSelectionChangeContext = null;
         this.viewportCache.clear();
     }
 }

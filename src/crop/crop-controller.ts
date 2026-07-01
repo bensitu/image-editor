@@ -62,19 +62,12 @@
  * - When `options.crop.preserveMasksAfterCrop`
  *   is `true`, `applyCrop` captures each mask's `left`, `top`,
  *   `angle`, `scaleX`, and `scaleY` BEFORE the canvas is exported, and
- *   re-adds the masks AFTER the loader commits the cropped image with
- *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
- *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
- *   the visible mask shape does not change size or orientation. The
- *   cropRegion-relative shift preserves the historical
- *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
- *   -cropRegion.sourceY)` behavior. Because shifting `left` / `top` by a constant translates
- *   the entire object (including its rotated visual) by the same
- *   constant in canvas pixels, the post-crop position relative to the
- *   new image bounding box matches the pre-crop position relative to
- *   the old image bounding box without any explicit trig in this
- *   module — the rotation angle is encoded in the rotated image's
- *   bounding rect, which moves with the same translation as the masks.
+ *   re-adds the masks AFTER the loader commits the cropped image. The
+ *   controller maps each mask's crop-region-relative position through
+ *   the new base image's actual post-load bounding box, so preserved
+ *   masks stay aligned even when the loader scales the cropped bitmap.
+ *   `angle` is restored verbatim; `scaleX` and `scaleY` are multiplied
+ *   by the post-load image scale for the corresponding axis.
  *
  * ## Post-crop mask preservation
  *
@@ -83,12 +76,14 @@
  * restored on cancel. The apply path separately owns
  * `preserveMasksAfterCrop`: when the option is `true`, the controller
  * captures each mask's `left`, `top`, `angle`, `scaleX`, and `scaleY`
- * before export and re-adds the masks shifted by
- * `-cropRegion.left, -cropRegion.top` after
- * `context.loadImage(croppedBase64)` commits. The intersection filter
- * drops masks that do not overlap the crop region, matching the documented
- * observable behavior: masks fully outside the cropped region are
- * removed, while intersecting masks are preserved.
+ * before export and re-adds the masks after
+ * `context.loadImage(croppedBase64)` commits. The reapply pass maps
+ * crop-region coordinates into the committed cropped image's bounding
+ * box, including any post-load scale chosen by the active layout mode.
+ * The intersection filter drops masks that do not overlap the crop
+ * region, matching the documented observable behavior: masks fully
+ * outside the cropped region are removed, while intersecting masks are
+ * preserved.
  *
  * ## Implementation notes
  *
@@ -537,14 +532,11 @@ function teardownSession(context: CropControllerContext, session: CropSession): 
  * - `left`, `top` — the mask's pre-crop top-left coordinates in canvas
  *   pixels. Captured BEFORE the export so a later transform mutation
  *   inside `context.loadImage` cannot affect the values; the post-crop
- *   placement step shifts these by `-cropRegion.left, -cropRegion.top`
- *   so the mask's position relative to the new image bounding box
- *   matches its prior position relative to the pre-crop image bounding
- *   box. Matches legacy's
- *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
- *   -cropRegion.sourceY)`.
- * - `angle`, `scaleX`, `scaleY` — preserved verbatim across the crop so
- *   the visible mask shape does not change size or orientation.
+ *   placement step maps these from crop-region coordinates into the
+ *   committed cropped image's post-load bounding box.
+ * - `angle`, `scaleX`, `scaleY` — angle is preserved verbatim, while
+ *   scale fields are multiplied by any post-load image scale so the
+ *   visible mask shape remains proportional to the cropped image.
  * - `styleBackup` — the pre-crop visual and event state, restored before
  *   the geometry shift so crop-mode hide styles never leak after apply.
  *
@@ -557,6 +549,37 @@ interface PreservedMaskRecord {
     scaleX: number;
     scaleY: number;
     styleBackup: MaskBackup;
+}
+
+interface PostCropMaskPlacement {
+    left: number;
+    top: number;
+    scaleX: number;
+    scaleY: number;
+}
+
+function finitePositiveRatio(numerator: unknown, denominator: unknown): number {
+    const ratio = Number(numerator) / Number(denominator);
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+
+function resolvePostCropMaskPlacement(
+    context: CropControllerContext,
+    cropRegion: { left: number; top: number; width: number; height: number },
+): PostCropMaskPlacement {
+    const postCropImage = context.getOriginalImage();
+    if (!postCropImage) {
+        return { left: 0, top: 0, scaleX: 1, scaleY: 1 };
+    }
+
+    postCropImage.setCoords();
+    const imageBounds = postCropImage.getBoundingRect();
+    return {
+        left: finiteNumberOrFallback(imageBounds.left, 0),
+        top: finiteNumberOrFallback(imageBounds.top, 0),
+        scaleX: finitePositiveRatio(imageBounds.width, cropRegion.width),
+        scaleY: finitePositiveRatio(imageBounds.height, cropRegion.height),
+    };
 }
 
 /**
@@ -597,13 +620,11 @@ function maskIntersectsRegion(
  *
  * The captured `left` and `top` are read directly off the live mask
  * (matches legacy's `_translateObjectByCanvasOffset` operating on
- * `mask.left` / `mask.top`) so the post-load reapply step can shift
- * them by `-cropRegion.left, -cropRegion.top` and land the mask at the
- * same canvas position relative to the new image bounding box. Because
- * a constant translation moves the rotated mask's visual by the same
- * constant in canvas pixels, the rotation angle does not need to be
- * re-applied to the offset — `angle` is preserved
- * verbatim.
+ * `mask.left` / `mask.top`) so the post-load reapply step can map
+ * them into the committed cropped image's post-load bounding box and
+ * land the mask at the same relative position. `angle` is preserved
+ * verbatim, while scale fields are adjusted only when the loader scales
+ * the cropped bitmap.
  *
  * Each removal is wrapped in `try/catch` so a stale Fabric reference
  * mid-iteration cannot break the loop.
@@ -632,11 +653,12 @@ function capturePreservedMasks(
                     mask,
                     // capture pre-crop
                     // canvas-pixel coordinates verbatim. The post-crop
-                    // reapply step shifts these by `-cropRegion.left,
-                    // -cropRegion.top` (matches legacy).
+                    // reapply step maps these through the new base image
+                    // placement.
                     left: finiteNumberOrFallback(mask.left, 0),
                     top: finiteNumberOrFallback(mask.top, 0),
-                    // preserve verbatim.
+                    // Angle is preserved verbatim; scale is later adjusted
+                    // for any post-load image scaling.
                     angle: finiteNumberOrFallback(mask.angle, 0),
                     scaleX: finiteNumberOrFallback(mask.scaleX, 1),
                     scaleY: finiteNumberOrFallback(mask.scaleY, 1),
@@ -654,13 +676,15 @@ function capturePreservedMasks(
 }
 
 /**
- * Re-add every captured mask to the post-crop canvas with its `left`
- * and `top` shifted by `-cropRegion.left, -cropRegion.top` so its
- * position relative to the new image bounding box matches its prior
- * position relative to the pre-crop image bounding box.
+ * Re-add every captured mask to the post-crop canvas by mapping its
+ * crop-region-relative offset onto the committed cropped image's actual
+ * bounding box. This preserves the old `-cropRegion.left/top` behavior
+ * when the cropped bitmap loads at `(0, 0)` with scale `1`, and keeps
+ * masks aligned when the layout mode scales the new base image.
  *
- * Per-mask `angle`, `scaleX`, and `scaleY` are restored from the captured
- * record so the visible mask shape does not change size or orientation.
+ * Per-mask `angle` is restored from the captured record. `scaleX` and
+ * `scaleY` are multiplied by the post-load image scale so the visible
+ * mask shape remains proportional to the cropped image.
  * Hover handlers are reattached because Fabric event
  * listeners are not preserved across `canvas.remove` / `canvas.add`
  * pairs — matches legacy's `_rebindMaskEvents` call after the same
@@ -685,31 +709,26 @@ function reapplyPreservedMasks(
     if (records.length === 0) return;
 
     const { canvas } = context;
+    const placement = resolvePostCropMaskPlacement(context, cropRegion);
 
     let maxRestoredId = 0;
     for (const record of records) {
         try {
-            // apply the legacy cropRegion-relative
-            // shift: a constant translation in canvas pixels moves the
-            // rotated mask visual by the same constant, so the post-crop
-            // position relative to the new image bbox matches the
-            // pre-crop position relative to the old image bbox.
-            //
             // Restore the pre-crop style first so crop-mode opacity,
             // evented, and selectable changes do not leak into the
             // post-crop canvas.
             restoreMaskStyleBackup(record.styleBackup);
 
-            //
-            // restore `angle`, `scaleX`, `scaleY`
-            // verbatim and force `visible: true` (matches legacy's
-            // `mask.set({ visible: true})` after the offset).
+            // Map crop-region coordinates into the cropped image's
+            // post-load bounding box. In the common scale-1 case this
+            // collapses to the historical `record.left - cropRegion.left`
+            // / `record.top - cropRegion.top` offset.
             record.mask.set({
-                left: record.left - cropRegion.left,
-                top: record.top - cropRegion.top,
+                left: placement.left + (record.left - cropRegion.left) * placement.scaleX,
+                top: placement.top + (record.top - cropRegion.top) * placement.scaleY,
                 angle: record.angle,
-                scaleX: record.scaleX,
-                scaleY: record.scaleY,
+                scaleX: record.scaleX * placement.scaleX,
+                scaleY: record.scaleY * placement.scaleY,
                 visible: true,
             });
             record.mask.setCoords();
@@ -1416,11 +1435,12 @@ export function cancelCrop(context: CropControllerContext): void {
  *    a failure propagates here so the rollback path below catches it.
  * 7a. **Reapply preserved masks** — when
  *    records were captured in step 3a, re-add each mask to the
- *    post-crop canvas with `left` and `top` shifted by
- *    `-cropRegion.left, -cropRegion.top` and `angle`, `scaleX`,
- *    `scaleY` restored verbatim. Restores the orchestrator's mask
- *    counter to `max(maskId)` so subsequent `createMask` calls do not
- *    collide with preserved IDs.
+ *    post-crop canvas by mapping its crop-region-relative offset into
+ *    the committed cropped image's actual bounding box. `angle` is
+ *    restored verbatim, while `scaleX` and `scaleY` include the
+ *    post-load image scale. Restores the orchestrator's mask counter to
+ *    `max(maskId)` so subsequent `createMask` calls do not collide with
+ *    preserved IDs.
  * 8. **Capture post-crop snapshot** for the redo command.
  * 9. **Drop the session pointer** before pushing history.
  * 10. **Push exactly one history command** whose
@@ -1496,9 +1516,8 @@ export async function applyCrop(context: CropControllerContext): Promise<void> {
         //     Fabric reference alive across the loader's `canvas.clear`
         //     call (the masks are detached from the canvas but the
         //     records still hold the live objects). The post-load
-        //     reapply step shifts each mask by `-cropRegion.left,
-        //     -cropRegion.top` (matches legacy's
-        //     `_translateObjectByCanvasOffset`).
+        //     reapply step maps each mask through the committed cropped
+        //     image's post-load bounding box.
         //
         //     The intersection filter (matches legacy's `intersectsCrop`)
         //     drops masks fully outside the crop region — they are
@@ -1547,13 +1566,11 @@ export async function applyCrop(context: CropControllerContext): Promise<void> {
         //    timeout failure rejects here and the rollback path catches.
         await context.loadImage(croppedBase64);
 
-        // 7a. re-add every captured mask
-        //     to the post-crop canvas with its `left` / `top` shifted
-        //     by `-cropRegion.left, -cropRegion.top`. The loader has
-        //     reset `maskCounter` to 0 and committed a fresh
-        //     `originalImage`; the helper bumps the counter back to
-        //     `max(maskId)` so subsequent `createMask` calls do not
-        //     collide.
+        // 7a. Re-add every captured mask to the post-crop canvas using
+        //     the fresh `originalImage` placement committed by the
+        //     loader. The loader has reset `maskCounter` to 0; the helper
+        //     bumps the counter back to `max(maskId)` so subsequent
+        //     `createMask` calls do not collide.
         if (preservedRecords.length > 0) {
             reapplyPreservedMasks(context, cropRegion, preservedRecords);
             // Re-added masks must be visible before the post-crop snapshot

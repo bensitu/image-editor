@@ -274,6 +274,56 @@ test('Mosaic drag shows live preview before mouseup commits the stroke', async (
     }
 });
 
+test('Mosaic commit refreshes the raster cache to the committed source', async () => {
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 14, blockSize: 4 },
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 48, height: 48 }));
+        const canvas = requireEditorCanvas(editor);
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        canvas.fire('mouse:down', { scenePoint: center });
+        await waitForCanvasCallbacks(250);
+        const session = getMosaicSession(editor);
+        assert.ok(session?.rasterCache, 'mousedown should create the raster cache');
+        const preCommitImageData = session.rasterCache.imageData;
+
+        canvas.fire('mouse:up', { scenePoint: center });
+        await waitForCanvasCallbacks(350);
+
+        const afterSource = requireOriginalImage(editor).getSrc();
+        assert.equal(session.rasterCache.source, afterSource);
+        assert.notEqual(session.rasterCache.imageData, preCommitImageData);
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('Mosaic mouseout hides preview without cancelling an active drag', async () => {
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 14, blockSize: 4 },
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 48, height: 48 }));
+        const canvas = requireEditorCanvas(editor);
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        canvas.fire('mouse:down', { scenePoint: center });
+        await waitForCanvasCallbacks(50);
+        canvas.fire('mouse:out', {});
+
+        const session = getMosaicSession(editor);
+        assert.equal(session.isPointerDown, true);
+
+        canvas.fire('mouse:up', { scenePoint: center });
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
 test('exitMosaicMode releases the raster cache', async () => {
     const { editor } = await createEditor({
         defaultMosaicConfig: { brushSize: 14, blockSize: 4 },

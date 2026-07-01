@@ -188,7 +188,7 @@ export interface CanvasJson {
  * cannot mutate the shared array.
  *
  */
-export const SNAPSHOT_CUSTOM_KEYS = [
+export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'editorObjectKind',
     'sessionObjectType',
     'maskId',
@@ -219,15 +219,121 @@ export const SNAPSHOT_CUSTOM_KEYS = [
     'annotationEvented',
     'annotationHasControls',
     'annotationEditable',
-] as const;
+] as const);
+
+type SnapshotLiveObject = FabricNS.FabricObject &
+    Partial<MaskObject> & {
+        editorObjectKind?: string;
+        sessionObjectType?: string;
+        isCropRect?: boolean;
+        maskLabel?: boolean;
+        isMosaicPreview?: boolean;
+        annotationId?: number;
+        annotationType?: string;
+        annotationName?: string;
+        annotationHidden?: boolean;
+        annotationLocked?: boolean;
+        annotationSelectable?: boolean;
+        annotationEvented?: boolean;
+        annotationHasControls?: boolean;
+        annotationEditable?: boolean;
+    };
+
+function readFiniteNumber(value: unknown): number | null {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+
+function serializedTypeMatches(
+    liveObject: FabricNS.FabricObject,
+    jsonObject: CanvasJsonObject,
+): boolean {
+    const jsonType = typeof jsonObject.type === 'string' ? jsonObject.type.toLowerCase() : '';
+    const liveType = typeof liveObject.type === 'string' ? liveObject.type.toLowerCase() : '';
+    return !jsonType || liveType === jsonType;
+}
+
+function serializedPositionMatches(
+    liveObject: FabricNS.FabricObject,
+    jsonObject: CanvasJsonObject,
+): boolean {
+    const jsonLeft = readFiniteNumber(jsonObject.left);
+    const jsonTop = readFiniteNumber(jsonObject.top);
+    if (jsonLeft === null || jsonTop === null) return true;
+    return (
+        Math.abs((liveObject.left ?? 0) - jsonLeft) < 0.5 &&
+        Math.abs((liveObject.top ?? 0) - jsonTop) < 0.5
+    );
+}
+
+function serializedObjectMatches(
+    liveObject: FabricNS.FabricObject,
+    jsonObject: CanvasJsonObject,
+): boolean {
+    const live = liveObject as SnapshotLiveObject;
+
+    if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
+        return live.maskUid === jsonObject.maskUid;
+    }
+    if (typeof jsonObject.maskId === 'number' && typeof live.maskId === 'number') {
+        return live.maskId === jsonObject.maskId;
+    }
+    if (typeof jsonObject.annotationId === 'number' && typeof live.annotationId === 'number') {
+        return live.annotationId === jsonObject.annotationId;
+    }
+    if (
+        typeof jsonObject.sessionObjectType === 'string' &&
+        typeof live.sessionObjectType === 'string'
+    ) {
+        return live.sessionObjectType === jsonObject.sessionObjectType;
+    }
+    if (
+        typeof jsonObject.editorObjectKind === 'string' &&
+        typeof live.editorObjectKind === 'string' &&
+        live.editorObjectKind !== jsonObject.editorObjectKind
+    ) {
+        return false;
+    }
+
+    return (
+        serializedTypeMatches(liveObject, jsonObject) &&
+        serializedPositionMatches(liveObject, jsonObject)
+    );
+}
+
+function findCanvasObjectForJson(
+    canvasObjects: FabricNS.FabricObject[],
+    jsonObject: CanvasJsonObject,
+    preferredIndex: number,
+    consumedIndexes: Set<number>,
+): { object: SnapshotLiveObject; index: number } | null {
+    const preferred = canvasObjects[preferredIndex];
+    if (
+        preferred &&
+        !consumedIndexes.has(preferredIndex) &&
+        serializedObjectMatches(preferred, jsonObject)
+    ) {
+        consumedIndexes.add(preferredIndex);
+        return { object: preferred as SnapshotLiveObject, index: preferredIndex };
+    }
+
+    const matchedIndex = canvasObjects.findIndex(
+        (candidate, index) =>
+            !consumedIndexes.has(index) && serializedObjectMatches(candidate, jsonObject),
+    );
+    if (matchedIndex < 0) return null;
+    consumedIndexes.add(matchedIndex);
+    return { object: canvasObjects[matchedIndex] as SnapshotLiveObject, index: matchedIndex };
+}
 
 /**
  * Fabric v7 does not consistently honor `propertiesToInclude` for
  * non-standard object fields across all builds. History cannot depend on
  * that behavior because mask identity and hover/selection style metadata are
  * editor-owned fields. After Fabric produces the base JSON payload, copy the
- * custom fields from the live object at the same canvas index into the JSON
- * object before session-only filtering runs.
+ * custom fields from the corresponding live object into the JSON object before
+ * session-only filtering runs. Matching prefers stable IDs and falls back to
+ * type/position because Fabric may reorder objects during serialization.
  */
 function copySnapshotCustomPropsFromCanvas(
     canvasObjects: FabricNS.FabricObject[],
@@ -235,27 +341,14 @@ function copySnapshotCustomPropsFromCanvas(
 ): void {
     if (!Array.isArray(jsonObjects)) return;
 
+    const consumedIndexes = new Set<number>();
     for (let index = 0; index < jsonObjects.length; index += 1) {
-        const liveObject = canvasObjects[index] as
-            | (Partial<MaskObject> & {
-                  editorObjectKind?: string;
-                  sessionObjectType?: string;
-                  isCropRect?: boolean;
-                  maskLabel?: boolean;
-                  isMosaicPreview?: boolean;
-                  annotationId?: number;
-                  annotationType?: string;
-                  annotationName?: string;
-                  annotationHidden?: boolean;
-                  annotationLocked?: boolean;
-                  annotationSelectable?: boolean;
-                  annotationEvented?: boolean;
-                  annotationHasControls?: boolean;
-                  annotationEditable?: boolean;
-              })
-            | undefined;
         const jsonObject = jsonObjects[index];
-        if (!liveObject || !jsonObject) continue;
+        if (!jsonObject) continue;
+
+        const match = findCanvasObjectForJson(canvasObjects, jsonObject, index, consumedIndexes);
+        if (!match) continue;
+        const liveObject = match.object;
 
         if (typeof liveObject.editorObjectKind === 'string') {
             jsonObject.editorObjectKind = liveObject.editorObjectKind;
@@ -269,7 +362,9 @@ function copySnapshotCustomPropsFromCanvas(
         if (typeof liveObject.originalAlpha === 'number') {
             jsonObject.originalAlpha = liveObject.originalAlpha;
         }
-        if ('originalStroke' in liveObject) jsonObject.originalStroke = liveObject.originalStroke;
+        if (liveObject.originalStroke !== undefined) {
+            jsonObject.originalStroke = liveObject.originalStroke;
+        }
         if (typeof liveObject.originalStrokeWidth === 'number') {
             jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
         }
@@ -751,12 +846,22 @@ function restoreEditorObjectPropsFromJson(
     canvasObjs: FabricNS.FabricObject[],
     jsonObjs: CanvasJsonObject[],
 ): void {
-    // ── Pass 0: base images, annotations, and sessions by serialized order ─
+    // ── Pass 0: base images, annotations, and sessions by stable object match ─
+    const consumedMetadataIndexes = new Set<number>();
     jsonObjs.forEach((jObj, index) => {
-        const canvasObj = canvasObjs[index];
+        if (
+            jObj.editorObjectKind !== 'baseImage' &&
+            jObj.editorObjectKind !== 'annotation' &&
+            jObj.editorObjectKind !== 'session'
+        ) {
+            return;
+        }
+
+        const match = findCanvasObjectForJson(canvasObjs, jObj, index, consumedMetadataIndexes);
+        const canvasObj = match?.object;
         if (!canvasObj) return;
         if (jObj.editorObjectKind === 'baseImage') {
-            markBaseImageObject(canvasObj as FabricNS.FabricImage);
+            markBaseImageObject(canvasObj as unknown as FabricNS.FabricImage);
             return;
         }
         if (

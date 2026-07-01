@@ -116,6 +116,17 @@ const smallDelayArb = fc.integer({ min: 0, max: 5 });
 
 // ─── Properties ────────────────────────────────────────────────────────────
 
+test('constructor clamps non-positive maxSize to one retained command', () => {
+    const hm = new HistoryManager(0);
+    hm.push(makeTrackedCommand(1, freshTracker()));
+    hm.push(makeTrackedCommand(2, freshTracker()));
+
+    assert.equal(hm.maxSize, 1);
+    assert.equal(hm.history.length, 1);
+    assert.equal(hm.currentIndex, 0);
+    assert.equal(hm.canUndo(), true);
+});
+
 test('execute/push monotonicity and overflow window', async () => {
     await fc.assert(
         fc.asyncProperty(maxSizeArb, syncStepsArb, async (maxSize, steps) => {

@@ -10,7 +10,7 @@ export function markMaskObject(object, meta) {
     mask.maskUid = meta.maskUid;
     mask.maskName = meta.maskName;
     mask.originalAlpha = meta.originalAlpha;
-    if ('originalStroke' in meta)
+    if (meta.originalStroke !== undefined)
         mask.originalStroke = meta.originalStroke;
     if (typeof meta.originalStrokeWidth === 'number') {
         mask.originalStrokeWidth = meta.originalStrokeWidth;

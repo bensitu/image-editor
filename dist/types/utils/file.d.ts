@@ -34,8 +34,8 @@ export declare const SUPPORTED_IMAGE_MIME_TYPES: Set<string>;
  * with file-input validation and rejects unsupported image containers such as
  * SVG before any canvas or lifecycle state is touched.
  *
- * The `data:image/` prefix remains case-sensitive to preserve the previous
- * public no-op contract for non-matching data URL prefixes.
+ * The data URL scheme and MIME type are matched case-insensitively, matching
+ * browser URL parsing behavior for equivalent `data:image/...` prefixes.
  *
  * @param value - Candidate data URL.
  * @returns True when the data URL carries a supported image MIME type.

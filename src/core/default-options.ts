@@ -316,12 +316,23 @@ function isConfigObject(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function copyDefaultMaskConfigValue(value: unknown): unknown {
-    return Array.isArray(value) ? [...value] : value;
-}
-
 function canCopyObjectConfigKey(key: string): boolean {
     return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
+
+function copyDefaultMaskConfigValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((item) => copyDefaultMaskConfigValue(item)));
+    }
+
+    if (!isConfigObject(value)) return value;
+
+    const copy = Object.create(null) as Record<string, unknown>;
+    for (const [key, nestedValue] of Object.entries(value)) {
+        if (!canCopyObjectConfigKey(key)) continue;
+        copy[key] = copyDefaultMaskConfigValue(nestedValue);
+    }
+    return Object.freeze(copy);
 }
 
 function normalizeDefaultMaskConfig(value: unknown): DefaultMaskConfig {
@@ -497,9 +508,8 @@ function normalizeCropAspectRatioOption(value: unknown): CropAspectRatio {
 function normalizeCropExportFileTypeOption(value: unknown): CropExportFileType {
     if (value === undefined || value === null) return DEFAULT_CROP.exportFileType;
     if (value === 'source') return 'source';
-    return typeof value === 'string' && tryNormalizeImageFormat(value)
-        ? (value as CropExportFileType)
-        : DEFAULT_CROP.exportFileType;
+    const normalized = typeof value === 'string' ? tryNormalizeImageFormat(value) : null;
+    return normalized ?? DEFAULT_CROP.exportFileType;
 }
 
 function normalizeOptionalQuality(value: unknown): number | undefined {

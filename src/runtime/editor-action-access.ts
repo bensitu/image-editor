@@ -362,7 +362,8 @@ export class EditorActionAccessFactory {
                 runtime.mosaicSession !== null ||
                 runtime.textSession !== null ||
                 runtime.drawSession !== null,
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) =>
+                callbacks.canRunIdleOperation(operation, options),
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) =>
@@ -441,7 +442,8 @@ export class EditorActionAccessFactory {
                 runtime.currentDrawConfig = config;
             },
             getDefaultDrawConfig: () => runtime.defaultDrawConfig,
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) =>
+                callbacks.canRunIdleOperation(operation, options),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) =>
                 callbacks.buildCallbackContext(operation, isInternalOperation),
@@ -529,7 +531,8 @@ export class EditorActionAccessFactory {
             getOptions: () => runtime.options,
             isDisposed: () => runtime.isDisposed,
             isImageLoaded: () => runtime.isImageLoaded(),
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) =>
+                callbacks.canRunIdleOperation(operation, options),
             buildMosaicControllerContext: () => this.contextFactory.buildMosaicControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) =>
                 callbacks.buildCallbackContext(operation, isInternalOperation),
@@ -558,7 +561,8 @@ export class EditorActionAccessFactory {
                 runtime.cropSession = session;
             },
             isImageLoaded: () => runtime.isImageLoaded(),
-            canRunIdleOperation: (operation) => callbacks.canRunIdleOperation(operation),
+            canRunIdleOperation: (operation, options) =>
+                callbacks.canRunIdleOperation(operation, options),
             buildCropControllerContext: (token) =>
                 this.contextFactory.buildCropControllerContext(token),
             buildBusyOperationAccess: () => this.buildBusyOperationAccess(),

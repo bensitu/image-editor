@@ -9,11 +9,11 @@
  *   coordinate frames.
  *
  * Scope:
- *   - Masks intersecting the integer crop region survive and shift by the crop
- *     offset.
+ *   - Masks intersecting the integer crop region survive and map into the
+ *     post-load image placement.
  *   - Masks fully outside the crop region are not re-added after crop.
- *   - angle, scaleX, and scaleY are preserved for surviving masks, including
- *     rotated-image scenarios.
+ *   - angle is preserved for surviving masks, while scaleX and scaleY follow
+ *     any post-load image scale.
  *
  * Out of scope:
  *   - visual rendering quality
@@ -101,13 +101,11 @@ class MockCropRect {
  * `canvas.toDataURL` export, and the `reapplyPreservedMasks` post-load
  * pass.
  *
- * `clear()` is exposed so the scripted `ctx.loadImage` (below) can
- * mirror the real loader's pre-decode `canvas.clear()` call — every
- * canvas object that was still on the canvas at the moment
- * `ctx.loadImage` ran is dropped, so `reapplyPreservedMasks` lands the
- * preserved masks onto an empty post-crop canvas. This matches the
- * production loader's behaviour without requiring the test to spin up
- * a real `image-loader.ts` pipeline.
+ * `clear()` and `lastDataUrlOptions` are exposed so the scripted
+ * `ctx.loadImage` (below) can mirror the real loader's pre-decode
+ * `canvas.clear()` call and the post-load base-image dimensions. This
+ * matches the production loader's behaviour without requiring the test
+ * to spin up a real `image-loader.ts` pipeline.
  */
 class MockCanvas {
     constructor({ width = 800, height = 600 } = {}) {
@@ -115,6 +113,7 @@ class MockCanvas {
         this.height = height;
         this.objects = [];
         this.isSelectionEnabled = true;
+        this.lastDataUrlOptions = null;
     }
 
     get selection() {
@@ -155,7 +154,8 @@ class MockCanvas {
     }
     renderAll() {}
     requestRenderAll() {}
-    toDataURL() {
+    toDataURL(options) {
+        this.lastDataUrlOptions = options ?? null;
         return 'data:image/jpeg;base64,STUB';
     }
     clear() {
@@ -164,7 +164,7 @@ class MockCanvas {
 }
 
 /**
- * Build a stand-in for the committed Fabric `originalImage`. * must exercise the rotation-invariance clause of the documented contract, so
+ * Build a stand-in for the committed Fabric `originalImage`. It exercises the rotation-invariance clause of the documented contract, so
  * the bounding rect is parameterised by the supplied `imageAngle`. The
  * controller does not consult `image.angle` directly — it reads the
  * absolute bounding rect via {@link MockCropRect.getBoundingRect}-style
@@ -199,9 +199,9 @@ function makeOriginalImage({ imageAngle, bboxLeft, bboxTop, bboxW, bboxH }) {
  * {@link applyCrop}'s `capturePreservedMasks` and `reapplyPreservedMasks`
  * touch:
  *
- *   - `set(patch)` mutates the mask's properties (used to translate
- *     `left` / `top` and to re-assert `angle` / `scaleX` / `scaleY` /
- *     `visible` on the reapply pass).
+ *   - `set(patch)` mutates the mask's properties (used to map
+ *     `left` / `top` into the post-load image placement and to re-assert
+ *     `angle` / `scaleX` / `scaleY` / `visible` on the reapply pass).
  *   - `setCoords()` mirrors Fabric.js v7's coordinate-cache refresh
  *     called before reading the bounding rect.
  *   - `getBoundingRect()` returns the mask's axis-aligned bbox in
@@ -212,11 +212,10 @@ function makeOriginalImage({ imageAngle, bboxLeft, bboxTop, bboxW, bboxH }) {
  *
  * The bbox is computed from the supplied `(left, top, width, height,
  * angle)` — we ignore `angle` for the bbox since axis-aligned bbox
- * suffices for the intersection filter, mirroring the way 's
- * stub fixture in `crop-transitions.property.test.mjs` handles bbox
- * math. The point of carrying `angle` here is to feed it through the
- * preserve / restore round trip so the documented contract can be asserted
- * verbatim on the post-crop value.
+ * suffices for the intersection filter, mirroring the way the stub fixture in
+ * `crop-transitions.property.test.mjs` handles bbox math. The point of carrying
+ * `angle` here is to feed it through the preserve / restore round trip so the
+ * documented contract can be asserted verbatim on the post-crop value.
  */
 function makeMockMask({
     maskId,
@@ -320,11 +319,12 @@ function makeContext({
     canvasHeight = 600,
     preserveMasksAfterCrop = true,
     hideMasksDuringCrop = false,
+    postLoadImageBounds = null,
 }) {
     const canvas = new MockCanvas({ width: canvasWidth, height: canvasHeight });
     for (const mask of masks) canvas.objects.push(mask);
 
-    const originalImage = makeOriginalImage({
+    let originalImage = makeOriginalImage({
         imageAngle,
         bboxLeft,
         bboxTop,
@@ -343,14 +343,28 @@ function makeContext({
     };
     const loadFromState = async () => {};
 
-    // The scripted loader mirrors the production loader's
-    // pre-decode `canvas.clear()` so the post-crop canvas starts empty
-    // before `reapplyPreservedMasks` re-adds the captured records.
-    // Without this step the preserved masks would land on top of the
-    // pre-crop residue and 's intersection / transform
-    // assertions would be polluted by stale pre-crop objects.
+    // The scripted loader mirrors the production loader's clear and base
+    // image commit. By default, the cropped image lands at `(0, 0)` with
+    // scale 1 because `canvas.toDataURL` exported an already-displayed
+    // crop region. Tests can pass `postLoadImageBounds` to exercise layout
+    // modes that scale or offset the committed crop.
     const loadImage = async () => {
         canvas.clear();
+        const exportOptions = canvas.lastDataUrlOptions ?? {};
+        const fallbackBounds = {
+            left: 0,
+            top: 0,
+            width: Number(exportOptions.width) || bboxW,
+            height: Number(exportOptions.height) || bboxH,
+        };
+        const bounds = postLoadImageBounds ?? fallbackBounds;
+        originalImage = makeOriginalImage({
+            imageAngle: 0,
+            bboxLeft: bounds.left,
+            bboxTop: bounds.top,
+            bboxW: bounds.width,
+            bboxH: bounds.height,
+        });
     };
 
     const sessionRef = { current: null };
@@ -461,10 +475,9 @@ function setCropRectBounds(session, cropBounds) {
 /**
  * Image rotation angle in degrees. Spans negative, zero, multi-turn,
  * and the full 360° range so the documented contract's "regardless of image
- * rotation" wording is exercised. The controller's mechanical
- * translation (`mask.left -= cropRegion.left`,
- * `mask.top -= cropRegion.top`) is independent of angle, so every
- * iteration must produce the same offset.
+ * rotation" wording is exercised. The controller maps axis-aligned offsets and
+ * preserves the mask angle, so every iteration must produce the same relative
+ * placement for the default scale-1 post-load image.
  */
 const imageAngleArb = fc.oneof(
     fc.constantFrom(0, 90, 180, 270, 45, -45, 30, 60, 359, -359),
@@ -492,7 +505,7 @@ const imageBBoxArb = fc.record({
 /**
  * One mask's pre-crop transform. The fields drive the `(left, top)`
  * snapshot
- * and the `angle` / `scaleX` / `scaleY` round trip.
+ * and the `angle` round trip plus scale adjustment.
  *
  * - `left` / `top` ∈ `[0, 800]` × `[0, 600]` — well inside the
  *   canvas bounds so the intersection filter has a meaningful
@@ -504,7 +517,8 @@ const imageBBoxArb = fc.record({
  *   inputs so the post-crop assertion `mask.angle === pre.angle`
  *   exercises the full angle space.
  * - `scaleX` / `scaleY` ∈ `[0.25, 4]` — covers zoom-in / zoom-out
- *   inputs the user might apply to a mask.
+ *   inputs the user might apply to a mask before the post-load image
+ *   scale is applied.
  */
 const maskTransformArb = fc.record({
     left: fc.integer({ min: 0, max: 800 }),
@@ -546,7 +560,7 @@ const cropBoundsArb = fc.record({
 
 // ─── Properties ─────────────────────────────────────────────────────────────
 
-test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's left/top by -cropRegion.left/-cropRegion.top while preserving angle, scaleX, scaleY verbatim, regardless of image rotation", async () => {
+test('applyCrop with preserveMasksAfterCrop=true maps surviving masks into the post-load image placement while preserving angle', async () => {
     await fc.assert(
         fc.asyncProperty(
             maskSetArb,
@@ -642,28 +656,24 @@ test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's le
                         `the documented contract: mask[${i}] (maskId=${mask.maskId}) intersects cropRegion={left:${cropRegion.left},top:${cropRegion.top},w:${cropRegion.width},h:${cropRegion.height}} and MUST survive on the post-crop canvas`,
                     );
 
-                    // `left` / `top` are shifted by
-                    // `-cropRegion.left, -cropRegion.top`. The shift is
-                    // angle-independent: the property iterates `imageAngle`
-                    // across a wide range and asserts the same offsets for
-                    // every angle.
+                    // The default scripted loader commits the cropped image
+                    // at `(0, 0)` with scale `1`, so the mapping collapses
+                    // to the historical `-cropRegion.left/top` offset. The
+                    // dedicated scale test below covers non-1 placement.
                     assert.equal(
                         mask.left,
                         pre.left - cropRegion.left,
-                        `the documented contract: mask[${i}].left must equal pre.left (${pre.left}) - cropRegion.left (${cropRegion.left}); got ${mask.left} at imageAngle=${imageAngle}`,
+                        `the documented contract: mask[${i}].left must equal pre.left (${pre.left}) - cropRegion.left (${cropRegion.left}) when the post-load image scale is 1; got ${mask.left} at imageAngle=${imageAngle}`,
                     );
                     assert.equal(
                         mask.top,
                         pre.top - cropRegion.top,
-                        `the documented contract: mask[${i}].top must equal pre.top (${pre.top}) - cropRegion.top (${cropRegion.top}); got ${mask.top} at imageAngle=${imageAngle}`,
+                        `the documented contract: mask[${i}].top must equal pre.top (${pre.top}) - cropRegion.top (${cropRegion.top}) when the post-load image scale is 1; got ${mask.top} at imageAngle=${imageAngle}`,
                     );
 
-                    // `angle`, `scaleX`, and `scaleY` are preserved
-                    // verbatim so the visible mask shape does not change
-                    // size or orientation. `Object.is` matches NaN to NaN
-                    // and distinguishes `+0` / `-0`; the arbitraries
-                    // never produce NaN (`noNaN: true`) so a strict
-                    // equality is sufficient here.
+                    // `angle` is preserved verbatim. With the default
+                    // scale-1 post-load image, scale fields also remain
+                    // unchanged.
                     assert.equal(
                         mask.angle,
                         pre.angle,
@@ -672,12 +682,12 @@ test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's le
                     assert.equal(
                         mask.scaleX,
                         pre.scaleX,
-                        `the documented contract: mask[${i}].scaleX must be preserved verbatim; pre=${pre.scaleX}, post=${mask.scaleX}`,
+                        `the documented contract: mask[${i}].scaleX must be unchanged when the post-load image scale is 1; pre=${pre.scaleX}, post=${mask.scaleX}`,
                     );
                     assert.equal(
                         mask.scaleY,
                         pre.scaleY,
-                        `the documented contract: mask[${i}].scaleY must be preserved verbatim; pre=${pre.scaleY}, post=${mask.scaleY}`,
+                        `the documented contract: mask[${i}].scaleY must be unchanged when the post-load image scale is 1; pre=${pre.scaleY}, post=${mask.scaleY}`,
                     );
                 }
 
@@ -686,6 +696,42 @@ test("applyCrop with preserveMasksAfterCrop=true shifts each surviving mask's le
         ),
         { numRuns: 100 },
     );
+});
+
+test('applyCrop with preserveMasksAfterCrop=true scales preserved masks when the committed crop image is scaled by layout', async () => {
+    const mask = makeMockMask({
+        maskId: 1,
+        left: 60,
+        top: 80,
+        width: 20,
+        height: 10,
+        angle: 15,
+        scaleX: 2,
+        scaleY: 4,
+    });
+    const { ctx, sessionRef } = makeContext({
+        masks: [mask],
+        imageAngle: 0,
+        bboxLeft: 0,
+        bboxTop: 0,
+        bboxW: 300,
+        bboxH: 200,
+        preserveMasksAfterCrop: true,
+        postLoadImageBounds: { left: 7, top: 11, width: 100, height: 25 },
+    });
+
+    enterCropMode(ctx);
+    const session = sessionRef.current;
+    assert.notEqual(session, null);
+    setCropRectBounds(session, { left: 40, top: 50, width: 200, height: 100 });
+
+    await applyCrop(ctx);
+
+    assert.equal(mask.left, 17);
+    assert.equal(mask.top, 18.5);
+    assert.equal(mask.angle, 15);
+    assert.equal(mask.scaleX, 1);
+    assert.equal(mask.scaleY, 1);
 });
 
 test('applyCrop with preserveMasksAfterCrop=true drops every mask whose pre-crop bbox lies fully outside the integer crop region', async () => {

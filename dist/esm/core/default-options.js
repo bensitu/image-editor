@@ -203,11 +203,22 @@ function normalizeLayoutMode(value) {
 function isConfigObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
-function copyDefaultMaskConfigValue(value) {
-    return Array.isArray(value) ? [...value] : value;
-}
 function canCopyObjectConfigKey(key) {
     return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
+function copyDefaultMaskConfigValue(value) {
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((item) => copyDefaultMaskConfigValue(item)));
+    }
+    if (!isConfigObject(value))
+        return value;
+    const copy = Object.create(null);
+    for (const [key, nestedValue] of Object.entries(value)) {
+        if (!canCopyObjectConfigKey(key))
+            continue;
+        copy[key] = copyDefaultMaskConfigValue(nestedValue);
+    }
+    return Object.freeze(copy);
 }
 function normalizeDefaultMaskConfig(value) {
     if (!isConfigObject(value))
@@ -371,9 +382,8 @@ function normalizeCropExportFileTypeOption(value) {
         return DEFAULT_CROP.exportFileType;
     if (value === 'source')
         return 'source';
-    return typeof value === 'string' && tryNormalizeImageFormat(value)
-        ? value
-        : DEFAULT_CROP.exportFileType;
+    const normalized = typeof value === 'string' ? tryNormalizeImageFormat(value) : null;
+    return normalized !== null && normalized !== void 0 ? normalized : DEFAULT_CROP.exportFileType;
 }
 function normalizeOptionalQuality(value) {
     if (value === undefined || value === null)

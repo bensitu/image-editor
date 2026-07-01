@@ -94,7 +94,8 @@ export class HistoryManager {
      * @default 50
      */
     constructor(maxSize: number = 50) {
-        this.maxSize = maxSize;
+        const normalizedMaxSize = Number.isFinite(maxSize) ? Math.floor(maxSize) : 50;
+        this.maxSize = Math.max(1, normalizedMaxSize);
     }
 
     /**
@@ -135,6 +136,15 @@ export class HistoryManager {
      */
     push(command: Command): void {
         this.pushAndTrim(command);
+    }
+
+    /** Drops all retained commands and resets undo/redo availability. */
+    clear(): void {
+        this.history = [];
+        this.currentIndex = -1;
+        this.isProcessing = false;
+        this.queuedExecuteCount = 0;
+        this.executeTail = Promise.resolve();
     }
 
     /** Returns `true` if there is at least one action to undo. */

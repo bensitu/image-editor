@@ -102,6 +102,8 @@ export declare class HistoryManager {
      * Throws when an `undo` / `redo` operation is already in flight.
      */
     push(command: Command): void;
+    /** Drops all retained commands and resets undo/redo availability. */
+    clear(): void;
     /** Returns `true` if there is at least one action to undo. */
     canUndo(): boolean;
     /** Returns `true` if there is at least one action to redo. */

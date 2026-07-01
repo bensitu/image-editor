@@ -244,6 +244,10 @@ export class TransformController {
         if (this.context.guard.isAnimating()) return;
         if (this.context.guard.isDisposed()) return;
 
+        const previousScale = this.context.getCurrentScale();
+        const previousScaleX = imageObject.scaleX;
+        const previousScaleY = imageObject.scaleY;
+
         // clamp before mutating any visible state.
         const clamped = Math.max(
             this.context.options.minScale,
@@ -281,6 +285,12 @@ export class TransformController {
                 ),
             );
         } catch (error) {
+            this.context.setCurrentScale(previousScale);
+            if (!this.context.guard.isDisposed()) {
+                imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
+                imageObject.setCoords();
+                if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+            }
             reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
         }
@@ -345,6 +355,8 @@ export class TransformController {
         if (this.context.guard.isAnimating()) return;
         if (this.context.guard.isDisposed()) return;
 
+        const previousRotation = this.context.getCurrentRotation();
+        const previousAngle = imageObject.angle;
         this.context.setCurrentRotation(degrees);
 
         // Pre-animation: tween around the visual centroid so a quarter
@@ -373,6 +385,12 @@ export class TransformController {
             );
         } catch (error) {
             animationFailed = true;
+            this.context.setCurrentRotation(previousRotation);
+            if (!this.context.guard.isDisposed()) {
+                imageObject.set('angle', previousAngle ?? previousRotation);
+                imageObject.setCoords();
+                if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+            }
             reportWarning(this.context.options, error, 'rotateImage animation failed.');
         } finally {
             // when dispose interrupts the rotation

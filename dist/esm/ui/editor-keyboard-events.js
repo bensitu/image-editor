@@ -52,6 +52,7 @@ export function handleEditorKeyboardEvent(access, event) {
             isFabricTextEditingActive(canvas)) {
             return;
         }
+        event.preventDefault();
         access.deleteSelectedObject();
         return;
     }
@@ -63,15 +64,19 @@ export function handleEditorKeyboardEvent(access, event) {
         return;
     }
     if (access.hasTextSession()) {
+        event.preventDefault();
         access.exitTextMode();
     }
     else if (access.hasDrawSession()) {
+        event.preventDefault();
         access.exitDrawMode();
     }
     else if (access.hasMosaicSession()) {
+        event.preventDefault();
         access.exitMosaicMode();
     }
     else if (access.hasCropSession()) {
+        event.preventDefault();
         access.cancelCrop();
     }
 }

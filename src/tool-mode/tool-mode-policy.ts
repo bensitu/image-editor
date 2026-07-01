@@ -18,6 +18,7 @@ const CROP_SESSION_ALLOWED_OPERATIONS: ReadonlySet<string> = new Set([
     'setCropAspectRatio',
     'applyCrop',
     'cancelCrop',
+    'saveState',
 ]);
 
 const MOSAIC_SESSION_ALLOWED_OPERATIONS: ReadonlySet<string> = new Set([

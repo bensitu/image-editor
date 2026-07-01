@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.6.1] - 2026-07-01
+## [2.7.0] - 2026-07-01
 
 ### Added
 
@@ -22,13 +22,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Document the synchronous `dispose()` contract for integrations that immediately reuse the same canvas element.
 - Disable declaration maps in the published package because only `dist/` is published.
 - Remove the unused `@rollup/plugin-commonjs` development dependency.
+- Clarify UMD global usage, published browser requirements, and ES2019 output expectations in the README.
+- Run Playwright browser integration tests in CI and publish npm artifacts with provenance.
+- Align React and Vue example dependencies with the root Vite major version.
 
 ### Fixed
 
+- Refresh the Mosaic raster cache after a committed stroke so subsequent strokes in the same session use current pixels.
+- Release DOM, session, configuration, event, history, and Fabric references from `dispose()` more completely.
+- Match live Fabric objects to serialized canvas JSON by stable editor metadata before falling back to positional matching.
+- Keep preserved crop masks aligned when the committed cropped image is scaled by the active layout mode.
+- Roll back runtime scale and rotation state when Fabric transform animations fail to start or complete.
 - Decode `exportImageFile()` data URLs with a preallocated byte buffer instead of a per-character `Uint8Array.from()` callback.
 - Combine JPEG image-area partial-edge sealing and opaque background compositing into one offscreen canvas pass to avoid repeated decode/encode work.
 - Route all asynchronous DOM toolbar action failures through `onError`, including image input, transform, and merge controls.
 - Isolate throwing `createMask()` numeric resolvers and `fabricGenerator` callbacks through `onWarning` instead of leaking synchronous exceptions.
+- Deep-copy and freeze nested `defaultMaskConfig` values, freeze shared element targets and snapshot custom-key lists, and ignore undefined `originalStroke` metadata.
+- Normalize crop export format aliases consistently with other export paths.
+- Clamp invalid `HistoryManager` sizes to a usable undo stack.
+- Allow crop-session state snapshots and preserve operation options through crop, mosaic, and annotation action-access adapters.
+- Clamp Fabric animation durations before passing them to Fabric.
+- Sanitize exported file basenames before creating `File` or download names.
+- Prevent default browser handling for editor-owned Delete, Backspace, and Escape shortcuts.
+- Accept supported image data URLs with case-insensitive `data:image/...` schemes.
+- Keep Mosaic dragging active when the pointer leaves and re-enters the canvas before mouseup.
 - Drop unsafe object-copy keys while normalizing `defaultMaskConfig` and its `styles` object.
 - Index `loadFromState()` mask restoration by `maskUid` before falling back to legacy positional matching.
 - Suppress public `onSelectionChange` callbacks during export and merge-only active selection teardown/restoration.

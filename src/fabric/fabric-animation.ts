@@ -180,7 +180,7 @@ export function animateProps<T extends FabricNS.FabricObject>(
             // entry per property). Completion is signalled per-property
             // via `onComplete`, so we count callbacks before resolving.
             const animationResult = object.animate(props, {
-                duration: options.duration,
+                duration,
                 onChange: () => {
                     if (guard.isDisposed()) return;
                     options.onChange?.();

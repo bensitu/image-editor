@@ -15,7 +15,7 @@ export interface CropActionAccess {
     getCropSession(): CropSession | null;
     setCropSession(session: CropSession | null): void;
     isImageLoaded(): boolean;
-    canRunIdleOperation(operation: ImageEditorOperation): boolean;
+    canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     buildCropControllerContext(token?: OperationToken): CropControllerContext;
     buildBusyOperationAccess(): BusyOperationAccess;
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;

@@ -40,7 +40,7 @@ export interface AnnotationConfigActionAccess {
     setCurrentDrawConfig(config: ResolvedDrawConfig): void;
     getDefaultDrawConfig(): ResolvedDrawConfig;
 
-    canRunIdleOperation(operation: ImageEditorOperation): boolean;
+    canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     buildDrawControllerContext(): DrawControllerContext;
     buildCallbackContext(
         operation: ImageEditorOperation,

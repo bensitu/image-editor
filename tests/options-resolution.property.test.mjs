@@ -396,6 +396,19 @@ function partialOptionsArb() {
         });
 }
 
+function expectedCropValue(key, value) {
+    if (key !== 'exportFileType' || value === 'source') return value;
+    return {
+        jpg: 'jpeg',
+        jpeg: 'jpeg',
+        'image/jpeg': 'jpeg',
+        png: 'png',
+        'image/png': 'png',
+        webp: 'webp',
+        'image/webp': 'webp',
+    }[String(value).toLowerCase()];
+}
+
 // ─── Property assertion ────────────────────────────────────────────────────
 
 test('options resolution completeness and deep-merge', () => {
@@ -517,7 +530,7 @@ test('options resolution completeness and deep-merge', () => {
                 if (key in userCrop) {
                     assert.equal(
                         resolved.crop[key],
-                        userCrop[key],
+                        expectedCropValue(key, userCrop[key]),
                         `user crop.${key} must override default`,
                     );
                 } else {
@@ -790,6 +803,18 @@ test('invalid crop runtime option values fall back to crop defaults', () => {
     assert.equal(resolved.crop.exportQuality, DEFAULT_CROP.exportQuality);
 });
 
+test('crop exportFileType aliases normalize to canonical format tokens', () => {
+    assert.equal(resolveOptions({ crop: { exportFileType: 'jpg' } }).crop.exportFileType, 'jpeg');
+    assert.equal(
+        resolveOptions({ crop: { exportFileType: 'image/png' } }).crop.exportFileType,
+        'png',
+    );
+    assert.equal(
+        resolveOptions({ crop: { exportFileType: 'source' } }).crop.exportFileType,
+        'source',
+    );
+});
+
 test('valid object crop aspect ratios are copied into resolved options', () => {
     const aspectRatio = { width: 2, height: 1 };
     const resolved = resolveOptions({ crop: { aspectRatio } });
@@ -827,10 +852,12 @@ test('defaultMaskConfig is copied, frozen, and filters per-call hooks', () => {
         selectable: false,
         onCreate,
         fabricGenerator,
+        points: [{ x: 1, y: 2 }],
         styles: {
             stroke: null,
             strokeWidth: 0,
             strokeDashArray: [6, 4],
+            nested: [{ value: 1 }],
         },
     };
 
@@ -842,24 +869,43 @@ test('defaultMaskConfig is copied, frozen, and filters per-call hooks', () => {
     assert.equal(resolved.defaultMaskConfig.selectable, false);
     assert.equal('onCreate' in resolved.defaultMaskConfig, false);
     assert.equal('fabricGenerator' in resolved.defaultMaskConfig, false);
+    assert.equal(resolved.defaultMaskConfig.points[0].x, 1);
+    assert.equal(resolved.defaultMaskConfig.points[0].y, 2);
+    assert.notEqual(resolved.defaultMaskConfig.points, inputDefaultMaskConfig.points);
+    assert.notEqual(resolved.defaultMaskConfig.points[0], inputDefaultMaskConfig.points[0]);
     assert.notEqual(resolved.defaultMaskConfig.styles, inputDefaultMaskConfig.styles);
     assert.equal(resolved.defaultMaskConfig.styles.stroke, null);
     assert.equal(resolved.defaultMaskConfig.styles.strokeWidth, 0);
     assert.deepEqual(resolved.defaultMaskConfig.styles.strokeDashArray, [6, 4]);
+    assert.equal(resolved.defaultMaskConfig.styles.nested[0].value, 1);
     assert.notEqual(
         resolved.defaultMaskConfig.styles.strokeDashArray,
         inputDefaultMaskConfig.styles.strokeDashArray,
     );
+    assert.notEqual(resolved.defaultMaskConfig.styles.nested, inputDefaultMaskConfig.styles.nested);
+    assert.notEqual(
+        resolved.defaultMaskConfig.styles.nested[0],
+        inputDefaultMaskConfig.styles.nested[0],
+    );
     assert.equal(Object.isFrozen(resolved.defaultMaskConfig), true);
     assert.equal(Object.isFrozen(resolved.defaultMaskConfig.styles), true);
+    assert.equal(Object.isFrozen(resolved.defaultMaskConfig.points), true);
+    assert.equal(Object.isFrozen(resolved.defaultMaskConfig.points[0]), true);
+    assert.equal(Object.isFrozen(resolved.defaultMaskConfig.styles.strokeDashArray), true);
+    assert.equal(Object.isFrozen(resolved.defaultMaskConfig.styles.nested[0]), true);
 
     inputDefaultMaskConfig.width = 999;
+    inputDefaultMaskConfig.points[0].x = 999;
     inputDefaultMaskConfig.styles.stroke = '#000000';
     inputDefaultMaskConfig.styles.strokeDashArray.push(8);
+    inputDefaultMaskConfig.styles.nested[0].value = 999;
 
     assert.equal(resolved.defaultMaskConfig.width, 120);
+    assert.equal(resolved.defaultMaskConfig.points[0].x, 1);
+    assert.equal(resolved.defaultMaskConfig.points[0].y, 2);
     assert.equal(resolved.defaultMaskConfig.styles.stroke, null);
     assert.deepEqual(resolved.defaultMaskConfig.styles.strokeDashArray, [6, 4]);
+    assert.equal(resolved.defaultMaskConfig.styles.nested[0].value, 1);
 });
 
 test('defaultMaskConfig drops unsafe object keys while preserving safe config', () => {

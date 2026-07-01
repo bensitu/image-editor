@@ -18,7 +18,7 @@ export type DomElementGuard<TElement extends HTMLElement> = (
     element: HTMLElement,
 ) => element is TElement;
 
-const DEFAULT_ELEMENT_TARGETS: ResolvedElementMap = {
+const DEFAULT_ELEMENT_TARGETS: Readonly<ResolvedElementMap> = Object.freeze({
     canvas: 'canvas',
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
@@ -67,7 +67,7 @@ const DEFAULT_ELEMENT_TARGETS: ResolvedElementMap = {
     mosaicBrushSizeInput: 'mosaicBrushSizeInput',
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
-};
+});
 
 function isHTMLElementTarget(value: unknown): value is HTMLElement {
     return (

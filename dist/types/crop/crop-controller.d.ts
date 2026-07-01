@@ -62,19 +62,12 @@
  * - When `options.crop.preserveMasksAfterCrop`
  *   is `true`, `applyCrop` captures each mask's `left`, `top`,
  *   `angle`, `scaleX`, and `scaleY` BEFORE the canvas is exported, and
- *   re-adds the masks AFTER the loader commits the cropped image with
- *   `left` and `top` shifted by `-cropRegion.left, -cropRegion.top`.
- *   Per-mask `angle`, `scaleX`, and `scaleY` are restored verbatim so
- *   the visible mask shape does not change size or orientation. The
- *   cropRegion-relative shift preserves the historical
- *   `_translateObjectByCanvasOffset(mask, -cropRegion.sourceX,
- *   -cropRegion.sourceY)` behavior. Because shifting `left` / `top` by a constant translates
- *   the entire object (including its rotated visual) by the same
- *   constant in canvas pixels, the post-crop position relative to the
- *   new image bounding box matches the pre-crop position relative to
- *   the old image bounding box without any explicit trig in this
- *   module — the rotation angle is encoded in the rotated image's
- *   bounding rect, which moves with the same translation as the masks.
+ *   re-adds the masks AFTER the loader commits the cropped image. The
+ *   controller maps each mask's crop-region-relative position through
+ *   the new base image's actual post-load bounding box, so preserved
+ *   masks stay aligned even when the loader scales the cropped bitmap.
+ *   `angle` is restored verbatim; `scaleX` and `scaleY` are multiplied
+ *   by the post-load image scale for the corresponding axis.
  *
  * ## Post-crop mask preservation
  *
@@ -83,12 +76,14 @@
  * restored on cancel. The apply path separately owns
  * `preserveMasksAfterCrop`: when the option is `true`, the controller
  * captures each mask's `left`, `top`, `angle`, `scaleX`, and `scaleY`
- * before export and re-adds the masks shifted by
- * `-cropRegion.left, -cropRegion.top` after
- * `context.loadImage(croppedBase64)` commits. The intersection filter
- * drops masks that do not overlap the crop region, matching the documented
- * observable behavior: masks fully outside the cropped region are
- * removed, while intersecting masks are preserved.
+ * before export and re-adds the masks after
+ * `context.loadImage(croppedBase64)` commits. The reapply pass maps
+ * crop-region coordinates into the committed cropped image's bounding
+ * box, including any post-load scale chosen by the active layout mode.
+ * The intersection filter drops masks that do not overlap the crop
+ * region, matching the documented observable behavior: masks fully
+ * outside the cropped region are removed, while intersecting masks are
+ * preserved.
  *
  * ## Implementation notes
  *
@@ -370,11 +365,12 @@ export declare function cancelCrop(context: CropControllerContext): void;
  *    a failure propagates here so the rollback path below catches it.
  * 7a. **Reapply preserved masks** — when
  *    records were captured in step 3a, re-add each mask to the
- *    post-crop canvas with `left` and `top` shifted by
- *    `-cropRegion.left, -cropRegion.top` and `angle`, `scaleX`,
- *    `scaleY` restored verbatim. Restores the orchestrator's mask
- *    counter to `max(maskId)` so subsequent `createMask` calls do not
- *    collide with preserved IDs.
+ *    post-crop canvas by mapping its crop-region-relative offset into
+ *    the committed cropped image's actual bounding box. `angle` is
+ *    restored verbatim, while `scaleX` and `scaleY` include the
+ *    post-load image scale. Restores the orchestrator's mask counter to
+ *    `max(maskId)` so subsequent `createMask` calls do not collide with
+ *    preserved IDs.
  * 8. **Capture post-crop snapshot** for the redo command.
  * 9. **Drop the session pointer** before pushing history.
  * 10. **Push exactly one history command** whose

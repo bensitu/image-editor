@@ -392,10 +392,11 @@ const unsupportedImageInputStringArb = fc.oneof(
         'data:image/svg+xml;base64,PHN2Zy8+',
         'data:image/avif;base64,AAAA',
         'data:image', // missing trailing slash
-        'DATA:IMAGE/PNG;base64,xxx', // case-sensitive prefix per the documented contract
         'file:///tmp/foo.png',
     ),
-    fc.string({ minLength: 0, maxLength: 32 }).filter((s) => !s.startsWith('data:image/')),
+    fc
+        .string({ minLength: 0, maxLength: 32 })
+        .filter((s) => !s.toLowerCase().startsWith('data:image/')),
 );
 
 const preserveScrollArb = fc.option(fc.boolean(), { nil: undefined });

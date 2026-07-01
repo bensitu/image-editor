@@ -77,10 +77,12 @@ function createAccess(overrides = {}) {
 
 test('Delete removes the selected object when no text input is active', () => {
     const access = createAccess();
+    const event = createEvent('Delete');
 
-    handleEditorKeyboardEvent(access, createEvent('Delete'));
+    handleEditorKeyboardEvent(access, event);
 
     assert.deepEqual(access.calls, ['deleteSelectedObject']);
+    assert.equal(event.defaultPrevented, true);
 });
 
 test('Backspace is ignored while a native input owns focus', () => {
@@ -92,9 +94,11 @@ test('Backspace is ignored while a native input owns focus', () => {
         getKeyboardDocument: () => ({ activeElement }),
     });
 
-    handleEditorKeyboardEvent(access, createEvent('Backspace'));
+    const event = createEvent('Backspace');
+    handleEditorKeyboardEvent(access, event);
 
     assert.deepEqual(access.calls, []);
+    assert.equal(event.defaultPrevented, false);
 });
 
 test('Delete and Backspace are ignored while native editable controls own focus', () => {
@@ -111,9 +115,11 @@ test('Delete and Backspace are ignored while native editable controls own focus'
                 getKeyboardDocument: () => ({ activeElement }),
             });
 
-            handleEditorKeyboardEvent(access, createEvent(key));
+            const event = createEvent(key);
+            handleEditorKeyboardEvent(access, event);
 
             assert.deepEqual(access.calls, [], `${key} ignored for ${activeElement.tagName}`);
+            assert.equal(event.defaultPrevented, false, `${key} default not prevented`);
         }
     }
 });
@@ -127,9 +133,11 @@ test('Delete is ignored while a Shadow DOM input owns focus through composed pat
         getKeyboardDocument: () => ({ activeElement: { tagName: 'BODY' } }),
     });
 
-    handleEditorKeyboardEvent(access, createEventWithPath('Delete', [shadowInput]));
+    const event = createEventWithPath('Delete', [shadowInput]);
+    handleEditorKeyboardEvent(access, event);
 
     assert.deepEqual(access.calls, []);
+    assert.equal(event.defaultPrevented, false);
 });
 test('Escape finalizes active Fabric text editing without committing', () => {
     const textObject = {
@@ -160,9 +168,11 @@ test('Escape exits active modes in existing facade priority', () => {
         hasCropSession: () => true,
     });
 
-    handleEditorKeyboardEvent(access, createEvent('Escape'));
+    const event = createEvent('Escape');
+    handleEditorKeyboardEvent(access, event);
 
     assert.deepEqual(access.calls, ['exitTextMode']);
+    assert.equal(event.defaultPrevented, true);
 });
 
 test('Escape exits each active tool mode through its dedicated action', () => {
@@ -175,18 +185,22 @@ test('Escape exits each active tool mode through its dedicated action', () => {
 
     for (const { overrides, expected } of cases) {
         const access = createAccess(overrides);
+        const event = createEvent('Escape');
 
-        handleEditorKeyboardEvent(access, createEvent('Escape'));
+        handleEditorKeyboardEvent(access, event);
 
         assert.deepEqual(access.calls, [expected]);
+        assert.equal(event.defaultPrevented, true);
     }
 });
 test('Escape falls through to crop cancellation when only crop is active', () => {
     const access = createAccess({
         hasCropSession: () => true,
     });
+    const event = createEvent('Escape');
 
-    handleEditorKeyboardEvent(access, createEvent('Escape'));
+    handleEditorKeyboardEvent(access, event);
 
     assert.deepEqual(access.calls, ['cancelCrop']);
+    assert.equal(event.defaultPrevented, true);
 });

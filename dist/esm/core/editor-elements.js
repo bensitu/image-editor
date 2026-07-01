@@ -1,4 +1,4 @@
-const DEFAULT_ELEMENT_TARGETS = {
+const DEFAULT_ELEMENT_TARGETS = Object.freeze({
     canvas: 'canvas',
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
@@ -47,7 +47,7 @@ const DEFAULT_ELEMENT_TARGETS = {
     mosaicBrushSizeInput: 'mosaicBrushSizeInput',
     mosaicBlockSizeInput: 'mosaicBlockSizeInput',
     uploadArea: 'uploadArea',
-};
+});
 function isHTMLElementTarget(value) {
     return (!!value &&
         typeof value === 'object' &&

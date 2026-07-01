@@ -353,6 +353,83 @@ test('resetImageTransform is a no-op when no image is loaded', async () => {
     );
 });
 
+test('scaleImage rolls back runtime state when animation fails', async () => {
+    const canvas = new MockCanvas();
+    const guard = new OperationGuard();
+    const image = makeFabricImageMock({ scaleX: 2, scaleY: 2, angle: 0 });
+    image.animate = () => {
+        throw new Error('scale animation failed');
+    };
+    const state = {
+        currentScale: 2,
+        currentRotation: 0,
+        baseImageScale: 1,
+    };
+    const controller = new TransformController({
+        canvas,
+        options: resolveOptions({ animationDuration: 1 }),
+        guard,
+        getOriginalImage: () => image,
+        getCurrentScale: () => state.currentScale,
+        setCurrentScale: (n) => {
+            state.currentScale = n;
+        },
+        getCurrentRotation: () => state.currentRotation,
+        setCurrentRotation: (n) => {
+            state.currentRotation = n;
+        },
+        getBaseImageScale: () => state.baseImageScale,
+        saveCanvasState: () => {
+            throw new Error('failed scale must not save history');
+        },
+        setSuppressSaveState: () => {},
+    });
+
+    await controller.scaleImage(3);
+
+    assert.equal(state.currentScale, 2);
+    assert.equal(image.scaleX, 2);
+    assert.equal(image.scaleY, 2);
+});
+
+test('rotateImage rolls back runtime state when animation fails', async () => {
+    const canvas = new MockCanvas();
+    const guard = new OperationGuard();
+    const image = makeFabricImageMock({ scaleX: 1, scaleY: 1, angle: 45 });
+    image.animate = () => {
+        throw new Error('rotate animation failed');
+    };
+    const state = {
+        currentScale: 1,
+        currentRotation: 45,
+        baseImageScale: 1,
+    };
+    const controller = new TransformController({
+        canvas,
+        options: resolveOptions({ animationDuration: 1 }),
+        guard,
+        getOriginalImage: () => image,
+        getCurrentScale: () => state.currentScale,
+        setCurrentScale: (n) => {
+            state.currentScale = n;
+        },
+        getCurrentRotation: () => state.currentRotation,
+        setCurrentRotation: (n) => {
+            state.currentRotation = n;
+        },
+        getBaseImageScale: () => state.baseImageScale,
+        saveCanvasState: () => {
+            throw new Error('failed rotate must not save history');
+        },
+        setSuppressSaveState: () => {},
+    });
+
+    await controller.rotateImage(90);
+
+    assert.equal(state.currentRotation, 45);
+    assert.equal(image.angle, 45);
+});
+
 test('flipHorizontal toggles only base image flipX and records one history entry', async () => {
     const harness = makeContextWithSuppression({
         initialScale: 1,

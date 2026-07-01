@@ -1061,6 +1061,22 @@ test('exportImageFile: resolves file extension from requested format', async () 
     assert.equal(jpegFile.type, 'image/jpeg');
 });
 
+test('exportImageFile: sanitizes unsafe file names before creating the File', async () => {
+    const canvas = makeMockCanvas('data:image/png;base64,' + Buffer.from('png').toString('base64'));
+    const ctx = makeContext({ canvas });
+
+    const file = await exportImageFile(ctx, {
+        fileType: 'png',
+        fileName: '../unsafe\\..\u0000report.webp',
+    });
+
+    assert.equal(file.name.includes('/'), false);
+    assert.equal(file.name.includes('\\'), false);
+    assert.equal(file.name.includes('\u0000'), false);
+    assert.equal(file.name.includes('..'), false);
+    assert.equal(file.name.endsWith('.png'), true);
+});
+
 test('exportImageFile: reencode uses the Fabric canvas ownerDocument', async () => {
     const previousDocument = globalThis.document;
     const previousImage = globalThis.Image;

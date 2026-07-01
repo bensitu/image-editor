@@ -635,6 +635,121 @@ test('saveState copies mask custom metadata when Fabric omits propertiesToInclud
     assert.equal(result.objects[0].cornerSize, 8);
 });
 
+test('saveState matches live objects when Fabric serializes objects in a different order', () => {
+    const canvas = new MockCanvas();
+    canvas.width = 320;
+    canvas.height = 240;
+    canvas.add({
+        editorObjectKind: 'baseImage',
+        type: 'image',
+        left: 0,
+        top: 0,
+        opacity: 1,
+    });
+    canvas.add({
+        editorObjectKind: 'mask',
+        type: 'rect',
+        left: 10,
+        top: 12,
+        opacity: 0.5,
+        maskId: 7,
+        maskUid: 'uid-7',
+        maskName: 'mask7',
+        originalAlpha: 0.5,
+    });
+    canvas.add({
+        editorObjectKind: 'annotation',
+        type: 'textbox',
+        left: 20,
+        top: 24,
+        opacity: 1,
+        annotationId: 3,
+        annotationType: 'text',
+        annotationName: 'note3',
+    });
+    canvas.toJSON = function toJSONWithReorderedPlainObjects() {
+        return {
+            version: '7.0.0',
+            width: this.width,
+            height: this.height,
+            objects: this.objects
+                .map((object) => ({
+                    type: object.type,
+                    left: object.left,
+                    top: object.top,
+                    opacity: object.opacity,
+                }))
+                .toReversed(),
+        };
+    };
+
+    const snapshot = saveState({
+        canvas,
+        currentScale: 1,
+        currentRotation: 0,
+        baseImageScale: 1,
+        currentImageMimeType: 'image/png',
+    });
+    const objects = JSON.parse(snapshot).objects;
+    const byPosition = new Map(objects.map((object) => [`${object.left},${object.top}`, object]));
+
+    assert.equal(byPosition.get('0,0').editorObjectKind, 'baseImage');
+    assert.equal(byPosition.get('10,12').maskId, 7);
+    assert.equal(byPosition.get('10,12').maskUid, 'uid-7');
+    assert.equal(byPosition.get('20,24').annotationId, 3);
+    assert.equal(byPosition.get('20,24').annotationName, 'note3');
+});
+
+test('loadFromState restores base image and annotation metadata after Fabric reorder', async () => {
+    const snapshot = {
+        version: '7.0.0',
+        width: 320,
+        height: 240,
+        objects: [
+            { editorObjectKind: 'baseImage', type: 'image', left: 0, top: 0, opacity: 1 },
+            {
+                editorObjectKind: 'annotation',
+                type: 'textbox',
+                left: 20,
+                top: 24,
+                opacity: 1,
+                annotationId: 3,
+                annotationType: 'text',
+                annotationName: 'note3',
+            },
+        ],
+        _editorState: {
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: 1,
+            currentImageMimeType: 'image/png',
+        },
+    };
+    const canvas = new MockCanvas();
+    canvas.loadFromJSON = async function loadFromJSON(json) {
+        this.objects = json.objects.toReversed().map((object) => ({
+            type: object.type,
+            left: object.left,
+            top: object.top,
+            opacity: object.opacity,
+        }));
+        return this;
+    };
+
+    const result = await loadFromState({
+        canvas,
+        jsonString: snapshot,
+        setCanvasSize: makeSetCanvasSize(canvas),
+    });
+
+    assert.equal(result.originalImage.left, 0);
+    assert.equal(result.originalImage.editorObjectKind, 'baseImage');
+    assert.equal(result.annotations.length, 1);
+    assert.equal(result.annotations[0].left, 20);
+    assert.equal(result.annotations[0].annotationId, 3);
+    assert.equal(result.annotations[0].annotationName, 'note3');
+});
+
 // ─── Sanity checks on the constants the property depends on ────────────────
 
 test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on', () => {
@@ -669,6 +784,7 @@ test('SNAPSHOT_CUSTOM_KEYS includes every key the round-trip property relies on'
     ]) {
         assert.ok(SNAPSHOT_CUSTOM_KEYS.includes(k), `SNAPSHOT_CUSTOM_KEYS must include '${k}'`);
     }
+    assert.equal(Object.isFrozen(SNAPSHOT_CUSTOM_KEYS), true);
 });
 
 test('loadFromState restores duplicate-position masks one-to-one', async () => {

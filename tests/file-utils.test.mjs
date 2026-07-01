@@ -81,7 +81,7 @@ test('isSupportedImageDataUrl rejects unsupported image MIME types', () => {
     assert.equal(isSupportedImageDataUrl('data:image/svg+xml;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:image/avif;base64,AAAA'), false);
     assert.equal(isSupportedImageDataUrl('data:text/plain;base64,AAAA'), false);
-    assert.equal(isSupportedImageDataUrl('DATA:IMAGE/PNG;base64,AAAA'), false);
+    assert.equal(isSupportedImageDataUrl('DATA:IMAGE/PNG;base64,AAAA'), true);
 });
 
 test('readFileAsDataUrl rejects when FileReader aborts', async () => {

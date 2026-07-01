@@ -48,7 +48,7 @@ export function animateProps(object, props, options, guard) {
         unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
         try {
             const animationResult = object.animate(props, {
-                duration: options.duration,
+                duration,
                 onChange: () => {
                     var _a;
                     if (guard.isDisposed())

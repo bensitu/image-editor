@@ -54,7 +54,8 @@ export class HistoryManager {
             writable: true,
             value: void 0
         });
-        this.maxSize = maxSize;
+        const normalizedMaxSize = Number.isFinite(maxSize) ? Math.floor(maxSize) : 50;
+        this.maxSize = Math.max(1, normalizedMaxSize);
     }
     async execute(command) {
         this.queuedExecuteCount += 1;
@@ -81,6 +82,13 @@ export class HistoryManager {
     }
     push(command) {
         this.pushAndTrim(command);
+    }
+    clear() {
+        this.history = [];
+        this.currentIndex = -1;
+        this.isProcessing = false;
+        this.queuedExecuteCount = 0;
+        this.executeTail = Promise.resolve();
     }
     canUndo() {
         return this.currentIndex >= 0;

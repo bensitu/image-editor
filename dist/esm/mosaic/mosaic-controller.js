@@ -152,6 +152,27 @@ function releaseMosaicRasterCache(session) {
     }
     session.rasterCache = null;
 }
+async function refreshMosaicRasterCacheFromSource(context, session, source) {
+    const rasterCache = session.rasterCache;
+    if (!rasterCache)
+        return;
+    const ownerDocument = getCanvasDocument(context);
+    const decoded = await decodeImageSource(ownerDocument, source);
+    rasterCache.offscreenCanvas.width = decoded.width;
+    rasterCache.offscreenCanvas.height = decoded.height;
+    const renderingContext = rasterCache.offscreenCanvas.getContext('2d');
+    if (!renderingContext) {
+        releaseMosaicRasterCache(session);
+        return;
+    }
+    renderingContext.clearRect(0, 0, decoded.width, decoded.height);
+    renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
+    rasterCache.renderingContext = renderingContext;
+    rasterCache.imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
+    rasterCache.source = source;
+    rasterCache.width = decoded.width;
+    rasterCache.height = decoded.height;
+}
 function hidePreview(context) {
     var _a;
     const circle = (_a = context.getMosaicSession()) === null || _a === void 0 ? void 0 : _a.previewCircle;
@@ -472,7 +493,13 @@ async function commitMosaicChanges(context, session, callbackContext) {
         replaceBaseImage(context, originalImage, nextImage, output.mimeType);
         const after = context.captureSnapshot();
         pushMosaicHistory(context, after);
-        rasterCache.source = nextDataUrl;
+        try {
+            await refreshMosaicRasterCacheFromSource(context, session, nextDataUrl);
+        }
+        catch (error) {
+            releaseMosaicRasterCache(session);
+            reportWarning(context.options, error, 'Mosaic cache refresh failed after commit; the next stroke will rebuild it.');
+        }
         session.hasUncommittedChanges = false;
     }
     finally {
@@ -550,11 +577,6 @@ function installMosaicHandlers(context, session) {
     });
     attachCanvasHandler(context, session, 'mouse:out', () => {
         hidePreview(context);
-        const currentSession = context.getMosaicSession();
-        if (currentSession === null || currentSession === void 0 ? void 0 : currentSession.isPointerDown) {
-            currentSession.isPointerDown = false;
-            requestMosaicCommit(context, currentSession);
-        }
     });
     attachCanvasHandler(context, session, 'mouse:down', (event) => {
         const pointer = getPointerFromFabricEvent(context.canvas, event);

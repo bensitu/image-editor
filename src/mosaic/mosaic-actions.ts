@@ -41,7 +41,7 @@ export interface MosaicActionAccess {
 
     isDisposed(): boolean;
     isImageLoaded(): boolean;
-    canRunIdleOperation(operation: ImageEditorOperation): boolean;
+    canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     buildMosaicControllerContext(): MosaicControllerContext;
     buildCallbackContext(
         operation: ImageEditorOperation,

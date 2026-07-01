@@ -955,16 +955,48 @@ function extensionForFormat(format: NormalizedImageFormat): string {
     return format === 'jpeg' ? 'jpg' : format;
 }
 
+const MAX_EXPORT_FILE_BASENAME_LENGTH = 120;
+
+function replaceUnsafeFileNameCharacters(value: string): string {
+    let output = '';
+    let lastWasReplacement = false;
+
+    for (const char of value) {
+        const code = char.charCodeAt(0);
+        const unsafe = code <= 31 || code === 127 || '<>:"|?*'.includes(char);
+        if (unsafe) {
+            if (!lastWasReplacement) output += '_';
+            lastWasReplacement = true;
+            continue;
+        }
+
+        output += char;
+        lastWasReplacement = false;
+    }
+
+    return output;
+}
+
+function sanitizeFileNameBase(value: string): string {
+    const withoutPathSeparators = value.replace(/[\\/]+/g, '_');
+    const sanitized = replaceUnsafeFileNameCharacters(withoutPathSeparators)
+        .replace(/\.\.+/g, '.')
+        .replace(/^\.+|\.+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_EXPORT_FILE_BASENAME_LENGTH)
+        .trim();
+    return sanitized || 'edited_image';
+}
+
 function resolveFileName(baseName: string, format: ResolvedExportFormat): string {
     const fallback = 'edited_image';
     const trimmed = String(baseName || fallback).trim() || fallback;
     const ext = extensionForFormat(format.format);
+    const baseWithoutExtension = trimmed.replace(/\.(jpe?g|png|webp)$/i, '');
+    const safeBase = sanitizeFileNameBase(baseWithoutExtension);
 
-    if (/\.(jpe?g|png|webp)$/i.test(trimmed)) {
-        return trimmed.replace(/\.(jpe?g|png|webp)$/i, `.${ext}`);
-    }
-
-    return `${trimmed}.${ext}`;
+    return `${safeBase}.${ext}`;
 }
 
 async function renderExportDataUrl(

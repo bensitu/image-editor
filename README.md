@@ -44,9 +44,10 @@ with a stable public surface.
 - **Node.js**: `>= 20` for development / building from source
 - **Fabric.js**: peer dependency `^7.0.0` (must be installed by the consumer)
 - **Browsers**: modern evergreen (Chrome, Firefox, Safari, Edge). The library
-  uses ES2022 features and the Fabric v7 promise-based API.
+  ships ES2019-targeted JavaScript and uses the Fabric v7 promise-based API.
 - **TypeScript**: strict consumers that compile dependencies with
-  `skipLibCheck: false` should include the ES2022 library in `tsconfig.json`.
+  `skipLibCheck: false` should include the ES2019 and DOM libraries in
+  `tsconfig.json`.
   Fabric v7.4 declarations also reference `jsdom` types, so install
   `@types/jsdom` when your project type-checks Fabric's declaration files.
 
@@ -121,12 +122,15 @@ in all four formats:
     <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
     <script>
-        const editor = new ImageEditor({
+        const editor = new ImageEditor.ImageEditor({
             canvasWidth: 800,
             canvasHeight: 600,
         });
     </script>
     ```
+
+    The UMD global is a namespace object. `ImageEditor.ImageEditor` and
+    `ImageEditor.default` both reference the constructor.
 
 If neither form yields a usable Fabric module, the constructor logs a single
 descriptive `console.error` and `init()` and `loadImage()` become no-ops that
@@ -941,9 +945,8 @@ fail the artifact checks.
 - Safari 15+
 - Edge 100+
 
-The library uses modern DOM and ES2022 features (optional chaining, classes,
-`async`/`await`, native promises). Older targets must be transpiled by the
-consumer.
+The distributed JavaScript targets ES2019 and modern DOM APIs. Older runtime
+targets must be transpiled by the consumer.
 
 ## Type declarations
 

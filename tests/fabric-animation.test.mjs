@@ -94,3 +94,20 @@ test('animateProps aborts and settles when dispose interrupts an in-flight anima
     assert.equal(changeCalls, 1);
     assert.equal(abortCalls, 1);
 });
+
+test('animateProps passes a clamped finite duration to Fabric', async () => {
+    const guard = new OperationGuard();
+    const durations = [];
+    const object = {
+        animate(_props, options) {
+            durations.push(options.duration);
+            options.onComplete?.();
+            return [];
+        },
+    };
+
+    await animateProps(object, { scaleX: 2 }, { duration: Number.NaN }, guard);
+    await animateProps(object, { scaleX: 2 }, { duration: -10 }, guard);
+
+    assert.deepEqual(durations, [0, 0]);
+});

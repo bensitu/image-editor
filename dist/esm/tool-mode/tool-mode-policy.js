@@ -2,6 +2,7 @@ const CROP_SESSION_ALLOWED_OPERATIONS = new Set([
     'setCropAspectRatio',
     'applyCrop',
     'cancelCrop',
+    'saveState',
 ]);
 const MOSAIC_SESSION_ALLOWED_OPERATIONS = new Set([
     'exitMosaicMode',

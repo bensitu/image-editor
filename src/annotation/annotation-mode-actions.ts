@@ -30,7 +30,7 @@ export interface AnnotationModeActionAccess {
     getTextSession(): TextSession | null;
     getDrawSession(): DrawSession | null;
     isToolModeActive(): boolean;
-    canRunIdleOperation(operation: ImageEditorOperation): boolean;
+    canRunIdleOperation(operation: ImageEditorOperation, options?: object | null): boolean;
     buildTextControllerContext(): TextControllerContext;
     buildDrawControllerContext(): DrawControllerContext;
     buildCallbackContext(

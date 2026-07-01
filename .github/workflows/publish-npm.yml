@@ -109,4 +109,4 @@ jobs:
                   WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
               run: |
                   NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
-                  npm publish "./${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}"
+                  npm publish "./${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}" --provenance
