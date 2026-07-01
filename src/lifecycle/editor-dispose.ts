@@ -19,14 +19,17 @@ export function safelyRemoveKeyboardListener(
     }
 }
 
-export function safelyDisposeCanvas(canvas: FabricNS.Canvas | null): void {
-    if (!canvas) return;
+export function safelyDisposeCanvas(canvas: FabricNS.Canvas | null): Promise<void> {
+    if (!canvas) return Promise.resolve();
     try {
-        void Promise.resolve(canvas.dispose()).catch(() => {
-            /* ignore */
-        });
+        return Promise.resolve(canvas.dispose())
+            .then(() => undefined)
+            .catch(() => {
+                /* ignore */
+            });
     } catch {
         /* ignore */
+        return Promise.resolve();
     }
 }
 

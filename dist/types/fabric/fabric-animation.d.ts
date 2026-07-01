@@ -138,4 +138,3 @@ export declare function animateProps<T extends FabricNS.FabricObject>(object: T,
  *
  */
 export declare function restoreOrigin(object: FabricNS.FabricObject, originX: FabricNS.TOriginX, originY: FabricNS.TOriginY): void;
-//# sourceMappingURL=fabric-animation.d.ts.map

@@ -191,4 +191,3 @@ export declare class OperationGuard {
      */
     assertCanQueueAnimation(operationLabel: string, token?: OperationToken | null): void;
 }
-//# sourceMappingURL=operation-guard.d.ts.map

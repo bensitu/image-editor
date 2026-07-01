@@ -174,4 +174,3 @@ export declare function getObjectBBox(object: FabricNS.FabricObject): {
  * @returns            A clamped {@link IntegerRegion}.
  */
 export declare function clampRegionToCanvas(region: IntegerRegion, canvasWidth: number, canvasHeight: number): IntegerRegion;
-//# sourceMappingURL=canvas-region.d.ts.map

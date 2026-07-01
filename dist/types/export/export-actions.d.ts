@@ -32,4 +32,3 @@ export declare function mergeAnnotationsAction(access: ExportActionAccess): Prom
 export declare function downloadImageAction(access: ExportActionAccess, options?: ImageExportOptions): Promise<void>;
 export declare function exportImageBase64Action(access: ExportActionAccess, options?: ImageExportOptions): Promise<string>;
 export declare function exportImageFileAction(access: ExportActionAccess, options?: ImageExportOptions): Promise<File>;
-//# sourceMappingURL=export-actions.d.ts.map

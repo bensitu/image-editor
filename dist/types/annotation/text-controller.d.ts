@@ -44,4 +44,3 @@ export declare function finalizeActiveTextEditing(context: TextControllerContext
     commit: boolean;
 }): void;
 export declare function attachTextEditingHandlersToAnnotations(context: TextControllerContext, annotations: AnnotationObject[]): void;
-//# sourceMappingURL=text-controller.d.ts.map

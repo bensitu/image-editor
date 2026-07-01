@@ -889,6 +889,24 @@ export interface ImageEditorOptions {
      */
     autoOrientImageQuality?: number | null;
     /**
+     * Maximum encoded input byte length accepted before image decode.
+     *
+     * File input uses `file.size`; `loadImage(dataUrl)` estimates the decoded
+     * base64 payload size. Invalid JavaScript runtime values fall back to the
+     * default guard.
+     *
+     * @default 50000000
+     */
+    maxInputBytes?: number | null;
+    /**
+     * Maximum source-image pixel count accepted from PNG/JPEG/WebP headers
+     * before image decode when dimensions can be read cheaply. Invalid
+     * JavaScript runtime values fall back to the default guard.
+     *
+     * @default 50000000
+     */
+    maxInputPixels?: number | null;
+    /**
      * Maximum duration (ms) for both decode and Fabric image creation steps
      * during `loadImage`. @default 30000
      */
@@ -1029,8 +1047,10 @@ export interface ImageEditorOptions {
  * Produced by `core/default-options.ts` after merging defaults with the
  * user-supplied partial options.
  */
-export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig' | 'onImageLoadStart' | 'onImageLoaded' | 'onImageCleared' | 'onImageChanged' | 'onBusyChange' | 'onToolModeChange' | 'onHistoryChange' | 'onEditorDisposed' | 'onMasksChanged' | 'onAnnotationsChanged' | 'onSelectionChange' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxExportPixels' | 'maxExportDimension'>> {
+export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig' | 'onImageLoadStart' | 'onImageLoaded' | 'onImageCleared' | 'onImageChanged' | 'onBusyChange' | 'onToolModeChange' | 'onHistoryChange' | 'onEditorDisposed' | 'onMasksChanged' | 'onAnnotationsChanged' | 'onSelectionChange' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxInputBytes' | 'maxInputPixels' | 'maxExportPixels' | 'maxExportDimension'>> {
     downsampleQuality: number;
+    maxInputBytes: number;
+    maxInputPixels: number;
     maxExportPixels: number;
     maxExportDimension: number;
     /** Current layout mode used by future image loads. */
@@ -1087,4 +1107,3 @@ export interface MaskBackup {
     evented: boolean;
     lockRotation: boolean;
 }
-//# sourceMappingURL=public-types.d.ts.map

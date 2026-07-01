@@ -108,4 +108,3 @@ export declare class AnimationQueue {
     waitForIdle(): Promise<void>;
     private drainQueue;
 }
-//# sourceMappingURL=animation-queue.d.ts.map

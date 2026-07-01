@@ -14,4 +14,3 @@ export interface EditorInputSnapshot {
 }
 export type EditorInputResolver = (key: ElementKey) => HTMLInputElement | null;
 export declare function applyEditorInputState(snapshot: EditorInputSnapshot, getInputElement: EditorInputResolver): void;
-//# sourceMappingURL=editor-input-state.d.ts.map

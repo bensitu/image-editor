@@ -107,6 +107,7 @@ export interface EditorContextFactoryAccess {
     saveCanvasState(): void;
     saveCanvasStateWithAnimationBypass(): void;
     setSuppressSaveState(suppress: boolean): void;
+    withSelectionChangeSuppressed<T>(callback: () => Promise<T>): Promise<T>;
     captureSnapshot(): string;
     loadImageForOperation(
         operationToken: OperationToken | undefined,
@@ -162,6 +163,8 @@ export class EditorContextFactory {
             options: access.getOptions(),
             isImageLoaded: () => access.isImageLoaded(),
             getOriginalImage: () => access.getOriginalImage(),
+            withSelectionChangeSuppressed: (callback) =>
+                access.withSelectionChangeSuppressed(callback),
         };
     }
 

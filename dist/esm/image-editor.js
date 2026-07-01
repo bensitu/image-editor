@@ -1391,9 +1391,16 @@ export class ImageEditor {
         setPlaceholderVisibleImpl(this.runtime.placeholderElement, this.runtime.containerElement, this.runtime.options.showPlaceholder ? !this.runtime.originalImage : false);
     }
     dispose() {
+        void this.disposeInternal(false);
+    }
+    async disposeAsync() {
+        await this.disposeInternal(true);
+    }
+    disposeInternal(waitForCanvasDispose) {
         var _a;
-        if (this.runtime.isDisposed)
-            return;
+        if (this.runtime.isDisposed) {
+            return waitForCanvasDispose ? Promise.resolve() : undefined;
+        }
         const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.runtime.originalImage;
         this.runtime.isDisposed = true;
@@ -1416,9 +1423,9 @@ export class ImageEditor {
         safelyExitActiveSession(this.runtime.drawSession !== null, this.runtime.canvas, () => exitDrawModeImpl(this.buildDrawControllerContext()), () => {
             this.runtime.drawSession = null;
         });
-        if (this.runtime.canvas) {
-            safelyDisposeCanvas(this.runtime.canvas);
-        }
+        const canvasDispose = this.runtime.canvas
+            ? safelyDisposeCanvas(this.runtime.canvas)
+            : Promise.resolve();
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
@@ -1426,6 +1433,9 @@ export class ImageEditor {
         this.emitImageChanged(context);
         this.emitBusyChangeIfChanged(context);
         this.emitOptionCallback('onEditorDisposed', [context]);
+        if (waitForCanvasDispose)
+            return canvasDispose;
+        return undefined;
     }
 }
 //# sourceMappingURL=image-editor.js.map

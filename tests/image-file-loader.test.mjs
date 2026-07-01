@@ -151,6 +151,62 @@ test('loadImageFile rethrows loadImage failures and resets the file input', asyn
     }
 });
 
+test('loadImageFile warns and resets input when selected file exceeds maxInputBytes', async () => {
+    const input = { value: 'C:\\fakepath\\large.png' };
+    const warnings = [];
+    let loadCount = 0;
+
+    await loadImageFile(
+        {
+            options: resolveOptions({
+                maxInputBytes: 3,
+                onWarning: (error, message) => warnings.push({ error, message }),
+            }),
+            getInputElement: () => input,
+            loadImage: async () => {
+                loadCount += 1;
+            },
+        },
+        new File(['abcd'], 'large.png', { type: 'image/png' }),
+    );
+
+    assert.equal(loadCount, 0);
+    assert.equal(input.value, '');
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /maxInputBytes/);
+});
+
+test('loadImageFile warns and resets input when selected file exceeds maxInputPixels', async () => {
+    const input = { value: 'C:\\fakepath\\large.png' };
+    const warnings = [];
+    let loadCount = 0;
+    const png = new Uint8Array(24);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+    png.set([0x00, 0x00, 0x00, 0x0d], 8);
+    png.set([0x49, 0x48, 0x44, 0x52], 12);
+    new DataView(png.buffer).setUint32(16, 100, false);
+    new DataView(png.buffer).setUint32(20, 100, false);
+
+    await loadImageFile(
+        {
+            options: resolveOptions({
+                maxInputPixels: 9999,
+                onWarning: (error, message) => warnings.push({ error, message }),
+            }),
+            getInputElement: () => input,
+            loadImage: async () => {
+                loadCount += 1;
+            },
+        },
+        new File([png], 'large.png', { type: 'image/png' }),
+    );
+
+    assert.equal(loadCount, 0);
+    assert.equal(input.value, '');
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /maxInputPixels/);
+});
+
 test('loadImageFile normalizes JPEG EXIF orientation when enabled', async () => {
     const documentStub = createCanvasDocumentStub();
     const input = { value: 'C:\\fakepath\\photo.jpg', ownerDocument: documentStub };

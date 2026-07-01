@@ -257,6 +257,12 @@ export class EditorRuntime {
             writable: true,
             value: false
         });
+        Object.defineProperty(this, "shouldSuppressSelectionChange", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
         Object.defineProperty(this, "lastEmittedIsBusy", {
             enumerable: true,
             configurable: true,

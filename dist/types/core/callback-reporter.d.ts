@@ -122,4 +122,3 @@ export declare function reportWarning(options: WarningCallbackHost, error: unkno
  *   callback argument.
  */
 export declare function reportError(options: ErrorCallbackHost, error: unknown, message: string): void;
-//# sourceMappingURL=callback-reporter.d.ts.map

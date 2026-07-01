@@ -60,6 +60,7 @@ export declare class EditorRuntime {
     keyboardHandler: ((event: KeyboardEvent) => void) | null;
     isDisposed: boolean;
     shouldSuppressSaveState: boolean;
+    shouldSuppressSelectionChange: boolean;
     lastEmittedIsBusy: boolean | null;
     lastEmittedToolMode: EditorToolMode | null;
     lastEmittedHistoryState: {
@@ -75,4 +76,3 @@ export declare class EditorRuntime {
     isBusy(isToolModeActive?: boolean): boolean;
     resetAfterDispose(): void;
 }
-//# sourceMappingURL=editor-runtime.d.ts.map

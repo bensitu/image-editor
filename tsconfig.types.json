@@ -1,14 +1,14 @@
 /**
  * tsconfig.types.json — TypeScript declaration emit for the distribution.
  *
- * Emits only `.d.ts` (and `.d.ts.map`) files under `dist/types/`, so
- * `dist/types/index.d.ts` is the canonical declarations entry referenced
- * by the package `exports.types` and `types` fields.
+ * Emits only `.d.ts` files under `dist/types/`, so `dist/types/index.d.ts`
+ * is the canonical declarations entry referenced by the package
+ * `exports.types` and `types` fields.
  *
  * The decomposed source tree under `src/` is preserved one-to-one under
- * `dist/types/` because `rootDir` is `src`. Declaration maps are emitted
- * so that consumers' editors can "Go to Definition" through to the
- * original `.ts` source files.
+ * `dist/types/` because `rootDir` is `src`. Declaration maps stay disabled
+ * because the published package contains `dist/` only, not the original
+ * source tree.
  */
 {
     "extends": "./tsconfig.json",
@@ -19,7 +19,7 @@
         /* -- Declaration-only emit ------------------------------------- */
         "emitDeclarationOnly": true,
         "declaration": true,
-        "declarationMap": true,
+        "declarationMap": false,
         /* -- Strip @internal members from declaration output ---------- */
         "stripInternal": true,
         /* -- No JS source maps (no JS is emitted) --------------------- */

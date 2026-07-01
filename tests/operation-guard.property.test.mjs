@@ -234,6 +234,17 @@ test('active operation token allows internal calls and blocks external calls', (
     assert.equal(guard.isBusy(), false);
 });
 
+test('beginBusyOperation rejects reentrant active operations', () => {
+    const guard = new OperationGuard();
+    const token = guard.beginBusyOperation('mergeMasks');
+
+    assert.throws(() => guard.beginBusyOperation('exportImageBase64'), /mergeMasks is running/);
+    assert.equal(guard.activeOperationName(), 'mergeMasks');
+
+    guard.endBusyOperation(token);
+    assert.doesNotThrow(() => guard.beginBusyOperation('exportImageBase64'));
+});
+
 test('markDisposed forces a quiescent state mid-animation', async () => {
     await fc.assert(
         fc.asyncProperty(delayArb, fc.boolean(), async (ms, callTwice) => {

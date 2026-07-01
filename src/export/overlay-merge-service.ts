@@ -33,6 +33,7 @@ export interface OverlayMergeTransactionContext {
     loadFromState(snapshot: string): Promise<void>;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     exportImageBase64(options: ImageExportOptions): Promise<string>;
+    withSelectionChangeSuppressed?<T>(callback: () => Promise<T>): Promise<T>;
     updateUi(): void;
     updateInputs(): void;
 }
@@ -94,7 +95,14 @@ export async function flattenOverlayGroupToBaseImage<
     const preScrollLeft = context.containerElement ? context.containerElement.scrollLeft : null;
 
     try {
-        detachObjects(context.canvas, preservedObjects);
+        const detachPreservedObjects = async (): Promise<void> => {
+            detachObjects(context.canvas, preservedObjects);
+        };
+        if (context.withSelectionChangeSuppressed) {
+            await context.withSelectionChangeSuppressed(detachPreservedObjects);
+        } else {
+            await detachPreservedObjects();
+        }
         const exportedDataUrl = await context.exportImageBase64(options.exportOptions);
         if (!exportedDataUrl) {
             throw createMergeError(

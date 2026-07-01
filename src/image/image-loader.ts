@@ -124,6 +124,7 @@ import {
     detectSourceMimeType,
     resampleImage,
 } from './image-resampler.js';
+import { assertImageDataUrlInputBudget } from './image-input-budget.js';
 
 // ─── Rollback bundle ─────────────────────────────────────────────────────────
 
@@ -334,6 +335,15 @@ export async function loadImage(
     // 1. bail before capturing the bundle or mutating anything when the
     //    input is not one of the supported raster image data URL formats.
     if (!isSupportedImageDataUrl(imageBase64)) return;
+
+    try {
+        assertImageDataUrlInputBudget(imageBase64, context.options);
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
+        reportError(context.options, error, errorMessage);
+        throw error;
+    }
 
     // 2. capture the rollback bundle BEFORE the first mutation.
     const placeholderHidden = context.placeholderElement

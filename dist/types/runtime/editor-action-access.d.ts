@@ -99,4 +99,3 @@ export declare class EditorActionAccessFactory {
     buildMosaicActionAccess(): MosaicActionAccess;
     buildCropActionAccess(): CropActionAccess;
 }
-//# sourceMappingURL=editor-action-access.d.ts.map

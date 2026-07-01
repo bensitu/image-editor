@@ -10,7 +10,6 @@
 
 import type { ResolvedOptions } from '../core/public-types.js';
 import { readFileAsArrayBuffer } from '../utils/file.js';
-import { startImageElementLoad } from '../utils/image-element-loader.js';
 
 export type JpegExifOrientation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
@@ -168,13 +167,17 @@ type DecodedImageSource = {
     close(): void;
 };
 
-async function tryCreateRawImageBitmap(file: File): Promise<DecodedImageSource | null> {
-    if (typeof createImageBitmap !== 'function') return null;
+async function createRawImageBitmap(file: File): Promise<DecodedImageSource> {
+    if (typeof createImageBitmap !== 'function') {
+        throw new Error(
+            'createImageBitmap with imageOrientation: "none" is required for safe EXIF orientation normalization.',
+        );
+    }
     try {
         const bitmap = await createImageBitmap(file, { imageOrientation: 'none' });
         if (!hasPositiveDimensions(bitmap.width, bitmap.height)) {
             bitmap.close();
-            return null;
+            throw new Error('Decoded image bitmap has no dimensions.');
         }
         return {
             source: bitmap,
@@ -184,28 +187,16 @@ async function tryCreateRawImageBitmap(file: File): Promise<DecodedImageSource |
                 bitmap.close();
             },
         };
-    } catch {
-        return null;
+    } catch (error) {
+        throw Object.assign(
+            new Error(
+                error instanceof Error
+                    ? `createImageBitmap EXIF orientation decode failed: ${error.message}`
+                    : 'createImageBitmap EXIF orientation decode failed.',
+            ),
+            { cause: error },
+        );
     }
-}
-
-async function decodeImageElement(dataUrl: string): Promise<DecodedImageSource> {
-    const load = startImageElementLoad(dataUrl, {
-        validate: (imageElement) =>
-            hasPositiveDimensions(imageElement.naturalWidth, imageElement.naturalHeight)
-                ? null
-                : new Error('Image has no natural dimensions.'),
-        createError: () => new Error('Failed to decode image for EXIF orientation normalization.'),
-    });
-    const imageElement = await load.promise;
-    return {
-        source: imageElement,
-        width: imageElement.naturalWidth,
-        height: imageElement.naturalHeight,
-        close: () => {
-            load.cleanup(true);
-        },
-    };
 }
 
 function hasPositiveDimensions(width: number, height: number): boolean {
@@ -296,12 +287,14 @@ export async function normalizeJpegOrientationIfNeeded(
     options: ResolvedOptions,
     ownerDocument?: Document | null,
 ): Promise<string | null> {
+    void dataUrl;
+
     if (!options.autoOrientImage || !isJpegFile(file)) return null;
 
     const orientation = await readFileOrientation(file);
     if (orientation === null || orientation === 1) return null;
 
-    const decoded = (await tryCreateRawImageBitmap(file)) ?? (await decodeImageElement(dataUrl));
+    const decoded = await createRawImageBitmap(file);
     try {
         return drawOrientedImage(decoded, orientation, options, ownerDocument);
     } finally {

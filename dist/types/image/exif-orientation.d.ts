@@ -22,4 +22,3 @@ export declare function isJpegFile(file: File): boolean;
  * transform. Returns `null` when no normalization is needed.
  */
 export declare function normalizeJpegOrientationIfNeeded(file: File, dataUrl: string, options: ResolvedOptions, ownerDocument?: Document | null): Promise<string | null>;
-//# sourceMappingURL=exif-orientation.d.ts.map

@@ -29,4 +29,3 @@ export declare function enterMosaicModeAction(access: MosaicActionAccess): void;
 export declare function exitMosaicModeAction(access: MosaicActionAccess): void;
 export declare function resetMosaicConfigAction(access: MosaicActionAccess): void;
 export declare function applyMosaicConfigPatchAction(access: MosaicActionAccess, config: MosaicConfig, operation: ImageEditorOperation): void;
-//# sourceMappingURL=mosaic-actions.d.ts.map

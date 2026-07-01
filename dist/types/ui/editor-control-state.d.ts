@@ -28,4 +28,3 @@ export interface EditorControlSnapshot {
 }
 export type ControlEnabler = (key: ElementKey, enabled: boolean) => void;
 export declare function applyEditorControlState(snapshot: EditorControlSnapshot, setEnabled: ControlEnabler): void;
-//# sourceMappingURL=editor-control-state.d.ts.map

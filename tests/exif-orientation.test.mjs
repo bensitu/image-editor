@@ -275,6 +275,27 @@ test('normalizeJpegOrientationIfNeeded uses autoOrientImageQuality when provided
     }
 });
 
+test('normalizeJpegOrientationIfNeeded rejects fallback decode when raw image bitmap is unavailable', async () => {
+    const originalCreateImageBitmap = globalThis.createImageBitmap;
+    const documentStub = createCanvasDocumentStub();
+    try {
+        delete globalThis.createImageBitmap;
+        await assert.rejects(
+            () =>
+                normalizeJpegOrientationIfNeeded(
+                    makeFileForOrientation(6),
+                    'data:image/jpeg;base64,ORIGINAL',
+                    resolveOptions(),
+                    documentStub,
+                ),
+            /imageOrientation: "none"/,
+        );
+        assert.equal(documentStub.canvases.length, 0);
+    } finally {
+        globalThis.createImageBitmap = originalCreateImageBitmap;
+    }
+});
+
 test('normalizeJpegOrientationIfNeeded rotates orientation 3 without swapping dimensions', async () => {
     const bitmap = installImageBitmapStub({ width: 2, height: 3 });
     const documentStub = createCanvasDocumentStub();

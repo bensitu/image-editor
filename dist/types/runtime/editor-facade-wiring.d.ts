@@ -94,4 +94,3 @@ export interface EditorRuntimeWiring {
     actionAccessFactory: EditorActionAccessFactory;
 }
 export declare function createEditorRuntimeWiring(runtime: EditorRuntime, hooks: EditorRuntimeWiringHooks): EditorRuntimeWiring;
-//# sourceMappingURL=editor-facade-wiring.d.ts.map

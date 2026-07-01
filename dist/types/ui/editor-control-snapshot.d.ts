@@ -7,4 +7,3 @@
 import type { EditorRuntime } from '../runtime/editor-runtime.js';
 import type { EditorControlSnapshot } from './editor-control-state.js';
 export declare function buildEditorControlSnapshot(runtime: EditorRuntime): EditorControlSnapshot | null;
-//# sourceMappingURL=editor-control-snapshot.d.ts.map

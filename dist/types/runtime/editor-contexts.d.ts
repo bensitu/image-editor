@@ -67,6 +67,7 @@ export interface EditorContextFactoryAccess {
     saveCanvasState(): void;
     saveCanvasStateWithAnimationBypass(): void;
     setSuppressSaveState(suppress: boolean): void;
+    withSelectionChangeSuppressed<T>(callback: () => Promise<T>): Promise<T>;
     captureSnapshot(): string;
     loadImageForOperation(operationToken: OperationToken | undefined, imageBase64: string, options?: LoadImageOptions): Promise<void>;
     loadMergedImage(operationToken: OperationToken | undefined, imageBase64: string, options?: LoadImageOptions): Promise<void>;
@@ -112,4 +113,3 @@ export declare class EditorContextFactory {
     buildMergeMasksContext(operationToken?: OperationToken): MergeMasksContext;
     buildMergeAnnotationsContext(operationToken?: OperationToken): MergeAnnotationsContext;
 }
-//# sourceMappingURL=editor-contexts.d.ts.map

@@ -40,4 +40,3 @@ export declare function removeSelectedAnnotation(context: AnnotationManagerConte
 export declare function removeAllAnnotations(context: AnnotationManagerContext, options?: RemoveAllAnnotationsOptions): number;
 export declare function renderAnnotationList(context: AnnotationListContext): void;
 export declare function updateAnnotationListSelection(context: AnnotationListContext, selectedAnnotation: AnnotationObject | null): void;
-//# sourceMappingURL=annotation-manager.d.ts.map

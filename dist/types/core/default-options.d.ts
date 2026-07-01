@@ -93,4 +93,3 @@ export declare function getInvalidDrawConfigFields(input: DrawConfig): string[];
  * @param input - Optional partial options object. Defaults to `{}`.
  */
 export declare function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptions;
-//# sourceMappingURL=default-options.d.ts.map

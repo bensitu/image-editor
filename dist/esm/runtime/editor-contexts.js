@@ -22,6 +22,7 @@ export class EditorContextFactory {
             options: access.getOptions(),
             isImageLoaded: () => access.isImageLoaded(),
             getOriginalImage: () => access.getOriginalImage(),
+            withSelectionChangeSuppressed: (callback) => access.withSelectionChangeSuppressed(callback),
         };
     }
     buildLoadImageContext() {

@@ -51,4 +51,3 @@ export interface EditorDomActionHost {
     setDrawBrushSize(size: number): void;
 }
 export declare function createEditorDomEventActions(runtime: EditorRuntime, ownerDocument: Document, host: EditorDomActionHost): EditorDomEventActions;
-//# sourceMappingURL=editor-dom-actions.d.ts.map

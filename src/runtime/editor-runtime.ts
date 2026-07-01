@@ -88,6 +88,7 @@ export class EditorRuntime {
     keyboardHandler: ((event: KeyboardEvent) => void) | null = null;
     isDisposed = false;
     shouldSuppressSaveState = false;
+    shouldSuppressSelectionChange = false;
     lastEmittedIsBusy: boolean | null = null;
     lastEmittedToolMode: EditorToolMode | null = null;
     lastEmittedHistoryState: { canUndo: boolean; canRedo: boolean };

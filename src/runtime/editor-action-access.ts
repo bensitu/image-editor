@@ -332,6 +332,7 @@ export class EditorActionAccessFactory {
             },
             getNextSelectionChangeContext: () => runtime.nextSelectionChangeContext,
             getActiveStateRestoreOperation: () => runtime.activeStateRestoreOperation,
+            shouldSuppressSelectionChange: () => runtime.shouldSuppressSelectionChange,
             buildSelection: (selected) => callbacks.buildSelection(selected),
             buildCallbackContext: (operation, isHistoryRestore) =>
                 callbacks.buildCallbackContext(operation, isHistoryRestore),

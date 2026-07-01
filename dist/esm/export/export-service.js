@@ -376,6 +376,24 @@ function createColorValidationContext(ownerDocument) {
         return null;
     }
 }
+function detectDataUrlMimeType(dataUrl) {
+    var _a, _b;
+    const match = /^data:([^;,]+)(?:[;,])/i.exec(dataUrl);
+    return (_b = (_a = match === null || match === void 0 ? void 0 : match[1]) === null || _a === void 0 ? void 0 : _a.toLowerCase()) !== null && _b !== void 0 ? _b : null;
+}
+function assertDataUrlMimeType(dataUrl, target, operation) {
+    const actualMimeType = detectDataUrlMimeType(dataUrl);
+    if (actualMimeType !== target.mimeType) {
+        throw new ExportError(`${operation} failed: browser encoded ${actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : 'unknown MIME'} instead of requested ${target.mimeType}.`);
+    }
+}
+function encodeCanvasAsDataUrl(canvas, target, operation) {
+    const encoded = target.quality === undefined
+        ? canvas.toDataURL(target.mimeType)
+        : canvas.toDataURL(target.mimeType, target.quality);
+    assertDataUrlMimeType(encoded, target, operation);
+    return encoded;
+}
 function getCanvasDocument(canvas) {
     var _a, _b, _c, _d;
     const canvasLike = canvas;
@@ -436,9 +454,7 @@ async function postProcessRegionDataUrl(dataUrl, edges, target, backgroundColor,
         canvasContext.fillRect(0, 0, width, height);
         canvasContext.globalCompositeOperation = 'source-over';
     }
-    return target.quality === undefined
-        ? offscreenCanvas.toDataURL(target.mimeType)
-        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
+    return encodeCanvasAsDataUrl(offscreenCanvas, target, 'exportImageBase64');
 }
 function dataUrlToBytes(dataUrl) {
     var _a;
@@ -466,7 +482,7 @@ function dataUrlToBytes(dataUrl) {
     throw new Error('No base64 decoder is available for exportImageFile.');
 }
 async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas) {
-    if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
+    if (detectDataUrlMimeType(sourceDataUrl) === target.mimeType) {
         return sourceDataUrl;
     }
     const imageElement = await loadImageElement(sourceDataUrl);
@@ -484,7 +500,7 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
         canvasContext.fillRect(0, 0, width, height);
     }
     canvasContext.drawImage(imageElement, 0, 0, width, height);
-    return offscreenCanvas.toDataURL(target.mimeType, target.quality);
+    return encodeCanvasAsDataUrl(offscreenCanvas, target, 'exportImageFile');
 }
 function warnNoImageLoaded(options, operation) {
     reportWarning(options, null, `${operation} skipped: no image is loaded on the canvas.`);
@@ -501,26 +517,34 @@ function resolveFileName(baseName, format) {
     }
     return `${trimmed}.${ext}`;
 }
-async function renderExportDataUrl(context, resolved) {
-    const activeObject = captureActiveObject(context.canvas);
-    const labelBackups = captureMaskLabelBackups(context.canvas);
-    try {
-        context.canvas.discardActiveObject();
-        const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
-        assertExportPixelBudget(context, resolved.multiplier, region);
-        const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
-        const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
-        let dataUrl = await withSessionObjectsHidden(context, async () => withMaskExportState(context, resolved.mergeMasks, async () => withAnnotationsExportState(context, resolved.mergeAnnotations, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region))));
-        if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
-            dataUrl = await postProcessRegionDataUrl(dataUrl, partialEdges, resolved.format, context.options.backgroundColor, getCanvasDocument(context.canvas));
+async function renderExportDataUrl(context, resolved, validateMimeType = true) {
+    const render = async () => {
+        const activeObject = captureActiveObject(context.canvas);
+        const labelBackups = captureMaskLabelBackups(context.canvas);
+        try {
+            context.canvas.discardActiveObject();
+            const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
+            assertExportPixelBudget(context, resolved.multiplier, region);
+            const renderFormat = region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
+            const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
+            let dataUrl = await withSessionObjectsHidden(context, async () => withMaskExportState(context, resolved.mergeMasks, async () => withAnnotationsExportState(context, resolved.mergeAnnotations, async () => renderCanvasToDataUrl(context.canvas, renderFormat, renderQuality, resolved.multiplier, region))));
+            if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
+                dataUrl = await postProcessRegionDataUrl(dataUrl, partialEdges, resolved.format, context.options.backgroundColor, getCanvasDocument(context.canvas));
+            }
+            if (validateMimeType) {
+                assertDataUrlMimeType(dataUrl, resolved.format, 'exportImageBase64');
+            }
+            return dataUrl;
         }
-        return dataUrl;
-    }
-    finally {
-        restoreMaskLabelBackups(context.canvas, labelBackups);
-        restoreActiveObject(context.canvas, activeObject);
-        requestRender(context.canvas);
-    }
+        finally {
+            restoreMaskLabelBackups(context.canvas, labelBackups);
+            restoreActiveObject(context.canvas, activeObject);
+            requestRender(context.canvas);
+        }
+    };
+    return context.withSelectionChangeSuppressed
+        ? context.withSelectionChangeSuppressed(render)
+        : render();
 }
 export async function exportImageBase64(context, options) {
     if (!context.isImageLoaded()) {
@@ -538,7 +562,7 @@ export async function exportImageFile(context, options) {
     }
     const providedOptions = options !== null && options !== void 0 ? options : {};
     const resolved = resolveExportOptions(context, providedOptions);
-    const rawDataUrl = await renderExportDataUrl(context, resolved);
+    const rawDataUrl = await renderExportDataUrl(context, resolved, false);
     const finalDataUrl = await reencodeDataUrlAs(rawDataUrl, resolved.format, context.options.backgroundColor, context.canvas);
     let bytes;
     try {

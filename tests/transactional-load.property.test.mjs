@@ -755,6 +755,39 @@ test('image load timeout is a total deadline and aborts the Fabric load phase', 
     }
 });
 
+test('loadImage rejects oversized data URLs before image decode or mutation', async () => {
+    const previousImage = globalThis.Image;
+    let imageConstructed = false;
+
+    class DecodeShouldNotStart {
+        constructor() {
+            imageConstructed = true;
+        }
+    }
+
+    globalThis.Image = DecodeShouldNotStart;
+    try {
+        const { ctx } = makeContext();
+        ctx.options = resolveOptions({
+            maxInputBytes: 3,
+            downsampleOnLoad: false,
+            backgroundColor: 'transparent',
+        });
+        ctx.placeholderElement.hidden = false;
+
+        await assert.rejects(() => loadImage(ctx, VALID_PNG_DATA_URL), /maxInputBytes/);
+
+        assert.equal(imageConstructed, false);
+        assert.equal(ctx.placeholderElement.hidden, false);
+    } finally {
+        if (previousImage === undefined) {
+            delete globalThis.Image;
+        } else {
+            globalThis.Image = previousImage;
+        }
+    }
+});
+
 test('failure restores current image MIME', async () => {
     await fc.assert(
         fc.asyncProperty(preserveScrollArb, async (preserveScroll) => {

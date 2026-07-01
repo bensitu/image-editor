@@ -117,9 +117,13 @@ function makeMockCanvas(masks, { onRender, throwOnRender = false } = {}) {
             if (throwOnRender) {
                 throw new Error('forced toDataURL failure');
             }
-            return 'data:image/jpeg;base64,AAAA';
+            return `data:${mimeTypeForFormat(options.format)};base64,AAAA`;
         },
     };
+}
+
+function mimeTypeForFormat(format) {
+    return format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
 }
 
 function makeContext(canvas, originalImage) {

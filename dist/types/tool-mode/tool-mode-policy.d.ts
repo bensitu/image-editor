@@ -16,4 +16,3 @@ export declare function isToolModeActive(snapshot: EditorToolModeSnapshot): bool
 export declare function getAllowedOperationsForToolMode(mode: EditorToolMode): ReadonlySet<string>;
 export declare function canRunOperationInToolMode(activeMode: EditorToolMode | null, operationName: string): boolean;
 export declare function isImageEditorOperation(value: string | null): value is ImageEditorOperation;
-//# sourceMappingURL=tool-mode-policy.d.ts.map

@@ -80,6 +80,8 @@ export const DEFAULT_OPTIONS: Omit<
     // File loading
     autoOrientImage: true,
     autoOrientImageQuality: null,
+    maxInputBytes: 50000000,
+    maxInputPixels: 50000000,
 
     // Image-load timeout
     imageLoadTimeoutMs: 30000,
@@ -245,6 +247,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'downsampleMimeType',
     'autoOrientImage',
     'autoOrientImageQuality',
+    'maxInputBytes',
+    'maxInputPixels',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
@@ -398,6 +402,18 @@ function normalizeMaxExportPixels(value: unknown): number {
 function normalizeMaxExportDimension(value: unknown): number {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_OPTIONS.maxExportDimension;
+    return Math.max(1, Math.floor(numeric));
+}
+
+function normalizeMaxInputBytes(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_OPTIONS.maxInputBytes;
+    return Math.max(1, Math.floor(numeric));
+}
+
+function normalizeMaxInputPixels(value: unknown): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_OPTIONS.maxInputPixels;
     return Math.max(1, Math.floor(numeric));
 }
 
@@ -1064,6 +1080,14 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         }
         if (key === 'autoOrientImageQuality') {
             resolved.autoOrientImageQuality = normalizeNullableQualityOption(value);
+            continue;
+        }
+        if (key === 'maxInputBytes') {
+            resolved.maxInputBytes = normalizeMaxInputBytes(value);
+            continue;
+        }
+        if (key === 'maxInputPixels') {
+            resolved.maxInputPixels = normalizeMaxInputPixels(value);
             continue;
         }
         if (key === 'mergeMasksByDefault') {

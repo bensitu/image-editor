@@ -7,6 +7,7 @@
 
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import type { ResolvedOptions } from '../core/public-types.js';
+import { assertImageFileInputBudget } from './image-input-budget.js';
 import { normalizeJpegOrientationIfNeeded } from './exif-orientation.js';
 import { inferImageMimeType, readFileAsDataUrl, resetFileInput } from '../utils/file.js';
 
@@ -34,6 +35,18 @@ export async function loadImageFile(context: LoadImageFileContext, file: File): 
             context.options,
             null,
             `Unsupported image file type: ${file.type || file.name || 'unknown'}.`,
+        );
+        resetFileInput(inputElement);
+        return;
+    }
+
+    try {
+        await assertImageFileInputBudget(file, context.options);
+    } catch (error) {
+        reportWarning(
+            context.options,
+            error,
+            error instanceof Error ? error.message : 'Image file exceeds configured input limits.',
         );
         resetFileInput(inputElement);
         return;

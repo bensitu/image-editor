@@ -342,10 +342,12 @@ new ImageEditor(options?: ImageEditorOptions)  // UMD: reads globalThis.fabric
 | ------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `init(elementMap?)` | Bind the editor to DOM elements. Pass string IDs, HTMLElement refs, or `null` for unmanaged optional controls. |
 | `dispose()`         | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent.                           |
+| `disposeAsync()`    | Same teardown as `dispose()`, resolving after Fabric canvas disposal settles. Idempotent.                      |
 
 `dispose()` is synchronous and starts Fabric canvas teardown. If an integration
 must immediately create another editor on the same `<canvas>` element, wait for
-the next microtask or animation frame before reusing that element.
+the next microtask or animation frame before reusing that element, or call
+`await disposeAsync()`.
 
 ### Image loading
 
@@ -371,7 +373,15 @@ orientations are normalized through a canvas and re-encoded as JPEG; set
 `autoOrientImageQuality` to control that JPEG quality independently, or leave it
 `null` to use `downsampleQuality`. This applies only to JPEG files loaded
 through the file-input path; PNG/WebP files and `loadImage(dataUrl)` use the
-existing path, and arbitrary EXIF metadata is not preserved.
+existing path, and arbitrary EXIF metadata is not preserved. If the browser
+cannot decode the raw JPEG orientation with `createImageBitmap(...,
+{ imageOrientation: 'none' })`, auto-orientation is skipped with an `onWarning`
+and the original file data is loaded.
+
+Input size guards run before browser image decode. `maxInputBytes` limits the
+encoded file size or decoded base64 payload size, and `maxInputPixels` rejects
+PNG/JPEG/WebP files whose header dimensions exceed the configured source-pixel
+budget when those dimensions can be read cheaply.
 
 ### Read-only state
 
@@ -687,6 +697,11 @@ All export APIs use the same `ImageExportOptions` shape:
 | `multiplier`       | `1`       | Output resolution multiplier.                                                     |
 | `fileName`         | option    | `exportImageFile()` and `downloadImage()`. Defaults to `defaultDownloadFileName`. |
 
+Unknown runtime `fileType` / `format` values preserve the compatibility fallback
+to JPEG. If the browser cannot encode the resolved target MIME type and
+`canvas.toDataURL()` falls back to another MIME such as PNG, export rejects
+instead of returning mismatched Base64/File metadata.
+
 ```ts
 await editor.exportImageBase64({ mergeMasks: true, mergeAnnotations: true });
 await editor.exportImageBase64({ mergeMasks: false, mergeAnnotations: true });
@@ -751,6 +766,8 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `downsampleMimeType`        | `null`            | Explicit downsample MIME type. Overrides `preserveSourceFormat`.                                                                                                                                                                                                                              |
 | `autoOrientImage`           | `true`            | Normalize supported JPEG EXIF orientation during file-input loading. Set to `false` to preserve raw encoded orientation.                                                                                                                                                                      |
 | `autoOrientImageQuality`    | `null`            | JPEG quality used when `autoOrientImage` re-encodes a rotated or mirrored file-input JPEG. `null` falls back to `downsampleQuality`.                                                                                                                                                          |
+| `maxInputBytes`             | `50000000`        | Maximum encoded file bytes or decoded base64 payload bytes accepted before image decode. Invalid values fall back to this default.                                                                                                                                                            |
+| `maxInputPixels`            | `50000000`        | Maximum source image pixel count accepted from PNG/JPEG/WebP headers before image decode when dimensions are available. Invalid values fall back to this default.                                                                                                                             |
 | `imageLoadTimeoutMs`        | `30000`           | Maximum duration for both decode and Fabric image creation during `loadImage`.                                                                                                                                                                                                                |
 | `exportMultiplier`          | `1`               | Output resolution multiplier.                                                                                                                                                                                                                                                                 |
 | `maxExportPixels`           | `50000000`        | Maximum output pixel count after applying the export multiplier. Invalid values fall back to this default.                                                                                                                                                                                    |
@@ -856,7 +873,8 @@ source format cannot be determined. JPEG/WebP commits use
 5. Use `mergeMasks()` or `mergeAnnotations()` to bake overlays into the image, then
    `exportImageBase64`, `exportImageFile`, or `downloadImage` to produce
    the final output.
-6. Call `dispose()` when the editor is unmounted.
+6. Call `dispose()` when the editor is unmounted, or `disposeAsync()` if the
+   wrapper must await Fabric canvas teardown before immediate remount.
 
 ## Building from source
 

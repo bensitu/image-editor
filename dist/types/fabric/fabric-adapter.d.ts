@@ -71,4 +71,3 @@ export interface FabricDetectionResult {
  *
  */
 export declare function detectFabric(fabricOrOptions: FabricModule | ImageEditorOptions | null | undefined, maybeOptions: ImageEditorOptions | undefined, globalScope?: typeof globalThis): FabricDetectionResult;
-//# sourceMappingURL=fabric-adapter.d.ts.map

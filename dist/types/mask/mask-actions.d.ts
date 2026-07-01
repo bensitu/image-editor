@@ -22,4 +22,3 @@ export interface MaskActionAccess {
 export declare function createMaskAction(access: MaskActionAccess, config?: MaskConfig): MaskObject | null;
 export declare function removeSelectedMaskAction(access: MaskActionAccess): void;
 export declare function removeAllMasksAction(access: MaskActionAccess, options?: RemoveAllMasksOptions): void;
-//# sourceMappingURL=mask-actions.d.ts.map

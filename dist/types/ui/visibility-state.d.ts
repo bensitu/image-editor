@@ -74,4 +74,3 @@
  *   `false` to hide the placeholder (and show the canvas container).
  */
 export declare function setPlaceholderVisible(placeholderElement: HTMLElement | null, containerElement: HTMLElement | null, show: boolean): void;
-//# sourceMappingURL=visibility-state.d.ts.map

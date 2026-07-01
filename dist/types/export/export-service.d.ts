@@ -130,6 +130,11 @@ export interface ExportServiceContext {
      * never loaded the seam falls through to a full-canvas export.
      */
     getOriginalImage(): FabricNS.FabricImage | null;
+    /**
+     * Run export-only selection teardown/restoration without emitting public
+     * selection lifecycle callbacks.
+     */
+    withSelectionChangeSuppressed?<T>(callback: () => Promise<T>): Promise<T>;
 }
 /**
  * Render the live canvas to a base64 data URL.
@@ -137,8 +142,8 @@ export interface ExportServiceContext {
  * Steps, in order:
  *
  * 1. **No-image gate** — when `context.isImageLoaded`
- *    is `false`, report an `onWarning` and resolve to `''` without
- *    touching the canvas.
+ *    is `false`, report an `onWarning` and throw `ExportNotReadyError`
+ *    without touching the canvas.
  * 2. **Discard ActiveSelection** — call
  *    `canvas.discardActiveObject` once before computing the export
  *    region. Subsequent steps render against the post-discard canvas
@@ -336,4 +341,3 @@ export interface MergeAnnotationsContext extends ExportServiceContext, OverlayMe
  */
 export declare function mergeMasks(context: MergeMasksContext): Promise<void>;
 export declare function mergeAnnotations(context: MergeAnnotationsContext): Promise<void>;
-//# sourceMappingURL=export-service.d.ts.map

@@ -66,6 +66,8 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'downsampleMimeType',
     'autoOrientImage',
     'autoOrientImageQuality',
+    'maxInputBytes',
+    'maxInputPixels',
     'imageLoadTimeoutMs',
     'maxHistorySize',
     'exportMultiplier',
@@ -175,6 +177,8 @@ function topLevelScalarOverridesArb() {
                 fc.double({ min: 0, max: 1, noNaN: true, noDefaultInfinity: true }),
                 { nil: null },
             ),
+            maxInputBytes: fc.integer({ min: 1, max: 100000000 }),
+            maxInputPixels: fc.integer({ min: 1, max: 100000000 }),
             imageLoadTimeoutMs: fc.integer({ min: 1, max: 600000 }),
             maxHistorySize: fc.integer({ min: 1, max: 500 }),
             exportMultiplier: fc.double({
@@ -923,6 +927,8 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
             assert.equal(resolved[callbackKey], null);
         }
         assert.equal(resolved.maxHistorySize, 50);
+        assert.equal(resolved.maxInputBytes, 50000000);
+        assert.equal(resolved.maxInputPixels, 50000000);
         assert.equal(resolved.maxExportPixels, 50000000);
         assert.equal(resolved.maxExportDimension, 16384);
     }
@@ -940,6 +946,18 @@ test('maxExportPixels is normalized to a positive integer', () => {
     assert.equal(resolveOptions({ maxExportPixels: null }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: -10 }).maxExportPixels, 50000000);
     assert.equal(resolveOptions({ maxExportPixels: Number.NaN }).maxExportPixels, 50000000);
+});
+
+test('maxInputBytes and maxInputPixels are normalized to positive integers', () => {
+    assert.equal(resolveOptions({ maxInputBytes: 123.9 }).maxInputBytes, 123);
+    assert.equal(resolveOptions({ maxInputBytes: null }).maxInputBytes, 50000000);
+    assert.equal(resolveOptions({ maxInputBytes: -10 }).maxInputBytes, 50000000);
+    assert.equal(resolveOptions({ maxInputBytes: Number.NaN }).maxInputBytes, 50000000);
+
+    assert.equal(resolveOptions({ maxInputPixels: 456.9 }).maxInputPixels, 456);
+    assert.equal(resolveOptions({ maxInputPixels: null }).maxInputPixels, 50000000);
+    assert.equal(resolveOptions({ maxInputPixels: -10 }).maxInputPixels, 50000000);
+    assert.equal(resolveOptions({ maxInputPixels: Number.NaN }).maxInputPixels, 50000000);
 });
 
 test('maxExportDimension is normalized to a positive integer', () => {
@@ -997,6 +1015,8 @@ test('invalid numeric options fall back to finite defaults', () => {
         rotationStep: Number.NaN,
         downsampleMaxWidth: -100,
         downsampleMaxHeight: Number.NaN,
+        maxInputBytes: 0,
+        maxInputPixels: Number.NaN,
         imageLoadTimeoutMs: 0,
         exportMultiplier: -2,
         defaultMaskWidth: 0,
@@ -1019,6 +1039,8 @@ test('invalid numeric options fall back to finite defaults', () => {
     assert.equal(resolved.rotationStep, DEFAULT_OPTIONS.rotationStep);
     assert.equal(resolved.downsampleMaxWidth, DEFAULT_OPTIONS.downsampleMaxWidth);
     assert.equal(resolved.downsampleMaxHeight, DEFAULT_OPTIONS.downsampleMaxHeight);
+    assert.equal(resolved.maxInputBytes, DEFAULT_OPTIONS.maxInputBytes);
+    assert.equal(resolved.maxInputPixels, DEFAULT_OPTIONS.maxInputPixels);
     assert.equal(resolved.imageLoadTimeoutMs, DEFAULT_OPTIONS.imageLoadTimeoutMs);
     assert.equal(resolved.exportMultiplier, DEFAULT_OPTIONS.exportMultiplier);
     assert.equal(resolved.defaultMaskWidth, DEFAULT_OPTIONS.defaultMaskWidth);

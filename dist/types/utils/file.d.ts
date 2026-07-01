@@ -96,4 +96,3 @@ export declare function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer>;
  *              present in the DOM.
  */
 export declare function resetFileInput(input: HTMLInputElement | null): void;
-//# sourceMappingURL=file.d.ts.map

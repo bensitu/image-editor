@@ -14,4 +14,3 @@ export interface EditorControlElementContext {
 }
 export declare function setEditorControlEnabled(context: EditorControlElementContext, key: ElementKey, isEnabled: boolean): void;
 export declare function restoreEditorControlOriginalStates(context: EditorControlElementContext): void;
-//# sourceMappingURL=editor-control-elements.d.ts.map

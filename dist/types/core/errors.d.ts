@@ -172,4 +172,3 @@ export declare class ExportError extends Error {
     readonly originalError: unknown;
     constructor(message?: string, originalError?: unknown);
 }
-//# sourceMappingURL=errors.d.ts.map

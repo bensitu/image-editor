@@ -342,4 +342,3 @@ export interface LoadFromStateResult {
  *
  */
 export declare function loadFromState(input: LoadFromStateInput): Promise<LoadFromStateResult>;
-//# sourceMappingURL=state-serializer.d.ts.map

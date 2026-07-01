@@ -422,5 +422,13 @@ export declare class ImageEditor {
      *    the underlying Fabric canvas, matching teardown order.
      */
     dispose(): void;
+    /**
+     * Tear down the editor and resolve after Fabric canvas disposal settles.
+     *
+     * This preserves `dispose()` as the synchronous compatibility API while
+     * giving framework wrappers a way to await Fabric's async cleanup before
+     * reusing the same canvas element.
+     */
+    disposeAsync(): Promise<void>;
+    private disposeInternal;
 }
-//# sourceMappingURL=image-editor.d.ts.map

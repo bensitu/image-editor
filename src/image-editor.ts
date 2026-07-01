@@ -2309,8 +2309,25 @@ export class ImageEditor {
      *    the underlying Fabric canvas, matching teardown order.
      */
     dispose(): void {
+        void this.disposeInternal(false);
+    }
+
+    /**
+     * Tear down the editor and resolve after Fabric canvas disposal settles.
+     *
+     * This preserves `dispose()` as the synchronous compatibility API while
+     * giving framework wrappers a way to await Fabric's async cleanup before
+     * reusing the same canvas element.
+     */
+    async disposeAsync(): Promise<void> {
+        await this.disposeInternal(true);
+    }
+
+    private disposeInternal(waitForCanvasDispose: boolean): Promise<void> | void {
         // (1) Idempotent: a second `dispose` is a no-op.
-        if (this.runtime.isDisposed) return;
+        if (this.runtime.isDisposed) {
+            return waitForCanvasDispose ? Promise.resolve() : undefined;
+        }
         const context = this.buildCallbackContext('dispose', false);
         const previousImage = this.runtime.originalImage;
 
@@ -2373,9 +2390,9 @@ export class ImageEditor {
             },
         );
 
-        if (this.runtime.canvas) {
-            safelyDisposeCanvas(this.runtime.canvas);
-        }
+        const canvasDispose = this.runtime.canvas
+            ? safelyDisposeCanvas(this.runtime.canvas)
+            : Promise.resolve();
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
@@ -2383,5 +2400,7 @@ export class ImageEditor {
         this.emitImageChanged(context);
         this.emitBusyChangeIfChanged(context);
         this.emitOptionCallback('onEditorDisposed', [context]);
+        if (waitForCanvasDispose) return canvasDispose;
+        return undefined;
     }
 }

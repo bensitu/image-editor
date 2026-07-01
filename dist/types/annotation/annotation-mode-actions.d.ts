@@ -25,4 +25,3 @@ export declare function exitTextModeAction(access: AnnotationModeActionAccess): 
 export declare function createTextAnnotationAction(access: AnnotationModeActionAccess, config?: TextAnnotationConfig): TextAnnotationObject | null;
 export declare function enterDrawModeAction(access: AnnotationModeActionAccess): void;
 export declare function exitDrawModeAction(access: AnnotationModeActionAccess): void;
-//# sourceMappingURL=annotation-mode-actions.d.ts.map

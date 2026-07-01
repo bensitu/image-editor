@@ -9,12 +9,15 @@ export function safelyRemoveKeyboardListener(keyboardDocument, keyboardHandler) 
 }
 export function safelyDisposeCanvas(canvas) {
     if (!canvas)
-        return;
+        return Promise.resolve();
     try {
-        void Promise.resolve(canvas.dispose()).catch(() => {
+        return Promise.resolve(canvas.dispose())
+            .then(() => undefined)
+            .catch(() => {
         });
     }
     catch {
+        return Promise.resolve();
     }
 }
 export function safelyExitActiveSession(hasSession, canvas, exitSession, clearSession) {

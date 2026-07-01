@@ -400,6 +400,46 @@ test('dispose() tears down the live Fabric canvas exactly once', () => {
     assert.equal(editor.isImageLoaded(), false, 'isImageLoaded() must be false after dispose');
 });
 
+test('disposeAsync() waits for async Fabric canvas disposal', async () => {
+    installDom();
+    let resolveDispose;
+    let disposeSettled = false;
+    const fabric = makeFabricStub();
+    const BaseCanvas = fabric.Canvas;
+    fabric.Canvas = class AsyncDisposeCanvas extends BaseCanvas {
+        dispose() {
+            super.dispose();
+            return new Promise((resolve) => {
+                resolveDispose = () => {
+                    disposeSettled = true;
+                    resolve();
+                };
+            });
+        }
+    };
+    const editor = new ImageEditor(fabric, {
+        animationDuration: 0,
+        showPlaceholder: false,
+    });
+    editor.init({});
+
+    let resolved = false;
+    const disposePromise = editor.disposeAsync().then(() => {
+        resolved = true;
+    });
+    await Promise.resolve();
+
+    assert.equal(resolved, false, 'disposeAsync() must wait for Fabric dispose to settle');
+    assert.equal(fabric.lastCanvas.disposeCalls, 1);
+    assert.equal(disposeSettled, false);
+
+    resolveDispose();
+    await disposePromise;
+
+    assert.equal(resolved, true);
+    assert.equal(disposeSettled, true);
+});
+
 test('post-dispose synchronous public methods are no-ops and do not throw', () => {
     installDom();
     const { editor } = makeEditor();

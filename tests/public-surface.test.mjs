@@ -50,6 +50,7 @@ const DefaultImageEditor = barrel.default;
 const CANONICAL_METHODS = Object.freeze([
     'init',
     'dispose',
+    'disposeAsync',
     'loadImage',
     'isImageLoaded',
     'isBusy',

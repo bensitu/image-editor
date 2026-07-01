@@ -26,4 +26,3 @@ export declare function getMosaicImagePoint(fabric: FabricModule, image: FabricN
     x: number;
     y: number;
 }, brushDiameterCanvasPx: number): MosaicImagePoint | null;
-//# sourceMappingURL=mosaic-geometry.d.ts.map

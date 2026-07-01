@@ -79,4 +79,3 @@ export declare function exitMosaicMode(context: MosaicControllerContext): void;
 export declare function updateMosaicPreview(context: MosaicControllerContext): void;
 export declare function isMosaicPreviewObject(object: FabricNS.FabricObject): boolean;
 export {};
-//# sourceMappingURL=mosaic-controller.d.ts.map

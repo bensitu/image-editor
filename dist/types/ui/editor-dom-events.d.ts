@@ -59,4 +59,3 @@ export interface EditorDomEventContext {
 }
 export declare function bindEditorDomEvents(context: EditorDomEventContext): void;
 export {};
-//# sourceMappingURL=editor-dom-events.d.ts.map

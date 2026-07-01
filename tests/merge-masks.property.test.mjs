@@ -213,6 +213,9 @@ function makeContext({ maskCount, scrollTop, scrollLeft, failLoadImage }) {
         captureSnapshot,
         loadFromState,
         exportImageBase64,
+        withSelectionChangeSuppressed: async (callback) => {
+            return await callback();
+        },
         updateUi() {},
         updateInputs() {},
         getAnnotations: () => [],

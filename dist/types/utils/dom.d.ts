@@ -23,4 +23,3 @@
  * @param element - The element whose layout should be flushed. `null` is ignored.
  */
 export declare function forceReflow(element: HTMLElement | null | undefined): void;
-//# sourceMappingURL=dom.d.ts.map

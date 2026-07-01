@@ -113,6 +113,11 @@ function makeContext(overrides = {}) {
         fabric: overrides.fabric ?? {},
         isImageLoaded: overrides.isImageLoaded ?? (() => true),
         getOriginalImage: overrides.getOriginalImage ?? (() => null),
+        withSelectionChangeSuppressed:
+            overrides.withSelectionChangeSuppressed ??
+            (async (callback) => {
+                return await callback();
+            }),
     };
 }
 
@@ -171,7 +176,7 @@ function makeAnnotation({ id, hidden = false }) {
 function makeCanvasWithMask({ expectedMaskVisible, expectedBaked }) {
     const mask = makeMask();
     const canvas = {
-        ...makeMockCanvas('data:image/jpeg;base64,' + Buffer.from('export').toString('base64')),
+        ...makeMockCanvas('data:image/png;base64,' + Buffer.from('export').toString('base64')),
         objects: [mask],
         getObjects() {
             return this.objects.slice();
@@ -189,7 +194,9 @@ function makeCanvasWithMask({ expectedMaskVisible, expectedBaked }) {
             }
             this.callOrder.push('toDataURL');
             this.toDataURLArgs.push(options);
-            return 'data:image/jpeg;base64,' + Buffer.from('export').toString('base64');
+            const mimeType =
+                options?.format === 'jpeg' ? 'image/jpeg' : `image/${options?.format ?? 'png'}`;
+            return `data:${mimeType};base64,${Buffer.from('export').toString('base64')}`;
         },
     };
     return { canvas, mask };
@@ -415,6 +422,67 @@ test('exportImageBase64: restores the active object after rendering', async () =
     assert.ok(
         canvas.callOrder.indexOf('setActiveObject') > canvas.callOrder.indexOf('toDataURL'),
         'selection restore must happen after rendering',
+    );
+});
+
+test('exportImageBase64: suppresses public selection callbacks while discarding and restoring', async () => {
+    let suppressed = false;
+    const suppressionStates = [];
+    const activeObject = { type: 'activeSelection' };
+    const canvas = {
+        ...makeMockCanvas(),
+        activeObject,
+        objects: [activeObject],
+        getObjects() {
+            return this.objects.slice();
+        },
+        getActiveObject() {
+            return this.activeObject;
+        },
+        discardActiveObject() {
+            suppressionStates.push(['discardActiveObject', suppressed]);
+            this.callOrder.push('discardActiveObject');
+            this.activeObject = null;
+            return this;
+        },
+        setActiveObject(object) {
+            suppressionStates.push(['setActiveObject', suppressed]);
+            this.callOrder.push('setActiveObject');
+            this.activeObject = object;
+            return this;
+        },
+    };
+    const ctx = makeContext({
+        canvas,
+        withSelectionChangeSuppressed: async (callback) => {
+            assert.equal(suppressed, false);
+            suppressed = true;
+            try {
+                return await callback();
+            } finally {
+                suppressed = false;
+            }
+        },
+    });
+
+    await exportImageBase64(ctx);
+
+    assert.deepEqual(suppressionStates, [
+        ['discardActiveObject', true],
+        ['setActiveObject', true],
+    ]);
+    assert.equal(suppressed, false);
+});
+
+test('exportImageBase64: rejects browser MIME fallback for unsupported target formats', async () => {
+    const canvas = makeMockCanvas('data:image/png;base64,' + Buffer.from('png').toString('base64'));
+    const ctx = makeContext({ canvas });
+
+    await assert.rejects(
+        () => exportImageBase64(ctx, { fileType: 'webp' }),
+        (error) =>
+            error instanceof ExportError &&
+            /browser encoded image\/png instead of requested image\/webp/.test(error.message),
     );
 });
 
@@ -1056,6 +1124,77 @@ test('exportImageFile: reencode uses the Fabric canvas ownerDocument', async () 
         assert.equal(file.type, 'image/png');
         assert.equal(await file.text(), 'owner-doc');
         assert.equal(ownerCanvasCount, 1);
+    } finally {
+        if (previousDocument === undefined) {
+            delete globalThis.document;
+        } else {
+            globalThis.document = previousDocument;
+        }
+        if (previousImage === undefined) {
+            delete globalThis.Image;
+        } else {
+            globalThis.Image = previousImage;
+        }
+    }
+});
+
+test('exportImageFile: rejects offscreen MIME fallback instead of mismatching File metadata', async () => {
+    const previousDocument = globalThis.document;
+    const previousImage = globalThis.Image;
+
+    class FakeImage {
+        constructor() {
+            this.naturalWidth = 2;
+            this.naturalHeight = 2;
+            this.width = 2;
+            this.height = 2;
+            this.listeners = {};
+        }
+        addEventListener(event, handler) {
+            this.listeners[event] = handler;
+        }
+        removeEventListener(event) {
+            delete this.listeners[event];
+        }
+        set src(_value) {
+            queueMicrotask(() => this.listeners.load?.());
+        }
+    }
+
+    const ownerDocument = {
+        createElement(tagName) {
+            assert.equal(String(tagName).toLowerCase(), 'canvas');
+            return {
+                width: 0,
+                height: 0,
+                getContext(type) {
+                    assert.equal(type, '2d');
+                    return {
+                        drawImage() {},
+                    };
+                },
+                toDataURL() {
+                    return `data:image/png;base64,${Buffer.from('fallback').toString('base64')}`;
+                },
+            };
+        },
+    };
+
+    try {
+        globalThis.Image = FakeImage;
+        globalThis.document = ownerDocument;
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('source').toString('base64'),
+        );
+        canvas.getElement = () => ({ ownerDocument });
+        const ctx = makeContext({ canvas });
+
+        await assert.rejects(
+            () => exportImageFile(ctx, { fileType: 'webp', fileName: 'fallback.webp' }),
+            (error) =>
+                error instanceof ExportError &&
+                /browser encoded image\/png instead of requested image\/webp/.test(error.message),
+        );
     } finally {
         if (previousDocument === undefined) {
             delete globalThis.document;

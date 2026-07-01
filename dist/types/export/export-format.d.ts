@@ -102,4 +102,3 @@ export declare function clampQuality(quality: unknown, fallback: number): number
  *
  */
 export declare function resolveExportFormat(options: Pick<ImageExportOptions, 'fileType' | 'format' | 'quality'> | undefined | null, downsampleQuality: number): ResolvedExportFormat;
-//# sourceMappingURL=export-format.d.ts.map

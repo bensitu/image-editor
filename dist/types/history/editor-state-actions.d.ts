@@ -65,4 +65,3 @@ export interface EditorStateActionAccess {
 export declare function loadFromStateAction(access: EditorStateActionAccess, jsonString: string | CanvasJson, options?: object | null): Promise<void>;
 export declare function saveStateAction(access: EditorStateActionAccess, options?: object | null): void;
 export declare function captureSnapshotAction(access: EditorStateActionAccess): string;
-//# sourceMappingURL=editor-state-actions.d.ts.map

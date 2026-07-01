@@ -13,4 +13,3 @@
  * @module
  */
 export { Command } from './history-manager.js';
-//# sourceMappingURL=command.d.ts.map

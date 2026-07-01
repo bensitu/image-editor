@@ -54,7 +54,7 @@ const MOCK_CANVAS_SIZE = 10000;
  * returns an empty mask list so the bake-in/restore bracket inside
  * `withMaskStyleBackup` is a thin pass-through.
  */
-function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
+function makeMockCanvas(stubDataUrl) {
     const toDataURLArgs = [];
     return {
         toDataURLArgs,
@@ -72,9 +72,13 @@ function makeMockCanvas(stubDataUrl = 'data:image/jpeg;base64,AAAA') {
         },
         toDataURL(options) {
             toDataURLArgs.push(options);
-            return stubDataUrl;
+            return stubDataUrl ?? `data:${mimeTypeForFormat(options.format)};base64,AAAA`;
         },
     };
+}
+
+function mimeTypeForFormat(format) {
+    return format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
 }
 
 /**

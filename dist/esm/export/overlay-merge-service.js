@@ -35,7 +35,15 @@ export async function flattenOverlayGroupToBaseImage(context, options) {
     const preScrollTop = context.containerElement ? context.containerElement.scrollTop : null;
     const preScrollLeft = context.containerElement ? context.containerElement.scrollLeft : null;
     try {
-        detachObjects(context.canvas, preservedObjects);
+        const detachPreservedObjects = async () => {
+            detachObjects(context.canvas, preservedObjects);
+        };
+        if (context.withSelectionChangeSuppressed) {
+            await context.withSelectionChangeSuppressed(detachPreservedObjects);
+        }
+        else {
+            await detachPreservedObjects();
+        }
         const exportedDataUrl = await context.exportImageBase64(options.exportOptions);
         if (!exportedDataUrl) {
             throw createMergeError(options.operation, `${options.operation}: exportImageBase64 returned an empty data URL.`);

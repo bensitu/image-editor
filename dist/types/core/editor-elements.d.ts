@@ -23,4 +23,3 @@ export declare function isInputOrSelectElement(element: HTMLElement): element is
  */
 export declare function resolveDomElement<T extends HTMLElement = HTMLElement>(target: string | HTMLElement | null | undefined, ownerDocument?: Document | null, guard?: DomElementGuard<T>): T | null;
 export declare function resolveElementTargets(elementMap?: ElementIdMap): ResolvedElementMap;
-//# sourceMappingURL=editor-elements.d.ts.map

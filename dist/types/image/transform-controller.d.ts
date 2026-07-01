@@ -288,4 +288,3 @@ export declare class TransformController {
      */
     resetImageTransform(): Promise<void>;
 }
-//# sourceMappingURL=transform-controller.d.ts.map

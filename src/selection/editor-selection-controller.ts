@@ -35,6 +35,7 @@ export interface EditorSelectionControllerAccess {
 
     getNextSelectionChangeContext(): ImageEditorCallbackContext | null;
     getActiveStateRestoreOperation(): ImageEditorOperation | null;
+    shouldSuppressSelectionChange(): boolean;
     buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection;
     buildCallbackContext(
         operation: ImageEditorOperation,
@@ -74,6 +75,7 @@ export function handleSelectionChanged(
     access.updateAnnotationListSelection(selectedAnnotation);
     canvas.requestRenderAll();
     access.updateUi();
+    if (access.shouldSuppressSelectionChange()) return;
 
     const activeStateRestoreOperation = access.getActiveStateRestoreOperation();
     const context =

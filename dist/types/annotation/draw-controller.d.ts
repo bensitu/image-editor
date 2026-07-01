@@ -40,4 +40,3 @@ export interface DrawControllerContext {
 export declare function enterDrawMode(context: DrawControllerContext): void;
 export declare function exitDrawMode(context: DrawControllerContext): void;
 export declare function updateDrawBrush(context: DrawControllerContext): void;
-//# sourceMappingURL=draw-controller.d.ts.map

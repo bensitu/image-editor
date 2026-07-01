@@ -18,4 +18,3 @@ export declare function getEditableOverlayRange(canvas: FabricNS.Canvas): {
     end: number;
     overlays: Array<MaskObject | AnnotationObject>;
 };
-//# sourceMappingURL=layer-order.d.ts.map

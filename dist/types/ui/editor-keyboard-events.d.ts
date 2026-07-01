@@ -32,4 +32,3 @@ export declare function bindEditorKeyboardEvents(access: EditorKeyboardBindingAc
 export declare function isNativeTextInputActive(keyboardDocument: Document | null, event?: KeyboardEvent): boolean;
 export declare function isFabricTextEditingActive(canvas: FabricNS.Canvas | null): boolean;
 export declare function handleEditorKeyboardEvent(access: EditorKeyboardEventAccess, event: KeyboardEvent): void;
-//# sourceMappingURL=editor-keyboard-events.d.ts.map

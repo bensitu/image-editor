@@ -136,4 +136,3 @@ export declare function detectSourceMimeType(dataUrl: string): string | null;
  *
  */
 export declare function resampleImage(imageElement: HTMLImageElement, maxWidth: number, maxHeight: number, sourceMime: string | null, preserveSourceFormat: boolean, downsampleMimeType: ImageMimeType | null | undefined, quality: number, ownerDocument?: Document): ResampleResult;
-//# sourceMappingURL=image-resampler.d.ts.map

@@ -408,4 +408,3 @@ export declare function cancelCrop(context: CropControllerContext): void;
  *
  */
 export declare function applyCrop(context: CropControllerContext): Promise<void>;
-//# sourceMappingURL=crop-controller.d.ts.map

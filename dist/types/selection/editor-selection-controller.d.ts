@@ -17,6 +17,7 @@ export interface EditorSelectionControllerAccess {
     saveState(): void;
     getNextSelectionChangeContext(): ImageEditorCallbackContext | null;
     getActiveStateRestoreOperation(): ImageEditorOperation | null;
+    shouldSuppressSelectionChange(): boolean;
     buildSelection(selected: FabricNS.FabricObject[]): ImageEditorSelection;
     buildCallbackContext(operation: ImageEditorOperation, isHistoryRestore: boolean): ImageEditorCallbackContext;
     emitSelectionChange(selection: ImageEditorSelection, context: ImageEditorCallbackContext): void;
@@ -27,4 +28,3 @@ export interface EditorSelectionControllerAccess {
 export declare function handleSelectionChanged(access: EditorSelectionControllerAccess, selected: FabricNS.FabricObject[]): void;
 export declare function handleObjectMovingScalingRotating(access: EditorSelectionControllerAccess, target: FabricNS.FabricObject): void;
 export declare function handleObjectModified(access: EditorSelectionControllerAccess, target: FabricNS.FabricObject): void;
-//# sourceMappingURL=editor-selection-controller.d.ts.map

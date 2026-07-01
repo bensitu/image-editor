@@ -20,6 +20,7 @@ export interface OverlayMergeTransactionContext {
     loadFromState(snapshot: string): Promise<void>;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     exportImageBase64(options: ImageExportOptions): Promise<string>;
+    withSelectionChangeSuppressed?<T>(callback: () => Promise<T>): Promise<T>;
     updateUi(): void;
     updateInputs(): void;
 }
@@ -35,4 +36,3 @@ export interface OverlayMergeGroupOptions<TTarget extends FabricNS.FabricObject,
     restorePreservedObjects(objects: TPreserved[]): void | Promise<void>;
 }
 export declare function flattenOverlayGroupToBaseImage<TTarget extends MaskObject | AnnotationObject, TPreserved extends MaskObject | AnnotationObject>(context: OverlayMergeTransactionContext, options: OverlayMergeGroupOptions<TTarget, TPreserved>): Promise<void>;
-//# sourceMappingURL=overlay-merge-service.d.ts.map

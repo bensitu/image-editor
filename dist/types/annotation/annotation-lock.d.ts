@@ -9,4 +9,3 @@
 import type { AnnotationObject } from '../core/public-types.js';
 export declare function isAnnotationLocked(annotation: Pick<AnnotationObject, 'annotationLocked'>): boolean;
 export declare function isAnnotationUnlocked(annotation: Pick<AnnotationObject, 'annotationLocked'>): boolean;
-//# sourceMappingURL=annotation-lock.d.ts.map

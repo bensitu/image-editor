@@ -1113,6 +1113,24 @@ export interface ImageEditorOptions {
      * @default null
      */
     autoOrientImageQuality?: number | null;
+    /**
+     * Maximum encoded input byte length accepted before image decode.
+     *
+     * File input uses `file.size`; `loadImage(dataUrl)` estimates the decoded
+     * base64 payload size. Invalid JavaScript runtime values fall back to the
+     * default guard.
+     *
+     * @default 50000000
+     */
+    maxInputBytes?: number | null;
+    /**
+     * Maximum source-image pixel count accepted from PNG/JPEG/WebP headers
+     * before image decode when dimensions can be read cheaply. Invalid
+     * JavaScript runtime values fall back to the default guard.
+     *
+     * @default 50000000
+     */
+    maxInputPixels?: number | null;
 
     // Image-load timeout
     /**
@@ -1307,11 +1325,15 @@ export interface ResolvedOptions extends Required<
         | 'onError'
         | 'onWarning'
         | 'downsampleQuality'
+        | 'maxInputBytes'
+        | 'maxInputPixels'
         | 'maxExportPixels'
         | 'maxExportDimension'
     >
 > {
     downsampleQuality: number;
+    maxInputBytes: number;
+    maxInputPixels: number;
     maxExportPixels: number;
     maxExportDimension: number;
     /** Current layout mode used by future image loads. */

@@ -102,6 +102,7 @@ function createAccess(overrides = {}) {
         },
         getNextSelectionChangeContext: () => null,
         getActiveStateRestoreOperation: () => null,
+        shouldSuppressSelectionChange: () => false,
         buildSelection: (selected) => ({
             selectedMask: selected.find((object) => object.editorObjectKind === 'mask') ?? null,
             selectedMasks: selected.filter((object) => object.editorObjectKind === 'mask'),
@@ -149,6 +150,26 @@ test('selected mask path applies selected style, shows label, and syncs lists', 
         ['showLabelForMask', 1],
         ['updateMaskListSelection', 1],
         ['updateAnnotationListSelection', null],
+    ]);
+});
+
+test('suppressed selection changes still sync UI without emitting callback', () => {
+    const selectedMask = createMask(1);
+    const canvas = createCanvas([selectedMask]);
+    const access = createAccess({
+        canvas,
+        shouldSuppressSelectionChange: () => true,
+    });
+
+    handleSelectionChanged(access, [selectedMask]);
+
+    assert.equal(selectedMask.stroke, '#ff0000');
+    assert.equal(canvas.renderRequested, true);
+    assert.deepEqual(access.calls, [
+        ['showLabelForMask', 1],
+        ['updateMaskListSelection', 1],
+        ['updateAnnotationListSelection', null],
+        ['updateUi'],
     ]);
 });
 

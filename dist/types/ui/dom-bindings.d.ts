@@ -76,4 +76,3 @@ export declare class DomBindings {
      */
     size(): number;
 }
-//# sourceMappingURL=dom-bindings.d.ts.map

@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `autoOrientImageQuality` so EXIF orientation normalization can use a JPEG quality independent from `downsampleQuality`.
 - Add `maxExportDimension` to guard browser canvas single-dimension limits during export.
+- Add `maxInputBytes` and `maxInputPixels` pre-decode guards for image loading.
+- Add `disposeAsync()` for integrations that need to await Fabric canvas teardown before remounting.
 
 ### Changed
 
@@ -18,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Re-export `ImageEditor` from the package barrel without a local implementation import, and guard DOM element subtype resolution at runtime for canvas/input/select controls.
 - Clarify that `loadFromState()` is intended for snapshots produced by this editor and that untrusted external JSON should be validated before restore.
 - Document the synchronous `dispose()` contract for integrations that immediately reuse the same canvas element.
+- Disable declaration maps in the published package because only `dist/` is published.
+- Remove the unused `@rollup/plugin-commonjs` development dependency.
 
 ### Fixed
 
@@ -27,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Isolate throwing `createMask()` numeric resolvers and `fabricGenerator` callbacks through `onWarning` instead of leaking synchronous exceptions.
 - Drop unsafe object-copy keys while normalizing `defaultMaskConfig` and its `styles` object.
 - Index `loadFromState()` mask restoration by `maskUid` before falling back to legacy positional matching.
+- Suppress public `onSelectionChange` callbacks during export and merge-only active selection teardown/restoration.
+- Reject export MIME fallback when the browser returns a different `data:image/...` type than the requested format.
+- Skip JPEG EXIF auto-orientation when raw `createImageBitmap` decode is unavailable, avoiding fallback double-rotation risk.
+- Guard `OperationGuard.beginBusyOperation()` against reentrant active operations.
 
 ## [2.6.0] - 2026-06-28
 

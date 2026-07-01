@@ -30,4 +30,3 @@ export declare function markAnnotationObject(object: FabricNS.FabricObject, meta
     annotationEditable?: boolean;
 }): AnnotationObject;
 export declare function markSessionObject<T extends FabricNS.FabricObject>(object: T, sessionObjectType: SessionObjectType): T & SessionObject;
-//# sourceMappingURL=editor-object-kind.d.ts.map

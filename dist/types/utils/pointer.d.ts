@@ -13,4 +13,3 @@ export interface CanvasPoint {
 }
 export declare function isFinitePoint(value: unknown): value is CanvasPoint;
 export declare function getPointerFromFabricEvent(canvas: FabricNS.Canvas, event: unknown): CanvasPoint | null;
-//# sourceMappingURL=pointer.d.ts.map

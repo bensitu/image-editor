@@ -20,4 +20,3 @@ export interface MosaicPixelateOptions {
  * @returns `true` when at least one pixel was processed, otherwise `false`.
  */
 export declare function applyCircularMosaicToImageData(options: MosaicPixelateOptions): boolean;
-//# sourceMappingURL=mosaic-pixelate.d.ts.map

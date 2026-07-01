@@ -137,4 +137,3 @@ export declare class HistoryManager {
      */
     private pushAndTrim;
 }
-//# sourceMappingURL=history-manager.d.ts.map

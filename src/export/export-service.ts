@@ -188,6 +188,12 @@ export interface ExportServiceContext {
      * never loaded the seam falls through to a full-canvas export.
      */
     getOriginalImage(): FabricNS.FabricImage | null;
+
+    /**
+     * Run export-only selection teardown/restoration without emitting public
+     * selection lifecycle callbacks.
+     */
+    withSelectionChangeSuppressed?<T>(callback: () => Promise<T>): Promise<T>;
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -747,6 +753,37 @@ function createColorValidationContext(ownerDocument: Document): CanvasRenderingC
     }
 }
 
+function detectDataUrlMimeType(dataUrl: string): string | null {
+    const match = /^data:([^;,]+)(?:[;,])/i.exec(dataUrl);
+    return match?.[1]?.toLowerCase() ?? null;
+}
+
+function assertDataUrlMimeType(
+    dataUrl: string,
+    target: ResolvedExportFormat,
+    operation: string,
+): void {
+    const actualMimeType = detectDataUrlMimeType(dataUrl);
+    if (actualMimeType !== target.mimeType) {
+        throw new ExportError(
+            `${operation} failed: browser encoded ${actualMimeType ?? 'unknown MIME'} instead of requested ${target.mimeType}.`,
+        );
+    }
+}
+
+function encodeCanvasAsDataUrl(
+    canvas: HTMLCanvasElement,
+    target: ResolvedExportFormat,
+    operation: string,
+): string {
+    const encoded =
+        target.quality === undefined
+            ? canvas.toDataURL(target.mimeType)
+            : canvas.toDataURL(target.mimeType, target.quality);
+    assertDataUrlMimeType(encoded, target, operation);
+    return encoded;
+}
+
 function getCanvasDocument(canvas: FabricNS.Canvas): Document {
     const canvasLike = canvas as FabricNS.Canvas & {
         getElement?: () => HTMLCanvasElement | undefined;
@@ -820,9 +857,7 @@ async function postProcessRegionDataUrl(
         canvasContext.globalCompositeOperation = 'source-over';
     }
 
-    return target.quality === undefined
-        ? offscreenCanvas.toDataURL(target.mimeType)
-        : offscreenCanvas.toDataURL(target.mimeType, target.quality);
+    return encodeCanvasAsDataUrl(offscreenCanvas, target, 'exportImageBase64');
 }
 
 /**
@@ -870,10 +905,9 @@ function dataUrlToBytes(dataUrl: string): Uint8Array<ArrayBuffer> {
 
 /**
  * Repaint a base64 data URL through an offscreen `<canvas>` so the
- * resulting URL carries the requested MIME type. Mirrors legacy's behavior
- * for `exportImageFile` — the underlying `canvas.toDataURL` may quietly
- * fall back to PNG when the requested format is unsupported by the
- * browser, and the file output should still match the requested MIME.
+ * resulting URL carries the requested MIME type. The browser may quietly
+ * fall back to PNG when the requested format is unsupported, so every
+ * offscreen encode is checked and rejected when the MIME prefix differs.
  *
  * The conversion only runs when the source URL's MIME prefix does not
  * match the requested format; the matching-prefix fast path returns the
@@ -885,7 +919,7 @@ async function reencodeDataUrlAs(
     backgroundColor: unknown,
     canvas: FabricNS.Canvas,
 ): Promise<string> {
-    if (sourceDataUrl.startsWith(`data:${target.mimeType}`)) {
+    if (detectDataUrlMimeType(sourceDataUrl) === target.mimeType) {
         return sourceDataUrl;
     }
 
@@ -909,7 +943,7 @@ async function reencodeDataUrlAs(
 
     canvasContext.drawImage(imageElement, 0, 0, width, height);
 
-    return offscreenCanvas.toDataURL(target.mimeType, target.quality);
+    return encodeCanvasAsDataUrl(offscreenCanvas, target, 'exportImageFile');
 }
 
 /** Single source of truth for the "no image" warning text. */
@@ -936,52 +970,62 @@ function resolveFileName(baseName: string, format: ResolvedExportFormat): string
 async function renderExportDataUrl(
     context: ExportServiceContext,
     resolved: ResolvedExportOptions,
+    validateMimeType = true,
 ): Promise<string> {
-    const activeObject = captureActiveObject(context.canvas);
-    const labelBackups = captureMaskLabelBackups(context.canvas);
+    const render = async (): Promise<string> => {
+        const activeObject = captureActiveObject(context.canvas);
+        const labelBackups = captureMaskLabelBackups(context.canvas);
 
-    try {
-        // Drop any active selection BEFORE region math. It is restored in
-        // the finally block so export does not perturb the editor UI.
-        context.canvas.discardActiveObject();
+        try {
+            // Drop any active selection BEFORE region math. It is restored in
+            // the finally block so export does not perturb the editor UI.
+            context.canvas.discardActiveObject();
 
-        const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
-        assertExportPixelBudget(context, resolved.multiplier, region);
+            const { region, partialEdges } = computeExportRegion(context, resolved.exportArea);
+            assertExportPixelBudget(context, resolved.multiplier, region);
 
-        const renderFormat =
-            region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
-        const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
+            const renderFormat =
+                region && resolved.format.format === 'jpeg' ? 'png' : resolved.format.format;
+            const renderQuality = renderFormat === 'png' ? undefined : resolved.format.quality;
 
-        let dataUrl = await withSessionObjectsHidden(context, async () =>
-            withMaskExportState(context, resolved.mergeMasks, async () =>
-                withAnnotationsExportState(context, resolved.mergeAnnotations, async () =>
-                    renderCanvasToDataUrl(
-                        context.canvas,
-                        renderFormat,
-                        renderQuality,
-                        resolved.multiplier,
-                        region,
+            let dataUrl = await withSessionObjectsHidden(context, async () =>
+                withMaskExportState(context, resolved.mergeMasks, async () =>
+                    withAnnotationsExportState(context, resolved.mergeAnnotations, async () =>
+                        renderCanvasToDataUrl(
+                            context.canvas,
+                            renderFormat,
+                            renderQuality,
+                            resolved.multiplier,
+                            region,
+                        ),
                     ),
                 ),
-            ),
-        );
-
-        if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
-            dataUrl = await postProcessRegionDataUrl(
-                dataUrl,
-                partialEdges,
-                resolved.format,
-                context.options.backgroundColor,
-                getCanvasDocument(context.canvas),
             );
-        }
 
-        return dataUrl;
-    } finally {
-        restoreMaskLabelBackups(context.canvas, labelBackups);
-        restoreActiveObject(context.canvas, activeObject);
-        requestRender(context.canvas);
-    }
+            if (region && (hasPartialEdges(partialEdges) || resolved.format.format === 'jpeg')) {
+                dataUrl = await postProcessRegionDataUrl(
+                    dataUrl,
+                    partialEdges,
+                    resolved.format,
+                    context.options.backgroundColor,
+                    getCanvasDocument(context.canvas),
+                );
+            }
+
+            if (validateMimeType) {
+                assertDataUrlMimeType(dataUrl, resolved.format, 'exportImageBase64');
+            }
+            return dataUrl;
+        } finally {
+            restoreMaskLabelBackups(context.canvas, labelBackups);
+            restoreActiveObject(context.canvas, activeObject);
+            requestRender(context.canvas);
+        }
+    };
+
+    return context.withSelectionChangeSuppressed
+        ? context.withSelectionChangeSuppressed(render)
+        : render();
 }
 
 // ─── exportImageBase64 ───────────────────────────────────────────────────────
@@ -992,8 +1036,8 @@ async function renderExportDataUrl(
  * Steps, in order:
  *
  * 1. **No-image gate** — when `context.isImageLoaded`
- *    is `false`, report an `onWarning` and resolve to `''` without
- *    touching the canvas.
+ *    is `false`, report an `onWarning` and throw `ExportNotReadyError`
+ *    without touching the canvas.
  * 2. **Discard ActiveSelection** — call
  *    `canvas.discardActiveObject` once before computing the export
  *    region. Subsequent steps render against the post-discard canvas
@@ -1064,7 +1108,7 @@ export async function exportImageFile(
 
     const providedOptions = options ?? {};
     const resolved = resolveExportOptions(context, providedOptions);
-    const rawDataUrl = await renderExportDataUrl(context, resolved);
+    const rawDataUrl = await renderExportDataUrl(context, resolved, false);
 
     const finalDataUrl = await reencodeDataUrlAs(
         rawDataUrl,

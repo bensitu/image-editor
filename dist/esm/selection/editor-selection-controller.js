@@ -26,6 +26,8 @@ export function handleSelectionChanged(access, selected) {
     access.updateAnnotationListSelection(selectedAnnotation);
     canvas.requestRenderAll();
     access.updateUi();
+    if (access.shouldSuppressSelectionChange())
+        return;
     const activeStateRestoreOperation = access.getActiveStateRestoreOperation();
     const context = (_c = access.getNextSelectionChangeContext()) !== null && _c !== void 0 ? _c : access.buildCallbackContext(activeStateRestoreOperation !== null && activeStateRestoreOperation !== void 0 ? activeStateRestoreOperation : 'createMask', activeStateRestoreOperation === 'undo' || activeStateRestoreOperation === 'redo');
     access.emitSelectionChange(access.buildSelection(selected), context);

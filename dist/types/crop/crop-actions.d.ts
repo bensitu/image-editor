@@ -31,4 +31,3 @@ export declare function enterCropModeAction(access: CropActionAccess, options?: 
 export declare function setCropAspectRatioAction(access: CropActionAccess, aspectRatio: CropAspectRatio): void;
 export declare function cancelCropAction(access: CropActionAccess): void;
 export declare function applyCropAction(access: CropActionAccess): Promise<void>;
-//# sourceMappingURL=crop-actions.d.ts.map

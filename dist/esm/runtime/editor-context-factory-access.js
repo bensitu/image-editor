@@ -80,6 +80,16 @@ export function createEditorContextFactory(runtime, callbacks) {
         setSuppressSaveState: (suppress) => {
             runtime.shouldSuppressSaveState = suppress;
         },
+        withSelectionChangeSuppressed: async (callback) => {
+            const previous = runtime.shouldSuppressSelectionChange;
+            runtime.shouldSuppressSelectionChange = true;
+            try {
+                return await callback();
+            }
+            finally {
+                runtime.shouldSuppressSelectionChange = previous;
+            }
+        },
         captureSnapshot: () => callbacks.captureSnapshot(),
         loadImageForOperation: (operationToken, base64, providedOptions) => callbacks.loadImageForOperation(operationToken, base64, providedOptions),
         loadMergedImage: (operationToken, base64, providedOptions) => callbacks.loadMergedImage(operationToken, base64, providedOptions),

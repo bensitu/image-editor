@@ -36,4 +36,3 @@ export declare function applyTextColorInputAction(access: AnnotationConfigAction
 export declare function applyTextFontSizeInputAction(access: AnnotationConfigActionAccess, size: number): void;
 export declare function applyDrawColorInputAction(access: AnnotationConfigActionAccess, color: string): void;
 export declare function applyDrawBrushSizeInputAction(access: AnnotationConfigActionAccess, size: number): void;
-//# sourceMappingURL=annotation-config-actions.d.ts.map

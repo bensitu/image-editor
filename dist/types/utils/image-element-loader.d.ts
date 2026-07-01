@@ -16,4 +16,3 @@ export interface ImageElementLoadOptions {
     createError: (event: Event | string) => Error;
 }
 export declare function startImageElementLoad(dataUrl: string, options: ImageElementLoadOptions): ImageElementLoadHandle;
-//# sourceMappingURL=image-element-loader.d.ts.map

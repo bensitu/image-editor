@@ -277,4 +277,3 @@ export interface LoadImageContext {
  *
  */
 export declare function loadImage(context: LoadImageContext, imageBase64: string, loadOptions?: LoadImageOptions): Promise<void>;
-//# sourceMappingURL=image-loader.d.ts.map

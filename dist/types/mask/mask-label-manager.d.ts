@@ -169,4 +169,3 @@ export declare function showLabelForMask(context: MaskLabelManagerContext, mask:
  * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
  */
 export declare function hideAllMaskLabels(context: MaskLabelManagerContext): void;
-//# sourceMappingURL=mask-label-manager.d.ts.map

@@ -81,4 +81,3 @@
  *   {@link ImageLoadTimeoutError} if the timer fires first.
  */
 export declare function withTimeout<T>(promise: Promise<T>, ms: number, label: string, onTimeout?: () => void): Promise<T>;
-//# sourceMappingURL=timeout.d.ts.map

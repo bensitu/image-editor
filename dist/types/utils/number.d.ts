@@ -128,4 +128,3 @@ export declare function coercePoint(pt: PolygonPoint): {
     x: number;
     y: number;
 };
-//# sourceMappingURL=number.d.ts.map

@@ -95,6 +95,10 @@ export class OperationGuard {
         this.isLoadingActive = false;
     }
     beginBusyOperation(operationName) {
+        var _a;
+        if (this.currentOperationToken !== null) {
+            throw new IdleGuardError(operationName, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
+        }
         const token = Symbol(operationName);
         this.currentOperationName = operationName;
         this.currentOperationToken = token;

@@ -213,4 +213,3 @@ export declare function removeSelectedMask(context: RemoveMaskContext): void;
  * @param options - Bulk-removal options. Defaults to `{ saveHistory: true}`.
  */
 export declare function removeAllMasks(context: RemoveMaskContext, options?: RemoveAllMasksOptions): void;
-//# sourceMappingURL=mask-factory.d.ts.map

@@ -334,4 +334,3 @@ export declare function withMaskStyleBackup<T>(context: MaskStyleContext, mutato
  * @param mask - The mask to hide.
  */
 export declare function applyCropHideMaskStyle(mask: MaskObject): void;
-//# sourceMappingURL=mask-style.d.ts.map

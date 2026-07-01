@@ -197,6 +197,12 @@ export class OperationGuard {
      * that authorizes its internal calls.
      */
     beginBusyOperation(operationName: string): OperationToken {
+        if (this.currentOperationToken !== null) {
+            throw new IdleGuardError(
+                operationName,
+                `while ${this.currentOperationName ?? 'another operation'} is running`,
+            );
+        }
         const token = Symbol(operationName);
         this.currentOperationName = operationName;
         this.currentOperationToken = token;

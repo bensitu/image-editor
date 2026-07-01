@@ -48,4 +48,3 @@ export interface EditorContextCallbackEmitters {
 export interface EditorContextFactoryCallbacks extends EditorContextStateCallbacks, EditorContextDisplayCallbacks, EditorContextMaskLabelCallbacks, EditorContextUiCallbacks, EditorContextSelectionCallbacks, EditorContextCallbackEmitters {
 }
 export declare function createEditorContextFactory(runtime: EditorRuntime, callbacks: EditorContextFactoryCallbacks): EditorContextFactory;
-//# sourceMappingURL=editor-context-factory-access.d.ts.map

@@ -44,4 +44,3 @@ export declare function shouldNormalizeCanvasSizeAfterStateRestore(context: Disp
 export declare function settleFitCoverScrollbarsAfterStateRestore(context: DisplayGeometryContext): void;
 export declare function captureImageDisplayGeometry(context: DisplayGeometryContext): ImageDisplayGeometry | null;
 export declare function restoreMergedImageDisplayGeometry(context: DisplayGeometryContext, geometry: ImageDisplayGeometry | null): void;
-//# sourceMappingURL=display-geometry.d.ts.map

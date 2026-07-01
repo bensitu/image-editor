@@ -208,4 +208,3 @@ export declare function computeExpandLayout(imageWidth: number, imageHeight: num
  *                         case the reflow is skipped without error.
  */
 export declare function applyCanvasDimensions(canvas: FabricNS.Canvas, width: number, height: number, containerElement: HTMLElement | null): void;
-//# sourceMappingURL=layout-manager.d.ts.map

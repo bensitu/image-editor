@@ -143,4 +143,3 @@ export declare function renderMaskList(context: MaskListContext): void;
  *                      highlight.
  */
 export declare function updateMaskListSelection(context: MaskListContext, selectedMask: MaskObject | null): void;
-//# sourceMappingURL=mask-list.d.ts.map

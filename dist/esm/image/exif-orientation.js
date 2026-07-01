@@ -1,5 +1,4 @@
 import { readFileAsArrayBuffer } from '../utils/file.js';
-import { startImageElementLoad } from '../utils/image-element-loader.js';
 const JPEG_MARKER_PREFIX = 0xff;
 const JPEG_SOI = 0xd8;
 const JPEG_SOS = 0xda;
@@ -131,14 +130,15 @@ async function readFileOrientation(file) {
         return null;
     }
 }
-async function tryCreateRawImageBitmap(file) {
-    if (typeof createImageBitmap !== 'function')
-        return null;
+async function createRawImageBitmap(file) {
+    if (typeof createImageBitmap !== 'function') {
+        throw new Error('createImageBitmap with imageOrientation: "none" is required for safe EXIF orientation normalization.');
+    }
     try {
         const bitmap = await createImageBitmap(file, { imageOrientation: 'none' });
         if (!hasPositiveDimensions(bitmap.width, bitmap.height)) {
             bitmap.close();
-            return null;
+            throw new Error('Decoded image bitmap has no dimensions.');
         }
         return {
             source: bitmap,
@@ -149,26 +149,11 @@ async function tryCreateRawImageBitmap(file) {
             },
         };
     }
-    catch {
-        return null;
+    catch (error) {
+        throw Object.assign(new Error(error instanceof Error
+            ? `createImageBitmap EXIF orientation decode failed: ${error.message}`
+            : 'createImageBitmap EXIF orientation decode failed.'), { cause: error });
     }
-}
-async function decodeImageElement(dataUrl) {
-    const load = startImageElementLoad(dataUrl, {
-        validate: (imageElement) => hasPositiveDimensions(imageElement.naturalWidth, imageElement.naturalHeight)
-            ? null
-            : new Error('Image has no natural dimensions.'),
-        createError: () => new Error('Failed to decode image for EXIF orientation normalization.'),
-    });
-    const imageElement = await load.promise;
-    return {
-        source: imageElement,
-        width: imageElement.naturalWidth,
-        height: imageElement.naturalHeight,
-        close: () => {
-            load.cleanup(true);
-        },
-    };
 }
 function hasPositiveDimensions(width, height) {
     return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
@@ -229,13 +214,13 @@ function drawOrientedImage(decoded, orientation, options, ownerDocument) {
     return canvas.toDataURL('image/jpeg', (_a = options.autoOrientImageQuality) !== null && _a !== void 0 ? _a : options.downsampleQuality);
 }
 export async function normalizeJpegOrientationIfNeeded(file, dataUrl, options, ownerDocument) {
-    var _a;
+    void dataUrl;
     if (!options.autoOrientImage || !isJpegFile(file))
         return null;
     const orientation = await readFileOrientation(file);
     if (orientation === null || orientation === 1)
         return null;
-    const decoded = (_a = (await tryCreateRawImageBitmap(file))) !== null && _a !== void 0 ? _a : (await decodeImageElement(dataUrl));
+    const decoded = await createRawImageBitmap(file);
     try {
         return drawOrientedImage(decoded, orientation, options, ownerDocument);
     }

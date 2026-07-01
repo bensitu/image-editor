@@ -7,9 +7,18 @@ import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { withTimeout } from '../utils/timeout.js';
 import { computeCoverLayout, computeExpandLayout, computeFitLayout, selectLayoutStrategy, applyCanvasDimensions, measureScrollbarSize, } from './layout-manager.js';
 import { computeDownsampleDimensions, detectSourceMimeType, resampleImage, } from './image-resampler.js';
+import { assertImageDataUrlInputBudget } from './image-input-budget.js';
 export async function loadImage(context, imageBase64, loadOptions = {}) {
     if (!isSupportedImageDataUrl(imageBase64))
         return;
+    try {
+        assertImageDataUrlInputBudget(imageBase64, context.options);
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
+        reportError(context.options, error, errorMessage);
+        throw error;
+    }
     const placeholderHidden = context.placeholderElement
         ? !!context.placeholderElement.hidden
         : null;

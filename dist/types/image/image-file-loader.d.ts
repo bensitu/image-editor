@@ -21,4 +21,3 @@ export interface LoadImageFileContext {
  * event.
  */
 export declare function loadImageFile(context: LoadImageFileContext, file: File): Promise<void>;
-//# sourceMappingURL=image-file-loader.d.ts.map

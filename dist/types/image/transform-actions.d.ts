@@ -23,4 +23,3 @@ export declare function rotateImageAction(access: TransformActionAccess, degrees
 export declare function flipHorizontalAction(access: TransformActionAccess): Promise<void>;
 export declare function flipVerticalAction(access: TransformActionAccess): Promise<void>;
 export declare function resetImageTransformAction(access: TransformActionAccess): Promise<void>;
-//# sourceMappingURL=transform-actions.d.ts.map
