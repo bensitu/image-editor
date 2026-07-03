@@ -11,6 +11,8 @@
         'rotateRightButton',
         'rotateLeftDegreesInput',
         'rotateRightDegreesInput',
+        'flipHorizontalButton',
+        'flipVerticalButton',
         'resetImageTransformButton',
         'undoButton',
         'redoButton',
@@ -66,31 +68,32 @@
             ],
         },
     };
+    const privacySampleSize = { width: 960, height: 620 };
     const privacyMaskPresets = {
         identity: {
             shape: 'rect',
-            left: '18%',
-            top: '22%',
-            width: '30%',
-            height: '12%',
+            left: fromPrivacySample(146),
+            top: fromPrivacySample(266),
+            width: fromPrivacySample(300),
+            height: fromPrivacySample(92),
             color: 'rgba(15, 23, 42, 0.86)',
             alpha: 0.86,
         },
         address: {
             shape: 'rect',
-            left: '18%',
-            top: '49%',
-            width: '42%',
-            height: '12%',
+            left: fromPrivacySample(146),
+            top: fromPrivacySample(382),
+            width: fromPrivacySample(390),
+            height: fromPrivacySample(38),
             color: 'rgba(15, 23, 42, 0.86)',
             alpha: 0.86,
         },
         portrait: {
             shape: 'ellipse',
-            left: '69%',
-            top: '23%',
-            width: '18%',
-            height: '25%',
+            left: fromPrivacySample(676),
+            top: fromPrivacySample(210),
+            width: fromPrivacySample(140),
+            height: fromPrivacySample(190),
             color: 'rgba(15, 23, 42, 0.78)',
             alpha: 0.78,
         },
@@ -109,6 +112,16 @@
         const element = getOptionalElement(id);
         if (!element) throw new Error(`Missing demo element #${id}.`);
         return element;
+    }
+
+    function fromPrivacySample(value) {
+        return (canvas) =>
+            value *
+            Math.min(
+                canvas.getWidth() / privacySampleSize.width,
+                canvas.getHeight() / privacySampleSize.height,
+                1,
+            );
     }
 
     function setText(id, value) {
@@ -294,6 +307,8 @@
             'statusRotation',
             nextState ? `${Math.round(nextState.currentRotation || 0)} deg` : '0 deg',
         );
+        setText('statusFlipX', nextState?.isFlippedHorizontally ? 'Yes' : 'No');
+        setText('statusFlipY', nextState?.isFlippedVertically ? 'Yes' : 'No');
         setText('statusTool', activeToolMode || 'None');
         setText('statusUndo', nextState?.canUndo ? 'Yes' : 'No');
         setText('statusRedo', nextState?.canRedo ? 'Yes' : 'No');

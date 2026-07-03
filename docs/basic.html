@@ -40,7 +40,7 @@
             <section class="workspace" aria-label="Basic editor workspace">
                 <aside class="panel control-panel" aria-label="Editor controls">
                     <section class="panel-section">
-                        <h2>Upload</h2>
+                        <h2>Image upload</h2>
                         <input
                             id="imageInput"
                             class="file-input"
@@ -92,6 +92,12 @@
                             <button id="rotateRightButton" class="button" type="button">
                                 Rotate right
                             </button>
+                            <button id="flipHorizontalButton" class="button" type="button">
+                                Flip horizontal
+                            </button>
+                            <button id="flipVerticalButton" class="button" type="button">
+                                Flip vertical
+                            </button>
                             <button id="resetImageTransformButton" class="button" type="button">
                                 Reset transform
                             </button>
@@ -123,6 +129,63 @@
                             <button id="cancelCropButton" class="button" type="button">
                                 Cancel crop
                             </button>
+                        </div>
+                    </section>
+                </aside>
+
+                <section class="panel editor-panel" aria-label="Canvas editor">
+                    <div class="canvas-toolbar">
+                        <div class="canvas-title">
+                            <strong>Canvas</strong>
+                            <span id="demoMessage" class="message" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="canvas-shell">
+                        <div id="imagePlaceholder" class="empty-state">
+                            <div class="empty-card">
+                                <div class="empty-mark" aria-hidden="true">IMG</div>
+                                <h2>No image loaded</h2>
+                                <p>Upload a PNG, JPEG, or WebP image, or load the local sample.</p>
+                            </div>
+                        </div>
+                        <div id="canvasContainer" class="canvas-viewport" hidden>
+                            <canvas id="canvas" aria-label="Editable image canvas"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="panel details-panel" aria-label="Editor state">
+                    <section class="panel-section">
+                        <h2>Editor State</h2>
+                        <div class="status-grid status-card-grid">
+                            <div class="status-row">
+                                <span>Image</span><span id="statusImage">Empty</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Scale</span><span id="statusScale">100%</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Rotation</span><span id="statusRotation">0 deg</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Flip X</span><span id="statusFlipX">No</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Flip Y</span><span id="statusFlipY">No</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Tool</span><span id="statusTool">None</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Undo</span><span id="statusUndo">No</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Redo</span><span id="statusRedo">No</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Last operation</span
+                                ><span id="statusLastOperation">None</span>
+                            </div>
                         </div>
                     </section>
 
@@ -164,61 +227,6 @@
                                 Download
                             </button>
                         </div>
-                    </section>
-                </aside>
-
-                <section class="panel editor-panel" aria-label="Canvas editor">
-                    <div class="canvas-toolbar">
-                        <div class="canvas-title">
-                            <strong>Canvas</strong>
-                            <span id="demoMessage" class="message" role="status"></span>
-                        </div>
-                    </div>
-                    <div class="canvas-shell">
-                        <div id="imagePlaceholder" class="empty-state">
-                            <div class="empty-card">
-                                <div class="empty-mark" aria-hidden="true">IMG</div>
-                                <h2>No image loaded</h2>
-                                <p>Upload a PNG, JPEG, or WebP image, or load the local sample.</p>
-                            </div>
-                        </div>
-                        <div id="canvasContainer" class="canvas-viewport" hidden>
-                            <canvas id="canvas" aria-label="Editable image canvas"></canvas>
-                        </div>
-                    </div>
-                </section>
-
-                <aside class="panel details-panel" aria-label="Editor state">
-                    <section class="panel-section">
-                        <h2>Editor State</h2>
-                        <div class="status-grid">
-                            <div class="status-row">
-                                <span>Image</span><span id="statusImage">Empty</span>
-                            </div>
-                            <div class="status-row">
-                                <span>Scale</span><span id="statusScale">100%</span>
-                            </div>
-                            <div class="status-row">
-                                <span>Rotation</span><span id="statusRotation">0 deg</span>
-                            </div>
-                            <div class="status-row">
-                                <span>Tool</span><span id="statusTool">None</span>
-                            </div>
-                            <div class="status-row">
-                                <span>Undo</span><span id="statusUndo">No</span>
-                            </div>
-                            <div class="status-row">
-                                <span>Redo</span><span id="statusRedo">No</span>
-                            </div>
-                            <div class="status-row">
-                                <span>Last operation</span
-                                ><span id="statusLastOperation">None</span>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="panel-section">
-                        <h2>Export Result</h2>
                         <div class="export-preview">
                             <img id="exportPreview" alt="Latest exported image preview" />
                             <p id="exportSummary" class="note">No export yet.</p>
@@ -237,8 +245,12 @@
                         <h2>Public APIs Used</h2>
                         <div class="api-list">
                             <code>loadImage()</code>
+                            <code>setLayoutMode()</code>
                             <code>scaleImage()</code>
                             <code>rotateImage()</code>
+                            <code>flipHorizontal()</code>
+                            <code>flipVertical()</code>
+                            <code>resetImageTransform()</code>
                             <code>enterCropMode()</code>
                             <code>applyCrop()</code>
                             <code>exportImageBase64()</code>

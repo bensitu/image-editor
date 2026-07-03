@@ -37,13 +37,10 @@
                 </div>
             </section>
 
-            <section class="workspace annotation-workspace" aria-label="Annotation workspace">
-                <aside
-                    class="panel control-panel compact-control-panel"
-                    aria-label="Annotation controls"
-                >
+            <section class="workspace" aria-label="Annotation workspace">
+                <aside class="panel control-panel" aria-label="Annotation controls">
                     <section class="panel-section">
-                        <h2>Image</h2>
+                        <h2>Image upload</h2>
                         <input
                             id="imageInput"
                             class="file-input"
@@ -156,12 +153,12 @@
                 </section>
 
                 <aside
-                    class="panel details-panel compact-details-panel annotation-details-panel"
+                    class="panel details-panel annotation-details-panel"
                     aria-label="Annotation details"
                 >
                     <section class="panel-section">
                         <h2>Editor State</h2>
-                        <div class="status-grid">
+                        <div class="status-grid status-card-grid">
                             <div class="status-row">
                                 <span>Image</span><span id="statusImage">Empty</span>
                             </div>
@@ -186,12 +183,8 @@
 
                     <section class="panel-section">
                         <h2>Annotations</h2>
-                        <ul
-                            id="annotationList"
-                            class="list compact-list"
-                            data-empty="No annotations yet"
-                        ></ul>
-                        <div class="status-grid compact-status-grid">
+                        <ul id="annotationList" class="list" data-empty="No annotations yet"></ul>
+                        <div class="status-grid status-card-grid">
                             <div class="status-row">
                                 <span>Visibility</span
                                 ><span id="annotationVisibilityState">No selection</span>
@@ -225,8 +218,8 @@
                     </section>
 
                     <section class="panel-section">
-                        <h2>Layer &amp; Export</h2>
-                        <div class="control-grid compact-action-grid">
+                        <h2>Layer order</h2>
+                        <div class="control-grid">
                             <button
                                 id="bringSelectedObjectForwardButton"
                                 class="button"
@@ -263,6 +256,13 @@
                                 Delete object
                             </button>
                         </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Export</h2>
+                        <button id="mergeAnnotationsButton" class="button" type="button">
+                            Bake overlays into image
+                        </button>
                         <div class="control-grid">
                             <label class="field" for="exportFormatSelect">
                                 <span>Format</span>
@@ -285,7 +285,7 @@
                             </label>
                         </div>
                         <label class="field check-field" for="exportAnnotationsInput">
-                            <span>Include annotations</span>
+                            <span>Include overlays in export</span>
                             <input id="exportAnnotationsInput" type="checkbox" checked />
                         </label>
                         <input id="exportMasksInput" class="sr-only" type="checkbox" checked />
@@ -297,8 +297,8 @@
                                 Download
                             </button>
                         </div>
-                        <div class="export-preview compact-export-preview">
-                            <img id="exportPreview" alt="Latest exported annotation preview" />
+                        <div class="export-preview">
+                            <img id="exportPreview" alt="Latest exported image preview" />
                             <p id="exportSummary" class="note">No export yet.</p>
                             <a
                                 id="exportDownloadLink"
@@ -319,6 +319,7 @@
                             <code>updateAnnotation()</code>
                             <code>removeSelectedAnnotation()</code>
                             <code>bringSelectedObjectForward()</code>
+                            <code>mergeAnnotations()</code>
                             <code>exportImageBase64()</code>
                         </div>
                     </section>
