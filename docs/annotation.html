@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta content="IE=edge" http-equiv="X-UA-Compatible" />
+        <title>Annotation Demo - @bensitu/image-editor</title>
+        <link rel="icon" href="./favicon.ico" type="image/x-icon" />
+        <link rel="stylesheet" href="css/demo-pages.css" />
+    </head>
+    <body data-demo-page="annotation">
+        <header class="site-header">
+            <a class="brand-link" href="./index.html">
+                @bensitu/image-editor
+                <span>Annotation Demo</span>
+            </a>
+            <nav class="demo-nav" aria-label="Demo pages">
+                <a href="./basic.html">Basic</a>
+                <a href="./annotation.html" aria-current="page">Annotation</a>
+                <a href="./mask-mosaic.html">Mask &amp; Mosaic</a>
+            </nav>
+        </header>
+
+        <main class="page-shell">
+            <section class="hero">
+                <div>
+                    <h1>Annotation Demo</h1>
+                    <p>
+                        Mark up screenshots, documents, QA notes, and review material with text
+                        annotations and freehand drawing.
+                    </p>
+                </div>
+                <div class="hero-actions">
+                    <button id="loadSampleButton" class="button primary" type="button">
+                        Load sample
+                    </button>
+                </div>
+            </section>
+
+            <section class="workspace annotation-workspace" aria-label="Annotation workspace">
+                <aside
+                    class="panel control-panel compact-control-panel"
+                    aria-label="Annotation controls"
+                >
+                    <section class="panel-section">
+                        <h2>Image</h2>
+                        <input
+                            id="imageInput"
+                            class="file-input"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            aria-label="Upload image"
+                        />
+                        <label class="field" for="layoutModeSelect">
+                            <span>Layout mode</span>
+                            <select id="layoutModeSelect">
+                                <option value="fit" selected>Fit</option>
+                                <option value="cover">Cover</option>
+                                <option value="expand">Expand</option>
+                            </select>
+                        </label>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Text</h2>
+                        <label class="field" for="textValueInput">
+                            <span>Text</span>
+                            <input id="textValueInput" value="Needs review" />
+                        </label>
+                        <div class="control-grid">
+                            <label class="field" for="textColorInput">
+                                <span>Color</span>
+                                <input id="textColorInput" type="color" value="#b45309" />
+                            </label>
+                            <label class="field" for="textFontSizeInput">
+                                <span>Size</span>
+                                <input
+                                    id="textFontSizeInput"
+                                    type="number"
+                                    min="10"
+                                    max="96"
+                                    step="1"
+                                    value="32"
+                                />
+                            </label>
+                        </div>
+                        <div class="control-grid">
+                            <button
+                                id="createTextAnnotationButton"
+                                class="button primary"
+                                type="button"
+                            >
+                                Add text
+                            </button>
+                            <button id="enterTextModeButton" class="button" type="button">
+                                Text mode
+                            </button>
+                            <button id="exitTextModeButton" class="button" type="button">
+                                Exit text
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Draw</h2>
+                        <div class="control-grid">
+                            <label class="field" for="drawColorInput">
+                                <span>Color</span>
+                                <input id="drawColorInput" type="color" value="#b45309" />
+                            </label>
+                            <label class="field" for="drawBrushSizeInput">
+                                <span>Brush</span>
+                                <input
+                                    id="drawBrushSizeInput"
+                                    type="range"
+                                    min="1"
+                                    max="40"
+                                    step="1"
+                                    value="8"
+                                />
+                            </label>
+                        </div>
+                        <div class="control-grid">
+                            <button id="enterDrawModeButton" class="button primary" type="button">
+                                Draw mode
+                            </button>
+                            <button id="exitDrawModeButton" class="button" type="button">
+                                Exit draw
+                            </button>
+                        </div>
+                    </section>
+                </aside>
+
+                <section class="panel editor-panel" aria-label="Canvas editor">
+                    <div class="canvas-toolbar">
+                        <div class="canvas-title">
+                            <strong>Markup workspace</strong>
+                            <span id="demoMessage" class="message" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="canvas-shell">
+                        <div id="imagePlaceholder" class="empty-state">
+                            <div class="empty-card">
+                                <div class="empty-mark" aria-hidden="true">IMG</div>
+                                <h2>No image loaded</h2>
+                                <p>
+                                    Load the sample screenshot or upload an image to start marking
+                                    up.
+                                </p>
+                            </div>
+                        </div>
+                        <div id="canvasContainer" class="canvas-viewport" hidden>
+                            <canvas id="canvas" aria-label="Editable annotation canvas"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <aside
+                    class="panel details-panel compact-details-panel annotation-details-panel"
+                    aria-label="Annotation details"
+                >
+                    <section class="panel-section">
+                        <h2>Editor State</h2>
+                        <div class="status-grid">
+                            <div class="status-row">
+                                <span>Image</span><span id="statusImage">Empty</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Tool</span><span id="statusTool">None</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Annotations</span><span id="statusAnnotations">0</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Selection</span><span id="statusSelection">None</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Undo</span><span id="statusUndo">No</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Last operation</span
+                                ><span id="statusLastOperation">None</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Annotations</h2>
+                        <ul
+                            id="annotationList"
+                            class="list compact-list"
+                            data-empty="No annotations yet"
+                        ></ul>
+                        <div class="status-grid compact-status-grid">
+                            <div class="status-row">
+                                <span>Visibility</span
+                                ><span id="annotationVisibilityState">No selection</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Lock</span><span id="annotationLockState">No selection</span>
+                            </div>
+                        </div>
+                        <div class="control-grid">
+                            <button id="toggleAnnotationHiddenButton" class="button" type="button">
+                                Hide / show
+                            </button>
+                            <button id="toggleAnnotationLockedButton" class="button" type="button">
+                                Lock / unlock
+                            </button>
+                            <button
+                                id="removeSelectedAnnotationButton"
+                                class="button"
+                                type="button"
+                            >
+                                Remove selected
+                            </button>
+                            <button
+                                id="removeAllAnnotationsButton"
+                                class="button danger"
+                                type="button"
+                            >
+                                Remove all
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Layer &amp; Export</h2>
+                        <div class="control-grid compact-action-grid">
+                            <button
+                                id="bringSelectedObjectForwardButton"
+                                class="button"
+                                type="button"
+                            >
+                                Forward
+                            </button>
+                            <button
+                                id="sendSelectedObjectBackwardButton"
+                                class="button"
+                                type="button"
+                            >
+                                Backward
+                            </button>
+                            <button
+                                id="bringSelectedObjectToFrontButton"
+                                class="button"
+                                type="button"
+                            >
+                                To front
+                            </button>
+                            <button
+                                id="sendSelectedObjectToBackButton"
+                                class="button"
+                                type="button"
+                            >
+                                To back
+                            </button>
+                            <button
+                                id="deleteSelectedObjectButton"
+                                class="button danger"
+                                type="button"
+                            >
+                                Delete object
+                            </button>
+                        </div>
+                        <div class="control-grid">
+                            <label class="field" for="exportFormatSelect">
+                                <span>Format</span>
+                                <select id="exportFormatSelect">
+                                    <option value="png" selected>PNG</option>
+                                    <option value="jpeg">JPEG</option>
+                                    <option value="webp">WebP</option>
+                                </select>
+                            </label>
+                            <label class="field" for="exportQualityInput">
+                                <span>Quality</span>
+                                <input
+                                    id="exportQualityInput"
+                                    type="number"
+                                    min="0.1"
+                                    max="1"
+                                    step="0.05"
+                                    value="0.92"
+                                />
+                            </label>
+                        </div>
+                        <label class="field check-field" for="exportAnnotationsInput">
+                            <span>Include annotations</span>
+                            <input id="exportAnnotationsInput" type="checkbox" checked />
+                        </label>
+                        <input id="exportMasksInput" class="sr-only" type="checkbox" checked />
+                        <div class="control-grid">
+                            <button id="exportImageButton" class="button primary" type="button">
+                                Export preview
+                            </button>
+                            <button id="downloadExportButton" class="button" type="button">
+                                Download
+                            </button>
+                        </div>
+                        <div class="export-preview compact-export-preview">
+                            <img id="exportPreview" alt="Latest exported annotation preview" />
+                            <p id="exportSummary" class="note">No export yet.</p>
+                            <a
+                                id="exportDownloadLink"
+                                class="button"
+                                href="#"
+                                download="image-editor-annotation.png"
+                            >
+                                Save last export
+                            </a>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Public APIs Used</h2>
+                        <div class="api-list">
+                            <code>createTextAnnotation()</code>
+                            <code>enterDrawMode()</code>
+                            <code>updateAnnotation()</code>
+                            <code>removeSelectedAnnotation()</code>
+                            <code>bringSelectedObjectForward()</code>
+                            <code>exportImageBase64()</code>
+                        </div>
+                    </section>
+                </aside>
+            </section>
+        </main>
+
+        <script src="js/demo-loader.js"></script>
+    </body>
+</html>

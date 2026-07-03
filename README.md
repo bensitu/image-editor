@@ -13,7 +13,7 @@ with a stable public surface.
 
 ## Demo
 
-[https://bensitu.github.io/image-editor/](https://bensitu.github.io/image-editor/)
+- [Demo landing page](https://bensitu.github.io/image-editor/)
 
 ## Features
 

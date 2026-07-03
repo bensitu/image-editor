@@ -10,7 +10,7 @@
  *   - Annotation list click selection resolves the current canvas at click time.
  *
  * Out of scope:
- *   - demo page behavior
+ *   - host-page behavior
  *   - documentation rendering
  *   - browser pointer integration
  *

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta content="IE=edge" http-equiv="X-UA-Compatible" />
+        <title>Mask &amp; Mosaic Demo - @bensitu/image-editor</title>
+        <link rel="icon" href="./favicon.ico" type="image/x-icon" />
+        <link rel="stylesheet" href="css/demo-pages.css" />
+    </head>
+    <body data-demo-page="mask-mosaic">
+        <header class="site-header">
+            <a class="brand-link" href="./index.html">
+                @bensitu/image-editor
+                <span>Mask &amp; Mosaic Demo</span>
+            </a>
+            <nav class="demo-nav" aria-label="Demo pages">
+                <a href="./basic.html">Basic</a>
+                <a href="./annotation.html">Annotation</a>
+                <a href="./mask-mosaic.html" aria-current="page">Mask &amp; Mosaic</a>
+            </nav>
+        </header>
+
+        <main class="page-shell">
+            <section class="hero">
+                <div>
+                    <h1>Mask &amp; Mosaic Demo</h1>
+                    <p>Redact document regions with editable masks and local mosaic pixelation.</p>
+                </div>
+                <div class="hero-actions">
+                    <button id="loadSampleButton" class="button primary" type="button">
+                        Load sample
+                    </button>
+                </div>
+            </section>
+
+            <section class="workspace" aria-label="Mask and Mosaic workspace">
+                <aside class="panel control-panel" aria-label="Privacy controls">
+                    <section class="panel-section">
+                        <h2>Image</h2>
+                        <input
+                            id="imageInput"
+                            class="file-input"
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            aria-label="Upload image"
+                        />
+                        <label class="field" for="layoutModeSelect">
+                            <span>Layout mode</span>
+                            <select id="layoutModeSelect">
+                                <option value="fit" selected>Fit</option>
+                                <option value="cover">Cover</option>
+                                <option value="expand">Expand</option>
+                            </select>
+                        </label>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Quick Redaction</h2>
+                        <p>Preset masks target common synthetic document fields in the sample.</p>
+                        <div class="control-grid">
+                            <button class="button" type="button" data-mask-preset="identity">
+                                Name / ID
+                            </button>
+                            <button class="button" type="button" data-mask-preset="address">
+                                Address
+                            </button>
+                            <button class="button" type="button" data-mask-preset="portrait">
+                                Portrait
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Mask Tools</h2>
+                        <label class="field" for="maskShapeSelect">
+                            <span>Shape</span>
+                            <select id="maskShapeSelect">
+                                <option value="rect" selected>Rectangle</option>
+                                <option value="circle">Circle</option>
+                                <option value="ellipse">Ellipse</option>
+                                <option value="polygon">Polygon</option>
+                            </select>
+                        </label>
+                        <div class="control-grid">
+                            <button id="createMaskButton" class="button primary" type="button">
+                                Create mask
+                            </button>
+                            <button id="removeSelectedMaskButton" class="button" type="button">
+                                Remove selected
+                            </button>
+                            <button id="removeAllMasksButton" class="button danger" type="button">
+                                Remove all
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Mosaic Tools</h2>
+                        <div class="control-grid">
+                            <button id="enterMosaicModeButton" class="button primary" type="button">
+                                Mosaic mode
+                            </button>
+                            <button id="exitMosaicModeButton" class="button" type="button">
+                                Exit mosaic
+                            </button>
+                        </div>
+                        <label class="field" for="mosaicBrushSizeInput">
+                            <span>Brush size</span>
+                            <input
+                                id="mosaicBrushSizeInput"
+                                type="range"
+                                min="12"
+                                max="160"
+                                step="1"
+                                value="48"
+                            />
+                        </label>
+                        <label class="field" for="mosaicBlockSizeInput">
+                            <span>Block size</span>
+                            <input
+                                id="mosaicBlockSizeInput"
+                                type="range"
+                                min="2"
+                                max="40"
+                                step="1"
+                                value="10"
+                            />
+                        </label>
+                        <p class="note">
+                            Mosaic edits are committed into the base image pixels when a stroke is
+                            applied.
+                        </p>
+                    </section>
+                </aside>
+
+                <section class="panel editor-panel" aria-label="Canvas editor">
+                    <div class="canvas-toolbar">
+                        <div class="canvas-title">
+                            <strong>Privacy workspace</strong>
+                            <span id="demoMessage" class="message" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="canvas-shell">
+                        <div id="imagePlaceholder" class="empty-state">
+                            <div class="empty-card">
+                                <div class="empty-mark" aria-hidden="true">IMG</div>
+                                <h2>No image loaded</h2>
+                                <p>Load the synthetic document sample or upload a local image.</p>
+                            </div>
+                        </div>
+                        <div id="canvasContainer" class="canvas-viewport" hidden>
+                            <canvas id="canvas" aria-label="Editable privacy canvas"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="panel details-panel" aria-label="Mask and mosaic details">
+                    <section class="panel-section">
+                        <h2>Editor State</h2>
+                        <div class="status-grid">
+                            <div class="status-row">
+                                <span>Image</span><span id="statusImage">Empty</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Tool</span><span id="statusTool">None</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Masks</span><span id="statusMasks">0</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Selection</span><span id="statusSelection">None</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Mosaic</span><span id="statusMosaic">48px / 10px</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Last operation</span
+                                ><span id="statusLastOperation">None</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Mask List</h2>
+                        <ul id="maskList" class="list" data-empty="No masks yet"></ul>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Export Safe Copy</h2>
+                        <button id="mergeMasksButton" class="button" type="button">
+                            Bake masks into image
+                        </button>
+                        <div class="control-grid">
+                            <label class="field" for="exportFormatSelect">
+                                <span>Format</span>
+                                <select id="exportFormatSelect">
+                                    <option value="png" selected>PNG</option>
+                                    <option value="jpeg">JPEG</option>
+                                    <option value="webp">WebP</option>
+                                </select>
+                            </label>
+                            <label class="field" for="exportQualityInput">
+                                <span>Quality</span>
+                                <input
+                                    id="exportQualityInput"
+                                    type="number"
+                                    min="0.1"
+                                    max="1"
+                                    step="0.05"
+                                    value="0.92"
+                                />
+                            </label>
+                        </div>
+                        <label class="field check-field" for="exportMasksInput">
+                            <span>Render masks in export</span>
+                            <input id="exportMasksInput" type="checkbox" checked />
+                        </label>
+                        <input
+                            id="exportAnnotationsInput"
+                            class="sr-only"
+                            type="checkbox"
+                            checked
+                        />
+                        <div class="control-grid">
+                            <button id="exportImageButton" class="button primary" type="button">
+                                Export preview
+                            </button>
+                            <button id="downloadExportButton" class="button" type="button">
+                                Download
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Export Result</h2>
+                        <div class="export-preview">
+                            <img id="exportPreview" alt="Latest exported privacy preview" />
+                            <p id="exportSummary" class="note">No export yet.</p>
+                            <a
+                                id="exportDownloadLink"
+                                class="button"
+                                href="#"
+                                download="image-editor-mask-mosaic.png"
+                            >
+                                Save last export
+                            </a>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Public APIs Used</h2>
+                        <div class="api-list">
+                            <code>createMask()</code>
+                            <code>removeSelectedMask()</code>
+                            <code>enterMosaicMode()</code>
+                            <code>setMosaicConfig()</code>
+                            <code>mergeMasks()</code>
+                            <code>exportImageBase64()</code>
+                        </div>
+                    </section>
+                </aside>
+            </section>
+        </main>
+
+        <script src="js/demo-loader.js"></script>
+    </body>
+</html>

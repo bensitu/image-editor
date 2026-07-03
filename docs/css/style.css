@@ -497,13 +497,6 @@ input[type='number']::-webkit-inner-spin-button {
     opacity: 1;
 }
 
-.tool-button.primary-action {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    font-weight: 700;
-}
-
 .icon-button {
     width: 100%;
     text-align: center;
@@ -580,61 +573,6 @@ input[type='number']::-webkit-inner-spin-button {
     border-color: var(--control-border);
     background-color: var(--panel-bg);
     color: var(--text);
-}
-
-.mosaic-control {
-    display: inline-flex;
-    grid-column: 1 / -1;
-    min-height: 29px;
-    align-items: center;
-    gap: 6px;
-    padding: 0 8px;
-    border: 1px solid var(--control-border);
-    border-radius: 6px;
-    background: var(--panel-bg);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.15;
-}
-
-.mosaic-control > span {
-    min-width: 0;
-    flex: 1 1 auto;
-    overflow-wrap: anywhere;
-}
-
-.mosaic-control input {
-    min-width: 0;
-    accent-color: var(--accent);
-}
-
-.mosaic-control input[type='range'] {
-    flex: 1 1 58px;
-}
-
-.mosaic-control input[type='number'] {
-    width: 52px;
-    flex: 0 0 52px;
-}
-
-.mosaic-control input[type='color'] {
-    width: 36px;
-    height: 28px;
-    flex: 0 0 36px;
-    padding: 2px;
-    border: 1px solid var(--panel-border);
-    border-radius: 4px;
-}
-
-.mosaic-control input[type='checkbox'] {
-    width: 16px;
-    height: 16px;
-    flex: 0 0 16px;
-}
-
-.mosaic-control input:disabled {
-    cursor: not-allowed;
 }
 
 .zoom-group {
@@ -731,8 +669,7 @@ input[type='number']::-webkit-inner-spin-button {
     font-weight: 700;
 }
 
-#maskList,
-#annotationList {
+#maskList {
     min-width: 0;
     min-height: 0;
     flex: 1 1 0;
@@ -742,8 +679,7 @@ input[type='number']::-webkit-inner-spin-button {
     border-radius: 0;
 }
 
-.mask-item,
-.annotation-item {
+.mask-item {
     cursor: pointer;
     padding: 8px 10px;
     border: 0;
@@ -757,16 +693,13 @@ input[type='number']::-webkit-inner-spin-button {
         color 0.12s ease;
 }
 
-.mask-item:hover,
-.annotation-item:hover {
+.mask-item:hover {
     background: var(--accent-soft);
     color: var(--accent-strong);
 }
 
 .mask-item.selected,
-.mask-item.active,
-.annotation-item.selected,
-.annotation-item.active {
+.mask-item.active {
     background: var(--accent);
     color: #ffffff;
 }

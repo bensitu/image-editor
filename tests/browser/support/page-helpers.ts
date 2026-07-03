@@ -75,6 +75,7 @@ export function upperCanvas(page: Page): Locator {
 export async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
     const canvas = upperCanvas(page);
     await expect(canvas).toBeVisible();
+    await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
     if (!box) throw new Error('Fabric upper canvas is not visible.');
     await page.mouse.move(box.x + x, box.y + y);
@@ -89,6 +90,7 @@ export async function dragCanvas(
     if (points.length < 2) throw new Error('dragCanvas requires at least two points.');
     const canvas = upperCanvas(page);
     await expect(canvas).toBeVisible();
+    await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
     if (!box) throw new Error('Fabric upper canvas is not visible.');
     const [firstPoint, ...remainingPoints] = points;

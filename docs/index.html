@@ -1,728 +1,120 @@
 <!doctype html>
-<html lang="en" data-bs-theme="light">
+<html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>ImageEditor - Demo</title>
-        <link rel="icon" href="./favicon.ico" type="image/x-icon" />
-        <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon" />
         <meta content="IE=edge" http-equiv="X-UA-Compatible" />
-        <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control" />
-        <meta content="0" http-equiv="Expires" />
-        <script>
-            (function () {
-                try {
-                    const storedTheme = window.localStorage.getItem('imageEditorDemoTheme');
-                    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-                        ? 'dark'
-                        : 'light';
-                    document.documentElement.setAttribute(
-                        'data-bs-theme',
-                        storedTheme || systemTheme,
-                    );
-                } catch {
-                    document.documentElement.setAttribute('data-bs-theme', 'light');
-                }
-            })();
-        </script>
-        <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
-        />
-        <link rel="stylesheet" href="css/style.css" />
+        <title>@bensitu/image-editor demos</title>
+        <link rel="icon" href="./favicon.ico" type="image/x-icon" />
+        <link rel="stylesheet" href="css/demo-pages.css" />
     </head>
+    <body class="landing-page">
+        <header class="site-header">
+            <a class="brand-link" href="./index.html">
+                @bensitu/image-editor
+                <span>Fabric.js v7 image editing demos</span>
+            </a>
+            <nav class="demo-nav" aria-label="Demo pages">
+                <a href="./basic.html">Basic</a>
+                <a href="./annotation.html">Annotation</a>
+                <a href="./mask-mosaic.html">Mask &amp; Mosaic</a>
+            </nav>
+        </header>
 
-    <body>
-        <main class="demo-shell">
-            <header class="demo-header">
-                <div>
-                    <h1>ImageEditor</h1>
-                    <p data-i18n="appSubtitle">
-                        Canvas image editing demo: annotate, mask, mosaic, crop, transform, and
-                        export.
+        <main class="page-shell landing-shell">
+            <section class="hero landing-hero">
+                <div class="landing-copy">
+                    <p class="eyebrow">Interactive demo suite</p>
+                    <h1>@bensitu/image-editor</h1>
+                    <p>
+                        A modern, framework-free demo suite for image editing, annotation, and
+                        privacy workflows. Every page runs as a static docs asset while exercising
+                        the public ImageEditor API directly.
                     </p>
                 </div>
-                <div
-                    class="header-actions"
-                    aria-label="Demo preferences"
-                    data-i18n-aria-label="demoPreferences"
-                >
-                    <a
-                        class="btn legacy-demo-toggle"
-                        href="./legacy-v1.html"
-                        role="button"
-                        data-i18n="legacyDemo"
-                    >
-                        Legacy v1 demo
-                    </a>
-                    <label class="theme-switch" for="darkModeToggle" title="Dark mode">
-                        <input id="darkModeToggle" type="checkbox" aria-label="Dark mode" />
-                        <span class="theme-slider" aria-hidden="true"></span>
-                    </label>
-                    <div class="language-switcher" role="group" aria-label="Language">
-                        <button
-                            class="language-button active"
-                            type="button"
-                            data-language="en"
-                            aria-label="English"
-                            title="English"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Flag_of_the_United_States.svg"
-                                alt=""
-                            />
-                        </button>
-                        <button
-                            class="language-button"
-                            type="button"
-                            data-language="zh"
-                            aria-label="中文"
-                            title="中文"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Flag_of_the_People%27s_Republic_of_China.svg"
-                                alt=""
-                            />
-                        </button>
-                        <button
-                            class="language-button"
-                            type="button"
-                            data-language="ja"
-                            aria-label="日本語"
-                            title="日本語"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/9/9e/Flag_of_Japan.svg"
-                                alt=""
-                            />
-                        </button>
-                        <button
-                            class="language-button"
-                            type="button"
-                            data-language="ko"
-                            aria-label="한국어"
-                            title="한국어"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/0/09/Flag_of_South_Korea.svg"
-                                alt=""
-                            />
-                        </button>
-                        <button
-                            class="language-button"
-                            type="button"
-                            data-language="fr"
-                            aria-label="Français"
-                            title="Français"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/c/c3/Flag_of_France.svg"
-                                alt=""
-                            />
-                        </button>
-                        <button
-                            class="language-button"
-                            type="button"
-                            data-language="es"
-                            aria-label="Español"
-                            title="Español"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Flag_of_Spain.svg"
-                                alt=""
-                            />
-                        </button>
-                    </div>
-                </div>
-            </header>
 
-            <section
-                class="load-panel"
-                aria-label="Image loading"
-                data-i18n-aria-label="imageLoading"
-            >
-                <div
-                    class="layout-switcher btn-group"
-                    role="group"
-                    aria-label="Image layout mode"
-                    data-i18n-aria-label="imageLayoutMode"
-                >
-                    <input
-                        type="radio"
-                        class="btn-check"
-                        name="imageOptions"
-                        id="fitImage"
-                        autocomplete="off"
-                        checked
-                    />
-                    <label class="btn btn-outline-primary" for="fitImage" data-i18n="fitMode"
-                        >Fit</label
-                    >
-                    <input
-                        type="radio"
-                        class="btn-check"
-                        name="imageOptions"
-                        id="coverCanvas"
-                        autocomplete="off"
-                    />
-                    <label class="btn btn-outline-primary" for="coverCanvas" data-i18n="coverMode"
-                        >Cover</label
-                    >
-                    <input
-                        type="radio"
-                        class="btn-check"
-                        name="imageOptions"
-                        id="expandCanvas"
-                        autocomplete="off"
-                    />
-                    <label class="btn btn-outline-primary" for="expandCanvas" data-i18n="expandMode"
-                        >Expand</label
-                    >
-                </div>
-                <div class="upload-area" id="uploadArea">
-                    <strong data-i18n="dropImage">Drop image here</strong>
-                    <span data-i18n="selectImageHint"
-                        >or click to select JPG, PNG, WEBP, GIF, or BMP</span
-                    >
-                    <input type="file" id="imageInput" accept="image/*" />
-                </div>
-                <div class="base64-panel">
-                    <label class="form-label" for="base64Input" data-i18n="base64Input"
-                        >Base64 input</label
-                    >
-                    <div class="base64-row">
-                        <textarea
-                            id="base64Input"
-                            class="form-control"
-                            rows="2"
-                            placeholder="Paste data:image/jpeg;base64,..."
-                            data-i18n-placeholder="base64Placeholder"
-                        ></textarea>
-                        <button
-                            id="loadImageButton"
-                            class="btn btn-primary"
-                            type="button"
-                            data-i18n="loadImage"
-                        >
-                            Load
-                        </button>
+                <div class="landing-showcase" aria-hidden="true">
+                    <div class="showcase-toolbar">
+                        <span class="showcase-title">ImageEditor Studio</span>
+                        <span class="showcase-meter"></span>
                     </div>
-                    <div id="demoError" class="demo-error" role="alert" hidden></div>
-                </div>
-            </section>
-            <section
-                id="messagePanel"
-                class="message-panel"
-                aria-label="Messages"
-                data-i18n-aria-label="messages"
-                hidden
-            >
-                <div id="demoMessage" class="demo-message" role="alert" hidden></div>
-            </section>
-            <section
-                class="workspace-grid"
-                aria-label="Canvas workspace"
-                data-i18n-aria-label="canvasWorkspace"
-            >
-                <nav
-                    class="tool-panel"
-                    aria-label="Editor controls"
-                    data-i18n-aria-label="editorControls"
-                    role="toolbar"
-                    aria-orientation="vertical"
-                >
-                    <div
-                        class="tool-group zoom-group"
-                        role="group"
-                        aria-label="Zoom actions"
-                        data-i18n-aria-label="zoomActions"
-                    >
-                        <button
-                            class="btn tool-button icon-button"
-                            id="zoomOutButton"
-                            type="button"
-                            title="Zoom Out"
-                            aria-label="Zoom Out"
-                        >
-                            <span class="tool-icon" data-lucide="zoom-out" aria-hidden="true"
-                                >-</span
-                            >
-                            <span class="tool-label" data-i18n="zoomOut">Zoom Out</span>
-                        </button>
-                        <div class="scale-readout">
-                            <input
-                                id="scalePercentageInput"
-                                value="100"
-                                readonly
-                                aria-label="Scale percent"
-                                data-i18n-aria-label="scalePercent"
-                            />
-                            <span>%</span>
+                    <div class="showcase-body">
+                        <div class="showcase-controls">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
                         </div>
-                        <button
-                            class="btn tool-button icon-button"
-                            id="zoomInButton"
-                            type="button"
-                            title="Zoom In"
-                            aria-label="Zoom In"
-                        >
-                            <span class="tool-icon" data-lucide="zoom-in" aria-hidden="true"
-                                >+</span
-                            >
-                            <span class="tool-label" data-i18n="zoomIn">Zoom In</span>
-                        </button>
+                        <div class="showcase-canvas">
+                            <div id="landingStudioContainer" class="studio-canvas-viewport">
+                                <canvas
+                                    id="landingStudioCanvas"
+                                    aria-label="Interactive ImageEditor Studio preview"
+                                ></canvas>
+                            </div>
+                        </div>
+                        <div class="showcase-inspector">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
                     </div>
-
-                    <div
-                        class="tool-group rotation-group"
-                        role="group"
-                        aria-label="Rotation actions"
-                        data-i18n-aria-label="rotationActions"
-                    >
-                        <button
-                            class="btn tool-button icon-button"
-                            id="rotateLeftButton"
-                            type="button"
-                            title="Rotate Left"
-                            aria-label="Rotate Left"
-                        >
-                            <span class="tool-icon" data-lucide="rotate-ccw" aria-hidden="true"
-                                >&#10226;</span
-                            >
-                            <span class="tool-label" data-i18n="rotateLeft">Rotate Left</span>
-                        </button>
-                        <input
-                            id="rotateLeftDegreesInput"
-                            class="tool-input"
-                            value="90"
-                            type="number"
-                            aria-label="Rotate left degrees"
-                            data-i18n-aria-label="rotateLeftDegrees"
-                        />
-                        <button
-                            class="btn tool-button icon-button"
-                            id="rotateRightButton"
-                            type="button"
-                            title="Rotate Right"
-                            aria-label="Rotate Right"
-                        >
-                            <span class="tool-icon" data-lucide="rotate-cw" aria-hidden="true"
-                                >&#10227;</span
-                            >
-                            <span class="tool-label" data-i18n="rotateRight">Rotate Right</span>
-                        </button>
-                        <input
-                            id="rotateRightDegreesInput"
-                            class="tool-input"
-                            value="90"
-                            type="number"
-                            aria-label="Rotate right degrees"
-                            data-i18n-aria-label="rotateRightDegrees"
-                        />
-                        <button
-                            class="btn tool-button icon-button"
-                            id="flipHorizontalButton"
-                            type="button"
-                            title="Flip Horizontal"
-                            aria-label="Flip Horizontal"
-                        >
-                            <span class="tool-icon" data-lucide="flip-horizontal" aria-hidden="true"
-                                >H</span
-                            >
-                            <span class="tool-label" data-i18n="flipHorizontal">Flip H</span>
-                        </button>
-                        <button
-                            class="btn tool-button icon-button"
-                            id="flipVerticalButton"
-                            type="button"
-                            title="Flip Vertical"
-                            aria-label="Flip Vertical"
-                        >
-                            <span class="tool-icon" data-lucide="flip-vertical" aria-hidden="true"
-                                >V</span
-                            >
-                            <span class="tool-label" data-i18n="flipVertical">Flip V</span>
-                        </button>
-                    </div>
-
-                    <div
-                        class="tool-group history-group"
-                        role="group"
-                        aria-label="History actions"
-                        data-i18n-aria-label="historyActions"
-                    >
-                        <button
-                            class="btn tool-button"
-                            id="resetImageTransformButton"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="refresh-cw" aria-hidden="true"
-                                >R</span
-                            >
-                            <span class="tool-label" data-i18n="resetTransform">Reset</span>
-                        </button>
-                        <button id="undoButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="undo-2" aria-hidden="true">U</span>
-                            <span class="tool-label" data-i18n="undo">Undo</span>
-                        </button>
-                        <button id="redoButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="redo-2" aria-hidden="true">R</span>
-                            <span class="tool-label" data-i18n="redo">Redo</span>
-                        </button>
-                    </div>
-
-                    <div
-                        class="tool-group mask-group"
-                        role="group"
-                        aria-label="Mask actions"
-                        data-i18n-aria-label="maskActions"
-                    >
-                        <select
-                            id="maskShapeSelect"
-                            class="tool-select form-select form-select-sm"
-                            aria-label="Mask shape"
-                            data-i18n-aria-label="maskShape"
-                        >
-                            <option value="rect" data-i18n="maskShapeRect">Rect</option>
-                            <option value="circle" data-i18n="maskShapeCircle">Circle</option>
-                            <option value="ellipse" data-i18n="maskShapeEllipse">Ellipse</option>
-                            <option value="polygon" data-i18n="maskShapePolygon">Polygon</option>
-                        </select>
-                        <button class="btn tool-button" id="createMaskButton" type="button">
-                            <span class="tool-icon" data-lucide="square-plus" aria-hidden="true"
-                                >+</span
-                            >
-                            <span class="tool-label" data-i18n="createMask">Create Mask</span>
-                        </button>
-                        <button class="btn tool-button" id="removeSelectedMaskButton" type="button">
-                            <span class="tool-icon" data-lucide="eraser" aria-hidden="true">-</span>
-                            <span class="tool-label" data-i18n="removeMask">Remove</span>
-                        </button>
-                        <button class="btn tool-button" id="removeAllMasksButton" type="button">
-                            <span class="tool-icon" data-lucide="trash" aria-hidden="true">X</span>
-                            <span class="tool-label" data-i18n="removeAllMasks">Remove All</span>
-                        </button>
-                    </div>
-
-                    <div
-                        class="tool-group crop-group"
-                        role="group"
-                        aria-label="Crop actions"
-                        data-i18n-aria-label="cropActions"
-                    >
-                        <select
-                            id="cropAspectRatioSelect"
-                            class="tool-select form-select form-select-sm"
-                            aria-label="Crop aspect ratio"
-                            data-i18n-aria-label="cropAspectRatio"
-                        >
-                            <option value="free" data-i18n="cropRatioFree">Free</option>
-                            <option value="1:1">1:1</option>
-                            <option value="3:4">3:4</option>
-                            <option value="4:3">4:3</option>
-                            <option value="3:2">3:2</option>
-                            <option value="2:3">2:3</option>
-                            <option value="9:16">9:16</option>
-                            <option value="16:9">16:9</option>
-                        </select>
-                        <button id="enterCropModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="crop" aria-hidden="true">C</span>
-                            <span class="tool-label" data-i18n="crop">Crop</span>
-                        </button>
-                        <button id="applyCropButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="check" aria-hidden="true">OK</span>
-                            <span class="tool-label" data-i18n="apply">Apply</span>
-                        </button>
-                        <button id="cancelCropButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="x" aria-hidden="true">X</span>
-                            <span class="tool-label" data-i18n="cancel">Cancel</span>
-                        </button>
-                    </div>
-
-                    <div
-                        class="tool-group mosaic-group"
-                        role="group"
-                        aria-label="Mosaic actions"
-                        data-i18n-aria-label="mosaicActions"
-                    >
-                        <button id="enterMosaicModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="grid-2x2" aria-hidden="true"
-                                >M</span
-                            >
-                            <span class="tool-label" data-i18n="mosaic">Mosaic</span>
-                        </button>
-                        <button id="exitMosaicModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="log-out" aria-hidden="true"
-                                >E</span
-                            >
-                            <span class="tool-label" data-i18n="exitMosaic">Exit Mosaic</span>
-                        </button>
-                        <label class="mosaic-control">
-                            <span data-i18n="mosaicBrushSize">Brush</span>
-                            <input
-                                id="mosaicBrushSizeInput"
-                                type="range"
-                                min="8"
-                                max="160"
-                                step="1"
-                                value="48"
-                                aria-label="Mosaic brush size"
-                                data-i18n-aria-label="mosaicBrushSize"
-                            />
-                        </label>
-                        <label class="mosaic-control">
-                            <span data-i18n="mosaicBlockSize">Block</span>
-                            <input
-                                id="mosaicBlockSizeInput"
-                                type="range"
-                                min="2"
-                                max="40"
-                                step="1"
-                                value="8"
-                                aria-label="Mosaic block size"
-                                data-i18n-aria-label="mosaicBlockSize"
-                            />
-                        </label>
-                    </div>
-
-                    <div
-                        class="tool-group annotation-group"
-                        role="group"
-                        aria-label="Annotation actions"
-                        data-i18n-aria-label="annotationActions"
-                    >
-                        <button id="enterTextModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="type" aria-hidden="true">T</span>
-                            <span class="tool-label" data-i18n="textTool">Text</span>
-                        </button>
-                        <button id="exitTextModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="log-out" aria-hidden="true"
-                                >X</span
-                            >
-                            <span class="tool-label" data-i18n="exitText">Exit Text</span>
-                        </button>
-                        <label class="mosaic-control">
-                            <span data-i18n="textColor">Text color</span>
-                            <input id="textColorInput" type="color" value="#ff0000" />
-                        </label>
-                        <label class="mosaic-control">
-                            <span data-i18n="textSize">Text size</span>
-                            <input
-                                id="textFontSizeInput"
-                                type="number"
-                                min="8"
-                                max="160"
-                                value="32"
-                            />
-                        </label>
-                        <button id="enterDrawModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="pencil" aria-hidden="true">D</span>
-                            <span class="tool-label" data-i18n="drawTool">Draw</span>
-                        </button>
-                        <button id="exitDrawModeButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="log-out" aria-hidden="true"
-                                >X</span
-                            >
-                            <span class="tool-label" data-i18n="exitDraw">Exit Draw</span>
-                        </button>
-                        <label class="mosaic-control">
-                            <span data-i18n="drawColor">Draw color</span>
-                            <input id="drawColorInput" type="color" value="#ff0000" />
-                        </label>
-                        <label class="mosaic-control">
-                            <span data-i18n="drawBrushSize">Brush</span>
-                            <input
-                                id="drawBrushSizeInput"
-                                type="range"
-                                min="1"
-                                max="80"
-                                value="8"
-                            />
-                        </label>
-                        <button
-                            id="removeSelectedAnnotationButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="eraser" aria-hidden="true">A</span>
-                            <span class="tool-label" data-i18n="removeAnnotation"
-                                >Remove Annotation</span
-                            >
-                        </button>
-                        <button
-                            id="removeAllAnnotationsButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="trash" aria-hidden="true">AA</span>
-                            <span class="tool-label" data-i18n="removeAllAnnotations"
-                                >Remove All Annotations</span
-                            >
-                        </button>
-                    </div>
-
-                    <div
-                        class="tool-group layer-group"
-                        role="group"
-                        aria-label="Layer actions"
-                        data-i18n-aria-label="layerActions"
-                    >
-                        <button
-                            id="deleteSelectedObjectButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="trash-2" aria-hidden="true"
-                                >D</span
-                            >
-                            <span class="tool-label" data-i18n="deleteSelection"
-                                >Delete Selection</span
-                            >
-                        </button>
-                        <button
-                            id="bringSelectedObjectForwardButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="bring-to-front" aria-hidden="true"
-                                >F</span
-                            >
-                            <span class="tool-label" data-i18n="layerForward">Forward</span>
-                        </button>
-                        <button
-                            id="sendSelectedObjectBackwardButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="send-to-back" aria-hidden="true"
-                                >B</span
-                            >
-                            <span class="tool-label" data-i18n="layerBackward">Backward</span>
-                        </button>
-                        <button
-                            id="bringSelectedObjectToFrontButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="chevrons-up" aria-hidden="true"
-                                >TF</span
-                            >
-                            <span class="tool-label" data-i18n="layerToFront">To Front</span>
-                        </button>
-                        <button
-                            id="sendSelectedObjectToBackButton"
-                            class="btn tool-button"
-                            type="button"
-                        >
-                            <span class="tool-icon" data-lucide="chevrons-down" aria-hidden="true"
-                                >TB</span
-                            >
-                            <span class="tool-label" data-i18n="layerToBack">To Back</span>
-                        </button>
-                    </div>
-
-                    <div
-                        class="tool-group export-group"
-                        role="group"
-                        aria-label="Export actions"
-                        data-i18n-aria-label="exportActions"
-                    >
-                        <button id="mergeMasksButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="layers" aria-hidden="true">M</span>
-                            <span class="tool-label" data-i18n="mergeMasks">Bake Masks</span>
-                        </button>
-                        <button id="mergeAnnotationsButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="pencil-line" aria-hidden="true"
-                                >A</span
-                            >
-                            <span class="tool-label" data-i18n="mergeAnnotations"
-                                >Bake Annotations</span
-                            >
-                        </button>
-                        <label class="mosaic-control">
-                            <input id="exportMergeMasksInput" type="checkbox" checked />
-                            <span data-i18n="exportMasks">Export masks</span>
-                        </label>
-                        <label class="mosaic-control">
-                            <input id="exportMergeAnnotationsInput" type="checkbox" checked />
-                            <span data-i18n="exportAnnotations">Export annotations</span>
-                        </label>
-                        <button id="downloadImageButton" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="download" aria-hidden="true"
-                                >D</span
-                            >
-                            <span class="tool-label" data-i18n="download">Download</span>
-                        </button>
-                        <button id="base64Button" class="btn tool-button" type="button">
-                            <span class="tool-icon" data-lucide="terminal" aria-hidden="true"
-                                >64</span
-                            >
-                            <span class="tool-label" data-i18n="consoleBase64">Console Base64</span>
-                        </button>
-                    </div>
-                </nav>
-                <div id="canvasWrapper" class="canvas-shell">
-                    <figure
-                        id="imagePlaceholder"
-                        class="placeholder-panel flex-column justify-content-center align-items-center"
-                        draggable="false"
-                    >
-                        <img
-                            class="imagePlaceholderIcon"
-                            src="assets/no-images-gray.svg"
-                            alt="No images"
-                        />
-                        <figcaption class="imagePlaceholderText" data-i18n="noImageLoaded">
-                            No image loaded
-                        </figcaption>
-                    </figure>
-                    <figure id="imageContainer" class="imageContainer transparent">
-                        <canvas id="canvas" aria-label="Editable Image"
-                            >Editable Image(your browser does not support canvas)</canvas
-                        >
-                        <figcaption id="canvasCaption" class="visually-hidden">
-                            Editable Image
-                        </figcaption>
-                    </figure>
                 </div>
-                <aside class="maskListContainer">
-                    <h2 data-i18n="maskList">Mask list</h2>
-                    <ul id="maskList" class="list-group"></ul>
-                    <h2 data-i18n="annotationList">Annotation list</h2>
-                    <ul id="annotationList" class="list-group"></ul>
-                </aside>
             </section>
+
+            <section class="landing-grid" aria-label="Available demos">
+                <a class="demo-card" href="./basic.html">
+                    <div>
+                        <h2>Basic Editor Demo</h2>
+                        <p>Load an image, adjust the view, crop, and export in multiple formats.</p>
+                        <ul>
+                            <li>Upload and local sample image</li>
+                            <li>Zoom, rotate, reset, undo, redo</li>
+                            <li>Crop and PNG/JPEG/WebP export</li>
+                        </ul>
+                    </div>
+                    <span class="button primary">Open Basic</span>
+                </a>
+
+                <a class="demo-card" href="./annotation.html">
+                    <div>
+                        <h2>Annotation Demo</h2>
+                        <p>Markup screenshots or documents with text notes and freehand drawing.</p>
+                        <ul>
+                            <li>Text and Draw modes</li>
+                            <li>Layer ordering and delete actions</li>
+                            <li>Public hide and lock controls</li>
+                        </ul>
+                    </div>
+                    <span class="button primary">Open Annotation</span>
+                </a>
+
+                <a class="demo-card" href="./mask-mosaic.html">
+                    <div>
+                        <h2>Mask &amp; Mosaic Demo</h2>
+                        <p>Redact sensitive document areas and apply local pixelation.</p>
+                        <ul>
+                            <li>Rectangle, circle, ellipse, polygon masks</li>
+                            <li>Mask list and quick redaction presets</li>
+                            <li>Mosaic brush and safe export controls</li>
+                        </ul>
+                    </div>
+                    <span class="button primary">Open Mask &amp; Mosaic</span>
+                </a>
+            </section>
+
+            <p class="landing-note">
+                These pages are static docs assets. Locally they use the repository build output
+                from <code>dist/umd/image-editor.umd.js</code>; on GitHub Pages they load the
+                published UMD package from jsDelivr.
+            </p>
+            <p class="legacy-note">
+                Need the previous all-in-one demo? <a href="./legacy-v1.html">Open Legacy v1</a>.
+            </p>
         </main>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/lucide@1.17.0/dist/umd/lucide.min.js"></script>
-        <script>
-            (async function () {
-                const isGitHubPages = window.location.hostname.endsWith('github.io');
-                const fabricSrc = isGitHubPages
-                    ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
-                    : '../node_modules/fabric/dist/index.min.js';
-                const imageEditorSrc = isGitHubPages
-                    ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.umd.js'
-                    : '../dist/umd/image-editor.umd.js';
 
-                function loadScript(src) {
-                    return new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = src;
-                        script.onload = resolve;
-                        script.onerror = () => reject(new Error(`Failed to load ${src}`));
-                        document.body.appendChild(script);
-                    });
-                }
-
-                try {
-                    await loadScript(fabricSrc);
-                    await loadScript(imageEditorSrc);
-                    await loadScript('js/script.js');
-                } catch (error) {
-                    console.error('[ImageEditor demo] Failed to load dependencies.', error);
-                }
-            })();
-        </script>
+        <script src="js/demo-loader.js" data-demo-entry="js/landing-studio.js"></script>
     </body>
 </html>

@@ -374,10 +374,6 @@ function createEditorOptions() {
     };
 }
 
-function createEditorInstance(ImageEditorCtor, options) {
-    return new ImageEditorCtor(options);
-}
-
 function getMessage(error) {
     let msg = '';
     if (typeof error === 'string') {
@@ -538,15 +534,12 @@ function getInitialLanguage() {
     return supportedLanguages.includes(browserLanguage) ? browserLanguage : defaultLanguage;
 }
 
-function getSystemTheme() {
+function getInitialTheme() {
+    const storedTheme = getStoredValue('imageEditorDemoTheme');
+    if (storedTheme === 'dark' || storedTheme === 'light') return storedTheme;
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
         ? 'dark'
         : 'light';
-}
-
-function getInitialTheme() {
-    const storedTheme = getStoredValue('imageEditorDemoTheme');
-    return storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : getSystemTheme();
 }
 
 function applyLanguage(language) {
@@ -664,7 +657,7 @@ function initEditor() {
     //
     // In ESM applications the equivalent is:
     // `new ImageEditor(fabric, { ...options })`.
-    editor = createEditorInstance(ImageEditorCtor, createEditorOptions());
+    editor = new ImageEditorCtor(createEditorOptions());
 
     // `init` wires optional DOM affordances by ID. Passing `null` disables a
     // built-in binding so the host page can provide its own control, as this
@@ -714,10 +707,6 @@ function setOptions() {
     }
 }
 
-function isEditorReady() {
-    return !!editor && typeof editor.isImageLoaded === 'function';
-}
-
 function isEditorBusy() {
     if (!editor) return false;
     if (demoLoading) return false;
@@ -733,7 +722,8 @@ function updateDemoControls() {
     // The editor owns controls passed to `init`, but this demo also has
     // host-page controls (`load`, shape select, upload area) that need to
     // follow the same busy/loaded state.
-    const hasLoadedImage = isEditorReady() && editor.isImageLoaded();
+    const hasLoadedImage =
+        !!editor && typeof editor.isImageLoaded === 'function' && editor.isImageLoaded();
     const isBusy = isEditorBusy();
     const createMaskButtonElement = getOptionalElement('createMaskButton');
     const maskShapeSelectElement = getOptionalElement('maskShapeSelect');
@@ -749,18 +739,12 @@ function updateDemoControls() {
     }
 }
 
-function getSelectedMaskConfig() {
-    // This object is passed directly to `createMask`. The editor applies
-    // defaults for omitted dimensions/style fields.
-    const selectedShape = getOptionalElement('maskShapeSelect')?.value || 'rect';
-    return { ...(maskShapeConfigs[selectedShape] || maskShapeConfigs.rect) };
-}
-
 function handleCreateMaskButtonClick() {
     if (!editor || !editor.isImageLoaded() || isEditorBusy()) return;
     // `createMask` returns the created object, but the demo only needs the
     // editor's callbacks/UI refresh to reflect the new mask.
-    editor.createMask(getSelectedMaskConfig());
+    const selectedShape = getOptionalElement('maskShapeSelect')?.value || 'rect';
+    editor.createMask({ ...(maskShapeConfigs[selectedShape] || maskShapeConfigs.rect) });
     updateDemoControls();
 }
 
