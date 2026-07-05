@@ -100,6 +100,7 @@ import type {
     FabricModule,
     ImageMimeType,
     LoadImageOptions,
+    ResolvedImageFilterConfig,
     ResolvedOptions,
 } from '../core/public-types.js';
 import { reportError, reportWarning } from '../core/callback-reporter.js';
@@ -168,6 +169,8 @@ export interface RollbackBundle {
     baseImageScale: number;
     /** MIME type of the image committed before the load started. */
     currentImageMimeType: ImageMimeType | null;
+    /** Editor-managed image filter config before the load started. */
+    currentImageFilterConfig: ResolvedImageFilterConfig;
 }
 
 // ─── Load context ────────────────────────────────────────────────────────────
@@ -246,6 +249,13 @@ export interface LoadImageContext {
     getCurrentImageMimeType(): ImageMimeType | null;
     /** Writes the MIME type of the currently committed image. */
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+
+    /** Reads the canonical editor-managed image filter config. */
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    /** Resets both preview and committed image filter state to defaults. */
+    resetImageFilterState(): void;
+    /** Restores both preview and committed image filter state from a snapshot. */
+    restoreImageFilterConfig(config: ResolvedImageFilterConfig | null): void;
 
     /** Sets canvas dimensions while restoring the rollback snapshot. */
     setCanvasSize(width: number, height: number): void;
@@ -367,6 +377,7 @@ export async function loadImage(
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
         currentImageMimeType: context.getCurrentImageMimeType(),
+        currentImageFilterConfig: context.getCurrentImageFilterConfig(),
     };
 
     try {
@@ -462,6 +473,7 @@ export async function loadImage(
         context.setAnnotationCounter(0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
+        context.resetImageFilterState();
 
         context.canvas.renderAll();
 
@@ -476,6 +488,7 @@ export async function loadImage(
                 currentRotation: 0,
                 baseImageScale: layout.baseImageScale,
                 currentImageMimeType: loadSource.mimeType,
+                imageFilterConfig: context.getCurrentImageFilterConfig(),
             }),
         );
 
@@ -691,6 +704,7 @@ function captureRollbackState(context: LoadImageContext): string {
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
         currentImageMimeType: context.getCurrentImageMimeType(),
+        imageFilterConfig: context.getCurrentImageFilterConfig(),
     });
 }
 
@@ -735,6 +749,9 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
         context.setCurrentRotation(bundle.currentRotation);
         context.setBaseImageScale(bundle.baseImageScale);
         context.setCurrentImageMimeType(bundle.currentImageMimeType);
+        context.restoreImageFilterConfig(
+            restoredState.editorState?.imageFilterConfig ?? bundle.currentImageFilterConfig,
+        );
         context.canvas.renderAll();
     } catch (rollbackError) {
         reportWarning(

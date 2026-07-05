@@ -1,6 +1,7 @@
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 import { StateRestoreError } from './errors.js';
+import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, hasActiveImageFilters, normalizeImageFilterConfigSnapshot, } from './image-filter-config.js';
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'editorObjectKind',
@@ -26,6 +27,7 @@ export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'isMosaicPreview',
     'annotationId',
     'annotationType',
+    'shapeAnnotationKind',
     'annotationName',
     'annotationHidden',
     'annotationLocked',
@@ -178,6 +180,9 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         if (typeof liveObject.annotationType === 'string') {
             jsonObject.annotationType = liveObject.annotationType;
         }
+        if (typeof liveObject.shapeAnnotationKind === 'string') {
+            jsonObject.shapeAnnotationKind = liveObject.shapeAnnotationKind;
+        }
         if (typeof liveObject.annotationName === 'string') {
             jsonObject.annotationName = liveObject.annotationName;
         }
@@ -212,7 +217,7 @@ function isActiveSelectionObject(object) {
         (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
 }
 export function saveState(input) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
     const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
     const activeMaskId = activeObject && isMaskObject(activeObject)
@@ -243,6 +248,10 @@ export function saveState(input) {
         currentImageMimeType: (_c = input.currentImageMimeType) !== null && _c !== void 0 ? _c : null,
         activeObjectKind: activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
     };
+    const imageFilterConfig = cloneResolvedImageFilterConfig((_d = input.imageFilterConfig) !== null && _d !== void 0 ? _d : DEFAULT_IMAGE_FILTER_CONFIG);
+    if (hasActiveImageFilters(imageFilterConfig)) {
+        jsonObj._editorState.imageFilterConfig = imageFilterConfig;
+    }
     if (activeMaskId !== null)
         jsonObj._editorState.activeMaskId = activeMaskId;
     if (activeAnnotationId !== null) {
@@ -304,6 +313,9 @@ export async function loadFromState(input) {
                 ? mimeType
                 : null;
     }
+    if (editorState && json._editorState && 'imageFilterConfig' in json._editorState) {
+        editorState.imageFilterConfig = normalizeImageFilterConfigSnapshot(json._editorState.imageFilterConfig);
+    }
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
@@ -354,9 +366,17 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
             typeof jObj.annotationId === 'number' &&
             typeof jObj.annotationType === 'string' &&
             typeof jObj.annotationName === 'string') {
+            const annotationType = jObj.annotationType === 'draw'
+                ? 'draw'
+                : jObj.annotationType === 'shape'
+                    ? 'shape'
+                    : 'text';
+            const shapeAnnotationKind = jObj.shapeAnnotationKind === 'line' || jObj.shapeAnnotationKind === 'arrow'
+                ? jObj.shapeAnnotationKind
+                : 'rect';
             markAnnotationObject(canvasObj, {
                 annotationId: jObj.annotationId,
-                annotationType: jObj.annotationType === 'draw' ? 'draw' : 'text',
+                annotationType,
                 annotationName: jObj.annotationName,
                 annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
                 annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
@@ -372,6 +392,7 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                 annotationEditable: typeof jObj.annotationEditable === 'boolean'
                     ? jObj.annotationEditable
                     : undefined,
+                shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
             });
             return;
         }

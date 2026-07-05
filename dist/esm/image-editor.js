@@ -1,13 +1,15 @@
 import { reportError, reportWarning } from './core/callback-reporter.js';
 import { IdleGuardError } from './core/errors.js';
 import { isCanvasElement, isInputElement, isInputOrSelectElement, resolveDomElement, resolveElementTargets, } from './core/editor-elements.js';
-import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedTextAnnotationConfig, isLayoutMode, resolveOptions, } from './core/default-options.js';
+import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedEraserConfig, cloneResolvedShapeAnnotationConfig, areResolvedEraserConfigsEqual, cloneResolvedTextAnnotationConfig, areResolvedShapeAnnotationConfigsEqual, getInvalidEraserConfigFields, getInvalidShapeAnnotationConfigFields, isLayoutMode, mergeEraserConfigPatch, mergeShapeAnnotationConfigPatch, resolveOptions, } from './core/default-options.js';
+import { areResolvedImageFilterConfigsEqual, cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, mergeImageFilterConfigPatch, } from './core/image-filter-config.js';
 import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
 import { isAnnotationObject, isMaskObject } from './core/public-types.js';
 import { getActiveSelectionObjects, getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
 import { exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
-import { exitDrawMode as exitDrawModeImpl, } from './annotation/draw-controller.js';
+import { exitDrawMode as exitDrawModeImpl, setDrawSubMode as setDrawSubModeImpl, updateEraserPreview, } from './annotation/draw-controller.js';
+import { createShapeAnnotation as createShapeAnnotationImpl, enterShapeMode as enterShapeModeImpl, exitShapeMode as exitShapeModeImpl, } from './annotation/shape-controller.js';
 import { createTextAnnotationAction, enterDrawModeAction, enterTextModeAction, exitDrawModeAction, exitTextModeAction, } from './annotation/annotation-mode-actions.js';
 import { applyDrawBrushSizeInputAction, applyDrawColorInputAction, applyDrawConfigPatchAction, applyTextColorInputAction, applyTextConfigPatchAction, applyTextFontSizeInputAction, } from './annotation/annotation-config-actions.js';
 import { cancelCrop as cancelCropImpl, } from './crop/crop-controller.js';
@@ -17,6 +19,7 @@ import { applyMosaicConfigPatchAction, enterMosaicModeAction, exitMosaicModeActi
 import { downloadImageAction, exportImageBase64Action, exportImageFileAction, mergeAnnotationsAction, mergeMasksAction, } from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
+import { applyImageFilterConfigToImage } from './image/image-filters.js';
 import { captureImageDisplayGeometry as captureImageDisplayGeometryImpl, measureLayoutViewport as measureLayoutViewportImpl, restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl, settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl, shouldNormalizeCanvasSizeAfterStateRestore as shouldNormalizeCanvasSizeAfterStateRestoreImpl, updateCanvasSizeToImageBounds as updateCanvasSizeToImageBoundsImpl, } from './image/display-geometry.js';
 import { applyCanvasDimensions } from './image/layout-manager.js';
 import { TransformController } from './image/transform-controller.js';
@@ -644,6 +647,71 @@ export class ImageEditor {
     isProcessing() {
         return this.runtime.operationGuard.isBusy() || this.runtime.animQueue.isBusy();
     }
+    setImageFilterConfig(config) {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation('setImageFilterConfig'))
+            return;
+        const result = mergeImageFilterConfigPatch(this.runtime.currentImageFilterConfig, config);
+        if (result.warnings.length > 0) {
+            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Invalid or out-of-range image filter field(s): ${result.warnings.join(', ')}.`), 'Image filter config was normalized.');
+        }
+        if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, result.config)) {
+            return;
+        }
+        this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(result.config);
+        this.applyCurrentImageFilters();
+        this.runtime.canvas.requestRenderAll();
+        this.emitImageChanged(this.buildCallbackContext('setImageFilterConfig', false));
+    }
+    getImageFilterConfig() {
+        return cloneResolvedImageFilterConfig(this.runtime.currentImageFilterConfig);
+    }
+    resetImageFilterConfig() {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation('resetImageFilterConfig'))
+            return;
+        const next = cloneResolvedImageFilterConfig(this.runtime.lastCommittedImageFilterConfig);
+        if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, next))
+            return;
+        this.runtime.currentImageFilterConfig = next;
+        this.applyCurrentImageFilters();
+        this.runtime.canvas.requestRenderAll();
+        this.emitImageChanged(this.buildCallbackContext('resetImageFilterConfig', false));
+    }
+    clearImageFilters() {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation('clearImageFilters'))
+            return;
+        this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.applyCurrentImageFilters();
+        this.commitImageFiltersInternal('clearImageFilters');
+    }
+    commitImageFilters() {
+        this.commitImageFiltersInternal('commitImageFilters');
+    }
+    commitImageFiltersInternal(operation) {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation(operation))
+            return;
+        if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, this.runtime.lastCommittedImageFilterConfig)) {
+            return;
+        }
+        this.saveStateInternal();
+        this.runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(this.runtime.currentImageFilterConfig);
+        const context = this.buildCallbackContext(operation, false);
+        this.emitHistoryChangeIfChanged(context);
+        this.emitImageChanged(context);
+    }
+    applyCurrentImageFilters() {
+        const image = this.runtime.originalImage;
+        if (!image)
+            return;
+        applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig);
+    }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
             reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
@@ -773,6 +841,7 @@ export class ImageEditor {
             hasMosaicSession: this.runtime.mosaicSession !== null,
             hasTextSession: this.runtime.textSession !== null,
             hasDrawSession: this.runtime.drawSession !== null,
+            hasShapeSession: this.runtime.shapeSession !== null,
         };
     }
     getActiveToolMode() {
@@ -801,6 +870,7 @@ export class ImageEditor {
             isMosaicMode: this.runtime.mosaicSession !== null,
             isTextMode: this.runtime.textSession !== null,
             isDrawMode: this.runtime.drawSession !== null,
+            isShapeMode: this.runtime.shapeSession !== null,
             canUndo: this.runtime.historyManager.canUndo(),
             canRedo: this.runtime.historyManager.canRedo(),
             canvasWidth,
@@ -1200,6 +1270,72 @@ export class ImageEditor {
     setDrawBrushSize(size) {
         this.applyDrawConfigPatch({ brushSize: size }, 'setDrawBrushSize');
     }
+    setDrawSubMode(mode) {
+        if (!this.runtime.canvas || !this.runtime.drawSession)
+            return;
+        if (!this.canRunIdleOperation('setDrawSubMode'))
+            return;
+        if (mode !== 'brush' && mode !== 'erase') {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] setDrawSubMode expected "brush" or "erase".'), 'Ignored invalid Draw sub-mode.');
+            return;
+        }
+        setDrawSubModeImpl(this.buildDrawControllerContext(), mode);
+        this.emitImageChanged(this.buildCallbackContext('setDrawSubMode', false));
+    }
+    getDrawSubMode() {
+        var _a, _b;
+        return (_b = (_a = this.runtime.drawSession) === null || _a === void 0 ? void 0 : _a.subMode) !== null && _b !== void 0 ? _b : null;
+    }
+    getEraserConfig() {
+        return cloneResolvedEraserConfig(this.runtime.currentEraserConfig);
+    }
+    setEraserConfig(config) {
+        this.applyEraserConfigPatch(config, 'setEraserConfig');
+    }
+    resetEraserConfig() {
+        this.applyEraserConfigPatch(this.runtime.defaultEraserConfig, 'resetEraserConfig');
+    }
+    createShapeAnnotation(config = {}) {
+        if (!this.runtime.canvas)
+            return null;
+        if (!this.canRunIdleOperation('createShapeAnnotation'))
+            return null;
+        return createShapeAnnotationImpl(this.buildShapeControllerContext(), config);
+    }
+    enterShapeMode(shape = this.runtime.currentShapeConfig.shape) {
+        if (!this.runtime.canvas)
+            return;
+        if (!this.canRunIdleOperation('enterShapeMode'))
+            return;
+        if (this.isToolModeActive())
+            return;
+        enterShapeModeImpl(this.buildShapeControllerContext(), shape);
+        const callbackContext = this.buildCallbackContext('enterShapeMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    exitShapeMode() {
+        if (!this.runtime.canvas || !this.runtime.shapeSession)
+            return;
+        if (!this.canRunIdleOperation('exitShapeMode'))
+            return;
+        exitShapeModeImpl(this.buildShapeControllerContext());
+        const callbackContext = this.buildCallbackContext('exitShapeMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    isShapeMode() {
+        return this.runtime.shapeSession !== null;
+    }
+    getShapeConfig() {
+        return cloneResolvedShapeAnnotationConfig(this.runtime.currentShapeConfig);
+    }
+    setShapeConfig(config) {
+        this.applyShapeConfigPatch(config, 'setShapeConfig');
+    }
+    resetShapeConfig() {
+        this.applyShapeConfigPatch(this.runtime.defaultShapeConfig, 'resetShapeConfig');
+    }
     removeSelectedAnnotation() {
         if (!this.runtime.canvas)
             return;
@@ -1268,11 +1404,49 @@ export class ImageEditor {
     buildDrawControllerContext() {
         return this.contextFactory.buildDrawControllerContext();
     }
+    buildShapeControllerContext() {
+        return this.contextFactory.buildShapeControllerContext();
+    }
     applyTextConfigPatch(config, operation) {
         applyTextConfigPatchAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), config, operation);
     }
     applyDrawConfigPatch(config, operation) {
         applyDrawConfigPatchAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), config, operation);
+    }
+    applyEraserConfigPatch(config, operation) {
+        if (!this.runtime.canvas)
+            return;
+        if (!this.canRunIdleOperation(operation))
+            return;
+        const invalidFields = getInvalidEraserConfigFields(config);
+        if (invalidFields.length > 0) {
+            reportWarning(this.runtime.options, null, `${operation} ignored invalid Eraser config fields: ${invalidFields.join(', ')}.`);
+        }
+        const next = mergeEraserConfigPatch(this.runtime.currentEraserConfig, config, this.runtime.defaultEraserConfig);
+        if (areResolvedEraserConfigsEqual(this.runtime.currentEraserConfig, next))
+            return;
+        this.runtime.currentEraserConfig = next;
+        updateEraserPreview(this.buildDrawControllerContext());
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext(operation, false));
+    }
+    applyShapeConfigPatch(config, operation) {
+        if (!this.runtime.canvas)
+            return;
+        if (!this.canRunIdleOperation(operation))
+            return;
+        const invalidFields = getInvalidShapeAnnotationConfigFields(config);
+        if (invalidFields.length > 0) {
+            reportWarning(this.runtime.options, null, `${operation} ignored invalid Shape config fields: ${invalidFields.join(', ')}.`);
+        }
+        const next = mergeShapeAnnotationConfigPatch(this.runtime.currentShapeConfig, config, this.runtime.defaultShapeConfig);
+        if (areResolvedShapeAnnotationConfigsEqual(this.runtime.currentShapeConfig, next))
+            return;
+        this.runtime.currentShapeConfig = next;
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext(operation, false));
     }
     applyTextColorInput(color) {
         applyTextColorInputAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), color);
@@ -1422,6 +1596,9 @@ export class ImageEditor {
         });
         safelyExitActiveSession(this.runtime.drawSession !== null, this.runtime.canvas, () => exitDrawModeImpl(this.buildDrawControllerContext()), () => {
             this.runtime.drawSession = null;
+        });
+        safelyExitActiveSession(this.runtime.shapeSession !== null, this.runtime.canvas, () => exitShapeModeImpl(this.buildShapeControllerContext()), () => {
+            this.runtime.shapeSession = null;
         });
         const canvasDispose = this.runtime.canvas
             ? safelyDisposeCanvas(this.runtime.canvas)

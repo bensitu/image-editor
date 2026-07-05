@@ -23,6 +23,17 @@ import assert from 'node:assert/strict';
 
 const { captureSnapshotAction } = await import('../src/history/editor-state-actions.ts');
 
+const neutralImageFilterConfig = Object.freeze({
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    blur: 0,
+    sharpen: 0,
+    grayscale: false,
+    sepia: false,
+    vintage: false,
+});
+
 function makeMask() {
     return {
         editorObjectKind: 'mask',
@@ -65,6 +76,7 @@ function makeAccess(canvas) {
         getCurrentRotation: () => 0,
         getBaseImageScale: () => 1,
         getCurrentImageMimeType: () => 'image/png',
+        getCurrentImageFilterConfig: () => neutralImageFilterConfig,
         hideAllMaskLabels: () => {},
     };
 }

@@ -7,6 +7,7 @@
 import type * as FabricNS from 'fabric';
 import { type TextControllerContext, type TextSession } from '../annotation/text-controller.js';
 import type { DrawControllerContext, DrawSession } from '../annotation/draw-controller.js';
+import type { ShapeControllerContext, ShapeSession } from '../annotation/shape-controller.js';
 import { type AnnotationListContext, type AnnotationManagerContext } from '../annotation/annotation-manager.js';
 import type { CropControllerContext, CropSession } from '../crop/crop-controller.js';
 import { type ExportServiceContext, type MergeAnnotationsContext, type MergeMasksContext } from '../export/export-service.js';
@@ -19,7 +20,7 @@ import type { MaskLabelManagerContext } from '../mask/mask-label-manager.js';
 import type { MaskListContext } from '../mask/mask-list.js';
 import type { MosaicControllerContext, MosaicSession } from '../mosaic/mosaic-controller.js';
 import type { OperationGuard, OperationToken } from '../core/operation-guard.js';
-import { type AnnotationObject, type BaseImageObject, type FabricModule, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type LoadImageOptions, type MaskObject, type ResolvedDrawConfig, type ResolvedMosaicConfig, type ResolvedOptions, type ResolvedTextAnnotationConfig } from '../core/public-types.js';
+import { type AnnotationObject, type BaseImageObject, type FabricModule, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type LoadImageOptions, type MaskObject, type ResolvedDrawConfig, type ResolvedEraserConfig, type ResolvedImageFilterConfig, type ResolvedMosaicConfig, type ResolvedOptions, type ResolvedShapeAnnotationConfig, type ResolvedTextAnnotationConfig } from '../core/public-types.js';
 export interface EditorContextFactoryAccess {
     getFabric(): FabricModule;
     getOptions(): ResolvedOptions;
@@ -39,6 +40,9 @@ export interface EditorContextFactoryAccess {
     setIsImageLoadedToCanvas(value: boolean): void;
     getCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    resetImageFilterState(): void;
+    restoreImageFilterConfig(config: ResolvedImageFilterConfig | null): void;
     getLastSnapshot(): string | null;
     setLastSnapshot(snapshot: string | null): void;
     getCurrentScale(): number;
@@ -55,11 +59,15 @@ export interface EditorContextFactoryAccess {
     setAnnotationCounter(value: number): void;
     getTextConfig(): ResolvedTextAnnotationConfig;
     getDrawConfig(): ResolvedDrawConfig;
+    getEraserConfig(): ResolvedEraserConfig;
+    getShapeConfig(): ResolvedShapeAnnotationConfig;
     getMosaicConfig(): ResolvedMosaicConfig;
     getTextSession(): TextSession | null;
     setTextSession(session: TextSession | null): void;
     getDrawSession(): DrawSession | null;
     setDrawSession(session: DrawSession | null): void;
+    getShapeSession(): ShapeSession | null;
+    setShapeSession(session: ShapeSession | null): void;
     getMosaicSession(): MosaicSession | null;
     setMosaicSession(session: MosaicSession | null): void;
     getCropSession(): CropSession | null;
@@ -108,6 +116,7 @@ export declare class EditorContextFactory {
     buildAnnotationListContext(): AnnotationListContext;
     buildTextControllerContext(): TextControllerContext;
     buildDrawControllerContext(): DrawControllerContext;
+    buildShapeControllerContext(): ShapeControllerContext;
     buildMosaicControllerContext(): MosaicControllerContext;
     buildCropControllerContext(operationToken?: OperationToken): CropControllerContext;
     buildMergeMasksContext(operationToken?: OperationToken): MergeMasksContext;

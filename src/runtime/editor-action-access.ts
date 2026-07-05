@@ -17,10 +17,15 @@ import type {
     ImageEditorSelection,
     MaskObject,
 } from '../core/public-types.js';
+import {
+    cloneResolvedImageFilterConfig,
+    DEFAULT_IMAGE_FILTER_CONFIG,
+} from '../core/image-filter-config.js';
 import type { CropActionAccess } from '../crop/crop-actions.js';
 import type { ExportActionAccess } from '../export/export-actions.js';
 import type { EditorStateActionAccess } from '../history/editor-state-actions.js';
 import type { TransformActionAccess } from '../image/transform-actions.js';
+import { applyImageFilterConfigToImage } from '../image/image-filters.js';
 import type { MaskActionAccess } from '../mask/mask-actions.js';
 import type { MosaicActionAccess } from '../mosaic/mosaic-actions.js';
 import type { EditableObjectActionAccess } from '../overlay/editable-object-actions.js';
@@ -195,6 +200,19 @@ export class EditorActionAccessFactory {
             setCurrentImageMimeType: (mimeType) => {
                 runtime.currentImageMimeType = mimeType;
             },
+            getCurrentImageFilterConfig: () => runtime.currentImageFilterConfig,
+            restoreImageFilterConfig: (config) => {
+                const next = cloneResolvedImageFilterConfig(config ?? DEFAULT_IMAGE_FILTER_CONFIG);
+                runtime.currentImageFilterConfig = next;
+                runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+                if (runtime.originalImage) {
+                    applyImageFilterConfigToImage(
+                        runtime.fabricModule,
+                        runtime.originalImage,
+                        next,
+                    );
+                }
+            },
             setIsImageLoadedToCanvas: (value) => {
                 runtime.isImageLoadedToCanvas = value;
             },
@@ -361,7 +379,8 @@ export class EditorActionAccessFactory {
                 runtime.cropSession !== null ||
                 runtime.mosaicSession !== null ||
                 runtime.textSession !== null ||
-                runtime.drawSession !== null,
+                runtime.drawSession !== null ||
+                runtime.shapeSession !== null,
             canRunIdleOperation: (operation, options) =>
                 callbacks.canRunIdleOperation(operation, options),
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),

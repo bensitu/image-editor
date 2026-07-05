@@ -22,6 +22,7 @@ import {
     type ImageEditorOperation,
     type ImageMimeType,
     type MaskObject,
+    type ResolvedImageFilterConfig,
     type ResolvedOptions,
 } from '../core/public-types.js';
 import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mask-style.js';
@@ -53,6 +54,8 @@ export interface EditorStateActionAccess {
     hideAllMaskLabels(): void;
     inferCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    restoreImageFilterConfig(config: ResolvedImageFilterConfig | null): void;
     setIsImageLoadedToCanvas(value: boolean): void;
     setMaskCounter(value: number): void;
     setAnnotationCounter(value: number): void;
@@ -151,8 +154,10 @@ export async function loadFromStateAction(
                     ? (editorState.currentImageMimeType ?? null)
                     : access.inferCurrentImageMimeType(),
             );
+            access.restoreImageFilterConfig(editorState?.imageFilterConfig ?? null);
         } else {
             access.setCurrentImageMimeType(null);
+            access.restoreImageFilterConfig(null);
         }
 
         access.setIsImageLoadedToCanvas(!!originalImage);
@@ -223,6 +228,7 @@ export function saveStateAction(access: EditorStateActionAccess, options?: objec
             currentRotation: access.getCurrentRotation(),
             baseImageScale: access.getBaseImageScale(),
             currentImageMimeType: access.getCurrentImageMimeType(),
+            imageFilterConfig: access.getCurrentImageFilterConfig(),
         });
         const before = access.getLastSnapshot() ?? after;
         if (after === before) return;
@@ -264,6 +270,7 @@ export function captureSnapshotAction(access: EditorStateActionAccess): string {
         currentRotation: access.getCurrentRotation(),
         baseImageScale: access.getBaseImageScale(),
         currentImageMimeType: access.getCurrentImageMimeType(),
+        imageFilterConfig: access.getCurrentImageFilterConfig(),
     });
 }
 

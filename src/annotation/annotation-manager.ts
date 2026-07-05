@@ -13,12 +13,14 @@ import type * as FabricNS from 'fabric';
 import {
     isAnnotationObject,
     isDrawAnnotationObject,
+    isShapeAnnotationObject,
     isTextAnnotationObject,
     type AnnotationObject,
     type AnnotationUpdateConfig,
     type DrawAnnotationObject,
     type OverlayListOrder,
     type RemoveAllAnnotationsOptions,
+    type ShapeAnnotationObject,
     type TextAnnotationObject,
 } from '../core/public-types.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
@@ -171,6 +173,27 @@ function updateDrawAnnotation(
     if (Object.keys(props).length > 0) setAnnotationProps(annotation, props);
 }
 
+function updateShapeAnnotation(
+    annotation: ShapeAnnotationObject,
+    config: AnnotationUpdateConfig,
+): void {
+    const props: Record<string, unknown> = {};
+    const raw = config as Record<string, unknown>;
+    if (typeof raw.stroke === 'string') props.stroke = raw.stroke;
+    if (
+        typeof raw.strokeWidth === 'number' &&
+        Number.isFinite(raw.strokeWidth) &&
+        raw.strokeWidth > 0
+    ) {
+        props.strokeWidth = raw.strokeWidth;
+    }
+    if (typeof raw.fill === 'string') props.fill = raw.fill;
+    if (typeof raw.opacity === 'number' && Number.isFinite(raw.opacity)) {
+        props.opacity = Math.max(0, Math.min(1, raw.opacity));
+    }
+    if (Object.keys(props).length > 0) setAnnotationProps(annotation, props);
+}
+
 export function updateAnnotationObject(
     annotation: AnnotationObject,
     config: AnnotationUpdateConfig,
@@ -203,6 +226,7 @@ export function updateAnnotationObject(
             updateTextAnnotation(annotation, config);
         }
         if (isDrawAnnotationObject(annotation)) updateDrawAnnotation(annotation, config);
+        if (isShapeAnnotationObject(annotation)) updateShapeAnnotation(annotation, config);
     }
 
     syncAnnotationRuntimeState(annotation);

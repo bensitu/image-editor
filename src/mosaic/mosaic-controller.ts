@@ -20,9 +20,11 @@ import type {
     ImageMimeType,
     ResolvedMosaicConfig,
     ResolvedOptions,
+    ResolvedImageFilterConfig,
 } from '../core/public-types.js';
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
 import { Command, type HistoryManager } from '../history/history-manager.js';
+import { getFilteredBaseImageDataUrl } from '../image/image-filters.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
 import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -72,6 +74,8 @@ export interface MosaicControllerContext {
     setOriginalImage(image: BaseImageObject | null): void;
     getCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    resetImageFilterState(): void;
     getLastSnapshot(): string | null;
     setLastSnapshot(snapshot: string | null): void;
     captureSnapshot(): string;
@@ -385,6 +389,17 @@ function getImageSource(image: FabricNS.FabricImage): string | null {
         : null;
 }
 
+function getMosaicImageSource(
+    context: MosaicControllerContext,
+    image: FabricNS.FabricImage,
+): string | null {
+    return getFilteredBaseImageDataUrl(
+        image,
+        context.getCurrentImageFilterConfig(),
+        getImageSource(image),
+    );
+}
+
 function imageDimension(value: unknown): number {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
@@ -691,7 +706,7 @@ async function applyMosaicPointToCache(
         return;
     }
 
-    const source = getImageSource(originalImage);
+    const source = getMosaicImageSource(context, originalImage);
     if (!source) {
         reportWarning(
             context.options,
@@ -718,7 +733,7 @@ async function commitMosaicChanges(
     const originalImage = context.getOriginalImage();
     if (!originalImage || !context.isImageLoaded()) return;
 
-    const source = getImageSource(originalImage) ?? session.rasterCache.source;
+    const source = getMosaicImageSource(context, originalImage) ?? session.rasterCache.source;
     const rasterCache = session.rasterCache;
     rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
     const output = resolveMosaicOutputFormat(context, source);
@@ -732,6 +747,7 @@ async function commitMosaicChanges(
     removePreviewImage(context, session);
     try {
         replaceBaseImage(context, originalImage, nextImage, output.mimeType);
+        context.resetImageFilterState();
         const after = context.captureSnapshot();
         pushMosaicHistory(context, after);
         try {

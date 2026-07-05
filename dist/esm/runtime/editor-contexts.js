@@ -70,10 +70,18 @@ export class EditorContextFactory {
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
             },
+            getCurrentImageFilterConfig: () => access.getCurrentImageFilterConfig(),
+            resetImageFilterState: () => {
+                access.resetImageFilterState();
+            },
+            restoreImageFilterConfig: (config) => {
+                access.restoreImageFilterConfig(config);
+            },
             setCanvasSize: (width, height) => {
                 access.setCanvasSize(width, height);
             },
             applyRollbackRestoredState: (restoredState) => {
+                var _a, _b;
                 access.hideAllMaskLabels();
                 const canvas = access.getCanvas();
                 const originalImage = restoredState.originalImage;
@@ -89,6 +97,7 @@ export class EditorContextFactory {
                     });
                     canvas === null || canvas === void 0 ? void 0 : canvas.sendObjectToBack(originalImage);
                 }
+                access.restoreImageFilterConfig((_b = (_a = restoredState.editorState) === null || _a === void 0 ? void 0 : _a.imageFilterConfig) !== null && _b !== void 0 ? _b : null);
                 const restoredMasks = restoredState.masks;
                 access.setLastMask(restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId
                     ? maskObject
@@ -118,6 +127,7 @@ export class EditorContextFactory {
                 access.setOriginalImage(null);
                 access.setIsImageLoadedToCanvas(false);
                 access.setCurrentImageMimeType(null);
+                access.resetImageFilterState();
                 access.setLastSnapshot(null);
                 access.setLastMask(null);
                 access.setMaskCounter(0);
@@ -290,6 +300,7 @@ export class EditorContextFactory {
             canvas: access.getLiveCanvas('drawController'),
             options: access.getOptions(),
             getDrawConfig: () => access.getDrawConfig(),
+            getEraserConfig: () => access.getEraserConfig(),
             isImageLoaded: () => access.isImageLoaded(),
             getAnnotationCounter: () => access.getAnnotationCounter(),
             setAnnotationCounter: (value) => {
@@ -298,6 +309,31 @@ export class EditorContextFactory {
             getDrawSession: () => access.getDrawSession(),
             setDrawSession: (session) => {
                 access.setDrawSession(session);
+            },
+            saveCanvasState: () => access.saveCanvasState(),
+            updateAnnotationList: () => access.updateAnnotationList(),
+            updateUi: () => access.updateUi(),
+            emitAnnotationsChanged: (context) => access.emitAnnotationsChanged(context),
+            emitImageChanged: (context) => access.emitImageChanged(context),
+            buildCallbackContext: (operation) => access.buildCallbackContext(operation, false),
+        };
+    }
+    buildShapeControllerContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('shapeController'),
+            options: access.getOptions(),
+            getOriginalImage: () => access.getOriginalImage(),
+            getShapeConfig: () => access.getShapeConfig(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getAnnotationCounter: () => access.getAnnotationCounter(),
+            setAnnotationCounter: (value) => {
+                access.setAnnotationCounter(value);
+            },
+            getShapeSession: () => access.getShapeSession(),
+            setShapeSession: (session) => {
+                access.setShapeSession(session);
             },
             saveCanvasState: () => access.saveCanvasState(),
             updateAnnotationList: () => access.updateAnnotationList(),
@@ -323,6 +359,10 @@ export class EditorContextFactory {
             getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
+            },
+            getCurrentImageFilterConfig: () => access.getCurrentImageFilterConfig(),
+            resetImageFilterState: () => {
+                access.resetImageFilterState();
             },
             getLastSnapshot: () => access.getLastSnapshot(),
             setLastSnapshot: (snapshot) => {

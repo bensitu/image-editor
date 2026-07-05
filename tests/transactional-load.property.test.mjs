@@ -46,6 +46,24 @@ const { loadImage } = await import('../src/image/image-loader.ts');
 const { resolveOptions } = await import('../src/core/default-options.ts');
 const { ViewportCache } = await import('../src/image/layout-manager.ts');
 
+const neutralImageFilterConfig = Object.freeze({
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    blur: 0,
+    sharpen: 0,
+    grayscale: false,
+    sepia: false,
+    vintage: false,
+});
+
+function cloneImageFilterConfig(config = neutralImageFilterConfig) {
+    return {
+        ...neutralImageFilterConfig,
+        ...(config && typeof config === 'object' ? config : {}),
+    };
+}
+
 // ─── Test environment setup ────────────────────────────────────────────────
 
 /**
@@ -297,6 +315,13 @@ function makeStateHolder(initial) {
         setCurrentImageMimeType: (v) => {
             state.currentImageMimeType = v;
         },
+        getCurrentImageFilterConfig: () => state.currentImageFilterConfig,
+        resetImageFilterState: () => {
+            state.currentImageFilterConfig = cloneImageFilterConfig();
+        },
+        restoreImageFilterConfig: (v) => {
+            state.currentImageFilterConfig = cloneImageFilterConfig(v);
+        },
         setPlaceholderVisible: (show) => {
             placeholderShows.push(show);
         },
@@ -325,6 +350,7 @@ function makeContext({ failFromUrl = false } = {}) {
         currentRotation: 45,
         baseImageScale: 0.8,
         currentImageMimeType: 'image/webp',
+        currentImageFilterConfig: cloneImageFilterConfig({ brightness: 0.2 }),
     };
     const holder = makeStateHolder(initial);
 
@@ -361,6 +387,7 @@ function makeContext({ failFromUrl = false } = {}) {
             holder.state.currentRotation = 0;
             holder.state.baseImageScale = 1;
             holder.state.currentImageMimeType = null;
+            holder.state.currentImageFilterConfig = cloneImageFilterConfig();
         },
     };
 
@@ -446,6 +473,7 @@ test('unsupported image inputs cause zero mutation', async () => {
                         currentRotation: holder.state.currentRotation,
                         baseImageScale: holder.state.baseImageScale,
                         currentImageMimeType: holder.state.currentImageMimeType,
+                        currentImageFilterConfig: holder.state.currentImageFilterConfig,
                     },
                     initial,
                     'the documented contract: unsupported image input must leave editor scalar state unchanged',
@@ -508,6 +536,11 @@ test('success commits the new-image state', async () => {
                 'image/png',
                 'the documented contract: success must track the committed data URL MIME',
             );
+            assert.deepEqual(
+                holder.state.currentImageFilterConfig,
+                neutralImageFilterConfig,
+                'the documented contract: success must reset image filters for the new image',
+            );
         }),
         { numRuns: 30 },
     );
@@ -567,6 +600,7 @@ test('failure restores editor scalar state', async () => {
                     currentRotation: holder.state.currentRotation,
                     baseImageScale: holder.state.baseImageScale,
                     currentImageMimeType: holder.state.currentImageMimeType,
+                    currentImageFilterConfig: holder.state.currentImageFilterConfig,
                 },
                 initial,
                 'the documented contract: rollback must restore every editor scalar to its pre-call value',
@@ -800,6 +834,10 @@ test('failure restores current image MIME', async () => {
             );
 
             assert.equal(holder.state.currentImageMimeType, initial.currentImageMimeType);
+            assert.deepEqual(
+                holder.state.currentImageFilterConfig,
+                initial.currentImageFilterConfig,
+            );
             assert.equal(holder.state.annotationCounter, initial.annotationCounter);
         }),
         { numRuns: 30 },
@@ -823,6 +861,7 @@ test('completed zero-dimension image load rejects and rolls back', async () => {
             currentRotation: holder.state.currentRotation,
             baseImageScale: holder.state.baseImageScale,
             currentImageMimeType: holder.state.currentImageMimeType,
+            currentImageFilterConfig: holder.state.currentImageFilterConfig,
         },
         initial,
         'zero-dimension decode failure must restore every editor scalar',

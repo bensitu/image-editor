@@ -6,7 +6,7 @@
  */
 import type * as FabricNS from 'fabric';
 import { type CanvasJson } from '../core/state-serializer.js';
-import { type AnnotationObject, type BaseImageObject, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type MaskObject, type ResolvedOptions } from '../core/public-types.js';
+import { type AnnotationObject, type BaseImageObject, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type MaskObject, type ResolvedImageFilterConfig, type ResolvedOptions } from '../core/public-types.js';
 import { type TextControllerContext } from '../annotation/text-controller.js';
 import { type HistoryManager } from './history-manager.js';
 export interface EditorStateActionAccess {
@@ -25,6 +25,8 @@ export interface EditorStateActionAccess {
     hideAllMaskLabels(): void;
     inferCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    restoreImageFilterConfig(config: ResolvedImageFilterConfig | null): void;
     setIsImageLoadedToCanvas(value: boolean): void;
     setMaskCounter(value: number): void;
     setAnnotationCounter(value: number): void;

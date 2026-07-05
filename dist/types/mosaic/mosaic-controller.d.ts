@@ -8,7 +8,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { BaseImageObject, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, ResolvedMosaicConfig, ResolvedOptions } from '../core/public-types.js';
+import type { BaseImageObject, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, ResolvedMosaicConfig, ResolvedOptions, ResolvedImageFilterConfig } from '../core/public-types.js';
 import { type HistoryManager } from '../history/history-manager.js';
 import { type MosaicImagePoint } from './mosaic-geometry.js';
 interface MosaicPreviewCircle extends FabricNS.Circle {
@@ -53,6 +53,8 @@ export interface MosaicControllerContext {
     setOriginalImage(image: BaseImageObject | null): void;
     getCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    resetImageFilterState(): void;
     getLastSnapshot(): string | null;
     setLastSnapshot(snapshot: string | null): void;
     captureSnapshot(): string;

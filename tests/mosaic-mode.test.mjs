@@ -163,6 +163,7 @@ test('dispose cleans an active Mosaic preview object', async () => {
         isMosaicMode: false,
         isTextMode: false,
         isDrawMode: false,
+        isShapeMode: false,
         canUndo: false,
         canRedo: false,
         canvasWidth: 0,

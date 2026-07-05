@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-07-06
+
+### Added
+
+- Add Fabric-backed image adjustment filters for brightness, contrast, saturation, blur, sharpen, grayscale, sepia, and vintage tone.
+- Add image filter preview and commit APIs: `setImageFilterConfig()`, `getImageFilterConfig()`, `resetImageFilterConfig()`, `clearImageFilters()`, and `commitImageFilters()`.
+- Persist editor-managed image filter config through history and `saveState()` / `loadFromState()`, and include active filters in export rendering.
+- Add shape annotations for rectangles, straight lines, and arrows, including `createShapeAnnotation()`, Shape mode, shape config APIs, and the `isShapeAnnotationObject()` guard.
+- Add Draw sub-mode erasing with `setDrawSubMode()`, `getDrawSubMode()`, `getEraserConfig()`, `setEraserConfig()`, and `resetEraserConfig()`.
+
+### Changed
+
+- Widen `AnnotationType` to include `'shape'` and `EditorToolMode` to include `'shape'` for downstream exhaustive TypeScript switches.
+- Bake the current visible filter result once when crop, Mosaic, mask merge, or annotation merge replaces the base image, then reset the new base image to an unfiltered state.
+- Keep the eraser inside Draw mode instead of introducing a separate top-level tool mode.
+- Update README and demos with image adjustment, shape annotation, and Draw eraser controls.
+
+### Fixed
+
+- Restore shape annotation metadata, including `shapeAnnotationKind`, across state serialization, history undo/redo, and load-from-state flows.
+- Keep shape and eraser preview objects session-only so they are not exported, serialized, selectable as annotations, or left behind after mode exit.
+- Limit erasing to intersected Draw annotation strokes as whole objects; base image pixels, masks, text annotations, and shape annotations are preserved.
+
 ## [2.7.0] - 2026-07-01
 
 ### Added

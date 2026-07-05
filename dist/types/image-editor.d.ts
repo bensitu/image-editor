@@ -8,7 +8,7 @@
  * @module
  */
 import type { CanvasJson } from './core/state-serializer.js';
-import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, EditorToolMode, ElementMap, FabricModule, ImageEditorSelection, ImageEditorState, ImageEditorOptions, ImageExportOptions, ImageInfo, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, RelayoutOptions, ResizeToContainerOptions, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedTextAnnotationConfig, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
+import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, DrawSubMode, EditorToolMode, ElementMap, EraserConfig, FabricModule, ImageEditorSelection, ImageEditorState, ImageEditorOptions, ImageExportOptions, ImageFilterConfig, ImageInfo, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, RelayoutOptions, ResizeToContainerOptions, ResolvedDrawConfig, ResolvedEraserConfig, ResolvedImageFilterConfig, ResolvedMosaicConfig, ResolvedShapeAnnotationConfig, ResolvedTextAnnotationConfig, ShapeAnnotationConfig, ShapeAnnotationKind, ShapeAnnotationObject, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking/annotation, animated transforms,
  * crop, undo/redo, mosaic and multi-format export.
@@ -117,6 +117,13 @@ export declare class ImageEditor {
      * counted.
      */
     isProcessing(): boolean;
+    setImageFilterConfig(config: Partial<ImageFilterConfig>): void;
+    getImageFilterConfig(): ResolvedImageFilterConfig;
+    resetImageFilterConfig(): void;
+    clearImageFilters(): void;
+    commitImageFilters(): void;
+    private commitImageFiltersInternal;
+    private applyCurrentImageFilters;
     /**
      * Selects the layout strategy used by subsequent image loads.
      *
@@ -309,6 +316,18 @@ export declare class ImageEditor {
     resetDrawConfig(): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    setDrawSubMode(mode: DrawSubMode): void;
+    getDrawSubMode(): DrawSubMode | null;
+    getEraserConfig(): Readonly<ResolvedEraserConfig>;
+    setEraserConfig(config: EraserConfig): void;
+    resetEraserConfig(): void;
+    createShapeAnnotation(config?: ShapeAnnotationConfig): ShapeAnnotationObject | null;
+    enterShapeMode(shape?: ShapeAnnotationKind): void;
+    exitShapeMode(): void;
+    isShapeMode(): boolean;
+    getShapeConfig(): Readonly<ResolvedShapeAnnotationConfig>;
+    setShapeConfig(config: ShapeAnnotationConfig): void;
+    resetShapeConfig(): void;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(options?: RemoveAllAnnotationsOptions): void;
     updateAnnotation(annotationId: number, config: AnnotationUpdateConfig): void;
@@ -323,8 +342,11 @@ export declare class ImageEditor {
     private updateAnnotationListSelection;
     private buildTextControllerContext;
     private buildDrawControllerContext;
+    private buildShapeControllerContext;
     private applyTextConfigPatch;
     private applyDrawConfigPatch;
+    private applyEraserConfigPatch;
+    private applyShapeConfigPatch;
     private applyTextColorInput;
     private applyTextFontSizeInput;
     private applyDrawColorInput;

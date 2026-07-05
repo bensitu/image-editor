@@ -61,6 +61,7 @@ export function markAnnotationObject(
         annotationEvented?: boolean;
         annotationHasControls?: boolean;
         annotationEditable?: boolean;
+        shapeAnnotationKind?: 'rect' | 'line' | 'arrow';
     },
 ): AnnotationObject {
     const annotation = object as AnnotationObject;
@@ -81,6 +82,11 @@ export function markAnnotationObject(
     }
     if (typeof meta.annotationEditable === 'boolean') {
         annotation.annotationEditable = meta.annotationEditable;
+    }
+    if (meta.shapeAnnotationKind) {
+        (
+            annotation as AnnotationObject & { shapeAnnotationKind?: 'rect' | 'line' | 'arrow' }
+        ).shapeAnnotationKind = meta.shapeAnnotationKind;
     }
     return annotation;
 }

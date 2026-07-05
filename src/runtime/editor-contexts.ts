@@ -13,6 +13,7 @@ import {
     type TextSession,
 } from '../annotation/text-controller.js';
 import type { DrawControllerContext, DrawSession } from '../annotation/draw-controller.js';
+import type { ShapeControllerContext, ShapeSession } from '../annotation/shape-controller.js';
 import {
     removeAllAnnotations as removeAllAnnotationsImpl,
     type AnnotationListContext,
@@ -51,8 +52,11 @@ import {
     type LoadImageOptions,
     type MaskObject,
     type ResolvedDrawConfig,
+    type ResolvedEraserConfig,
+    type ResolvedImageFilterConfig,
     type ResolvedMosaicConfig,
     type ResolvedOptions,
+    type ResolvedShapeAnnotationConfig,
     type ResolvedTextAnnotationConfig,
 } from '../core/public-types.js';
 
@@ -76,6 +80,9 @@ export interface EditorContextFactoryAccess {
     setIsImageLoadedToCanvas(value: boolean): void;
     getCurrentImageMimeType(): ImageMimeType | null;
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    resetImageFilterState(): void;
+    restoreImageFilterConfig(config: ResolvedImageFilterConfig | null): void;
     getLastSnapshot(): string | null;
     setLastSnapshot(snapshot: string | null): void;
 
@@ -94,11 +101,15 @@ export interface EditorContextFactoryAccess {
 
     getTextConfig(): ResolvedTextAnnotationConfig;
     getDrawConfig(): ResolvedDrawConfig;
+    getEraserConfig(): ResolvedEraserConfig;
+    getShapeConfig(): ResolvedShapeAnnotationConfig;
     getMosaicConfig(): ResolvedMosaicConfig;
     getTextSession(): TextSession | null;
     setTextSession(session: TextSession | null): void;
     getDrawSession(): DrawSession | null;
     setDrawSession(session: DrawSession | null): void;
+    getShapeSession(): ShapeSession | null;
+    setShapeSession(session: ShapeSession | null): void;
     getMosaicSession(): MosaicSession | null;
     setMosaicSession(session: MosaicSession | null): void;
     getCropSession(): CropSession | null;
@@ -213,6 +224,13 @@ export class EditorContextFactory {
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
             },
+            getCurrentImageFilterConfig: () => access.getCurrentImageFilterConfig(),
+            resetImageFilterState: () => {
+                access.resetImageFilterState();
+            },
+            restoreImageFilterConfig: (config) => {
+                access.restoreImageFilterConfig(config);
+            },
             setCanvasSize: (width, height) => {
                 access.setCanvasSize(width, height);
             },
@@ -232,6 +250,9 @@ export class EditorContextFactory {
                     });
                     canvas?.sendObjectToBack(originalImage);
                 }
+                access.restoreImageFilterConfig(
+                    restoredState.editorState?.imageFilterConfig ?? null,
+                );
                 const restoredMasks = restoredState.masks;
                 access.setLastMask(
                     restoredMasks.reduce<MaskObject | null>(
@@ -270,6 +291,7 @@ export class EditorContextFactory {
                 access.setOriginalImage(null);
                 access.setIsImageLoadedToCanvas(false);
                 access.setCurrentImageMimeType(null);
+                access.resetImageFilterState();
                 access.setLastSnapshot(null);
                 access.setLastMask(null);
                 access.setMaskCounter(0);
@@ -449,6 +471,7 @@ export class EditorContextFactory {
             canvas: access.getLiveCanvas('drawController'),
             options: access.getOptions(),
             getDrawConfig: () => access.getDrawConfig(),
+            getEraserConfig: () => access.getEraserConfig(),
             isImageLoaded: () => access.isImageLoaded(),
             getAnnotationCounter: () => access.getAnnotationCounter(),
             setAnnotationCounter: (value) => {
@@ -457,6 +480,32 @@ export class EditorContextFactory {
             getDrawSession: () => access.getDrawSession(),
             setDrawSession: (session) => {
                 access.setDrawSession(session);
+            },
+            saveCanvasState: () => access.saveCanvasState(),
+            updateAnnotationList: () => access.updateAnnotationList(),
+            updateUi: () => access.updateUi(),
+            emitAnnotationsChanged: (context) => access.emitAnnotationsChanged(context),
+            emitImageChanged: (context) => access.emitImageChanged(context),
+            buildCallbackContext: (operation) => access.buildCallbackContext(operation, false),
+        };
+    }
+
+    buildShapeControllerContext(): ShapeControllerContext {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('shapeController'),
+            options: access.getOptions(),
+            getOriginalImage: () => access.getOriginalImage(),
+            getShapeConfig: () => access.getShapeConfig(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getAnnotationCounter: () => access.getAnnotationCounter(),
+            setAnnotationCounter: (value) => {
+                access.setAnnotationCounter(value);
+            },
+            getShapeSession: () => access.getShapeSession(),
+            setShapeSession: (session) => {
+                access.setShapeSession(session);
             },
             saveCanvasState: () => access.saveCanvasState(),
             updateAnnotationList: () => access.updateAnnotationList(),
@@ -483,6 +532,10 @@ export class EditorContextFactory {
             getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
+            },
+            getCurrentImageFilterConfig: () => access.getCurrentImageFilterConfig(),
+            resetImageFilterState: () => {
+                access.resetImageFilterState();
             },
             getLastSnapshot: () => access.getLastSnapshot(),
             setLastSnapshot: (snapshot) => {

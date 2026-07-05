@@ -2,7 +2,7 @@
  * Tool-mode operation policy for ImageEditor.
  *
  * The policy defines which public operations may run while Crop, Mosaic,
- * Text, or Draw mode owns editor interaction.
+ * Text, Draw, or Shape mode owns editor interaction.
  */
 
 import type { EditorToolMode, ImageEditorOperation } from '../core/public-types.js';
@@ -12,6 +12,7 @@ export interface EditorToolModeSnapshot {
     hasMosaicSession: boolean;
     hasTextSession: boolean;
     hasDrawSession: boolean;
+    hasShapeSession: boolean;
 }
 
 const CROP_SESSION_ALLOWED_OPERATIONS: ReadonlySet<string> = new Set([
@@ -49,6 +50,17 @@ const TOOL_MODE_ALLOWED_OPERATIONS: Record<EditorToolMode, ReadonlySet<string>> 
         'resetDrawConfig',
         'setDrawColor',
         'setDrawBrushSize',
+        'setDrawSubMode',
+        'setEraserConfig',
+        'resetEraserConfig',
+        'commitEraserStroke',
+        'saveState',
+    ]),
+    shape: new Set([
+        'exitShapeMode',
+        'createShapeAnnotation',
+        'setShapeConfig',
+        'resetShapeConfig',
         'saveState',
     ]),
 };
@@ -66,13 +78,22 @@ const IMAGE_EDITOR_OPERATIONS: ReadonlySet<ImageEditorOperation> = new Set([
     'flipHorizontal',
     'flipVertical',
     'resetImageTransform',
+    'setImageFilterConfig',
+    'resetImageFilterConfig',
+    'clearImageFilters',
+    'commitImageFilters',
     'createMask',
     'removeSelectedMask',
     'removeAllMasks',
     'mergeMasks',
     'createTextAnnotation',
+    'createShapeAnnotation',
     'enterTextMode',
     'exitTextMode',
+    'enterShapeMode',
+    'exitShapeMode',
+    'setShapeConfig',
+    'resetShapeConfig',
     'setTextConfig',
     'resetTextConfig',
     'setTextColor',
@@ -83,6 +104,10 @@ const IMAGE_EDITOR_OPERATIONS: ReadonlySet<ImageEditorOperation> = new Set([
     'resetDrawConfig',
     'setDrawColor',
     'setDrawBrushSize',
+    'setDrawSubMode',
+    'setEraserConfig',
+    'resetEraserConfig',
+    'commitEraserStroke',
     'updateSelectedAnnotation',
     'updateAnnotation',
     'removeSelectedAnnotation',
@@ -117,6 +142,7 @@ export function getActiveToolMode(snapshot: EditorToolModeSnapshot): EditorToolM
     if (snapshot.hasMosaicSession) return 'mosaic';
     if (snapshot.hasTextSession) return 'text';
     if (snapshot.hasDrawSession) return 'draw';
+    if (snapshot.hasShapeSession) return 'shape';
     return null;
 }
 

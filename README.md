@@ -6,10 +6,10 @@
 
 A lightweight, TypeScript-first canvas image editor built on top of
 [Fabric.js](https://fabricjs.com/) v7. `ImageEditor` wraps a Fabric canvas
-with image loading, scale and rotation, mask creation, Text and Draw
-annotations, crop, Mosaic mode, base-image flips, history (undo/redo), layer operations, and
-base64/file export — exposed as a single canonical class
-with a stable public surface.
+with image loading, scale and rotation, mask creation, image adjustments, Text,
+Shape, and Draw annotations, crop, Mosaic mode, base-image flips, history
+(undo/redo), layer operations, and base64/file export — exposed as a single
+canonical class with a stable public surface.
 
 ## Demo
 
@@ -29,12 +29,14 @@ with a stable public surface.
   interleave
 - Bounded history stack with idempotent dispose
 - Crop session with mask preservation toggle and atomic apply/cancel
+- Fabric-backed image filters for brightness, contrast, saturation, blur,
+  sharpen, grayscale, sepia, and vintage tone
 - Mosaic mode with circular brush preview, runtime brush/block controls, and
   one undo step per successful pixelation click
 - Unified editor-owned object model for base images, masks, annotations, and
   session overlays
-- Text annotations, Draw mode, annotation update/delete APIs, and layer
-  operations
+- Text annotations, Shape annotations, Draw mode with stroke erasing,
+  annotation update/delete APIs, and layer operations
 - Base64 and `File` exports with PNG/JPEG/WebP support, configurable
   multiplier, independent mask/annotation rendering toggles, and state-mutating
   mask/annotation merge APIs
@@ -152,6 +154,33 @@ resolve to `undefined`.
 <button id="flipHorizontalButton">Flip Horizontal</button>
 <button id="flipVerticalButton">Flip Vertical</button>
 
+<label>
+    Brightness
+    <input id="imageBrightnessInput" type="range" min="-1" max="1" step="0.01" value="0" />
+</label>
+<label>
+    Contrast
+    <input id="imageContrastInput" type="range" min="-1" max="1" step="0.01" value="0" />
+</label>
+<label>
+    Saturation
+    <input id="imageSaturationInput" type="range" min="-1" max="1" step="0.01" value="0" />
+</label>
+<label>
+    Blur
+    <input id="imageBlurInput" type="range" min="0" max="1" step="0.01" value="0" />
+</label>
+<label>
+    Sharpen
+    <input id="imageSharpenInput" type="range" min="0" max="1" step="0.01" value="0" />
+</label>
+<label><input id="imageGrayscaleInput" type="checkbox" /> Grayscale</label>
+<label><input id="imageSepiaInput" type="checkbox" /> Sepia</label>
+<label><input id="imageVintageInput" type="checkbox" /> Vintage</label>
+<button id="applyImageFiltersButton">Apply Filters</button>
+<button id="resetImageFiltersButton">Reset Preview</button>
+<button id="clearImageFiltersButton">Clear Filters</button>
+
 <button id="createMaskButton">Add Mask</button>
 <button id="removeSelectedMaskButton">Remove Mask</button>
 <button id="removeAllMasksButton">Remove All Masks</button>
@@ -162,10 +191,24 @@ resolve to `undefined`.
 <input id="textColorInput" type="color" value="#ff0000" />
 <input id="textFontSizeInput" type="number" min="8" max="160" value="32" />
 
+<select id="shapeKindSelect">
+    <option value="rect">Rectangle</option>
+    <option value="line">Line</option>
+    <option value="arrow">Arrow</option>
+</select>
+<input id="shapeStrokeInput" type="color" value="#ff0000" />
+<input id="shapeStrokeWidthInput" type="range" min="1" max="24" value="3" />
+<button id="createShapeAnnotationButton">Add Shape</button>
+<button id="enterShapeModeButton">Shape Mode</button>
+<button id="exitShapeModeButton">Exit Shape</button>
+
 <button id="enterDrawModeButton">Draw</button>
 <button id="exitDrawModeButton">Exit Draw</button>
 <input id="drawColorInput" type="color" value="#ff0000" />
 <input id="drawBrushSizeInput" type="range" min="1" max="80" value="8" />
+<button id="drawBrushSubModeButton">Brush</button>
+<button id="drawEraseSubModeButton">Erase Strokes</button>
+<input id="eraserBrushSizeInput" type="range" min="4" max="96" value="18" />
 
 <button id="removeSelectedAnnotationButton">Remove Annotation</button>
 <button id="removeAllAnnotationsButton">Remove All Annotations</button>
@@ -234,6 +277,15 @@ const editor = new ImageEditor(fabric, {
         color: '#ff0000',
         brushSize: 8,
     },
+    defaultEraserConfig: {
+        brushSize: 18,
+    },
+    defaultShapeConfig: {
+        shape: 'rect',
+        stroke: '#ff0000',
+        strokeWidth: 3,
+        fill: 'rgba(255,0,0,0.08)',
+    },
 } satisfies ImageEditorOptions);
 
 editor.init({
@@ -290,8 +342,12 @@ await editor.loadImage('data:image/jpeg;base64,...');
 const mask: MaskConfig = { shape: 'rect', width: 120, height: 80, left: '25%', top: '25%' };
 editor.createMask(mask);
 editor.createTextAnnotation({ text: 'Label', left: 120, top: 80 });
+editor.setImageFilterConfig({ brightness: 0.1, contrast: 0.08 });
+editor.commitImageFilters();
+editor.createShapeAnnotation({ shape: 'arrow', x1: 160, y1: 160, x2: 360, y2: 220 });
 editor.enterDrawMode();
 editor.setDrawConfig({ color: '#00aaff', brushSize: 10 });
+editor.setDrawSubMode('erase');
 
 const dataUrl = await editor.exportImageBase64({ fileType: 'png' });
 ```
@@ -308,8 +364,9 @@ const editor = new ImageEditor(fabric, { canvasWidth: 800, canvasHeight: 600 });
 In v2, `require('@bensitu/image-editor')` returns a namespace object with
 `ImageEditor`, `default`, and the editor object guards
 (`isBaseImageObject`, `isMaskObject`, `isAnnotationObject`,
-`isTextAnnotationObject`, `isDrawAnnotationObject`, `isSessionObject`, and
-`isEditableOverlayObject`); it does not return the constructor directly.
+`isTextAnnotationObject`, `isDrawAnnotationObject`, `isShapeAnnotationObject`,
+`isSessionObject`, and `isEditableOverlayObject`); it does not return the
+constructor directly.
 
 ## Public API
 
@@ -327,7 +384,7 @@ Every editor-owned Fabric object carries strict `editorObjectKind` metadata:
 | ------------ | ------------------------------------------------------------------------ |
 | `baseImage`  | The committed image at the bottom of the stack.                          |
 | `mask`       | Editable mask overlay with required `maskId`, `maskUid`, and `maskName`. |
-| `annotation` | Editable Text or Draw overlay. Masks are not annotations.                |
+| `annotation` | Editable Text, Shape, or Draw overlay. Masks are not annotations.        |
 | `session`    | Internal crop labels, mask labels, Mosaic previews, and tool previews.   |
 
 Session objects are never persisted, exported, or user-deletable. Strict type
@@ -359,7 +416,7 @@ the next microtask or animation frame before reusing that element, or call
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `loadImage(base64, options?)`  | Load a supported raster image data URL (`png`, `jpeg`, or `webp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
 | `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                      |
-| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, or Draw mode.                                                                                          |
+| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, Shape, or Draw mode.                                                                                   |
 | `isProcessing()`               | Returns `true` while an async load, export/merge transaction, or animation is active, excluding tool modes.                                                                             |
 | `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                         |
 | `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                          |
@@ -396,7 +453,7 @@ budget when those dimensions can be read cheaply.
 | `getMasks()`          | Return a shallow array snapshot of current live mask objects in canvas order.    |
 | `getAnnotations()`    | Return a shallow array snapshot of current live annotation objects.              |
 | `getSelection()`      | Return the current selected masks/annotations in the `onSelectionChange` shape.  |
-| `getActiveToolMode()` | Return `'crop'`, `'mosaic'`, `'text'`, `'draw'`, or `null`.                      |
+| `getActiveToolMode()` | Return `'crop'`, `'mosaic'`, `'text'`, `'shape'`, `'draw'`, or `null`.           |
 
 ```ts
 const state = editor.getEditorState();
@@ -442,6 +499,7 @@ interface ImageEditorState {
     isCropMode: boolean;
     isMosaicMode: boolean;
     isTextMode: boolean;
+    isShapeMode: boolean;
     isDrawMode: boolean;
     canUndo: boolean;
     canRedo: boolean;
@@ -501,6 +559,53 @@ controlled by the JPEG, PNG, or WebP export options.
 await editor.flipHorizontal();
 await editor.flipVertical();
 ```
+
+### Image filters
+
+Image adjustments use Fabric's `FabricImage.filters` pipeline for live preview.
+The editor's normalized filter config is the canonical state; Fabric filter
+instances are the rendering projection and are not reverse-parsed by public
+APIs.
+
+| Method                         | Description                                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `setImageFilterConfig(config)` | Patch the current preview filter config and update the visible base image without pushing history.    |
+| `getImageFilterConfig()`       | Return a defensive copy of the current resolved filter config.                                        |
+| `resetImageFilterConfig()`     | Restore the preview to the last committed filter config without pushing history.                      |
+| `clearImageFilters()`          | Set all filters to neutral values and commit that cleared state when it differs from committed state. |
+| `commitImageFilters()`         | Make the current preview filter config undoable with one history entry when it changed.               |
+
+Numeric ranges are `brightness`, `contrast`, and `saturation` from `-1` to
+`1`; `blur` and `sharpen` from `0` to `1`. `grayscale`, `sepia`, and `vintage`
+are booleans. `vintage` uses Fabric's native Vintage filter when available.
+`sharpen` is implemented through a deterministic Fabric convolution kernel.
+
+```ts
+editor.setImageFilterConfig({
+    brightness: 0.12,
+    contrast: 0.08,
+    saturation: 0.16,
+});
+
+// Preview updates do not push history until committed.
+editor.commitImageFilters();
+
+// Reset preview back to the last committed values.
+editor.resetImageFilterConfig();
+
+// Clear and commit the cleared state.
+editor.clearImageFilters();
+```
+
+`saveState()`, `loadFromState()`, undo, and redo restore the editor-level
+filter config and the visible Fabric filter projection. A successful
+`loadImage()` always starts the new base image with neutral filters.
+
+Export includes visible filters through the normal Fabric render path. When
+crop, Mosaic, `mergeMasks()`, or `mergeAnnotations()` replaces the base image,
+the current visible filtered result is baked into that operation's output once,
+then the new base image starts with neutral filters so the effect is not
+applied twice.
 
 ### Masks
 
@@ -610,18 +715,19 @@ Mosaic edits replace base image pixels rather than adding Fabric overlay
 objects, exported images include the Mosaic naturally while the preview circle
 is never exported or saved in history.
 
-### Text and Draw annotations
+### Text, Shape, and Draw annotations
 
-Tool modes are mutually exclusive: Crop, Mosaic, Text, and Draw cannot be
+Tool modes are mutually exclusive: Crop, Mosaic, Text, Shape, and Draw cannot be
 active at the same time. `getEditorState()` reports `activeToolMode` plus
-`isCropMode`, `isMosaicMode`, `isTextMode`, and `isDrawMode`.
+`isCropMode`, `isMosaicMode`, `isTextMode`, `isShapeMode`, and `isDrawMode`.
 
-While Text or Draw mode is active, unrelated image operations are blocked:
+While Text, Shape, or Draw mode is active, unrelated image operations are blocked:
 export, merge, undo/redo, delete, transform, `loadImage`, and `loadFromState`
 no-op through the normal guard. Exit the active mode before running those
 operations. Text mode still allows `exitTextMode`, `createTextAnnotation`, and
-Text config setters; Draw mode still allows `exitDrawMode` and Draw config
-setters.
+Text config setters; Shape mode still allows `exitShapeMode` and Shape config
+setters; Draw mode still allows `exitDrawMode`, Draw config setters, Draw
+sub-mode changes, and eraser config setters.
 
 | Method                               | Description                                                                                 |
 | ------------------------------------ | ------------------------------------------------------------------------------------------- |
@@ -634,6 +740,13 @@ setters.
 | `resetTextConfig()`                  | Restore Text config from constructor defaults.                                              |
 | `setTextColor(color)`                | Convenience setter for text fill color.                                                     |
 | `setTextFontSize(size)`              | Convenience setter for text font size.                                                      |
+| `createShapeAnnotation(config?)`     | Create a rectangle, line, or arrow annotation directly and return it.                       |
+| `enterShapeMode(shape?)`             | Draw the selected shape interactively. Uses the current persistent Shape config.            |
+| `exitShapeMode()`                    | Leave Shape mode and remove the preview object.                                             |
+| `isShapeMode()`                      | Returns `true` while Shape mode is active.                                                  |
+| `getShapeConfig()`                   | Return a defensive copy of the current Shape config.                                        |
+| `setShapeConfig(config)`             | Patch current Shape config without history.                                                 |
+| `resetShapeConfig()`                 | Restore Shape config from constructor defaults.                                             |
 | `enterDrawMode()` / `exitDrawMode()` | Use Fabric free drawing; each stroke becomes a Draw annotation.                             |
 | `isDrawMode()`                       | Returns `true` while Draw mode is active.                                                   |
 | `getDrawConfig()`                    | Return a defensive copy of the current Draw config.                                         |
@@ -641,6 +754,11 @@ setters.
 | `resetDrawConfig()`                  | Restore Draw config from constructor defaults.                                              |
 | `setDrawColor(color)`                | Convenience setter for brush color.                                                         |
 | `setDrawBrushSize(size)`             | Convenience setter for brush size.                                                          |
+| `setDrawSubMode(mode)`               | Switch active Draw mode between `'brush'` and `'erase'`.                                    |
+| `getDrawSubMode()`                   | Return `'brush'`, `'erase'`, or `null` when Draw mode is inactive.                          |
+| `getEraserConfig()`                  | Return a defensive copy of the current eraser config.                                       |
+| `setEraserConfig(config)`            | Patch eraser config without history.                                                        |
+| `resetEraserConfig()`                | Restore eraser config from constructor defaults.                                            |
 | `updateAnnotation(id, config)`       | Update an annotation by id.                                                                 |
 | `updateSelectedAnnotation(config)`   | Update selected annotation objects.                                                         |
 | `removeSelectedAnnotation()`         | Remove selected unlocked annotations.                                                       |
@@ -652,8 +770,14 @@ editor.enterTextMode();
 editor.setTextConfig({ fill: '#ff0000', fontSize: 32 });
 editor.updateSelectedAnnotation({ fill: '#00aaff' });
 
+editor.createShapeAnnotation({ shape: 'rect', left: '18%', top: '18%' });
+editor.setShapeConfig({ stroke: '#00aaff', strokeWidth: 4, fill: 'rgba(0,170,255,0.12)' });
+editor.enterShapeMode('arrow');
+
 editor.enterDrawMode();
 editor.setDrawConfig({ color: '#00aaff', brushSize: 10 });
+editor.setDrawSubMode('erase');
+editor.setEraserConfig({ brushSize: 24 });
 ```
 
 Annotations carry `annotationHidden` and `annotationLocked` metadata. Hidden
@@ -665,6 +789,18 @@ update/delete operations unless an API explicitly opts into forced removal.
 Unlocking restores the annotation's intended base interactivity flags, including
 non-default `selectable`, `evented`, text `editable`, and `hasControls` values
 provided at creation or through supported update paths.
+
+Shape annotations are ordinary annotation overlays, not masks. They are
+included in `getAnnotations()`, selection payloads, export, merge, history,
+undo/redo, and `saveState()` / `loadFromState()`. Their
+`shapeAnnotationKind` metadata is one of `'rect'`, `'line'`, or `'arrow'`.
+Interactive Shape mode uses a session-only preview object, so cancelled or
+in-progress shapes are not serialized or exported.
+
+The eraser is a Draw sub-mode, not a top-level editor mode. It targets Draw
+annotations only and removes intersected Draw strokes as whole annotation
+objects. It does not erase base-image pixels, masks, text annotations, shape
+annotations, or session previews.
 
 ### Layer operations
 
@@ -786,12 +922,15 @@ ignored, unsupported runtime values fall back to documented defaults, and nested
 | `defaultMosaicConfig`       | see source        | Defaults used to initialize the current Mosaic tool config. Supports `brushSize`, `blockSize`, preview circle styling, `outputFileType`, and `outputQuality`. Runtime Mosaic setters update the current config only.                                                                          |
 | `defaultTextConfig`         | see source        | Defaults used to initialize the current Text annotation config. Runtime Text setters update the current config only.                                                                                                                                                                          |
 | `defaultDrawConfig`         | see source        | Defaults used to initialize the current Draw mode config. Runtime Draw setters update the current config only.                                                                                                                                                                                |
+| `defaultEraserConfig`       | see source        | Defaults used to initialize Draw eraser config. Supports eraser `brushSize`, draw-annotation target, and preview styling. Runtime eraser setters update the current config only.                                                                                                              |
+| `defaultShapeConfig`        | see source        | Defaults used to initialize Shape annotation config. Supports `rect`, `line`, and `arrow` geometry plus stroke, fill, opacity, arrow head, dash, lock, visibility, and interactivity options. Runtime Shape setters update the current config only.                                           |
 | `maskRotatable`             | `false`           | Allow masks to be rotated by the user.                                                                                                                                                                                                                                                        |
 | `maskLabelOnSelect`         | `true`            | Show a label above a selected mask.                                                                                                                                                                                                                                                           |
 | `maskLabelOffset`           | `3`               | Pixel offset of the label from the mask's top-left corner.                                                                                                                                                                                                                                    |
 | `maskName`                  | `'mask'`          | Prefix used for auto-generated mask names.                                                                                                                                                                                                                                                    |
 | `textAnnotationName`        | `'text'`          | Prefix used for auto-generated text annotation names.                                                                                                                                                                                                                                         |
 | `drawAnnotationName`        | `'draw'`          | Prefix used for auto-generated draw annotation names.                                                                                                                                                                                                                                         |
+| `shapeAnnotationName`       | `'shape'`         | Prefix used for auto-generated shape annotation names.                                                                                                                                                                                                                                        |
 | `maskListOrder`             | `'front-to-back'` | Mask list DOM order. `'front-to-back'` shows the topmost mask first; `'back-to-front'` preserves Fabric's bottom-to-top object order.                                                                                                                                                         |
 | `annotationListOrder`       | `'front-to-back'` | Annotation list DOM order. `'front-to-back'` shows the topmost annotation first; `'back-to-front'` preserves Fabric's bottom-to-top object order.                                                                                                                                             |
 | `groupSelection`            | `false`           | Allow Fabric multi-object group selection on the canvas.                                                                                                                                                                                                                                      |
@@ -850,30 +989,15 @@ preserve the current image MIME type when known and fall back to PNG when the
 source format cannot be determined. JPEG/WebP commits use
 `defaultMosaicConfig.outputQuality` when finite, otherwise `downsampleQuality`.
 
-## Breaking changes in v2
-
-- `Base64ExportOptions`, `ImageFileExportOptions`, and `DownloadImageOptions`
-  were replaced by `ImageExportOptions`.
-- `downloadImage(fileName: string)` was removed. Use
-  `downloadImage({ fileName })`.
-- `downloadImage()` now returns `Promise<void>`.
-- `defaultDownloadFileName` now defaults to `'edited_image'`; export format
-  resolution supplies or corrects the final extension.
-- All editor-owned Fabric objects now require `editorObjectKind`.
-- `isMaskObject()` is strict and rejects legacy objects with only `maskId`.
-- `MaskObject.maskUid` is required.
-- Serialized states without `editorObjectKind` are not migrated.
-- Export option `mergeMask` was removed; use `mergeMasks`.
-- Constructor option `mergeMaskByDefault` was removed; use `mergeMasksByDefault`.
-
 ## Example workflow
 
 1. Construct `ImageEditor` with options and call `init(elementMap)` to wire it up.
 2. Load an image via `loadImage(base64)` or the bound file input.
 3. Adjust with `scaleImage`, `rotateImage`, `flipHorizontal`, `flipVertical`,
-   `resetImageTransform`, Crop mode, Mosaic mode, Text mode, or Draw mode.
-4. Add `createMask` and annotation calls, then inspect via `maskList` and
-   `annotationList`.
+   `resetImageTransform`, image filters, Crop mode, Mosaic mode, Text mode,
+   Shape mode, or Draw mode.
+4. Add `createMask` and text, shape, or draw annotation calls, then inspect via
+   `maskList` and `annotationList`.
 5. Use `mergeMasks()` or `mergeAnnotations()` to bake overlays into the image, then
    `exportImageBase64`, `exportImageFile`, or `downloadImage` to produce
    the final output.
@@ -960,6 +1084,8 @@ import type {
     CropConfig,
     MosaicConfig,
     ResolvedMosaicConfig,
+    ImageFilterConfig,
+    ResolvedImageFilterConfig,
     LoadImageOptions,
     RemoveAllMasksOptions,
     DefaultMaskConfig,
@@ -978,6 +1104,23 @@ import type {
     CropAspectRatioPreset,
     CropAspectRatio,
     CropModeOptions,
+    TextAnnotationConfig,
+    ResolvedTextAnnotationConfig,
+    DrawConfig,
+    DrawSubMode,
+    ResolvedDrawConfig,
+    EraserConfig,
+    ResolvedEraserConfig,
+    ShapeAnnotationKind,
+    ShapeAnnotationConfig,
+    ResolvedShapeAnnotationConfig,
+    OverlayNumericProp,
+    AnnotationType,
+    AnnotationObject,
+    TextAnnotationObject,
+    DrawAnnotationObject,
+    ShapeAnnotationObject,
+    EditorToolMode,
     ImageInfo,
     ImageEditorState,
     ImageEditorSelection,

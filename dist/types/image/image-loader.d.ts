@@ -93,7 +93,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { BaseImageObject, FabricModule, ImageMimeType, LoadImageOptions, ResolvedOptions } from '../core/public-types.js';
+import type { BaseImageObject, FabricModule, ImageMimeType, LoadImageOptions, ResolvedImageFilterConfig, ResolvedOptions } from '../core/public-types.js';
 import { type LoadFromStateResult } from '../core/state-serializer.js';
 import { type ViewportCache } from './layout-manager.js';
 /**
@@ -136,6 +136,8 @@ export interface RollbackBundle {
     baseImageScale: number;
     /** MIME type of the image committed before the load started. */
     currentImageMimeType: ImageMimeType | null;
+    /** Editor-managed image filter config before the load started. */
+    currentImageFilterConfig: ResolvedImageFilterConfig;
 }
 /**
  * Dependency bundle passed from the `ImageEditor` facade into
@@ -202,6 +204,12 @@ export interface LoadImageContext {
     getCurrentImageMimeType(): ImageMimeType | null;
     /** Writes the MIME type of the currently committed image. */
     setCurrentImageMimeType(mimeType: ImageMimeType | null): void;
+    /** Reads the canonical editor-managed image filter config. */
+    getCurrentImageFilterConfig(): ResolvedImageFilterConfig;
+    /** Resets both preview and committed image filter state to defaults. */
+    resetImageFilterState(): void;
+    /** Restores both preview and committed image filter state from a snapshot. */
+    restoreImageFilterConfig(config: ResolvedImageFilterConfig | null): void;
     /** Sets canvas dimensions while restoring the rollback snapshot. */
     setCanvasSize(width: number, height: number): void;
     /**

@@ -10,9 +10,15 @@ import type * as FabricNS from 'fabric';
 import { AnimationQueue } from '../animation/animation-queue.js';
 import {
     cloneResolvedDrawConfig,
+    cloneResolvedEraserConfig,
     cloneResolvedMosaicConfig,
+    cloneResolvedShapeAnnotationConfig,
     cloneResolvedTextAnnotationConfig,
 } from '../core/default-options.js';
+import {
+    cloneResolvedImageFilterConfig,
+    DEFAULT_IMAGE_FILTER_CONFIG,
+} from '../core/image-filter-config.js';
 import type { ElementKey, ResolvedElementMap } from '../core/editor-elements.js';
 import { OperationGuard } from '../core/operation-guard.js';
 import type {
@@ -25,8 +31,11 @@ import type {
     LayoutMode,
     MaskObject,
     ResolvedDrawConfig,
+    ResolvedEraserConfig,
+    ResolvedImageFilterConfig,
     ResolvedMosaicConfig,
     ResolvedOptions,
+    ResolvedShapeAnnotationConfig,
     ResolvedTextAnnotationConfig,
 } from '../core/public-types.js';
 import { HistoryManager } from '../history/history-manager.js';
@@ -35,6 +44,7 @@ import { ViewportCache } from '../image/layout-manager.js';
 import type { CropSession } from '../crop/crop-controller.js';
 import type { MosaicSession } from '../mosaic/mosaic-controller.js';
 import type { DrawSession } from '../annotation/draw-controller.js';
+import type { ShapeSession } from '../annotation/shape-controller.js';
 import type { TextSession } from '../annotation/text-controller.js';
 import type { DomBindings } from '../ui/dom-bindings.js';
 
@@ -50,6 +60,10 @@ export class EditorRuntime {
     currentTextConfig: ResolvedTextAnnotationConfig;
     readonly defaultDrawConfig: ResolvedDrawConfig;
     currentDrawConfig: ResolvedDrawConfig;
+    readonly defaultEraserConfig: ResolvedEraserConfig;
+    currentEraserConfig: ResolvedEraserConfig;
+    readonly defaultShapeConfig: ResolvedShapeAnnotationConfig;
+    currentShapeConfig: ResolvedShapeAnnotationConfig;
 
     canvas: FabricNS.Canvas | null = null;
     canvasElement: HTMLCanvasElement | null = null;
@@ -66,6 +80,8 @@ export class EditorRuntime {
     currentRotation = 0;
     isImageLoadedToCanvas = false;
     currentImageMimeType: ImageMimeType | null = null;
+    currentImageFilterConfig: ResolvedImageFilterConfig;
+    lastCommittedImageFilterConfig: ResolvedImageFilterConfig;
 
     maskCounter = 0;
     lastMask: MaskObject | null = null;
@@ -82,6 +98,7 @@ export class EditorRuntime {
     mosaicSession: MosaicSession | null = null;
     textSession: TextSession | null = null;
     drawSession: DrawSession | null = null;
+    shapeSession: ShapeSession | null = null;
 
     domBindings: DomBindings | null = null;
     keyboardDocument: Document | null = null;
@@ -106,6 +123,14 @@ export class EditorRuntime {
         this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
         this.defaultDrawConfig = options.defaultDrawConfig;
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.defaultEraserConfig = options.defaultEraserConfig;
+        this.currentEraserConfig = cloneResolvedEraserConfig(this.defaultEraserConfig);
+        this.defaultShapeConfig = options.defaultShapeConfig;
+        this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
+        this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(
+            DEFAULT_IMAGE_FILTER_CONFIG,
+        );
         this.historyManager = new HistoryManager(options.maxHistorySize);
         this.lastEmittedHistoryState = {
             canUndo: this.historyManager.canUndo(),
@@ -155,6 +180,10 @@ export class EditorRuntime {
         this.isImageLoadedToCanvas = false;
         this.originalImage = null;
         this.currentImageMimeType = null;
+        this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(
+            DEFAULT_IMAGE_FILTER_CONFIG,
+        );
         this.lastMask = null;
         this.maskCounter = 0;
         this.annotationCounter = 0;
@@ -168,12 +197,15 @@ export class EditorRuntime {
         this.mosaicSession = null;
         this.textSession = null;
         this.drawSession = null;
+        this.shapeSession = null;
         this.domBindings = null;
         this.keyboardDocument = null;
         this.keyboardHandler = null;
         this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
         this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.currentEraserConfig = cloneResolvedEraserConfig(this.defaultEraserConfig);
+        this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
         this.shouldSuppressSaveState = false;
         this.shouldSuppressSelectionChange = false;
         this.lastEmittedIsBusy = null;

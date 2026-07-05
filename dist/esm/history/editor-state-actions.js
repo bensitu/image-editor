@@ -6,7 +6,7 @@ import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
 import { attachTextEditingHandlersToAnnotations, } from '../annotation/text-controller.js';
 import { Command } from './history-manager.js';
 export async function loadFromStateAction(access, jsonString, options) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const canvas = access.getCanvas();
     if (!jsonString || !canvas)
         return;
@@ -54,9 +54,11 @@ export async function loadFromStateAction(access, jsonString, options) {
             access.setCurrentImageMimeType(editorState && 'currentImageMimeType' in editorState
                 ? ((_b = editorState.currentImageMimeType) !== null && _b !== void 0 ? _b : null)
                 : access.inferCurrentImageMimeType());
+            access.restoreImageFilterConfig((_c = editorState === null || editorState === void 0 ? void 0 : editorState.imageFilterConfig) !== null && _c !== void 0 ? _c : null);
         }
         else {
             access.setCurrentImageMimeType(null);
+            access.restoreImageFilterConfig(null);
         }
         access.setIsImageLoadedToCanvas(!!originalImage);
         if (originalImage && access.shouldNormalizeCanvasSizeAfterStateRestore()) {
@@ -74,7 +76,7 @@ export async function loadFromStateAction(access, jsonString, options) {
         syncAnnotationRuntimeStates(restoredState.annotations);
         attachTextEditingHandlersToAnnotations(access.buildTextControllerContext(), restoredState.annotations);
         access.setLastSnapshot(captureSnapshotAction(access));
-        (_c = access.getCanvas()) === null || _c === void 0 ? void 0 : _c.renderAll();
+        (_d = access.getCanvas()) === null || _d === void 0 ? void 0 : _d.renderAll();
         access.updateInputs();
         access.updateMaskList();
         access.updateAnnotationList();
@@ -116,6 +118,7 @@ export function saveStateAction(access, options) {
             currentRotation: access.getCurrentRotation(),
             baseImageScale: access.getBaseImageScale(),
             currentImageMimeType: access.getCurrentImageMimeType(),
+            imageFilterConfig: access.getCurrentImageFilterConfig(),
         });
         const before = (_c = access.getLastSnapshot()) !== null && _c !== void 0 ? _c : after;
         if (after === before)
@@ -153,6 +156,7 @@ export function captureSnapshotAction(access) {
         currentRotation: access.getCurrentRotation(),
         baseImageScale: access.getBaseImageScale(),
         currentImageMimeType: access.getCurrentImageMimeType(),
+        imageFilterConfig: access.getCurrentImageFilterConfig(),
     });
 }
 function restoreActiveSelection(access, restoredState, editorState, context) {

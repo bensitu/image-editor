@@ -9,23 +9,33 @@
 
 import type * as FabricNS from 'fabric';
 
-import { markAnnotationObject } from '../core/editor-object-kind.js';
-import { placeAnnotationObject } from '../core/layer-order.js';
+import { markAnnotationObject, markSessionObject } from '../core/editor-object-kind.js';
+import { placeAnnotationObject, placeSessionObject } from '../core/layer-order.js';
 import {
+    isDrawAnnotationObject,
+    type DrawSubMode,
     type DrawAnnotationObject,
     type FabricModule,
     type ImageEditorCallbackContext,
     type ResolvedDrawConfig,
+    type ResolvedEraserConfig,
     type ResolvedOptions,
+    type SessionObject,
 } from '../core/public-types.js';
+import { getObjectBBox } from '../utils/canvas-region.js';
+import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
 
 export interface DrawSession {
     mode: 'draw';
+    subMode: DrawSubMode;
     previousDrawingMode: boolean;
     previousBrush: unknown;
     previousCanvasSelection: boolean;
     previousDefaultCursor: string | undefined;
+    eraserPreview: (FabricNS.Circle & SessionObject) | null;
+    eraserPoints: Array<{ x: number; y: number }>;
+    isErasing: boolean;
     handlers: Array<{ eventName: string; callback: (event: unknown) => void }>;
     dispose(): void;
 }
@@ -35,6 +45,7 @@ export interface DrawControllerContext {
     readonly canvas: FabricNS.Canvas;
     readonly options: ResolvedOptions;
     getDrawConfig(): ResolvedDrawConfig;
+    getEraserConfig(): ResolvedEraserConfig;
     isImageLoaded(): boolean;
     getAnnotationCounter(): number;
     setAnnotationCounter(value: number): void;
@@ -45,7 +56,9 @@ export interface DrawControllerContext {
     updateUi(): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
-    buildCallbackContext(operation: 'enterDrawMode' | 'exitDrawMode'): ImageEditorCallbackContext;
+    buildCallbackContext(
+        operation: 'enterDrawMode' | 'exitDrawMode' | 'commitEraserStroke',
+    ): ImageEditorCallbackContext;
 }
 
 function colorWithOpacity(color: string, opacity: number): string {
@@ -76,6 +89,184 @@ function configureBrush(context: DrawControllerContext): void {
     canvasWithBrush.freeDrawingBrush.color = colorWithOpacity(config.color, config.opacity);
     canvasWithBrush.freeDrawingBrush.strokeLineCap = config.lineCap;
     canvasWithBrush.freeDrawingBrush.strokeLineJoin = config.lineJoin;
+}
+
+function setDrawingMode(context: DrawControllerContext, enabled: boolean): void {
+    const canvasWithDrawing = context.canvas as FabricNS.Canvas & {
+        isDrawingMode?: boolean;
+    };
+    canvasWithDrawing.isDrawingMode = enabled;
+}
+
+function createEraserPreview(context: DrawControllerContext): FabricNS.Circle & SessionObject {
+    const config = context.getEraserConfig();
+    const circle = new context.fabric.Circle({
+        left: 0,
+        top: 0,
+        radius: config.brushSize / 2,
+        originX: 'center',
+        originY: 'center',
+        fill: config.previewFill,
+        stroke: config.previewStroke,
+        strokeWidth: config.previewStrokeWidth,
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: false,
+    } as Partial<FabricNS.CircleProps>);
+    return markSessionObject(circle, 'eraserPreview');
+}
+
+function ensureEraserPreview(
+    context: DrawControllerContext,
+    session: DrawSession,
+): FabricNS.Circle & SessionObject {
+    const preview = session.eraserPreview ?? createEraserPreview(context);
+    session.eraserPreview = preview;
+    const config = context.getEraserConfig();
+    preview.set({
+        radius: config.brushSize / 2,
+        fill: config.previewFill,
+        stroke: config.previewStroke,
+        strokeWidth: config.previewStrokeWidth,
+    } as Partial<FabricNS.CircleProps>);
+    if (!context.canvas.getObjects().includes(preview)) {
+        context.canvas.add(preview);
+    }
+    placeSessionObject(context.canvas, preview);
+    return preview;
+}
+
+function hideEraserPreview(context: DrawControllerContext, session: DrawSession): void {
+    if (!session.eraserPreview) return;
+    session.eraserPreview.set({ visible: false });
+    context.canvas.requestRenderAll();
+}
+
+function removeEraserPreview(context: DrawControllerContext, session: DrawSession): void {
+    if (!session.eraserPreview) return;
+    try {
+        context.canvas.remove(session.eraserPreview);
+    } catch {
+        /* ignore */
+    }
+    session.eraserPreview = null;
+}
+
+function moveEraserPreview(
+    context: DrawControllerContext,
+    session: DrawSession,
+    point: { x: number; y: number },
+): void {
+    const preview = ensureEraserPreview(context, session);
+    preview.set({ left: point.x, top: point.y, visible: session.subMode === 'erase' });
+    context.canvas.requestRenderAll();
+}
+
+function pushEraserPoint(
+    context: DrawControllerContext,
+    session: DrawSession,
+    point: { x: number; y: number },
+): void {
+    const previous = session.eraserPoints[session.eraserPoints.length - 1];
+    if (!previous) {
+        session.eraserPoints.push(point);
+        return;
+    }
+
+    const radius = Math.max(1, context.getEraserConfig().brushSize / 2);
+    const spacing = Math.max(1, radius / 2);
+    const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+    const steps = Math.max(1, Math.ceil(distance / spacing));
+    for (let index = 1; index <= steps; index += 1) {
+        const t = index / steps;
+        session.eraserPoints.push({
+            x: previous.x + (point.x - previous.x) * t,
+            y: previous.y + (point.y - previous.y) * t,
+        });
+    }
+}
+
+function pointIntersectsExpandedBounds(
+    point: { x: number; y: number },
+    bounds: { left: number; top: number; width: number; height: number },
+    radius: number,
+): boolean {
+    return (
+        point.x >= bounds.left - radius &&
+        point.x <= bounds.left + bounds.width + radius &&
+        point.y >= bounds.top - radius &&
+        point.y <= bounds.top + bounds.height + radius
+    );
+}
+
+function getIntersectedDrawAnnotations(
+    context: DrawControllerContext,
+    points: Array<{ x: number; y: number }>,
+): DrawAnnotationObject[] {
+    if (points.length === 0) return [];
+    const radius = Math.max(1, context.getEraserConfig().brushSize / 2);
+    return context.canvas
+        .getObjects()
+        .filter(isDrawAnnotationObject)
+        .filter((annotation) => {
+            const bounds = getObjectBBox(annotation);
+            return points.some((point) => pointIntersectsExpandedBounds(point, bounds, radius));
+        });
+}
+
+function commitEraserStroke(context: DrawControllerContext, session: DrawSession): void {
+    const removed = getIntersectedDrawAnnotations(context, session.eraserPoints);
+    session.eraserPoints = [];
+    session.isErasing = false;
+    if (removed.length === 0) return;
+
+    removed.forEach((annotation) => {
+        context.canvas.remove(annotation);
+    });
+    context.canvas.discardActiveObject();
+    context.canvas.renderAll();
+    context.saveCanvasState();
+    context.updateAnnotationList();
+    context.updateUi();
+    const callbackContext = context.buildCallbackContext('commitEraserStroke');
+    context.emitAnnotationsChanged(callbackContext);
+    context.emitImageChanged(callbackContext);
+}
+
+function handleEraserPointerDown(context: DrawControllerContext, event: unknown): void {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase') return;
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
+    if (!pointer) return;
+    session.isErasing = true;
+    session.eraserPoints = [];
+    pushEraserPoint(context, session, pointer);
+    moveEraserPreview(context, session, pointer);
+}
+
+function handleEraserPointerMove(context: DrawControllerContext, event: unknown): void {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase') return;
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
+    if (!pointer) {
+        hideEraserPreview(context, session);
+        return;
+    }
+    moveEraserPreview(context, session, pointer);
+    if (session.isErasing) pushEraserPoint(context, session, pointer);
+}
+
+function handleEraserPointerUp(context: DrawControllerContext, event: unknown): void {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase') return;
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
+    if (pointer) {
+        pushEraserPoint(context, session, pointer);
+        moveEraserPreview(context, session, pointer);
+    }
+    commitEraserStroke(context, session);
 }
 
 function markPathAsDrawAnnotation(
@@ -138,29 +329,65 @@ export function enterDrawMode(context: DrawControllerContext): void {
     canvasWithDrawing.isDrawingMode = true;
     configureBrush(context);
 
-    const callback = (event: unknown): void => handlePathCreated(context, event);
+    const pathCreatedCallback = (event: unknown): void => handlePathCreated(context, event);
     (canvas as unknown as { on(event: string, handler: (event: unknown) => void): void }).on(
         'path:created',
-        callback,
+        pathCreatedCallback,
+    );
+    const mouseDownCallback = (event: unknown): void => handleEraserPointerDown(context, event);
+    const mouseMoveCallback = (event: unknown): void => handleEraserPointerMove(context, event);
+    const mouseUpCallback = (event: unknown): void => handleEraserPointerUp(context, event);
+    const mouseOutCallback = (): void => {
+        const session = context.getDrawSession();
+        if (session) hideEraserPreview(context, session);
+    };
+    (canvas as unknown as { on(event: string, handler: (event: unknown) => void): void }).on(
+        'mouse:down',
+        mouseDownCallback,
+    );
+    (canvas as unknown as { on(event: string, handler: (event: unknown) => void): void }).on(
+        'mouse:move',
+        mouseMoveCallback,
+    );
+    (canvas as unknown as { on(event: string, handler: (event: unknown) => void): void }).on(
+        'mouse:up',
+        mouseUpCallback,
+    );
+    (canvas as unknown as { on(event: string, handler: () => void): void }).on(
+        'mouse:out',
+        mouseOutCallback,
     );
 
     const session: DrawSession = {
         mode: 'draw',
+        subMode: 'brush',
         previousDrawingMode,
         previousBrush,
         previousCanvasSelection,
         previousDefaultCursor,
-        handlers: [{ eventName: 'path:created', callback }],
+        eraserPreview: null,
+        eraserPoints: [],
+        isErasing: false,
+        handlers: [
+            { eventName: 'path:created', callback: pathCreatedCallback },
+            { eventName: 'mouse:down', callback: mouseDownCallback },
+            { eventName: 'mouse:move', callback: mouseMoveCallback },
+            { eventName: 'mouse:up', callback: mouseUpCallback },
+            { eventName: 'mouse:out', callback: mouseOutCallback },
+        ],
         dispose: () => {
-            try {
-                (
-                    canvas as unknown as {
-                        off(event: string, handler: (event: unknown) => void): void;
-                    }
-                ).off('path:created', callback);
-            } catch {
-                /* ignore */
+            for (const record of session.handlers) {
+                try {
+                    (
+                        canvas as unknown as {
+                            off(event: string, handler: (event: unknown) => void): void;
+                        }
+                    ).off(record.eventName, record.callback);
+                } catch {
+                    /* ignore */
+                }
             }
+            removeEraserPreview(context, session);
             canvasWithDrawing.isDrawingMode = previousDrawingMode;
             canvasWithDrawing.freeDrawingBrush = previousBrush;
             canvas.selection = previousCanvasSelection;
@@ -183,4 +410,31 @@ export function exitDrawMode(context: DrawControllerContext): void {
 export function updateDrawBrush(context: DrawControllerContext): void {
     if (!context.getDrawSession()) return;
     configureBrush(context);
+}
+
+export function setDrawSubMode(context: DrawControllerContext, subMode: DrawSubMode): void {
+    const session = context.getDrawSession();
+    if (!session) return;
+    if (session.subMode === subMode) return;
+    session.subMode = subMode;
+    session.isErasing = false;
+    session.eraserPoints = [];
+    if (subMode === 'brush') {
+        hideEraserPreview(context, session);
+        configureBrush(context);
+        setDrawingMode(context, true);
+    } else {
+        setDrawingMode(context, false);
+        ensureEraserPreview(context, session).set({ visible: false });
+    }
+    context.canvas.requestRenderAll();
+    context.updateUi();
+}
+
+export function updateEraserPreview(context: DrawControllerContext): void {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase') return;
+    const preview = ensureEraserPreview(context, session);
+    preview.set({ visible: false });
+    context.canvas.requestRenderAll();
 }

@@ -27,7 +27,7 @@
                     <h1>Annotation Demo</h1>
                     <p>
                         Mark up screenshots, documents, QA notes, and review material with text
-                        annotations and freehand drawing.
+                        annotations, shapes, and freehand drawing.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -99,6 +99,54 @@
                     </section>
 
                     <section class="panel-section">
+                        <h2>Shape</h2>
+                        <label class="field" for="shapeKindSelect">
+                            <span>Shape</span>
+                            <select id="shapeKindSelect">
+                                <option value="rect" selected>Rectangle</option>
+                                <option value="line">Line</option>
+                                <option value="arrow">Arrow</option>
+                            </select>
+                        </label>
+                        <div class="control-grid">
+                            <label class="field" for="shapeStrokeInput">
+                                <span>Stroke</span>
+                                <input id="shapeStrokeInput" type="color" value="#b45309" />
+                            </label>
+                            <label class="field" for="shapeStrokeWidthInput">
+                                <span>Width</span>
+                                <input
+                                    id="shapeStrokeWidthInput"
+                                    type="range"
+                                    min="1"
+                                    max="24"
+                                    step="1"
+                                    value="4"
+                                />
+                            </label>
+                        </div>
+                        <label class="field" for="shapeFillInput">
+                            <span>Fill</span>
+                            <input id="shapeFillInput" type="color" value="#f59e0b" />
+                        </label>
+                        <div class="control-grid">
+                            <button
+                                id="createShapeAnnotationButton"
+                                class="button primary"
+                                type="button"
+                            >
+                                Add shape
+                            </button>
+                            <button id="enterShapeModeButton" class="button" type="button">
+                                Shape mode
+                            </button>
+                            <button id="exitShapeModeButton" class="button" type="button">
+                                Exit shape
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
                         <h2>Draw</h2>
                         <div class="control-grid">
                             <label class="field" for="drawColorInput">
@@ -125,6 +173,29 @@
                                 Exit draw
                             </button>
                         </div>
+                        <div class="control-grid">
+                            <button id="drawBrushSubModeButton" class="button" type="button">
+                                Brush
+                            </button>
+                            <button id="drawEraseSubModeButton" class="button" type="button">
+                                Erase strokes
+                            </button>
+                        </div>
+                        <label class="field" for="eraserBrushSizeInput">
+                            <span>Eraser</span>
+                            <input
+                                id="eraserBrushSizeInput"
+                                type="range"
+                                min="4"
+                                max="96"
+                                step="1"
+                                value="18"
+                            />
+                        </label>
+                        <p class="note">
+                            Eraser removes intersected draw strokes only. Image pixels, masks, text,
+                            and shapes remain unchanged.
+                        </p>
                     </section>
                 </aside>
 
@@ -315,7 +386,11 @@
                         <h2>Public APIs Used</h2>
                         <div class="api-list">
                             <code>createTextAnnotation()</code>
+                            <code>createShapeAnnotation()</code>
+                            <code>enterShapeMode()</code>
                             <code>enterDrawMode()</code>
+                            <code>setDrawSubMode()</code>
+                            <code>setEraserConfig()</code>
                             <code>updateAnnotation()</code>
                             <code>removeSelectedAnnotation()</code>
                             <code>bringSelectedObjectForward()</code>

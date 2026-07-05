@@ -422,6 +422,7 @@ const DEFAULT_OPTIONS = {
     maskName: 'mask',
     textAnnotationName: 'text',
     drawAnnotationName: 'draw',
+    shapeAnnotationName: 'shape',
     maskListOrder: DEFAULT_OVERLAY_LIST_ORDER,
     annotationListOrder: DEFAULT_OVERLAY_LIST_ORDER,
     groupSelection: false,
@@ -506,6 +507,36 @@ const DEFAULT_DRAW_CONFIG = Object.freeze({
     annotationHidden: false,
     annotationLocked: false,
 });
+const DEFAULT_ERASER_CONFIG = Object.freeze({
+    brushSize: 18,
+    target: 'drawAnnotations',
+    previewStroke: '#111',
+    previewStrokeWidth: 1,
+    previewFill: 'rgba(255,255,255,0.28)',
+});
+const DEFAULT_SHAPE_ANNOTATION_CONFIG = Object.freeze({
+    shape: 'rect',
+    left: undefined,
+    top: undefined,
+    width: 120,
+    height: 80,
+    x1: undefined,
+    y1: undefined,
+    x2: undefined,
+    y2: undefined,
+    stroke: '#ff0000',
+    strokeWidth: 3,
+    fill: 'rgba(255,0,0,0.08)',
+    opacity: 1,
+    angle: 0,
+    selectable: true,
+    evented: true,
+    annotationHidden: false,
+    annotationLocked: false,
+    strokeDashArray: null,
+    arrowHeadLength: 18,
+    styles: Object.freeze({}),
+});
 const KNOWN_TOP_LEVEL_KEYS = new Set([
     'canvasWidth',
     'canvasHeight',
@@ -543,6 +574,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maskName',
     'textAnnotationName',
     'drawAnnotationName',
+    'shapeAnnotationName',
     'maskListOrder',
     'annotationListOrder',
     'groupSelection',
@@ -567,6 +599,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'defaultMosaicConfig',
     'defaultTextConfig',
     'defaultDrawConfig',
+    'defaultEraserConfig',
+    'defaultShapeConfig',
 ]);
 const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function normalizeCallback(value) {
@@ -578,7 +612,7 @@ function isLayoutMode(value) {
 function normalizeLayoutMode(value) {
     return isLayoutMode(value) ? value : DEFAULT_LAYOUT_MODE;
 }
-function isConfigObject(value) {
+function isConfigObject$1(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 function canCopyObjectConfigKey(key) {
@@ -588,7 +622,7 @@ function copyDefaultMaskConfigValue(value) {
     if (Array.isArray(value)) {
         return Object.freeze(value.map((item) => copyDefaultMaskConfigValue(item)));
     }
-    if (!isConfigObject(value))
+    if (!isConfigObject$1(value))
         return value;
     const copy = Object.create(null);
     for (const [key, nestedValue] of Object.entries(value)) {
@@ -599,7 +633,7 @@ function copyDefaultMaskConfigValue(value) {
     return Object.freeze(copy);
 }
 function normalizeDefaultMaskConfig(value) {
-    if (!isConfigObject(value))
+    if (!isConfigObject$1(value))
         return EMPTY_DEFAULT_MASK_CONFIG;
     const normalized = Object.create(null);
     for (const [key, optionValue] of Object.entries(value)) {
@@ -610,7 +644,7 @@ function normalizeDefaultMaskConfig(value) {
         normalized[key] = copyDefaultMaskConfigValue(optionValue);
     }
     const styles = value.styles;
-    if (isConfigObject(styles)) {
+    if (isConfigObject$1(styles)) {
         const copiedStyles = Object.create(null);
         for (const [key, styleValue] of Object.entries(styles)) {
             if (!canCopyObjectConfigKey(key))
@@ -750,7 +784,7 @@ function normalizeCropAspectRatioOption(value) {
         }
         return DEFAULT_CROP.aspectRatio;
     }
-    if (isConfigObject(value) && hasValidCropRatioParts(value.width, value.height)) {
+    if (isConfigObject$1(value) && hasValidCropRatioParts(value.width, value.height)) {
         return { width: value.width, height: value.height };
     }
     return DEFAULT_CROP.aspectRatio;
@@ -771,7 +805,7 @@ function normalizeOptionalQuality(value) {
         return undefined;
     return Math.max(0, Math.min(1, numeric));
 }
-function hasOwn(object, key) {
+function hasOwn$1(object, key) {
     return Object.prototype.hasOwnProperty.call(object, key);
 }
 function isFiniteNumber$1(value) {
@@ -819,62 +853,62 @@ function cloneResolvedMosaicConfig(config) {
     };
 }
 function normalizeMosaicConfig(input, fallback) {
-    if (!isConfigObject(input))
+    if (!isConfigObject$1(input))
         return cloneResolvedMosaicConfig(fallback);
     return mergeMosaicConfigPatch(fallback, input);
 }
 function mergeMosaicConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject(patch) ? patch : {};
+    const raw = isConfigObject$1(patch) ? patch : {};
     const next = cloneResolvedMosaicConfig(current);
-    if (hasOwn(raw, 'brushSize')) {
+    if (hasOwn$1(raw, 'brushSize')) {
         next.brushSize = normalizeMosaicPositiveNumber(raw.brushSize, fallback.brushSize);
     }
-    if (hasOwn(raw, 'blockSize')) {
+    if (hasOwn$1(raw, 'blockSize')) {
         next.blockSize = normalizeMosaicBlockSize(raw.blockSize, fallback.blockSize);
     }
-    if (hasOwn(raw, 'previewStroke')) {
+    if (hasOwn$1(raw, 'previewStroke')) {
         next.previewStroke =
             typeof raw.previewStroke === 'string' ? raw.previewStroke : fallback.previewStroke;
     }
-    if (hasOwn(raw, 'previewStrokeWidth')) {
+    if (hasOwn$1(raw, 'previewStrokeWidth')) {
         next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
     }
-    if (hasOwn(raw, 'previewStrokeDashArray')) {
+    if (hasOwn$1(raw, 'previewStrokeDashArray')) {
         next.previewStrokeDashArray = normalizeMosaicDashArray(raw.previewStrokeDashArray, fallback.previewStrokeDashArray);
     }
-    if (hasOwn(raw, 'previewFill')) {
+    if (hasOwn$1(raw, 'previewFill')) {
         next.previewFill =
             typeof raw.previewFill === 'string' ? raw.previewFill : fallback.previewFill;
     }
-    if (hasOwn(raw, 'outputFileType')) {
+    if (hasOwn$1(raw, 'outputFileType')) {
         next.outputFileType = normalizeMosaicOutputFileType(raw.outputFileType, fallback.outputFileType);
     }
-    if (hasOwn(raw, 'outputQuality')) {
+    if (hasOwn$1(raw, 'outputQuality')) {
         next.outputQuality = normalizeMosaicOutputQuality(raw.outputQuality, fallback.outputQuality);
     }
     return next;
 }
 function getInvalidMosaicConfigFields(input) {
-    const raw = isConfigObject(input) ? input : {};
+    const raw = isConfigObject$1(input) ? input : {};
     const invalid = [];
-    if (hasOwn(raw, 'brushSize') &&
+    if (hasOwn$1(raw, 'brushSize') &&
         !(typeof raw.brushSize === 'number' && Number.isFinite(raw.brushSize) && raw.brushSize > 0)) {
         invalid.push('brushSize');
     }
-    if (hasOwn(raw, 'blockSize') &&
+    if (hasOwn$1(raw, 'blockSize') &&
         !(typeof raw.blockSize === 'number' && Number.isFinite(raw.blockSize) && raw.blockSize > 0)) {
         invalid.push('blockSize');
     }
-    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+    if (hasOwn$1(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
         invalid.push('previewStroke');
     }
-    if (hasOwn(raw, 'previewStrokeWidth') &&
+    if (hasOwn$1(raw, 'previewStrokeWidth') &&
         !(typeof raw.previewStrokeWidth === 'number' &&
             Number.isFinite(raw.previewStrokeWidth) &&
             raw.previewStrokeWidth >= 0)) {
         invalid.push('previewStrokeWidth');
     }
-    if (hasOwn(raw, 'previewStrokeDashArray')) {
+    if (hasOwn$1(raw, 'previewStrokeDashArray')) {
         const value = raw.previewStrokeDashArray;
         const valid = value === null ||
             (Array.isArray(value) &&
@@ -882,16 +916,16 @@ function getInvalidMosaicConfigFields(input) {
         if (!valid)
             invalid.push('previewStrokeDashArray');
     }
-    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+    if (hasOwn$1(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
         invalid.push('previewFill');
     }
-    if (hasOwn(raw, 'outputFileType')) {
+    if (hasOwn$1(raw, 'outputFileType')) {
         const value = raw.outputFileType;
         const valid = value === 'source' || (typeof value === 'string' && tryNormalizeImageFormat(value));
         if (!valid)
             invalid.push('outputFileType');
     }
-    if (hasOwn(raw, 'outputQuality') &&
+    if (hasOwn$1(raw, 'outputQuality') &&
         raw.outputQuality !== undefined &&
         raw.outputQuality !== null &&
         !(typeof raw.outputQuality === 'number' && Number.isFinite(raw.outputQuality))) {
@@ -925,6 +959,16 @@ function cloneResolvedTextAnnotationConfig(config) {
 function cloneResolvedDrawConfig(config) {
     return { ...config };
 }
+function cloneResolvedEraserConfig(config) {
+    return { ...config };
+}
+function cloneResolvedShapeAnnotationConfig(config) {
+    return {
+        ...config,
+        strokeDashArray: config.strokeDashArray ? [...config.strokeDashArray] : null,
+        styles: { ...config.styles },
+    };
+}
 function normalizeTextAlign(value, fallback) {
     return value === 'left' || value === 'center' || value === 'right' || value === 'justify'
         ? value
@@ -943,58 +987,63 @@ function normalizeTextLeftTop(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 function normalizeTextboxStyles(value) {
-    if (!isConfigObject(value))
+    if (!isConfigObject$1(value))
+        return {};
+    return { ...value };
+}
+function normalizeFabricObjectStyles(value) {
+    if (!isConfigObject$1(value))
         return {};
     return { ...value };
 }
 function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject(patch) ? patch : {};
+    const raw = isConfigObject$1(patch) ? patch : {};
     const next = cloneResolvedTextAnnotationConfig(current);
-    if (hasOwn(raw, 'text'))
+    if (hasOwn$1(raw, 'text'))
         next.text = normalizeString(raw.text, fallback.text);
-    if (hasOwn(raw, 'left'))
+    if (hasOwn$1(raw, 'left'))
         next.left = normalizeTextLeftTop(raw.left);
-    if (hasOwn(raw, 'top'))
+    if (hasOwn$1(raw, 'top'))
         next.top = normalizeTextLeftTop(raw.top);
-    if (hasOwn(raw, 'width'))
+    if (hasOwn$1(raw, 'width'))
         next.width = normalizePositiveNumber(raw.width, fallback.width);
-    if (hasOwn(raw, 'fontSize')) {
+    if (hasOwn$1(raw, 'fontSize')) {
         next.fontSize = normalizePositiveNumber(raw.fontSize, fallback.fontSize);
     }
-    if (hasOwn(raw, 'fontFamily')) {
+    if (hasOwn$1(raw, 'fontFamily')) {
         next.fontFamily = normalizeString(raw.fontFamily, fallback.fontFamily);
     }
-    if (hasOwn(raw, 'fontWeight')) {
+    if (hasOwn$1(raw, 'fontWeight')) {
         next.fontWeight =
             typeof raw.fontWeight === 'string' || typeof raw.fontWeight === 'number'
                 ? raw.fontWeight
                 : fallback.fontWeight;
     }
-    if (hasOwn(raw, 'fill'))
+    if (hasOwn$1(raw, 'fill'))
         next.fill = normalizeString(raw.fill, fallback.fill);
-    if (hasOwn(raw, 'backgroundColor')) {
+    if (hasOwn$1(raw, 'backgroundColor')) {
         next.backgroundColor = normalizeString(raw.backgroundColor, fallback.backgroundColor);
     }
-    if (hasOwn(raw, 'textAlign'))
+    if (hasOwn$1(raw, 'textAlign'))
         next.textAlign = normalizeTextAlign(raw.textAlign, fallback.textAlign);
-    if (hasOwn(raw, 'angle'))
+    if (hasOwn$1(raw, 'angle'))
         next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
-    if (hasOwn(raw, 'selectable'))
+    if (hasOwn$1(raw, 'selectable'))
         next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
-    if (hasOwn(raw, 'evented'))
+    if (hasOwn$1(raw, 'evented'))
         next.evented = normalizeBoolean(raw.evented, fallback.evented);
-    if (hasOwn(raw, 'editable'))
+    if (hasOwn$1(raw, 'editable'))
         next.editable = normalizeBoolean(raw.editable, fallback.editable);
-    if (hasOwn(raw, 'enterEditing')) {
+    if (hasOwn$1(raw, 'enterEditing')) {
         next.enterEditing = normalizeBoolean(raw.enterEditing, fallback.enterEditing);
     }
-    if (hasOwn(raw, 'annotationHidden')) {
+    if (hasOwn$1(raw, 'annotationHidden')) {
         next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
     }
-    if (hasOwn(raw, 'annotationLocked')) {
+    if (hasOwn$1(raw, 'annotationLocked')) {
         next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
     }
-    if (hasOwn(raw, 'styles')) {
+    if (hasOwn$1(raw, 'styles')) {
         next.styles = {
             ...next.styles,
             ...normalizeTextboxStyles(raw.styles),
@@ -1003,7 +1052,7 @@ function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
     return next;
 }
 function normalizeTextAnnotationConfig(input, fallback) {
-    if (!isConfigObject(input))
+    if (!isConfigObject$1(input))
         return cloneResolvedTextAnnotationConfig(fallback);
     return mergeTextAnnotationConfigPatch(fallback, input);
 }
@@ -1019,35 +1068,134 @@ function normalizeOpacity(value, fallback) {
     return Math.max(0, Math.min(1, value));
 }
 function mergeDrawConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject(patch) ? patch : {};
+    const raw = isConfigObject$1(patch) ? patch : {};
     const next = cloneResolvedDrawConfig(current);
-    if (hasOwn(raw, 'brushSize')) {
+    if (hasOwn$1(raw, 'brushSize')) {
         next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
     }
-    if (hasOwn(raw, 'color'))
+    if (hasOwn$1(raw, 'color'))
         next.color = normalizeString(raw.color, fallback.color);
-    if (hasOwn(raw, 'opacity'))
+    if (hasOwn$1(raw, 'opacity'))
         next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
-    if (hasOwn(raw, 'lineCap'))
+    if (hasOwn$1(raw, 'lineCap'))
         next.lineCap = normalizeLineCap(raw.lineCap, fallback.lineCap);
-    if (hasOwn(raw, 'lineJoin'))
+    if (hasOwn$1(raw, 'lineJoin'))
         next.lineJoin = normalizeLineJoin(raw.lineJoin, fallback.lineJoin);
-    if (hasOwn(raw, 'selectable'))
+    if (hasOwn$1(raw, 'selectable'))
         next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
-    if (hasOwn(raw, 'evented'))
+    if (hasOwn$1(raw, 'evented'))
         next.evented = normalizeBoolean(raw.evented, fallback.evented);
-    if (hasOwn(raw, 'annotationHidden')) {
+    if (hasOwn$1(raw, 'annotationHidden')) {
         next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
     }
-    if (hasOwn(raw, 'annotationLocked')) {
+    if (hasOwn$1(raw, 'annotationLocked')) {
         next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
     }
     return next;
 }
 function normalizeDrawConfig(input, fallback) {
-    if (!isConfigObject(input))
+    if (!isConfigObject$1(input))
         return cloneResolvedDrawConfig(fallback);
     return mergeDrawConfigPatch(fallback, input);
+}
+function mergeEraserConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject$1(patch) ? patch : {};
+    const next = cloneResolvedEraserConfig(current);
+    if (hasOwn$1(raw, 'brushSize')) {
+        next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn$1(raw, 'target')) {
+        next.target = raw.target === 'drawAnnotations' ? 'drawAnnotations' : fallback.target;
+    }
+    if (hasOwn$1(raw, 'previewStroke')) {
+        next.previewStroke = normalizeString(raw.previewStroke, fallback.previewStroke);
+    }
+    if (hasOwn$1(raw, 'previewStrokeWidth')) {
+        next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
+    }
+    if (hasOwn$1(raw, 'previewFill')) {
+        next.previewFill = normalizeString(raw.previewFill, fallback.previewFill);
+    }
+    return next;
+}
+function normalizeEraserConfig(input, fallback) {
+    if (!isConfigObject$1(input))
+        return cloneResolvedEraserConfig(fallback);
+    return mergeEraserConfigPatch(fallback, input);
+}
+function normalizeShapeKind(value, fallback) {
+    return value === 'rect' || value === 'line' || value === 'arrow' ? value : fallback;
+}
+function normalizeNullableDashArray(value, fallback) {
+    if (value === null)
+        return null;
+    if (Array.isArray(value) &&
+        value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0)) {
+        return [...value];
+    }
+    return fallback ? [...fallback] : null;
+}
+function mergeShapeAnnotationConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject$1(patch) ? patch : {};
+    const next = cloneResolvedShapeAnnotationConfig(current);
+    if (hasOwn$1(raw, 'shape'))
+        next.shape = normalizeShapeKind(raw.shape, fallback.shape);
+    if (hasOwn$1(raw, 'left'))
+        next.left = normalizeTextLeftTop(raw.left);
+    if (hasOwn$1(raw, 'top'))
+        next.top = normalizeTextLeftTop(raw.top);
+    if (hasOwn$1(raw, 'width'))
+        next.width = normalizePositiveNumber(raw.width, fallback.width);
+    if (hasOwn$1(raw, 'height'))
+        next.height = normalizePositiveNumber(raw.height, fallback.height);
+    if (hasOwn$1(raw, 'x1'))
+        next.x1 = normalizeTextLeftTop(raw.x1);
+    if (hasOwn$1(raw, 'y1'))
+        next.y1 = normalizeTextLeftTop(raw.y1);
+    if (hasOwn$1(raw, 'x2'))
+        next.x2 = normalizeTextLeftTop(raw.x2);
+    if (hasOwn$1(raw, 'y2'))
+        next.y2 = normalizeTextLeftTop(raw.y2);
+    if (hasOwn$1(raw, 'stroke'))
+        next.stroke = normalizeString(raw.stroke, fallback.stroke);
+    if (hasOwn$1(raw, 'strokeWidth')) {
+        next.strokeWidth = normalizePositiveNumber(raw.strokeWidth, fallback.strokeWidth);
+    }
+    if (hasOwn$1(raw, 'fill'))
+        next.fill = normalizeString(raw.fill, fallback.fill);
+    if (hasOwn$1(raw, 'opacity'))
+        next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
+    if (hasOwn$1(raw, 'angle'))
+        next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
+    if (hasOwn$1(raw, 'selectable')) {
+        next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
+    }
+    if (hasOwn$1(raw, 'evented'))
+        next.evented = normalizeBoolean(raw.evented, fallback.evented);
+    if (hasOwn$1(raw, 'annotationHidden')) {
+        next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
+    }
+    if (hasOwn$1(raw, 'annotationLocked')) {
+        next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
+    }
+    if (hasOwn$1(raw, 'strokeDashArray')) {
+        next.strokeDashArray = normalizeNullableDashArray(raw.strokeDashArray, fallback.strokeDashArray);
+    }
+    if (hasOwn$1(raw, 'arrowHeadLength')) {
+        next.arrowHeadLength = normalizePositiveNumber(raw.arrowHeadLength, fallback.arrowHeadLength);
+    }
+    if (hasOwn$1(raw, 'styles')) {
+        next.styles = {
+            ...next.styles,
+            ...normalizeFabricObjectStyles(raw.styles),
+        };
+    }
+    return next;
+}
+function normalizeShapeAnnotationConfig(input, fallback) {
+    if (!isConfigObject$1(input))
+        return cloneResolvedShapeAnnotationConfig(fallback);
+    return mergeShapeAnnotationConfigPatch(fallback, input);
 }
 function areResolvedTextAnnotationConfigsEqual(left, right) {
     return (left.text === right.text &&
@@ -1098,7 +1246,7 @@ function areStyleValuesEqual(left, right, seen) {
     if (leftKeys.length !== rightKeys.length)
         return false;
     return leftKeys.every((key) => {
-        if (!hasOwn(rightRecord, key))
+        if (!hasOwn$1(rightRecord, key))
             return false;
         return areStyleValuesEqual(leftRecord[key], rightRecord[key], seen);
     });
@@ -1114,31 +1262,121 @@ function areResolvedDrawConfigsEqual(left, right) {
         left.annotationHidden === right.annotationHidden &&
         left.annotationLocked === right.annotationLocked);
 }
+function areResolvedEraserConfigsEqual(left, right) {
+    return (left.brushSize === right.brushSize &&
+        left.target === right.target &&
+        left.previewStroke === right.previewStroke &&
+        left.previewStrokeWidth === right.previewStrokeWidth &&
+        left.previewFill === right.previewFill);
+}
+function areResolvedShapeAnnotationConfigsEqual(left, right) {
+    const leftDash = left.strokeDashArray;
+    const rightDash = right.strokeDashArray;
+    const dashEqual = leftDash === rightDash ||
+        (Array.isArray(leftDash) &&
+            Array.isArray(rightDash) &&
+            leftDash.length === rightDash.length &&
+            leftDash.every((value, index) => value === rightDash[index]));
+    return (left.shape === right.shape &&
+        left.left === right.left &&
+        left.top === right.top &&
+        left.width === right.width &&
+        left.height === right.height &&
+        left.x1 === right.x1 &&
+        left.y1 === right.y1 &&
+        left.x2 === right.x2 &&
+        left.y2 === right.y2 &&
+        left.stroke === right.stroke &&
+        left.strokeWidth === right.strokeWidth &&
+        left.fill === right.fill &&
+        left.opacity === right.opacity &&
+        left.angle === right.angle &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked &&
+        dashEqual &&
+        left.arrowHeadLength === right.arrowHeadLength &&
+        areStyleRecordsEqual(left.styles, right.styles));
+}
 function getInvalidTextAnnotationConfigFields(input) {
-    const raw = isConfigObject(input) ? input : {};
+    const raw = isConfigObject$1(input) ? input : {};
     const invalid = [];
-    if (hasOwn(raw, 'text') && typeof raw.text !== 'string')
+    if (hasOwn$1(raw, 'text') && typeof raw.text !== 'string')
         invalid.push('text');
-    if (hasOwn(raw, 'width') && !isFiniteNumber$1(raw.width))
+    if (hasOwn$1(raw, 'width') && !isFiniteNumber$1(raw.width))
         invalid.push('width');
-    if (hasOwn(raw, 'fontSize') && !isFiniteNumber$1(raw.fontSize))
+    if (hasOwn$1(raw, 'fontSize') && !isFiniteNumber$1(raw.fontSize))
         invalid.push('fontSize');
-    if (hasOwn(raw, 'fontFamily') && typeof raw.fontFamily !== 'string')
+    if (hasOwn$1(raw, 'fontFamily') && typeof raw.fontFamily !== 'string')
         invalid.push('fontFamily');
-    if (hasOwn(raw, 'fill') && typeof raw.fill !== 'string') {
+    if (hasOwn$1(raw, 'fill') && typeof raw.fill !== 'string') {
         invalid.push('fill');
     }
     return invalid;
 }
 function getInvalidDrawConfigFields(input) {
-    const raw = isConfigObject(input) ? input : {};
+    const raw = isConfigObject$1(input) ? input : {};
     const invalid = [];
-    if (hasOwn(raw, 'brushSize') && !isFiniteNumber$1(raw.brushSize))
+    if (hasOwn$1(raw, 'brushSize') && !isFiniteNumber$1(raw.brushSize))
         invalid.push('brushSize');
-    if (hasOwn(raw, 'color') && typeof raw.color !== 'string')
+    if (hasOwn$1(raw, 'color') && typeof raw.color !== 'string')
         invalid.push('color');
-    if (hasOwn(raw, 'opacity') && !isFiniteNumber$1(raw.opacity))
+    if (hasOwn$1(raw, 'opacity') && !isFiniteNumber$1(raw.opacity))
         invalid.push('opacity');
+    return invalid;
+}
+function getInvalidEraserConfigFields(input) {
+    const raw = isConfigObject$1(input) ? input : {};
+    const invalid = [];
+    if (hasOwn$1(raw, 'brushSize') && !isFiniteNumber$1(raw.brushSize))
+        invalid.push('brushSize');
+    if (hasOwn$1(raw, 'target') && raw.target !== 'drawAnnotations')
+        invalid.push('target');
+    if (hasOwn$1(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+        invalid.push('previewStroke');
+    }
+    if (hasOwn$1(raw, 'previewStrokeWidth') && !isFiniteNumber$1(raw.previewStrokeWidth)) {
+        invalid.push('previewStrokeWidth');
+    }
+    if (hasOwn$1(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+        invalid.push('previewFill');
+    }
+    return invalid;
+}
+function getInvalidShapeAnnotationConfigFields(input) {
+    const raw = isConfigObject$1(input) ? input : {};
+    const invalid = [];
+    if (hasOwn$1(raw, 'shape') &&
+        raw.shape !== 'rect' &&
+        raw.shape !== 'line' &&
+        raw.shape !== 'arrow') {
+        invalid.push('shape');
+    }
+    if (hasOwn$1(raw, 'width') && !isFiniteNumber$1(raw.width))
+        invalid.push('width');
+    if (hasOwn$1(raw, 'height') && !isFiniteNumber$1(raw.height))
+        invalid.push('height');
+    if (hasOwn$1(raw, 'stroke') && typeof raw.stroke !== 'string')
+        invalid.push('stroke');
+    if (hasOwn$1(raw, 'strokeWidth') && !isFiniteNumber$1(raw.strokeWidth)) {
+        invalid.push('strokeWidth');
+    }
+    if (hasOwn$1(raw, 'fill') && typeof raw.fill !== 'string')
+        invalid.push('fill');
+    if (hasOwn$1(raw, 'opacity') && !isFiniteNumber$1(raw.opacity))
+        invalid.push('opacity');
+    if (hasOwn$1(raw, 'arrowHeadLength') && !isFiniteNumber$1(raw.arrowHeadLength)) {
+        invalid.push('arrowHeadLength');
+    }
+    if (hasOwn$1(raw, 'strokeDashArray')) {
+        const value = raw.strokeDashArray;
+        const valid = value === null ||
+            (Array.isArray(value) &&
+                value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0));
+        if (!valid)
+            invalid.push('strokeDashArray');
+    }
     return invalid;
 }
 function resolveOptions(input) {
@@ -1151,7 +1389,9 @@ function resolveOptions(input) {
             key === 'crop' ||
             key === 'defaultMosaicConfig' ||
             key === 'defaultTextConfig' ||
-            key === 'defaultDrawConfig') {
+            key === 'defaultDrawConfig' ||
+            key === 'defaultEraserConfig' ||
+            key === 'defaultShapeConfig') {
             continue;
         }
         if (key === 'onImageLoadStart' ||
@@ -1230,6 +1470,10 @@ function resolveOptions(input) {
         }
         if (key === 'drawAnnotationName') {
             resolved.drawAnnotationName = normalizeString(value, DEFAULT_OPTIONS.drawAnnotationName);
+            continue;
+        }
+        if (key === 'shapeAnnotationName') {
+            resolved.shapeAnnotationName = normalizeString(value, DEFAULT_OPTIONS.shapeAnnotationName);
             continue;
         }
         if (key === 'groupSelection') {
@@ -1398,6 +1642,11 @@ function resolveOptions(input) {
     Object.freeze(defaultTextConfig);
     const defaultDrawConfig = normalizeDrawConfig(raw.defaultDrawConfig, DEFAULT_DRAW_CONFIG);
     Object.freeze(defaultDrawConfig);
+    const defaultEraserConfig = normalizeEraserConfig(raw.defaultEraserConfig, DEFAULT_ERASER_CONFIG);
+    Object.freeze(defaultEraserConfig);
+    const defaultShapeConfig = normalizeShapeAnnotationConfig(raw.defaultShapeConfig, DEFAULT_SHAPE_ANNOTATION_CONFIG);
+    Object.freeze(defaultShapeConfig.styles);
+    Object.freeze(defaultShapeConfig);
     return Object.freeze({
         ...resolved,
         label,
@@ -1405,7 +1654,97 @@ function resolveOptions(input) {
         defaultMosaicConfig,
         defaultTextConfig,
         defaultDrawConfig,
+        defaultEraserConfig,
+        defaultShapeConfig,
     });
+}
+
+const DEFAULT_IMAGE_FILTER_CONFIG = Object.freeze({
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    blur: 0,
+    sharpen: 0,
+    grayscale: false,
+    sepia: false,
+    vintage: false,
+});
+function isConfigObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function hasOwn(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
+}
+function normalizeNumberField(raw, key, fallback, min, max, warnings) {
+    if (!hasOwn(raw, key))
+        return fallback;
+    const value = raw[key];
+    if (value === undefined || value === null)
+        return 0;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        warnings.push(key);
+        return fallback;
+    }
+    if (value < min || value > max) {
+        warnings.push(key);
+        return Math.max(min, Math.min(max, value));
+    }
+    return value;
+}
+function normalizeBooleanField(raw, key, fallback, warnings) {
+    if (!hasOwn(raw, key))
+        return fallback;
+    const value = raw[key];
+    if (value === undefined || value === null)
+        return false;
+    if (typeof value !== 'boolean') {
+        warnings.push(key);
+        return fallback;
+    }
+    return value;
+}
+function cloneResolvedImageFilterConfig(config) {
+    return { ...config };
+}
+function mergeImageFilterConfigPatch(current, patch) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const warnings = [];
+    const config = {
+        brightness: normalizeNumberField(raw, 'brightness', current.brightness, -1, 1, warnings),
+        contrast: normalizeNumberField(raw, 'contrast', current.contrast, -1, 1, warnings),
+        saturation: normalizeNumberField(raw, 'saturation', current.saturation, -1, 1, warnings),
+        blur: normalizeNumberField(raw, 'blur', current.blur, 0, 1, warnings),
+        sharpen: normalizeNumberField(raw, 'sharpen', current.sharpen, 0, 1, warnings),
+        grayscale: normalizeBooleanField(raw, 'grayscale', current.grayscale, warnings),
+        sepia: normalizeBooleanField(raw, 'sepia', current.sepia, warnings),
+        vintage: normalizeBooleanField(raw, 'vintage', current.vintage, warnings),
+    };
+    return { config, warnings };
+}
+function normalizeImageFilterConfigSnapshot(value) {
+    if (!isConfigObject(value))
+        return cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+    return mergeImageFilterConfigPatch(cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG), value).config;
+}
+function areResolvedImageFilterConfigsEqual(left, right) {
+    return (left.brightness === right.brightness &&
+        left.contrast === right.contrast &&
+        left.saturation === right.saturation &&
+        left.blur === right.blur &&
+        left.sharpen === right.sharpen &&
+        left.grayscale === right.grayscale &&
+        left.sepia === right.sepia &&
+        left.vintage === right.vintage);
+}
+function hasActiveImageFilters(config) {
+    return (config.brightness !== 0 ||
+        config.contrast !== 0 ||
+        config.saturation !== 0 ||
+        config.blur !== 0 ||
+        config.sharpen !== 0 ||
+        config.grayscale ||
+        config.sepia ||
+        config.vintage);
 }
 
 function isBaseImageObject(object) {
@@ -1434,6 +1773,14 @@ function isTextAnnotationObject(object) {
 }
 function isDrawAnnotationObject(object) {
     return isAnnotationObject(object) && object.annotationType === 'draw';
+}
+function isShapeAnnotationObject(object) {
+    const candidate = object;
+    return (isAnnotationObject(candidate) &&
+        candidate.annotationType === 'shape' &&
+        (candidate.shapeAnnotationKind === 'rect' ||
+            candidate.shapeAnnotationKind === 'line' ||
+            candidate.shapeAnnotationKind === 'arrow'));
 }
 function isSessionObject(object) {
     const candidate = object;
@@ -1485,6 +1832,9 @@ function markAnnotationObject(object, meta) {
     if (typeof meta.annotationEditable === 'boolean') {
         annotation.annotationEditable = meta.annotationEditable;
     }
+    if (meta.shapeAnnotationKind) {
+        annotation.shapeAnnotationKind = meta.shapeAnnotationKind;
+    }
     return annotation;
 }
 function markSessionObject(object, sessionObjectType) {
@@ -1519,6 +1869,7 @@ const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'isMosaicPreview',
     'annotationId',
     'annotationType',
+    'shapeAnnotationKind',
     'annotationName',
     'annotationHidden',
     'annotationLocked',
@@ -1671,6 +2022,9 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         if (typeof liveObject.annotationType === 'string') {
             jsonObject.annotationType = liveObject.annotationType;
         }
+        if (typeof liveObject.shapeAnnotationKind === 'string') {
+            jsonObject.shapeAnnotationKind = liveObject.shapeAnnotationKind;
+        }
         if (typeof liveObject.annotationName === 'string') {
             jsonObject.annotationName = liveObject.annotationName;
         }
@@ -1705,7 +2059,7 @@ function isActiveSelectionObject$2(object) {
         (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
 }
 function saveState(input) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const { canvas, currentScale, currentRotation, baseImageScale } = input;
     const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
     const activeMaskId = activeObject && isMaskObject(activeObject)
@@ -1736,6 +2090,10 @@ function saveState(input) {
         currentImageMimeType: (_c = input.currentImageMimeType) !== null && _c !== void 0 ? _c : null,
         activeObjectKind: activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
     };
+    const imageFilterConfig = cloneResolvedImageFilterConfig((_d = input.imageFilterConfig) !== null && _d !== void 0 ? _d : DEFAULT_IMAGE_FILTER_CONFIG);
+    if (hasActiveImageFilters(imageFilterConfig)) {
+        jsonObj._editorState.imageFilterConfig = imageFilterConfig;
+    }
     if (activeMaskId !== null)
         jsonObj._editorState.activeMaskId = activeMaskId;
     if (activeAnnotationId !== null) {
@@ -1797,6 +2155,9 @@ async function loadFromState(input) {
                 ? mimeType
                 : null;
     }
+    if (editorState && json._editorState && 'imageFilterConfig' in json._editorState) {
+        editorState.imageFilterConfig = normalizeImageFilterConfigSnapshot(json._editorState.imageFilterConfig);
+    }
     const maxMaskId = objects
         .filter(isMaskObject)
         .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
@@ -1847,9 +2208,17 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
             typeof jObj.annotationId === 'number' &&
             typeof jObj.annotationType === 'string' &&
             typeof jObj.annotationName === 'string') {
+            const annotationType = jObj.annotationType === 'draw'
+                ? 'draw'
+                : jObj.annotationType === 'shape'
+                    ? 'shape'
+                    : 'text';
+            const shapeAnnotationKind = jObj.shapeAnnotationKind === 'line' || jObj.shapeAnnotationKind === 'arrow'
+                ? jObj.shapeAnnotationKind
+                : 'rect';
             markAnnotationObject(canvasObj, {
                 annotationId: jObj.annotationId,
-                annotationType: jObj.annotationType === 'draw' ? 'draw' : 'text',
+                annotationType,
                 annotationName: jObj.annotationName,
                 annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
                 annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
@@ -1865,6 +2234,7 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                 annotationEditable: typeof jObj.annotationEditable === 'boolean'
                     ? jObj.annotationEditable
                     : undefined,
+                shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
             });
             return;
         }
@@ -2287,6 +2657,10 @@ function placeAnnotationObject(canvas, annotation) {
     const objects = withoutObject(canvas, annotation);
     const firstSessionIndex = findFirstSessionIndex(objects);
     moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
+}
+function placeSessionObject(canvas, sessionObject) {
+    ensureOnCanvas(canvas, sessionObject);
+    moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
 }
 function getEditableOverlayRange(canvas) {
     const objects = canvas.getObjects();
@@ -2814,7 +3188,7 @@ class HistoryManager {
 }
 
 async function loadFromStateAction(access, jsonString, options) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const canvas = access.getCanvas();
     if (!jsonString || !canvas)
         return;
@@ -2862,9 +3236,11 @@ async function loadFromStateAction(access, jsonString, options) {
             access.setCurrentImageMimeType(editorState && 'currentImageMimeType' in editorState
                 ? ((_b = editorState.currentImageMimeType) !== null && _b !== void 0 ? _b : null)
                 : access.inferCurrentImageMimeType());
+            access.restoreImageFilterConfig((_c = editorState === null || editorState === void 0 ? void 0 : editorState.imageFilterConfig) !== null && _c !== void 0 ? _c : null);
         }
         else {
             access.setCurrentImageMimeType(null);
+            access.restoreImageFilterConfig(null);
         }
         access.setIsImageLoadedToCanvas(!!originalImage);
         if (originalImage && access.shouldNormalizeCanvasSizeAfterStateRestore()) {
@@ -2882,7 +3258,7 @@ async function loadFromStateAction(access, jsonString, options) {
         syncAnnotationRuntimeStates(restoredState.annotations);
         attachTextEditingHandlersToAnnotations(access.buildTextControllerContext(), restoredState.annotations);
         access.setLastSnapshot(captureSnapshotAction(access));
-        (_c = access.getCanvas()) === null || _c === void 0 ? void 0 : _c.renderAll();
+        (_d = access.getCanvas()) === null || _d === void 0 ? void 0 : _d.renderAll();
         access.updateInputs();
         access.updateMaskList();
         access.updateAnnotationList();
@@ -2924,6 +3300,7 @@ function saveStateAction(access, options) {
             currentRotation: access.getCurrentRotation(),
             baseImageScale: access.getBaseImageScale(),
             currentImageMimeType: access.getCurrentImageMimeType(),
+            imageFilterConfig: access.getCurrentImageFilterConfig(),
         });
         const before = (_c = access.getLastSnapshot()) !== null && _c !== void 0 ? _c : after;
         if (after === before)
@@ -2961,6 +3338,7 @@ function captureSnapshotAction(access) {
         currentRotation: access.getCurrentRotation(),
         baseImageScale: access.getBaseImageScale(),
         currentImageMimeType: access.getCurrentImageMimeType(),
+        imageFilterConfig: access.getCurrentImageFilterConfig(),
     });
 }
 function restoreActiveSelection(access, restoredState, editorState, context) {
@@ -3159,6 +3537,24 @@ function updateDrawAnnotation(annotation, config) {
     if (Object.keys(props).length > 0)
         setAnnotationProps(annotation, props);
 }
+function updateShapeAnnotation(annotation, config) {
+    const props = {};
+    const raw = config;
+    if (typeof raw.stroke === 'string')
+        props.stroke = raw.stroke;
+    if (typeof raw.strokeWidth === 'number' &&
+        Number.isFinite(raw.strokeWidth) &&
+        raw.strokeWidth > 0) {
+        props.strokeWidth = raw.strokeWidth;
+    }
+    if (typeof raw.fill === 'string')
+        props.fill = raw.fill;
+    if (typeof raw.opacity === 'number' && Number.isFinite(raw.opacity)) {
+        props.opacity = Math.max(0, Math.min(1, raw.opacity));
+    }
+    if (Object.keys(props).length > 0)
+        setAnnotationProps(annotation, props);
+}
 function updateAnnotationObject(annotation, config) {
     const before = snapshotAnnotation(annotation);
     const raw = config;
@@ -3187,6 +3583,8 @@ function updateAnnotationObject(annotation, config) {
         }
         if (isDrawAnnotationObject(annotation))
             updateDrawAnnotation(annotation, config);
+        if (isShapeAnnotationObject(annotation))
+            updateShapeAnnotation(annotation, config);
     }
     syncAnnotationRuntimeState(annotation);
     return snapshotAnnotation(annotation) !== before;
@@ -3298,6 +3696,157 @@ function configureBrush(context) {
     canvasWithBrush.freeDrawingBrush.strokeLineCap = config.lineCap;
     canvasWithBrush.freeDrawingBrush.strokeLineJoin = config.lineJoin;
 }
+function setDrawingMode(context, enabled) {
+    const canvasWithDrawing = context.canvas;
+    canvasWithDrawing.isDrawingMode = enabled;
+}
+function createEraserPreview(context) {
+    const config = context.getEraserConfig();
+    const circle = new context.fabric.Circle({
+        left: 0,
+        top: 0,
+        radius: config.brushSize / 2,
+        originX: 'center',
+        originY: 'center',
+        fill: config.previewFill,
+        stroke: config.previewStroke,
+        strokeWidth: config.previewStrokeWidth,
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+        visible: false,
+    });
+    return markSessionObject(circle, 'eraserPreview');
+}
+function ensureEraserPreview(context, session) {
+    var _a;
+    const preview = (_a = session.eraserPreview) !== null && _a !== void 0 ? _a : createEraserPreview(context);
+    session.eraserPreview = preview;
+    const config = context.getEraserConfig();
+    preview.set({
+        radius: config.brushSize / 2,
+        fill: config.previewFill,
+        stroke: config.previewStroke,
+        strokeWidth: config.previewStrokeWidth,
+    });
+    if (!context.canvas.getObjects().includes(preview)) {
+        context.canvas.add(preview);
+    }
+    placeSessionObject(context.canvas, preview);
+    return preview;
+}
+function hideEraserPreview(context, session) {
+    if (!session.eraserPreview)
+        return;
+    session.eraserPreview.set({ visible: false });
+    context.canvas.requestRenderAll();
+}
+function removeEraserPreview(context, session) {
+    if (!session.eraserPreview)
+        return;
+    try {
+        context.canvas.remove(session.eraserPreview);
+    }
+    catch {
+    }
+    session.eraserPreview = null;
+}
+function moveEraserPreview(context, session, point) {
+    const preview = ensureEraserPreview(context, session);
+    preview.set({ left: point.x, top: point.y, visible: session.subMode === 'erase' });
+    context.canvas.requestRenderAll();
+}
+function pushEraserPoint(context, session, point) {
+    const previous = session.eraserPoints[session.eraserPoints.length - 1];
+    if (!previous) {
+        session.eraserPoints.push(point);
+        return;
+    }
+    const radius = Math.max(1, context.getEraserConfig().brushSize / 2);
+    const spacing = Math.max(1, radius / 2);
+    const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+    const steps = Math.max(1, Math.ceil(distance / spacing));
+    for (let index = 1; index <= steps; index += 1) {
+        const t = index / steps;
+        session.eraserPoints.push({
+            x: previous.x + (point.x - previous.x) * t,
+            y: previous.y + (point.y - previous.y) * t,
+        });
+    }
+}
+function pointIntersectsExpandedBounds(point, bounds, radius) {
+    return (point.x >= bounds.left - radius &&
+        point.x <= bounds.left + bounds.width + radius &&
+        point.y >= bounds.top - radius &&
+        point.y <= bounds.top + bounds.height + radius);
+}
+function getIntersectedDrawAnnotations(context, points) {
+    if (points.length === 0)
+        return [];
+    const radius = Math.max(1, context.getEraserConfig().brushSize / 2);
+    return context.canvas
+        .getObjects()
+        .filter(isDrawAnnotationObject)
+        .filter((annotation) => {
+        const bounds = getObjectBBox(annotation);
+        return points.some((point) => pointIntersectsExpandedBounds(point, bounds, radius));
+    });
+}
+function commitEraserStroke(context, session) {
+    const removed = getIntersectedDrawAnnotations(context, session.eraserPoints);
+    session.eraserPoints = [];
+    session.isErasing = false;
+    if (removed.length === 0)
+        return;
+    removed.forEach((annotation) => {
+        context.canvas.remove(annotation);
+    });
+    context.canvas.discardActiveObject();
+    context.canvas.renderAll();
+    context.saveCanvasState();
+    context.updateAnnotationList();
+    context.updateUi();
+    const callbackContext = context.buildCallbackContext('commitEraserStroke');
+    context.emitAnnotationsChanged(callbackContext);
+    context.emitImageChanged(callbackContext);
+}
+function handleEraserPointerDown(context, event) {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase')
+        return;
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
+    if (!pointer)
+        return;
+    session.isErasing = true;
+    session.eraserPoints = [];
+    pushEraserPoint(context, session, pointer);
+    moveEraserPreview(context, session, pointer);
+}
+function handleEraserPointerMove(context, event) {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase')
+        return;
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
+    if (!pointer) {
+        hideEraserPreview(context, session);
+        return;
+    }
+    moveEraserPreview(context, session, pointer);
+    if (session.isErasing)
+        pushEraserPoint(context, session, pointer);
+}
+function handleEraserPointerUp(context, event) {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase')
+        return;
+    const pointer = getPointerFromFabricEvent(context.canvas, event);
+    if (pointer) {
+        pushEraserPoint(context, session, pointer);
+        moveEraserPreview(context, session, pointer);
+    }
+    commitEraserStroke(context, session);
+}
 function markPathAsDrawAnnotation(context, path) {
     const config = context.getDrawConfig();
     const annotationId = context.getAnnotationCounter() + 1;
@@ -3351,21 +3900,46 @@ function enterDrawMode(context) {
     canvas.defaultCursor = 'crosshair';
     canvasWithDrawing.isDrawingMode = true;
     configureBrush(context);
-    const callback = (event) => handlePathCreated(context, event);
-    canvas.on('path:created', callback);
+    const pathCreatedCallback = (event) => handlePathCreated(context, event);
+    canvas.on('path:created', pathCreatedCallback);
+    const mouseDownCallback = (event) => handleEraserPointerDown(context, event);
+    const mouseMoveCallback = (event) => handleEraserPointerMove(context, event);
+    const mouseUpCallback = (event) => handleEraserPointerUp(context, event);
+    const mouseOutCallback = () => {
+        const session = context.getDrawSession();
+        if (session)
+            hideEraserPreview(context, session);
+    };
+    canvas.on('mouse:down', mouseDownCallback);
+    canvas.on('mouse:move', mouseMoveCallback);
+    canvas.on('mouse:up', mouseUpCallback);
+    canvas.on('mouse:out', mouseOutCallback);
     const session = {
         mode: 'draw',
+        subMode: 'brush',
         previousDrawingMode,
         previousBrush,
         previousCanvasSelection,
         previousDefaultCursor,
-        handlers: [{ eventName: 'path:created', callback }],
+        eraserPreview: null,
+        eraserPoints: [],
+        isErasing: false,
+        handlers: [
+            { eventName: 'path:created', callback: pathCreatedCallback },
+            { eventName: 'mouse:down', callback: mouseDownCallback },
+            { eventName: 'mouse:move', callback: mouseMoveCallback },
+            { eventName: 'mouse:up', callback: mouseUpCallback },
+            { eventName: 'mouse:out', callback: mouseOutCallback },
+        ],
         dispose: () => {
-            try {
-                canvas.off('path:created', callback);
+            for (const record of session.handlers) {
+                try {
+                    canvas.off(record.eventName, record.callback);
+                }
+                catch {
+                }
             }
-            catch {
-            }
+            removeEraserPreview(context, session);
             canvasWithDrawing.isDrawingMode = previousDrawingMode;
             canvasWithDrawing.freeDrawingBrush = previousBrush;
             canvas.selection = previousCanvasSelection;
@@ -3388,6 +3962,333 @@ function updateDrawBrush(context) {
     if (!context.getDrawSession())
         return;
     configureBrush(context);
+}
+function setDrawSubMode(context, subMode) {
+    const session = context.getDrawSession();
+    if (!session)
+        return;
+    if (session.subMode === subMode)
+        return;
+    session.subMode = subMode;
+    session.isErasing = false;
+    session.eraserPoints = [];
+    if (subMode === 'brush') {
+        hideEraserPreview(context, session);
+        configureBrush(context);
+        setDrawingMode(context, true);
+    }
+    else {
+        setDrawingMode(context, false);
+        ensureEraserPreview(context, session).set({ visible: false });
+    }
+    context.canvas.requestRenderAll();
+    context.updateUi();
+}
+function updateEraserPreview(context) {
+    const session = context.getDrawSession();
+    if (!session || session.subMode !== 'erase')
+        return;
+    const preview = ensureEraserPreview(context, session);
+    preview.set({ visible: false });
+    context.canvas.requestRenderAll();
+}
+
+const MIN_INTERACTIVE_SHAPE_SIZE = 2;
+function resolveDefaultShapePosition(context) {
+    const image = context.getOriginalImage();
+    if (image) {
+        const bounds = getObjectBBox(image);
+        return { left: Math.round(bounds.left + 16), top: Math.round(bounds.top + 16) };
+    }
+    return { left: 16, top: 16 };
+}
+function resolveShapeCreationConfig(context, config) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const base = mergeShapeAnnotationConfigPatch(context.getShapeConfig(), config);
+    const fallback = resolveDefaultShapePosition(context);
+    const leftInput = (_a = config.left) !== null && _a !== void 0 ? _a : base.left;
+    const topInput = (_b = config.top) !== null && _b !== void 0 ? _b : base.top;
+    const x1Input = (_d = (_c = config.x1) !== null && _c !== void 0 ? _c : base.x1) !== null && _d !== void 0 ? _d : leftInput;
+    const y1Input = (_f = (_e = config.y1) !== null && _e !== void 0 ? _e : base.y1) !== null && _f !== void 0 ? _f : topInput;
+    const x2Input = (_g = config.x2) !== null && _g !== void 0 ? _g : base.x2;
+    const y2Input = (_h = config.y2) !== null && _h !== void 0 ? _h : base.y2;
+    const left = resolveNumeric(leftInput, 'x', fallback.left, context.canvas, context.options);
+    const top = resolveNumeric(topInput, 'y', fallback.top, context.canvas, context.options);
+    const x1 = resolveNumeric(x1Input, 'x', left, context.canvas, context.options);
+    const y1 = resolveNumeric(y1Input, 'y', top, context.canvas, context.options);
+    return {
+        ...base,
+        left,
+        top,
+        x1,
+        y1,
+        x2: resolveNumeric(x2Input, 'x', x1 + base.width, context.canvas, context.options),
+        y2: resolveNumeric(y2Input, 'y', y1 + base.height, context.canvas, context.options),
+    };
+}
+function geometryFromResolved(config) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const x1 = (_b = (_a = config.x1) !== null && _a !== void 0 ? _a : config.left) !== null && _b !== void 0 ? _b : 0;
+    const y1 = (_d = (_c = config.y1) !== null && _c !== void 0 ? _c : config.top) !== null && _d !== void 0 ? _d : 0;
+    const x2 = (_e = config.x2) !== null && _e !== void 0 ? _e : x1 + config.width;
+    const y2 = (_f = config.y2) !== null && _f !== void 0 ? _f : y1 + config.height;
+    return {
+        left: (_g = config.left) !== null && _g !== void 0 ? _g : Math.min(x1, x2),
+        top: (_h = config.top) !== null && _h !== void 0 ? _h : Math.min(y1, y2),
+        width: config.width,
+        height: config.height,
+        x1,
+        y1,
+        x2,
+        y2,
+    };
+}
+function geometryFromPoints(start, end) {
+    return {
+        left: Math.min(start.x, end.x),
+        top: Math.min(start.y, end.y),
+        width: Math.abs(end.x - start.x),
+        height: Math.abs(end.y - start.y),
+        x1: start.x,
+        y1: start.y,
+        x2: end.x,
+        y2: end.y,
+    };
+}
+function buildArrowPath(geometry, headLength) {
+    const { x1, y1, x2, y2 } = geometry;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const length = Math.max(1, headLength);
+    const wingAngle = Math.PI / 7;
+    const head1x = x2 - length * Math.cos(angle - wingAngle);
+    const head1y = y2 - length * Math.sin(angle - wingAngle);
+    const head2x = x2 - length * Math.cos(angle + wingAngle);
+    const head2y = y2 - length * Math.sin(angle + wingAngle);
+    return `M ${x1} ${y1} L ${x2} ${y2} M ${x2} ${y2} L ${head1x} ${head1y} M ${x2} ${y2} L ${head2x} ${head2y}`;
+}
+function createShapeFabricObject(context, shape, geometry, config) {
+    const common = {
+        stroke: config.stroke,
+        strokeWidth: config.strokeWidth,
+        strokeDashArray: config.strokeDashArray ? [...config.strokeDashArray] : undefined,
+        opacity: config.opacity,
+        angle: config.angle,
+        selectable: config.selectable,
+        evented: config.evented,
+        originX: 'left',
+        originY: 'top',
+        ...config.styles,
+    };
+    if (shape === 'rect') {
+        return new context.fabric.Rect({
+            left: geometry.left,
+            top: geometry.top,
+            width: Math.max(MIN_INTERACTIVE_SHAPE_SIZE, geometry.width),
+            height: Math.max(MIN_INTERACTIVE_SHAPE_SIZE, geometry.height),
+            fill: config.fill,
+            ...common,
+        });
+    }
+    const path = shape === 'arrow'
+        ? buildArrowPath(geometry, config.arrowHeadLength)
+        : `M ${geometry.x1} ${geometry.y1} L ${geometry.x2} ${geometry.y2}`;
+    return new context.fabric.Path(path, {
+        fill: '',
+        strokeLineCap: 'round',
+        strokeLineJoin: 'round',
+        objectCaching: false,
+        ...common,
+    });
+}
+function nextShapeAnnotationMeta(context, config) {
+    const annotationId = context.getAnnotationCounter() + 1;
+    context.setAnnotationCounter(annotationId);
+    return {
+        annotationId,
+        annotationName: `${context.options.shapeAnnotationName}${annotationId}`,
+        annotationHidden: config.annotationHidden,
+        annotationLocked: config.annotationLocked,
+    };
+}
+function markShapeAnnotation(context, object, config) {
+    const meta = nextShapeAnnotationMeta(context, config);
+    const annotation = markAnnotationObject(object, {
+        annotationId: meta.annotationId,
+        annotationType: 'shape',
+        annotationName: meta.annotationName,
+        annotationHidden: meta.annotationHidden,
+        annotationLocked: meta.annotationLocked,
+        annotationSelectable: config.selectable,
+        annotationEvented: config.evented,
+        annotationHasControls: object.hasControls !== false,
+    });
+    annotation.shapeAnnotationKind = config.shape;
+    syncAnnotationRuntimeState(annotation);
+    return annotation;
+}
+function createShapeAnnotation(context, config = {}) {
+    if (!context.isImageLoaded())
+        return null;
+    const resolved = resolveShapeCreationConfig(context, config);
+    const geometry = geometryFromResolved(resolved);
+    const object = createShapeFabricObject(context, resolved.shape, geometry, resolved);
+    const annotation = markShapeAnnotation(context, object, resolved);
+    placeAnnotationObject(context.canvas, annotation);
+    if (resolved.selectable !== false && isAnnotationUnlocked(annotation)) {
+        context.canvas.setActiveObject(annotation);
+    }
+    context.canvas.renderAll();
+    context.updateAnnotationList();
+    context.saveCanvasState();
+    const callbackContext = context.buildCallbackContext('createShapeAnnotation');
+    context.emitAnnotationsChanged(callbackContext);
+    context.emitImageChanged(callbackContext);
+    return annotation;
+}
+function isMeaningfulGeometry(shape, geometry) {
+    if (shape === 'rect') {
+        return (geometry.width >= MIN_INTERACTIVE_SHAPE_SIZE &&
+            geometry.height >= MIN_INTERACTIVE_SHAPE_SIZE);
+    }
+    return (Math.hypot(geometry.x2 - geometry.x1, geometry.y2 - geometry.y1) >=
+        MIN_INTERACTIVE_SHAPE_SIZE);
+}
+function createPreviewObject(context, shape, geometry) {
+    const config = { ...context.getShapeConfig()};
+    const preview = createShapeFabricObject(context, shape, geometry, config);
+    preview.set({
+        selectable: false,
+        evented: false,
+        excludeFromExport: true,
+        objectCaching: false,
+    });
+    markSessionObject(preview, 'shapePreview');
+    return preview;
+}
+function removePreview(context, session) {
+    if (!session.previewObject)
+        return;
+    try {
+        context.canvas.remove(session.previewObject);
+    }
+    catch {
+    }
+    session.previewObject = null;
+}
+function updatePreview(context, session, pointer) {
+    if (!session.startPoint)
+        return;
+    const geometry = geometryFromPoints(session.startPoint, pointer);
+    removePreview(context, session);
+    if (!isMeaningfulGeometry(session.shape, geometry)) {
+        context.canvas.requestRenderAll();
+        return;
+    }
+    const preview = createPreviewObject(context, session.shape, geometry);
+    session.previewObject = preview;
+    placeSessionObject(context.canvas, preview);
+    context.canvas.requestRenderAll();
+}
+function completeInteractiveShape(context, session, pointer) {
+    if (!session.startPoint)
+        return;
+    const geometry = geometryFromPoints(session.startPoint, pointer);
+    session.startPoint = null;
+    removePreview(context, session);
+    if (!isMeaningfulGeometry(session.shape, geometry)) {
+        context.canvas.requestRenderAll();
+        return;
+    }
+    if (session.shape === 'rect') {
+        createShapeAnnotation(context, {
+            shape: 'rect',
+            left: geometry.left,
+            top: geometry.top,
+            width: geometry.width,
+            height: geometry.height,
+        });
+        return;
+    }
+    createShapeAnnotation(context, {
+        shape: session.shape,
+        x1: geometry.x1,
+        y1: geometry.y1,
+        x2: geometry.x2,
+        y2: geometry.y2,
+    });
+}
+function attachCanvasHandler$1(context, session, eventName, callback) {
+    context.canvas.on(eventName, callback);
+    session.handlers.push({ eventName, callback });
+}
+function detachCanvasHandlers$1(context, session) {
+    for (const record of session.handlers) {
+        try {
+            context.canvas.off(record.eventName, record.callback);
+        }
+        catch {
+        }
+    }
+    session.handlers = [];
+}
+function enterShapeMode(context, shape) {
+    if (context.getShapeSession())
+        return;
+    if (!context.isImageLoaded())
+        return;
+    const { canvas } = context;
+    const previousCanvasSelection = !!canvas.selection;
+    const previousDefaultCursor = canvas.defaultCursor;
+    canvas.selection = false;
+    canvas.defaultCursor = 'crosshair';
+    const session = {
+        mode: 'shape',
+        shape,
+        previousCanvasSelection,
+        previousDefaultCursor,
+        startPoint: null,
+        previewObject: null,
+        handlers: [],
+        dispose: () => {
+            detachCanvasHandlers$1(context, session);
+            removePreview(context, session);
+            canvas.selection = previousCanvasSelection;
+            canvas.defaultCursor = previousDefaultCursor !== null && previousDefaultCursor !== void 0 ? previousDefaultCursor : 'default';
+        },
+    };
+    attachCanvasHandler$1(context, session, 'mouse:down', (event) => {
+        const pointer = getPointerFromFabricEvent(canvas, event);
+        if (!pointer)
+            return;
+        canvas.discardActiveObject();
+        session.startPoint = pointer;
+    });
+    attachCanvasHandler$1(context, session, 'mouse:move', (event) => {
+        const pointer = getPointerFromFabricEvent(canvas, event);
+        if (!pointer || !session.startPoint)
+            return;
+        updatePreview(context, session, pointer);
+    });
+    attachCanvasHandler$1(context, session, 'mouse:up', (event) => {
+        const pointer = getPointerFromFabricEvent(canvas, event);
+        if (!pointer) {
+            session.startPoint = null;
+            removePreview(context, session);
+            return;
+        }
+        completeInteractiveShape(context, session, pointer);
+    });
+    context.setShapeSession(session);
+    context.updateUi();
+}
+function exitShapeMode(context) {
+    const session = context.getShapeSession();
+    if (!session)
+        return;
+    session.dispose();
+    context.setShapeSession(null);
+    context.canvas.requestRenderAll();
+    context.updateUi();
 }
 
 function enterTextModeAction(access) {
@@ -4236,6 +5137,64 @@ async function applyCropAction(access) {
     });
 }
 
+function getFiltersRegistry(fabric) {
+    var _a;
+    return ((_a = fabric.filters) !== null && _a !== void 0 ? _a : {});
+}
+function createFilter(registry, name, options) {
+    const FilterConstructor = registry[name];
+    return FilterConstructor ? new FilterConstructor(options) : null;
+}
+function buildFabricImageFilters(fabric, config) {
+    const registry = getFiltersRegistry(fabric);
+    const filters = [];
+    const push = (filter) => {
+        if (filter)
+            filters.push(filter);
+    };
+    if (config.brightness !== 0) {
+        push(createFilter(registry, 'Brightness', { brightness: config.brightness }));
+    }
+    if (config.contrast !== 0) {
+        push(createFilter(registry, 'Contrast', { contrast: config.contrast }));
+    }
+    if (config.saturation !== 0) {
+        push(createFilter(registry, 'Saturation', { saturation: config.saturation }));
+    }
+    if (config.grayscale)
+        push(createFilter(registry, 'Grayscale'));
+    if (config.sepia)
+        push(createFilter(registry, 'Sepia'));
+    if (config.vintage)
+        push(createFilter(registry, 'Vintage'));
+    if (config.blur > 0)
+        push(createFilter(registry, 'Blur', { blur: config.blur }));
+    if (config.sharpen > 0) {
+        const s = config.sharpen;
+        push(createFilter(registry, 'Convolute', {
+            matrix: [0, -s, 0, -s, 1 + 4 * s, -s, 0, -s, 0],
+        }));
+    }
+    return filters;
+}
+function applyImageFilterConfigToImage(fabric, image, config) {
+    var _a;
+    const imageWithFilters = image;
+    imageWithFilters.filters = buildFabricImageFilters(fabric, config);
+    (_a = imageWithFilters.applyFilters) === null || _a === void 0 ? void 0 : _a.call(imageWithFilters);
+    imageWithFilters.dirty = true;
+}
+function getFilteredBaseImageDataUrl(image, config, fallback) {
+    if (!hasActiveImageFilters(config))
+        return fallback;
+    try {
+        return image.toDataURL({ format: 'png', multiplier: 1 });
+    }
+    catch {
+        return fallback;
+    }
+}
+
 function computeDownsampleDimensions(srcWidth, srcHeight, maxWidth, maxHeight) {
     if (!isPositiveFinite$1(srcWidth) ||
         !isPositiveFinite$1(srcHeight) ||
@@ -4687,6 +5646,9 @@ function getImageSource(image) {
         ? imageWithSource.src
         : null;
 }
+function getMosaicImageSource(context, image) {
+    return getFilteredBaseImageDataUrl(image, context.getCurrentImageFilterConfig(), getImageSource(image));
+}
 function imageDimension(value) {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
@@ -4923,7 +5885,7 @@ async function applyMosaicPointToCache(context, expectedSession, canvasPoint) {
         session.lastImagePoint = null;
         return;
     }
-    const source = getImageSource(originalImage);
+    const source = getMosaicImageSource(context, originalImage);
     if (!source) {
         reportWarning(context.options, new Error('Mosaic cannot read the current image source.'), 'Mosaic skipped because the image source is unavailable.');
         return;
@@ -4942,7 +5904,7 @@ async function commitMosaicChanges(context, session, callbackContext) {
     const originalImage = context.getOriginalImage();
     if (!originalImage || !context.isImageLoaded())
         return;
-    const source = (_a = getImageSource(originalImage)) !== null && _a !== void 0 ? _a : session.rasterCache.source;
+    const source = (_a = getMosaicImageSource(context, originalImage)) !== null && _a !== void 0 ? _a : session.rasterCache.source;
     const rasterCache = session.rasterCache;
     rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
     const output = resolveMosaicOutputFormat(context, source);
@@ -4954,6 +5916,7 @@ async function commitMosaicChanges(context, session, callbackContext) {
     removePreviewImage(context, session);
     try {
         replaceBaseImage(context, originalImage, nextImage, output.mimeType);
+        context.resetImageFilterState();
         const after = context.captureSnapshot();
         pushMosaicHistory(context, after);
         try {
@@ -6643,6 +7606,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
         currentImageMimeType: context.getCurrentImageMimeType(),
+        currentImageFilterConfig: context.getCurrentImageFilterConfig(),
     };
     try {
         const loadDeadline = Date.now() + context.options.imageLoadTimeoutMs;
@@ -6693,6 +7657,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         context.setAnnotationCounter(0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
+        context.resetImageFilterState();
         context.canvas.renderAll();
         context.setLastSnapshot(saveState({
             canvas: context.canvas,
@@ -6700,6 +7665,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
             currentImageMimeType: loadSource.mimeType,
+            imageFilterConfig: context.getCurrentImageFilterConfig(),
         }));
         if (loadOptions.preserveScroll === true && context.containerElement) {
             try {
@@ -6796,6 +7762,7 @@ function captureRollbackState(context) {
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
         currentImageMimeType: context.getCurrentImageMimeType(),
+        imageFilterConfig: context.getCurrentImageFilterConfig(),
     });
 }
 function getRemainingLoadTimeout(deadline) {
@@ -6805,6 +7772,7 @@ function createAbortController() {
     return typeof AbortController === 'function' ? new AbortController() : null;
 }
 async function replayRollback(context, bundle) {
+    var _a, _b;
     try {
         const restoredState = await loadFromState({
             canvas: context.canvas,
@@ -6824,6 +7792,7 @@ async function replayRollback(context, bundle) {
         context.setCurrentRotation(bundle.currentRotation);
         context.setBaseImageScale(bundle.baseImageScale);
         context.setCurrentImageMimeType(bundle.currentImageMimeType);
+        context.restoreImageFilterConfig((_b = (_a = restoredState.editorState) === null || _a === void 0 ? void 0 : _a.imageFilterConfig) !== null && _b !== void 0 ? _b : bundle.currentImageFilterConfig);
         context.canvas.renderAll();
     }
     catch (rollbackError) {
@@ -7694,6 +8663,15 @@ class EditorActionAccessFactory {
             setCurrentImageMimeType: (mimeType) => {
                 runtime.currentImageMimeType = mimeType;
             },
+            getCurrentImageFilterConfig: () => runtime.currentImageFilterConfig,
+            restoreImageFilterConfig: (config) => {
+                const next = cloneResolvedImageFilterConfig(config !== null && config !== void 0 ? config : DEFAULT_IMAGE_FILTER_CONFIG);
+                runtime.currentImageFilterConfig = next;
+                runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+                if (runtime.originalImage) {
+                    applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                }
+            },
             setIsImageLoadedToCanvas: (value) => {
                 runtime.isImageLoadedToCanvas = value;
             },
@@ -7850,7 +8828,8 @@ class EditorActionAccessFactory {
             isToolModeActive: () => runtime.cropSession !== null ||
                 runtime.mosaicSession !== null ||
                 runtime.textSession !== null ||
-                runtime.drawSession !== null,
+                runtime.drawSession !== null ||
+                runtime.shapeSession !== null,
             canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
@@ -8565,10 +9544,18 @@ class EditorContextFactory {
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
             },
+            getCurrentImageFilterConfig: () => access.getCurrentImageFilterConfig(),
+            resetImageFilterState: () => {
+                access.resetImageFilterState();
+            },
+            restoreImageFilterConfig: (config) => {
+                access.restoreImageFilterConfig(config);
+            },
             setCanvasSize: (width, height) => {
                 access.setCanvasSize(width, height);
             },
             applyRollbackRestoredState: (restoredState) => {
+                var _a, _b;
                 access.hideAllMaskLabels();
                 const canvas = access.getCanvas();
                 const originalImage = restoredState.originalImage;
@@ -8584,6 +9571,7 @@ class EditorContextFactory {
                     });
                     canvas === null || canvas === void 0 ? void 0 : canvas.sendObjectToBack(originalImage);
                 }
+                access.restoreImageFilterConfig((_b = (_a = restoredState.editorState) === null || _a === void 0 ? void 0 : _a.imageFilterConfig) !== null && _b !== void 0 ? _b : null);
                 const restoredMasks = restoredState.masks;
                 access.setLastMask(restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId
                     ? maskObject
@@ -8613,6 +9601,7 @@ class EditorContextFactory {
                 access.setOriginalImage(null);
                 access.setIsImageLoadedToCanvas(false);
                 access.setCurrentImageMimeType(null);
+                access.resetImageFilterState();
                 access.setLastSnapshot(null);
                 access.setLastMask(null);
                 access.setMaskCounter(0);
@@ -8785,6 +9774,7 @@ class EditorContextFactory {
             canvas: access.getLiveCanvas('drawController'),
             options: access.getOptions(),
             getDrawConfig: () => access.getDrawConfig(),
+            getEraserConfig: () => access.getEraserConfig(),
             isImageLoaded: () => access.isImageLoaded(),
             getAnnotationCounter: () => access.getAnnotationCounter(),
             setAnnotationCounter: (value) => {
@@ -8793,6 +9783,31 @@ class EditorContextFactory {
             getDrawSession: () => access.getDrawSession(),
             setDrawSession: (session) => {
                 access.setDrawSession(session);
+            },
+            saveCanvasState: () => access.saveCanvasState(),
+            updateAnnotationList: () => access.updateAnnotationList(),
+            updateUi: () => access.updateUi(),
+            emitAnnotationsChanged: (context) => access.emitAnnotationsChanged(context),
+            emitImageChanged: (context) => access.emitImageChanged(context),
+            buildCallbackContext: (operation) => access.buildCallbackContext(operation, false),
+        };
+    }
+    buildShapeControllerContext() {
+        const access = this.access;
+        return {
+            fabric: access.getFabric(),
+            canvas: access.getLiveCanvas('shapeController'),
+            options: access.getOptions(),
+            getOriginalImage: () => access.getOriginalImage(),
+            getShapeConfig: () => access.getShapeConfig(),
+            isImageLoaded: () => access.isImageLoaded(),
+            getAnnotationCounter: () => access.getAnnotationCounter(),
+            setAnnotationCounter: (value) => {
+                access.setAnnotationCounter(value);
+            },
+            getShapeSession: () => access.getShapeSession(),
+            setShapeSession: (session) => {
+                access.setShapeSession(session);
             },
             saveCanvasState: () => access.saveCanvasState(),
             updateAnnotationList: () => access.updateAnnotationList(),
@@ -8818,6 +9833,10 @@ class EditorContextFactory {
             getCurrentImageMimeType: () => access.getCurrentImageMimeType(),
             setCurrentImageMimeType: (mimeType) => {
                 access.setCurrentImageMimeType(mimeType);
+            },
+            getCurrentImageFilterConfig: () => access.getCurrentImageFilterConfig(),
+            resetImageFilterState: () => {
+                access.resetImageFilterState();
             },
             getLastSnapshot: () => access.getLastSnapshot(),
             setLastSnapshot: (snapshot) => {
@@ -8954,6 +9973,23 @@ function createEditorContextFactory(runtime, callbacks) {
         setCurrentImageMimeType: (mimeType) => {
             runtime.currentImageMimeType = mimeType;
         },
+        getCurrentImageFilterConfig: () => cloneResolvedImageFilterConfig(runtime.currentImageFilterConfig),
+        resetImageFilterState: () => {
+            const next = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+            runtime.currentImageFilterConfig = next;
+            runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+            if (runtime.originalImage) {
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+            }
+        },
+        restoreImageFilterConfig: (config) => {
+            const next = cloneResolvedImageFilterConfig(config !== null && config !== void 0 ? config : DEFAULT_IMAGE_FILTER_CONFIG);
+            runtime.currentImageFilterConfig = next;
+            runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+            if (runtime.originalImage) {
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+            }
+        },
         getLastSnapshot: () => runtime.lastSnapshot,
         setLastSnapshot: (snapshot) => {
             runtime.lastSnapshot = snapshot;
@@ -8984,6 +10020,8 @@ function createEditorContextFactory(runtime, callbacks) {
         },
         getTextConfig: () => runtime.currentTextConfig,
         getDrawConfig: () => runtime.currentDrawConfig,
+        getEraserConfig: () => cloneResolvedEraserConfig(runtime.currentEraserConfig),
+        getShapeConfig: () => cloneResolvedShapeAnnotationConfig(runtime.currentShapeConfig),
         getMosaicConfig: () => cloneResolvedMosaicConfig(runtime.currentMosaicConfig),
         getTextSession: () => runtime.textSession,
         setTextSession: (session) => {
@@ -8992,6 +10030,10 @@ function createEditorContextFactory(runtime, callbacks) {
         getDrawSession: () => runtime.drawSession,
         setDrawSession: (session) => {
             runtime.drawSession = session;
+        },
+        getShapeSession: () => runtime.shapeSession,
+        setShapeSession: (session) => {
+            runtime.shapeSession = session;
         },
         getMosaicSession: () => runtime.mosaicSession,
         setMosaicSession: (session) => {
@@ -9547,6 +10589,30 @@ class EditorRuntime {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "defaultEraserConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentEraserConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "defaultShapeConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentShapeConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "canvas", {
             enumerable: true,
             configurable: true,
@@ -9631,6 +10697,18 @@ class EditorRuntime {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "currentImageFilterConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "lastCommittedImageFilterConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "maskCounter", {
             enumerable: true,
             configurable: true,
@@ -9704,6 +10782,12 @@ class EditorRuntime {
             value: null
         });
         Object.defineProperty(this, "drawSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "shapeSession", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -9785,6 +10869,12 @@ class EditorRuntime {
         this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
         this.defaultDrawConfig = options.defaultDrawConfig;
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.defaultEraserConfig = options.defaultEraserConfig;
+        this.currentEraserConfig = cloneResolvedEraserConfig(this.defaultEraserConfig);
+        this.defaultShapeConfig = options.defaultShapeConfig;
+        this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
+        this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.historyManager = new HistoryManager(options.maxHistorySize);
         this.lastEmittedHistoryState = {
             canUndo: this.historyManager.canUndo(),
@@ -9829,6 +10919,8 @@ class EditorRuntime {
         this.isImageLoadedToCanvas = false;
         this.originalImage = null;
         this.currentImageMimeType = null;
+        this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.lastMask = null;
         this.maskCounter = 0;
         this.annotationCounter = 0;
@@ -9842,12 +10934,15 @@ class EditorRuntime {
         this.mosaicSession = null;
         this.textSession = null;
         this.drawSession = null;
+        this.shapeSession = null;
         this.domBindings = null;
         this.keyboardDocument = null;
         this.keyboardHandler = null;
         this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
         this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.currentEraserConfig = cloneResolvedEraserConfig(this.defaultEraserConfig);
+        this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
         this.shouldSuppressSaveState = false;
         this.shouldSuppressSelectionChange = false;
         this.lastEmittedIsBusy = null;
@@ -11100,6 +12195,17 @@ const TOOL_MODE_ALLOWED_OPERATIONS = {
         'resetDrawConfig',
         'setDrawColor',
         'setDrawBrushSize',
+        'setDrawSubMode',
+        'setEraserConfig',
+        'resetEraserConfig',
+        'commitEraserStroke',
+        'saveState',
+    ]),
+    shape: new Set([
+        'exitShapeMode',
+        'createShapeAnnotation',
+        'setShapeConfig',
+        'resetShapeConfig',
         'saveState',
     ]),
 };
@@ -11116,13 +12222,22 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'flipHorizontal',
     'flipVertical',
     'resetImageTransform',
+    'setImageFilterConfig',
+    'resetImageFilterConfig',
+    'clearImageFilters',
+    'commitImageFilters',
     'createMask',
     'removeSelectedMask',
     'removeAllMasks',
     'mergeMasks',
     'createTextAnnotation',
+    'createShapeAnnotation',
     'enterTextMode',
     'exitTextMode',
+    'enterShapeMode',
+    'exitShapeMode',
+    'setShapeConfig',
+    'resetShapeConfig',
     'setTextConfig',
     'resetTextConfig',
     'setTextColor',
@@ -11133,6 +12248,10 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'resetDrawConfig',
     'setDrawColor',
     'setDrawBrushSize',
+    'setDrawSubMode',
+    'setEraserConfig',
+    'resetEraserConfig',
+    'commitEraserStroke',
     'updateSelectedAnnotation',
     'updateAnnotation',
     'removeSelectedAnnotation',
@@ -11170,6 +12289,8 @@ function getActiveToolMode(snapshot) {
         return 'text';
     if (snapshot.hasDrawSession)
         return 'draw';
+    if (snapshot.hasShapeSession)
+        return 'shape';
     return null;
 }
 function isToolModeActive(snapshot) {
@@ -11788,6 +12909,71 @@ class ImageEditor {
     isProcessing() {
         return this.runtime.operationGuard.isBusy() || this.runtime.animQueue.isBusy();
     }
+    setImageFilterConfig(config) {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation('setImageFilterConfig'))
+            return;
+        const result = mergeImageFilterConfigPatch(this.runtime.currentImageFilterConfig, config);
+        if (result.warnings.length > 0) {
+            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Invalid or out-of-range image filter field(s): ${result.warnings.join(', ')}.`), 'Image filter config was normalized.');
+        }
+        if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, result.config)) {
+            return;
+        }
+        this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(result.config);
+        this.applyCurrentImageFilters();
+        this.runtime.canvas.requestRenderAll();
+        this.emitImageChanged(this.buildCallbackContext('setImageFilterConfig', false));
+    }
+    getImageFilterConfig() {
+        return cloneResolvedImageFilterConfig(this.runtime.currentImageFilterConfig);
+    }
+    resetImageFilterConfig() {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation('resetImageFilterConfig'))
+            return;
+        const next = cloneResolvedImageFilterConfig(this.runtime.lastCommittedImageFilterConfig);
+        if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, next))
+            return;
+        this.runtime.currentImageFilterConfig = next;
+        this.applyCurrentImageFilters();
+        this.runtime.canvas.requestRenderAll();
+        this.emitImageChanged(this.buildCallbackContext('resetImageFilterConfig', false));
+    }
+    clearImageFilters() {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation('clearImageFilters'))
+            return;
+        this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.applyCurrentImageFilters();
+        this.commitImageFiltersInternal('clearImageFilters');
+    }
+    commitImageFilters() {
+        this.commitImageFiltersInternal('commitImageFilters');
+    }
+    commitImageFiltersInternal(operation) {
+        if (!this.runtime.canvas || !this.runtime.originalImage)
+            return;
+        if (!this.canRunIdleOperation(operation))
+            return;
+        if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, this.runtime.lastCommittedImageFilterConfig)) {
+            return;
+        }
+        this.saveStateInternal();
+        this.runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(this.runtime.currentImageFilterConfig);
+        const context = this.buildCallbackContext(operation, false);
+        this.emitHistoryChangeIfChanged(context);
+        this.emitImageChanged(context);
+    }
+    applyCurrentImageFilters() {
+        const image = this.runtime.originalImage;
+        if (!image)
+            return;
+        applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig);
+    }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
             reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
@@ -11917,6 +13103,7 @@ class ImageEditor {
             hasMosaicSession: this.runtime.mosaicSession !== null,
             hasTextSession: this.runtime.textSession !== null,
             hasDrawSession: this.runtime.drawSession !== null,
+            hasShapeSession: this.runtime.shapeSession !== null,
         };
     }
     getActiveToolMode() {
@@ -11945,6 +13132,7 @@ class ImageEditor {
             isMosaicMode: this.runtime.mosaicSession !== null,
             isTextMode: this.runtime.textSession !== null,
             isDrawMode: this.runtime.drawSession !== null,
+            isShapeMode: this.runtime.shapeSession !== null,
             canUndo: this.runtime.historyManager.canUndo(),
             canRedo: this.runtime.historyManager.canRedo(),
             canvasWidth,
@@ -12344,6 +13532,72 @@ class ImageEditor {
     setDrawBrushSize(size) {
         this.applyDrawConfigPatch({ brushSize: size }, 'setDrawBrushSize');
     }
+    setDrawSubMode(mode) {
+        if (!this.runtime.canvas || !this.runtime.drawSession)
+            return;
+        if (!this.canRunIdleOperation('setDrawSubMode'))
+            return;
+        if (mode !== 'brush' && mode !== 'erase') {
+            reportWarning(this.runtime.options, new TypeError('[ImageEditor] setDrawSubMode expected "brush" or "erase".'), 'Ignored invalid Draw sub-mode.');
+            return;
+        }
+        setDrawSubMode(this.buildDrawControllerContext(), mode);
+        this.emitImageChanged(this.buildCallbackContext('setDrawSubMode', false));
+    }
+    getDrawSubMode() {
+        var _a, _b;
+        return (_b = (_a = this.runtime.drawSession) === null || _a === void 0 ? void 0 : _a.subMode) !== null && _b !== void 0 ? _b : null;
+    }
+    getEraserConfig() {
+        return cloneResolvedEraserConfig(this.runtime.currentEraserConfig);
+    }
+    setEraserConfig(config) {
+        this.applyEraserConfigPatch(config, 'setEraserConfig');
+    }
+    resetEraserConfig() {
+        this.applyEraserConfigPatch(this.runtime.defaultEraserConfig, 'resetEraserConfig');
+    }
+    createShapeAnnotation(config = {}) {
+        if (!this.runtime.canvas)
+            return null;
+        if (!this.canRunIdleOperation('createShapeAnnotation'))
+            return null;
+        return createShapeAnnotation(this.buildShapeControllerContext(), config);
+    }
+    enterShapeMode(shape = this.runtime.currentShapeConfig.shape) {
+        if (!this.runtime.canvas)
+            return;
+        if (!this.canRunIdleOperation('enterShapeMode'))
+            return;
+        if (this.isToolModeActive())
+            return;
+        enterShapeMode(this.buildShapeControllerContext(), shape);
+        const callbackContext = this.buildCallbackContext('enterShapeMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    exitShapeMode() {
+        if (!this.runtime.canvas || !this.runtime.shapeSession)
+            return;
+        if (!this.canRunIdleOperation('exitShapeMode'))
+            return;
+        exitShapeMode(this.buildShapeControllerContext());
+        const callbackContext = this.buildCallbackContext('exitShapeMode', false);
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.emitImageChanged(callbackContext);
+    }
+    isShapeMode() {
+        return this.runtime.shapeSession !== null;
+    }
+    getShapeConfig() {
+        return cloneResolvedShapeAnnotationConfig(this.runtime.currentShapeConfig);
+    }
+    setShapeConfig(config) {
+        this.applyShapeConfigPatch(config, 'setShapeConfig');
+    }
+    resetShapeConfig() {
+        this.applyShapeConfigPatch(this.runtime.defaultShapeConfig, 'resetShapeConfig');
+    }
     removeSelectedAnnotation() {
         if (!this.runtime.canvas)
             return;
@@ -12412,11 +13666,49 @@ class ImageEditor {
     buildDrawControllerContext() {
         return this.contextFactory.buildDrawControllerContext();
     }
+    buildShapeControllerContext() {
+        return this.contextFactory.buildShapeControllerContext();
+    }
     applyTextConfigPatch(config, operation) {
         applyTextConfigPatchAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), config, operation);
     }
     applyDrawConfigPatch(config, operation) {
         applyDrawConfigPatchAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), config, operation);
+    }
+    applyEraserConfigPatch(config, operation) {
+        if (!this.runtime.canvas)
+            return;
+        if (!this.canRunIdleOperation(operation))
+            return;
+        const invalidFields = getInvalidEraserConfigFields(config);
+        if (invalidFields.length > 0) {
+            reportWarning(this.runtime.options, null, `${operation} ignored invalid Eraser config fields: ${invalidFields.join(', ')}.`);
+        }
+        const next = mergeEraserConfigPatch(this.runtime.currentEraserConfig, config, this.runtime.defaultEraserConfig);
+        if (areResolvedEraserConfigsEqual(this.runtime.currentEraserConfig, next))
+            return;
+        this.runtime.currentEraserConfig = next;
+        updateEraserPreview(this.buildDrawControllerContext());
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext(operation, false));
+    }
+    applyShapeConfigPatch(config, operation) {
+        if (!this.runtime.canvas)
+            return;
+        if (!this.canRunIdleOperation(operation))
+            return;
+        const invalidFields = getInvalidShapeAnnotationConfigFields(config);
+        if (invalidFields.length > 0) {
+            reportWarning(this.runtime.options, null, `${operation} ignored invalid Shape config fields: ${invalidFields.join(', ')}.`);
+        }
+        const next = mergeShapeAnnotationConfigPatch(this.runtime.currentShapeConfig, config, this.runtime.defaultShapeConfig);
+        if (areResolvedShapeAnnotationConfigsEqual(this.runtime.currentShapeConfig, next))
+            return;
+        this.runtime.currentShapeConfig = next;
+        this.updateInputs();
+        this.updateUi();
+        this.emitImageChanged(this.buildCallbackContext(operation, false));
     }
     applyTextColorInput(color) {
         applyTextColorInputAction(this.actionAccessFactory.buildAnnotationConfigActionAccess(), color);
@@ -12567,6 +13859,9 @@ class ImageEditor {
         safelyExitActiveSession(this.runtime.drawSession !== null, this.runtime.canvas, () => exitDrawMode(this.buildDrawControllerContext()), () => {
             this.runtime.drawSession = null;
         });
+        safelyExitActiveSession(this.runtime.shapeSession !== null, this.runtime.canvas, () => exitShapeMode(this.buildShapeControllerContext()), () => {
+            this.runtime.shapeSession = null;
+        });
         const canvasDispose = this.runtime.canvas
             ? safelyDisposeCanvas(this.runtime.canvas)
             : Promise.resolve();
@@ -12591,5 +13886,6 @@ exports.isDrawAnnotationObject = isDrawAnnotationObject;
 exports.isEditableOverlayObject = isEditableOverlayObject;
 exports.isMaskObject = isMaskObject;
 exports.isSessionObject = isSessionObject;
+exports.isShapeAnnotationObject = isShapeAnnotationObject;
 exports.isTextAnnotationObject = isTextAnnotationObject;
 //# sourceMappingURL=index.cjs.map

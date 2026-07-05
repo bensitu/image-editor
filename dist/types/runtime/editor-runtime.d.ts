@@ -8,13 +8,14 @@ import type * as FabricNS from 'fabric';
 import { AnimationQueue } from '../animation/animation-queue.js';
 import type { ResolvedElementMap } from '../core/editor-elements.js';
 import { OperationGuard } from '../core/operation-guard.js';
-import type { BaseImageObject, EditorToolMode, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, LayoutMode, MaskObject, ResolvedDrawConfig, ResolvedMosaicConfig, ResolvedOptions, ResolvedTextAnnotationConfig } from '../core/public-types.js';
+import type { BaseImageObject, EditorToolMode, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, LayoutMode, MaskObject, ResolvedDrawConfig, ResolvedEraserConfig, ResolvedImageFilterConfig, ResolvedMosaicConfig, ResolvedOptions, ResolvedShapeAnnotationConfig, ResolvedTextAnnotationConfig } from '../core/public-types.js';
 import { HistoryManager } from '../history/history-manager.js';
 import type { TransformController } from '../image/transform-controller.js';
 import { ViewportCache } from '../image/layout-manager.js';
 import type { CropSession } from '../crop/crop-controller.js';
 import type { MosaicSession } from '../mosaic/mosaic-controller.js';
 import type { DrawSession } from '../annotation/draw-controller.js';
+import type { ShapeSession } from '../annotation/shape-controller.js';
 import type { TextSession } from '../annotation/text-controller.js';
 import type { DomBindings } from '../ui/dom-bindings.js';
 export declare class EditorRuntime {
@@ -28,6 +29,10 @@ export declare class EditorRuntime {
     currentTextConfig: ResolvedTextAnnotationConfig;
     readonly defaultDrawConfig: ResolvedDrawConfig;
     currentDrawConfig: ResolvedDrawConfig;
+    readonly defaultEraserConfig: ResolvedEraserConfig;
+    currentEraserConfig: ResolvedEraserConfig;
+    readonly defaultShapeConfig: ResolvedShapeAnnotationConfig;
+    currentShapeConfig: ResolvedShapeAnnotationConfig;
     canvas: FabricNS.Canvas | null;
     canvasElement: HTMLCanvasElement | null;
     containerElement: HTMLElement | null;
@@ -42,6 +47,8 @@ export declare class EditorRuntime {
     currentRotation: number;
     isImageLoadedToCanvas: boolean;
     currentImageMimeType: ImageMimeType | null;
+    currentImageFilterConfig: ResolvedImageFilterConfig;
+    lastCommittedImageFilterConfig: ResolvedImageFilterConfig;
     maskCounter: number;
     lastMask: MaskObject | null;
     annotationCounter: number;
@@ -55,6 +62,7 @@ export declare class EditorRuntime {
     mosaicSession: MosaicSession | null;
     textSession: TextSession | null;
     drawSession: DrawSession | null;
+    shapeSession: ShapeSession | null;
     domBindings: DomBindings | null;
     keyboardDocument: Document | null;
     keyboardHandler: ((event: KeyboardEvent) => void) | null;

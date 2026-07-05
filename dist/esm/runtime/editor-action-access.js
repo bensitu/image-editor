@@ -1,3 +1,5 @@
+import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, } from '../core/image-filter-config.js';
+import { applyImageFilterConfigToImage } from '../image/image-filters.js';
 export class EditorActionAccessFactory {
     constructor(runtime, callbacks, contextFactory) {
         Object.defineProperty(this, "runtime", {
@@ -87,6 +89,15 @@ export class EditorActionAccessFactory {
             inferCurrentImageMimeType: () => callbacks.inferCurrentImageMimeType(),
             setCurrentImageMimeType: (mimeType) => {
                 runtime.currentImageMimeType = mimeType;
+            },
+            getCurrentImageFilterConfig: () => runtime.currentImageFilterConfig,
+            restoreImageFilterConfig: (config) => {
+                const next = cloneResolvedImageFilterConfig(config !== null && config !== void 0 ? config : DEFAULT_IMAGE_FILTER_CONFIG);
+                runtime.currentImageFilterConfig = next;
+                runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+                if (runtime.originalImage) {
+                    applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                }
             },
             setIsImageLoadedToCanvas: (value) => {
                 runtime.isImageLoadedToCanvas = value;
@@ -244,7 +255,8 @@ export class EditorActionAccessFactory {
             isToolModeActive: () => runtime.cropSession !== null ||
                 runtime.mosaicSession !== null ||
                 runtime.textSession !== null ||
-                runtime.drawSession !== null,
+                runtime.drawSession !== null ||
+                runtime.shapeSession !== null,
             canRunIdleOperation: (operation, options) => callbacks.canRunIdleOperation(operation, options),
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),

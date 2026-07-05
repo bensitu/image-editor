@@ -2,7 +2,7 @@
  * Tool-mode operation policy for ImageEditor.
  *
  * The policy defines which public operations may run while Crop, Mosaic,
- * Text, or Draw mode owns editor interaction.
+ * Text, Draw, or Shape mode owns editor interaction.
  */
 import type { EditorToolMode, ImageEditorOperation } from '../core/public-types.js';
 export interface EditorToolModeSnapshot {
@@ -10,6 +10,7 @@ export interface EditorToolModeSnapshot {
     hasMosaicSession: boolean;
     hasTextSession: boolean;
     hasDrawSession: boolean;
+    hasShapeSession: boolean;
 }
 export declare function getActiveToolMode(snapshot: EditorToolModeSnapshot): EditorToolMode | null;
 export declare function isToolModeActive(snapshot: EditorToolModeSnapshot): boolean;

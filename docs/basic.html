@@ -107,6 +107,96 @@
                     </section>
 
                     <section class="panel-section">
+                        <h2>Image adjustments</h2>
+                        <label class="field" for="imageBrightnessInput">
+                            <span>Brightness</span>
+                            <input
+                                id="imageBrightnessInput"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.01"
+                                value="0"
+                            />
+                        </label>
+                        <label class="field" for="imageContrastInput">
+                            <span>Contrast</span>
+                            <input
+                                id="imageContrastInput"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.01"
+                                value="0"
+                            />
+                        </label>
+                        <label class="field" for="imageSaturationInput">
+                            <span>Saturation</span>
+                            <input
+                                id="imageSaturationInput"
+                                type="range"
+                                min="-1"
+                                max="1"
+                                step="0.01"
+                                value="0"
+                            />
+                        </label>
+                        <div class="control-grid">
+                            <label class="field" for="imageBlurInput">
+                                <span>Blur</span>
+                                <input
+                                    id="imageBlurInput"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value="0"
+                                />
+                            </label>
+                            <label class="field" for="imageSharpenInput">
+                                <span>Sharpen</span>
+                                <input
+                                    id="imageSharpenInput"
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value="0"
+                                />
+                            </label>
+                        </div>
+                        <div class="control-grid three">
+                            <label class="field check-field" for="imageGrayscaleInput">
+                                <span>Grayscale</span>
+                                <input id="imageGrayscaleInput" type="checkbox" />
+                            </label>
+                            <label class="field check-field" for="imageSepiaInput">
+                                <span>Sepia</span>
+                                <input id="imageSepiaInput" type="checkbox" />
+                            </label>
+                            <label class="field check-field" for="imageVintageInput">
+                                <span>Vintage</span>
+                                <input id="imageVintageInput" type="checkbox" />
+                            </label>
+                        </div>
+                        <div class="control-grid three">
+                            <button
+                                id="applyImageFiltersButton"
+                                class="button primary"
+                                type="button"
+                            >
+                                Apply
+                            </button>
+                            <button id="resetImageFiltersButton" class="button" type="button">
+                                Reset
+                            </button>
+                            <button id="clearImageFiltersButton" class="button" type="button">
+                                Clear
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
                         <h2>Crop</h2>
                         <label class="field" for="cropAspectRatioSelect">
                             <span>Aspect ratio</span>
@@ -251,6 +341,9 @@
                             <code>flipHorizontal()</code>
                             <code>flipVertical()</code>
                             <code>resetImageTransform()</code>
+                            <code>setImageFilterConfig()</code>
+                            <code>commitImageFilters()</code>
+                            <code>clearImageFilters()</code>
                             <code>enterCropMode()</code>
                             <code>applyCrop()</code>
                             <code>exportImageBase64()</code>

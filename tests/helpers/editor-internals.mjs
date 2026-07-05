@@ -92,3 +92,7 @@ export function setCurrentLayoutMode(editor, mode) {
 export function setLastSnapshot(editor, snapshot) {
     getEditorRuntime(editor).lastSnapshot = snapshot;
 }
+
+export function getLastSnapshot(editor) {
+    return getEditorRuntime(editor).lastSnapshot;
+}

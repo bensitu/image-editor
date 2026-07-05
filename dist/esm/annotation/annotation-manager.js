@@ -1,4 +1,4 @@
-import { isAnnotationObject, isDrawAnnotationObject, isTextAnnotationObject, } from '../core/public-types.js';
+import { isAnnotationObject, isDrawAnnotationObject, isShapeAnnotationObject, isTextAnnotationObject, } from '../core/public-types.js';
 import { syncAnnotationRuntimeState } from './annotation-style.js';
 import { isAnnotationLocked, isAnnotationUnlocked } from './annotation-lock.js';
 function isActiveSelectionObject(object) {
@@ -110,6 +110,24 @@ function updateDrawAnnotation(annotation, config) {
     if (Object.keys(props).length > 0)
         setAnnotationProps(annotation, props);
 }
+function updateShapeAnnotation(annotation, config) {
+    const props = {};
+    const raw = config;
+    if (typeof raw.stroke === 'string')
+        props.stroke = raw.stroke;
+    if (typeof raw.strokeWidth === 'number' &&
+        Number.isFinite(raw.strokeWidth) &&
+        raw.strokeWidth > 0) {
+        props.strokeWidth = raw.strokeWidth;
+    }
+    if (typeof raw.fill === 'string')
+        props.fill = raw.fill;
+    if (typeof raw.opacity === 'number' && Number.isFinite(raw.opacity)) {
+        props.opacity = Math.max(0, Math.min(1, raw.opacity));
+    }
+    if (Object.keys(props).length > 0)
+        setAnnotationProps(annotation, props);
+}
 export function updateAnnotationObject(annotation, config) {
     const before = snapshotAnnotation(annotation);
     const raw = config;
@@ -138,6 +156,8 @@ export function updateAnnotationObject(annotation, config) {
         }
         if (isDrawAnnotationObject(annotation))
             updateDrawAnnotation(annotation, config);
+        if (isShapeAnnotationObject(annotation))
+            updateShapeAnnotation(annotation, config);
     }
     syncAnnotationRuntimeState(annotation);
     return snapshotAnnotation(annotation) !== before;

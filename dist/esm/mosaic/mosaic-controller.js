@@ -2,6 +2,7 @@ import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject, markSessionObject } from '../core/editor-object-kind.js';
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
 import { Command } from '../history/history-manager.js';
+import { getFilteredBaseImageDataUrl } from '../image/image-filters.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
 import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { withTimeout } from '../utils/timeout.js';
@@ -226,6 +227,9 @@ function getImageSource(image) {
     return typeof imageWithSource.src === 'string' && imageWithSource.src.length > 0
         ? imageWithSource.src
         : null;
+}
+function getMosaicImageSource(context, image) {
+    return getFilteredBaseImageDataUrl(image, context.getCurrentImageFilterConfig(), getImageSource(image));
 }
 function imageDimension(value) {
     const numeric = Number(value);
@@ -463,7 +467,7 @@ async function applyMosaicPointToCache(context, expectedSession, canvasPoint) {
         session.lastImagePoint = null;
         return;
     }
-    const source = getImageSource(originalImage);
+    const source = getMosaicImageSource(context, originalImage);
     if (!source) {
         reportWarning(context.options, new Error('Mosaic cannot read the current image source.'), 'Mosaic skipped because the image source is unavailable.');
         return;
@@ -482,7 +486,7 @@ async function commitMosaicChanges(context, session, callbackContext) {
     const originalImage = context.getOriginalImage();
     if (!originalImage || !context.isImageLoaded())
         return;
-    const source = (_a = getImageSource(originalImage)) !== null && _a !== void 0 ? _a : session.rasterCache.source;
+    const source = (_a = getMosaicImageSource(context, originalImage)) !== null && _a !== void 0 ? _a : session.rasterCache.source;
     const rasterCache = session.rasterCache;
     rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
     const output = resolveMosaicOutputFormat(context, source);
@@ -494,6 +498,7 @@ async function commitMosaicChanges(context, session, callbackContext) {
     removePreviewImage(context, session);
     try {
         replaceBaseImage(context, originalImage, nextImage, output.mimeType);
+        context.resetImageFilterState();
         const after = context.captureSnapshot();
         pushMosaicHistory(context, after);
         try {

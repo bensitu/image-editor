@@ -38,6 +38,7 @@ import {
     isEditableOverlayObject,
     isMaskObject,
     isSessionObject,
+    isShapeAnnotationObject,
     isTextAnnotationObject,
 } from '../src/core/public-types.ts';
 import {
@@ -87,6 +88,12 @@ test('metadata helpers classify base, mask, annotation, and session objects', ()
         annotationType: 'draw',
         annotationName: 'draw4',
     });
+    const shape = markAnnotationObject(makeFabricLikeObject({ type: 'path' }), {
+        annotationId: 5,
+        annotationType: 'shape',
+        annotationName: 'shape5',
+        shapeAnnotationKind: 'arrow',
+    });
     const session = markSessionObject(makeFabricLikeObject({ type: 'rect' }), 'cropRect');
 
     assert.equal(isBaseImageObject(image), true);
@@ -94,6 +101,7 @@ test('metadata helpers classify base, mask, annotation, and session objects', ()
     assert.equal(isAnnotationObject(text), true);
     assert.equal(isTextAnnotationObject(text), true);
     assert.equal(isDrawAnnotationObject(draw), true);
+    assert.equal(isShapeAnnotationObject(shape), true);
     assert.equal(isAnnotationObject(mask), false);
     assert.equal(isEditableOverlayObject(mask), true);
     assert.equal(isEditableOverlayObject(text), true);

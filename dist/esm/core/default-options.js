@@ -40,6 +40,7 @@ export const DEFAULT_OPTIONS = {
     maskName: 'mask',
     textAnnotationName: 'text',
     drawAnnotationName: 'draw',
+    shapeAnnotationName: 'shape',
     maskListOrder: DEFAULT_OVERLAY_LIST_ORDER,
     annotationListOrder: DEFAULT_OVERLAY_LIST_ORDER,
     groupSelection: false,
@@ -128,6 +129,36 @@ export const DEFAULT_DRAW_CONFIG = Object.freeze({
     annotationHidden: false,
     annotationLocked: false,
 });
+export const DEFAULT_ERASER_CONFIG = Object.freeze({
+    brushSize: 18,
+    target: 'drawAnnotations',
+    previewStroke: '#111',
+    previewStrokeWidth: 1,
+    previewFill: 'rgba(255,255,255,0.28)',
+});
+export const DEFAULT_SHAPE_ANNOTATION_CONFIG = Object.freeze({
+    shape: 'rect',
+    left: undefined,
+    top: undefined,
+    width: 120,
+    height: 80,
+    x1: undefined,
+    y1: undefined,
+    x2: undefined,
+    y2: undefined,
+    stroke: '#ff0000',
+    strokeWidth: 3,
+    fill: 'rgba(255,0,0,0.08)',
+    opacity: 1,
+    angle: 0,
+    selectable: true,
+    evented: true,
+    annotationHidden: false,
+    annotationLocked: false,
+    strokeDashArray: null,
+    arrowHeadLength: 18,
+    styles: Object.freeze({}),
+});
 const KNOWN_TOP_LEVEL_KEYS = new Set([
     'canvasWidth',
     'canvasHeight',
@@ -165,6 +196,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maskName',
     'textAnnotationName',
     'drawAnnotationName',
+    'shapeAnnotationName',
     'maskListOrder',
     'annotationListOrder',
     'groupSelection',
@@ -189,6 +221,8 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'defaultMosaicConfig',
     'defaultTextConfig',
     'defaultDrawConfig',
+    'defaultEraserConfig',
+    'defaultShapeConfig',
 ]);
 const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function normalizeCallback(value) {
@@ -547,6 +581,16 @@ export function cloneResolvedTextAnnotationConfig(config) {
 export function cloneResolvedDrawConfig(config) {
     return { ...config };
 }
+export function cloneResolvedEraserConfig(config) {
+    return { ...config };
+}
+export function cloneResolvedShapeAnnotationConfig(config) {
+    return {
+        ...config,
+        strokeDashArray: config.strokeDashArray ? [...config.strokeDashArray] : null,
+        styles: { ...config.styles },
+    };
+}
 function normalizeTextAlign(value, fallback) {
     return value === 'left' || value === 'center' || value === 'right' || value === 'justify'
         ? value
@@ -565,6 +609,11 @@ function normalizeTextLeftTop(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 function normalizeTextboxStyles(value) {
+    if (!isConfigObject(value))
+        return {};
+    return { ...value };
+}
+function normalizeFabricObjectStyles(value) {
     if (!isConfigObject(value))
         return {};
     return { ...value };
@@ -671,6 +720,105 @@ export function normalizeDrawConfig(input, fallback) {
         return cloneResolvedDrawConfig(fallback);
     return mergeDrawConfigPatch(fallback, input);
 }
+export function mergeEraserConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedEraserConfig(current);
+    if (hasOwn(raw, 'brushSize')) {
+        next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
+    }
+    if (hasOwn(raw, 'target')) {
+        next.target = raw.target === 'drawAnnotations' ? 'drawAnnotations' : fallback.target;
+    }
+    if (hasOwn(raw, 'previewStroke')) {
+        next.previewStroke = normalizeString(raw.previewStroke, fallback.previewStroke);
+    }
+    if (hasOwn(raw, 'previewStrokeWidth')) {
+        next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
+    }
+    if (hasOwn(raw, 'previewFill')) {
+        next.previewFill = normalizeString(raw.previewFill, fallback.previewFill);
+    }
+    return next;
+}
+export function normalizeEraserConfig(input, fallback) {
+    if (!isConfigObject(input))
+        return cloneResolvedEraserConfig(fallback);
+    return mergeEraserConfigPatch(fallback, input);
+}
+function normalizeShapeKind(value, fallback) {
+    return value === 'rect' || value === 'line' || value === 'arrow' ? value : fallback;
+}
+function normalizeNullableDashArray(value, fallback) {
+    if (value === null)
+        return null;
+    if (Array.isArray(value) &&
+        value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0)) {
+        return [...value];
+    }
+    return fallback ? [...fallback] : null;
+}
+export function mergeShapeAnnotationConfigPatch(current, patch, fallback = current) {
+    const raw = isConfigObject(patch) ? patch : {};
+    const next = cloneResolvedShapeAnnotationConfig(current);
+    if (hasOwn(raw, 'shape'))
+        next.shape = normalizeShapeKind(raw.shape, fallback.shape);
+    if (hasOwn(raw, 'left'))
+        next.left = normalizeTextLeftTop(raw.left);
+    if (hasOwn(raw, 'top'))
+        next.top = normalizeTextLeftTop(raw.top);
+    if (hasOwn(raw, 'width'))
+        next.width = normalizePositiveNumber(raw.width, fallback.width);
+    if (hasOwn(raw, 'height'))
+        next.height = normalizePositiveNumber(raw.height, fallback.height);
+    if (hasOwn(raw, 'x1'))
+        next.x1 = normalizeTextLeftTop(raw.x1);
+    if (hasOwn(raw, 'y1'))
+        next.y1 = normalizeTextLeftTop(raw.y1);
+    if (hasOwn(raw, 'x2'))
+        next.x2 = normalizeTextLeftTop(raw.x2);
+    if (hasOwn(raw, 'y2'))
+        next.y2 = normalizeTextLeftTop(raw.y2);
+    if (hasOwn(raw, 'stroke'))
+        next.stroke = normalizeString(raw.stroke, fallback.stroke);
+    if (hasOwn(raw, 'strokeWidth')) {
+        next.strokeWidth = normalizePositiveNumber(raw.strokeWidth, fallback.strokeWidth);
+    }
+    if (hasOwn(raw, 'fill'))
+        next.fill = normalizeString(raw.fill, fallback.fill);
+    if (hasOwn(raw, 'opacity'))
+        next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
+    if (hasOwn(raw, 'angle'))
+        next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
+    if (hasOwn(raw, 'selectable')) {
+        next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
+    }
+    if (hasOwn(raw, 'evented'))
+        next.evented = normalizeBoolean(raw.evented, fallback.evented);
+    if (hasOwn(raw, 'annotationHidden')) {
+        next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
+    }
+    if (hasOwn(raw, 'annotationLocked')) {
+        next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
+    }
+    if (hasOwn(raw, 'strokeDashArray')) {
+        next.strokeDashArray = normalizeNullableDashArray(raw.strokeDashArray, fallback.strokeDashArray);
+    }
+    if (hasOwn(raw, 'arrowHeadLength')) {
+        next.arrowHeadLength = normalizePositiveNumber(raw.arrowHeadLength, fallback.arrowHeadLength);
+    }
+    if (hasOwn(raw, 'styles')) {
+        next.styles = {
+            ...next.styles,
+            ...normalizeFabricObjectStyles(raw.styles),
+        };
+    }
+    return next;
+}
+export function normalizeShapeAnnotationConfig(input, fallback) {
+    if (!isConfigObject(input))
+        return cloneResolvedShapeAnnotationConfig(fallback);
+    return mergeShapeAnnotationConfigPatch(fallback, input);
+}
 export function areResolvedTextAnnotationConfigsEqual(left, right) {
     return (left.text === right.text &&
         left.left === right.left &&
@@ -736,6 +884,43 @@ export function areResolvedDrawConfigsEqual(left, right) {
         left.annotationHidden === right.annotationHidden &&
         left.annotationLocked === right.annotationLocked);
 }
+export function areResolvedEraserConfigsEqual(left, right) {
+    return (left.brushSize === right.brushSize &&
+        left.target === right.target &&
+        left.previewStroke === right.previewStroke &&
+        left.previewStrokeWidth === right.previewStrokeWidth &&
+        left.previewFill === right.previewFill);
+}
+export function areResolvedShapeAnnotationConfigsEqual(left, right) {
+    const leftDash = left.strokeDashArray;
+    const rightDash = right.strokeDashArray;
+    const dashEqual = leftDash === rightDash ||
+        (Array.isArray(leftDash) &&
+            Array.isArray(rightDash) &&
+            leftDash.length === rightDash.length &&
+            leftDash.every((value, index) => value === rightDash[index]));
+    return (left.shape === right.shape &&
+        left.left === right.left &&
+        left.top === right.top &&
+        left.width === right.width &&
+        left.height === right.height &&
+        left.x1 === right.x1 &&
+        left.y1 === right.y1 &&
+        left.x2 === right.x2 &&
+        left.y2 === right.y2 &&
+        left.stroke === right.stroke &&
+        left.strokeWidth === right.strokeWidth &&
+        left.fill === right.fill &&
+        left.opacity === right.opacity &&
+        left.angle === right.angle &&
+        left.selectable === right.selectable &&
+        left.evented === right.evented &&
+        left.annotationHidden === right.annotationHidden &&
+        left.annotationLocked === right.annotationLocked &&
+        dashEqual &&
+        left.arrowHeadLength === right.arrowHeadLength &&
+        areStyleRecordsEqual(left.styles, right.styles));
+}
 export function getInvalidTextAnnotationConfigFields(input) {
     const raw = isConfigObject(input) ? input : {};
     const invalid = [];
@@ -763,6 +948,59 @@ export function getInvalidDrawConfigFields(input) {
         invalid.push('opacity');
     return invalid;
 }
+export function getInvalidEraserConfigFields(input) {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid = [];
+    if (hasOwn(raw, 'brushSize') && !isFiniteNumber(raw.brushSize))
+        invalid.push('brushSize');
+    if (hasOwn(raw, 'target') && raw.target !== 'drawAnnotations')
+        invalid.push('target');
+    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+        invalid.push('previewStroke');
+    }
+    if (hasOwn(raw, 'previewStrokeWidth') && !isFiniteNumber(raw.previewStrokeWidth)) {
+        invalid.push('previewStrokeWidth');
+    }
+    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+        invalid.push('previewFill');
+    }
+    return invalid;
+}
+export function getInvalidShapeAnnotationConfigFields(input) {
+    const raw = isConfigObject(input) ? input : {};
+    const invalid = [];
+    if (hasOwn(raw, 'shape') &&
+        raw.shape !== 'rect' &&
+        raw.shape !== 'line' &&
+        raw.shape !== 'arrow') {
+        invalid.push('shape');
+    }
+    if (hasOwn(raw, 'width') && !isFiniteNumber(raw.width))
+        invalid.push('width');
+    if (hasOwn(raw, 'height') && !isFiniteNumber(raw.height))
+        invalid.push('height');
+    if (hasOwn(raw, 'stroke') && typeof raw.stroke !== 'string')
+        invalid.push('stroke');
+    if (hasOwn(raw, 'strokeWidth') && !isFiniteNumber(raw.strokeWidth)) {
+        invalid.push('strokeWidth');
+    }
+    if (hasOwn(raw, 'fill') && typeof raw.fill !== 'string')
+        invalid.push('fill');
+    if (hasOwn(raw, 'opacity') && !isFiniteNumber(raw.opacity))
+        invalid.push('opacity');
+    if (hasOwn(raw, 'arrowHeadLength') && !isFiniteNumber(raw.arrowHeadLength)) {
+        invalid.push('arrowHeadLength');
+    }
+    if (hasOwn(raw, 'strokeDashArray')) {
+        const value = raw.strokeDashArray;
+        const valid = value === null ||
+            (Array.isArray(value) &&
+                value.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0));
+        if (!valid)
+            invalid.push('strokeDashArray');
+    }
+    return invalid;
+}
 export function resolveOptions(input) {
     const raw = input !== null && input !== void 0 ? input : {};
     const resolved = { ...DEFAULT_OPTIONS };
@@ -773,7 +1011,9 @@ export function resolveOptions(input) {
             key === 'crop' ||
             key === 'defaultMosaicConfig' ||
             key === 'defaultTextConfig' ||
-            key === 'defaultDrawConfig') {
+            key === 'defaultDrawConfig' ||
+            key === 'defaultEraserConfig' ||
+            key === 'defaultShapeConfig') {
             continue;
         }
         if (key === 'onImageLoadStart' ||
@@ -852,6 +1092,10 @@ export function resolveOptions(input) {
         }
         if (key === 'drawAnnotationName') {
             resolved.drawAnnotationName = normalizeString(value, DEFAULT_OPTIONS.drawAnnotationName);
+            continue;
+        }
+        if (key === 'shapeAnnotationName') {
+            resolved.shapeAnnotationName = normalizeString(value, DEFAULT_OPTIONS.shapeAnnotationName);
             continue;
         }
         if (key === 'groupSelection') {
@@ -1020,6 +1264,11 @@ export function resolveOptions(input) {
     Object.freeze(defaultTextConfig);
     const defaultDrawConfig = normalizeDrawConfig(raw.defaultDrawConfig, DEFAULT_DRAW_CONFIG);
     Object.freeze(defaultDrawConfig);
+    const defaultEraserConfig = normalizeEraserConfig(raw.defaultEraserConfig, DEFAULT_ERASER_CONFIG);
+    Object.freeze(defaultEraserConfig);
+    const defaultShapeConfig = normalizeShapeAnnotationConfig(raw.defaultShapeConfig, DEFAULT_SHAPE_ANNOTATION_CONFIG);
+    Object.freeze(defaultShapeConfig.styles);
+    Object.freeze(defaultShapeConfig);
     return Object.freeze({
         ...resolved,
         label,
@@ -1027,6 +1276,8 @@ export function resolveOptions(input) {
         defaultMosaicConfig,
         defaultTextConfig,
         defaultDrawConfig,
+        defaultEraserConfig,
+        defaultShapeConfig,
     });
 }
 //# sourceMappingURL=default-options.js.map

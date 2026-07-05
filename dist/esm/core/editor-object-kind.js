@@ -38,6 +38,9 @@ export function markAnnotationObject(object, meta) {
     if (typeof meta.annotationEditable === 'boolean') {
         annotation.annotationEditable = meta.annotationEditable;
     }
+    if (meta.shapeAnnotationKind) {
+        annotation.shapeAnnotationKind = meta.shapeAnnotationKind;
+    }
     return annotation;
 }
 export function markSessionObject(object, sessionObjectType) {

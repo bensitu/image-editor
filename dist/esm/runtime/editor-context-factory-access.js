@@ -1,5 +1,7 @@
-import { cloneResolvedMosaicConfig } from '../core/default-options.js';
+import { cloneResolvedMosaicConfig, cloneResolvedEraserConfig, cloneResolvedShapeAnnotationConfig, } from '../core/default-options.js';
 import { resolveDomElement } from '../core/editor-elements.js';
+import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, } from '../core/image-filter-config.js';
+import { applyImageFilterConfigToImage } from '../image/image-filters.js';
 import { setPlaceholderVisible as setPlaceholderVisibleImpl } from '../ui/visibility-state.js';
 import { EditorContextFactory } from './editor-contexts.js';
 export function createEditorContextFactory(runtime, callbacks) {
@@ -27,6 +29,23 @@ export function createEditorContextFactory(runtime, callbacks) {
         getCurrentImageMimeType: () => runtime.currentImageMimeType,
         setCurrentImageMimeType: (mimeType) => {
             runtime.currentImageMimeType = mimeType;
+        },
+        getCurrentImageFilterConfig: () => cloneResolvedImageFilterConfig(runtime.currentImageFilterConfig),
+        resetImageFilterState: () => {
+            const next = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+            runtime.currentImageFilterConfig = next;
+            runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+            if (runtime.originalImage) {
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+            }
+        },
+        restoreImageFilterConfig: (config) => {
+            const next = cloneResolvedImageFilterConfig(config !== null && config !== void 0 ? config : DEFAULT_IMAGE_FILTER_CONFIG);
+            runtime.currentImageFilterConfig = next;
+            runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
+            if (runtime.originalImage) {
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+            }
         },
         getLastSnapshot: () => runtime.lastSnapshot,
         setLastSnapshot: (snapshot) => {
@@ -58,6 +77,8 @@ export function createEditorContextFactory(runtime, callbacks) {
         },
         getTextConfig: () => runtime.currentTextConfig,
         getDrawConfig: () => runtime.currentDrawConfig,
+        getEraserConfig: () => cloneResolvedEraserConfig(runtime.currentEraserConfig),
+        getShapeConfig: () => cloneResolvedShapeAnnotationConfig(runtime.currentShapeConfig),
         getMosaicConfig: () => cloneResolvedMosaicConfig(runtime.currentMosaicConfig),
         getTextSession: () => runtime.textSession,
         setTextSession: (session) => {
@@ -66,6 +87,10 @@ export function createEditorContextFactory(runtime, callbacks) {
         getDrawSession: () => runtime.drawSession,
         setDrawSession: (session) => {
             runtime.drawSession = session;
+        },
+        getShapeSession: () => runtime.shapeSession,
+        setShapeSession: (session) => {
+            runtime.shapeSession = session;
         },
         getMosaicSession: () => runtime.mosaicSession,
         setMosaicSession: (session) => {

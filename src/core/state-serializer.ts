@@ -50,10 +50,17 @@ import type {
     BaseImageObject,
     ImageMimeType,
     MaskObject,
+    ResolvedImageFilterConfig,
 } from './public-types.js';
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 import { StateRestoreError } from './errors.js';
+import {
+    cloneResolvedImageFilterConfig,
+    DEFAULT_IMAGE_FILTER_CONFIG,
+    hasActiveImageFilters,
+    normalizeImageFilterConfigSnapshot,
+} from './image-filter-config.js';
 
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 
@@ -127,6 +134,8 @@ export interface CanvasJsonObject {
     annotationId?: number;
     /** Annotation subtype. */
     annotationType?: string;
+    /** Shape annotation primitive subtype. */
+    shapeAnnotationKind?: string;
     /** Annotation display name. */
     annotationName?: string;
     /** Business-level annotation visibility. */
@@ -159,6 +168,8 @@ export interface EditorStateMeta {
     baseImageScale: number;
     /** MIME type of the currently committed image, when known. */
     currentImageMimeType?: ImageMimeType | null;
+    /** Canonical editor-managed image filter config. */
+    imageFilterConfig?: ResolvedImageFilterConfig;
     /** Active editor-owned object kind when the snapshot was captured, if any. */
     activeObjectKind?: 'mask' | 'annotation' | null;
     /** Mask selected when the snapshot was captured, if any. */
@@ -218,6 +229,7 @@ export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'isMosaicPreview',
     'annotationId',
     'annotationType',
+    'shapeAnnotationKind',
     'annotationName',
     'annotationHidden',
     'annotationLocked',
@@ -236,6 +248,7 @@ type SnapshotLiveObject = FabricNS.FabricObject &
         isMosaicPreview?: boolean;
         annotationId?: number;
         annotationType?: string;
+        shapeAnnotationKind?: string;
         annotationName?: string;
         annotationHidden?: boolean;
         annotationLocked?: boolean;
@@ -437,6 +450,9 @@ function copySnapshotCustomPropsFromCanvas(
         if (typeof liveObject.annotationType === 'string') {
             jsonObject.annotationType = liveObject.annotationType;
         }
+        if (typeof liveObject.shapeAnnotationKind === 'string') {
+            jsonObject.shapeAnnotationKind = liveObject.shapeAnnotationKind;
+        }
         if (typeof liveObject.annotationName === 'string') {
             jsonObject.annotationName = liveObject.annotationName;
         }
@@ -495,6 +511,8 @@ export interface SaveStateInput {
     baseImageScale: number;
     /** MIME type of the current image, persisted for source-preserving crop. */
     currentImageMimeType?: ImageMimeType | null;
+    /** Canonical editor-managed image filter config. */
+    imageFilterConfig?: ResolvedImageFilterConfig;
 }
 
 /**
@@ -586,6 +604,12 @@ export function saveState(input: SaveStateInput): string {
         activeObjectKind:
             activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
     };
+    const imageFilterConfig = cloneResolvedImageFilterConfig(
+        input.imageFilterConfig ?? DEFAULT_IMAGE_FILTER_CONFIG,
+    );
+    if (hasActiveImageFilters(imageFilterConfig)) {
+        jsonObj._editorState.imageFilterConfig = imageFilterConfig;
+    }
     if (activeMaskId !== null) jsonObj._editorState.activeMaskId = activeMaskId;
     if (activeAnnotationId !== null) {
         jsonObj._editorState.activeAnnotationId = activeAnnotationId;
@@ -801,6 +825,11 @@ export async function loadFromState(input: LoadFromStateInput): Promise<LoadFrom
                 ? mimeType
                 : null;
     }
+    if (editorState && json._editorState && 'imageFilterConfig' in json._editorState) {
+        editorState.imageFilterConfig = normalizeImageFilterConfigSnapshot(
+            json._editorState.imageFilterConfig,
+        );
+    }
 
     // 5b. `maskCounter` is the maximum restored
     //     `maskId`, or `0` if no masks survived the filter.
@@ -900,9 +929,19 @@ function restoreEditorObjectPropsFromJson(
             typeof jObj.annotationType === 'string' &&
             typeof jObj.annotationName === 'string'
         ) {
+            const annotationType =
+                jObj.annotationType === 'draw'
+                    ? 'draw'
+                    : jObj.annotationType === 'shape'
+                      ? 'shape'
+                      : 'text';
+            const shapeAnnotationKind =
+                jObj.shapeAnnotationKind === 'line' || jObj.shapeAnnotationKind === 'arrow'
+                    ? jObj.shapeAnnotationKind
+                    : 'rect';
             markAnnotationObject(canvasObj, {
                 annotationId: jObj.annotationId,
-                annotationType: jObj.annotationType === 'draw' ? 'draw' : 'text',
+                annotationType,
                 annotationName: jObj.annotationName,
                 annotationHidden:
                     typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
@@ -924,6 +963,7 @@ function restoreEditorObjectPropsFromJson(
                     typeof jObj.annotationEditable === 'boolean'
                         ? jObj.annotationEditable
                         : undefined,
+                shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
             });
             return;
         }

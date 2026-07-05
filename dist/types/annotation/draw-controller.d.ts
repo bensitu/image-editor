@@ -7,13 +7,20 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import { type FabricModule, type ImageEditorCallbackContext, type ResolvedDrawConfig, type ResolvedOptions } from '../core/public-types.js';
+import { type DrawSubMode, type FabricModule, type ImageEditorCallbackContext, type ResolvedDrawConfig, type ResolvedEraserConfig, type ResolvedOptions, type SessionObject } from '../core/public-types.js';
 export interface DrawSession {
     mode: 'draw';
+    subMode: DrawSubMode;
     previousDrawingMode: boolean;
     previousBrush: unknown;
     previousCanvasSelection: boolean;
     previousDefaultCursor: string | undefined;
+    eraserPreview: (FabricNS.Circle & SessionObject) | null;
+    eraserPoints: Array<{
+        x: number;
+        y: number;
+    }>;
+    isErasing: boolean;
     handlers: Array<{
         eventName: string;
         callback: (event: unknown) => void;
@@ -25,6 +32,7 @@ export interface DrawControllerContext {
     readonly canvas: FabricNS.Canvas;
     readonly options: ResolvedOptions;
     getDrawConfig(): ResolvedDrawConfig;
+    getEraserConfig(): ResolvedEraserConfig;
     isImageLoaded(): boolean;
     getAnnotationCounter(): number;
     setAnnotationCounter(value: number): void;
@@ -35,8 +43,10 @@ export interface DrawControllerContext {
     updateUi(): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
-    buildCallbackContext(operation: 'enterDrawMode' | 'exitDrawMode'): ImageEditorCallbackContext;
+    buildCallbackContext(operation: 'enterDrawMode' | 'exitDrawMode' | 'commitEraserStroke'): ImageEditorCallbackContext;
 }
 export declare function enterDrawMode(context: DrawControllerContext): void;
 export declare function exitDrawMode(context: DrawControllerContext): void;
 export declare function updateDrawBrush(context: DrawControllerContext): void;
+export declare function setDrawSubMode(context: DrawControllerContext, subMode: DrawSubMode): void;
+export declare function updateEraserPreview(context: DrawControllerContext): void;

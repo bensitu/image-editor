@@ -28,5 +28,6 @@ export declare function markAnnotationObject(object: FabricNS.FabricObject, meta
     annotationEvented?: boolean;
     annotationHasControls?: boolean;
     annotationEditable?: boolean;
+    shapeAnnotationKind?: 'rect' | 'line' | 'arrow';
 }): AnnotationObject;
 export declare function markSessionObject<T extends FabricNS.FabricObject>(object: T, sessionObjectType: SessionObjectType): T & SessionObject;

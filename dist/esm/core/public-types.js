@@ -25,6 +25,14 @@ export function isTextAnnotationObject(object) {
 export function isDrawAnnotationObject(object) {
     return isAnnotationObject(object) && object.annotationType === 'draw';
 }
+export function isShapeAnnotationObject(object) {
+    const candidate = object;
+    return (isAnnotationObject(candidate) &&
+        candidate.annotationType === 'shape' &&
+        (candidate.shapeAnnotationKind === 'rect' ||
+            candidate.shapeAnnotationKind === 'line' ||
+            candidate.shapeAnnotationKind === 'arrow'));
+}
 export function isSessionObject(object) {
     const candidate = object;
     return (!!candidate &&

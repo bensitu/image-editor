@@ -1,5 +1,6 @@
 import { AnimationQueue } from '../animation/animation-queue.js';
-import { cloneResolvedDrawConfig, cloneResolvedMosaicConfig, cloneResolvedTextAnnotationConfig, } from '../core/default-options.js';
+import { cloneResolvedDrawConfig, cloneResolvedEraserConfig, cloneResolvedMosaicConfig, cloneResolvedShapeAnnotationConfig, cloneResolvedTextAnnotationConfig, } from '../core/default-options.js';
+import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, } from '../core/image-filter-config.js';
 import { OperationGuard } from '../core/operation-guard.js';
 import { HistoryManager } from '../history/history-manager.js';
 import { ViewportCache } from '../image/layout-manager.js';
@@ -60,6 +61,30 @@ export class EditorRuntime {
             value: void 0
         });
         Object.defineProperty(this, "currentDrawConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "defaultEraserConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentEraserConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "defaultShapeConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "currentShapeConfig", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -149,6 +174,18 @@ export class EditorRuntime {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "currentImageFilterConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "lastCommittedImageFilterConfig", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "maskCounter", {
             enumerable: true,
             configurable: true,
@@ -222,6 +259,12 @@ export class EditorRuntime {
             value: null
         });
         Object.defineProperty(this, "drawSession", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "shapeSession", {
             enumerable: true,
             configurable: true,
             writable: true,
@@ -303,6 +346,12 @@ export class EditorRuntime {
         this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
         this.defaultDrawConfig = options.defaultDrawConfig;
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.defaultEraserConfig = options.defaultEraserConfig;
+        this.currentEraserConfig = cloneResolvedEraserConfig(this.defaultEraserConfig);
+        this.defaultShapeConfig = options.defaultShapeConfig;
+        this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
+        this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.historyManager = new HistoryManager(options.maxHistorySize);
         this.lastEmittedHistoryState = {
             canUndo: this.historyManager.canUndo(),
@@ -347,6 +396,8 @@ export class EditorRuntime {
         this.isImageLoadedToCanvas = false;
         this.originalImage = null;
         this.currentImageMimeType = null;
+        this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+        this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.lastMask = null;
         this.maskCounter = 0;
         this.annotationCounter = 0;
@@ -360,12 +411,15 @@ export class EditorRuntime {
         this.mosaicSession = null;
         this.textSession = null;
         this.drawSession = null;
+        this.shapeSession = null;
         this.domBindings = null;
         this.keyboardDocument = null;
         this.keyboardHandler = null;
         this.currentMosaicConfig = cloneResolvedMosaicConfig(this.defaultMosaicConfig);
         this.currentTextConfig = cloneResolvedTextAnnotationConfig(this.defaultTextConfig);
         this.currentDrawConfig = cloneResolvedDrawConfig(this.defaultDrawConfig);
+        this.currentEraserConfig = cloneResolvedEraserConfig(this.defaultEraserConfig);
+        this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
         this.shouldSuppressSaveState = false;
         this.shouldSuppressSelectionChange = false;
         this.lastEmittedIsBusy = null;

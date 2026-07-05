@@ -38,6 +38,7 @@ export {
     isEditableOverlayObject,
     isMaskObject,
     isSessionObject,
+    isShapeAnnotationObject,
     isTextAnnotationObject,
 } from './core/public-types.js';
 
@@ -64,10 +65,19 @@ export type {
     MosaicConfig,
     ResolvedMosaicConfig,
     MosaicOutputFileType,
+    ImageFilterConfig,
+    ResolvedImageFilterConfig,
     TextAnnotationConfig,
     ResolvedTextAnnotationConfig,
     DrawConfig,
     ResolvedDrawConfig,
+    DrawSubMode,
+    EraserConfig,
+    ResolvedEraserConfig,
+    ShapeAnnotationConfig,
+    ResolvedShapeAnnotationConfig,
+    ShapeAnnotationKind,
+    OverlayNumericProp,
     // loadImage / removeAllMasks options
     LoadImageOptions,
     RemoveAllMasksOptions,
@@ -84,6 +94,7 @@ export type {
     AnnotationObject,
     TextAnnotationObject,
     DrawAnnotationObject,
+    ShapeAnnotationObject,
     AnnotationUpdateConfig,
     // Image format primitives
     ImageMimeType,

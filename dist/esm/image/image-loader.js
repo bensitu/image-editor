@@ -39,6 +39,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
         currentImageMimeType: context.getCurrentImageMimeType(),
+        currentImageFilterConfig: context.getCurrentImageFilterConfig(),
     };
     try {
         const loadDeadline = Date.now() + context.options.imageLoadTimeoutMs;
@@ -89,6 +90,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
         context.setAnnotationCounter(0);
         context.setIsImageLoadedToCanvas(true);
         context.setCurrentImageMimeType(loadSource.mimeType);
+        context.resetImageFilterState();
         context.canvas.renderAll();
         context.setLastSnapshot(saveState({
             canvas: context.canvas,
@@ -96,6 +98,7 @@ export async function loadImage(context, imageBase64, loadOptions = {}) {
             currentRotation: 0,
             baseImageScale: layout.baseImageScale,
             currentImageMimeType: loadSource.mimeType,
+            imageFilterConfig: context.getCurrentImageFilterConfig(),
         }));
         if (loadOptions.preserveScroll === true && context.containerElement) {
             try {
@@ -192,6 +195,7 @@ function captureRollbackState(context) {
         currentRotation: context.getCurrentRotation(),
         baseImageScale: context.getBaseImageScale(),
         currentImageMimeType: context.getCurrentImageMimeType(),
+        imageFilterConfig: context.getCurrentImageFilterConfig(),
     });
 }
 function getRemainingLoadTimeout(deadline) {
@@ -201,6 +205,7 @@ function createAbortController() {
     return typeof AbortController === 'function' ? new AbortController() : null;
 }
 async function replayRollback(context, bundle) {
+    var _a, _b;
     try {
         const restoredState = await loadFromState({
             canvas: context.canvas,
@@ -220,6 +225,7 @@ async function replayRollback(context, bundle) {
         context.setCurrentRotation(bundle.currentRotation);
         context.setBaseImageScale(bundle.baseImageScale);
         context.setCurrentImageMimeType(bundle.currentImageMimeType);
+        context.restoreImageFilterConfig((_b = (_a = restoredState.editorState) === null || _a === void 0 ? void 0 : _a.imageFilterConfig) !== null && _b !== void 0 ? _b : bundle.currentImageFilterConfig);
         context.canvas.renderAll();
     }
     catch (rollbackError) {

@@ -55,9 +55,9 @@ export type NormalizedImageFormat = 'jpeg' | 'png' | 'webp';
  */
 export type ExportArea = 'image' | 'canvas';
 export type EditorObjectKind = 'baseImage' | 'mask' | 'annotation' | 'session';
-export type AnnotationType = 'text' | 'draw';
-export type SessionObjectType = 'cropRect' | 'maskLabel' | 'mosaicPreviewCircle' | 'mosaicPreviewImage' | 'textPreview' | 'drawPreview';
-export type EditorToolMode = 'crop' | 'mosaic' | 'text' | 'draw';
+export type AnnotationType = 'text' | 'draw' | 'shape';
+export type SessionObjectType = 'cropRect' | 'maskLabel' | 'mosaicPreviewCircle' | 'mosaicPreviewImage' | 'textPreview' | 'drawPreview' | 'eraserPreview' | 'shapePreview';
+export type EditorToolMode = 'crop' | 'mosaic' | 'text' | 'draw' | 'shape';
 /**
  * Render order for mask and annotation sidebar lists.
  *
@@ -166,6 +166,11 @@ export interface TextAnnotationObject extends AnnotationObject {
 export interface DrawAnnotationObject extends AnnotationObject {
     annotationType: 'draw';
 }
+export type ShapeAnnotationKind = 'rect' | 'line' | 'arrow';
+export interface ShapeAnnotationObject extends AnnotationObject {
+    annotationType: 'shape';
+    shapeAnnotationKind: ShapeAnnotationKind;
+}
 /**
  * Type guard — returns `true` when `object` carries the runtime mask metadata
  * (`maskId: number`) so consumers can filter `canvas.getObjects`
@@ -176,12 +181,13 @@ export declare function isMaskObject(object: unknown): object is MaskObject;
 export declare function isAnnotationObject(object: unknown): object is AnnotationObject;
 export declare function isTextAnnotationObject(object: unknown): object is TextAnnotationObject;
 export declare function isDrawAnnotationObject(object: unknown): object is DrawAnnotationObject;
+export declare function isShapeAnnotationObject(object: unknown): object is ShapeAnnotationObject;
 export declare function isSessionObject(object: unknown): object is SessionObject;
 export declare function isEditableOverlayObject(object: unknown): object is MaskObject | AnnotationObject;
 /**
  * Public operation/reason associated with lifecycle and state callbacks.
  */
-export type ImageEditorOperation = 'init' | 'loadImage' | 'loadFromState' | 'saveState' | 'setCanvasSize' | 'resizeToContainer' | 'relayout' | 'scaleImage' | 'rotateImage' | 'flipHorizontal' | 'flipVertical' | 'resetImageTransform' | 'createMask' | 'removeSelectedMask' | 'removeAllMasks' | 'mergeMasks' | 'createTextAnnotation' | 'enterTextMode' | 'exitTextMode' | 'setTextConfig' | 'resetTextConfig' | 'setTextColor' | 'setTextFontSize' | 'enterDrawMode' | 'exitDrawMode' | 'setDrawConfig' | 'resetDrawConfig' | 'setDrawColor' | 'setDrawBrushSize' | 'updateSelectedAnnotation' | 'updateAnnotation' | 'removeSelectedAnnotation' | 'removeAllAnnotations' | 'deleteSelectedObject' | 'mergeAnnotations' | 'bringSelectedObjectForward' | 'sendSelectedObjectBackward' | 'bringSelectedObjectToFront' | 'sendSelectedObjectToBack' | 'enterCropMode' | 'setCropAspectRatio' | 'applyCrop' | 'cancelCrop' | 'enterMosaicMode' | 'exitMosaicMode' | 'applyMosaic' | 'setMosaicConfig' | 'resetMosaicConfig' | 'setMosaicBrushSize' | 'setMosaicBlockSize' | 'undo' | 'redo' | 'exportImageBase64' | 'exportImageFile' | 'downloadImage' | 'dispose';
+export type ImageEditorOperation = 'init' | 'loadImage' | 'loadFromState' | 'saveState' | 'setCanvasSize' | 'resizeToContainer' | 'relayout' | 'scaleImage' | 'rotateImage' | 'flipHorizontal' | 'flipVertical' | 'resetImageTransform' | 'setImageFilterConfig' | 'resetImageFilterConfig' | 'clearImageFilters' | 'commitImageFilters' | 'createMask' | 'removeSelectedMask' | 'removeAllMasks' | 'mergeMasks' | 'createTextAnnotation' | 'createShapeAnnotation' | 'enterTextMode' | 'exitTextMode' | 'enterShapeMode' | 'exitShapeMode' | 'setShapeConfig' | 'resetShapeConfig' | 'setTextConfig' | 'resetTextConfig' | 'setTextColor' | 'setTextFontSize' | 'enterDrawMode' | 'exitDrawMode' | 'setDrawConfig' | 'resetDrawConfig' | 'setDrawColor' | 'setDrawBrushSize' | 'setDrawSubMode' | 'setEraserConfig' | 'resetEraserConfig' | 'commitEraserStroke' | 'updateSelectedAnnotation' | 'updateAnnotation' | 'removeSelectedAnnotation' | 'removeAllAnnotations' | 'deleteSelectedObject' | 'mergeAnnotations' | 'bringSelectedObjectForward' | 'sendSelectedObjectBackward' | 'bringSelectedObjectToFront' | 'sendSelectedObjectToBack' | 'enterCropMode' | 'setCropAspectRatio' | 'applyCrop' | 'cancelCrop' | 'enterMosaicMode' | 'exitMosaicMode' | 'applyMosaic' | 'setMosaicConfig' | 'resetMosaicConfig' | 'setMosaicBrushSize' | 'setMosaicBlockSize' | 'undo' | 'redo' | 'exportImageBase64' | 'exportImageFile' | 'downloadImage' | 'dispose';
 /**
  * Context passed to lifecycle and state callbacks.
  */
@@ -225,6 +231,7 @@ export interface ImageEditorState {
     isMosaicMode: boolean;
     isTextMode: boolean;
     isDrawMode: boolean;
+    isShapeMode: boolean;
     canUndo: boolean;
     canRedo: boolean;
     canvasWidth: number;
@@ -386,6 +393,41 @@ export interface ResolvedMosaicConfig {
     outputFileType: MosaicOutputFileType;
     outputQuality?: number;
 }
+export interface ImageFilterConfig {
+    /**
+     * Range: -1 to 1. 0 means no brightness adjustment.
+     */
+    brightness?: number;
+    /**
+     * Range: -1 to 1. 0 means no contrast adjustment.
+     */
+    contrast?: number;
+    /**
+     * Range: -1 to 1. 0 means no saturation adjustment.
+     */
+    saturation?: number;
+    /**
+     * Range: 0 to 1. 0 means no blur.
+     */
+    blur?: number;
+    /**
+     * Range: 0 to 1. 0 means no sharpening.
+     */
+    sharpen?: number;
+    grayscale?: boolean;
+    sepia?: boolean;
+    vintage?: boolean;
+}
+export interface ResolvedImageFilterConfig {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    blur: number;
+    sharpen: number;
+    grayscale: boolean;
+    sepia: boolean;
+    vintage: boolean;
+}
 export interface TextAnnotationConfig {
     text?: string;
     left?: MaskNumericProp;
@@ -437,6 +479,7 @@ export interface DrawConfig {
     annotationHidden?: boolean;
     annotationLocked?: boolean;
 }
+export type DrawSubMode = 'brush' | 'erase';
 export interface ResolvedDrawConfig {
     brushSize: number;
     color: string;
@@ -447,6 +490,23 @@ export interface ResolvedDrawConfig {
     evented: boolean;
     annotationHidden: boolean;
     annotationLocked: boolean;
+}
+export interface EraserConfig {
+    /**
+     * Brush diameter in canvas pixels.
+     */
+    brushSize?: number;
+    target?: 'drawAnnotations';
+    previewStroke?: string;
+    previewStrokeWidth?: number;
+    previewFill?: string;
+}
+export interface ResolvedEraserConfig {
+    brushSize: number;
+    target: 'drawAnnotations';
+    previewStroke: string;
+    previewStrokeWidth: number;
+    previewFill: string;
 }
 export interface CommonAnnotationUpdateConfig {
     annotationHidden?: boolean;
@@ -469,7 +529,60 @@ export interface DrawAnnotationUpdateConfig extends CommonAnnotationUpdateConfig
     strokeWidth?: number;
     opacity?: number;
 }
-export type AnnotationUpdateConfig = TextAnnotationUpdateConfig | DrawAnnotationUpdateConfig | CommonAnnotationUpdateConfig;
+export interface ShapeAnnotationUpdateConfig extends CommonAnnotationUpdateConfig {
+    stroke?: string;
+    strokeWidth?: number;
+    fill?: string;
+    opacity?: number;
+}
+export type AnnotationUpdateConfig = TextAnnotationUpdateConfig | DrawAnnotationUpdateConfig | ShapeAnnotationUpdateConfig | CommonAnnotationUpdateConfig;
+export type OverlayNumericProp = MaskNumericProp;
+export interface ShapeAnnotationConfig {
+    shape?: ShapeAnnotationKind;
+    left?: OverlayNumericProp;
+    top?: OverlayNumericProp;
+    width?: number;
+    height?: number;
+    x1?: OverlayNumericProp;
+    y1?: OverlayNumericProp;
+    x2?: OverlayNumericProp;
+    y2?: OverlayNumericProp;
+    stroke?: string;
+    strokeWidth?: number;
+    fill?: string;
+    opacity?: number;
+    angle?: number;
+    selectable?: boolean;
+    evented?: boolean;
+    annotationHidden?: boolean;
+    annotationLocked?: boolean;
+    strokeDashArray?: readonly number[] | null;
+    arrowHeadLength?: number;
+    styles?: Partial<FabricNS.FabricObjectProps>;
+}
+export interface ResolvedShapeAnnotationConfig {
+    shape: ShapeAnnotationKind;
+    left?: number;
+    top?: number;
+    width: number;
+    height: number;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    stroke: string;
+    strokeWidth: number;
+    fill: string;
+    opacity: number;
+    angle: number;
+    selectable: boolean;
+    evented: boolean;
+    annotationHidden: boolean;
+    annotationLocked: boolean;
+    strokeDashArray: readonly number[] | null;
+    arrowHeadLength: number;
+    styles: Partial<FabricNS.FabricObjectProps>;
+}
 /**
  * A numeric property that may be provided as:
  *   - a plain `number` in canvas pixels,
@@ -972,6 +1085,8 @@ export interface ImageEditorOptions {
     textAnnotationName?: string;
     /** Name prefix for auto-generated draw annotations. @default 'draw' */
     drawAnnotationName?: string;
+    /** Name prefix for auto-generated shape annotations. @default 'shape' */
+    shapeAnnotationName?: string;
     /** Mask list render order. @default 'front-to-back' */
     maskListOrder?: OverlayListOrder;
     /** Annotation list render order. @default 'front-to-back' */
@@ -1041,13 +1156,17 @@ export interface ImageEditorOptions {
     defaultTextConfig?: TextAnnotationConfig;
     /** Default Draw mode configuration. */
     defaultDrawConfig?: DrawConfig;
+    /** Default Draw-mode eraser configuration. */
+    defaultEraserConfig?: EraserConfig;
+    /** Default Shape annotation configuration. */
+    defaultShapeConfig?: ShapeAnnotationConfig;
 }
 /**
  * Fully resolved options with every required field guaranteed present.
  * Produced by `core/default-options.ts` after merging defaults with the
  * user-supplied partial options.
  */
-export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig' | 'onImageLoadStart' | 'onImageLoaded' | 'onImageCleared' | 'onImageChanged' | 'onBusyChange' | 'onToolModeChange' | 'onHistoryChange' | 'onEditorDisposed' | 'onMasksChanged' | 'onAnnotationsChanged' | 'onSelectionChange' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxInputBytes' | 'maxInputPixels' | 'maxExportPixels' | 'maxExportDimension'>> {
+export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig' | 'defaultEraserConfig' | 'defaultShapeConfig' | 'onImageLoadStart' | 'onImageLoaded' | 'onImageCleared' | 'onImageChanged' | 'onBusyChange' | 'onToolModeChange' | 'onHistoryChange' | 'onEditorDisposed' | 'onMasksChanged' | 'onAnnotationsChanged' | 'onSelectionChange' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxInputBytes' | 'maxInputPixels' | 'maxExportPixels' | 'maxExportDimension'>> {
     downsampleQuality: number;
     maxInputBytes: number;
     maxInputPixels: number;
@@ -1060,6 +1179,8 @@ export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'labe
     defaultMosaicConfig: ResolvedMosaicConfig;
     defaultTextConfig: ResolvedTextAnnotationConfig;
     defaultDrawConfig: ResolvedDrawConfig;
+    defaultEraserConfig: ResolvedEraserConfig;
+    defaultShapeConfig: ResolvedShapeAnnotationConfig;
     onImageLoadStart: ((context: ImageEditorCallbackContext) => void) | null;
     onImageLoaded: ((imageInfo: ImageInfo, context: ImageEditorCallbackContext) => void) | null;
     onImageCleared: ((previousImage: FabricNS.FabricImage | null, context: ImageEditorCallbackContext) => void) | null;

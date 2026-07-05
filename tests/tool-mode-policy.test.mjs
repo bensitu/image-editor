@@ -36,6 +36,7 @@ function snapshot(overrides = {}) {
         hasMosaicSession: false,
         hasTextSession: false,
         hasDrawSession: false,
+        hasShapeSession: false,
         ...overrides,
     };
 }
@@ -53,6 +54,7 @@ test('each active mode is detected individually', () => {
     assert.equal(getActiveToolMode(snapshot({ hasMosaicSession: true })), 'mosaic');
     assert.equal(getActiveToolMode(snapshot({ hasTextSession: true })), 'text');
     assert.equal(getActiveToolMode(snapshot({ hasDrawSession: true })), 'draw');
+    assert.equal(getActiveToolMode(snapshot({ hasShapeSession: true })), 'shape');
     assert.equal(isToolModeActive(snapshot({ hasDrawSession: true })), true);
 });
 
@@ -64,6 +66,7 @@ test('multiple active modes preserve facade priority', () => {
                 hasMosaicSession: true,
                 hasTextSession: true,
                 hasDrawSession: true,
+                hasShapeSession: true,
             }),
         ),
         'crop',
@@ -74,6 +77,7 @@ test('multiple active modes preserve facade priority', () => {
                 hasMosaicSession: true,
                 hasTextSession: true,
                 hasDrawSession: true,
+                hasShapeSession: true,
             }),
         ),
         'mosaic',
@@ -128,8 +132,23 @@ test('draw mode allows draw-session operations', () => {
     assert.equal(allowed.has('resetDrawConfig'), true);
     assert.equal(allowed.has('setDrawColor'), true);
     assert.equal(allowed.has('setDrawBrushSize'), true);
+    assert.equal(allowed.has('setDrawSubMode'), true);
+    assert.equal(allowed.has('setEraserConfig'), true);
+    assert.equal(allowed.has('resetEraserConfig'), true);
+    assert.equal(allowed.has('commitEraserStroke'), true);
     assert.equal(allowed.has('saveState'), true);
     assert.equal(canRunOperationInToolMode('draw', 'createTextAnnotation'), false);
+});
+
+test('shape mode allows shape-session operations', () => {
+    const allowed = getAllowedOperationsForToolMode('shape');
+
+    assert.equal(allowed.has('exitShapeMode'), true);
+    assert.equal(allowed.has('createShapeAnnotation'), true);
+    assert.equal(allowed.has('setShapeConfig'), true);
+    assert.equal(allowed.has('resetShapeConfig'), true);
+    assert.equal(allowed.has('saveState'), true);
+    assert.equal(canRunOperationInToolMode('shape', 'enterDrawMode'), false);
 });
 
 test('text and draw modes block unrelated mutating and export operations', () => {
@@ -165,10 +184,18 @@ test('text and draw modes block unrelated mutating and export operations', () =>
             false,
             `draw blocks ${operation}`,
         );
+        assert.equal(
+            canRunOperationInToolMode('shape', operation),
+            false,
+            `shape blocks ${operation}`,
+        );
     }
 });
 test('operation name guard recognizes public operation names only', () => {
     assert.equal(isImageEditorOperation('mergeMasks'), true);
+    assert.equal(isImageEditorOperation('commitImageFilters'), true);
+    assert.equal(isImageEditorOperation('createShapeAnnotation'), true);
+    assert.equal(isImageEditorOperation('setDrawSubMode'), true);
     assert.equal(isImageEditorOperation('setCanvasSize'), true);
     assert.equal(isImageEditorOperation('resizeToContainer'), true);
     assert.equal(isImageEditorOperation('relayout'), true);

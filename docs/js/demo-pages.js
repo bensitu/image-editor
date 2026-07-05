@@ -98,6 +98,19 @@
             alpha: 0.78,
         },
     };
+    const imageFilterControlIds = [
+        'imageBrightnessInput',
+        'imageContrastInput',
+        'imageSaturationInput',
+        'imageBlurInput',
+        'imageSharpenInput',
+        'imageGrayscaleInput',
+        'imageSepiaInput',
+        'imageVintageInput',
+        'applyImageFiltersButton',
+        'resetImageFiltersButton',
+        'clearImageFiltersButton',
+    ];
     const demoState = {
         editor: null,
         isLoading: false,
@@ -132,6 +145,21 @@
     function setDisabled(id, disabled) {
         const element = getOptionalElement(id);
         if ('disabled' in (element || {})) element.disabled = disabled;
+    }
+
+    function setControlValue(id, value) {
+        const element = getOptionalElement(id);
+        if ('value' in (element || {})) element.value = String(value);
+    }
+
+    function setControlChecked(id, checked) {
+        const element = getOptionalElement(id);
+        if ('checked' in (element || {})) element.checked = !!checked;
+    }
+
+    function readNumberControl(id, fallback) {
+        const value = Number(getOptionalElement(id)?.value);
+        return Number.isFinite(value) ? value : fallback;
     }
 
     function showMessage(message, tone) {
@@ -173,6 +201,7 @@
             maskName: 'redaction',
             textAnnotationName: 'note',
             drawAnnotationName: 'stroke',
+            shapeAnnotationName: 'shape',
             maskListOrder: 'front-to-back',
             annotationListOrder: 'front-to-back',
             exportAreaByDefault: 'image',
@@ -201,6 +230,18 @@
                 color: '#b45309',
                 brushSize: 8,
                 opacity: 0.92,
+            },
+            defaultEraserConfig: {
+                brushSize: 18,
+                previewStroke: '#7c2d12',
+                previewFill: 'rgba(255,255,255,0.35)',
+            },
+            defaultShapeConfig: {
+                shape: 'rect',
+                stroke: '#b45309',
+                strokeWidth: 4,
+                fill: 'rgba(245,158,11,0.16)',
+                arrowHeadLength: 20,
             },
             defaultMosaicConfig: {
                 brushSize: 48,
@@ -296,7 +337,13 @@
         const busy = isDemoBusy();
         const canLoad = !!editor && !busy && activeToolMode === null;
         const canUseIdleImage = !!editor && hasImage && !busy && activeToolMode === null;
+        const canUseImageFilters = canUseIdleImage;
+        const canUseShapeConfig =
+            !!editor && hasImage && (activeToolMode === null || activeToolMode === 'shape');
+        const canUseDrawSubMode = !!editor && hasImage && activeToolMode === 'draw';
         const selectedAnnotation = selection?.selectedAnnotation || null;
+        const drawSubMode = editor?.getDrawSubMode?.() || null;
+        const eraserConfig = editor?.getEraserConfig?.() || null;
 
         setText('statusImage', hasImage ? 'Loaded' : 'Empty');
         setText(
@@ -327,14 +374,36 @@
         setDisabled('layoutModeSelect', !canLoad);
         setDisabled('createMaskButton', !canUseIdleImage);
         setDisabled('createTextAnnotationButton', !canUseIdleImage);
+        setImageFilterControlsDisabled(!canUseImageFilters);
+        setDisabled('createShapeAnnotationButton', !canUseIdleImage);
+        setDisabled('enterShapeModeButton', !canUseIdleImage);
+        setDisabled('exitShapeModeButton', !(!!editor && activeToolMode === 'shape'));
+        setDisabled('shapeKindSelect', !canUseShapeConfig);
+        setDisabled('shapeStrokeInput', !canUseShapeConfig);
+        setDisabled('shapeStrokeWidthInput', !canUseShapeConfig);
+        setDisabled('shapeFillInput', !canUseShapeConfig);
+        setDisabled('drawBrushSubModeButton', !canUseDrawSubMode);
+        setDisabled('drawEraseSubModeButton', !canUseDrawSubMode);
+        setDisabled('eraserBrushSizeInput', !canUseDrawSubMode);
         setDisabled('toggleAnnotationHiddenButton', !selectedAnnotation || busy);
         setDisabled('toggleAnnotationLockedButton', !selectedAnnotation || busy);
         setDisabled('exportImageButton', !canUseIdleImage);
         setDisabled('downloadExportButton', !canUseIdleImage);
+        syncImageFilterControls(editor?.getImageFilterConfig?.() || null);
+        if (eraserConfig) setControlValue('eraserBrushSizeInput', eraserConfig.brushSize);
 
         document.querySelectorAll('[data-mask-preset]').forEach((button) => {
             if ('disabled' in button) button.disabled = !canUseIdleImage;
         });
+
+        getOptionalElement('drawBrushSubModeButton')?.classList.toggle(
+            'primary',
+            drawSubMode === 'brush',
+        );
+        getOptionalElement('drawEraseSubModeButton')?.classList.toggle(
+            'primary',
+            drawSubMode === 'erase',
+        );
 
         setText(
             'annotationVisibilityState',
@@ -361,6 +430,68 @@
             return `${selection.selectedAnnotation.annotationName} (${selection.selectedAnnotation.annotationType})`;
         }
         return selection.selectedObjectKind;
+    }
+
+    function setImageFilterControlsDisabled(disabled) {
+        imageFilterControlIds.forEach((id) => setDisabled(id, disabled));
+    }
+
+    function readImageFilterConfigFromControls() {
+        return {
+            brightness: readNumberControl('imageBrightnessInput', 0),
+            contrast: readNumberControl('imageContrastInput', 0),
+            saturation: readNumberControl('imageSaturationInput', 0),
+            blur: readNumberControl('imageBlurInput', 0),
+            sharpen: readNumberControl('imageSharpenInput', 0),
+            grayscale: getOptionalElement('imageGrayscaleInput')?.checked === true,
+            sepia: getOptionalElement('imageSepiaInput')?.checked === true,
+            vintage: getOptionalElement('imageVintageInput')?.checked === true,
+        };
+    }
+
+    function syncImageFilterControls(config) {
+        if (!config || !getOptionalElement('imageBrightnessInput')) return;
+        setControlValue('imageBrightnessInput', config.brightness);
+        setControlValue('imageContrastInput', config.contrast);
+        setControlValue('imageSaturationInput', config.saturation);
+        setControlValue('imageBlurInput', config.blur);
+        setControlValue('imageSharpenInput', config.sharpen);
+        setControlChecked('imageGrayscaleInput', config.grayscale);
+        setControlChecked('imageSepiaInput', config.sepia);
+        setControlChecked('imageVintageInput', config.vintage);
+    }
+
+    function previewImageFilters() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded() || isDemoBusy()) return;
+        editor.setImageFilterConfig(readImageFilterConfigFromControls());
+        updateDemoUi();
+    }
+
+    function commitImageFilters() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded() || isDemoBusy()) return;
+        editor.commitImageFilters();
+        showMessage('Image filters applied.', 'success');
+        updateDemoUi();
+    }
+
+    function resetImageFilterPreview() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded() || isDemoBusy()) return;
+        editor.resetImageFilterConfig();
+        syncImageFilterControls(editor.getImageFilterConfig());
+        showMessage('Filter preview reset.', 'success');
+        updateDemoUi();
+    }
+
+    function clearImageFilters() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded() || isDemoBusy()) return;
+        editor.clearImageFilters();
+        syncImageFilterControls(editor.getImageFilterConfig());
+        showMessage('Image filters cleared.', 'success');
+        updateDemoUi();
     }
 
     function readFileAsDataUrl(file) {
@@ -429,6 +560,116 @@
             enterEditing: false,
         });
         showMessage('Text annotation created.', 'success');
+        updateDemoUi();
+    }
+
+    function readShapeKind() {
+        const value = getOptionalElement('shapeKindSelect')?.value;
+        return value === 'line' || value === 'arrow' ? value : 'rect';
+    }
+
+    function hexToRgba(hex, alpha) {
+        const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+        if (!match) return `rgba(245,158,11,${alpha})`;
+        const red = parseInt(match[1], 16);
+        const green = parseInt(match[2], 16);
+        const blue = parseInt(match[3], 16);
+        return `rgba(${red},${green},${blue},${alpha})`;
+    }
+
+    function readShapeStyleConfig() {
+        const kind = readShapeKind();
+        const strokeWidth = readNumberControl('shapeStrokeWidthInput', 4);
+        const fillColor = getOptionalElement('shapeFillInput')?.value || '#f59e0b';
+        return {
+            shape: kind,
+            stroke: getOptionalElement('shapeStrokeInput')?.value || '#b45309',
+            strokeWidth: Math.max(1, strokeWidth),
+            fill: kind === 'rect' ? hexToRgba(fillColor, 0.16) : 'rgba(0,0,0,0)',
+            arrowHeadLength: 20,
+        };
+    }
+
+    function buildShapeAnnotationConfig() {
+        const style = readShapeStyleConfig();
+        if (style.shape === 'line') {
+            return {
+                ...style,
+                x1: '18%',
+                y1: '42%',
+                x2: '66%',
+                y2: '34%',
+            };
+        }
+        if (style.shape === 'arrow') {
+            return {
+                ...style,
+                x1: '20%',
+                y1: '56%',
+                x2: '70%',
+                y2: '40%',
+            };
+        }
+        return {
+            ...style,
+            left: '22%',
+            top: '24%',
+            width: 210,
+            height: 120,
+        };
+    }
+
+    function syncShapeConfigFromControls() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded()) return;
+        const activeToolMode = editor.getActiveToolMode?.() || null;
+        if (activeToolMode !== null && activeToolMode !== 'shape') return;
+        editor.setShapeConfig(readShapeStyleConfig());
+        updateDemoUi();
+    }
+
+    function createShapeAnnotation() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded() || isDemoBusy()) return;
+        syncShapeConfigFromControls();
+        const shape = editor.createShapeAnnotation(buildShapeAnnotationConfig());
+        if (shape) showMessage('Shape annotation created.', 'success');
+        updateDemoUi();
+    }
+
+    function enterShapeMode() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded() || isDemoBusy()) return;
+        syncShapeConfigFromControls();
+        editor.enterShapeMode(readShapeKind());
+        showMessage('Shape mode active.', 'success');
+        updateDemoUi();
+    }
+
+    function exitShapeMode() {
+        const editor = demoState.editor;
+        if (!editor || editor.getActiveToolMode?.() !== 'shape') return;
+        editor.exitShapeMode();
+        showMessage('Shape mode exited.', 'success');
+        updateDemoUi();
+    }
+
+    function setDrawSubMode(mode) {
+        const editor = demoState.editor;
+        if (!editor || editor.getActiveToolMode?.() !== 'draw') return;
+        editor.setDrawSubMode(mode);
+        showMessage(mode === 'erase' ? 'Draw eraser active.' : 'Draw brush active.', 'success');
+        updateDemoUi();
+    }
+
+    function updateEraserConfigFromControls() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded()) return;
+        const activeToolMode = editor.getActiveToolMode?.() || null;
+        if (activeToolMode !== null && activeToolMode !== 'draw') return;
+        editor.setEraserConfig({
+            brushSize: Math.max(1, readNumberControl('eraserBrushSizeInput', 18)),
+        });
         updateDemoUi();
     }
 
@@ -556,6 +797,14 @@
             ['imageInput', 'change', handleFileInputChange],
             ['layoutModeSelect', 'change', setLayoutModeFromControl],
             ['createTextAnnotationButton', 'click', createTextAnnotation],
+            ['applyImageFiltersButton', 'click', commitImageFilters],
+            ['resetImageFiltersButton', 'click', resetImageFilterPreview],
+            ['clearImageFiltersButton', 'click', clearImageFilters],
+            ['createShapeAnnotationButton', 'click', createShapeAnnotation],
+            ['enterShapeModeButton', 'click', enterShapeMode],
+            ['exitShapeModeButton', 'click', exitShapeMode],
+            ['drawBrushSubModeButton', 'click', () => setDrawSubMode('brush')],
+            ['drawEraseSubModeButton', 'click', () => setDrawSubMode('erase')],
             ['toggleAnnotationHiddenButton', 'click', toggleAnnotationHidden],
             ['toggleAnnotationLockedButton', 'click', toggleAnnotationLocked],
             ['exportImageButton', 'click', exportImage],
@@ -563,6 +812,29 @@
         ].forEach(([id, eventName, handler]) => {
             getOptionalElement(id)?.addEventListener(eventName, handler);
         });
+
+        [
+            'imageBrightnessInput',
+            'imageContrastInput',
+            'imageSaturationInput',
+            'imageBlurInput',
+            'imageSharpenInput',
+        ].forEach((id) => {
+            getOptionalElement(id)?.addEventListener('input', previewImageFilters);
+        });
+        ['imageGrayscaleInput', 'imageSepiaInput', 'imageVintageInput'].forEach((id) => {
+            getOptionalElement(id)?.addEventListener('change', previewImageFilters);
+        });
+        ['shapeKindSelect', 'shapeStrokeInput', 'shapeStrokeWidthInput', 'shapeFillInput'].forEach(
+            (id) => {
+                const eventName = id === 'shapeKindSelect' ? 'change' : 'input';
+                getOptionalElement(id)?.addEventListener(eventName, syncShapeConfigFromControls);
+            },
+        );
+        getOptionalElement('eraserBrushSizeInput')?.addEventListener(
+            'input',
+            updateEraserConfigFromControls,
+        );
 
         getOptionalElement('createMaskButton')?.addEventListener('click', () => createMask());
         document.querySelectorAll('[data-mask-preset]').forEach((button) => {
@@ -609,7 +881,7 @@
         context.font = '18px Arial';
         context.fillStyle = '#64748b';
         context.fillText(
-            'Use text notes, freehand drawing, layer ordering, lock, and visibility.',
+            'Use text notes, shapes, freehand drawing, layer ordering, lock, and visibility.',
             112,
             164,
         );

@@ -43,7 +43,7 @@
  * @module
  */
 import type * as FabricNS from 'fabric';
-import type { AnnotationObject, BaseImageObject, ImageMimeType, MaskObject } from './public-types.js';
+import type { AnnotationObject, BaseImageObject, ImageMimeType, MaskObject, ResolvedImageFilterConfig } from './public-types.js';
 /**
  * Per-object payload inside a {@link CanvasJson} snapshot.
  *
@@ -112,6 +112,8 @@ export interface CanvasJsonObject {
     annotationId?: number;
     /** Annotation subtype. */
     annotationType?: string;
+    /** Shape annotation primitive subtype. */
+    shapeAnnotationKind?: string;
     /** Annotation display name. */
     annotationName?: string;
     /** Business-level annotation visibility. */
@@ -143,6 +145,8 @@ export interface EditorStateMeta {
     baseImageScale: number;
     /** MIME type of the currently committed image, when known. */
     currentImageMimeType?: ImageMimeType | null;
+    /** Canonical editor-managed image filter config. */
+    imageFilterConfig?: ResolvedImageFilterConfig;
     /** Active editor-owned object kind when the snapshot was captured, if any. */
     activeObjectKind?: 'mask' | 'annotation' | null;
     /** Mask selected when the snapshot was captured, if any. */
@@ -176,7 +180,7 @@ export interface CanvasJson {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "annotationName", "annotationHidden", "annotationLocked", "annotationSelectable", "annotationEvented", "annotationHasControls", "annotationEditable"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "shapeAnnotationKind", "annotationName", "annotationHidden", "annotationLocked", "annotationSelectable", "annotationEvented", "annotationHasControls", "annotationEditable"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.
@@ -196,6 +200,8 @@ export interface SaveStateInput {
     baseImageScale: number;
     /** MIME type of the current image, persisted for source-preserving crop. */
     currentImageMimeType?: ImageMimeType | null;
+    /** Canonical editor-managed image filter config. */
+    imageFilterConfig?: ResolvedImageFilterConfig;
 }
 /**
  * Serialize the current canvas into the snapshot string consumed by
