@@ -4175,6 +4175,16 @@ function removePreview(context, session) {
     }
     session.previewObject = null;
 }
+function updateActiveSessionShape(context, session, shape) {
+    const changed = session.shape !== shape;
+    session.shape = shape;
+    session.startPoint = null;
+    removePreview(context, session);
+    if (changed) {
+        context.canvas.requestRenderAll();
+        context.updateUi();
+    }
+}
 function updatePreview(context, session, pointer) {
     if (!session.startPoint)
         return;
@@ -4232,8 +4242,11 @@ function detachCanvasHandlers$1(context, session) {
     session.handlers = [];
 }
 function enterShapeMode(context, shape) {
-    if (context.getShapeSession())
+    const existingSession = context.getShapeSession();
+    if (existingSession) {
+        updateActiveSessionShape(context, existingSession, shape);
         return;
+    }
     if (!context.isImageLoaded())
         return;
     const { canvas } = context;
@@ -4280,6 +4293,12 @@ function enterShapeMode(context, shape) {
     });
     context.setShapeSession(session);
     context.updateUi();
+}
+function syncShapeModeConfig(context) {
+    const session = context.getShapeSession();
+    if (!session)
+        return;
+    updateActiveSessionShape(context, session, context.getShapeConfig().shape);
 }
 function exitShapeMode(context) {
     const session = context.getShapeSession();
@@ -12202,6 +12221,7 @@ const TOOL_MODE_ALLOWED_OPERATIONS = {
         'saveState',
     ]),
     shape: new Set([
+        'enterShapeMode',
         'exitShapeMode',
         'createShapeAnnotation',
         'setShapeConfig',
@@ -13569,8 +13589,6 @@ class ImageEditor {
             return;
         if (!this.canRunIdleOperation('enterShapeMode'))
             return;
-        if (this.isToolModeActive())
-            return;
         enterShapeMode(this.buildShapeControllerContext(), shape);
         const callbackContext = this.buildCallbackContext('enterShapeMode', false);
         this.emitBusyChangeIfChanged(callbackContext);
@@ -13706,6 +13724,7 @@ class ImageEditor {
         if (areResolvedShapeAnnotationConfigsEqual(this.runtime.currentShapeConfig, next))
             return;
         this.runtime.currentShapeConfig = next;
+        syncShapeModeConfig(this.buildShapeControllerContext());
         this.updateInputs();
         this.updateUi();
         this.emitImageChanged(this.buildCallbackContext(operation, false));

@@ -299,6 +299,21 @@ function removePreview(context: ShapeControllerContext, session: ShapeSession): 
     session.previewObject = null;
 }
 
+function updateActiveSessionShape(
+    context: ShapeControllerContext,
+    session: ShapeSession,
+    shape: ShapeAnnotationKind,
+): void {
+    const changed = session.shape !== shape;
+    session.shape = shape;
+    session.startPoint = null;
+    removePreview(context, session);
+    if (changed) {
+        context.canvas.requestRenderAll();
+        context.updateUi();
+    }
+}
+
 function updatePreview(
     context: ShapeControllerContext,
     session: ShapeSession,
@@ -385,7 +400,11 @@ function detachCanvasHandlers(context: ShapeControllerContext, session: ShapeSes
 }
 
 export function enterShapeMode(context: ShapeControllerContext, shape: ShapeAnnotationKind): void {
-    if (context.getShapeSession()) return;
+    const existingSession = context.getShapeSession();
+    if (existingSession) {
+        updateActiveSessionShape(context, existingSession, shape);
+        return;
+    }
     if (!context.isImageLoaded()) return;
 
     const { canvas } = context;
@@ -433,6 +452,12 @@ export function enterShapeMode(context: ShapeControllerContext, shape: ShapeAnno
 
     context.setShapeSession(session);
     context.updateUi();
+}
+
+export function syncShapeModeConfig(context: ShapeControllerContext): void {
+    const session = context.getShapeSession();
+    if (!session) return;
+    updateActiveSessionShape(context, session, context.getShapeConfig().shape);
 }
 
 export function exitShapeMode(context: ShapeControllerContext): void {

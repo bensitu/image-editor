@@ -11,7 +11,7 @@ import {
     loadFixtureImage,
     disposeEditor,
 } from './helpers/fabric-environment.mjs';
-import { getLastSnapshot } from './helpers/editor-internals.mjs';
+import { getLastSnapshot, requireEditorCanvas } from './helpers/editor-internals.mjs';
 
 const { ImageEditor, isShapeAnnotationObject, isDrawAnnotationObject, isTextAnnotationObject } =
     await import('../src/index.ts');
@@ -125,6 +125,33 @@ test('Shape mode reports active tool mode and cleans cancelled preview on exit',
             editor.getAnnotations().some((annotation) => annotation.annotationType === 'shape'),
             false,
         );
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('Shape mode can switch active shape without exiting', async () => {
+    const editor = createSourceEditor();
+    try {
+        await loadFixtureImage(editor, { width: 64, height: 48 });
+        const canvas = requireEditorCanvas(editor);
+
+        editor.enterShapeMode('line');
+        editor.enterShapeMode('arrow');
+        canvas.fire('mouse:down', { scenePoint: { x: 20, y: 20 } });
+        canvas.fire('mouse:move', { scenePoint: { x: 70, y: 40 } });
+        canvas.fire('mouse:up', { scenePoint: { x: 70, y: 40 } });
+
+        assert.equal(editor.isShapeMode(), true);
+        assert.equal(editor.getAnnotations().at(-1)?.shapeAnnotationKind, 'arrow');
+
+        editor.setShapeConfig({ shape: 'line' });
+        canvas.fire('mouse:down', { scenePoint: { x: 30, y: 50 } });
+        canvas.fire('mouse:move', { scenePoint: { x: 90, y: 50 } });
+        canvas.fire('mouse:up', { scenePoint: { x: 90, y: 50 } });
+
+        assert.equal(editor.isShapeMode(), true);
+        assert.equal(editor.getAnnotations().at(-1)?.shapeAnnotationKind, 'line');
     } finally {
         disposeEditor(editor);
     }

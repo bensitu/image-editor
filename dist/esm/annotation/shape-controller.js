@@ -188,6 +188,16 @@ function removePreview(context, session) {
     }
     session.previewObject = null;
 }
+function updateActiveSessionShape(context, session, shape) {
+    const changed = session.shape !== shape;
+    session.shape = shape;
+    session.startPoint = null;
+    removePreview(context, session);
+    if (changed) {
+        context.canvas.requestRenderAll();
+        context.updateUi();
+    }
+}
 function updatePreview(context, session, pointer) {
     if (!session.startPoint)
         return;
@@ -245,8 +255,11 @@ function detachCanvasHandlers(context, session) {
     session.handlers = [];
 }
 export function enterShapeMode(context, shape) {
-    if (context.getShapeSession())
+    const existingSession = context.getShapeSession();
+    if (existingSession) {
+        updateActiveSessionShape(context, existingSession, shape);
         return;
+    }
     if (!context.isImageLoaded())
         return;
     const { canvas } = context;
@@ -293,6 +306,12 @@ export function enterShapeMode(context, shape) {
     });
     context.setShapeSession(session);
     context.updateUi();
+}
+export function syncShapeModeConfig(context) {
+    const session = context.getShapeSession();
+    if (!session)
+        return;
+    updateActiveSessionShape(context, session, context.getShapeConfig().shape);
 }
 export function exitShapeMode(context) {
     const session = context.getShapeSession();

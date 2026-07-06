@@ -741,7 +741,7 @@ sub-mode changes, and eraser config setters.
 | `setTextColor(color)`                | Convenience setter for text fill color.                                                     |
 | `setTextFontSize(size)`              | Convenience setter for text font size.                                                      |
 | `createShapeAnnotation(config?)`     | Create a rectangle, line, or arrow annotation directly and return it.                       |
-| `enterShapeMode(shape?)`             | Draw the selected shape interactively. Uses the current persistent Shape config.            |
+| `enterShapeMode(shape?)`             | Draw the selected shape interactively, or switch the active shape while Shape mode is open. |
 | `exitShapeMode()`                    | Leave Shape mode and remove the preview object.                                             |
 | `isShapeMode()`                      | Returns `true` while Shape mode is active.                                                  |
 | `getShapeConfig()`                   | Return a defensive copy of the current Shape config.                                        |
@@ -795,7 +795,9 @@ included in `getAnnotations()`, selection payloads, export, merge, history,
 undo/redo, and `saveState()` / `loadFromState()`. Their
 `shapeAnnotationKind` metadata is one of `'rect'`, `'line'`, or `'arrow'`.
 Interactive Shape mode uses a session-only preview object, so cancelled or
-in-progress shapes are not serialized or exported.
+in-progress shapes are not serialized or exported. Calling `enterShapeMode()`
+again or changing the persistent `shape` through `setShapeConfig()` switches the
+active shape without leaving Shape mode.
 
 The eraser is a Draw sub-mode, not a top-level editor mode. It targets Draw
 annotations only and removes intersected Draw strokes as whole annotation

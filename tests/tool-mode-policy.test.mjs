@@ -143,6 +143,7 @@ test('draw mode allows draw-session operations', () => {
 test('shape mode allows shape-session operations', () => {
     const allowed = getAllowedOperationsForToolMode('shape');
 
+    assert.equal(allowed.has('enterShapeMode'), true);
     assert.equal(allowed.has('exitShapeMode'), true);
     assert.equal(allowed.has('createShapeAnnotation'), true);
     assert.equal(allowed.has('setShapeConfig'), true);

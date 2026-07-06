@@ -9,7 +9,7 @@ import { isAnnotationObject, isMaskObject } from './core/public-types.js';
 import { getActiveSelectionObjects, getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
 import { exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
 import { exitDrawMode as exitDrawModeImpl, setDrawSubMode as setDrawSubModeImpl, updateEraserPreview, } from './annotation/draw-controller.js';
-import { createShapeAnnotation as createShapeAnnotationImpl, enterShapeMode as enterShapeModeImpl, exitShapeMode as exitShapeModeImpl, } from './annotation/shape-controller.js';
+import { createShapeAnnotation as createShapeAnnotationImpl, enterShapeMode as enterShapeModeImpl, exitShapeMode as exitShapeModeImpl, syncShapeModeConfig, } from './annotation/shape-controller.js';
 import { createTextAnnotationAction, enterDrawModeAction, enterTextModeAction, exitDrawModeAction, exitTextModeAction, } from './annotation/annotation-mode-actions.js';
 import { applyDrawBrushSizeInputAction, applyDrawColorInputAction, applyDrawConfigPatchAction, applyTextColorInputAction, applyTextConfigPatchAction, applyTextFontSizeInputAction, } from './annotation/annotation-config-actions.js';
 import { cancelCrop as cancelCropImpl, } from './crop/crop-controller.js';
@@ -1307,8 +1307,6 @@ export class ImageEditor {
             return;
         if (!this.canRunIdleOperation('enterShapeMode'))
             return;
-        if (this.isToolModeActive())
-            return;
         enterShapeModeImpl(this.buildShapeControllerContext(), shape);
         const callbackContext = this.buildCallbackContext('enterShapeMode', false);
         this.emitBusyChangeIfChanged(callbackContext);
@@ -1444,6 +1442,7 @@ export class ImageEditor {
         if (areResolvedShapeAnnotationConfigsEqual(this.runtime.currentShapeConfig, next))
             return;
         this.runtime.currentShapeConfig = next;
+        syncShapeModeConfig(this.buildShapeControllerContext());
         this.updateInputs();
         this.updateUi();
         this.emitImageChanged(this.buildCallbackContext(operation, false));

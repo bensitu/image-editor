@@ -41,4 +41,5 @@ export interface ShapeControllerContext {
 }
 export declare function createShapeAnnotation(context: ShapeControllerContext, config?: ShapeAnnotationConfig): ShapeAnnotationObject | null;
 export declare function enterShapeMode(context: ShapeControllerContext, shape: ShapeAnnotationKind): void;
+export declare function syncShapeModeConfig(context: ShapeControllerContext): void;
 export declare function exitShapeMode(context: ShapeControllerContext): void;

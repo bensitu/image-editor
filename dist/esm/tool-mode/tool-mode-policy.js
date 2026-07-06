@@ -38,6 +38,7 @@ const TOOL_MODE_ALLOWED_OPERATIONS = {
         'saveState',
     ]),
     shape: new Set([
+        'enterShapeMode',
         'exitShapeMode',
         'createShapeAnnotation',
         'setShapeConfig',

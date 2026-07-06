@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.8.0] - 2026-07-06
+## [2.8.0] - 2026-07-07
 
 ### Added
 
@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Restore shape annotation metadata, including `shapeAnnotationKind`, across state serialization, history undo/redo, and load-from-state flows.
+- Allow Shape mode to switch between rectangle, line, and arrow creation without exiting the active mode.
 - Keep shape and eraser preview objects session-only so they are not exported, serialized, selectable as annotations, or left behind after mode exit.
 - Limit erasing to intersected Draw annotation strokes as whole objects; base image pixels, masks, text annotations, and shape annotations are preserved.
 

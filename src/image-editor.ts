@@ -114,6 +114,7 @@ import {
     createShapeAnnotation as createShapeAnnotationImpl,
     enterShapeMode as enterShapeModeImpl,
     exitShapeMode as exitShapeModeImpl,
+    syncShapeModeConfig,
     type ShapeControllerContext,
 } from './annotation/shape-controller.js';
 import {
@@ -2124,7 +2125,6 @@ export class ImageEditor {
     enterShapeMode(shape: ShapeAnnotationKind = this.runtime.currentShapeConfig.shape): void {
         if (!this.runtime.canvas) return;
         if (!this.canRunIdleOperation('enterShapeMode')) return;
-        if (this.isToolModeActive()) return;
         enterShapeModeImpl(this.buildShapeControllerContext(), shape);
         const callbackContext = this.buildCallbackContext('enterShapeMode', false);
         this.emitBusyChangeIfChanged(callbackContext);
@@ -2322,6 +2322,7 @@ export class ImageEditor {
         if (areResolvedShapeAnnotationConfigsEqual(this.runtime.currentShapeConfig, next)) return;
 
         this.runtime.currentShapeConfig = next;
+        syncShapeModeConfig(this.buildShapeControllerContext());
         this.updateInputs();
         this.updateUi();
         this.emitImageChanged(this.buildCallbackContext(operation, false));

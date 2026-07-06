@@ -57,6 +57,7 @@ const TOOL_MODE_ALLOWED_OPERATIONS: Record<EditorToolMode, ReadonlySet<string>> 
         'saveState',
     ]),
     shape: new Set([
+        'enterShapeMode',
         'exitShapeMode',
         'createShapeAnnotation',
         'setShapeConfig',
