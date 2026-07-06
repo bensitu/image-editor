@@ -1132,6 +1132,11 @@ export class ImageEditor {
         return this.runtime.operationGuard.isBusy() || this.runtime.animQueue.isBusy();
     }
 
+    /**
+     * Patch the live image-filter preview without creating a history entry.
+     *
+     * Call `commitImageFilters()` to make the current preview undoable.
+     */
     setImageFilterConfig(config: Partial<ImageFilterConfig>): void {
         if (!this.runtime.canvas || !this.runtime.originalImage) return;
         if (!this.canRunIdleOperation('setImageFilterConfig')) return;
@@ -1158,10 +1163,15 @@ export class ImageEditor {
         this.emitImageChanged(this.buildCallbackContext('setImageFilterConfig', false));
     }
 
+    /** Return a defensive copy of the current resolved image-filter preview config. */
     getImageFilterConfig(): ResolvedImageFilterConfig {
         return cloneResolvedImageFilterConfig(this.runtime.currentImageFilterConfig);
     }
 
+    /**
+     * Restore the preview filters to the last committed config without
+     * creating a history entry.
+     */
     resetImageFilterConfig(): void {
         if (!this.runtime.canvas || !this.runtime.originalImage) return;
         if (!this.canRunIdleOperation('resetImageFilterConfig')) return;
@@ -1174,6 +1184,7 @@ export class ImageEditor {
         this.emitImageChanged(this.buildCallbackContext('resetImageFilterConfig', false));
     }
 
+    /** Clear all image filters and commit the cleared state when it changed. */
     clearImageFilters(): void {
         if (!this.runtime.canvas || !this.runtime.originalImage) return;
         if (!this.canRunIdleOperation('clearImageFilters')) return;
@@ -1184,6 +1195,7 @@ export class ImageEditor {
         this.commitImageFiltersInternal('clearImageFilters');
     }
 
+    /** Commit the current image-filter preview as one undoable history step if changed. */
     commitImageFilters(): void {
         this.commitImageFiltersInternal('commitImageFilters');
     }
@@ -2065,6 +2077,7 @@ export class ImageEditor {
         this.applyDrawConfigPatch({ brushSize: size }, 'setDrawBrushSize');
     }
 
+    /** Switch the active Draw session between brush drawing and stroke erasing. */
     setDrawSubMode(mode: DrawSubMode): void {
         if (!this.runtime.canvas || !this.runtime.drawSession) return;
         if (!this.canRunIdleOperation('setDrawSubMode')) return;
@@ -2080,28 +2093,34 @@ export class ImageEditor {
         this.emitImageChanged(this.buildCallbackContext('setDrawSubMode', false));
     }
 
+    /** Return the active Draw sub-mode, or `null` when Draw mode is inactive. */
     getDrawSubMode(): DrawSubMode | null {
         return this.runtime.drawSession?.subMode ?? null;
     }
 
+    /** Return a defensive copy of the current Draw eraser config. */
     getEraserConfig(): Readonly<ResolvedEraserConfig> {
         return cloneResolvedEraserConfig(this.runtime.currentEraserConfig);
     }
 
+    /** Patch Draw eraser config without creating a history entry. */
     setEraserConfig(config: EraserConfig): void {
         this.applyEraserConfigPatch(config, 'setEraserConfig');
     }
 
+    /** Restore Draw eraser config from constructor defaults. */
     resetEraserConfig(): void {
         this.applyEraserConfigPatch(this.runtime.defaultEraserConfig, 'resetEraserConfig');
     }
 
+    /** Create a rectangle, line, or arrow annotation directly. */
     createShapeAnnotation(config: ShapeAnnotationConfig = {}): ShapeAnnotationObject | null {
         if (!this.runtime.canvas) return null;
         if (!this.canRunIdleOperation('createShapeAnnotation')) return null;
         return createShapeAnnotationImpl(this.buildShapeControllerContext(), config);
     }
 
+    /** Enter interactive Shape mode using the current persistent Shape config. */
     enterShapeMode(shape: ShapeAnnotationKind = this.runtime.currentShapeConfig.shape): void {
         if (!this.runtime.canvas) return;
         if (!this.canRunIdleOperation('enterShapeMode')) return;
@@ -2112,6 +2131,7 @@ export class ImageEditor {
         this.emitImageChanged(callbackContext);
     }
 
+    /** Leave Shape mode and remove the session-only preview object. */
     exitShapeMode(): void {
         if (!this.runtime.canvas || !this.runtime.shapeSession) return;
         if (!this.canRunIdleOperation('exitShapeMode')) return;
@@ -2121,18 +2141,22 @@ export class ImageEditor {
         this.emitImageChanged(callbackContext);
     }
 
+    /** Return `true` while interactive Shape mode is active. */
     isShapeMode(): boolean {
         return this.runtime.shapeSession !== null;
     }
 
+    /** Return a defensive copy of the current Shape annotation config. */
     getShapeConfig(): Readonly<ResolvedShapeAnnotationConfig> {
         return cloneResolvedShapeAnnotationConfig(this.runtime.currentShapeConfig);
     }
 
+    /** Patch Shape annotation config without creating a history entry. */
     setShapeConfig(config: ShapeAnnotationConfig): void {
         this.applyShapeConfigPatch(config, 'setShapeConfig');
     }
 
+    /** Restore Shape annotation config from constructor defaults. */
     resetShapeConfig(): void {
         this.applyShapeConfigPatch(this.runtime.defaultShapeConfig, 'resetShapeConfig');
     }

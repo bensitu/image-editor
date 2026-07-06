@@ -117,10 +117,22 @@ export declare class ImageEditor {
      * counted.
      */
     isProcessing(): boolean;
+    /**
+     * Patch the live image-filter preview without creating a history entry.
+     *
+     * Call `commitImageFilters()` to make the current preview undoable.
+     */
     setImageFilterConfig(config: Partial<ImageFilterConfig>): void;
+    /** Return a defensive copy of the current resolved image-filter preview config. */
     getImageFilterConfig(): ResolvedImageFilterConfig;
+    /**
+     * Restore the preview filters to the last committed config without
+     * creating a history entry.
+     */
     resetImageFilterConfig(): void;
+    /** Clear all image filters and commit the cleared state when it changed. */
     clearImageFilters(): void;
+    /** Commit the current image-filter preview as one undoable history step if changed. */
     commitImageFilters(): void;
     private commitImageFiltersInternal;
     private applyCurrentImageFilters;
@@ -316,17 +328,29 @@ export declare class ImageEditor {
     resetDrawConfig(): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    /** Switch the active Draw session between brush drawing and stroke erasing. */
     setDrawSubMode(mode: DrawSubMode): void;
+    /** Return the active Draw sub-mode, or `null` when Draw mode is inactive. */
     getDrawSubMode(): DrawSubMode | null;
+    /** Return a defensive copy of the current Draw eraser config. */
     getEraserConfig(): Readonly<ResolvedEraserConfig>;
+    /** Patch Draw eraser config without creating a history entry. */
     setEraserConfig(config: EraserConfig): void;
+    /** Restore Draw eraser config from constructor defaults. */
     resetEraserConfig(): void;
+    /** Create a rectangle, line, or arrow annotation directly. */
     createShapeAnnotation(config?: ShapeAnnotationConfig): ShapeAnnotationObject | null;
+    /** Enter interactive Shape mode using the current persistent Shape config. */
     enterShapeMode(shape?: ShapeAnnotationKind): void;
+    /** Leave Shape mode and remove the session-only preview object. */
     exitShapeMode(): void;
+    /** Return `true` while interactive Shape mode is active. */
     isShapeMode(): boolean;
+    /** Return a defensive copy of the current Shape annotation config. */
     getShapeConfig(): Readonly<ResolvedShapeAnnotationConfig>;
+    /** Patch Shape annotation config without creating a history entry. */
     setShapeConfig(config: ShapeAnnotationConfig): void;
+    /** Restore Shape annotation config from constructor defaults. */
     resetShapeConfig(): void;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(options?: RemoveAllAnnotationsOptions): void;

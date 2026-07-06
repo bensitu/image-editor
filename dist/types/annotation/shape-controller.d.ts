@@ -1,3 +1,8 @@
+/**
+ * Creates shape annotation objects and manages interactive Shape mode sessions.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type FabricModule, type ImageEditorCallbackContext, type ResolvedOptions, type ResolvedShapeAnnotationConfig, type ShapeAnnotationConfig, type ShapeAnnotationKind, type ShapeAnnotationObject } from '../core/public-types.js';
 export interface ShapeSession {

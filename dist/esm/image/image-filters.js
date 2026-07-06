@@ -46,13 +46,6 @@ export function applyImageFilterConfigToImage(fabric, image, config) {
     (_a = imageWithFilters.applyFilters) === null || _a === void 0 ? void 0 : _a.call(imageWithFilters);
     imageWithFilters.dirty = true;
 }
-export function clearImageFiltersOnImage(image) {
-    var _a;
-    const imageWithFilters = image;
-    imageWithFilters.filters = [];
-    (_a = imageWithFilters.applyFilters) === null || _a === void 0 ? void 0 : _a.call(imageWithFilters);
-    imageWithFilters.dirty = true;
-}
 export function getFilteredBaseImageDataUrl(image, config, fallback) {
     if (!hasActiveImageFilters(config))
         return fallback;

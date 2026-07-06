@@ -1,3 +1,9 @@
+/**
+ * Maps resolved image filter config onto Fabric image filters and filtered snapshots.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { FabricModule, ResolvedImageFilterConfig } from '../core/public-types.js';
@@ -68,17 +74,6 @@ export function applyImageFilterConfigToImage(
         dirty?: boolean;
     };
     imageWithFilters.filters = buildFabricImageFilters(fabric, config);
-    imageWithFilters.applyFilters?.();
-    imageWithFilters.dirty = true;
-}
-
-export function clearImageFiltersOnImage(image: FabricNS.FabricImage): void {
-    const imageWithFilters = image as unknown as {
-        filters?: FabricFilter[];
-        applyFilters?: () => void;
-        dirty?: boolean;
-    };
-    imageWithFilters.filters = [];
     imageWithFilters.applyFilters?.();
     imageWithFilters.dirty = true;
 }

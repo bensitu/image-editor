@@ -97,6 +97,7 @@ const CANONICAL_RUNTIME_EXPORTS = Object.freeze([
     'isEditableOverlayObject',
     'isMaskObject',
     'isSessionObject',
+    'isShapeAnnotationObject',
     'isTextAnnotationObject',
 ]);
 

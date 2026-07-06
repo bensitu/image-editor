@@ -1,3 +1,8 @@
+/**
+ * Normalizes editor-managed image filter config for preview, history, and restore.
+ *
+ * @module
+ */
 import type { ImageFilterConfig, ResolvedImageFilterConfig } from './public-types.js';
 export declare const DEFAULT_IMAGE_FILTER_CONFIG: Readonly<ResolvedImageFilterConfig>;
 export interface ImageFilterConfigNormalizationResult {

@@ -1,3 +1,9 @@
+/**
+ * Creates shape annotation objects and manages interactive Shape mode sessions.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { markAnnotationObject, markSessionObject } from '../core/editor-object-kind.js';
