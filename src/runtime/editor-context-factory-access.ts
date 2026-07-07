@@ -81,6 +81,7 @@ export interface EditorContextCallbackEmitters {
     emitImageChanged(context: ImageEditorCallbackContext): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
+    reportWarning(error: unknown, message: string): void;
     buildCallbackContext(
         operation: ImageEditorOperation,
         isInternalOperation?: boolean,
@@ -132,7 +133,14 @@ export function createEditorContextFactory(
             runtime.currentImageFilterConfig = next;
             runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
             if (runtime.originalImage) {
-                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                applyImageFilterConfigToImage(
+                    runtime.fabricModule,
+                    runtime.originalImage,
+                    next,
+                    (error, message) => {
+                        callbacks.reportWarning(error, message);
+                    },
+                );
             }
         },
         restoreImageFilterConfig: (config: ResolvedImageFilterConfig | null) => {
@@ -140,7 +148,14 @@ export function createEditorContextFactory(
             runtime.currentImageFilterConfig = next;
             runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
             if (runtime.originalImage) {
-                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                applyImageFilterConfigToImage(
+                    runtime.fabricModule,
+                    runtime.originalImage,
+                    next,
+                    (error, message) => {
+                        callbacks.reportWarning(error, message);
+                    },
+                );
             }
         },
         getLastSnapshot: () => runtime.lastSnapshot,

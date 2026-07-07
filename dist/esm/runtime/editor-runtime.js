@@ -2,6 +2,7 @@ import { AnimationQueue } from '../animation/animation-queue.js';
 import { cloneResolvedDrawConfig, cloneResolvedEraserConfig, cloneResolvedMosaicConfig, cloneResolvedShapeAnnotationConfig, cloneResolvedTextAnnotationConfig, } from '../core/default-options.js';
 import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, } from '../core/image-filter-config.js';
 import { OperationGuard } from '../core/operation-guard.js';
+import { isBaseImageObject } from '../core/public-types.js';
 import { HistoryManager } from '../history/history-manager.js';
 import { ViewportCache } from '../image/layout-manager.js';
 export class EditorRuntime {
@@ -373,13 +374,10 @@ export class EditorRuntime {
         return this.canvas;
     }
     isImageLoaded() {
-        var _a, _b;
-        const FabricImageCtor = this.fabricModule.FabricImage;
         return !!(this.originalImage &&
-            typeof FabricImageCtor === 'function' &&
-            this.originalImage instanceof FabricImageCtor &&
-            ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
-            ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+            isBaseImageObject(this.originalImage) &&
+            Number(this.originalImage.width) > 0 &&
+            Number(this.originalImage.height) > 0);
     }
     isBusy(isToolModeActive = false) {
         return this.operationGuard.isBusy() || this.animQueue.isBusy() || isToolModeActive;

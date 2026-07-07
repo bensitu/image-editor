@@ -37,6 +37,7 @@ export interface AnnotationModeActionAccess {
         operation: ImageEditorOperation,
         isInternalOperation: boolean,
     ): ImageEditorCallbackContext;
+    updateInputs(): void;
     emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
 }
@@ -74,6 +75,7 @@ export function enterDrawModeAction(access: AnnotationModeActionAccess): void {
     if (!access.canRunIdleOperation('enterDrawMode')) return;
     if (access.isToolModeActive()) return;
     enterDrawModeImpl(access.buildDrawControllerContext());
+    access.updateInputs();
     const callbackContext = access.buildCallbackContext('enterDrawMode', false);
     access.emitBusyChangeIfChanged(callbackContext);
     access.emitImageChanged(callbackContext);
@@ -83,6 +85,7 @@ export function exitDrawModeAction(access: AnnotationModeActionAccess): void {
     if (!access.getCanvas() || !access.getDrawSession()) return;
     if (!access.canRunIdleOperation('exitDrawMode')) return;
     exitDrawModeImpl(access.buildDrawControllerContext());
+    access.updateInputs();
     const callbackContext = access.buildCallbackContext('exitDrawMode', false);
     access.emitBusyChangeIfChanged(callbackContext);
     access.emitImageChanged(callbackContext);

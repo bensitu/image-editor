@@ -37,6 +37,7 @@ import {
     setCropSession,
     setCurrentScale,
     setDrawSession,
+    setOriginalImage,
     setTextSession,
 } from './helpers/editor-internals.mjs';
 
@@ -54,6 +55,17 @@ const CANONICAL_IDS = Object.freeze({
     canvasContainer: 'customCanvasContainer',
     imagePlaceholder: 'customImagePlaceholder',
     scalePercentageInput: 'customScalePercentageInput',
+    imageBrightnessInput: 'customImageBrightnessInput',
+    imageContrastInput: 'customImageContrastInput',
+    imageSaturationInput: 'customImageSaturationInput',
+    imageBlurInput: 'customImageBlurInput',
+    imageSharpenInput: 'customImageSharpenInput',
+    imageGrayscaleInput: 'customImageGrayscaleInput',
+    imageSepiaInput: 'customImageSepiaInput',
+    imageVintageInput: 'customImageVintageInput',
+    applyImageFiltersButton: 'customApplyImageFiltersButton',
+    resetImageFiltersButton: 'customResetImageFiltersButton',
+    clearImageFiltersButton: 'customClearImageFiltersButton',
     rotateLeftDegreesInput: 'customRotateLeftDegreesInput',
     rotateRightDegreesInput: 'customRotateRightDegreesInput',
     rotateLeftButton: 'customRotateLeftButton',
@@ -84,6 +96,16 @@ const CANONICAL_IDS = Object.freeze({
     mosaicBlockSizeInput: 'customMosaicBlockSizeInput',
     textFontSizeInput: 'customTextFontSizeInput',
     drawBrushSizeInput: 'customDrawBrushSizeInput',
+    shapeKindSelect: 'customShapeKindSelect',
+    shapeStrokeInput: 'customShapeStrokeInput',
+    shapeStrokeWidthInput: 'customShapeStrokeWidthInput',
+    shapeFillInput: 'customShapeFillInput',
+    createShapeAnnotationButton: 'customCreateShapeAnnotationButton',
+    enterShapeModeButton: 'customEnterShapeModeButton',
+    exitShapeModeButton: 'customExitShapeModeButton',
+    drawBrushSubModeButton: 'customDrawBrushSubModeButton',
+    drawEraseSubModeButton: 'customDrawEraseSubModeButton',
+    eraserBrushSizeInput: 'customEraserBrushSizeInput',
 });
 
 class MockCanvas {
@@ -141,6 +163,17 @@ function installDom() {
                 <canvas id="${CANONICAL_IDS.canvas}"></canvas>
             </div>
             <input id="${CANONICAL_IDS.scalePercentageInput}" value="100">
+            <input id="${CANONICAL_IDS.imageBrightnessInput}" value="0">
+            <input id="${CANONICAL_IDS.imageContrastInput}" value="0">
+            <input id="${CANONICAL_IDS.imageSaturationInput}" value="0">
+            <input id="${CANONICAL_IDS.imageBlurInput}" value="0">
+            <input id="${CANONICAL_IDS.imageSharpenInput}" value="0">
+            <input id="${CANONICAL_IDS.imageGrayscaleInput}" type="checkbox">
+            <input id="${CANONICAL_IDS.imageSepiaInput}" type="checkbox">
+            <input id="${CANONICAL_IDS.imageVintageInput}" type="checkbox">
+            <button id="${CANONICAL_IDS.applyImageFiltersButton}"></button>
+            <button id="${CANONICAL_IDS.resetImageFiltersButton}"></button>
+            <button id="${CANONICAL_IDS.clearImageFiltersButton}"></button>
             <input id="${CANONICAL_IDS.rotateLeftDegreesInput}" value="90">
             <input id="${CANONICAL_IDS.rotateRightDegreesInput}" value="90">
             <button id="${CANONICAL_IDS.rotateLeftButton}"></button>
@@ -168,6 +201,20 @@ function installDom() {
             <input id="${CANONICAL_IDS.mosaicBlockSizeInput}" value="8">
             <input id="${CANONICAL_IDS.textFontSizeInput}" value="32">
             <input id="${CANONICAL_IDS.drawBrushSizeInput}" value="8">
+            <select id="${CANONICAL_IDS.shapeKindSelect}">
+                <option value="rect">Rectangle</option>
+                <option value="line">Line</option>
+                <option value="arrow">Arrow</option>
+            </select>
+            <input id="${CANONICAL_IDS.shapeStrokeInput}" value="#b45309">
+            <input id="${CANONICAL_IDS.shapeStrokeWidthInput}" value="4">
+            <input id="${CANONICAL_IDS.shapeFillInput}" value="#f59e0b">
+            <button id="${CANONICAL_IDS.createShapeAnnotationButton}"></button>
+            <button id="${CANONICAL_IDS.enterShapeModeButton}"></button>
+            <button id="${CANONICAL_IDS.exitShapeModeButton}"></button>
+            <button id="${CANONICAL_IDS.drawBrushSubModeButton}"></button>
+            <button id="${CANONICAL_IDS.drawEraseSubModeButton}"></button>
+            <input id="${CANONICAL_IDS.eraserBrushSizeInput}" value="18">
             <input id="${CANONICAL_IDS.imageInput}" type="file">
             <ul id="${CANONICAL_IDS.maskList}"></ul>
         </body></html>`,
@@ -365,6 +412,103 @@ test('Mosaic DOM buttons and size inputs call the public Mosaic API', () => {
     assert.deepEqual(calls, ['enter', 'exit', ['brush', 72], ['block', 11]]);
 });
 
+test('v2.8 image filter DOM controls call the public filter API', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.setImageFilterConfig = (config) => calls.push(['set', config]);
+    editor.commitImageFilters = () => calls.push(['commit']);
+    editor.resetImageFilterConfig = () => calls.push(['reset']);
+    editor.clearImageFilters = () => calls.push(['clear']);
+
+    const brightnessInput = document.getElementById(CANONICAL_IDS.imageBrightnessInput);
+    brightnessInput.value = '0.25';
+    brightnessInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    const grayscaleInput = document.getElementById(CANONICAL_IDS.imageGrayscaleInput);
+    grayscaleInput.checked = true;
+    grayscaleInput.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    document
+        .getElementById(CANONICAL_IDS.applyImageFiltersButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.resetImageFiltersButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.clearImageFiltersButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.deepEqual(calls, [
+        ['set', { brightness: 0.25 }],
+        ['set', { grayscale: true }],
+        ['commit'],
+        ['reset'],
+        ['clear'],
+    ]);
+});
+
+test('v2.8 Shape and Draw eraser DOM controls call the public annotation API', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.setShapeConfig = (config) => calls.push(['shapeConfig', config]);
+    editor.createShapeAnnotation = (config) => calls.push(['createShape', config]);
+    editor.enterShapeMode = (shape) => calls.push(['enterShape', shape]);
+    editor.exitShapeMode = () => calls.push(['exitShape']);
+    editor.setDrawSubMode = (mode) => calls.push(['drawSubMode', mode]);
+    editor.setEraserConfig = (config) => calls.push(['eraserConfig', config]);
+
+    const shapeKindSelect = document.getElementById(CANONICAL_IDS.shapeKindSelect);
+    shapeKindSelect.value = 'arrow';
+    shapeKindSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const strokeInput = document.getElementById(CANONICAL_IDS.shapeStrokeInput);
+    strokeInput.value = '#112233';
+    strokeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    const strokeWidthInput = document.getElementById(CANONICAL_IDS.shapeStrokeWidthInput);
+    strokeWidthInput.value = '9';
+    strokeWidthInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    const fillInput = document.getElementById(CANONICAL_IDS.shapeFillInput);
+    fillInput.value = '#445566';
+    fillInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    document
+        .getElementById(CANONICAL_IDS.createShapeAnnotationButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.enterShapeModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.exitShapeModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.drawBrushSubModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.drawEraseSubModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    const eraserInput = document.getElementById(CANONICAL_IDS.eraserBrushSizeInput);
+    eraserInput.value = '31';
+    eraserInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    assert.deepEqual(calls, [
+        ['shapeConfig', { shape: 'arrow' }],
+        ['shapeConfig', { stroke: '#112233' }],
+        ['shapeConfig', { strokeWidth: 9 }],
+        ['shapeConfig', { fill: '#445566' }],
+        ['createShape', undefined],
+        ['enterShape', 'arrow'],
+        ['exitShape'],
+        ['drawSubMode', 'brush'],
+        ['drawSubMode', 'erase'],
+        ['eraserConfig', { brushSize: 31 }],
+    ]);
+});
+
 test('number DOM inputs skip duplicate change events after input', () => {
     const window = installDom();
     const editor = createEditor();
@@ -456,6 +600,73 @@ test('Draw mode size input updates live config without overwriting active draggi
     assert.equal(requireEditorCanvas(editor).freeDrawingBrush.width, 18);
 });
 
+test('v2.8 DOM inputs synchronize from editor state', () => {
+    installDom();
+    const editor = createEditor();
+    setOriginalImage(editor, {
+        editorObjectKind: 'baseImage',
+        width: 10,
+        height: 10,
+        filters: [],
+    });
+
+    editor.setImageFilterConfig({
+        brightness: 0.2,
+        contrast: -0.3,
+        saturation: 0.4,
+        blur: 0.1,
+        sharpen: 0.5,
+        grayscale: true,
+        sepia: true,
+        vintage: true,
+    });
+    editor.setShapeConfig({
+        shape: 'line',
+        stroke: '#123456',
+        strokeWidth: 7,
+        fill: '#abcdef',
+    });
+    editor.setEraserConfig({ brushSize: 33 });
+    setDrawSession(editor, { mode: 'draw', subMode: 'erase' });
+    editor.updateInputs();
+
+    assert.equal(document.getElementById(CANONICAL_IDS.imageBrightnessInput).value, '0.2');
+    assert.equal(document.getElementById(CANONICAL_IDS.imageContrastInput).value, '-0.3');
+    assert.equal(document.getElementById(CANONICAL_IDS.imageSaturationInput).value, '0.4');
+    assert.equal(document.getElementById(CANONICAL_IDS.imageBlurInput).value, '0.1');
+    assert.equal(document.getElementById(CANONICAL_IDS.imageSharpenInput).value, '0.5');
+    assert.equal(document.getElementById(CANONICAL_IDS.imageGrayscaleInput).checked, true);
+    assert.equal(document.getElementById(CANONICAL_IDS.imageSepiaInput).checked, true);
+    assert.equal(document.getElementById(CANONICAL_IDS.imageVintageInput).checked, true);
+    assert.equal(document.getElementById(CANONICAL_IDS.shapeKindSelect).value, 'line');
+    assert.equal(document.getElementById(CANONICAL_IDS.shapeStrokeInput).value, '#123456');
+    assert.equal(document.getElementById(CANONICAL_IDS.shapeStrokeWidthInput).value, '7');
+    assert.equal(document.getElementById(CANONICAL_IDS.shapeFillInput).value, '#abcdef');
+    assert.equal(document.getElementById(CANONICAL_IDS.eraserBrushSizeInput).value, '33');
+    assert.equal(
+        document.getElementById(CANONICAL_IDS.drawBrushSubModeButton).getAttribute('aria-pressed'),
+        'false',
+    );
+    assert.equal(
+        document.getElementById(CANONICAL_IDS.drawEraseSubModeButton).getAttribute('aria-pressed'),
+        'true',
+    );
+});
+
+test('isImageLoaded uses base-image metadata instead of FabricImage instanceof', () => {
+    installDom();
+    const editor = createEditor();
+    setOriginalImage(editor, {
+        editorObjectKind: 'baseImage',
+        width: 24,
+        height: 18,
+    });
+
+    assert.equal(editor.isImageLoaded(), true);
+    editor.enterDrawMode();
+    assert.equal(editor.isDrawMode(), true);
+});
+
 test('removed v1 DOM key names are ignored at runtime', () => {
     const window = installDom();
     const removedCreateMaskKey = ['add', 'Mask', 'Btn'].join('');
@@ -529,6 +740,17 @@ function withoutOptionalControls(base) {
         uploadArea: null,
         maskList: null,
         annotationList: null,
+        imageBrightnessInput: null,
+        imageContrastInput: null,
+        imageSaturationInput: null,
+        imageBlurInput: null,
+        imageSharpenInput: null,
+        imageGrayscaleInput: null,
+        imageSepiaInput: null,
+        imageVintageInput: null,
+        applyImageFiltersButton: null,
+        resetImageFiltersButton: null,
+        clearImageFiltersButton: null,
         zoomOutButton: null,
         rotateLeftButton: null,
         rotateRightButton: null,
@@ -558,6 +780,16 @@ function withoutOptionalControls(base) {
         exitDrawModeButton: null,
         drawColorInput: null,
         drawBrushSizeInput: null,
+        drawBrushSubModeButton: null,
+        drawEraseSubModeButton: null,
+        eraserBrushSizeInput: null,
+        shapeKindSelect: null,
+        shapeStrokeInput: null,
+        shapeStrokeWidthInput: null,
+        shapeFillInput: null,
+        createShapeAnnotationButton: null,
+        enterShapeModeButton: null,
+        exitShapeModeButton: null,
         removeSelectedAnnotationButton: null,
         removeAllAnnotationsButton: null,
         deleteSelectedObjectButton: null,

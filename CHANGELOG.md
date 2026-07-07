@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-07-08
+
+### Fixed
+
+- Wire v2.8 image filter, Shape annotation, Draw sub-mode, and eraser controls through the `init()` DOM binding path, including public element targets, event handlers, control enablement, and input synchronization.
+- Improve Draw eraser hit-testing so eraser strokes delete only Draw annotations whose visible paths are within eraser or stroke proximity, instead of deleting annotations by broad bounding-box overlap.
+- Emit `createDrawAnnotation` for newly-created Draw strokes instead of reusing `enterDrawMode`.
+- Report missing Fabric image filter constructors through `onWarning` instead of silently dropping requested filter effects.
+- Make image-loaded checks rely on editor-owned base image metadata and dimensions rather than `instanceof FabricImage`.
+
 ## [2.8.0] - 2026-07-07
 
 ### Added

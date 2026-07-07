@@ -147,11 +147,10 @@ class Mockcanvas {
  * is consumed via `this.fabricModule.<X>` from the facade, so we expose
  * only the constructors that the init / dispose / no-op-paths reach.
  *
- * `FabricImage` is needed by `isImageLoaded()` (instance check) and
- * `FabricText` is needed by the optional label-creation path. Neither is invoked
- * during a no-image init/dispose cycle; they are present so a future
- * extension of this test can load an image without re-stubbing the
- * module.
+ * `FabricImage` is used by load paths and `FabricText` is needed by
+ * the optional label-creation path. Neither is invoked during a no-image
+ * init/dispose cycle; they are present so a future extension of this test
+ * can load an image without re-stubbing the module.
  */
 function makeFabricStub() {
     const fabric = {

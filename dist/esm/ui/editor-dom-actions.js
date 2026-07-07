@@ -20,6 +20,18 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
         flipVertical: () => host.flipVertical(),
         rotateLeft: (degrees) => host.rotateImage(runtime.currentRotation - degrees),
         rotateRight: (degrees) => host.rotateImage(runtime.currentRotation + degrees),
+        setImageFilterConfig: (config) => {
+            host.setImageFilterConfig(config);
+        },
+        resetImageFilterConfig: () => {
+            host.resetImageFilterConfig();
+        },
+        clearImageFilters: () => {
+            host.clearImageFilters();
+        },
+        commitImageFilters: () => {
+            host.commitImageFilters();
+        },
         createMask: () => {
             host.createMask();
         },
@@ -42,6 +54,15 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
         },
         exitDrawMode: () => {
             host.exitDrawMode();
+        },
+        createShapeAnnotation: () => {
+            host.createShapeAnnotation();
+        },
+        enterShapeMode: (shape) => {
+            host.enterShapeMode(shape);
+        },
+        exitShapeMode: () => {
+            host.exitShapeMode();
         },
         removeSelectedAnnotation: () => {
             host.removeSelectedAnnotation();
@@ -105,6 +126,15 @@ export function createEditorDomEventActions(runtime, ownerDocument, host) {
         },
         setDrawBrushSize: (size) => {
             host.setDrawBrushSize(size);
+        },
+        setDrawSubMode: (mode) => {
+            host.setDrawSubMode(mode);
+        },
+        setEraserBrushSize: (size) => {
+            host.setEraserConfig({ brushSize: size });
+        },
+        setShapeConfig: (config) => {
+            host.setShapeConfig(config);
         },
     };
 }

@@ -221,6 +221,9 @@ function createContextFactory(
         emitBusyChangeIfChanged: (context) => {
             hooks.callbacks.emitBusyChangeIfChanged(context);
         },
+        reportWarning: (error, message) => {
+            hooks.callbacks.reportWarning(error, message);
+        },
         buildCallbackContext: (operation, isInternalOperation) =>
             hooks.callbacks.buildCallbackContext(operation, isInternalOperation ?? false),
     });

@@ -24,6 +24,7 @@ export interface EditorControlSnapshot {
     isInMosaicMode: boolean;
     isInTextMode: boolean;
     isInDrawMode: boolean;
+    isInShapeMode: boolean;
     isMosaicApplying: boolean;
 }
 export type ControlEnabler = (key: ElementKey, enabled: boolean) => void;

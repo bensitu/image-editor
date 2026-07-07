@@ -4,7 +4,7 @@
  * The binding layer owns raw DOM events; this module translates them into
  * facade method calls and runtime-derived input values.
  */
-import type { CropAspectRatio } from '../core/public-types.js';
+import type { CropAspectRatio, ImageFilterConfig, ShapeAnnotationConfig, ShapeAnnotationKind } from '../core/public-types.js';
 import type { EditorRuntime } from '../runtime/editor-runtime.js';
 import type { EditorDomEventActions } from './editor-dom-events.js';
 export interface EditorDomActionHost {
@@ -15,6 +15,10 @@ export interface EditorDomActionHost {
     resetImageTransform(): Promise<void>;
     flipHorizontal(): Promise<void>;
     flipVertical(): Promise<void>;
+    setImageFilterConfig(config: Partial<ImageFilterConfig>): void;
+    resetImageFilterConfig(): void;
+    clearImageFilters(): void;
+    commitImageFilters(): void;
     createMask(): void;
     removeSelectedMask(): void;
     removeAllMasks(): void;
@@ -24,6 +28,9 @@ export interface EditorDomActionHost {
     exitTextMode(): void;
     enterDrawMode(): void;
     exitDrawMode(): void;
+    createShapeAnnotation(config?: ShapeAnnotationConfig): void;
+    enterShapeMode(shape: ShapeAnnotationKind): void;
+    exitShapeMode(): void;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(): void;
     deleteSelectedObject(): void;
@@ -49,5 +56,10 @@ export interface EditorDomActionHost {
     setTextFontSize(size: number): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    setDrawSubMode(mode: 'brush' | 'erase'): void;
+    setEraserConfig(config: {
+        brushSize: number;
+    }): void;
+    setShapeConfig(config: ShapeAnnotationConfig): void;
 }
 export declare function createEditorDomEventActions(runtime: EditorRuntime, ownerDocument: Document, host: EditorDomActionHost): EditorDomEventActions;

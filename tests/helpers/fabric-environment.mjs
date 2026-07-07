@@ -107,6 +107,17 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         canvasContainer: `canvasContainer-${domCounter}`,
         imagePlaceholder: `imagePlaceholder-${domCounter}`,
         scalePercentageInput: `scalePercentageInput-${domCounter}`,
+        imageBrightnessInput: `imageBrightnessInput-${domCounter}`,
+        imageContrastInput: `imageContrastInput-${domCounter}`,
+        imageSaturationInput: `imageSaturationInput-${domCounter}`,
+        imageBlurInput: `imageBlurInput-${domCounter}`,
+        imageSharpenInput: `imageSharpenInput-${domCounter}`,
+        imageGrayscaleInput: `imageGrayscaleInput-${domCounter}`,
+        imageSepiaInput: `imageSepiaInput-${domCounter}`,
+        imageVintageInput: `imageVintageInput-${domCounter}`,
+        applyImageFiltersButton: `applyImageFiltersButton-${domCounter}`,
+        resetImageFiltersButton: `resetImageFiltersButton-${domCounter}`,
+        clearImageFiltersButton: `clearImageFiltersButton-${domCounter}`,
         rotateLeftDegreesInput: `rotateLeftDegreesInput-${domCounter}`,
         rotateRightDegreesInput: `rotateRightDegreesInput-${domCounter}`,
         rotateLeftButton: `rotateLeftButton-${domCounter}`,
@@ -134,6 +145,16 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         exitMosaicModeButton: `exitMosaicModeButton-${domCounter}`,
         mosaicBrushSizeInput: `mosaicBrushSizeInput-${domCounter}`,
         mosaicBlockSizeInput: `mosaicBlockSizeInput-${domCounter}`,
+        shapeKindSelect: `shapeKindSelect-${domCounter}`,
+        shapeStrokeInput: `shapeStrokeInput-${domCounter}`,
+        shapeStrokeWidthInput: `shapeStrokeWidthInput-${domCounter}`,
+        shapeFillInput: `shapeFillInput-${domCounter}`,
+        createShapeAnnotationButton: `createShapeAnnotationButton-${domCounter}`,
+        enterShapeModeButton: `enterShapeModeButton-${domCounter}`,
+        exitShapeModeButton: `exitShapeModeButton-${domCounter}`,
+        drawBrushSubModeButton: `drawBrushSubModeButton-${domCounter}`,
+        drawEraseSubModeButton: `drawEraseSubModeButton-${domCounter}`,
+        eraserBrushSizeInput: `eraserBrushSizeInput-${domCounter}`,
     };
 
     document.body.innerHTML = `
@@ -141,6 +162,17 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         <div id="${ids.uploadArea}"></div>
         <div id="${ids.canvasContainer}"><canvas id="${ids.canvas}"></canvas></div>
         <input id="${ids.scalePercentageInput}" value="100">
+        <input id="${ids.imageBrightnessInput}" type="range" value="0">
+        <input id="${ids.imageContrastInput}" type="range" value="0">
+        <input id="${ids.imageSaturationInput}" type="range" value="0">
+        <input id="${ids.imageBlurInput}" type="range" value="0">
+        <input id="${ids.imageSharpenInput}" type="range" value="0">
+        <input id="${ids.imageGrayscaleInput}" type="checkbox">
+        <input id="${ids.imageSepiaInput}" type="checkbox">
+        <input id="${ids.imageVintageInput}" type="checkbox">
+        <button id="${ids.applyImageFiltersButton}"></button>
+        <button id="${ids.resetImageFiltersButton}"></button>
+        <button id="${ids.clearImageFiltersButton}"></button>
         <input id="${ids.rotateLeftDegreesInput}" value="90">
         <input id="${ids.rotateRightDegreesInput}" value="90">
         <button id="${ids.rotateLeftButton}"></button>
@@ -165,6 +197,20 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         <button id="${ids.exitMosaicModeButton}"></button>
         <input id="${ids.mosaicBrushSizeInput}" type="range" value="48">
         <input id="${ids.mosaicBlockSizeInput}" type="range" value="8">
+        <select id="${ids.shapeKindSelect}">
+            <option value="rect">Rectangle</option>
+            <option value="line">Line</option>
+            <option value="arrow">Arrow</option>
+        </select>
+        <input id="${ids.shapeStrokeInput}" type="color" value="#000000">
+        <input id="${ids.shapeStrokeWidthInput}" type="range" value="4">
+        <input id="${ids.shapeFillInput}" value="rgba(0,0,0,0)">
+        <button id="${ids.createShapeAnnotationButton}"></button>
+        <button id="${ids.enterShapeModeButton}"></button>
+        <button id="${ids.exitShapeModeButton}"></button>
+        <button id="${ids.drawBrushSubModeButton}"></button>
+        <button id="${ids.drawEraseSubModeButton}"></button>
+        <input id="${ids.eraserBrushSizeInput}" type="range" value="18">
         <input id="${ids.imageInput}" type="file">
         <ul id="${ids.maskList}"></ul>
     `;

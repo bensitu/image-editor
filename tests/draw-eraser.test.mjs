@@ -114,3 +114,84 @@ test('Draw erase sub-mode leaves non-intersected draw annotations intact', async
         disposeEditor(editor);
     }
 });
+
+test('Draw erase sub-mode does not remove a diagonal stroke on bounding-box-only overlap', async () => {
+    const editor = createSourceEditor();
+    try {
+        await loadFixtureImage(editor, { width: 80, height: 60 });
+        const draw = addDrawAnnotation(editor, 101, 'M 20 20 L 120 120');
+        editor.saveState();
+
+        editor.enterDrawMode();
+        editor.setDrawSubMode('erase');
+        editor.setEraserConfig({ brushSize: 12 });
+
+        const canvas = requireEditorCanvas(editor);
+        canvas.fire('mouse:down', { scenePoint: { x: 105, y: 35 } });
+        canvas.fire('mouse:up', { scenePoint: { x: 105, y: 35 } });
+
+        assert.equal(
+            editor.getAnnotations().includes(draw),
+            true,
+            'eraser point inside the diagonal path bounds but far from the stroke must not delete',
+        );
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('Draw erase sub-mode removes only the touched draw annotation', async () => {
+    const editor = createSourceEditor();
+    try {
+        await loadFixtureImage(editor, { width: 80, height: 60 });
+        const touched = addDrawAnnotation(editor, 102, 'M 20 70 L 120 70');
+        const untouched = addDrawAnnotation(editor, 103, 'M 20 115 L 120 115');
+        editor.saveState();
+
+        editor.enterDrawMode();
+        editor.setDrawSubMode('erase');
+        editor.setEraserConfig({ brushSize: 18 });
+
+        const canvas = requireEditorCanvas(editor);
+        canvas.fire('mouse:down', { scenePoint: { x: 50, y: 70 } });
+        canvas.fire('mouse:move', { scenePoint: { x: 80, y: 70 } });
+        canvas.fire('mouse:up', { scenePoint: { x: 90, y: 70 } });
+
+        assert.equal(editor.getAnnotations().includes(touched), false);
+        assert.equal(editor.getAnnotations().includes(untouched), true);
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
+test('Draw path creation reports createDrawAnnotation operation', async () => {
+    const operations = [];
+    const editor = createSourceEditor({
+        onAnnotationsChanged: (_annotations, context) => {
+            operations.push(['annotations', context.operation]);
+        },
+        onImageChanged: (_state, context) => {
+            operations.push(['image', context.operation]);
+        },
+    });
+    try {
+        await loadFixtureImage(editor, { width: 80, height: 60 });
+        editor.enterDrawMode();
+
+        const path = new fabric.Path('M 20 80 L 100 80', {
+            fill: '',
+            stroke: '#ff0000',
+            strokeWidth: 8,
+        });
+        requireEditorCanvas(editor).fire('path:created', { path });
+
+        assert.deepEqual(operations.filter(([kind]) => kind === 'annotations').at(-1), [
+            'annotations',
+            'createDrawAnnotation',
+        ]);
+        assert.deepEqual(operations.at(-1), ['image', 'createDrawAnnotation']);
+        assert.notEqual(operations.at(-1)?.[1], 'enterDrawMode');
+    } finally {
+        disposeEditor(editor);
+    }
+});

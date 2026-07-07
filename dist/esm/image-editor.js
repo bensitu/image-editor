@@ -5,7 +5,7 @@ import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedEraser
 import { areResolvedImageFilterConfigsEqual, cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, mergeImageFilterConfigPatch, } from './core/image-filter-config.js';
 import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
-import { isAnnotationObject, isMaskObject } from './core/public-types.js';
+import { isAnnotationObject, isBaseImageObject, isMaskObject } from './core/public-types.js';
 import { getActiveSelectionObjects, getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
 import { exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, } from './annotation/text-controller.js';
 import { exitDrawMode as exitDrawModeImpl, setDrawSubMode as setDrawSubModeImpl, updateEraserPreview, } from './annotation/draw-controller.js';
@@ -363,6 +363,18 @@ export class ImageEditor {
                 resetImageTransform: () => this.resetImageTransform(),
                 flipHorizontal: () => this.flipHorizontal(),
                 flipVertical: () => this.flipVertical(),
+                setImageFilterConfig: (config) => {
+                    this.setImageFilterConfig(config);
+                },
+                resetImageFilterConfig: () => {
+                    this.resetImageFilterConfig();
+                },
+                clearImageFilters: () => {
+                    this.clearImageFilters();
+                },
+                commitImageFilters: () => {
+                    this.commitImageFilters();
+                },
                 createMask: () => {
                     this.createMask();
                 },
@@ -385,6 +397,15 @@ export class ImageEditor {
                 },
                 exitDrawMode: () => {
                     this.exitDrawMode();
+                },
+                createShapeAnnotation: (config) => {
+                    this.createShapeAnnotation(config);
+                },
+                enterShapeMode: (shape) => {
+                    this.enterShapeMode(shape);
+                },
+                exitShapeMode: () => {
+                    this.exitShapeMode();
                 },
                 removeSelectedAnnotation: () => {
                     this.removeSelectedAnnotation();
@@ -446,6 +467,15 @@ export class ImageEditor {
                 },
                 setDrawBrushSize: (size) => {
                     this.applyDrawBrushSizeInput(size);
+                },
+                setDrawSubMode: (mode) => {
+                    this.setDrawSubMode(mode);
+                },
+                setEraserConfig: (config) => {
+                    this.setEraserConfig(config);
+                },
+                setShapeConfig: (config) => {
+                    this.setShapeConfig(config);
                 },
             }),
         });
@@ -633,11 +663,11 @@ export class ImageEditor {
         }
     }
     isImageLoaded() {
-        var _a, _b;
-        return !!(this.runtime.originalImage &&
-            this.runtime.originalImage instanceof this.runtime.fabricModule.FabricImage &&
-            ((_a = this.runtime.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
-            ((_b = this.runtime.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+        const image = this.runtime.originalImage;
+        return !!(image &&
+            isBaseImageObject(image) &&
+            Number(image.width) > 0 &&
+            Number(image.height) > 0);
     }
     isBusy() {
         return (this.runtime.operationGuard.isBusy() ||
@@ -661,6 +691,7 @@ export class ImageEditor {
         }
         this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(result.config);
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.runtime.canvas.requestRenderAll();
         this.emitImageChanged(this.buildCallbackContext('setImageFilterConfig', false));
     }
@@ -677,6 +708,7 @@ export class ImageEditor {
             return;
         this.runtime.currentImageFilterConfig = next;
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.runtime.canvas.requestRenderAll();
         this.emitImageChanged(this.buildCallbackContext('resetImageFilterConfig', false));
     }
@@ -687,6 +719,7 @@ export class ImageEditor {
             return;
         this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.commitImageFiltersInternal('clearImageFilters');
     }
     commitImageFilters() {
@@ -710,7 +743,9 @@ export class ImageEditor {
         const image = this.runtime.originalImage;
         if (!image)
             return;
-        applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig);
+        applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig, (error, message) => {
+            reportWarning(this.runtime.options, error, message);
+        });
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
@@ -1280,6 +1315,7 @@ export class ImageEditor {
             return;
         }
         setDrawSubModeImpl(this.buildDrawControllerContext(), mode);
+        this.updateInputs();
         this.emitImageChanged(this.buildCallbackContext('setDrawSubMode', false));
     }
     getDrawSubMode() {
@@ -1529,10 +1565,14 @@ export class ImageEditor {
     updateInputs() {
         applyEditorInputState({
             currentScale: this.runtime.currentScale,
+            imageFilterConfig: this.getImageFilterConfig(),
             mosaicConfig: this.getMosaicConfig(),
             textConfig: this.getTextConfig(),
             drawConfig: this.getDrawConfig(),
-        }, (key) => this.resolveElement(key, undefined, isInputElement));
+            drawSubMode: this.getDrawSubMode(),
+            eraserConfig: this.getEraserConfig(),
+            shapeConfig: this.getShapeConfig(),
+        }, (key) => this.resolveElement(key));
     }
     async mergeAnnotations() {
         await mergeAnnotationsAction(this.actionAccessFactory.buildExportActionAccess());

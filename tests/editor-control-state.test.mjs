@@ -27,6 +27,17 @@ const { applyEditorControlState } = await import('../src/ui/editor-control-state
 
 const MODE_CONTROL_KEYS = [
     'scalePercentageInput',
+    'imageBrightnessInput',
+    'imageContrastInput',
+    'imageSaturationInput',
+    'imageBlurInput',
+    'imageSharpenInput',
+    'imageGrayscaleInput',
+    'imageSepiaInput',
+    'imageVintageInput',
+    'applyImageFiltersButton',
+    'resetImageFiltersButton',
+    'clearImageFiltersButton',
     'rotateLeftDegreesInput',
     'rotateRightDegreesInput',
     'rotateLeftButton',
@@ -46,6 +57,16 @@ const MODE_CONTROL_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
     'removeSelectedAnnotationButton',
     'removeAllAnnotationsButton',
     'deleteSelectedObjectButton',
@@ -90,6 +111,7 @@ function makeSnapshot(overrides = {}) {
         isInMosaicMode: false,
         isInTextMode: false,
         isInDrawMode: false,
+        isInShapeMode: false,
         isMosaicApplying: false,
         ...overrides,
     };
@@ -118,9 +140,13 @@ test('normal mode with no image disables image actions but leaves file input ava
     assert.equal(finalState.get('scalePercentageInput'), false);
     assert.equal(finalState.get('zoomInButton'), false);
     assert.equal(finalState.get('downloadImageButton'), false);
+    assert.equal(finalState.get('imageBrightnessInput'), false);
     assert.equal(finalState.get('imageInput'), true);
     assert.equal(finalState.get('mosaicBrushSizeInput'), true);
     assert.equal(finalState.get('textColorInput'), true);
+    assert.equal(finalState.get('shapeKindSelect'), true);
+    assert.equal(finalState.get('eraserBrushSizeInput'), true);
+    assert.equal(finalState.get('drawBrushSubModeButton'), false);
     assert.equal(finalState.get('applyCropButton'), false);
     assert.equal(finalState.get('cancelCropButton'), false);
 });
@@ -149,6 +175,9 @@ test('normal mode with an image enables available image actions', () => {
     assert.equal(finalState.get('removeSelectedAnnotationButton'), true);
     assert.equal(finalState.get('mergeAnnotationsButton'), true);
     assert.equal(finalState.get('resetImageTransformButton'), true);
+    assert.equal(finalState.get('applyImageFiltersButton'), true);
+    assert.equal(finalState.get('createShapeAnnotationButton'), true);
+    assert.equal(finalState.get('enterShapeModeButton'), true);
     assert.equal(finalState.get('undoButton'), true);
     assert.equal(finalState.get('redoButton'), true);
 });
@@ -174,7 +203,30 @@ test('draw mode enables only draw controls', () => {
         makeSnapshot({ hasImage: true, isInDrawMode: true }),
     );
 
-    assertOnlyEnabled(finalState, ['exitDrawModeButton', 'drawColorInput', 'drawBrushSizeInput']);
+    assertOnlyEnabled(finalState, [
+        'exitDrawModeButton',
+        'drawColorInput',
+        'drawBrushSizeInput',
+        'drawBrushSubModeButton',
+        'drawEraseSubModeButton',
+        'eraserBrushSizeInput',
+    ]);
+});
+
+test('shape mode enables only shape controls', () => {
+    const { finalState } = collectControlState(
+        makeSnapshot({ hasImage: true, isInShapeMode: true }),
+    );
+
+    assertOnlyEnabled(finalState, [
+        'shapeKindSelect',
+        'shapeStrokeInput',
+        'shapeStrokeWidthInput',
+        'shapeFillInput',
+        'createShapeAnnotationButton',
+        'enterShapeModeButton',
+        'exitShapeModeButton',
+    ]);
 });
 
 test('mosaic mode enables only mosaic controls when not applying', () => {
@@ -207,10 +259,13 @@ test('busy state disables normal action controls', () => {
     assert.equal(finalState.get('createMaskButton'), false);
     assert.equal(finalState.get('mergeMasksButton'), false);
     assert.equal(finalState.get('mergeAnnotationsButton'), false);
+    assert.equal(finalState.get('applyImageFiltersButton'), false);
+    assert.equal(finalState.get('enterShapeModeButton'), false);
     assert.equal(finalState.get('undoButton'), false);
     assert.equal(finalState.get('redoButton'), false);
     assert.equal(finalState.get('imageInput'), false);
     assert.equal(finalState.get('mosaicBrushSizeInput'), true);
+    assert.equal(finalState.get('shapeKindSelect'), true);
 });
 
 test('disposed state disables every known control in normal and active modes', () => {
@@ -219,6 +274,7 @@ test('disposed state disables every known control in normal and active modes', (
         { isInCropMode: true },
         { isInTextMode: true },
         { isInDrawMode: true },
+        { isInShapeMode: true },
         { isInMosaicMode: true },
     ]) {
         const { finalState } = collectControlState(

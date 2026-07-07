@@ -96,7 +96,9 @@ export class EditorActionAccessFactory {
                 runtime.currentImageFilterConfig = next;
                 runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
                 if (runtime.originalImage) {
-                    applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                    applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next, (error, message) => {
+                        callbacks.reportWarning(error, message);
+                    });
                 }
             },
             setIsImageLoadedToCanvas: (value) => {
@@ -261,6 +263,9 @@ export class EditorActionAccessFactory {
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
             emitBusyChangeIfChanged: (context) => {
                 callbacks.emitBusyChangeIfChanged(context);
             },

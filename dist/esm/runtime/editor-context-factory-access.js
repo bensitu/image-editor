@@ -36,7 +36,9 @@ export function createEditorContextFactory(runtime, callbacks) {
             runtime.currentImageFilterConfig = next;
             runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
             if (runtime.originalImage) {
-                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next, (error, message) => {
+                    callbacks.reportWarning(error, message);
+                });
             }
         },
         restoreImageFilterConfig: (config) => {
@@ -44,7 +46,9 @@ export function createEditorContextFactory(runtime, callbacks) {
             runtime.currentImageFilterConfig = next;
             runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
             if (runtime.originalImage) {
-                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next, (error, message) => {
+                    callbacks.reportWarning(error, message);
+                });
             }
         },
         getLastSnapshot: () => runtime.lastSnapshot,

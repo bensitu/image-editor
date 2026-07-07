@@ -91,7 +91,7 @@ import type {
     TextAnnotationConfig,
     TextAnnotationObject,
 } from './core/public-types.js';
-import { isAnnotationObject, isMaskObject } from './core/public-types.js';
+import { isAnnotationObject, isBaseImageObject, isMaskObject } from './core/public-types.js';
 import {
     getActiveSelectionObjects,
     getAnnotations as getAnnotationsImpl,
@@ -716,6 +716,18 @@ export class ImageEditor {
                 resetImageTransform: () => this.resetImageTransform(),
                 flipHorizontal: () => this.flipHorizontal(),
                 flipVertical: () => this.flipVertical(),
+                setImageFilterConfig: (config) => {
+                    this.setImageFilterConfig(config);
+                },
+                resetImageFilterConfig: () => {
+                    this.resetImageFilterConfig();
+                },
+                clearImageFilters: () => {
+                    this.clearImageFilters();
+                },
+                commitImageFilters: () => {
+                    this.commitImageFilters();
+                },
                 createMask: () => {
                     this.createMask();
                 },
@@ -738,6 +750,15 @@ export class ImageEditor {
                 },
                 exitDrawMode: () => {
                     this.exitDrawMode();
+                },
+                createShapeAnnotation: (config) => {
+                    this.createShapeAnnotation(config);
+                },
+                enterShapeMode: (shape) => {
+                    this.enterShapeMode(shape);
+                },
+                exitShapeMode: () => {
+                    this.exitShapeMode();
                 },
                 removeSelectedAnnotation: () => {
                     this.removeSelectedAnnotation();
@@ -799,6 +820,15 @@ export class ImageEditor {
                 },
                 setDrawBrushSize: (size) => {
                     this.applyDrawBrushSizeInput(size);
+                },
+                setDrawSubMode: (mode) => {
+                    this.setDrawSubMode(mode);
+                },
+                setEraserConfig: (config) => {
+                    this.setEraserConfig(config);
+                },
+                setShapeConfig: (config) => {
+                    this.setShapeConfig(config);
                 },
             }),
         });
@@ -1105,16 +1135,18 @@ export class ImageEditor {
      * Returns `true` if a valid image is currently loaded on the canvas.
      */
     isImageLoaded(): boolean {
+        const image = this.runtime.originalImage;
         return !!(
-            this.runtime.originalImage &&
-            this.runtime.originalImage instanceof this.runtime.fabricModule.FabricImage &&
-            (this.runtime.originalImage.width ?? 0) > 0 &&
-            (this.runtime.originalImage.height ?? 0) > 0
+            image &&
+            isBaseImageObject(image) &&
+            Number(image.width) > 0 &&
+            Number(image.height) > 0
         );
     }
 
     /**
-     * Returns `true` while the editor is loading, animating, or in crop mode.
+     * Returns `true` while the editor is loading, animating, or any
+     * interactive tool mode is active.
      */
     isBusy(): boolean {
         return (
@@ -1160,6 +1192,7 @@ export class ImageEditor {
 
         this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(result.config);
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.runtime.canvas.requestRenderAll();
         this.emitImageChanged(this.buildCallbackContext('setImageFilterConfig', false));
     }
@@ -1181,6 +1214,7 @@ export class ImageEditor {
         if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, next)) return;
         this.runtime.currentImageFilterConfig = next;
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.runtime.canvas.requestRenderAll();
         this.emitImageChanged(this.buildCallbackContext('resetImageFilterConfig', false));
     }
@@ -1193,6 +1227,7 @@ export class ImageEditor {
             DEFAULT_IMAGE_FILTER_CONFIG,
         );
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.commitImageFiltersInternal('clearImageFilters');
     }
 
@@ -1231,6 +1266,9 @@ export class ImageEditor {
             this.runtime.fabricModule,
             image,
             this.runtime.currentImageFilterConfig,
+            (error, message) => {
+                reportWarning(this.runtime.options, error, message);
+            },
         );
     }
 
@@ -2091,6 +2129,7 @@ export class ImageEditor {
             return;
         }
         setDrawSubModeImpl(this.buildDrawControllerContext(), mode);
+        this.updateInputs();
         this.emitImageChanged(this.buildCallbackContext('setDrawSubMode', false));
     }
 
@@ -2508,11 +2547,15 @@ export class ImageEditor {
         applyEditorInputState(
             {
                 currentScale: this.runtime.currentScale,
+                imageFilterConfig: this.getImageFilterConfig(),
                 mosaicConfig: this.getMosaicConfig(),
                 textConfig: this.getTextConfig(),
                 drawConfig: this.getDrawConfig(),
+                drawSubMode: this.getDrawSubMode(),
+                eraserConfig: this.getEraserConfig(),
+                shapeConfig: this.getShapeConfig(),
             },
-            (key) => this.resolveElement<HTMLInputElement>(key, undefined, isInputElement),
+            (key) => this.resolveElement(key),
         );
     }
 

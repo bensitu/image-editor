@@ -43,6 +43,7 @@ export interface EditorContextCallbackEmitters {
     emitImageChanged(context: ImageEditorCallbackContext): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
+    reportWarning(error: unknown, message: string): void;
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation?: boolean): ImageEditorCallbackContext;
 }
 export interface EditorContextFactoryCallbacks extends EditorContextStateCallbacks, EditorContextDisplayCallbacks, EditorContextMaskLabelCallbacks, EditorContextUiCallbacks, EditorContextSelectionCallbacks, EditorContextCallbackEmitters {

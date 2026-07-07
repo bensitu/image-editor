@@ -108,7 +108,8 @@ export declare class ImageEditor {
      */
     isImageLoaded(): boolean;
     /**
-     * Returns `true` while the editor is loading, animating, or in crop mode.
+     * Returns `true` while the editor is loading, animating, or any
+     * interactive tool mode is active.
      */
     isBusy(): boolean;
     /**

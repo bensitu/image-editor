@@ -231,6 +231,17 @@ const DEFAULT_ELEMENT_TARGETS = Object.freeze({
     canvasContainer: null,
     imagePlaceholder: 'imagePlaceholder',
     scalePercentageInput: 'scalePercentageInput',
+    imageBrightnessInput: 'imageBrightnessInput',
+    imageContrastInput: 'imageContrastInput',
+    imageSaturationInput: 'imageSaturationInput',
+    imageBlurInput: 'imageBlurInput',
+    imageSharpenInput: 'imageSharpenInput',
+    imageGrayscaleInput: 'imageGrayscaleInput',
+    imageSepiaInput: 'imageSepiaInput',
+    imageVintageInput: 'imageVintageInput',
+    applyImageFiltersButton: 'applyImageFiltersButton',
+    resetImageFiltersButton: 'resetImageFiltersButton',
+    clearImageFiltersButton: 'clearImageFiltersButton',
     rotateLeftDegreesInput: 'rotateLeftDegreesInput',
     rotateRightDegreesInput: 'rotateRightDegreesInput',
     rotateLeftButton: 'rotateLeftButton',
@@ -250,6 +261,16 @@ const DEFAULT_ELEMENT_TARGETS = Object.freeze({
     exitDrawModeButton: 'exitDrawModeButton',
     drawColorInput: 'drawColorInput',
     drawBrushSizeInput: 'drawBrushSizeInput',
+    drawBrushSubModeButton: 'drawBrushSubModeButton',
+    drawEraseSubModeButton: 'drawEraseSubModeButton',
+    eraserBrushSizeInput: 'eraserBrushSizeInput',
+    shapeKindSelect: 'shapeKindSelect',
+    shapeStrokeInput: 'shapeStrokeInput',
+    shapeStrokeWidthInput: 'shapeStrokeWidthInput',
+    shapeFillInput: 'shapeFillInput',
+    createShapeAnnotationButton: 'createShapeAnnotationButton',
+    enterShapeModeButton: 'enterShapeModeButton',
+    exitShapeModeButton: 'exitShapeModeButton',
     removeSelectedAnnotationButton: 'removeSelectedAnnotationButton',
     removeAllAnnotationsButton: 'removeAllAnnotationsButton',
     deleteSelectedObjectButton: 'deleteSelectedObjectButton',
@@ -3781,6 +3802,190 @@ function pointIntersectsExpandedBounds(point, bounds, radius) {
         point.y >= bounds.top - radius &&
         point.y <= bounds.top + bounds.height + radius);
 }
+function isPathCommand(value) {
+    return (Array.isArray(value) &&
+        typeof value[0] === 'string' &&
+        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
+}
+function transformPathPoint(annotation, point) {
+    var _a, _b;
+    const pathLike = annotation;
+    const offset = (_a = pathLike.pathOffset) !== null && _a !== void 0 ? _a : { x: 0, y: 0 };
+    const x = point.x - (Number(offset.x) || 0);
+    const y = point.y - (Number(offset.y) || 0);
+    const matrix = (_b = pathLike.calcTransformMatrix) === null || _b === void 0 ? void 0 : _b.call(pathLike);
+    if (!Array.isArray(matrix) || matrix.length < 6)
+        return { x: point.x, y: point.y };
+    const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = matrix;
+    return {
+        x: a * x + c * y + e,
+        y: b * x + d * y + f,
+    };
+}
+function toAbsolutePoint(x, y, current, isRelative) {
+    return isRelative ? { x: current.x + x, y: current.y + y } : { x, y };
+}
+function pathValue(values, index) {
+    var _a;
+    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
+}
+function addTransformedSegment(annotation, segments, start, end) {
+    segments.push({
+        start: transformPathPoint(annotation, start),
+        end: transformPathPoint(annotation, end),
+    });
+}
+function cubicPoint(start, c1, c2, end, t) {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * mt * start.x +
+            3 * mt * mt * t * c1.x +
+            3 * mt * t * t * c2.x +
+            t * t * t * end.x,
+        y: mt * mt * mt * start.y +
+            3 * mt * mt * t * c1.y +
+            3 * mt * t * t * c2.y +
+            t * t * t * end.y,
+    };
+}
+function quadraticPoint(start, c, end, t) {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * start.x + 2 * mt * t * c.x + t * t * end.x,
+        y: mt * mt * start.y + 2 * mt * t * c.y + t * t * end.y,
+    };
+}
+function addSampledCurve(annotation, segments, start, end, samplePoint) {
+    const approximateLength = Math.hypot(end.x - start.x, end.y - start.y);
+    const steps = Math.max(8, Math.min(48, Math.ceil(approximateLength / 6)));
+    let previous = start;
+    for (let index = 1; index <= steps; index += 1) {
+        const next = samplePoint(index / steps);
+        addTransformedSegment(annotation, segments, previous, next);
+        previous = next;
+    }
+}
+function getDrawAnnotationPathSegments(annotation) {
+    const pathData = annotation.path;
+    if (!Array.isArray(pathData))
+        return [];
+    const segments = [];
+    let current = { x: 0, y: 0 };
+    let subpathStart = null;
+    for (const rawCommand of pathData) {
+        if (!isPathCommand(rawCommand))
+            continue;
+        const rawName = rawCommand[0];
+        const command = rawName.toUpperCase();
+        const isRelative = rawName !== command;
+        const values = rawCommand.slice(1);
+        if (command === 'M') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                if (index > 0)
+                    addTransformedSegment(annotation, segments, current, next);
+                current = next;
+                if (index === 0)
+                    subpathStart = next;
+            }
+            continue;
+        }
+        if (command === 'L') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'H') {
+            for (const value of values) {
+                const next = { x: isRelative ? current.x + value : value, y: current.y };
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'V') {
+            for (const value of values) {
+                const next = { x: current.x, y: isRelative ? current.y + value : value };
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'C') {
+            for (let index = 0; index + 5 < values.length; index += 6) {
+                const start = current;
+                const c1 = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const c2 = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                const end = toAbsolutePoint(pathValue(values, index + 4), pathValue(values, index + 5), current, isRelative);
+                addSampledCurve(annotation, segments, start, end, (t) => cubicPoint(start, c1, c2, end, t));
+                current = end;
+            }
+            continue;
+        }
+        if (command === 'Q') {
+            for (let index = 0; index + 3 < values.length; index += 4) {
+                const start = current;
+                const control = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const end = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                addSampledCurve(annotation, segments, start, end, (t) => quadraticPoint(start, control, end, t));
+                current = end;
+            }
+            continue;
+        }
+        if (command === 'A') {
+            for (let index = 0; index + 6 < values.length; index += 7) {
+                const next = toAbsolutePoint(pathValue(values, index + 5), pathValue(values, index + 6), current, isRelative);
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'Z' && subpathStart) {
+            addTransformedSegment(annotation, segments, current, subpathStart);
+            current = subpathStart;
+        }
+    }
+    return segments;
+}
+function getEffectiveStrokeRadius(annotation) {
+    var _a, _b;
+    const strokeWidth = Number(annotation.strokeWidth) || 0;
+    const scale = (_b = (_a = annotation).getObjectScaling) === null || _b === void 0 ? void 0 : _b.call(_a);
+    if (annotation.strokeUniform) {
+        return Math.max(0, strokeWidth / 2);
+    }
+    const scaleX = Math.abs(Number(scale === null || scale === void 0 ? void 0 : scale.x) || Number(annotation.scaleX) || 1);
+    const scaleY = Math.abs(Number(scale === null || scale === void 0 ? void 0 : scale.y) || Number(annotation.scaleY) || 1);
+    return Math.max(0, (strokeWidth * Math.max(scaleX, scaleY)) / 2);
+}
+function pointDistanceToSegment(point, segment) {
+    const dx = segment.end.x - segment.start.x;
+    const dy = segment.end.y - segment.start.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) {
+        return Math.hypot(point.x - segment.start.x, point.y - segment.start.y);
+    }
+    const t = Math.max(0, Math.min(1, ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) / lengthSquared));
+    const nearest = {
+        x: segment.start.x + t * dx,
+        y: segment.start.y + t * dy,
+    };
+    return Math.hypot(point.x - nearest.x, point.y - nearest.y);
+}
+function annotationIntersectsEraserPath(annotation, points, eraserRadius) {
+    const hitRadius = eraserRadius + getEffectiveStrokeRadius(annotation);
+    const bounds = getObjectBBox(annotation);
+    if (!points.some((point) => pointIntersectsExpandedBounds(point, bounds, hitRadius))) {
+        return false;
+    }
+    const segments = getDrawAnnotationPathSegments(annotation);
+    if (segments.length === 0)
+        return false;
+    return points.some((point) => segments.some((segment) => pointDistanceToSegment(point, segment) <= hitRadius));
+}
 function getIntersectedDrawAnnotations(context, points) {
     if (points.length === 0)
         return [];
@@ -3788,10 +3993,7 @@ function getIntersectedDrawAnnotations(context, points) {
     return context.canvas
         .getObjects()
         .filter(isDrawAnnotationObject)
-        .filter((annotation) => {
-        const bounds = getObjectBBox(annotation);
-        return points.some((point) => pointIntersectsExpandedBounds(point, bounds, radius));
-    });
+        .filter((annotation) => annotationIntersectsEraserPath(annotation, points, radius));
 }
 function commitEraserStroke(context, session) {
     const removed = getIntersectedDrawAnnotations(context, session.eraserPoints);
@@ -3881,7 +4083,7 @@ function handlePathCreated(context, event) {
     context.canvas.renderAll();
     context.updateAnnotationList();
     context.saveCanvasState();
-    const callbackContext = context.buildCallbackContext('enterDrawMode');
+    const callbackContext = context.buildCallbackContext('createDrawAnnotation');
     context.emitAnnotationsChanged(callbackContext);
     context.emitImageChanged(callbackContext);
 }
@@ -4347,6 +4549,7 @@ function enterDrawModeAction(access) {
     if (access.isToolModeActive())
         return;
     enterDrawMode(access.buildDrawControllerContext());
+    access.updateInputs();
     const callbackContext = access.buildCallbackContext('enterDrawMode', false);
     access.emitBusyChangeIfChanged(callbackContext);
     access.emitImageChanged(callbackContext);
@@ -4357,6 +4560,7 @@ function exitDrawModeAction(access) {
     if (!access.canRunIdleOperation('exitDrawMode'))
         return;
     exitDrawMode(access.buildDrawControllerContext());
+    access.updateInputs();
     const callbackContext = access.buildCallbackContext('exitDrawMode', false);
     access.emitBusyChangeIfChanged(callbackContext);
     access.emitImageChanged(callbackContext);
@@ -5164,44 +5368,59 @@ function createFilter(registry, name, options) {
     const FilterConstructor = registry[name];
     return FilterConstructor ? new FilterConstructor(options) : null;
 }
+function createMissingFilterError(missing) {
+    return new TypeError(`[ImageEditor] Fabric image filter constructor(s) unavailable: ${missing.join(', ')}.`);
+}
+function reportMissingImageFilters(missing, reportMissing) {
+    if (missing.length === 0 || !reportMissing)
+        return;
+    reportMissing(createMissingFilterError(missing), `Image filter(s) not supported by the active Fabric build: ${missing.join(', ')}.`);
+}
 function buildFabricImageFilters(fabric, config) {
     const registry = getFiltersRegistry(fabric);
     const filters = [];
-    const push = (filter) => {
+    const missing = [];
+    const push = (configKey, filterName, options) => {
+        const filter = createFilter(registry, filterName, options);
         if (filter)
             filters.push(filter);
+        else
+            missing.push(configKey);
     };
     if (config.brightness !== 0) {
-        push(createFilter(registry, 'Brightness', { brightness: config.brightness }));
+        push('brightness', 'Brightness', { brightness: config.brightness });
     }
     if (config.contrast !== 0) {
-        push(createFilter(registry, 'Contrast', { contrast: config.contrast }));
+        push('contrast', 'Contrast', { contrast: config.contrast });
     }
     if (config.saturation !== 0) {
-        push(createFilter(registry, 'Saturation', { saturation: config.saturation }));
+        push('saturation', 'Saturation', { saturation: config.saturation });
     }
     if (config.grayscale)
-        push(createFilter(registry, 'Grayscale'));
+        push('grayscale', 'Grayscale');
     if (config.sepia)
-        push(createFilter(registry, 'Sepia'));
+        push('sepia', 'Sepia');
     if (config.vintage)
-        push(createFilter(registry, 'Vintage'));
+        push('vintage', 'Vintage');
     if (config.blur > 0)
-        push(createFilter(registry, 'Blur', { blur: config.blur }));
+        push('blur', 'Blur', { blur: config.blur });
     if (config.sharpen > 0) {
         const s = config.sharpen;
-        push(createFilter(registry, 'Convolute', {
+        push('sharpen', 'Convolute', {
             matrix: [0, -s, 0, -s, 1 + 4 * s, -s, 0, -s, 0],
-        }));
+        });
     }
-    return filters;
+    return { filters, missing };
 }
-function applyImageFilterConfigToImage(fabric, image, config) {
+function applyImageFilterConfigToImage(fabric, image, config, reportMissing) {
     var _a;
     const imageWithFilters = image;
-    imageWithFilters.filters = buildFabricImageFilters(fabric, config);
+    const result = buildFabricImageFilters(fabric, config);
+    imageWithFilters.filters = result.filters;
     (_a = imageWithFilters.applyFilters) === null || _a === void 0 ? void 0 : _a.call(imageWithFilters);
     imageWithFilters.dirty = true;
+    reportMissingImageFilters(result.missing, reportMissing);
+    return result;
 }
 function getFilteredBaseImageDataUrl(image, config, fallback) {
     if (!hasActiveImageFilters(config))
@@ -8688,7 +8907,9 @@ class EditorActionAccessFactory {
                 runtime.currentImageFilterConfig = next;
                 runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
                 if (runtime.originalImage) {
-                    applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                    applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next, (error, message) => {
+                        callbacks.reportWarning(error, message);
+                    });
                 }
             },
             setIsImageLoadedToCanvas: (value) => {
@@ -8853,6 +9074,9 @@ class EditorActionAccessFactory {
             buildTextControllerContext: () => this.contextFactory.buildTextControllerContext(),
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) => callbacks.buildCallbackContext(operation, isInternalOperation),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
             emitBusyChangeIfChanged: (context) => {
                 callbacks.emitBusyChangeIfChanged(context);
             },
@@ -9998,7 +10222,9 @@ function createEditorContextFactory(runtime, callbacks) {
             runtime.currentImageFilterConfig = next;
             runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
             if (runtime.originalImage) {
-                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next, (error, message) => {
+                    callbacks.reportWarning(error, message);
+                });
             }
         },
         restoreImageFilterConfig: (config) => {
@@ -10006,7 +10232,9 @@ function createEditorContextFactory(runtime, callbacks) {
             runtime.currentImageFilterConfig = next;
             runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(next);
             if (runtime.originalImage) {
-                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next);
+                applyImageFilterConfigToImage(runtime.fabricModule, runtime.originalImage, next, (error, message) => {
+                    callbacks.reportWarning(error, message);
+                });
             }
         },
         getLastSnapshot: () => runtime.lastSnapshot,
@@ -10197,6 +10425,9 @@ function createContextFactory(runtime, hooks) {
         },
         emitBusyChangeIfChanged: (context) => {
             hooks.callbacks.emitBusyChangeIfChanged(context);
+        },
+        reportWarning: (error, message) => {
+            hooks.callbacks.reportWarning(error, message);
         },
         buildCallbackContext: (operation, isInternalOperation) => hooks.callbacks.buildCallbackContext(operation, isInternalOperation !== null && isInternalOperation !== void 0 ? isInternalOperation : false),
     });
@@ -10915,13 +11146,10 @@ class EditorRuntime {
         return this.canvas;
     }
     isImageLoaded() {
-        var _a, _b;
-        const FabricImageCtor = this.fabricModule.FabricImage;
         return !!(this.originalImage &&
-            typeof FabricImageCtor === 'function' &&
-            this.originalImage instanceof FabricImageCtor &&
-            ((_a = this.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
-            ((_b = this.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+            isBaseImageObject(this.originalImage) &&
+            Number(this.originalImage.width) > 0 &&
+            Number(this.originalImage.height) > 0);
     }
     isBusy(isToolModeActive = false) {
         return this.operationGuard.isBusy() || this.animQueue.isBusy() || isToolModeActive;
@@ -11476,6 +11704,17 @@ class DomBindings {
 
 const CROP_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
+    'imageBrightnessInput',
+    'imageContrastInput',
+    'imageSaturationInput',
+    'imageBlurInput',
+    'imageSharpenInput',
+    'imageGrayscaleInput',
+    'imageSepiaInput',
+    'imageVintageInput',
+    'applyImageFiltersButton',
+    'resetImageFiltersButton',
+    'clearImageFiltersButton',
     'rotateLeftDegreesInput',
     'rotateRightDegreesInput',
     'rotateLeftButton',
@@ -11495,6 +11734,16 @@ const CROP_MODE_CONTROL_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
     'removeSelectedAnnotationButton',
     'removeAllAnnotationsButton',
     'deleteSelectedObjectButton',
@@ -11534,9 +11783,33 @@ const DRAW_MODE_ENABLED_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+];
+const SHAPE_MODE_CONTROL_KEYS = CROP_MODE_CONTROL_KEYS;
+const SHAPE_MODE_ENABLED_KEYS = [
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
 ];
 const MOSAIC_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
+    'imageBrightnessInput',
+    'imageContrastInput',
+    'imageSaturationInput',
+    'imageBlurInput',
+    'imageSharpenInput',
+    'imageGrayscaleInput',
+    'imageSepiaInput',
+    'imageVintageInput',
+    'applyImageFiltersButton',
+    'resetImageFiltersButton',
+    'clearImageFiltersButton',
     'rotateLeftDegreesInput',
     'rotateRightDegreesInput',
     'rotateLeftButton',
@@ -11556,6 +11829,16 @@ const MOSAIC_MODE_CONTROL_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
     'removeSelectedAnnotationButton',
     'removeAllAnnotationsButton',
     'deleteSelectedObjectButton',
@@ -11608,6 +11891,10 @@ function applyEditorControlState(snapshot, setEnabled) {
         setModeControlState(DRAW_MODE_CONTROL_KEYS, DRAW_MODE_ENABLED_KEYS, snapshot, setEnabled);
         return;
     }
+    if (snapshot.isInShapeMode) {
+        setModeControlState(SHAPE_MODE_CONTROL_KEYS, SHAPE_MODE_ENABLED_KEYS, snapshot, setEnabled);
+        return;
+    }
     if (snapshot.isInMosaicMode) {
         MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
             setEnabled(key, !snapshot.isBusy &&
@@ -11618,6 +11905,17 @@ function applyEditorControlState(snapshot, setEnabled) {
         return;
     }
     setEnabled('scalePercentageInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageBrightnessInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageContrastInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageSaturationInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageBlurInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageSharpenInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageGrayscaleInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageSepiaInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageVintageInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('applyImageFiltersButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('resetImageFiltersButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('clearImageFiltersButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('rotateLeftDegreesInput', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('rotateRightDegreesInput', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('zoomInButton', snapshot.hasImage && !snapshot.isBusy && snapshot.currentScale < snapshot.maxScale);
@@ -11647,15 +11945,25 @@ function applyEditorControlState(snapshot, setEnabled) {
     setEnabled('enterMosaicModeButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('enterTextModeButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('enterDrawModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('enterShapeModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('createShapeAnnotationButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('exitMosaicModeButton', false);
     setEnabled('exitTextModeButton', false);
     setEnabled('exitDrawModeButton', false);
+    setEnabled('exitShapeModeButton', false);
     setEnabled('mosaicBrushSizeInput', !snapshot.isDisposed);
     setEnabled('mosaicBlockSizeInput', !snapshot.isDisposed);
     setEnabled('textColorInput', !snapshot.isDisposed);
     setEnabled('textFontSizeInput', !snapshot.isDisposed);
     setEnabled('drawColorInput', !snapshot.isDisposed);
     setEnabled('drawBrushSizeInput', !snapshot.isDisposed);
+    setEnabled('drawBrushSubModeButton', false);
+    setEnabled('drawEraseSubModeButton', false);
+    setEnabled('eraserBrushSizeInput', !snapshot.isDisposed);
+    setEnabled('shapeKindSelect', !snapshot.isDisposed);
+    setEnabled('shapeStrokeInput', !snapshot.isDisposed);
+    setEnabled('shapeStrokeWidthInput', !snapshot.isDisposed);
+    setEnabled('shapeFillInput', !snapshot.isDisposed);
     setEnabled('imageInput', !snapshot.isBusy);
     setEnabled('applyCropButton', false);
     setEnabled('cancelCropButton', false);
@@ -11691,6 +11999,7 @@ function buildEditorControlSnapshot(runtime) {
         isInMosaicMode: runtime.mosaicSession !== null,
         isInTextMode: runtime.textSession !== null,
         isInDrawMode: runtime.drawSession !== null,
+        isInShapeMode: runtime.shapeSession !== null,
         isMosaicApplying: ((_c = runtime.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true,
     };
 }
@@ -11784,6 +12093,12 @@ function handleAsyncAction(context, operation, action) {
 function getEventInputValue(event) {
     return event.target.value;
 }
+function getEventInputChecked(event) {
+    return event.target.checked;
+}
+function parseShapeKind(value) {
+    return value === 'line' || value === 'arrow' ? value : 'rect';
+}
 function bindUploadEvents(context) {
     bindElement(context, 'uploadArea', 'click', () => {
         context.actions.openImagePicker();
@@ -11794,6 +12109,41 @@ function bindUploadEvents(context) {
         if (file) {
             handleAsyncAction(context, 'loadImageFile', () => context.actions.loadImageFile(file));
         }
+    });
+}
+function bindImageFilterEvents(context) {
+    bindNumberInput(context, 'imageBrightnessInput', (value) => {
+        context.actions.setImageFilterConfig({ brightness: value });
+    });
+    bindNumberInput(context, 'imageContrastInput', (value) => {
+        context.actions.setImageFilterConfig({ contrast: value });
+    });
+    bindNumberInput(context, 'imageSaturationInput', (value) => {
+        context.actions.setImageFilterConfig({ saturation: value });
+    });
+    bindNumberInput(context, 'imageBlurInput', (value) => {
+        context.actions.setImageFilterConfig({ blur: value });
+    });
+    bindNumberInput(context, 'imageSharpenInput', (value) => {
+        context.actions.setImageFilterConfig({ sharpen: value });
+    });
+    bindBooleanInput(context, 'imageGrayscaleInput', (value) => {
+        context.actions.setImageFilterConfig({ grayscale: value });
+    });
+    bindBooleanInput(context, 'imageSepiaInput', (value) => {
+        context.actions.setImageFilterConfig({ sepia: value });
+    });
+    bindBooleanInput(context, 'imageVintageInput', (value) => {
+        context.actions.setImageFilterConfig({ vintage: value });
+    });
+    bindElement(context, 'applyImageFiltersButton', 'click', () => {
+        context.actions.commitImageFilters();
+    });
+    bindElement(context, 'resetImageFiltersButton', 'click', () => {
+        context.actions.resetImageFilterConfig();
+    });
+    bindElement(context, 'clearImageFiltersButton', 'click', () => {
+        context.actions.clearImageFilters();
     });
 }
 function bindTransformEvents(context) {
@@ -11853,6 +12203,15 @@ function bindAnnotationEvents(context) {
     bindElement(context, 'exitDrawModeButton', 'click', () => {
         context.actions.exitDrawMode();
     });
+    bindElement(context, 'createShapeAnnotationButton', 'click', () => {
+        context.actions.createShapeAnnotation();
+    });
+    bindElement(context, 'enterShapeModeButton', 'click', () => {
+        context.actions.enterShapeMode(parseShapeKind(context.getInputValue('shapeKindSelect')));
+    });
+    bindElement(context, 'exitShapeModeButton', 'click', () => {
+        context.actions.exitShapeMode();
+    });
     bindElement(context, 'removeSelectedAnnotationButton', 'click', () => {
         context.actions.removeSelectedAnnotation();
     });
@@ -11885,6 +12244,27 @@ function bindAnnotationEvents(context) {
     });
     bindNumberInput(context, 'drawBrushSizeInput', (value) => {
         context.actions.setDrawBrushSize(value);
+    });
+    bindElement(context, 'drawBrushSubModeButton', 'click', () => {
+        context.actions.setDrawSubMode('brush');
+    });
+    bindElement(context, 'drawEraseSubModeButton', 'click', () => {
+        context.actions.setDrawSubMode('erase');
+    });
+    bindNumberInput(context, 'eraserBrushSizeInput', (value) => {
+        context.actions.setEraserBrushSize(value);
+    });
+    bindStringInput(context, 'shapeKindSelect', (value) => {
+        context.actions.setShapeConfig({ shape: parseShapeKind(value) });
+    });
+    bindStringInput(context, 'shapeStrokeInput', (value) => {
+        context.actions.setShapeConfig({ stroke: value });
+    });
+    bindNumberInput(context, 'shapeStrokeWidthInput', (value) => {
+        context.actions.setShapeConfig({ strokeWidth: value });
+    });
+    bindStringInput(context, 'shapeFillInput', (value) => {
+        context.actions.setShapeConfig({ fill: value });
     });
 }
 function bindHistoryEvents(context) {
@@ -11952,8 +12332,21 @@ function bindNumberInput(context, key, applyValue) {
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
 }
+function bindBooleanInput(context, key, applyValue) {
+    let lastAppliedValue = null;
+    const handler = (event) => {
+        const value = getEventInputChecked(event);
+        if (lastAppliedValue !== null && value === lastAppliedValue)
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
+    };
+    bindElement(context, key, 'input', handler);
+    bindElement(context, key, 'change', handler);
+}
 function bindEditorDomEvents(context) {
     bindUploadEvents(context);
+    bindImageFilterEvents(context);
     bindTransformEvents(context);
     bindMaskEvents(context);
     bindAnnotationEvents(context);
@@ -11983,6 +12376,18 @@ function createEditorDomEventActions(runtime, ownerDocument, host) {
         flipVertical: () => host.flipVertical(),
         rotateLeft: (degrees) => host.rotateImage(runtime.currentRotation - degrees),
         rotateRight: (degrees) => host.rotateImage(runtime.currentRotation + degrees),
+        setImageFilterConfig: (config) => {
+            host.setImageFilterConfig(config);
+        },
+        resetImageFilterConfig: () => {
+            host.resetImageFilterConfig();
+        },
+        clearImageFilters: () => {
+            host.clearImageFilters();
+        },
+        commitImageFilters: () => {
+            host.commitImageFilters();
+        },
         createMask: () => {
             host.createMask();
         },
@@ -12005,6 +12410,15 @@ function createEditorDomEventActions(runtime, ownerDocument, host) {
         },
         exitDrawMode: () => {
             host.exitDrawMode();
+        },
+        createShapeAnnotation: () => {
+            host.createShapeAnnotation();
+        },
+        enterShapeMode: (shape) => {
+            host.enterShapeMode(shape);
+        },
+        exitShapeMode: () => {
+            host.exitShapeMode();
         },
         removeSelectedAnnotation: () => {
             host.removeSelectedAnnotation();
@@ -12069,6 +12483,15 @@ function createEditorDomEventActions(runtime, ownerDocument, host) {
         setDrawBrushSize: (size) => {
             host.setDrawBrushSize(size);
         },
+        setDrawSubMode: (mode) => {
+            host.setDrawSubMode(mode);
+        },
+        setEraserBrushSize: (size) => {
+            host.setEraserConfig({ brushSize: size });
+        },
+        setShapeConfig: (config) => {
+            host.setShapeConfig(config);
+        },
     };
 }
 function getSelectedCropAspectRatio(runtime, ownerDocument) {
@@ -12077,26 +12500,70 @@ function getSelectedCropAspectRatio(runtime, ownerDocument) {
     return (value || 'free');
 }
 
-function syncInputValue(inputElement, value) {
-    if (!inputElement)
-        return;
-    const ownerDocument = inputElement.ownerDocument;
-    if (ownerDocument.activeElement === inputElement && !inputElement.readOnly)
-        return;
-    if (inputElement.value !== value)
-        inputElement.value = value;
+function isValueControl(element) {
+    return !!element && 'value' in element;
 }
-function syncInput(getInputElement, key, value) {
-    syncInputValue(getInputElement(key), value);
+function isCheckedInput(element) {
+    return !!element && 'checked' in element;
 }
-function applyEditorInputState(snapshot, getInputElement) {
-    syncInput(getInputElement, 'scalePercentageInput', String(Math.round(snapshot.currentScale * 100)));
-    syncInput(getInputElement, 'mosaicBrushSizeInput', String(snapshot.mosaicConfig.brushSize));
-    syncInput(getInputElement, 'mosaicBlockSizeInput', String(snapshot.mosaicConfig.blockSize));
-    syncInput(getInputElement, 'textColorInput', snapshot.textConfig.fill);
-    syncInput(getInputElement, 'textFontSizeInput', String(snapshot.textConfig.fontSize));
-    syncInput(getInputElement, 'drawColorInput', snapshot.drawConfig.color);
-    syncInput(getInputElement, 'drawBrushSizeInput', String(snapshot.drawConfig.brushSize));
+function isReadOnlyControl(element) {
+    return 'readOnly' in element && element.readOnly;
+}
+function syncInputValue(element, value) {
+    if (!isValueControl(element))
+        return;
+    const ownerDocument = element.ownerDocument;
+    if (ownerDocument.activeElement === element && !isReadOnlyControl(element))
+        return;
+    if (element.value !== value)
+        element.value = value;
+}
+function syncInputChecked(element, checked) {
+    if (!isCheckedInput(element))
+        return;
+    if (element.checked !== checked)
+        element.checked = checked;
+}
+function syncToggleButton(element, pressed) {
+    if (!element)
+        return;
+    const next = pressed ? 'true' : 'false';
+    if (element.getAttribute('aria-pressed') !== next) {
+        element.setAttribute('aria-pressed', next);
+    }
+}
+function syncValue(getElement, key, value) {
+    syncInputValue(getElement(key), value);
+}
+function syncChecked(getElement, key, checked) {
+    syncInputChecked(getElement(key), checked);
+}
+function syncPressed(getElement, key, pressed) {
+    syncToggleButton(getElement(key), pressed);
+}
+function applyEditorInputState(snapshot, getElement) {
+    syncValue(getElement, 'scalePercentageInput', String(Math.round(snapshot.currentScale * 100)));
+    syncValue(getElement, 'imageBrightnessInput', String(snapshot.imageFilterConfig.brightness));
+    syncValue(getElement, 'imageContrastInput', String(snapshot.imageFilterConfig.contrast));
+    syncValue(getElement, 'imageSaturationInput', String(snapshot.imageFilterConfig.saturation));
+    syncValue(getElement, 'imageBlurInput', String(snapshot.imageFilterConfig.blur));
+    syncValue(getElement, 'imageSharpenInput', String(snapshot.imageFilterConfig.sharpen));
+    syncChecked(getElement, 'imageGrayscaleInput', snapshot.imageFilterConfig.grayscale);
+    syncChecked(getElement, 'imageSepiaInput', snapshot.imageFilterConfig.sepia);
+    syncChecked(getElement, 'imageVintageInput', snapshot.imageFilterConfig.vintage);
+    syncValue(getElement, 'mosaicBrushSizeInput', String(snapshot.mosaicConfig.brushSize));
+    syncValue(getElement, 'mosaicBlockSizeInput', String(snapshot.mosaicConfig.blockSize));
+    syncValue(getElement, 'textColorInput', snapshot.textConfig.fill);
+    syncValue(getElement, 'textFontSizeInput', String(snapshot.textConfig.fontSize));
+    syncValue(getElement, 'drawColorInput', snapshot.drawConfig.color);
+    syncValue(getElement, 'drawBrushSizeInput', String(snapshot.drawConfig.brushSize));
+    syncPressed(getElement, 'drawBrushSubModeButton', snapshot.drawSubMode === 'brush');
+    syncPressed(getElement, 'drawEraseSubModeButton', snapshot.drawSubMode === 'erase');
+    syncValue(getElement, 'eraserBrushSizeInput', String(snapshot.eraserConfig.brushSize));
+    syncValue(getElement, 'shapeKindSelect', snapshot.shapeConfig.shape);
+    syncValue(getElement, 'shapeStrokeInput', snapshot.shapeConfig.stroke);
+    syncValue(getElement, 'shapeStrokeWidthInput', String(snapshot.shapeConfig.strokeWidth));
+    syncValue(getElement, 'shapeFillInput', snapshot.shapeConfig.fill);
 }
 
 function bindEditorKeyboardEvents(access) {
@@ -12212,6 +12679,7 @@ const TOOL_MODE_ALLOWED_OPERATIONS = {
         'exitDrawMode',
         'setDrawConfig',
         'resetDrawConfig',
+        'createDrawAnnotation',
         'setDrawColor',
         'setDrawBrushSize',
         'setDrawSubMode',
@@ -12266,6 +12734,7 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'exitDrawMode',
     'setDrawConfig',
     'resetDrawConfig',
+    'createDrawAnnotation',
     'setDrawColor',
     'setDrawBrushSize',
     'setDrawSubMode',
@@ -12645,6 +13114,18 @@ class ImageEditor {
                 resetImageTransform: () => this.resetImageTransform(),
                 flipHorizontal: () => this.flipHorizontal(),
                 flipVertical: () => this.flipVertical(),
+                setImageFilterConfig: (config) => {
+                    this.setImageFilterConfig(config);
+                },
+                resetImageFilterConfig: () => {
+                    this.resetImageFilterConfig();
+                },
+                clearImageFilters: () => {
+                    this.clearImageFilters();
+                },
+                commitImageFilters: () => {
+                    this.commitImageFilters();
+                },
                 createMask: () => {
                     this.createMask();
                 },
@@ -12667,6 +13148,15 @@ class ImageEditor {
                 },
                 exitDrawMode: () => {
                     this.exitDrawMode();
+                },
+                createShapeAnnotation: (config) => {
+                    this.createShapeAnnotation(config);
+                },
+                enterShapeMode: (shape) => {
+                    this.enterShapeMode(shape);
+                },
+                exitShapeMode: () => {
+                    this.exitShapeMode();
                 },
                 removeSelectedAnnotation: () => {
                     this.removeSelectedAnnotation();
@@ -12728,6 +13218,15 @@ class ImageEditor {
                 },
                 setDrawBrushSize: (size) => {
                     this.applyDrawBrushSizeInput(size);
+                },
+                setDrawSubMode: (mode) => {
+                    this.setDrawSubMode(mode);
+                },
+                setEraserConfig: (config) => {
+                    this.setEraserConfig(config);
+                },
+                setShapeConfig: (config) => {
+                    this.setShapeConfig(config);
                 },
             }),
         });
@@ -12915,11 +13414,11 @@ class ImageEditor {
         }
     }
     isImageLoaded() {
-        var _a, _b;
-        return !!(this.runtime.originalImage &&
-            this.runtime.originalImage instanceof this.runtime.fabricModule.FabricImage &&
-            ((_a = this.runtime.originalImage.width) !== null && _a !== void 0 ? _a : 0) > 0 &&
-            ((_b = this.runtime.originalImage.height) !== null && _b !== void 0 ? _b : 0) > 0);
+        const image = this.runtime.originalImage;
+        return !!(image &&
+            isBaseImageObject(image) &&
+            Number(image.width) > 0 &&
+            Number(image.height) > 0);
     }
     isBusy() {
         return (this.runtime.operationGuard.isBusy() ||
@@ -12943,6 +13442,7 @@ class ImageEditor {
         }
         this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(result.config);
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.runtime.canvas.requestRenderAll();
         this.emitImageChanged(this.buildCallbackContext('setImageFilterConfig', false));
     }
@@ -12959,6 +13459,7 @@ class ImageEditor {
             return;
         this.runtime.currentImageFilterConfig = next;
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.runtime.canvas.requestRenderAll();
         this.emitImageChanged(this.buildCallbackContext('resetImageFilterConfig', false));
     }
@@ -12969,6 +13470,7 @@ class ImageEditor {
             return;
         this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.applyCurrentImageFilters();
+        this.updateInputs();
         this.commitImageFiltersInternal('clearImageFilters');
     }
     commitImageFilters() {
@@ -12992,7 +13494,9 @@ class ImageEditor {
         const image = this.runtime.originalImage;
         if (!image)
             return;
-        applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig);
+        applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig, (error, message) => {
+            reportWarning(this.runtime.options, error, message);
+        });
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
@@ -13562,6 +14066,7 @@ class ImageEditor {
             return;
         }
         setDrawSubMode(this.buildDrawControllerContext(), mode);
+        this.updateInputs();
         this.emitImageChanged(this.buildCallbackContext('setDrawSubMode', false));
     }
     getDrawSubMode() {
@@ -13811,10 +14316,14 @@ class ImageEditor {
     updateInputs() {
         applyEditorInputState({
             currentScale: this.runtime.currentScale,
+            imageFilterConfig: this.getImageFilterConfig(),
             mosaicConfig: this.getMosaicConfig(),
             textConfig: this.getTextConfig(),
             drawConfig: this.getDrawConfig(),
-        }, (key) => this.resolveElement(key, undefined, isInputElement));
+            drawSubMode: this.getDrawSubMode(),
+            eraserConfig: this.getEraserConfig(),
+            shapeConfig: this.getShapeConfig(),
+        }, (key) => this.resolveElement(key));
     }
     async mergeAnnotations() {
         await mergeAnnotationsAction(this.actionAccessFactory.buildExportActionAccess());

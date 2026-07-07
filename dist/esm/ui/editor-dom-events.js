@@ -20,6 +20,12 @@ function handleAsyncAction(context, operation, action) {
 function getEventInputValue(event) {
     return event.target.value;
 }
+function getEventInputChecked(event) {
+    return event.target.checked;
+}
+function parseShapeKind(value) {
+    return value === 'line' || value === 'arrow' ? value : 'rect';
+}
 function bindUploadEvents(context) {
     bindElement(context, 'uploadArea', 'click', () => {
         context.actions.openImagePicker();
@@ -30,6 +36,41 @@ function bindUploadEvents(context) {
         if (file) {
             handleAsyncAction(context, 'loadImageFile', () => context.actions.loadImageFile(file));
         }
+    });
+}
+function bindImageFilterEvents(context) {
+    bindNumberInput(context, 'imageBrightnessInput', (value) => {
+        context.actions.setImageFilterConfig({ brightness: value });
+    });
+    bindNumberInput(context, 'imageContrastInput', (value) => {
+        context.actions.setImageFilterConfig({ contrast: value });
+    });
+    bindNumberInput(context, 'imageSaturationInput', (value) => {
+        context.actions.setImageFilterConfig({ saturation: value });
+    });
+    bindNumberInput(context, 'imageBlurInput', (value) => {
+        context.actions.setImageFilterConfig({ blur: value });
+    });
+    bindNumberInput(context, 'imageSharpenInput', (value) => {
+        context.actions.setImageFilterConfig({ sharpen: value });
+    });
+    bindBooleanInput(context, 'imageGrayscaleInput', (value) => {
+        context.actions.setImageFilterConfig({ grayscale: value });
+    });
+    bindBooleanInput(context, 'imageSepiaInput', (value) => {
+        context.actions.setImageFilterConfig({ sepia: value });
+    });
+    bindBooleanInput(context, 'imageVintageInput', (value) => {
+        context.actions.setImageFilterConfig({ vintage: value });
+    });
+    bindElement(context, 'applyImageFiltersButton', 'click', () => {
+        context.actions.commitImageFilters();
+    });
+    bindElement(context, 'resetImageFiltersButton', 'click', () => {
+        context.actions.resetImageFilterConfig();
+    });
+    bindElement(context, 'clearImageFiltersButton', 'click', () => {
+        context.actions.clearImageFilters();
     });
 }
 function bindTransformEvents(context) {
@@ -89,6 +130,15 @@ function bindAnnotationEvents(context) {
     bindElement(context, 'exitDrawModeButton', 'click', () => {
         context.actions.exitDrawMode();
     });
+    bindElement(context, 'createShapeAnnotationButton', 'click', () => {
+        context.actions.createShapeAnnotation();
+    });
+    bindElement(context, 'enterShapeModeButton', 'click', () => {
+        context.actions.enterShapeMode(parseShapeKind(context.getInputValue('shapeKindSelect')));
+    });
+    bindElement(context, 'exitShapeModeButton', 'click', () => {
+        context.actions.exitShapeMode();
+    });
     bindElement(context, 'removeSelectedAnnotationButton', 'click', () => {
         context.actions.removeSelectedAnnotation();
     });
@@ -121,6 +171,27 @@ function bindAnnotationEvents(context) {
     });
     bindNumberInput(context, 'drawBrushSizeInput', (value) => {
         context.actions.setDrawBrushSize(value);
+    });
+    bindElement(context, 'drawBrushSubModeButton', 'click', () => {
+        context.actions.setDrawSubMode('brush');
+    });
+    bindElement(context, 'drawEraseSubModeButton', 'click', () => {
+        context.actions.setDrawSubMode('erase');
+    });
+    bindNumberInput(context, 'eraserBrushSizeInput', (value) => {
+        context.actions.setEraserBrushSize(value);
+    });
+    bindStringInput(context, 'shapeKindSelect', (value) => {
+        context.actions.setShapeConfig({ shape: parseShapeKind(value) });
+    });
+    bindStringInput(context, 'shapeStrokeInput', (value) => {
+        context.actions.setShapeConfig({ stroke: value });
+    });
+    bindNumberInput(context, 'shapeStrokeWidthInput', (value) => {
+        context.actions.setShapeConfig({ strokeWidth: value });
+    });
+    bindStringInput(context, 'shapeFillInput', (value) => {
+        context.actions.setShapeConfig({ fill: value });
     });
 }
 function bindHistoryEvents(context) {
@@ -188,8 +259,21 @@ function bindNumberInput(context, key, applyValue) {
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
 }
+function bindBooleanInput(context, key, applyValue) {
+    let lastAppliedValue = null;
+    const handler = (event) => {
+        const value = getEventInputChecked(event);
+        if (lastAppliedValue !== null && value === lastAppliedValue)
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
+    };
+    bindElement(context, key, 'input', handler);
+    bindElement(context, key, 'change', handler);
+}
 export function bindEditorDomEvents(context) {
     bindUploadEvents(context);
+    bindImageFilterEvents(context);
     bindTransformEvents(context);
     bindMaskEvents(context);
     bindAnnotationEvents(context);

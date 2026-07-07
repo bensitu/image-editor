@@ -29,6 +29,7 @@ export function buildEditorControlSnapshot(runtime) {
         isInMosaicMode: runtime.mosaicSession !== null,
         isInTextMode: runtime.textSession !== null,
         isInDrawMode: runtime.drawSession !== null,
+        isInShapeMode: runtime.shapeSession !== null,
         isMosaicApplying: ((_c = runtime.mosaicSession) === null || _c === void 0 ? void 0 : _c.isApplying) === true,
     };
 }

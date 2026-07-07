@@ -1,5 +1,16 @@
 const CROP_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
+    'imageBrightnessInput',
+    'imageContrastInput',
+    'imageSaturationInput',
+    'imageBlurInput',
+    'imageSharpenInput',
+    'imageGrayscaleInput',
+    'imageSepiaInput',
+    'imageVintageInput',
+    'applyImageFiltersButton',
+    'resetImageFiltersButton',
+    'clearImageFiltersButton',
     'rotateLeftDegreesInput',
     'rotateRightDegreesInput',
     'rotateLeftButton',
@@ -19,6 +30,16 @@ const CROP_MODE_CONTROL_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
     'removeSelectedAnnotationButton',
     'removeAllAnnotationsButton',
     'deleteSelectedObjectButton',
@@ -58,9 +79,33 @@ const DRAW_MODE_ENABLED_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+];
+const SHAPE_MODE_CONTROL_KEYS = CROP_MODE_CONTROL_KEYS;
+const SHAPE_MODE_ENABLED_KEYS = [
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
 ];
 const MOSAIC_MODE_CONTROL_KEYS = [
     'scalePercentageInput',
+    'imageBrightnessInput',
+    'imageContrastInput',
+    'imageSaturationInput',
+    'imageBlurInput',
+    'imageSharpenInput',
+    'imageGrayscaleInput',
+    'imageSepiaInput',
+    'imageVintageInput',
+    'applyImageFiltersButton',
+    'resetImageFiltersButton',
+    'clearImageFiltersButton',
     'rotateLeftDegreesInput',
     'rotateRightDegreesInput',
     'rotateLeftButton',
@@ -80,6 +125,16 @@ const MOSAIC_MODE_CONTROL_KEYS = [
     'exitDrawModeButton',
     'drawColorInput',
     'drawBrushSizeInput',
+    'drawBrushSubModeButton',
+    'drawEraseSubModeButton',
+    'eraserBrushSizeInput',
+    'shapeKindSelect',
+    'shapeStrokeInput',
+    'shapeStrokeWidthInput',
+    'shapeFillInput',
+    'createShapeAnnotationButton',
+    'enterShapeModeButton',
+    'exitShapeModeButton',
     'removeSelectedAnnotationButton',
     'removeAllAnnotationsButton',
     'deleteSelectedObjectButton',
@@ -132,6 +187,10 @@ export function applyEditorControlState(snapshot, setEnabled) {
         setModeControlState(DRAW_MODE_CONTROL_KEYS, DRAW_MODE_ENABLED_KEYS, snapshot, setEnabled);
         return;
     }
+    if (snapshot.isInShapeMode) {
+        setModeControlState(SHAPE_MODE_CONTROL_KEYS, SHAPE_MODE_ENABLED_KEYS, snapshot, setEnabled);
+        return;
+    }
     if (snapshot.isInMosaicMode) {
         MOSAIC_MODE_CONTROL_KEYS.forEach((key) => {
             setEnabled(key, !snapshot.isBusy &&
@@ -142,6 +201,17 @@ export function applyEditorControlState(snapshot, setEnabled) {
         return;
     }
     setEnabled('scalePercentageInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageBrightnessInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageContrastInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageSaturationInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageBlurInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageSharpenInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageGrayscaleInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageSepiaInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('imageVintageInput', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('applyImageFiltersButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('resetImageFiltersButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('clearImageFiltersButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('rotateLeftDegreesInput', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('rotateRightDegreesInput', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('zoomInButton', snapshot.hasImage && !snapshot.isBusy && snapshot.currentScale < snapshot.maxScale);
@@ -171,15 +241,25 @@ export function applyEditorControlState(snapshot, setEnabled) {
     setEnabled('enterMosaicModeButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('enterTextModeButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('enterDrawModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('enterShapeModeButton', snapshot.hasImage && !snapshot.isBusy);
+    setEnabled('createShapeAnnotationButton', snapshot.hasImage && !snapshot.isBusy);
     setEnabled('exitMosaicModeButton', false);
     setEnabled('exitTextModeButton', false);
     setEnabled('exitDrawModeButton', false);
+    setEnabled('exitShapeModeButton', false);
     setEnabled('mosaicBrushSizeInput', !snapshot.isDisposed);
     setEnabled('mosaicBlockSizeInput', !snapshot.isDisposed);
     setEnabled('textColorInput', !snapshot.isDisposed);
     setEnabled('textFontSizeInput', !snapshot.isDisposed);
     setEnabled('drawColorInput', !snapshot.isDisposed);
     setEnabled('drawBrushSizeInput', !snapshot.isDisposed);
+    setEnabled('drawBrushSubModeButton', false);
+    setEnabled('drawEraseSubModeButton', false);
+    setEnabled('eraserBrushSizeInput', !snapshot.isDisposed);
+    setEnabled('shapeKindSelect', !snapshot.isDisposed);
+    setEnabled('shapeStrokeInput', !snapshot.isDisposed);
+    setEnabled('shapeStrokeWidthInput', !snapshot.isDisposed);
+    setEnabled('shapeFillInput', !snapshot.isDisposed);
     setEnabled('imageInput', !snapshot.isBusy);
     setEnabled('applyCropButton', false);
     setEnabled('cancelCropButton', false);

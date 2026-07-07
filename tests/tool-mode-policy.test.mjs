@@ -130,6 +130,7 @@ test('draw mode allows draw-session operations', () => {
     assert.equal(allowed.has('exitDrawMode'), true);
     assert.equal(allowed.has('setDrawConfig'), true);
     assert.equal(allowed.has('resetDrawConfig'), true);
+    assert.equal(allowed.has('createDrawAnnotation'), true);
     assert.equal(allowed.has('setDrawColor'), true);
     assert.equal(allowed.has('setDrawBrushSize'), true);
     assert.equal(allowed.has('setDrawSubMode'), true);
@@ -197,6 +198,7 @@ test('operation name guard recognizes public operation names only', () => {
     assert.equal(isImageEditorOperation('commitImageFilters'), true);
     assert.equal(isImageEditorOperation('createShapeAnnotation'), true);
     assert.equal(isImageEditorOperation('setDrawSubMode'), true);
+    assert.equal(isImageEditorOperation('createDrawAnnotation'), true);
     assert.equal(isImageEditorOperation('setCanvasSize'), true);
     assert.equal(isImageEditorOperation('resizeToContainer'), true);
     assert.equal(isImageEditorOperation('relayout'), true);

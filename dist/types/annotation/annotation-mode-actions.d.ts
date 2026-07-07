@@ -17,6 +17,7 @@ export interface AnnotationModeActionAccess {
     buildTextControllerContext(): TextControllerContext;
     buildDrawControllerContext(): DrawControllerContext;
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
+    updateInputs(): void;
     emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
 }

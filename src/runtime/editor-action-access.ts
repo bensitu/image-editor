@@ -210,6 +210,9 @@ export class EditorActionAccessFactory {
                         runtime.fabricModule,
                         runtime.originalImage,
                         next,
+                        (error, message) => {
+                            callbacks.reportWarning(error, message);
+                        },
                     );
                 }
             },
@@ -387,6 +390,9 @@ export class EditorActionAccessFactory {
             buildDrawControllerContext: () => this.contextFactory.buildDrawControllerContext(),
             buildCallbackContext: (operation, isInternalOperation) =>
                 callbacks.buildCallbackContext(operation, isInternalOperation),
+            updateInputs: () => {
+                callbacks.updateInputs();
+            },
             emitBusyChangeIfChanged: (context) => {
                 callbacks.emitBusyChangeIfChanged(context);
             },

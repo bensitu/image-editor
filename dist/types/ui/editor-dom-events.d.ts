@@ -5,6 +5,7 @@
  * the resulting actions through an explicit command surface.
  */
 import type { ElementKey } from '../core/editor-elements.js';
+import type { ImageFilterConfig, ShapeAnnotationConfig, ShapeAnnotationKind } from '../core/public-types.js';
 import type { DomBindings } from './dom-bindings.js';
 type MaybePromise<T = void> = T | Promise<T>;
 export interface EditorDomEventActions {
@@ -18,6 +19,10 @@ export interface EditorDomEventActions {
     flipVertical(): MaybePromise;
     rotateLeft(degrees: number): MaybePromise;
     rotateRight(degrees: number): MaybePromise;
+    setImageFilterConfig(config: Partial<ImageFilterConfig>): void;
+    resetImageFilterConfig(): void;
+    clearImageFilters(): void;
+    commitImageFilters(): void;
     createMask(): void;
     removeSelectedMask(): void;
     removeAllMasks(): void;
@@ -27,6 +32,9 @@ export interface EditorDomEventActions {
     exitTextMode(): void;
     enterDrawMode(): void;
     exitDrawMode(): void;
+    createShapeAnnotation(): void;
+    enterShapeMode(shape: ShapeAnnotationKind): void;
+    exitShapeMode(): void;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(): void;
     deleteSelectedObject(): void;
@@ -50,6 +58,9 @@ export interface EditorDomEventActions {
     setTextFontSize(size: number): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    setDrawSubMode(mode: 'brush' | 'erase'): void;
+    setEraserBrushSize(size: number): void;
+    setShapeConfig(config: ShapeAnnotationConfig): void;
 }
 export interface EditorDomEventContext {
     bindings: DomBindings;

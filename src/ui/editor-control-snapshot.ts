@@ -39,6 +39,7 @@ export function buildEditorControlSnapshot(runtime: EditorRuntime): EditorContro
         isInMosaicMode: runtime.mosaicSession !== null,
         isInTextMode: runtime.textSession !== null,
         isInDrawMode: runtime.drawSession !== null,
+        isInShapeMode: runtime.shapeSession !== null,
         isMosaicApplying: runtime.mosaicSession?.isApplying === true,
     };
 }

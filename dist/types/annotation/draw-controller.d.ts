@@ -43,7 +43,7 @@ export interface DrawControllerContext {
     updateUi(): void;
     emitAnnotationsChanged(context: ImageEditorCallbackContext): void;
     emitImageChanged(context: ImageEditorCallbackContext): void;
-    buildCallbackContext(operation: 'enterDrawMode' | 'exitDrawMode' | 'commitEraserStroke'): ImageEditorCallbackContext;
+    buildCallbackContext(operation: 'enterDrawMode' | 'exitDrawMode' | 'createDrawAnnotation' | 'commitEraserStroke'): ImageEditorCallbackContext;
 }
 export declare function enterDrawMode(context: DrawControllerContext): void;
 export declare function exitDrawMode(context: DrawControllerContext): void;

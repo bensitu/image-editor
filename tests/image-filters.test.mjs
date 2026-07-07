@@ -112,3 +112,47 @@ test('image filter config survives loadFromState and resets on loadImage', async
         disposeEditor(restored);
     }
 });
+
+test('missing Fabric image filter constructors emit warnings without clearing config', async () => {
+    const warnings = [];
+    const limitedFabric = {
+        ...fabric,
+        filters: {
+            ...fabric.filters,
+            Vintage: undefined,
+            Convolute: undefined,
+        },
+    };
+    const ids = resetEditorDom();
+    const editor = new ImageEditor(limitedFabric, {
+        canvasWidth: 160,
+        canvasHeight: 120,
+        animationDuration: 0,
+        showPlaceholder: false,
+        onWarning: (error, message) => {
+            warnings.push({ error, message });
+        },
+    });
+    editor.init(ids);
+    try {
+        await loadFixtureImage(editor, { width: 32, height: 24 });
+
+        editor.setImageFilterConfig({ brightness: 0.2, vintage: true, sharpen: 0.5 });
+
+        assert.equal(editor.getImageFilterConfig().vintage, true);
+        assert.equal(editor.getImageFilterConfig().sharpen, 0.5);
+        assert.equal(
+            warnings.some(
+                ({ message }) => message.includes('vintage') && message.includes('sharpen'),
+            ),
+            true,
+        );
+        assert.ok(
+            warnings.some(({ error }) => error instanceof TypeError),
+            'missing filter warning should include a TypeError',
+        );
+        assert.equal(requireOriginalImage(editor).filters.length, 1);
+    } finally {
+        disposeEditor(editor);
+    }
+});

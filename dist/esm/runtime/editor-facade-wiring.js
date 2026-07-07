@@ -69,6 +69,9 @@ function createContextFactory(runtime, hooks) {
         emitBusyChangeIfChanged: (context) => {
             hooks.callbacks.emitBusyChangeIfChanged(context);
         },
+        reportWarning: (error, message) => {
+            hooks.callbacks.reportWarning(error, message);
+        },
         buildCallbackContext: (operation, isInternalOperation) => hooks.callbacks.buildCallbackContext(operation, isInternalOperation !== null && isInternalOperation !== void 0 ? isInternalOperation : false),
     });
 }

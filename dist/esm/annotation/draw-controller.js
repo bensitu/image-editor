@@ -111,6 +111,190 @@ function pointIntersectsExpandedBounds(point, bounds, radius) {
         point.y >= bounds.top - radius &&
         point.y <= bounds.top + bounds.height + radius);
 }
+function isPathCommand(value) {
+    return (Array.isArray(value) &&
+        typeof value[0] === 'string' &&
+        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
+}
+function transformPathPoint(annotation, point) {
+    var _a, _b;
+    const pathLike = annotation;
+    const offset = (_a = pathLike.pathOffset) !== null && _a !== void 0 ? _a : { x: 0, y: 0 };
+    const x = point.x - (Number(offset.x) || 0);
+    const y = point.y - (Number(offset.y) || 0);
+    const matrix = (_b = pathLike.calcTransformMatrix) === null || _b === void 0 ? void 0 : _b.call(pathLike);
+    if (!Array.isArray(matrix) || matrix.length < 6)
+        return { x: point.x, y: point.y };
+    const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = matrix;
+    return {
+        x: a * x + c * y + e,
+        y: b * x + d * y + f,
+    };
+}
+function toAbsolutePoint(x, y, current, isRelative) {
+    return isRelative ? { x: current.x + x, y: current.y + y } : { x, y };
+}
+function pathValue(values, index) {
+    var _a;
+    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
+}
+function addTransformedSegment(annotation, segments, start, end) {
+    segments.push({
+        start: transformPathPoint(annotation, start),
+        end: transformPathPoint(annotation, end),
+    });
+}
+function cubicPoint(start, c1, c2, end, t) {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * mt * start.x +
+            3 * mt * mt * t * c1.x +
+            3 * mt * t * t * c2.x +
+            t * t * t * end.x,
+        y: mt * mt * mt * start.y +
+            3 * mt * mt * t * c1.y +
+            3 * mt * t * t * c2.y +
+            t * t * t * end.y,
+    };
+}
+function quadraticPoint(start, c, end, t) {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * start.x + 2 * mt * t * c.x + t * t * end.x,
+        y: mt * mt * start.y + 2 * mt * t * c.y + t * t * end.y,
+    };
+}
+function addSampledCurve(annotation, segments, start, end, samplePoint) {
+    const approximateLength = Math.hypot(end.x - start.x, end.y - start.y);
+    const steps = Math.max(8, Math.min(48, Math.ceil(approximateLength / 6)));
+    let previous = start;
+    for (let index = 1; index <= steps; index += 1) {
+        const next = samplePoint(index / steps);
+        addTransformedSegment(annotation, segments, previous, next);
+        previous = next;
+    }
+}
+function getDrawAnnotationPathSegments(annotation) {
+    const pathData = annotation.path;
+    if (!Array.isArray(pathData))
+        return [];
+    const segments = [];
+    let current = { x: 0, y: 0 };
+    let subpathStart = null;
+    for (const rawCommand of pathData) {
+        if (!isPathCommand(rawCommand))
+            continue;
+        const rawName = rawCommand[0];
+        const command = rawName.toUpperCase();
+        const isRelative = rawName !== command;
+        const values = rawCommand.slice(1);
+        if (command === 'M') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                if (index > 0)
+                    addTransformedSegment(annotation, segments, current, next);
+                current = next;
+                if (index === 0)
+                    subpathStart = next;
+            }
+            continue;
+        }
+        if (command === 'L') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'H') {
+            for (const value of values) {
+                const next = { x: isRelative ? current.x + value : value, y: current.y };
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'V') {
+            for (const value of values) {
+                const next = { x: current.x, y: isRelative ? current.y + value : value };
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'C') {
+            for (let index = 0; index + 5 < values.length; index += 6) {
+                const start = current;
+                const c1 = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const c2 = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                const end = toAbsolutePoint(pathValue(values, index + 4), pathValue(values, index + 5), current, isRelative);
+                addSampledCurve(annotation, segments, start, end, (t) => cubicPoint(start, c1, c2, end, t));
+                current = end;
+            }
+            continue;
+        }
+        if (command === 'Q') {
+            for (let index = 0; index + 3 < values.length; index += 4) {
+                const start = current;
+                const control = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const end = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                addSampledCurve(annotation, segments, start, end, (t) => quadraticPoint(start, control, end, t));
+                current = end;
+            }
+            continue;
+        }
+        if (command === 'A') {
+            for (let index = 0; index + 6 < values.length; index += 7) {
+                const next = toAbsolutePoint(pathValue(values, index + 5), pathValue(values, index + 6), current, isRelative);
+                addTransformedSegment(annotation, segments, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'Z' && subpathStart) {
+            addTransformedSegment(annotation, segments, current, subpathStart);
+            current = subpathStart;
+        }
+    }
+    return segments;
+}
+function getEffectiveStrokeRadius(annotation) {
+    var _a, _b;
+    const strokeWidth = Number(annotation.strokeWidth) || 0;
+    const scale = (_b = (_a = annotation).getObjectScaling) === null || _b === void 0 ? void 0 : _b.call(_a);
+    if (annotation.strokeUniform) {
+        return Math.max(0, strokeWidth / 2);
+    }
+    const scaleX = Math.abs(Number(scale === null || scale === void 0 ? void 0 : scale.x) || Number(annotation.scaleX) || 1);
+    const scaleY = Math.abs(Number(scale === null || scale === void 0 ? void 0 : scale.y) || Number(annotation.scaleY) || 1);
+    return Math.max(0, (strokeWidth * Math.max(scaleX, scaleY)) / 2);
+}
+function pointDistanceToSegment(point, segment) {
+    const dx = segment.end.x - segment.start.x;
+    const dy = segment.end.y - segment.start.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) {
+        return Math.hypot(point.x - segment.start.x, point.y - segment.start.y);
+    }
+    const t = Math.max(0, Math.min(1, ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) / lengthSquared));
+    const nearest = {
+        x: segment.start.x + t * dx,
+        y: segment.start.y + t * dy,
+    };
+    return Math.hypot(point.x - nearest.x, point.y - nearest.y);
+}
+function annotationIntersectsEraserPath(annotation, points, eraserRadius) {
+    const hitRadius = eraserRadius + getEffectiveStrokeRadius(annotation);
+    const bounds = getObjectBBox(annotation);
+    if (!points.some((point) => pointIntersectsExpandedBounds(point, bounds, hitRadius))) {
+        return false;
+    }
+    const segments = getDrawAnnotationPathSegments(annotation);
+    if (segments.length === 0)
+        return false;
+    return points.some((point) => segments.some((segment) => pointDistanceToSegment(point, segment) <= hitRadius));
+}
 function getIntersectedDrawAnnotations(context, points) {
     if (points.length === 0)
         return [];
@@ -118,10 +302,7 @@ function getIntersectedDrawAnnotations(context, points) {
     return context.canvas
         .getObjects()
         .filter(isDrawAnnotationObject)
-        .filter((annotation) => {
-        const bounds = getObjectBBox(annotation);
-        return points.some((point) => pointIntersectsExpandedBounds(point, bounds, radius));
-    });
+        .filter((annotation) => annotationIntersectsEraserPath(annotation, points, radius));
 }
 function commitEraserStroke(context, session) {
     const removed = getIntersectedDrawAnnotations(context, session.eraserPoints);
@@ -211,7 +392,7 @@ function handlePathCreated(context, event) {
     context.canvas.renderAll();
     context.updateAnnotationList();
     context.saveCanvasState();
-    const callbackContext = context.buildCallbackContext('enterDrawMode');
+    const callbackContext = context.buildCallbackContext('createDrawAnnotation');
     context.emitAnnotationsChanged(callbackContext);
     context.emitImageChanged(callbackContext);
 }

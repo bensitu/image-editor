@@ -323,6 +323,7 @@ export type ImageEditorOperation =
     | 'exitDrawMode'
     | 'setDrawConfig'
     | 'resetDrawConfig'
+    | 'createDrawAnnotation'
     | 'setDrawColor'
     | 'setDrawBrushSize'
     | 'setDrawSubMode'
@@ -1006,6 +1007,28 @@ export interface ElementIdMap {
     imagePlaceholder?: ElementTarget<HTMLElement>;
     /** Scale percentage input/display. @default 'scalePercentageInput' */
     scalePercentageInput?: ElementTarget<HTMLInputElement>;
+    /** Brightness filter input. @default 'imageBrightnessInput' */
+    imageBrightnessInput?: ElementTarget<HTMLInputElement>;
+    /** Contrast filter input. @default 'imageContrastInput' */
+    imageContrastInput?: ElementTarget<HTMLInputElement>;
+    /** Saturation filter input. @default 'imageSaturationInput' */
+    imageSaturationInput?: ElementTarget<HTMLInputElement>;
+    /** Blur filter input. @default 'imageBlurInput' */
+    imageBlurInput?: ElementTarget<HTMLInputElement>;
+    /** Sharpen filter input. @default 'imageSharpenInput' */
+    imageSharpenInput?: ElementTarget<HTMLInputElement>;
+    /** Grayscale filter checkbox. @default 'imageGrayscaleInput' */
+    imageGrayscaleInput?: ElementTarget<HTMLInputElement>;
+    /** Sepia filter checkbox. @default 'imageSepiaInput' */
+    imageSepiaInput?: ElementTarget<HTMLInputElement>;
+    /** Vintage filter checkbox. @default 'imageVintageInput' */
+    imageVintageInput?: ElementTarget<HTMLInputElement>;
+    /** Commit current image-filter preview. @default 'applyImageFiltersButton' */
+    applyImageFiltersButton?: ElementTarget<HTMLButtonElement>;
+    /** Reset image-filter preview to the last committed state. @default 'resetImageFiltersButton' */
+    resetImageFiltersButton?: ElementTarget<HTMLButtonElement>;
+    /** Clear image filters and commit the cleared state. @default 'clearImageFiltersButton' */
+    clearImageFiltersButton?: ElementTarget<HTMLButtonElement>;
     /** Left-rotation step input. @default 'rotateLeftDegreesInput' */
     rotateLeftDegreesInput?: ElementTarget<HTMLInputElement>;
     /** Right-rotation step input. @default 'rotateRightDegreesInput' */
@@ -1044,6 +1067,26 @@ export interface ElementIdMap {
     drawColorInput?: ElementTarget<HTMLInputElement>;
     /** Draw brush-size input. @default 'drawBrushSizeInput' */
     drawBrushSizeInput?: ElementTarget<HTMLInputElement>;
+    /** Switch Draw mode to brush sub-mode. @default 'drawBrushSubModeButton' */
+    drawBrushSubModeButton?: ElementTarget<HTMLButtonElement>;
+    /** Switch Draw mode to erase sub-mode. @default 'drawEraseSubModeButton' */
+    drawEraseSubModeButton?: ElementTarget<HTMLButtonElement>;
+    /** Draw eraser brush-size input. @default 'eraserBrushSizeInput' */
+    eraserBrushSizeInput?: ElementTarget<HTMLInputElement>;
+    /** Shape kind select. @default 'shapeKindSelect' */
+    shapeKindSelect?: ElementTarget<HTMLSelectElement | HTMLInputElement>;
+    /** Shape stroke color input. @default 'shapeStrokeInput' */
+    shapeStrokeInput?: ElementTarget<HTMLInputElement>;
+    /** Shape stroke-width input. @default 'shapeStrokeWidthInput' */
+    shapeStrokeWidthInput?: ElementTarget<HTMLInputElement>;
+    /** Shape fill color input. @default 'shapeFillInput' */
+    shapeFillInput?: ElementTarget<HTMLInputElement>;
+    /** Create Shape annotation button. @default 'createShapeAnnotationButton' */
+    createShapeAnnotationButton?: ElementTarget<HTMLButtonElement>;
+    /** Enter Shape mode button. @default 'enterShapeModeButton' */
+    enterShapeModeButton?: ElementTarget<HTMLButtonElement>;
+    /** Exit Shape mode button. @default 'exitShapeModeButton' */
+    exitShapeModeButton?: ElementTarget<HTMLButtonElement>;
     /** Remove selected annotation button. @default 'removeSelectedAnnotationButton' */
     removeSelectedAnnotationButton?: ElementTarget<HTMLButtonElement>;
     /** Remove all annotations button. @default 'removeAllAnnotationsButton' */

@@ -6,6 +6,11 @@
  */
 
 import type { ElementKey } from '../core/editor-elements.js';
+import type {
+    ImageFilterConfig,
+    ShapeAnnotationConfig,
+    ShapeAnnotationKind,
+} from '../core/public-types.js';
 import type { DomBindings } from './dom-bindings.js';
 
 type MaybePromise<T = void> = T | Promise<T>;
@@ -22,6 +27,10 @@ export interface EditorDomEventActions {
     flipVertical(): MaybePromise;
     rotateLeft(degrees: number): MaybePromise;
     rotateRight(degrees: number): MaybePromise;
+    setImageFilterConfig(config: Partial<ImageFilterConfig>): void;
+    resetImageFilterConfig(): void;
+    clearImageFilters(): void;
+    commitImageFilters(): void;
 
     createMask(): void;
     removeSelectedMask(): void;
@@ -33,6 +42,9 @@ export interface EditorDomEventActions {
     exitTextMode(): void;
     enterDrawMode(): void;
     exitDrawMode(): void;
+    createShapeAnnotation(): void;
+    enterShapeMode(shape: ShapeAnnotationKind): void;
+    exitShapeMode(): void;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(): void;
     deleteSelectedObject(): void;
@@ -62,6 +74,10 @@ export interface EditorDomEventActions {
 
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    setDrawSubMode(mode: 'brush' | 'erase'): void;
+    setEraserBrushSize(size: number): void;
+
+    setShapeConfig(config: ShapeAnnotationConfig): void;
 }
 
 export interface EditorDomEventContext {
@@ -106,6 +122,14 @@ function getEventInputValue(event: Event): string {
     return (event.target as HTMLInputElement).value;
 }
 
+function getEventInputChecked(event: Event): boolean {
+    return (event.target as HTMLInputElement).checked;
+}
+
+function parseShapeKind(value: string): ShapeAnnotationKind {
+    return value === 'line' || value === 'arrow' ? value : 'rect';
+}
+
 function bindUploadEvents(context: EditorDomEventContext): void {
     bindElement(context, 'uploadArea', 'click', () => {
         context.actions.openImagePicker();
@@ -116,6 +140,42 @@ function bindUploadEvents(context: EditorDomEventContext): void {
         if (file) {
             handleAsyncAction(context, 'loadImageFile', () => context.actions.loadImageFile(file));
         }
+    });
+}
+
+function bindImageFilterEvents(context: EditorDomEventContext): void {
+    bindNumberInput(context, 'imageBrightnessInput', (value) => {
+        context.actions.setImageFilterConfig({ brightness: value });
+    });
+    bindNumberInput(context, 'imageContrastInput', (value) => {
+        context.actions.setImageFilterConfig({ contrast: value });
+    });
+    bindNumberInput(context, 'imageSaturationInput', (value) => {
+        context.actions.setImageFilterConfig({ saturation: value });
+    });
+    bindNumberInput(context, 'imageBlurInput', (value) => {
+        context.actions.setImageFilterConfig({ blur: value });
+    });
+    bindNumberInput(context, 'imageSharpenInput', (value) => {
+        context.actions.setImageFilterConfig({ sharpen: value });
+    });
+    bindBooleanInput(context, 'imageGrayscaleInput', (value) => {
+        context.actions.setImageFilterConfig({ grayscale: value });
+    });
+    bindBooleanInput(context, 'imageSepiaInput', (value) => {
+        context.actions.setImageFilterConfig({ sepia: value });
+    });
+    bindBooleanInput(context, 'imageVintageInput', (value) => {
+        context.actions.setImageFilterConfig({ vintage: value });
+    });
+    bindElement(context, 'applyImageFiltersButton', 'click', () => {
+        context.actions.commitImageFilters();
+    });
+    bindElement(context, 'resetImageFiltersButton', 'click', () => {
+        context.actions.resetImageFilterConfig();
+    });
+    bindElement(context, 'clearImageFiltersButton', 'click', () => {
+        context.actions.clearImageFilters();
     });
 }
 
@@ -181,6 +241,15 @@ function bindAnnotationEvents(context: EditorDomEventContext): void {
     bindElement(context, 'exitDrawModeButton', 'click', () => {
         context.actions.exitDrawMode();
     });
+    bindElement(context, 'createShapeAnnotationButton', 'click', () => {
+        context.actions.createShapeAnnotation();
+    });
+    bindElement(context, 'enterShapeModeButton', 'click', () => {
+        context.actions.enterShapeMode(parseShapeKind(context.getInputValue('shapeKindSelect')));
+    });
+    bindElement(context, 'exitShapeModeButton', 'click', () => {
+        context.actions.exitShapeMode();
+    });
     bindElement(context, 'removeSelectedAnnotationButton', 'click', () => {
         context.actions.removeSelectedAnnotation();
     });
@@ -214,6 +283,27 @@ function bindAnnotationEvents(context: EditorDomEventContext): void {
     });
     bindNumberInput(context, 'drawBrushSizeInput', (value) => {
         context.actions.setDrawBrushSize(value);
+    });
+    bindElement(context, 'drawBrushSubModeButton', 'click', () => {
+        context.actions.setDrawSubMode('brush');
+    });
+    bindElement(context, 'drawEraseSubModeButton', 'click', () => {
+        context.actions.setDrawSubMode('erase');
+    });
+    bindNumberInput(context, 'eraserBrushSizeInput', (value) => {
+        context.actions.setEraserBrushSize(value);
+    });
+    bindStringInput(context, 'shapeKindSelect', (value) => {
+        context.actions.setShapeConfig({ shape: parseShapeKind(value) });
+    });
+    bindStringInput(context, 'shapeStrokeInput', (value) => {
+        context.actions.setShapeConfig({ stroke: value });
+    });
+    bindNumberInput(context, 'shapeStrokeWidthInput', (value) => {
+        context.actions.setShapeConfig({ strokeWidth: value });
+    });
+    bindStringInput(context, 'shapeFillInput', (value) => {
+        context.actions.setShapeConfig({ fill: value });
     });
 }
 
@@ -264,7 +354,12 @@ function bindMosaicEvents(context: EditorDomEventContext): void {
 
 function bindStringInput(
     context: EditorDomEventContext,
-    key: 'textColorInput' | 'drawColorInput',
+    key:
+        | 'textColorInput'
+        | 'drawColorInput'
+        | 'shapeKindSelect'
+        | 'shapeStrokeInput'
+        | 'shapeFillInput',
     applyValue: (value: string) => void,
 ): void {
     let lastAppliedValue: string | null = null;
@@ -284,7 +379,14 @@ function bindNumberInput(
         | 'mosaicBrushSizeInput'
         | 'mosaicBlockSizeInput'
         | 'textFontSizeInput'
-        | 'drawBrushSizeInput',
+        | 'drawBrushSizeInput'
+        | 'imageBrightnessInput'
+        | 'imageContrastInput'
+        | 'imageSaturationInput'
+        | 'imageBlurInput'
+        | 'imageSharpenInput'
+        | 'eraserBrushSizeInput'
+        | 'shapeStrokeWidthInput',
     applyValue: (value: number) => void,
 ): void {
     let lastAppliedValue: number | null = null;
@@ -298,8 +400,25 @@ function bindNumberInput(
     bindElement(context, key, 'change', handler);
 }
 
+function bindBooleanInput(
+    context: EditorDomEventContext,
+    key: 'imageGrayscaleInput' | 'imageSepiaInput' | 'imageVintageInput',
+    applyValue: (value: boolean) => void,
+): void {
+    let lastAppliedValue: boolean | null = null;
+    const handler: EventListener = (event) => {
+        const value = getEventInputChecked(event);
+        if (lastAppliedValue !== null && value === lastAppliedValue) return;
+        lastAppliedValue = value;
+        applyValue(value);
+    };
+    bindElement(context, key, 'input', handler);
+    bindElement(context, key, 'change', handler);
+}
+
 export function bindEditorDomEvents(context: EditorDomEventContext): void {
     bindUploadEvents(context);
+    bindImageFilterEvents(context);
     bindTransformEvents(context);
     bindMaskEvents(context);
     bindAnnotationEvents(context);

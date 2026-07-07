@@ -10,7 +10,12 @@ import {
     isInputOrSelectElement,
     resolveDomElement,
 } from '../core/editor-elements.js';
-import type { CropAspectRatio } from '../core/public-types.js';
+import type {
+    CropAspectRatio,
+    ImageFilterConfig,
+    ShapeAnnotationConfig,
+    ShapeAnnotationKind,
+} from '../core/public-types.js';
 import type { EditorRuntime } from '../runtime/editor-runtime.js';
 import type { EditorDomEventActions } from './editor-dom-events.js';
 
@@ -22,6 +27,10 @@ export interface EditorDomActionHost {
     resetImageTransform(): Promise<void>;
     flipHorizontal(): Promise<void>;
     flipVertical(): Promise<void>;
+    setImageFilterConfig(config: Partial<ImageFilterConfig>): void;
+    resetImageFilterConfig(): void;
+    clearImageFilters(): void;
+    commitImageFilters(): void;
     createMask(): void;
     removeSelectedMask(): void;
     removeAllMasks(): void;
@@ -31,6 +40,9 @@ export interface EditorDomActionHost {
     exitTextMode(): void;
     enterDrawMode(): void;
     exitDrawMode(): void;
+    createShapeAnnotation(config?: ShapeAnnotationConfig): void;
+    enterShapeMode(shape: ShapeAnnotationKind): void;
+    exitShapeMode(): void;
     removeSelectedAnnotation(): void;
     removeAllAnnotations(): void;
     deleteSelectedObject(): void;
@@ -54,6 +66,9 @@ export interface EditorDomActionHost {
     setTextFontSize(size: number): void;
     setDrawColor(color: string): void;
     setDrawBrushSize(size: number): void;
+    setDrawSubMode(mode: 'brush' | 'erase'): void;
+    setEraserConfig(config: { brushSize: number }): void;
+    setShapeConfig(config: ShapeAnnotationConfig): void;
 }
 
 function normalizeStepScale(value: number): number {
@@ -87,6 +102,18 @@ export function createEditorDomEventActions(
         flipVertical: () => host.flipVertical(),
         rotateLeft: (degrees) => host.rotateImage(runtime.currentRotation - degrees),
         rotateRight: (degrees) => host.rotateImage(runtime.currentRotation + degrees),
+        setImageFilterConfig: (config) => {
+            host.setImageFilterConfig(config);
+        },
+        resetImageFilterConfig: () => {
+            host.resetImageFilterConfig();
+        },
+        clearImageFilters: () => {
+            host.clearImageFilters();
+        },
+        commitImageFilters: () => {
+            host.commitImageFilters();
+        },
         createMask: () => {
             host.createMask();
         },
@@ -109,6 +136,15 @@ export function createEditorDomEventActions(
         },
         exitDrawMode: () => {
             host.exitDrawMode();
+        },
+        createShapeAnnotation: () => {
+            host.createShapeAnnotation();
+        },
+        enterShapeMode: (shape) => {
+            host.enterShapeMode(shape);
+        },
+        exitShapeMode: () => {
+            host.exitShapeMode();
         },
         removeSelectedAnnotation: () => {
             host.removeSelectedAnnotation();
@@ -172,6 +208,15 @@ export function createEditorDomEventActions(
         },
         setDrawBrushSize: (size) => {
             host.setDrawBrushSize(size);
+        },
+        setDrawSubMode: (mode) => {
+            host.setDrawSubMode(mode);
+        },
+        setEraserBrushSize: (size) => {
+            host.setEraserConfig({ brushSize: size });
+        },
+        setShapeConfig: (config) => {
+            host.setShapeConfig(config);
         },
     };
 }

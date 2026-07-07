@@ -38,6 +38,7 @@ import type {
     ResolvedShapeAnnotationConfig,
     ResolvedTextAnnotationConfig,
 } from '../core/public-types.js';
+import { isBaseImageObject } from '../core/public-types.js';
 import { HistoryManager } from '../history/history-manager.js';
 import type { TransformController } from '../image/transform-controller.js';
 import { ViewportCache } from '../image/layout-manager.js';
@@ -154,13 +155,11 @@ export class EditorRuntime {
     }
 
     isImageLoaded(): boolean {
-        const FabricImageCtor = this.fabricModule.FabricImage;
         return !!(
             this.originalImage &&
-            typeof FabricImageCtor === 'function' &&
-            this.originalImage instanceof FabricImageCtor &&
-            (this.originalImage.width ?? 0) > 0 &&
-            (this.originalImage.height ?? 0) > 0
+            isBaseImageObject(this.originalImage) &&
+            Number(this.originalImage.width) > 0 &&
+            Number(this.originalImage.height) > 0
         );
     }
 

@@ -37,6 +37,7 @@ export function enterDrawModeAction(access) {
     if (access.isToolModeActive())
         return;
     enterDrawModeImpl(access.buildDrawControllerContext());
+    access.updateInputs();
     const callbackContext = access.buildCallbackContext('enterDrawMode', false);
     access.emitBusyChangeIfChanged(callbackContext);
     access.emitImageChanged(callbackContext);
@@ -47,6 +48,7 @@ export function exitDrawModeAction(access) {
     if (!access.canRunIdleOperation('exitDrawMode'))
         return;
     exitDrawModeImpl(access.buildDrawControllerContext());
+    access.updateInputs();
     const callbackContext = access.buildCallbackContext('exitDrawMode', false);
     access.emitBusyChangeIfChanged(callbackContext);
     access.emitImageChanged(callbackContext);
