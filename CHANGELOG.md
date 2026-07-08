@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Harden public `loadFromState()` restores with snapshot byte-size, object-count, canvas-dimension, object-type, and image-source validation while keeping trusted internal restores available for history and rollback paths.
 - Keep public `loadFromState(saveState())` compatible with editor-generated custom `fabricGenerator` masks and snapshots up to the editor's configured `maxExportDimension`.
+- Run Node tests through an explicit file enumerator so Node.js 20 CI does not depend on Node 22+ test-runner glob support.
 - Delay `downloadImage()` object URL revocation and tolerate missing `URL.revokeObjectURL` so browser downloads can consume the generated Blob URL before cleanup.
 - Reject image loads before `FabricImage.fromURL()` when the remaining total timeout budget is too small for a reliable Fabric load phase.
 - Wire v2.8 image filter, Shape annotation, Draw sub-mode, and eraser controls through the `init()` DOM binding path, including public element targets, event handlers, control enablement, and input synchronization.

@@ -47,7 +47,7 @@
         "lint": "eslint . --max-warnings=0",
         "lint:fix": "eslint . --fix",
         "package:check": "publint",
-        "test": "node --import ./tests/helpers/register-ts-loader.mjs --test tests/**/*.test.mjs",
+        "test": "node scripts/run-node-tests.mjs",
         "test:e2e": "playwright test tests/browser/e2e",
         "test:visual": "playwright test tests/browser/visual",
         "test:browser": "playwright test tests/browser",
