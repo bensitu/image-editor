@@ -1027,10 +1027,24 @@ build:umd` in order, emitting:
 
 ```bash
 npm run test:e2e
+npm run test:e2e:all
 npm run test:browser
+npm run test:browser:all
 ```
 
-E2E browser tests validate core editor behavior in Chromium through Playwright.
+`npm run test:e2e` is the fast local E2E check and runs Chromium only.
+`npm run test:e2e:all` runs the full Playwright E2E suite in Chromium,
+Firefox, and WebKit, matching CI browser coverage. Local developers do not need
+system Firefox or Safari installed; Playwright downloads and manages its own
+browser binaries. Install the full local browser set when needed with:
+
+```bash
+npx playwright install chromium firefox webkit
+```
+
+`npm run test:browser` keeps the broader browser test suite Chromium-only for
+local iteration. `npm run test:browser:all` runs cross-browser E2E plus the
+Chromium visual suite.
 
 ### Visual regression tests
 
@@ -1041,7 +1055,8 @@ npm run test:visual:update
 
 Visual tests compare deterministic exported-image screenshots. Run
 `npm run test:visual:update` after intentional rendering changes, then review
-the updated snapshots before committing them.
+the updated snapshots before committing them. Visual tests are intentionally
+Chromium-only unless browser-specific snapshots are added.
 
 For the full local release gate, run:
 
@@ -1052,7 +1067,7 @@ npm run typecheck
 npm test
 npm run build
 npm run package:check
-npm run test:e2e
+npm run test:e2e:all
 npm audit --audit-level=high
 npm pack --dry-run
 ```

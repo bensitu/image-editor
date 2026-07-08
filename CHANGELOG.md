@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.2] - 2026-07-09
+
+### Added
+
+- Add Playwright Firefox and WebKit projects for cross-browser E2E coverage alongside Chromium.
+- Add `npm run test:e2e:all` for full Chromium, Firefox, and WebKit E2E validation.
+
+### Changed
+
+- Keep local E2E and visual test scripts Chromium-only by default while CI installs all Playwright browser engines and runs the full cross-browser E2E suite.
+- Document local Chromium-only browser checks, full cross-browser E2E checks, and Playwright-managed browser installation.
+
 ## [2.8.1] - 2026-07-08
 
 ### Changed

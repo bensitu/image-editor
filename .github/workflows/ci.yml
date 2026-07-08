@@ -50,10 +50,10 @@ jobs:
               run: npm ci
 
             - name: Install Playwright browsers
-              run: npx playwright install --with-deps chromium
+              run: npx playwright install --with-deps chromium firefox webkit
 
             - name: Run quality gate
               run: npm run ci
 
             - name: Run browser integration tests
-              run: npm run test:e2e
+              run: npm run test:e2e:all
