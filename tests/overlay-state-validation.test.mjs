@@ -37,7 +37,7 @@ function validState(overrides = {}) {
     };
 }
 
-test('validateOverlayState accepts valid v1 state and normalizes colors', () => {
+test('validateOverlayState accepts valid overlay-state schema version 1 state and normalizes colors', () => {
     const result = validateOverlayState(validState());
 
     assert.equal(result.valid, true);
@@ -46,7 +46,7 @@ test('validateOverlayState accepts valid v1 state and normalizes colors', () => 
     assert.equal(result.state.overlays[0].style.stroke, '#00FF00');
 });
 
-test('validateOverlayState rejects unsupported future versions clearly', () => {
+test('validateOverlayState rejects unsupported future overlay-state schema versions clearly', () => {
     const result = validateOverlayState(validState({ version: 2 }));
 
     assert.equal(result.valid, false);

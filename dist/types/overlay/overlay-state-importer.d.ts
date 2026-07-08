@@ -1,9 +1,10 @@
 /**
  * Import validated overlay state into a live editor canvas.
  *
- * This module assumes validation has already produced a normalized v1 state.
- * The ImageEditor facade owns operation guards, history bracketing, and
- * rollback; the importer only mutates the supplied canvas.
+ * This module assumes validation has already produced a normalized
+ * overlay-state schema version 1 payload. The ImageEditor facade owns operation
+ * guards, history bracketing, and rollback; the importer only mutates the
+ * supplied canvas.
  *
  * @module
  */

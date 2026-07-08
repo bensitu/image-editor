@@ -12894,7 +12894,7 @@ function migrateOverlayState(input) {
         return { errors, warnings: [] };
     }
     if (candidate.version > 1) {
-        errors.push(error('version', 'state.futureVersion', `Overlay state version ${candidate.version} is newer than supported version 1.`));
+        errors.push(error('version', 'state.futureVersion', `Overlay state version ${candidate.version} is newer than supported overlay-state schema version 1.`));
         return { errors, warnings: [] };
     }
     if (candidate.version !== 1) {

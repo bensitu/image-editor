@@ -2,8 +2,9 @@
  * Defensive validator for the public overlay-state wire format.
  *
  * Import accepts unknown input, so every field is checked before runtime
- * objects are constructed. The validator returns a normalized v1 state with
- * accepted color strings canonicalized to #RRGGBB or #RRGGBBAA.
+ * objects are constructed. The validator returns a normalized overlay-state
+ * schema version 1 payload with accepted color strings canonicalized to
+ * #RRGGBB or #RRGGBBAA.
  *
  * @module
  */

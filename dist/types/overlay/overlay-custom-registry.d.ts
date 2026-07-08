@@ -1,9 +1,10 @@
 /**
  * Internal custom overlay registry.
  *
- * The public v1 wire format supports custom overlays with namespaced
- * customType values. This internal registry leaves room for future public
- * registration without making Fabric object JSON part of the persistence API.
+ * The public overlay-state schema version 1 wire format supports custom
+ * overlays with namespaced customType values. This internal registry leaves
+ * room for future public registration without making Fabric object JSON part
+ * of the persistence API.
  *
  * @module
  */

@@ -883,7 +883,9 @@ This API is not Fabric.js JSON and is not the editor's `saveState()` snapshot.
 It is a stable, versioned wire format with `schema:
 'image-editor.overlay-state'`, `version: 1`, `coordinateSpace:
 'image-normalized'`, one ordered `overlays[]` array, and optional
-`baseImageTransform` metadata.
+`baseImageTransform` metadata. Here `version: 1` means overlay-state schema
+version 1, independent from the npm package version. Package v2.x may still use
+overlay-state schema version 1.
 
 | Method                                | Description                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------------------ |
@@ -988,10 +990,10 @@ Metadata namespaces follow the same collision-avoidance pattern:
 `core.*` is reserved, `app.*` belongs to host applications, and `plugin.*`
 belongs to plugins.
 
-Future format work is intentionally outside v1: partial/diff export for
-collaboration, binary encodings such as CBOR or MessagePack for very large Draw
-data, native group overlays, a richer public custom overlay registry, and
-domain-specific higher payload limits.
+Future overlay-state schema work is intentionally outside schema version 1:
+partial/diff export for collaboration, binary encodings such as CBOR or
+MessagePack for very large Draw data, native group overlays, a richer public
+custom overlay registry, and domain-specific higher payload limits.
 
 ### State and history
 
