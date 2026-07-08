@@ -939,7 +939,12 @@ function validateDrawOverlay(
                 `Draw stroke exceeds maxDrawPointsPerStroke ${context.limits.maxDrawPointsPerStroke}.`,
             );
         }
-        context.drawTotalPoints += strokeValue.points.length;
+        const points = strokeValue.points
+            .map((point, pointIndex) =>
+                normalizeDrawPoint(context, point, `${strokePath}.points[${pointIndex}]`),
+            )
+            .filter((point): point is SerializedDrawPoint => !!point);
+        context.drawTotalPoints += points.length;
         if (context.drawTotalPoints > context.limits.maxDrawTotalPoints) {
             addError(
                 context,
@@ -948,11 +953,6 @@ function validateDrawOverlay(
                 `Draw points exceed maxDrawTotalPoints ${context.limits.maxDrawTotalPoints}.`,
             );
         }
-        const points = strokeValue.points
-            .map((point, pointIndex) =>
-                normalizeDrawPoint(context, point, `${strokePath}.points[${pointIndex}]`),
-            )
-            .filter((point): point is SerializedDrawPoint => !!point);
         let previousT = -Infinity;
         points.forEach((point, pointIndex) => {
             if (point.t === undefined) return;

@@ -1,12 +1,8 @@
 import { canvasToSourcePixel, normalizeRotationDegrees, sourcePixelToImageNormalized, } from './overlay-coordinate-transform.js';
+import { getPathPoints } from '../annotation/path-segments.js';
 import { normalizeOverlayColor } from './overlay-color.js';
 import { cloneOverlayMetadata } from './overlay-metadata.js';
 import { isAnnotationObject, isDrawAnnotationObject, isEditableOverlayObject, isMaskObject, isShapeAnnotationObject, isTextAnnotationObject, } from '../core/public-types.js';
-function isPathCommand(value) {
-    return (Array.isArray(value) &&
-        typeof value[0] === 'string' &&
-        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
-}
 function finiteNumber(value, fallback = 0) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -247,37 +243,9 @@ function transformPathPoint(annotation, point) {
         y: b * x + d * y + f,
     };
 }
-function pathValue(values, index) {
-    var _a;
-    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
-}
 function extractPathPoints(annotation) {
     const pathData = annotation.path;
-    if (!Array.isArray(pathData))
-        return [];
-    const points = [];
-    let current = { x: 0, y: 0 };
-    for (const rawCommand of pathData) {
-        if (!isPathCommand(rawCommand))
-            continue;
-        const rawName = rawCommand[0];
-        const command = rawName.toUpperCase();
-        const isRelative = rawName !== command;
-        const values = rawCommand.slice(1);
-        if (command === 'M' || command === 'L') {
-            for (let index = 0; index + 1 < values.length; index += 2) {
-                const next = {
-                    x: isRelative ? current.x + pathValue(values, index) : pathValue(values, index),
-                    y: isRelative
-                        ? current.y + pathValue(values, index + 1)
-                        : pathValue(values, index + 1),
-                };
-                points.push(transformPathPoint(annotation, next));
-                current = next;
-            }
-        }
-    }
-    return points;
+    return getPathPoints(pathData, (point) => transformPathPoint(annotation, point));
 }
 function exportTextAnnotation(annotation, geometry, options) {
     var _a;

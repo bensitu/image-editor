@@ -448,6 +448,70 @@ test('v2.8 image filter DOM controls call the public filter API', () => {
     ]);
 });
 
+test('image filter range inputs coalesce rapid input events with requestAnimationFrame', () => {
+    const hadRequestAnimationFrame = 'requestAnimationFrame' in globalThis;
+    const previousRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const frames = [];
+
+    globalThis.requestAnimationFrame = (callback) => {
+        frames.push(callback);
+        return frames.length;
+    };
+
+    try {
+        const window = installDom();
+        const editor = createEditor();
+        const calls = [];
+        editor.setImageFilterConfig = (config) => calls.push(['set', config]);
+        const sharpenInput = document.getElementById(CANONICAL_IDS.imageSharpenInput);
+        const dispatch = (value, eventType = 'input') => {
+            sharpenInput.value = value;
+            sharpenInput.dispatchEvent(new window.Event(eventType, { bubbles: true }));
+        };
+        const flushNextFrame = () => {
+            const callback = frames.shift();
+            assert.ok(callback);
+            callback(0);
+        };
+        const flushAllFrames = () => {
+            while (frames.length > 0) {
+                frames.shift()(0);
+            }
+        };
+
+        dispatch('0.1');
+        dispatch('0.2');
+        dispatch('0.3');
+
+        assert.deepEqual(calls, []);
+        assert.equal(frames.length, 1);
+        flushNextFrame();
+        assert.deepEqual(calls, [['set', { sharpen: 0.3 }]]);
+
+        dispatch('0.3');
+        flushNextFrame();
+        assert.deepEqual(calls, [['set', { sharpen: 0.3 }]]);
+
+        dispatch('0.4');
+        dispatch('0.5', 'change');
+        assert.deepEqual(calls, [
+            ['set', { sharpen: 0.3 }],
+            ['set', { sharpen: 0.5 }],
+        ]);
+        flushAllFrames();
+        assert.deepEqual(calls, [
+            ['set', { sharpen: 0.3 }],
+            ['set', { sharpen: 0.5 }],
+        ]);
+    } finally {
+        if (hadRequestAnimationFrame) {
+            globalThis.requestAnimationFrame = previousRequestAnimationFrame;
+        } else {
+            delete globalThis.requestAnimationFrame;
+        }
+    }
+});
+
 test('v2.8 Shape and Draw eraser DOM controls call the public annotation API', () => {
     const window = installDom();
     const editor = createEditor();
@@ -507,6 +571,24 @@ test('v2.8 Shape and Draw eraser DOM controls call the public annotation API', (
         ['drawSubMode', 'erase'],
         ['eraserConfig', { brushSize: 31 }],
     ]);
+});
+
+test('invalid shape kind DOM values do not silently default to rect', () => {
+    const window = installDom();
+    const editor = createEditor();
+    const calls = [];
+    editor.setShapeConfig = (config) => calls.push(['shapeConfig', config]);
+    editor.enterShapeMode = (shape) => calls.push(['enterShape', shape]);
+
+    const shapeKindSelect = document.getElementById(CANONICAL_IDS.shapeKindSelect);
+    shapeKindSelect.innerHTML += '<option value="diamond">Diamond</option>';
+    shapeKindSelect.value = 'diamond';
+    shapeKindSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    document
+        .getElementById(CANONICAL_IDS.enterShapeModeButton)
+        .dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.deepEqual(calls, []);
 });
 
 test('number DOM inputs skip duplicate change events after input', () => {

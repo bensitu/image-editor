@@ -22,9 +22,10 @@ import {
     loadFixtureImage,
     disposeEditor,
 } from './helpers/fabric-environment.mjs';
-import { requireEditorCanvas } from './helpers/editor-internals.mjs';
+import { requireEditorCanvas, requireOriginalImage } from './helpers/editor-internals.mjs';
 
 const { ImageEditor, isEditableOverlayObject } = await import('../src/index.ts');
+const { markAnnotationObject } = await import('../src/core/editor-object-kind.ts');
 
 function createSourceEditor(options = {}) {
     const ids = resetEditorDom();
@@ -186,6 +187,114 @@ test('mixed overlay order round-trips and import is undoable as one step', async
     } finally {
         disposeEditor(source);
         disposeEditor(target);
+    }
+});
+
+test('replace import removes all adjacent existing overlays', async () => {
+    const source = createSourceEditor();
+    const target = createSourceEditor();
+    try {
+        await loadFixtureImage(source, { width: 100, height: 80 });
+        await loadFixtureImage(target, { width: 100, height: 80 });
+
+        source.createMask({ shape: 'rect', left: 10, top: 10, width: 20, height: 20 });
+        const replacementState = source.exportOverlayState();
+
+        target.createMask({ shape: 'rect', left: 2, top: 2, width: 10, height: 10 });
+        target.createMask({ shape: 'rect', left: 14, top: 2, width: 10, height: 10 });
+        target.createTextAnnotation({ text: 'old', left: 26, top: 2, enterEditing: false });
+        const oldObjects = requireEditorCanvas(target).getObjects().filter(isEditableOverlayObject);
+        assert.equal(oldObjects.length, 3);
+
+        await target.importOverlayState(replacementState, {
+            mode: 'replace',
+            idStrategy: 'preserve',
+        });
+
+        const nextObjects = requireEditorCanvas(target)
+            .getObjects()
+            .filter(isEditableOverlayObject);
+        assert.equal(target.getMasks().length, 1);
+        assert.equal(target.getAnnotations().length, 0);
+        assert.equal(nextObjects.length, 1);
+        for (const oldObject of oldObjects) {
+            assert.equal(nextObjects.includes(oldObject), false);
+        }
+    } finally {
+        disposeEditor(source);
+        disposeEditor(target);
+    }
+});
+
+test('draw overlay export samples cubic path geometry and round-trips useful points', async () => {
+    const source = createSourceEditor();
+    const target = createSourceEditor();
+    try {
+        await loadFixtureImage(source, { width: 100, height: 80 });
+        await loadFixtureImage(target, { width: 100, height: 80 });
+
+        const path = new fabric.Path('M 0 0 C 10 0 20 20 30 30', {
+            fill: '',
+            stroke: '#112233',
+            strokeWidth: 3,
+            opacity: 1,
+            selectable: true,
+            evented: true,
+            objectCaching: false,
+        });
+        const draw = markAnnotationObject(path, {
+            annotationId: 1,
+            annotationType: 'draw',
+            annotationName: 'Draw 1',
+            annotationSelectable: true,
+            annotationEvented: true,
+            annotationHasControls: path.hasControls !== false,
+        });
+        requireEditorCanvas(source).add(draw);
+
+        const state = source.exportOverlayState();
+        const drawOverlay = state.overlays.find((overlay) => overlay.annotationType === 'draw');
+        assert.ok(drawOverlay);
+        assert.ok(
+            drawOverlay.strokes[0].points.length > 2,
+            'cubic paths must export sampled intermediate points',
+        );
+
+        await target.importOverlayState(state, { idStrategy: 'preserve' });
+        const roundTripped = target.exportOverlayState();
+        const roundTrippedDraw = roundTripped.overlays.find(
+            (overlay) => overlay.annotationType === 'draw',
+        );
+        assert.ok(roundTrippedDraw);
+        assert.ok(roundTrippedDraw.strokes[0].points.length > 2);
+    } finally {
+        disposeEditor(source);
+        disposeEditor(target);
+    }
+});
+
+test('import without baseImageTransform preserves existing base image rotation', async () => {
+    const editor = createSourceEditor();
+    try {
+        await loadFixtureImage(editor, { width: 100, height: 80 });
+        await editor.rotateImage(90);
+        const beforeAngle = requireOriginalImage(editor).angle;
+
+        await editor.importOverlayState(
+            {
+                schema: 'image-editor.overlay-state',
+                version: 1,
+                image: { naturalWidth: 100, naturalHeight: 80 },
+                coordinateSpace: 'image-normalized',
+                overlays: [],
+            },
+            { mode: 'append' },
+        );
+
+        assert.notEqual(beforeAngle, 0);
+        assert.equal(requireOriginalImage(editor).angle, beforeAngle);
+    } finally {
+        disposeEditor(editor);
     }
 });
 

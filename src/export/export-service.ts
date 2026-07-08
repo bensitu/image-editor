@@ -1223,17 +1223,16 @@ function triggerFileDownload(context: ExportServiceContext, file: File): void {
 }
 
 function scheduleObjectUrlRevoke(objectUrl: string): void {
-    if (typeof globalThis.setTimeout === 'function') {
-        const timeoutId = globalThis.setTimeout(() => {
-            safeRevokeObjectUrl(objectUrl);
-        }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
-        (timeoutId as { unref?: () => void }).unref?.();
+    if (typeof globalThis.setTimeout !== 'function') {
+        // Without a real delayed task, preserving download correctness is safer than
+        // revoking the object URL in the next microtask.
         return;
     }
 
-    void Promise.resolve().then(() => {
+    const timeoutId = globalThis.setTimeout(() => {
         safeRevokeObjectUrl(objectUrl);
-    });
+    }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
+    (timeoutId as { unref?: () => void }).unref?.();
 }
 
 function safeRevokeObjectUrl(objectUrl: string): void {

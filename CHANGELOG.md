@@ -11,18 +11,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add Playwright Firefox and WebKit projects for cross-browser E2E coverage alongside Chromium.
 - Add `npm run test:e2e:all` for full Chromium, Firefox, and WebKit E2E validation.
+- Add `npm run release:gate` and `npm run release:check` to verify generated artifacts, bundle entry shapes, declaration output, package metadata, and dry-run packaging before release.
 - Add non-destructive overlay persistence APIs: `exportOverlayState()`, `validateOverlayState()`, and async `importOverlayState()`.
 - Add the stable v1 `image-editor.overlay-state` wire format for renderer-independent mask, text, shape, draw, and custom overlay records stored in one ordered `overlays[]` array.
 - Add defensive overlay-state migration, validation, metadata, color normalization, payload limits, coordinate transform helpers, and unknown custom-overlay warnings.
 - Add atomic overlay import with replace/append modes, regenerated or preserved persistent overlay IDs, busy-operation guarding, rollback on failure, and one history entry by default.
 - Add focused overlay persistence tests for validation, coordinate transforms, mixed z-order, transform mapping, unknown custom overlays, and undo/redo after import.
+- Add regression coverage for replace imports, curved Draw export, missing base-image transforms, snapshot validation limits, duplicate object references, download URL cleanup, throttled filter inputs, invalid DOM shape kinds, and failed image decodes.
 
 ### Changed
 
 - Keep local E2E and visual test scripts Chromium-only by default while CI installs all Playwright browser engines and runs the full cross-browser E2E suite.
+- Run release checks from `npm run ci` after format, lint, typecheck, and Node tests.
+- Mark generated `dist/**` files in `.gitattributes` and keep Node test discovery order deterministic across locales and runtimes.
 - Document local Chromium-only browser checks, full cross-browser E2E checks, and Playwright-managed browser installation.
+- Document release gate scripts and the combined release check workflow.
 - Document non-destructive overlay persistence concepts, examples, coordinate-space semantics, base-image transform behavior, transient-state exclusion, payload limits, font fallback, custom overlay namespaces, and future format considerations.
 - Preserve overlay persistence IDs and metadata through editor history snapshots so imported overlay states survive undo/redo cycles.
+- Share curve-aware SVG path parsing between Draw annotation creation and overlay export so cubic, quadratic, arc, and closed path geometry use consistent sampling.
+
+### Fixed
+
+- Remove existing editable overlays from a snapshot during replace imports so adjacent old overlays cannot be skipped.
+- Preserve the current base-image rotation and flip state when importing overlay state that omits `baseImageTransform`.
+- Export curved Draw annotations from supported SVG path commands instead of collapsing non-line geometry to a fallback point.
+- Count only normalized valid Draw points toward total overlay-state validation limits while keeping per-stroke raw input limits.
+- Reduce allocation pressure for oversized public `loadFromState()` snapshots and avoid duplicate object-count accounting for repeated Fabric object references.
+- Keep `downloadImage()` Blob URLs alive until timer-based cleanup is available instead of revoking them in a microtask fallback.
+- Coalesce image-filter range input updates with `requestAnimationFrame`, flush final `change` values, and keep unrelated numeric controls immediate.
+- Treat unknown DOM shape kinds as invalid no-ops instead of silently creating rectangle annotations.
+- Leave the editor image-loaded state false after image decoding fails.
 
 ## [2.8.1] - 2026-07-08
 

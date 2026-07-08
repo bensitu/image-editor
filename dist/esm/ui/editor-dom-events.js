@@ -24,7 +24,9 @@ function getEventInputChecked(event) {
     return event.target.checked;
 }
 function parseShapeKind(value) {
-    return value === 'line' || value === 'arrow' ? value : 'rect';
+    if (value === 'rect' || value === 'line' || value === 'arrow')
+        return value;
+    return null;
 }
 function bindUploadEvents(context) {
     bindElement(context, 'uploadArea', 'click', () => {
@@ -39,19 +41,19 @@ function bindUploadEvents(context) {
     });
 }
 function bindImageFilterEvents(context) {
-    bindNumberInput(context, 'imageBrightnessInput', (value) => {
+    bindThrottledNumberInput(context, 'imageBrightnessInput', (value) => {
         context.actions.setImageFilterConfig({ brightness: value });
     });
-    bindNumberInput(context, 'imageContrastInput', (value) => {
+    bindThrottledNumberInput(context, 'imageContrastInput', (value) => {
         context.actions.setImageFilterConfig({ contrast: value });
     });
-    bindNumberInput(context, 'imageSaturationInput', (value) => {
+    bindThrottledNumberInput(context, 'imageSaturationInput', (value) => {
         context.actions.setImageFilterConfig({ saturation: value });
     });
-    bindNumberInput(context, 'imageBlurInput', (value) => {
+    bindThrottledNumberInput(context, 'imageBlurInput', (value) => {
         context.actions.setImageFilterConfig({ blur: value });
     });
-    bindNumberInput(context, 'imageSharpenInput', (value) => {
+    bindThrottledNumberInput(context, 'imageSharpenInput', (value) => {
         context.actions.setImageFilterConfig({ sharpen: value });
     });
     bindBooleanInput(context, 'imageGrayscaleInput', (value) => {
@@ -134,7 +136,10 @@ function bindAnnotationEvents(context) {
         context.actions.createShapeAnnotation();
     });
     bindElement(context, 'enterShapeModeButton', 'click', () => {
-        context.actions.enterShapeMode(parseShapeKind(context.getInputValue('shapeKindSelect')));
+        const shape = parseShapeKind(context.getInputValue('shapeKindSelect'));
+        if (!shape)
+            return;
+        context.actions.enterShapeMode(shape);
     });
     bindElement(context, 'exitShapeModeButton', 'click', () => {
         context.actions.exitShapeMode();
@@ -182,7 +187,10 @@ function bindAnnotationEvents(context) {
         context.actions.setEraserBrushSize(value);
     });
     bindStringInput(context, 'shapeKindSelect', (value) => {
-        context.actions.setShapeConfig({ shape: parseShapeKind(value) });
+        const shape = parseShapeKind(value);
+        if (!shape)
+            return;
+        context.actions.setShapeConfig({ shape });
     });
     bindStringInput(context, 'shapeStrokeInput', (value) => {
         context.actions.setShapeConfig({ stroke: value });
@@ -246,6 +254,48 @@ function bindStringInput(context, key, applyValue) {
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
+}
+function bindThrottledNumberInput(context, key, applyValue) {
+    let lastAppliedValue = null;
+    let pendingValue = 0;
+    let hasPendingValue = false;
+    let scheduled = false;
+    const applyIfChanged = (value) => {
+        if (lastAppliedValue !== null && Object.is(value, lastAppliedValue))
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
+    };
+    const flush = () => {
+        scheduled = false;
+        if (!hasPendingValue)
+            return;
+        const value = pendingValue;
+        hasPendingValue = false;
+        applyIfChanged(value);
+    };
+    const scheduleFlush = () => {
+        if (scheduled)
+            return;
+        scheduled = true;
+        if (typeof globalThis.requestAnimationFrame === 'function') {
+            globalThis.requestAnimationFrame(() => flush());
+            return;
+        }
+        flush();
+    };
+    const inputHandler = (event) => {
+        pendingValue = parseEventInputNumber(event);
+        hasPendingValue = true;
+        scheduleFlush();
+    };
+    const changeHandler = (event) => {
+        pendingValue = parseEventInputNumber(event);
+        hasPendingValue = true;
+        flush();
+    };
+    bindElement(context, key, 'input', inputHandler);
+    bindElement(context, key, 'change', changeHandler);
 }
 function bindNumberInput(context, key, applyValue) {
     let lastAppliedValue = null;

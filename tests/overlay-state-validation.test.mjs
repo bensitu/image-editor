@@ -99,3 +99,39 @@ test('cyclic input is rejected before JSON normalization', () => {
     assert.equal(result.valid, false);
     assert.equal(result.errors[0].code, 'state.cyclic');
 });
+
+test('draw total point limit counts only normalized valid points', () => {
+    const result = validateOverlayState(
+        validState({
+            overlays: [
+                {
+                    kind: 'annotation',
+                    annotationType: 'draw',
+                    id: 'draw-a',
+                    strokes: [
+                        {
+                            id: 'stroke-a',
+                            points: [{ x: 0.1, y: 0.1 }, { x: 'bad', y: 0.2 }, { x: 0.3 }],
+                            brush: { color: '#000000', width: 2 },
+                        },
+                    ],
+                },
+            ],
+        }),
+        { maxDrawTotalPoints: 1, maxDrawPointsPerStroke: 10 },
+    );
+
+    assert.equal(result.valid, false);
+    assert.equal(
+        result.errors.some((error) => error.code === 'number.invalid'),
+        true,
+    );
+    assert.equal(
+        result.errors.some((error) => error.code === 'number.required'),
+        true,
+    );
+    assert.equal(
+        result.errors.some((error) => error.code === 'draw.points.maxTotal'),
+        false,
+    );
+});

@@ -2391,6 +2391,12 @@ function toPositiveIntegerLimit(value, fallback) {
 }
 function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
     const safeMaxSnapshotBytes = toPositiveIntegerLimit(maxSnapshotBytes, DEFAULT_MAX_SNAPSHOT_BYTES);
+    if (jsonString.length > safeMaxSnapshotBytes) {
+        throw new StateRestoreError(`loadFromState: snapshot JSON size exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
+    }
+    const worstCaseUtf8Bytes = jsonString.length * 3;
+    if (worstCaseUtf8Bytes <= safeMaxSnapshotBytes)
+        return;
     const byteLength = getUtf8ByteLength$1(jsonString);
     if (byteLength > safeMaxSnapshotBytes) {
         throw new StateRestoreError(`loadFromState: snapshot JSON size ${byteLength} bytes exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
@@ -2410,6 +2416,7 @@ function validatePublicSnapshot(json, options) {
         maxSnapshotObjects: safeMaxSnapshotObjects,
         objectCount: 0,
         seen: new WeakSet(),
+        countedFabricObjects: new WeakSet(),
     };
     objects.forEach((object, index) => validatePublicSnapshotValue(object, `objects[${index}]`, {
         validateFabricObject: true,
@@ -2432,12 +2439,14 @@ function validatePublicSnapshotValue(value, path, options, context, depth) {
     }
     if (!value || typeof value !== 'object')
         return;
+    const alreadySeen = context.seen.has(value);
+    if (!alreadySeen)
+        context.seen.add(value);
     if (options.validateFabricObject) {
         validatePublicSnapshotFabricObjectPayload(value, path, options.allowEditorOwnedCustomMask, context);
     }
-    if (context.seen.has(value))
+    if (alreadySeen)
         return;
-    context.seen.add(value);
     if (Array.isArray(value)) {
         value.forEach((entry, entryIndex) => validatePublicSnapshotValue(entry, `${path}[${entryIndex}]`, {
             validateFabricObject: options.arrayEntriesAreFabricObjects,
@@ -2465,9 +2474,12 @@ function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwned
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         throw new StateRestoreError(`loadFromState: snapshot field "${path}" is invalid.`);
     }
-    context.objectCount += 1;
-    if (context.objectCount > context.maxSnapshotObjects) {
-        throw new StateRestoreError(`loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`);
+    if (!context.countedFabricObjects.has(value)) {
+        context.countedFabricObjects.add(value);
+        context.objectCount += 1;
+        if (context.objectCount > context.maxSnapshotObjects) {
+            throw new StateRestoreError(`loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`);
+        }
     }
     const object = value;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -4016,6 +4028,153 @@ function updateAnnotationListSelection(context, selectedAnnotation) {
     });
 }
 
+function isPathCommand(value) {
+    return (Array.isArray(value) &&
+        typeof value[0] === 'string' &&
+        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
+}
+function identity(point) {
+    return point;
+}
+function toAbsolutePoint(x, y, current, isRelative) {
+    return isRelative ? { x: current.x + x, y: current.y + y } : { x, y };
+}
+function pathValue(values, index) {
+    var _a;
+    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
+}
+function addSegment(segments, transformPoint, start, end) {
+    segments.push({
+        start: transformPoint(start),
+        end: transformPoint(end),
+    });
+}
+function cubicPoint(start, c1, c2, end, t) {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * mt * start.x +
+            3 * mt * mt * t * c1.x +
+            3 * mt * t * t * c2.x +
+            t * t * t * end.x,
+        y: mt * mt * mt * start.y +
+            3 * mt * mt * t * c1.y +
+            3 * mt * t * t * c2.y +
+            t * t * t * end.y,
+    };
+}
+function quadraticPoint(start, c, end, t) {
+    const mt = 1 - t;
+    return {
+        x: mt * mt * start.x + 2 * mt * t * c.x + t * t * end.x,
+        y: mt * mt * start.y + 2 * mt * t * c.y + t * t * end.y,
+    };
+}
+function addSampledCurve(segments, transformPoint, start, end, samplePoint) {
+    const approximateLength = Math.hypot(end.x - start.x, end.y - start.y);
+    const steps = Math.max(8, Math.min(48, Math.ceil(approximateLength / 6)));
+    let previous = start;
+    for (let index = 1; index <= steps; index += 1) {
+        const next = samplePoint(index / steps);
+        addSegment(segments, transformPoint, previous, next);
+        previous = next;
+    }
+}
+function getPathSegments(pathData, transformPoint = identity) {
+    if (!Array.isArray(pathData))
+        return [];
+    const segments = [];
+    let current = { x: 0, y: 0 };
+    let subpathStart = null;
+    for (const rawCommand of pathData) {
+        if (!isPathCommand(rawCommand))
+            continue;
+        const rawName = rawCommand[0];
+        const command = rawName.toUpperCase();
+        const isRelative = rawName !== command;
+        const values = rawCommand.slice(1);
+        if (command === 'M') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                if (index > 0)
+                    addSegment(segments, transformPoint, current, next);
+                current = next;
+                if (index === 0)
+                    subpathStart = next;
+            }
+            continue;
+        }
+        if (command === 'L') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                addSegment(segments, transformPoint, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'H') {
+            for (const value of values) {
+                const next = { x: isRelative ? current.x + value : value, y: current.y };
+                addSegment(segments, transformPoint, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'V') {
+            for (const value of values) {
+                const next = { x: current.x, y: isRelative ? current.y + value : value };
+                addSegment(segments, transformPoint, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'C') {
+            for (let index = 0; index + 5 < values.length; index += 6) {
+                const start = current;
+                const c1 = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const c2 = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                const end = toAbsolutePoint(pathValue(values, index + 4), pathValue(values, index + 5), current, isRelative);
+                addSampledCurve(segments, transformPoint, start, end, (t) => cubicPoint(start, c1, c2, end, t));
+                current = end;
+            }
+            continue;
+        }
+        if (command === 'Q') {
+            for (let index = 0; index + 3 < values.length; index += 4) {
+                const start = current;
+                const control = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const end = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                addSampledCurve(segments, transformPoint, start, end, (t) => quadraticPoint(start, control, end, t));
+                current = end;
+            }
+            continue;
+        }
+        if (command === 'A') {
+            for (let index = 0; index + 6 < values.length; index += 7) {
+                const next = toAbsolutePoint(pathValue(values, index + 5), pathValue(values, index + 6), current, isRelative);
+                addSegment(segments, transformPoint, current, next);
+                current = next;
+            }
+            continue;
+        }
+        if (command === 'Z' && subpathStart) {
+            addSegment(segments, transformPoint, current, subpathStart);
+            current = subpathStart;
+        }
+    }
+    return segments;
+}
+function getPathPoints(pathData, transformPoint = identity) {
+    const points = [];
+    for (const segment of getPathSegments(pathData, transformPoint)) {
+        const previous = points[points.length - 1];
+        if (!previous || previous.x !== segment.start.x || previous.y !== segment.start.y) {
+            points.push(segment.start);
+        }
+        points.push(segment.end);
+    }
+    return points;
+}
+
 function colorWithOpacity(color, opacity) {
     const alpha = Math.max(0, Math.min(1, opacity));
     if (alpha >= 1)
@@ -4123,11 +4282,6 @@ function pointIntersectsExpandedBounds(point, bounds, radius) {
         point.y >= bounds.top - radius &&
         point.y <= bounds.top + bounds.height + radius);
 }
-function isPathCommand$1(value) {
-    return (Array.isArray(value) &&
-        typeof value[0] === 'string' &&
-        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
-}
 function transformPathPoint$1(annotation, point) {
     var _a, _b;
     const pathLike = annotation;
@@ -4143,139 +4297,16 @@ function transformPathPoint$1(annotation, point) {
         y: b * x + d * y + f,
     };
 }
-function toAbsolutePoint(x, y, current, isRelative) {
-    return isRelative ? { x: current.x + x, y: current.y + y } : { x, y };
-}
-function pathValue$1(values, index) {
-    var _a;
-    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
-}
-function addTransformedSegment(annotation, segments, start, end) {
-    segments.push({
-        start: transformPathPoint$1(annotation, start),
-        end: transformPathPoint$1(annotation, end),
-    });
-}
-function cubicPoint(start, c1, c2, end, t) {
-    const mt = 1 - t;
-    return {
-        x: mt * mt * mt * start.x +
-            3 * mt * mt * t * c1.x +
-            3 * mt * t * t * c2.x +
-            t * t * t * end.x,
-        y: mt * mt * mt * start.y +
-            3 * mt * mt * t * c1.y +
-            3 * mt * t * t * c2.y +
-            t * t * t * end.y,
-    };
-}
-function quadraticPoint(start, c, end, t) {
-    const mt = 1 - t;
-    return {
-        x: mt * mt * start.x + 2 * mt * t * c.x + t * t * end.x,
-        y: mt * mt * start.y + 2 * mt * t * c.y + t * t * end.y,
-    };
-}
-function addSampledCurve(annotation, segments, start, end, samplePoint) {
-    const approximateLength = Math.hypot(end.x - start.x, end.y - start.y);
-    const steps = Math.max(8, Math.min(48, Math.ceil(approximateLength / 6)));
-    let previous = start;
-    for (let index = 1; index <= steps; index += 1) {
-        const next = samplePoint(index / steps);
-        addTransformedSegment(annotation, segments, previous, next);
-        previous = next;
-    }
-}
 function getDrawAnnotationPathSegments(annotation) {
     const pathData = annotation.path;
-    if (!Array.isArray(pathData))
-        return [];
-    const segments = [];
-    let current = { x: 0, y: 0 };
-    let subpathStart = null;
-    for (const rawCommand of pathData) {
-        if (!isPathCommand$1(rawCommand))
-            continue;
-        const rawName = rawCommand[0];
-        const command = rawName.toUpperCase();
-        const isRelative = rawName !== command;
-        const values = rawCommand.slice(1);
-        if (command === 'M') {
-            for (let index = 0; index + 1 < values.length; index += 2) {
-                const next = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
-                if (index > 0)
-                    addTransformedSegment(annotation, segments, current, next);
-                current = next;
-                if (index === 0)
-                    subpathStart = next;
-            }
-            continue;
-        }
-        if (command === 'L') {
-            for (let index = 0; index + 1 < values.length; index += 2) {
-                const next = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
-                addTransformedSegment(annotation, segments, current, next);
-                current = next;
-            }
-            continue;
-        }
-        if (command === 'H') {
-            for (const value of values) {
-                const next = { x: isRelative ? current.x + value : value, y: current.y };
-                addTransformedSegment(annotation, segments, current, next);
-                current = next;
-            }
-            continue;
-        }
-        if (command === 'V') {
-            for (const value of values) {
-                const next = { x: current.x, y: isRelative ? current.y + value : value };
-                addTransformedSegment(annotation, segments, current, next);
-                current = next;
-            }
-            continue;
-        }
-        if (command === 'C') {
-            for (let index = 0; index + 5 < values.length; index += 6) {
-                const start = current;
-                const c1 = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
-                const c2 = toAbsolutePoint(pathValue$1(values, index + 2), pathValue$1(values, index + 3), current, isRelative);
-                const end = toAbsolutePoint(pathValue$1(values, index + 4), pathValue$1(values, index + 5), current, isRelative);
-                addSampledCurve(annotation, segments, start, end, (t) => cubicPoint(start, c1, c2, end, t));
-                current = end;
-            }
-            continue;
-        }
-        if (command === 'Q') {
-            for (let index = 0; index + 3 < values.length; index += 4) {
-                const start = current;
-                const control = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
-                const end = toAbsolutePoint(pathValue$1(values, index + 2), pathValue$1(values, index + 3), current, isRelative);
-                addSampledCurve(annotation, segments, start, end, (t) => quadraticPoint(start, control, end, t));
-                current = end;
-            }
-            continue;
-        }
-        if (command === 'A') {
-            for (let index = 0; index + 6 < values.length; index += 7) {
-                const next = toAbsolutePoint(pathValue$1(values, index + 5), pathValue$1(values, index + 6), current, isRelative);
-                addTransformedSegment(annotation, segments, current, next);
-                current = next;
-            }
-            continue;
-        }
-        if (command === 'Z' && subpathStart) {
-            addTransformedSegment(annotation, segments, current, subpathStart);
-            current = subpathStart;
-        }
-    }
-    return segments;
+    return getPathSegments(pathData, (point) => transformPathPoint$1(annotation, point));
 }
 function getEffectiveStrokeRadius(annotation) {
-    var _a, _b;
+    var _a;
+    const scalable = annotation;
     const strokeWidth = Number(annotation.strokeWidth) || 0;
-    const scale = (_b = (_a = annotation).getObjectScaling) === null || _b === void 0 ? void 0 : _b.call(_a);
-    if (annotation.strokeUniform) {
+    const scale = (_a = scalable.getObjectScaling) === null || _a === void 0 ? void 0 : _a.call(scalable);
+    if (scalable.strokeUniform) {
         return Math.max(0, strokeWidth / 2);
     }
     const scaleX = Math.abs(Number(scale === null || scale === void 0 ? void 0 : scale.x) || Number(annotation.scaleX) || 1);
@@ -7499,16 +7530,13 @@ function triggerFileDownload(context, file) {
 }
 function scheduleObjectUrlRevoke(objectUrl) {
     var _a, _b;
-    if (typeof globalThis.setTimeout === 'function') {
-        const timeoutId = globalThis.setTimeout(() => {
-            safeRevokeObjectUrl(objectUrl);
-        }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
-        (_b = (_a = timeoutId).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
+    if (typeof globalThis.setTimeout !== 'function') {
         return;
     }
-    void Promise.resolve().then(() => {
+    const timeoutId = globalThis.setTimeout(() => {
         safeRevokeObjectUrl(objectUrl);
-    });
+    }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
+    (_b = (_a = timeoutId).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
 }
 function safeRevokeObjectUrl(objectUrl) {
     try {
@@ -11930,11 +11958,6 @@ function cloneOverlayMetadata(metadata) {
     return JSON.parse(JSON.stringify(metadata));
 }
 
-function isPathCommand(value) {
-    return (Array.isArray(value) &&
-        typeof value[0] === 'string' &&
-        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
-}
 function finiteNumber$1(value, fallback = 0) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -12175,37 +12198,9 @@ function transformPathPoint(annotation, point) {
         y: b * x + d * y + f,
     };
 }
-function pathValue(values, index) {
-    var _a;
-    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
-}
 function extractPathPoints(annotation) {
     const pathData = annotation.path;
-    if (!Array.isArray(pathData))
-        return [];
-    const points = [];
-    let current = { x: 0, y: 0 };
-    for (const rawCommand of pathData) {
-        if (!isPathCommand(rawCommand))
-            continue;
-        const rawName = rawCommand[0];
-        const command = rawName.toUpperCase();
-        const isRelative = rawName !== command;
-        const values = rawCommand.slice(1);
-        if (command === 'M' || command === 'L') {
-            for (let index = 0; index + 1 < values.length; index += 2) {
-                const next = {
-                    x: isRelative ? current.x + pathValue(values, index) : pathValue(values, index),
-                    y: isRelative
-                        ? current.y + pathValue(values, index + 1)
-                        : pathValue(values, index + 1),
-                };
-                points.push(transformPathPoint(annotation, next));
-                current = next;
-            }
-        }
-    }
-    return points;
+    return getPathPoints(pathData, (point) => transformPathPoint(annotation, point));
 }
 function exportTextAnnotation(annotation, geometry, options) {
     var _a;
@@ -12730,7 +12725,8 @@ function createDrawObject(context, state, overlay, geometry) {
     return annotation;
 }
 function removeExistingOverlays(context) {
-    for (const object of context.canvas.getObjects()) {
+    const objects = [...context.canvas.getObjects()];
+    for (const object of objects) {
         if (isMaskObject(object)) {
             context.removeLabelForMask(object);
             detachMaskHoverHandlers(object);
@@ -12762,10 +12758,12 @@ function computeTopLeftPoint(object) {
     return { x: boundingRect.left, y: boundingRect.top };
 }
 function applyBaseTransformToImage(context, transform) {
+    if (transform === undefined)
+        return;
     const image = context.originalImage;
-    const rotation = normalizeRotationDegrees(transform === null || transform === void 0 ? void 0 : transform.rotation);
-    const flipX = (transform === null || transform === void 0 ? void 0 : transform.flipX) === true;
-    const flipY = (transform === null || transform === void 0 ? void 0 : transform.flipY) === true;
+    const rotation = normalizeRotationDegrees(transform.rotation);
+    const flipX = transform.flipX === true;
+    const flipY = transform.flipY === true;
     const center = image.getCenterPoint();
     image.set({ originX: 'center', originY: 'center' });
     image.setPositionByOrigin(center, 'center', 'center');
@@ -13476,13 +13474,13 @@ function validateDrawOverlay(context, overlay, path) {
         if (strokeValue.points.length > context.limits.maxDrawPointsPerStroke) {
             addError(context, `${strokePath}.points`, 'draw.points.maxPerStroke', `Draw stroke exceeds maxDrawPointsPerStroke ${context.limits.maxDrawPointsPerStroke}.`);
         }
-        context.drawTotalPoints += strokeValue.points.length;
-        if (context.drawTotalPoints > context.limits.maxDrawTotalPoints) {
-            addError(context, `${strokePath}.points`, 'draw.points.maxTotal', `Draw points exceed maxDrawTotalPoints ${context.limits.maxDrawTotalPoints}.`);
-        }
         const points = strokeValue.points
             .map((point, pointIndex) => normalizeDrawPoint(context, point, `${strokePath}.points[${pointIndex}]`))
             .filter((point) => !!point);
+        context.drawTotalPoints += points.length;
+        if (context.drawTotalPoints > context.limits.maxDrawTotalPoints) {
+            addError(context, `${strokePath}.points`, 'draw.points.maxTotal', `Draw points exceed maxDrawTotalPoints ${context.limits.maxDrawTotalPoints}.`);
+        }
         let previousT = -Infinity;
         points.forEach((point, pointIndex) => {
             if (point.t === undefined)
@@ -14295,7 +14293,9 @@ function getEventInputChecked(event) {
     return event.target.checked;
 }
 function parseShapeKind(value) {
-    return value === 'line' || value === 'arrow' ? value : 'rect';
+    if (value === 'rect' || value === 'line' || value === 'arrow')
+        return value;
+    return null;
 }
 function bindUploadEvents(context) {
     bindElement(context, 'uploadArea', 'click', () => {
@@ -14310,19 +14310,19 @@ function bindUploadEvents(context) {
     });
 }
 function bindImageFilterEvents(context) {
-    bindNumberInput(context, 'imageBrightnessInput', (value) => {
+    bindThrottledNumberInput(context, 'imageBrightnessInput', (value) => {
         context.actions.setImageFilterConfig({ brightness: value });
     });
-    bindNumberInput(context, 'imageContrastInput', (value) => {
+    bindThrottledNumberInput(context, 'imageContrastInput', (value) => {
         context.actions.setImageFilterConfig({ contrast: value });
     });
-    bindNumberInput(context, 'imageSaturationInput', (value) => {
+    bindThrottledNumberInput(context, 'imageSaturationInput', (value) => {
         context.actions.setImageFilterConfig({ saturation: value });
     });
-    bindNumberInput(context, 'imageBlurInput', (value) => {
+    bindThrottledNumberInput(context, 'imageBlurInput', (value) => {
         context.actions.setImageFilterConfig({ blur: value });
     });
-    bindNumberInput(context, 'imageSharpenInput', (value) => {
+    bindThrottledNumberInput(context, 'imageSharpenInput', (value) => {
         context.actions.setImageFilterConfig({ sharpen: value });
     });
     bindBooleanInput(context, 'imageGrayscaleInput', (value) => {
@@ -14405,7 +14405,10 @@ function bindAnnotationEvents(context) {
         context.actions.createShapeAnnotation();
     });
     bindElement(context, 'enterShapeModeButton', 'click', () => {
-        context.actions.enterShapeMode(parseShapeKind(context.getInputValue('shapeKindSelect')));
+        const shape = parseShapeKind(context.getInputValue('shapeKindSelect'));
+        if (!shape)
+            return;
+        context.actions.enterShapeMode(shape);
     });
     bindElement(context, 'exitShapeModeButton', 'click', () => {
         context.actions.exitShapeMode();
@@ -14453,7 +14456,10 @@ function bindAnnotationEvents(context) {
         context.actions.setEraserBrushSize(value);
     });
     bindStringInput(context, 'shapeKindSelect', (value) => {
-        context.actions.setShapeConfig({ shape: parseShapeKind(value) });
+        const shape = parseShapeKind(value);
+        if (!shape)
+            return;
+        context.actions.setShapeConfig({ shape });
     });
     bindStringInput(context, 'shapeStrokeInput', (value) => {
         context.actions.setShapeConfig({ stroke: value });
@@ -14517,6 +14523,48 @@ function bindStringInput(context, key, applyValue) {
     };
     bindElement(context, key, 'input', handler);
     bindElement(context, key, 'change', handler);
+}
+function bindThrottledNumberInput(context, key, applyValue) {
+    let lastAppliedValue = null;
+    let pendingValue = 0;
+    let hasPendingValue = false;
+    let scheduled = false;
+    const applyIfChanged = (value) => {
+        if (lastAppliedValue !== null && Object.is(value, lastAppliedValue))
+            return;
+        lastAppliedValue = value;
+        applyValue(value);
+    };
+    const flush = () => {
+        scheduled = false;
+        if (!hasPendingValue)
+            return;
+        const value = pendingValue;
+        hasPendingValue = false;
+        applyIfChanged(value);
+    };
+    const scheduleFlush = () => {
+        if (scheduled)
+            return;
+        scheduled = true;
+        if (typeof globalThis.requestAnimationFrame === 'function') {
+            globalThis.requestAnimationFrame(() => flush());
+            return;
+        }
+        flush();
+    };
+    const inputHandler = (event) => {
+        pendingValue = parseEventInputNumber(event);
+        hasPendingValue = true;
+        scheduleFlush();
+    };
+    const changeHandler = (event) => {
+        pendingValue = parseEventInputNumber(event);
+        hasPendingValue = true;
+        flush();
+    };
+    bindElement(context, key, 'input', inputHandler);
+    bindElement(context, key, 'change', changeHandler);
 }
 function bindNumberInput(context, key, applyValue) {
     let lastAppliedValue = null;

@@ -635,16 +635,13 @@ function triggerFileDownload(context, file) {
 }
 function scheduleObjectUrlRevoke(objectUrl) {
     var _a, _b;
-    if (typeof globalThis.setTimeout === 'function') {
-        const timeoutId = globalThis.setTimeout(() => {
-            safeRevokeObjectUrl(objectUrl);
-        }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
-        (_b = (_a = timeoutId).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
+    if (typeof globalThis.setTimeout !== 'function') {
         return;
     }
-    void Promise.resolve().then(() => {
+    const timeoutId = globalThis.setTimeout(() => {
         safeRevokeObjectUrl(objectUrl);
-    });
+    }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
+    (_b = (_a = timeoutId).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
 }
 function safeRevokeObjectUrl(objectUrl) {
     try {

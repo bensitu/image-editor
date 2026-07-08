@@ -520,7 +520,8 @@ function createDrawObject(
 }
 
 function removeExistingOverlays(context: OverlayStateImportRuntimeContext): void {
-    for (const object of context.canvas.getObjects()) {
+    const objects = [...context.canvas.getObjects()];
+    for (const object of objects) {
         if (isMaskObject(object)) {
             context.removeLabelForMask(object);
             detachMaskHoverHandlers(object);
@@ -555,10 +556,12 @@ function applyBaseTransformToImage(
     context: OverlayStateImportRuntimeContext,
     transform: OverlayBaseImageTransform | undefined,
 ): void {
+    if (transform === undefined) return;
+
     const image = context.originalImage;
-    const rotation = normalizeRotationDegrees(transform?.rotation);
-    const flipX = transform?.flipX === true;
-    const flipY = transform?.flipY === true;
+    const rotation = normalizeRotationDegrees(transform.rotation);
+    const flipX = transform.flipX === true;
+    const flipY = transform.flipY === true;
     const center = image.getCenterPoint();
     image.set({ originX: 'center', originY: 'center' });
     image.setPositionByOrigin(center, 'center', 'center');

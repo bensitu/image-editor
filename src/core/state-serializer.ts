@@ -971,6 +971,15 @@ function assertSnapshotByteSizeAllowed(jsonString: string, maxSnapshotBytes: num
         maxSnapshotBytes,
         DEFAULT_MAX_SNAPSHOT_BYTES,
     );
+    if (jsonString.length > safeMaxSnapshotBytes) {
+        throw new StateRestoreError(
+            `loadFromState: snapshot JSON size exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`,
+        );
+    }
+
+    const worstCaseUtf8Bytes = jsonString.length * 3;
+    if (worstCaseUtf8Bytes <= safeMaxSnapshotBytes) return;
+
     const byteLength = getUtf8ByteLength(jsonString);
     if (byteLength > safeMaxSnapshotBytes) {
         throw new StateRestoreError(
@@ -983,6 +992,7 @@ interface PublicSnapshotValidationContext {
     maxSnapshotObjects: number;
     objectCount: number;
     seen: WeakSet<object>;
+    countedFabricObjects: WeakSet<object>;
 }
 
 interface PublicSnapshotValueValidationOptions {
@@ -1011,6 +1021,7 @@ function validatePublicSnapshot(json: CanvasJson, options: { maxSnapshotObjects:
         maxSnapshotObjects: safeMaxSnapshotObjects,
         objectCount: 0,
         seen: new WeakSet(),
+        countedFabricObjects: new WeakSet(),
     };
 
     objects.forEach((object, index) =>
@@ -1058,6 +1069,9 @@ function validatePublicSnapshotValue(
 
     if (!value || typeof value !== 'object') return;
 
+    const alreadySeen = context.seen.has(value);
+    if (!alreadySeen) context.seen.add(value);
+
     if (options.validateFabricObject) {
         validatePublicSnapshotFabricObjectPayload(
             value,
@@ -1067,8 +1081,7 @@ function validatePublicSnapshotValue(
         );
     }
 
-    if (context.seen.has(value)) return;
-    context.seen.add(value);
+    if (alreadySeen) return;
 
     if (Array.isArray(value)) {
         value.forEach((entry, entryIndex) =>
@@ -1126,11 +1139,14 @@ function validatePublicSnapshotFabricObjectPayload(
         throw new StateRestoreError(`loadFromState: snapshot field "${path}" is invalid.`);
     }
 
-    context.objectCount += 1;
-    if (context.objectCount > context.maxSnapshotObjects) {
-        throw new StateRestoreError(
-            `loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`,
-        );
+    if (!context.countedFabricObjects.has(value)) {
+        context.countedFabricObjects.add(value);
+        context.objectCount += 1;
+        if (context.objectCount > context.maxSnapshotObjects) {
+            throw new StateRestoreError(
+                `loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`,
+            );
+        }
     }
 
     const object = value as CanvasJsonObject;

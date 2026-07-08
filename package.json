@@ -53,10 +53,13 @@
         "test:visual": "playwright test tests/browser/visual --project=chromium",
         "test:visual:update": "playwright test tests/browser/visual --project=chromium --update-snapshots",
         "test:browser": "playwright test tests/browser --project=chromium",
-        "test:browser:all": "npm run test:e2e:all && npm run test:visual",
+        "test:browser:release": "npm run test:e2e:all && npm run test:visual",
+        "test:browser:all": "npm run test:browser:release",
+        "release:gate": "node scripts/release-gate.mjs",
+        "release:check": "npm run build && npm run package:check && npm run release:gate && npm pack --dry-run",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-        "ci": "npm run check && npm run build && npm run package:check"
+        "ci": "npm run check && npm run release:check"
     },
     "peerDependencies": {
         "fabric": ">=7.4.0 <8"

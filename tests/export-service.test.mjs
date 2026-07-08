@@ -1471,6 +1471,47 @@ test('downloadImage delayed URL cleanup ignores missing revokeObjectURL', async 
     }
 });
 
+test('downloadImage does not revoke object URLs in a microtask when setTimeout is unavailable', async () => {
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
+    const previousSetTimeout = globalThis.setTimeout;
+    const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
+    const ownerDocument = ownerDom.window.document;
+    const canvasElement = ownerDocument.getElementById('c');
+    const revokedUrls = [];
+    const createElement = ownerDocument.createElement.bind(ownerDocument);
+    ownerDocument.createElement = (tagName, options) => {
+        const element = createElement(tagName, options);
+        if (String(tagName).toLowerCase() === 'a') {
+            element.click = () => {};
+        }
+        return element;
+    };
+
+    try {
+        URL.createObjectURL = () => 'blob:no-timeout';
+        URL.revokeObjectURL = (url) => {
+            revokedUrls.push(url);
+        };
+        globalThis.setTimeout = undefined;
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
+        );
+        canvas.getElement = () => canvasElement;
+        const ctx = makeContext({ canvas });
+
+        await downloadImage(ctx, { fileName: 'no-timeout.jpg' });
+
+        assert.deepEqual(revokedUrls, []);
+        await Promise.resolve();
+        assert.deepEqual(revokedUrls, []);
+    } finally {
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
+        globalThis.setTimeout = previousSetTimeout;
+    }
+});
+
 test('downloadImage falls back to documentElement when ownerDocument.body is unavailable', async () => {
     const previousCreateObjectURL = URL.createObjectURL;
     const previousRevokeObjectURL = URL.revokeObjectURL;

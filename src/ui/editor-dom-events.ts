@@ -126,8 +126,9 @@ function getEventInputChecked(event: Event): boolean {
     return (event.target as HTMLInputElement).checked;
 }
 
-function parseShapeKind(value: string): ShapeAnnotationKind {
-    return value === 'line' || value === 'arrow' ? value : 'rect';
+function parseShapeKind(value: string): ShapeAnnotationKind | null {
+    if (value === 'rect' || value === 'line' || value === 'arrow') return value;
+    return null;
 }
 
 function bindUploadEvents(context: EditorDomEventContext): void {
@@ -144,19 +145,19 @@ function bindUploadEvents(context: EditorDomEventContext): void {
 }
 
 function bindImageFilterEvents(context: EditorDomEventContext): void {
-    bindNumberInput(context, 'imageBrightnessInput', (value) => {
+    bindThrottledNumberInput(context, 'imageBrightnessInput', (value) => {
         context.actions.setImageFilterConfig({ brightness: value });
     });
-    bindNumberInput(context, 'imageContrastInput', (value) => {
+    bindThrottledNumberInput(context, 'imageContrastInput', (value) => {
         context.actions.setImageFilterConfig({ contrast: value });
     });
-    bindNumberInput(context, 'imageSaturationInput', (value) => {
+    bindThrottledNumberInput(context, 'imageSaturationInput', (value) => {
         context.actions.setImageFilterConfig({ saturation: value });
     });
-    bindNumberInput(context, 'imageBlurInput', (value) => {
+    bindThrottledNumberInput(context, 'imageBlurInput', (value) => {
         context.actions.setImageFilterConfig({ blur: value });
     });
-    bindNumberInput(context, 'imageSharpenInput', (value) => {
+    bindThrottledNumberInput(context, 'imageSharpenInput', (value) => {
         context.actions.setImageFilterConfig({ sharpen: value });
     });
     bindBooleanInput(context, 'imageGrayscaleInput', (value) => {
@@ -245,7 +246,9 @@ function bindAnnotationEvents(context: EditorDomEventContext): void {
         context.actions.createShapeAnnotation();
     });
     bindElement(context, 'enterShapeModeButton', 'click', () => {
-        context.actions.enterShapeMode(parseShapeKind(context.getInputValue('shapeKindSelect')));
+        const shape = parseShapeKind(context.getInputValue('shapeKindSelect'));
+        if (!shape) return;
+        context.actions.enterShapeMode(shape);
     });
     bindElement(context, 'exitShapeModeButton', 'click', () => {
         context.actions.exitShapeMode();
@@ -294,7 +297,9 @@ function bindAnnotationEvents(context: EditorDomEventContext): void {
         context.actions.setEraserBrushSize(value);
     });
     bindStringInput(context, 'shapeKindSelect', (value) => {
-        context.actions.setShapeConfig({ shape: parseShapeKind(value) });
+        const shape = parseShapeKind(value);
+        if (!shape) return;
+        context.actions.setShapeConfig({ shape });
     });
     bindStringInput(context, 'shapeStrokeInput', (value) => {
         context.actions.setShapeConfig({ stroke: value });
@@ -373,6 +378,63 @@ function bindStringInput(
     bindElement(context, key, 'change', handler);
 }
 
+type ImageFilterNumberInputKey =
+    | 'imageBrightnessInput'
+    | 'imageContrastInput'
+    | 'imageSaturationInput'
+    | 'imageBlurInput'
+    | 'imageSharpenInput';
+
+function bindThrottledNumberInput(
+    context: EditorDomEventContext,
+    key: ImageFilterNumberInputKey,
+    applyValue: (value: number) => void,
+): void {
+    let lastAppliedValue: number | null = null;
+    let pendingValue = 0;
+    let hasPendingValue = false;
+    let scheduled = false;
+
+    const applyIfChanged = (value: number): void => {
+        if (lastAppliedValue !== null && Object.is(value, lastAppliedValue)) return;
+        lastAppliedValue = value;
+        applyValue(value);
+    };
+
+    const flush = (): void => {
+        scheduled = false;
+        if (!hasPendingValue) return;
+        const value = pendingValue;
+        hasPendingValue = false;
+        applyIfChanged(value);
+    };
+
+    const scheduleFlush = (): void => {
+        if (scheduled) return;
+        scheduled = true;
+        if (typeof globalThis.requestAnimationFrame === 'function') {
+            globalThis.requestAnimationFrame(() => flush());
+            return;
+        }
+        flush();
+    };
+
+    const inputHandler: EventListener = (event) => {
+        pendingValue = parseEventInputNumber(event);
+        hasPendingValue = true;
+        scheduleFlush();
+    };
+
+    const changeHandler: EventListener = (event) => {
+        pendingValue = parseEventInputNumber(event);
+        hasPendingValue = true;
+        flush();
+    };
+
+    bindElement(context, key, 'input', inputHandler);
+    bindElement(context, key, 'change', changeHandler);
+}
+
 function bindNumberInput(
     context: EditorDomEventContext,
     key:
@@ -380,11 +442,6 @@ function bindNumberInput(
         | 'mosaicBlockSizeInput'
         | 'textFontSizeInput'
         | 'drawBrushSizeInput'
-        | 'imageBrightnessInput'
-        | 'imageContrastInput'
-        | 'imageSaturationInput'
-        | 'imageBlurInput'
-        | 'imageSharpenInput'
         | 'eraserBrushSizeInput'
         | 'shapeStrokeWidthInput',
     applyValue: (value: number) => void,

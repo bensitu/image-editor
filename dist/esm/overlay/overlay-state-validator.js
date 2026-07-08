@@ -599,13 +599,13 @@ function validateDrawOverlay(context, overlay, path) {
         if (strokeValue.points.length > context.limits.maxDrawPointsPerStroke) {
             addError(context, `${strokePath}.points`, 'draw.points.maxPerStroke', `Draw stroke exceeds maxDrawPointsPerStroke ${context.limits.maxDrawPointsPerStroke}.`);
         }
-        context.drawTotalPoints += strokeValue.points.length;
-        if (context.drawTotalPoints > context.limits.maxDrawTotalPoints) {
-            addError(context, `${strokePath}.points`, 'draw.points.maxTotal', `Draw points exceed maxDrawTotalPoints ${context.limits.maxDrawTotalPoints}.`);
-        }
         const points = strokeValue.points
             .map((point, pointIndex) => normalizeDrawPoint(context, point, `${strokePath}.points[${pointIndex}]`))
             .filter((point) => !!point);
+        context.drawTotalPoints += points.length;
+        if (context.drawTotalPoints > context.limits.maxDrawTotalPoints) {
+            addError(context, `${strokePath}.points`, 'draw.points.maxTotal', `Draw points exceed maxDrawTotalPoints ${context.limits.maxDrawTotalPoints}.`);
+        }
         let previousT = -Infinity;
         points.forEach((point, pointIndex) => {
             if (point.t === undefined)

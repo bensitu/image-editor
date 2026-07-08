@@ -26,7 +26,7 @@ async function collectTestFiles(directory) {
     return files.flat();
 }
 
-const testFiles = (await collectTestFiles(testsRoot)).sort((a, b) => a.localeCompare(b));
+const testFiles = (await collectTestFiles(testsRoot)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
 if (testFiles.length === 0) {
     console.error('No test files found under tests/**/*.test.mjs.');

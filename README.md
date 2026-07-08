@@ -1153,6 +1153,7 @@ build:umd` in order, emitting:
 npm run test:e2e
 npm run test:e2e:all
 npm run test:browser
+npm run test:browser:release
 npm run test:browser:all
 ```
 
@@ -1166,9 +1167,10 @@ browser binaries. Install the full local browser set when needed with:
 npx playwright install chromium firefox webkit
 ```
 
-`npm run test:browser` keeps the broader browser test suite Chromium-only for
-local iteration. `npm run test:browser:all` runs cross-browser E2E plus the
-Chromium visual suite.
+`npm run test:browser` keeps the broader browser suite Chromium-only for local
+iteration. `npm run test:browser:release` runs cross-browser E2E plus the
+Chromium-only visual suite. `npm run test:browser:all` is kept as an alias for
+that release browser matrix.
 
 ### Visual regression tests
 
@@ -1191,17 +1193,24 @@ npm run typecheck
 npm test
 npm run build
 npm run package:check
+npm run release:gate
+npm pack --dry-run
+npm run release:check
 npm run test:e2e:all
 npm audit --audit-level=high
-npm pack --dry-run
 ```
 
-`npm run ci` combines format, lint, typecheck, tests, build, and package
-linting. Playwright visual tests are kept outside the default CI command until
-they are stable across supported environments. The test suite also supports a
-clean checkout where `dist/` has not been built yet; integration helpers use
-source modules until build artifacts exist, while partial `dist/` trees still
-fail the artifact checks.
+`npm run release:gate` validates generated artifacts, bundle shape, declaration
+output, and package export metadata. Run it only after `npm run build`; the
+convenience command `npm run release:check` runs build, package linting, the
+release gate, and `npm pack --dry-run` in order.
+
+`npm run ci` combines format, lint, typecheck, tests, and `release:check`.
+Playwright visual tests are kept outside the default CI command until they are
+stable across supported environments. The test suite also supports a clean
+checkout where `dist/` has not been built yet; integration helpers use source
+modules until build artifacts exist, while release-gate artifact checks run only
+after the build step.
 
 ## Browser support
 

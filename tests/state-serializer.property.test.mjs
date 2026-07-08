@@ -211,6 +211,71 @@ test('public loadFromState rejects oversized snapshot JSON before parsing', asyn
     );
 });
 
+test('public loadFromState rejects obviously oversized ASCII snapshots before UTF-8 encoding', async () => {
+    const canvas = new MockCanvas();
+    const hadTextEncoder = 'TextEncoder' in globalThis;
+    const previousTextEncoder = globalThis.TextEncoder;
+
+    Object.defineProperty(globalThis, 'TextEncoder', {
+        configurable: true,
+        writable: true,
+        value: class ThrowingTextEncoder {
+            encode() {
+                throw new Error('TextEncoder should not run for obviously oversized input');
+            }
+        },
+    });
+
+    try {
+        await assert.rejects(
+            () =>
+                loadFromState(
+                    makePublicRestoreInput(canvas, 'x'.repeat(32), {
+                        maxSnapshotBytes: 10,
+                    }),
+                ),
+            (error) =>
+                error instanceof StateRestoreError &&
+                /exceeds maxSnapshotBytes/.test(error.message),
+        );
+    } finally {
+        if (hadTextEncoder) {
+            Object.defineProperty(globalThis, 'TextEncoder', {
+                configurable: true,
+                writable: true,
+                value: previousTextEncoder,
+            });
+        } else {
+            delete globalThis.TextEncoder;
+        }
+    }
+});
+
+test('public loadFromState still validates exact UTF-8 byte length near the limit', async () => {
+    const canvas = new MockCanvas();
+    const snapshot = '{"version":"7.0.0","width":1,"height":1,"objects":[],"note":"あ"}';
+    const byteLength = Buffer.byteLength(snapshot, 'utf8');
+
+    assert.ok(snapshot.length < byteLength);
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, snapshot, {
+                    maxSnapshotBytes: snapshot.length + 1,
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError &&
+            error.message.includes(`snapshot JSON size ${byteLength} bytes`),
+    );
+
+    await loadFromState(
+        makePublicRestoreInput(new MockCanvas(), '{"version":"7.0.0","objects":[]}', {
+            maxSnapshotBytes: Buffer.byteLength('{"version":"7.0.0","objects":[]}', 'utf8'),
+        }),
+    );
+});
+
 test('public loadFromState rejects snapshots with too many objects', async () => {
     const canvas = new MockCanvas();
 
@@ -236,6 +301,62 @@ test('public loadFromState rejects snapshots with too many objects', async () =>
         (error) =>
             error instanceof StateRestoreError &&
             /exceeding maxSnapshotObjects/.test(error.message),
+    );
+});
+
+test('public loadFromState does not count the same Fabric object reference twice', async () => {
+    const canvas = new MockCanvas();
+    const marker = '__duplicate_reference_snapshot__';
+    const previousParse = JSON.parse;
+    const sharedObject = { type: 'rect', left: 0, top: 0 };
+    const snapshot = {
+        version: '7.0.0',
+        width: 320,
+        height: 240,
+        objects: [sharedObject],
+        clipPath: sharedObject,
+    };
+
+    JSON.parse = (text, reviver) => {
+        if (text === marker) return snapshot;
+        return previousParse.call(JSON, text, reviver);
+    };
+
+    try {
+        await loadFromState(
+            makePublicRestoreInput(canvas, marker, {
+                maxSnapshotObjects: 1,
+            }),
+        );
+    } finally {
+        JSON.parse = previousParse;
+    }
+
+    assert.equal(canvas.objects.length, 1);
+});
+
+test('public loadFromState still counts distinct nested Fabric objects', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(
+                    canvas,
+                    {
+                        version: '7.0.0',
+                        width: 320,
+                        height: 240,
+                        objects: [{ type: 'rect', left: 0, top: 0 }],
+                        clipPath: { type: 'rect', left: 1, top: 1 },
+                    },
+                    {
+                        maxSnapshotObjects: 1,
+                    },
+                ),
+            ),
+        (error) =>
+            error instanceof StateRestoreError && /more than 1 Fabric objects/.test(error.message),
     );
 });
 

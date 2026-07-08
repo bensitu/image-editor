@@ -341,7 +341,8 @@ function createDrawObject(context, state, overlay, geometry) {
     return annotation;
 }
 function removeExistingOverlays(context) {
-    for (const object of context.canvas.getObjects()) {
+    const objects = [...context.canvas.getObjects()];
+    for (const object of objects) {
         if (isMaskObject(object)) {
             context.removeLabelForMask(object);
             detachMaskHoverHandlers(object);
@@ -373,10 +374,12 @@ function computeTopLeftPoint(object) {
     return { x: boundingRect.left, y: boundingRect.top };
 }
 function applyBaseTransformToImage(context, transform) {
+    if (transform === undefined)
+        return;
     const image = context.originalImage;
-    const rotation = normalizeRotationDegrees(transform === null || transform === void 0 ? void 0 : transform.rotation);
-    const flipX = (transform === null || transform === void 0 ? void 0 : transform.flipX) === true;
-    const flipY = (transform === null || transform === void 0 ? void 0 : transform.flipY) === true;
+    const rotation = normalizeRotationDegrees(transform.rotation);
+    const flipX = transform.flipX === true;
+    const flipY = transform.flipY === true;
     const center = image.getCenterPoint();
     image.set({ originX: 'center', originY: 'center' });
     image.setPositionByOrigin(center, 'center', 'center');

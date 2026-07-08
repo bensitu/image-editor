@@ -149,6 +149,15 @@ test('unsupported image data URLs are ignored before load lifecycle callbacks', 
     assert.equal(editor.isImageLoaded(), false);
 });
 
+test('failed image decode leaves an empty editor marked as not loaded', async (t) => {
+    const { editor } = createSourceEditor();
+    t.after(() => disposeEditor(editor));
+
+    assert.equal(editor.isImageLoaded(), false);
+    await assert.rejects(() => editor.loadImage('data:image/png;base64,not-image-data'));
+    assert.equal(editor.isImageLoaded(), false);
+});
+
 test('init reports missing Fabric instead of silently returning', () => {
     const previousFabric = globalThis.fabric;
     const originalConsoleError = console.error;
