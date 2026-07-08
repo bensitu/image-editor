@@ -1,4 +1,5 @@
 import { tryNormalizeImageFormat } from '../export/export-format.js';
+import { canCopySafeObjectKey, copySafeOwnProperties } from './safe-object-copy.js';
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 const DEFAULT_LAYOUT_MODE = 'expand';
 const DEFAULT_OVERLAY_LIST_ORDER = 'front-to-back';
@@ -224,7 +225,6 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'defaultEraserConfig',
     'defaultShapeConfig',
 ]);
-const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
@@ -238,7 +238,7 @@ function isConfigObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 function canCopyObjectConfigKey(key) {
-    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+    return canCopySafeObjectKey(key);
 }
 function copyDefaultMaskConfigValue(value) {
     if (Array.isArray(value)) {
@@ -609,14 +609,10 @@ function normalizeTextLeftTop(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 function normalizeTextboxStyles(value) {
-    if (!isConfigObject(value))
-        return {};
-    return { ...value };
+    return copySafeOwnProperties(value);
 }
 function normalizeFabricObjectStyles(value) {
-    if (!isConfigObject(value))
-        return {};
-    return { ...value };
+    return copySafeOwnProperties(value);
 }
 export function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
     const raw = isConfigObject(patch) ? patch : {};

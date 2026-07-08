@@ -435,6 +435,22 @@ function resolveExportFormat(options, downsampleQuality) {
     return { format, mimeType, quality };
 }
 
+const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+function canCopySafeObjectKey(key) {
+    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+}
+function copySafeOwnProperties(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return {};
+    const output = Object.create(null);
+    for (const [key, nestedValue] of Object.entries(value)) {
+        if (!canCopySafeObjectKey(key))
+            continue;
+        output[key] = nestedValue;
+    }
+    return output;
+}
+
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
 const DEFAULT_LAYOUT_MODE = 'expand';
 const DEFAULT_OVERLAY_LIST_ORDER = 'front-to-back';
@@ -656,7 +672,6 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'defaultEraserConfig',
     'defaultShapeConfig',
 ]);
-const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 function normalizeCallback(value) {
     return typeof value === 'function' ? value : null;
 }
@@ -670,7 +685,7 @@ function isConfigObject$1(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 function canCopyObjectConfigKey(key) {
-    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+    return canCopySafeObjectKey(key);
 }
 function copyDefaultMaskConfigValue(value) {
     if (Array.isArray(value)) {
@@ -1041,14 +1056,10 @@ function normalizeTextLeftTop(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 function normalizeTextboxStyles(value) {
-    if (!isConfigObject$1(value))
-        return {};
-    return { ...value };
+    return copySafeOwnProperties(value);
 }
 function normalizeFabricObjectStyles(value) {
-    if (!isConfigObject$1(value))
-        return {};
-    return { ...value };
+    return copySafeOwnProperties(value);
 }
 function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
     const raw = isConfigObject$1(patch) ? patch : {};
@@ -1984,11 +1995,33 @@ function resetFileInput(input) {
     }
 }
 
+function withTimeout(promise, ms, label, onTimeout) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const timeoutId = setTimeout(() => {
+            try {
+                onTimeout === null || onTimeout === void 0 ? void 0 : onTimeout();
+            }
+            catch {
+            }
+            reject(new ImageLoadTimeoutError(label, Date.now() - start));
+        }, ms);
+        promise.then((value) => {
+            clearTimeout(timeoutId);
+            resolve(value);
+        }, (err) => {
+            clearTimeout(timeoutId);
+            reject(err);
+        });
+    });
+}
+
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
 const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
 const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
+const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
 const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
@@ -2305,7 +2338,16 @@ async function loadFromState(input) {
             : null);
         setCanvasSize(json.width, json.height);
     }
-    await canvas.loadFromJSON(json);
+    const loadFromJsonPromise = canvas.loadFromJSON(json);
+    try {
+        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON');
+    }
+    catch (error) {
+        if (error instanceof ImageLoadTimeoutError) {
+            throw new StateRestoreError('loadFromState: canvas.loadFromJSON timed out while restoring editor state.', error);
+        }
+        throw error;
+    }
     const objects = canvas.getObjects();
     restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
@@ -5844,27 +5886,6 @@ function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSo
     return { dataUrl, width, height, mimeType };
 }
 
-function withTimeout(promise, ms, label, onTimeout) {
-    return new Promise((resolve, reject) => {
-        const start = Date.now();
-        const timeoutId = setTimeout(() => {
-            try {
-                onTimeout === null || onTimeout === void 0 ? void 0 : onTimeout();
-            }
-            catch {
-            }
-            reject(new ImageLoadTimeoutError(label, Date.now() - start));
-        }, ms);
-        promise.then((value) => {
-            clearTimeout(timeoutId);
-            resolve(value);
-        }, (err) => {
-            clearTimeout(timeoutId);
-            reject(err);
-        });
-    });
-}
-
 const MATRIX_DETERMINANT_EPSILON = 1e-8;
 const MATRIX_SCALE_EPSILON = 1e-8;
 function toMatrix2D(matrix) {
@@ -7867,6 +7888,7 @@ function applyCanvasDimensions(canvas, width, height, containerElement) {
 
 const HEADER_PROBE_BYTES = 256 * 1024;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH = 7;
 function hasPositiveDimensions$1(width, height) {
     return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
 }
@@ -7945,6 +7967,10 @@ function readJpegDimensions(bytes) {
         if (segmentEnd > bytes.length)
             return null;
         if (isJpegStartOfFrame(marker)) {
+            if (segmentLength < JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH ||
+                segmentStart + 5 > segmentEnd) {
+                return null;
+            }
             const height = readUint16BE(bytes, segmentStart + 1);
             const width = readUint16BE(bytes, segmentStart + 3);
             return width !== null && height !== null && hasPositiveDimensions$1(width, height)
@@ -9598,16 +9624,17 @@ function isStyleObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 function mergeMaskConfig(defaultMaskConfig, config) {
-    const safeDefaultConfig = { ...defaultMaskConfig };
+    const safeDefaultConfig = copySafeOwnProperties(defaultMaskConfig);
     const defaultStyles = safeDefaultConfig.styles;
     delete safeDefaultConfig.onCreate;
     delete safeDefaultConfig.fabricGenerator;
     delete safeDefaultConfig.styles;
-    const configStyles = isStyleObject(config.styles) ? config.styles : {};
-    const safeDefaultStyles = isStyleObject(defaultStyles) ? defaultStyles : {};
+    const safeConfig = copySafeOwnProperties(config);
+    const configStyles = copySafeOwnProperties(config.styles);
+    const safeDefaultStyles = copySafeOwnProperties(isStyleObject(defaultStyles) ? defaultStyles : {});
     return {
         ...safeDefaultConfig,
-        ...config,
+        ...safeConfig,
         styles: {
             ...safeDefaultStyles,
             ...configStyles,
@@ -15574,9 +15601,19 @@ class ImageEditor {
         this.runtime.operationGuard.beginLoading();
         this.emitBusyChangeIfChanged(callbackContext);
         this.updateUi();
-        this.hideAllMaskLabels();
         const loadImageContext = this.contextFactory.buildLoadImageContext();
         try {
+            try {
+                assertImageDataUrlInputBudget(base64, this.runtime.options);
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error
+                    ? `loadImage failed: ${error.message}`
+                    : 'loadImage failed';
+                reportError(this.runtime.options, error, errorMessage);
+                throw error;
+            }
+            this.hideAllMaskLabels();
             await loadImage(loadImageContext, base64, options);
         }
         finally {
@@ -16129,6 +16166,21 @@ class ImageEditor {
         reportWarning(this.runtime.options, new TypeError(`[ImageEditor] ${operation} expected positive finite canvas dimensions.`), `${operation} ignored invalid canvas dimensions.`);
         return null;
     }
+    validatePublicCanvasSizeBudget(width, height, operation) {
+        const { maxExportDimension, maxExportPixels } = this.runtime.options;
+        if (width > maxExportDimension || height > maxExportDimension) {
+            const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportDimension (${maxExportDimension}).`;
+            reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
+            return false;
+        }
+        const pixelCount = width * height;
+        if (pixelCount > maxExportPixels) {
+            const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportPixels (${maxExportPixels}).`;
+            reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
+            return false;
+        }
+        return true;
+    }
     applyPublicCanvasSize(widthPx, heightPx, operation, options = {}) {
         var _a;
         if (!options.skipGuard && !this.canRunPublicLayoutOperation(operation))
@@ -16136,6 +16188,8 @@ class ImageEditor {
         const width = this.normalizeCanvasDimension(widthPx, operation);
         const height = this.normalizeCanvasDimension(heightPx, operation);
         if (width === null || height === null)
+            return false;
+        if (!this.validatePublicCanvasSizeBudget(width, height, operation))
             return false;
         const scroll = options.preserveScroll
             ? captureContainerScroll(this.runtime.containerElement)

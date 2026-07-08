@@ -158,6 +158,35 @@ test('failed image decode leaves an empty editor marked as not loaded', async (t
     assert.equal(editor.isImageLoaded(), false);
 });
 
+test('input-budget loadImage failure preserves selected mask label state', async (t) => {
+    const errors = [];
+    const { editor } = createSourceEditor({
+        maxInputPixels: 16,
+        onError: (error, message) => errors.push({ error, message }),
+    });
+    t.after(() => disposeEditor(editor));
+
+    await editor.loadImage(makeImageDataUrl({ width: 4, height: 4 }));
+    const mask = editor.createMask({ width: 10, height: 10 });
+    const canvas = requireEditorCanvas(editor);
+    const label = mask?.labelObject;
+    assert.ok(mask, 'sanity: mask must be created');
+    assert.ok(label, 'sanity: selected mask must have a visible label before failed load');
+    assert.equal(canvas.getObjects().includes(label), true);
+
+    await assert.rejects(() => editor.loadImage(makeImageDataUrl({ width: 5, height: 5 })), {
+        name: 'ImageDecodeError',
+    });
+
+    assert.equal(editor.isImageLoaded(), true);
+    assert.equal(editor.getMasks().includes(mask), true);
+    assert.equal(mask.labelObject, label);
+    assert.equal(label.visible, true);
+    assert.equal(canvas.getObjects().includes(label), true);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0].message, /maxInputPixels/);
+});
+
 test('init reports missing Fabric instead of silently returning', () => {
     const previousFabric = globalThis.fabric;
     const originalConsoleError = console.error;

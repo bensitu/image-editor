@@ -42,7 +42,10 @@ import {
     DEFAULT_CROP,
     DEFAULT_MOSAIC_CONFIG,
     DEFAULT_TEXT_ANNOTATION_CONFIG,
+    DEFAULT_SHAPE_ANNOTATION_CONFIG,
     DEFAULT_DRAW_CONFIG,
+    mergeTextAnnotationConfigPatch,
+    mergeShapeAnnotationConfigPatch,
     areResolvedTextAnnotationConfigsEqual,
 } from '../src/core/default-options.ts';
 
@@ -933,6 +936,38 @@ test('defaultMaskConfig drops unsafe object keys while preserving safe config', 
     for (const key of ['__proto__', 'constructor', 'prototype']) {
         assert.equal(Object.hasOwn(resolved.defaultMaskConfig, key), false);
         assert.equal(Object.hasOwn(resolved.defaultMaskConfig.styles, key), false);
+    }
+    assert.equal({}.polluted, undefined);
+});
+
+test('annotation style config drops unsafe object keys while preserving safe styles', () => {
+    const unsafeStyles = JSON.parse(
+        `{
+            "__proto__": { "polluted": true },
+            "constructor": { "polluted": true },
+            "prototype": { "polluted": true },
+            "fill": "#123456",
+            "stroke": "#654321",
+            "strokeWidth": 3,
+            "opacity": 0.5
+        }`,
+    );
+
+    const textConfig = mergeTextAnnotationConfigPatch(DEFAULT_TEXT_ANNOTATION_CONFIG, {
+        styles: unsafeStyles,
+    });
+    const shapeConfig = mergeShapeAnnotationConfigPatch(DEFAULT_SHAPE_ANNOTATION_CONFIG, {
+        styles: unsafeStyles,
+    });
+
+    assert.equal(textConfig.styles.fill, '#123456');
+    assert.equal(shapeConfig.styles.fill, '#123456');
+    assert.equal(shapeConfig.styles.stroke, '#654321');
+    assert.equal(shapeConfig.styles.strokeWidth, 3);
+    assert.equal(shapeConfig.styles.opacity, 0.5);
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+        assert.equal(Object.hasOwn(textConfig.styles, key), false);
+        assert.equal(Object.hasOwn(shapeConfig.styles, key), false);
     }
     assert.equal({}.polluted, undefined);
 });

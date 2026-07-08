@@ -865,7 +865,13 @@ test('image load rejects before Fabric load when the remaining budget is too sma
                 /5ms remaining/.test(error.message),
         );
         assert.equal(fabricCalls, 0);
-        assert.equal(timers.length, 1, 'Fabric timeout timer must not be scheduled');
+        assert.equal(timers.length, 2, 'only decode and rollback restore timers must be scheduled');
+        assert.equal(timers[1].ms, 30000, 'rollback loadFromState uses its restore timeout');
+        assert.equal(
+            timers.some((timer) => timer.ms === 5),
+            false,
+            'Fabric timeout timer must not be scheduled',
+        );
         assert.equal(holder.state.originalImage, null);
         assert.equal(holder.state.isImageLoadedToCanvas, false);
         assert.equal(canvas.objects.length, 0);

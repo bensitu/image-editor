@@ -230,6 +230,7 @@ export declare class ImageEditor {
     private inferCurrentImageMimeType;
     private canRunPublicLayoutOperation;
     private normalizeCanvasDimension;
+    private validatePublicCanvasSizeBudget;
     private applyPublicCanvasSize;
     private resolveContainerResizeSize;
     private refreshAfterCanvasLayoutChange;

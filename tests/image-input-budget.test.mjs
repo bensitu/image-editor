@@ -51,6 +51,12 @@ function jpegHeader(width, height) {
     return bytes;
 }
 
+function jpegHeaderWithAppSegment(width, height) {
+    const appSegment = [0xff, 0xe0, 0x00, 0x04, 0x12, 0x34];
+    const sof = [...jpegHeader(width, height).slice(2)];
+    return Uint8Array.from([0xff, 0xd8, ...appSegment, ...sof]);
+}
+
 function webpVp8xHeader(width, height) {
     const bytes = new Uint8Array(30);
     bytes.set([...Buffer.from('RIFF')], 0);
@@ -84,6 +90,27 @@ test('readImageHeaderDimensions parses supported image headers', () => {
         width: 1024,
         height: 768,
     });
+});
+
+test('readImageHeaderDimensions skips JPEG non-SOF segments before dimensions', () => {
+    assert.deepEqual(readImageHeaderDimensions(jpegHeaderWithAppSegment(321, 241)), {
+        width: 321,
+        height: 241,
+    });
+});
+
+test('readImageHeaderDimensions rejects malformed JPEG SOF segment bounds', () => {
+    const truncatedSof = Uint8Array.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x08, 0x08, 0x00]);
+    const tooShortLength = Uint8Array.from([
+        0xff, 0xd8, 0xff, 0xc0, 0x00, 0x06, 0x08, 0x00, 0xf0, 0x00, 0xf0, 0xff, 0xd9,
+    ]);
+    const widthOutsideDeclaredSegment = Uint8Array.from([
+        0xff, 0xd8, 0xff, 0xc0, 0x00, 0x06, 0x08, 0x00, 0x10, 0x00, 0x20, 0xff, 0xd9,
+    ]);
+
+    assert.equal(readImageHeaderDimensions(truncatedSof), null);
+    assert.equal(readImageHeaderDimensions(tooShortLength), null);
+    assert.equal(readImageHeaderDimensions(widthOutsideDeclaredSegment), null);
 });
 
 test('estimateBase64PayloadBytes returns decoded payload size', () => {

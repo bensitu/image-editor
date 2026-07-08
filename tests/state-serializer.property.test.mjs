@@ -149,6 +149,27 @@ function makeTrustedRestoreInput(canvas, snapshot, overrides = {}) {
     });
 }
 
+async function withMockedTimers(callback) {
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const timers = [];
+    globalThis.setTimeout = (timerCallback, ms) => {
+        const timer = { callback: timerCallback, ms, cleared: false };
+        timers.push(timer);
+        return timer;
+    };
+    globalThis.clearTimeout = (timer) => {
+        if (timer) timer.cleared = true;
+    };
+
+    try {
+        return await callback(timers);
+    } finally {
+        globalThis.setTimeout = originalSetTimeout;
+        globalThis.clearTimeout = originalClearTimeout;
+    }
+}
+
 test('loadFromState wraps malformed JSON in StateRestoreError', async () => {
     const canvas = new MockCanvas();
 
@@ -167,6 +188,69 @@ test('loadFromState wraps malformed JSON in StateRestoreError', async () => {
             return true;
         },
     );
+});
+
+test('loadFromState succeeds when canvas.loadFromJSON resolves before timeout', async () => {
+    await withMockedTimers(async (timers) => {
+        const canvas = new MockCanvas();
+        let loadCalled = false;
+        canvas.loadFromJSON = async function loadFromJSON(json) {
+            loadCalled = true;
+            return MockCanvas.prototype.loadFromJSON.call(this, json);
+        };
+
+        const result = await loadFromState(
+            makePublicRestoreInput(canvas, {
+                version: '6.0.0',
+                width: 320,
+                height: 240,
+                objects: [],
+            }),
+        );
+
+        assert.equal(loadCalled, true);
+        assert.equal(result.objects.length, 0);
+        assert.equal(timers.length, 1);
+        assert.equal(timers[0].ms, 30000);
+        assert.equal(timers[0].cleared, true);
+    });
+});
+
+test('loadFromState rejects with StateRestoreError when canvas.loadFromJSON times out', async () => {
+    for (const [label, makeInput] of [
+        ['public', makePublicRestoreInput],
+        ['trusted', makeTrustedRestoreInput],
+    ]) {
+        await withMockedTimers(async (timers) => {
+            const canvas = new MockCanvas();
+            canvas.loadFromJSON = () => new Promise(() => undefined);
+
+            const restorePromise = loadFromState(
+                makeInput(canvas, {
+                    version: '6.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [],
+                }),
+            );
+
+            assert.equal(timers.length, 1, `${label} restore must schedule one timeout`);
+            assert.equal(timers[0].ms, 30000);
+            timers[0].callback();
+
+            await assert.rejects(
+                () => restorePromise,
+                (error) => {
+                    assert.equal(error instanceof StateRestoreError, true);
+                    assert.equal(error.name, 'StateRestoreError');
+                    assert.match(error.message, /loadFromState: canvas\.loadFromJSON timed out/);
+                    assert.equal(error.originalError?.name, 'ImageLoadTimeoutError');
+                    assert.match(error.originalError?.message ?? '', /canvas\.loadFromJSON/);
+                    return true;
+                },
+            );
+        });
+    }
 });
 
 test('loadFromState rejects oversized canvas dimensions before resizing', async () => {

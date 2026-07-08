@@ -19,6 +19,7 @@ import { applyMosaicConfigPatchAction, enterMosaicModeAction, exitMosaicModeActi
 import { downloadImageAction, exportImageBase64Action, exportImageFileAction, mergeAnnotationsAction, mergeMasksAction, } from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
+import { assertImageDataUrlInputBudget } from './image/image-input-budget.js';
 import { applyImageFilterConfigToImage } from './image/image-filters.js';
 import { captureImageDisplayGeometry as captureImageDisplayGeometryImpl, measureLayoutViewport as measureLayoutViewportImpl, restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl, settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl, shouldNormalizeCanvasSizeAfterStateRestore as shouldNormalizeCanvasSizeAfterStateRestoreImpl, updateCanvasSizeToImageBounds as updateCanvasSizeToImageBoundsImpl, } from './image/display-geometry.js';
 import { applyCanvasDimensions } from './image/layout-manager.js';
@@ -577,9 +578,19 @@ export class ImageEditor {
         this.runtime.operationGuard.beginLoading();
         this.emitBusyChangeIfChanged(callbackContext);
         this.updateUi();
-        this.hideAllMaskLabels();
         const loadImageContext = this.contextFactory.buildLoadImageContext();
         try {
+            try {
+                assertImageDataUrlInputBudget(base64, this.runtime.options);
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error
+                    ? `loadImage failed: ${error.message}`
+                    : 'loadImage failed';
+                reportError(this.runtime.options, error, errorMessage);
+                throw error;
+            }
+            this.hideAllMaskLabels();
             await loadImageImpl(loadImageContext, base64, options);
         }
         finally {
@@ -1132,6 +1143,21 @@ export class ImageEditor {
         reportWarning(this.runtime.options, new TypeError(`[ImageEditor] ${operation} expected positive finite canvas dimensions.`), `${operation} ignored invalid canvas dimensions.`);
         return null;
     }
+    validatePublicCanvasSizeBudget(width, height, operation) {
+        const { maxExportDimension, maxExportPixels } = this.runtime.options;
+        if (width > maxExportDimension || height > maxExportDimension) {
+            const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportDimension (${maxExportDimension}).`;
+            reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
+            return false;
+        }
+        const pixelCount = width * height;
+        if (pixelCount > maxExportPixels) {
+            const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportPixels (${maxExportPixels}).`;
+            reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
+            return false;
+        }
+        return true;
+    }
     applyPublicCanvasSize(widthPx, heightPx, operation, options = {}) {
         var _a;
         if (!options.skipGuard && !this.canRunPublicLayoutOperation(operation))
@@ -1139,6 +1165,8 @@ export class ImageEditor {
         const width = this.normalizeCanvasDimension(widthPx, operation);
         const height = this.normalizeCanvasDimension(heightPx, operation);
         if (width === null || height === null)
+            return false;
+        if (!this.validatePublicCanvasSizeBudget(width, height, operation))
             return false;
         const scroll = options.preserveScroll
             ? captureContainerScroll(this.runtime.containerElement)

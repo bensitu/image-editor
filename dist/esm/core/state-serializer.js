@@ -1,13 +1,15 @@
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-types.js';
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
-import { StateRestoreError } from './errors.js';
+import { ImageLoadTimeoutError, StateRestoreError } from './errors.js';
 import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, hasActiveImageFilters, normalizeImageFilterConfigSnapshot, } from './image-filter-config.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
+import { withTimeout } from '../utils/timeout.js';
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
 const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
 const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
 const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
+const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
 const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
 const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
@@ -324,7 +326,16 @@ export async function loadFromState(input) {
             : null);
         setCanvasSize(json.width, json.height);
     }
-    await canvas.loadFromJSON(json);
+    const loadFromJsonPromise = canvas.loadFromJSON(json);
+    try {
+        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON');
+    }
+    catch (error) {
+        if (error instanceof ImageLoadTimeoutError) {
+            throw new StateRestoreError('loadFromState: canvas.loadFromJSON timed out while restoring editor state.', error);
+        }
+        throw error;
+    }
     const objects = canvas.getObjects();
     restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
     const editorState = json._editorState && typeof json._editorState === 'object'

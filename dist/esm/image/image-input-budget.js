@@ -1,6 +1,7 @@
 import { ImageDecodeError } from '../core/errors.js';
 const HEADER_PROBE_BYTES = 256 * 1024;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH = 7;
 function hasPositiveDimensions(width, height) {
     return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
 }
@@ -79,6 +80,10 @@ function readJpegDimensions(bytes) {
         if (segmentEnd > bytes.length)
             return null;
         if (isJpegStartOfFrame(marker)) {
+            if (segmentLength < JPEG_SOF_DIMENSIONS_MIN_SEGMENT_LENGTH ||
+                segmentStart + 5 > segmentEnd) {
+                return null;
+            }
             const height = readUint16BE(bytes, segmentStart + 1);
             const width = readUint16BE(bytes, segmentStart + 3);
             return width !== null && height !== null && hasPositiveDimensions(width, height)

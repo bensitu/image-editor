@@ -422,6 +422,40 @@ test('falsy styles in config.styles are preserved verbatim', () => {
     );
 });
 
+test('mask config and styles drop unsafe object keys while preserving safe styles', () => {
+    const ctx = makeContext();
+    const config = JSON.parse(
+        `{
+            "__proto__": { "polluted": true },
+            "constructor": { "polluted": true },
+            "prototype": { "polluted": true },
+            "shape": "rect",
+            "styles": {
+                "__proto__": { "polluted": true },
+                "constructor": { "polluted": true },
+                "prototype": { "polluted": true },
+                "fill": "#123456",
+                "stroke": "#654321",
+                "strokeWidth": 3,
+                "opacity": 0.5
+            }
+        }`,
+    );
+
+    const mask = createMask(ctx, config);
+
+    assert.ok(mask, 'mask must be created');
+    assert.equal(mask.fill, '#123456');
+    assert.equal(mask.stroke, '#654321');
+    assert.equal(mask.strokeWidth, 3);
+    assert.equal(mask.opacity, 0.5);
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+        assert.equal(Object.hasOwn(mask, key), false);
+        assert.equal(Object.hasOwn(mask.styles ?? {}, key), false);
+    }
+    assert.equal({}.polluted, undefined);
+});
+
 test('explicit false on hasControls/selectable is preserved', () => {
     fc.assert(
         fc.property(shapeArb, fc.boolean(), fc.boolean(), (shape, hasControls, selectable) => {

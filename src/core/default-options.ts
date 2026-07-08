@@ -38,6 +38,7 @@ import type {
     TextAnnotationConfig,
 } from './public-types.js';
 import { tryNormalizeImageFormat } from '../export/export-format.js';
+import { canCopySafeObjectKey, copySafeOwnProperties } from './safe-object-copy.js';
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -339,8 +340,6 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'defaultShapeConfig',
 ]);
 
-const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
 /**
  * Coerces a callback option to a function or `null`.
  * Non-function values — `undefined`, `null`, primitives, plain objects — all
@@ -364,7 +363,7 @@ function isConfigObject(value: unknown): value is Record<string, unknown> {
 }
 
 function canCopyObjectConfigKey(key: string): boolean {
-    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+    return canCopySafeObjectKey(key);
 }
 
 function copyDefaultMaskConfigValue(value: unknown): unknown {
@@ -839,13 +838,11 @@ function normalizeTextLeftTop(value: unknown): number | undefined {
 }
 
 function normalizeTextboxStyles(value: unknown): Partial<import('fabric').TextboxProps> {
-    if (!isConfigObject(value)) return {};
-    return { ...value } as Partial<import('fabric').TextboxProps>;
+    return copySafeOwnProperties<import('fabric').TextboxProps>(value);
 }
 
 function normalizeFabricObjectStyles(value: unknown): Partial<import('fabric').FabricObjectProps> {
-    if (!isConfigObject(value)) return {};
-    return { ...value } as Partial<import('fabric').FabricObjectProps>;
+    return copySafeOwnProperties<import('fabric').FabricObjectProps>(value);
 }
 
 export function mergeTextAnnotationConfigPatch(

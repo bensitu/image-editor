@@ -164,6 +164,7 @@ import {
 } from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
+import { assertImageDataUrlInputBudget } from './image/image-input-budget.js';
 import { applyImageFilterConfigToImage } from './image/image-filters.js';
 import {
     captureImageDisplayGeometry as captureImageDisplayGeometryImpl,
@@ -1021,19 +1022,29 @@ export class ImageEditor {
         this.emitBusyChangeIfChanged(callbackContext);
         this.updateUi();
 
-        // Drop any stale label objects BEFORE the loader clears the
-        // canvas. The loader does call `canvas.clear` itself, but the
-        // facade also tracks `mask.labelObject` references on the mask
-        // objects and will leak those references onto stale objects
-        // unless we hide them up-front.
-        this.hideAllMaskLabels();
-
         // Build the dependency bundle the loader consumes. Each closure
         // reads/writes the canonical facade state so the loader has no
         // class state of its own.
         const loadImageContext = this.contextFactory.buildLoadImageContext();
 
         try {
+            try {
+                assertImageDataUrlInputBudget(base64, this.runtime.options);
+            } catch (error) {
+                const errorMessage =
+                    error instanceof Error
+                        ? `loadImage failed: ${error.message}`
+                        : 'loadImage failed';
+                reportError(this.runtime.options, error, errorMessage);
+                throw error;
+            }
+
+            // Drop stale label objects only after cheap input-budget
+            // validation succeeds. The loader also calls `canvas.clear`,
+            // but the facade tracks `mask.labelObject` references and must
+            // detach them before a committed replacement.
+            this.hideAllMaskLabels();
+
             await loadImageImpl(loadImageContext, base64, options);
         } finally {
             this.runtime.operationGuard.endLoading();
@@ -1834,6 +1845,36 @@ export class ImageEditor {
         return null;
     }
 
+    private validatePublicCanvasSizeBudget(
+        width: number,
+        height: number,
+        operation: ImageEditorOperation,
+    ): boolean {
+        const { maxExportDimension, maxExportPixels } = this.runtime.options;
+        if (width > maxExportDimension || height > maxExportDimension) {
+            const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportDimension (${maxExportDimension}).`;
+            reportWarning(
+                this.runtime.options,
+                new RangeError(`[ImageEditor] ${message}`),
+                message,
+            );
+            return false;
+        }
+
+        const pixelCount = width * height;
+        if (pixelCount > maxExportPixels) {
+            const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportPixels (${maxExportPixels}).`;
+            reportWarning(
+                this.runtime.options,
+                new RangeError(`[ImageEditor] ${message}`),
+                message,
+            );
+            return false;
+        }
+
+        return true;
+    }
+
     private applyPublicCanvasSize(
         widthPx: number,
         heightPx: number,
@@ -1844,6 +1885,7 @@ export class ImageEditor {
         const width = this.normalizeCanvasDimension(widthPx, operation);
         const height = this.normalizeCanvasDimension(heightPx, operation);
         if (width === null || height === null) return false;
+        if (!this.validatePublicCanvasSizeBudget(width, height, operation)) return false;
 
         const scroll = options.preserveScroll
             ? captureContainerScroll(this.runtime.containerElement)

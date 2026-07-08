@@ -95,6 +95,7 @@ import { isMaskObject } from '../core/public-types.js';
 import { markMaskObject } from '../core/editor-object-kind.js';
 import { placeMaskObject } from '../core/layer-order.js';
 import { reportWarning } from '../core/callback-reporter.js';
+import { copySafeOwnProperties } from '../core/safe-object-copy.js';
 import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 
@@ -153,17 +154,20 @@ function isStyleObject(value: unknown): value is Partial<FabricNS.FabricObjectPr
 }
 
 function mergeMaskConfig(defaultMaskConfig: DefaultMaskConfig, config: MaskConfig): MaskConfig {
-    const safeDefaultConfig = { ...(defaultMaskConfig as Record<string, unknown>) };
+    const safeDefaultConfig = copySafeOwnProperties<Record<string, unknown>>(defaultMaskConfig);
     const defaultStyles = safeDefaultConfig.styles;
     delete safeDefaultConfig.onCreate;
     delete safeDefaultConfig.fabricGenerator;
     delete safeDefaultConfig.styles;
-    const configStyles = isStyleObject(config.styles) ? config.styles : {};
-    const safeDefaultStyles = isStyleObject(defaultStyles) ? defaultStyles : {};
+    const safeConfig = copySafeOwnProperties<Record<string, unknown>>(config);
+    const configStyles = copySafeOwnProperties<FabricNS.FabricObjectProps>(config.styles);
+    const safeDefaultStyles = copySafeOwnProperties<FabricNS.FabricObjectProps>(
+        isStyleObject(defaultStyles) ? defaultStyles : {},
+    );
 
     return {
         ...safeDefaultConfig,
-        ...config,
+        ...safeConfig,
         styles: {
             ...safeDefaultStyles,
             ...configStyles,

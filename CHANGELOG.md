@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.3] - 2026-07-10
+
+### Security
+
+- Copy user-provided Text, Shape, and Mask style/config objects through a safe own-property helper that drops `__proto__`, `constructor`, and `prototype` keys while preserving supported Fabric style values.
+
+### Fixed
+
+- Bound both public and trusted `loadFromState()` Fabric restores with a 30 second `canvas.loadFromJSON()` timeout and surface timeout failures as `StateRestoreError`.
+- Reject public `setCanvasSize()` and `resizeToContainer()` fallback dimensions that exceed `maxExportDimension` or `maxExportPixels`, leaving the previous canvas size unchanged and emitting `onWarning`.
+- Preserve selected mask label state when `loadImage()` fails during input-budget validation before the transactional loader starts.
+- Reject malformed JPEG SOF headers that do not declare enough segment data for precision, height, and width before reading dimensions.
+
 ## [2.8.2] - 2026-07-09
 
 ### Added

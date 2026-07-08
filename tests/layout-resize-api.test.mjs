@@ -39,7 +39,7 @@ function setClientSize(element, width, height) {
     });
 }
 
-function createResizeEditor(domOptions = {}) {
+function createResizeEditor(domOptions = {}, editorOptions = {}) {
     installFabricDom();
     const ids = resetEditorDom(domOptions);
     const warnings = [];
@@ -51,6 +51,7 @@ function createResizeEditor(domOptions = {}) {
         showPlaceholder: false,
         onWarning: (error, message) => warnings.push({ error, message }),
         onImageChanged: (state, context) => changes.push({ state, context }),
+        ...editorOptions,
     });
     editor.init(ids);
     return {
@@ -91,6 +92,41 @@ test('setCanvasSize warns and no-ops for invalid dimensions', (t) => {
     assert.equal(changes.length, 0);
 });
 
+test('setCanvasSize warns and no-ops for dimensions over maxExportDimension', (t) => {
+    const { editor, warnings, changes } = createResizeEditor({}, { maxExportDimension: 400 });
+    t.after(() => disposeEditor(editor));
+    const canvas = requireEditorCanvas(editor);
+    const before = { width: canvas.getWidth(), height: canvas.getHeight() };
+
+    editor.setCanvasSize(401, 200);
+    editor.setCanvasSize(200, 401);
+
+    assert.equal(canvas.getWidth(), before.width);
+    assert.equal(canvas.getHeight(), before.height);
+    assert.equal(warnings.length, 2);
+    assert.match(warnings[0].message, /exceeds maxExportDimension \(400\)/);
+    assert.match(warnings[1].message, /exceeds maxExportDimension \(400\)/);
+    assert.equal(changes.length, 0);
+});
+
+test('setCanvasSize warns and no-ops for dimensions over maxExportPixels', (t) => {
+    const { editor, warnings, changes } = createResizeEditor(
+        {},
+        { maxExportDimension: 1000, maxExportPixels: 20000 },
+    );
+    t.after(() => disposeEditor(editor));
+    const canvas = requireEditorCanvas(editor);
+    const before = { width: canvas.getWidth(), height: canvas.getHeight() };
+
+    editor.setCanvasSize(200, 101);
+
+    assert.equal(canvas.getWidth(), before.width);
+    assert.equal(canvas.getHeight(), before.height);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /exceeds maxExportPixels \(20000\)/);
+    assert.equal(changes.length, 0);
+});
+
 test('resizeToContainer uses positive container dimensions', (t) => {
     const { editor, container, changes } = createResizeEditor({
         containerWidth: 640,
@@ -118,6 +154,27 @@ test('resizeToContainer uses fallback dimensions when the container is hidden', 
     const canvas = requireEditorCanvas(editor);
     assert.equal(canvas.getWidth(), 450);
     assert.equal(canvas.getHeight(), 350);
+});
+
+test('resizeToContainer fallback dimensions respect public canvas size budget', (t) => {
+    const { editor, warnings, changes } = createResizeEditor(
+        { containerWidth: 0, containerHeight: 0 },
+        { maxExportDimension: 400 },
+    );
+    t.after(() => disposeEditor(editor));
+    const canvas = requireEditorCanvas(editor);
+    const before = { width: canvas.getWidth(), height: canvas.getHeight() };
+
+    editor.resizeToContainer({ fallbackWidth: 401, fallbackHeight: 350 });
+
+    assert.equal(canvas.getWidth(), before.width);
+    assert.equal(canvas.getHeight(), before.height);
+    assert.equal(warnings.length, 1);
+    assert.match(
+        warnings[0].message,
+        /resizeToContainer ignored because canvas size 401x350 exceeds maxExportDimension \(400\)/,
+    );
+    assert.equal(changes.length, 0);
 });
 
 test('relayout does not throw when no image is loaded', (t) => {
