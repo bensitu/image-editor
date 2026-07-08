@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.8.3] - 2026-07-10
+## [2.8.3] - 2026-07-09
 
 ### Changed
 
 - Clarify overlay-state schema version 1 wording in comments and documentation so it is not confused with the npm package version or a feature roadmap.
+- Refine README, demo copy, package metadata, and public comments for clearer consumer-facing documentation.
 
 ### Security
 

@@ -1,9 +1,9 @@
 /**
  * @author Ben Situ
  * @license MIT
- * Lightweight canvas-based image editor built on Fabric.js v7.
- * Provides masks, annotations, animated transforms, crop, mosaic, undo/redo,
- * serialization, and export.
+ * TypeScript-first image editor built on Fabric.js v7.
+ * Provides image loading, transforms, masks, annotations, crop, mosaic,
+ * undo/redo, state serialization, and export.
  *
  * @module
  */
@@ -333,8 +333,8 @@ function isPositiveFiniteDimension(value: number): boolean {
 // ─── ImageEditor ─────────────────────────────────────────────────────────────
 
 /**
- * Lightweight Fabric.js v7 image editor with masking/annotation, animated transforms,
- * crop, undo/redo, mosaic and multi-format export.
+ * TypeScript-first Fabric.js v7 image editor with image loading, transforms,
+ * masks, annotations, crop, mosaic, undo/redo, and multi-format export.
  *
  * ## Quick start (ESM)
  * ```ts
@@ -371,8 +371,8 @@ export class ImageEditor {
      * Creates a new image editor instance.
      *
      * Accepts ESM (`new ImageEditor(fabric, options?)`) and UMD/CDN
-     * (`new ImageEditor(options?)`) forms. Fabric detection and option
-     * normalization are delegated to the adapter/resolver modules.
+     * (`new ImageEditor(options?)`) forms. Pass Fabric explicitly in bundled
+     * applications; the UMD form reads `globalThis.fabric`.
      */
     constructor(
         fabricModuleOrOptions: FabricModule | ImageEditorOptions = {},
@@ -2823,29 +2823,11 @@ export class ImageEditor {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Cleans up all DOM event listeners and disposes the Fabric.js Canvas.
-     * Call this when the editor is no longer needed to prevent memory leaks.
+     * Tear down DOM bindings, active tool sessions, and the Fabric canvas.
      *
-     * Teardown sequence:
-     *
-     * 1. Short-circuit on a second call so `dispose` is idempotent. This
-     *    also guards against re-running
-     *    the teardown path after the canvas reference has already been
-     *    nulled.
-     * 2. Set `isDisposed = true` so in-flight animation `onChange`/
-     *    `onComplete` callbacks bail before touching the canvas
-     * and so disposed-aware DOM handlers
-     *    exit early.
-     * 3. Drain the {@link AnimationQueue} so callers awaiting an enqueued
-     *    slot do not hang after teardown.
-     *    The currently-executing entry, if any, is not interrupted but
-     *    settles promptly because its disposed-aware callbacks see the
-     *    flag and exit.
-     * 4. Detach every DOM listener via the bindings registry's
-     *    `removeAll`, wrapped in try/catch
-     *    inside the registry so already-detached listeners do not throw.
-     * 5. Drop the crop rectangle if a crop session was open and dispose
-     *    the underlying Fabric canvas, matching teardown order.
+     * This method is idempotent and starts Fabric canvas disposal
+     * synchronously. Use {@link disposeAsync} when a framework wrapper must wait
+     * for Fabric cleanup before reusing the same canvas element.
      */
     dispose(): void {
         void this.disposeInternal(false);

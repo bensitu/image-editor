@@ -1,6 +1,6 @@
 # React basic example
 
-Minimal Vite + React integration for `@bensitu/image-editor`.
+Vite + React integration example for `@bensitu/image-editor`.
 
 ## Run
 

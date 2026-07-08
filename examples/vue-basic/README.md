@@ -1,6 +1,6 @@
 # Vue basic example
 
-Minimal Vite + Vue integration for `@bensitu/image-editor`.
+Vite + Vue integration example for `@bensitu/image-editor`.
 
 ## Run
 

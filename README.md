@@ -4,12 +4,16 @@
 [![npm](https://img.shields.io/npm/v/@bensitu/image-editor.svg)](https://www.npmjs.com/package/@bensitu/image-editor)
 [![](https://data.jsdelivr.com/v1/package/npm/@bensitu/image-editor/badge)](https://www.jsdelivr.com/package/npm/@bensitu/image-editor)
 
-A lightweight, TypeScript-first canvas image editor built on top of
-[Fabric.js](https://fabricjs.com/) v7. `ImageEditor` wraps a Fabric canvas
-with image loading, scale and rotation, mask creation, image adjustments, Text,
-Shape, and Draw annotations, crop, Mosaic mode, base-image flips, history
-(undo/redo), layer operations, and base64/file export — exposed as a single
-canonical class with a stable public surface.
+A TypeScript-first image editor built on [Fabric.js](https://fabricjs.com/) v7.
+It provides a focused canvas editing API for loading images, transforming the
+base image, creating masks and annotations, applying crop and mosaic operations,
+maintaining undo/redo history, and exporting edited output as Base64, `File`, or
+downloadable image assets.
+
+The package is framework-agnostic and works from plain browser pages, bundled
+ESM applications, CommonJS consumers, and UMD/CDN environments. React, Vue,
+Next.js, and Nuxt integrations should create and dispose the editor inside
+client-side lifecycle hooks.
 
 ## Demo
 
@@ -17,18 +21,13 @@ canonical class with a stable public surface.
 
 ## Features
 
-- TypeScript source with `.d.ts` declarations published alongside the runtime
-- Single canonical class `ImageEditor` exported as both default and named
-- Fabric.js v7 declared as a peer dependency (no bundled Fabric copy)
-- Multi-format publish: ESM (`import`), CommonJS (`require`), UMD (`<script>`),
-  TypeScript declarations (`types`)
-- Transactional `loadImage` with rollback on decode, Fabric, downsample, or
-  timeout failures
-- Animation queue serializes `scaleImage`, `rotateImage`,
-  `resetImageTransform`, `undo`, and `redo` so concurrent clicks never
-  interleave
-- Bounded history stack with idempotent dispose
-- Crop session with mask preservation toggle and atomic apply/cancel
+- Framework-agnostic `ImageEditor` class exported as both default and named
+- Fabric.js v7 peer dependency, with ESM, CommonJS, UMD, and TypeScript
+  declaration output
+- Image loading with rollback on decode, Fabric, downsample, or timeout failures
+- Serialized transform and history operations for predictable UI interaction
+- Bounded undo/redo history and idempotent disposal
+- Crop workflow with mask preservation controls and atomic apply/cancel
 - Fabric-backed image filters for brightness, contrast, saturation, blur,
   sharpen, grayscale, sepia, and vintage tone
 - Mosaic mode with circular brush preview, runtime brush/block controls, and
@@ -100,11 +99,10 @@ Runnable examples:
 - [Vue basic example](examples/vue-basic)
 - [Next.js client-only example](examples/next-client-only)
 
-## Dual entry-point convention
+## Constructor forms
 
 `ImageEditor`'s constructor accepts the Fabric module either explicitly (ESM
-consumers) or via `globalThis.fabric` (UMD consumers). The same source ships
-in all four formats:
+consumers) or via `globalThis.fabric` (UMD consumers):
 
 - **Explicit module form** (recommended for bundled apps): pass the Fabric
   module as the first argument.
@@ -145,116 +143,21 @@ resolve to `undefined`.
 ### HTML
 
 ```html
-<canvas id="canvas"></canvas>
+<div id="editorContainer" style="width: 100%; height: 600px">
+    <canvas id="canvas"></canvas>
+</div>
 
 <button id="zoomInButton">Zoom In</button>
-<button id="zoomOutButton">Zoom Out</button>
-<button id="rotateLeftButton">Rotate Left</button>
-<input id="rotateLeftDegreesInput" type="number" value="90" />
 <button id="rotateRightButton">Rotate Right</button>
-<input id="rotateRightDegreesInput" type="number" value="90" />
-<button id="flipHorizontalButton">Flip Horizontal</button>
-<button id="flipVerticalButton">Flip Vertical</button>
-
-<label>
-    Brightness
-    <input id="imageBrightnessInput" type="range" min="-1" max="1" step="0.01" value="0" />
-</label>
-<label>
-    Contrast
-    <input id="imageContrastInput" type="range" min="-1" max="1" step="0.01" value="0" />
-</label>
-<label>
-    Saturation
-    <input id="imageSaturationInput" type="range" min="-1" max="1" step="0.01" value="0" />
-</label>
-<label>
-    Blur
-    <input id="imageBlurInput" type="range" min="0" max="1" step="0.01" value="0" />
-</label>
-<label>
-    Sharpen
-    <input id="imageSharpenInput" type="range" min="0" max="1" step="0.01" value="0" />
-</label>
-<label><input id="imageGrayscaleInput" type="checkbox" /> Grayscale</label>
-<label><input id="imageSepiaInput" type="checkbox" /> Sepia</label>
-<label><input id="imageVintageInput" type="checkbox" /> Vintage</label>
-<button id="applyImageFiltersButton">Apply Filters</button>
-<button id="resetImageFiltersButton">Reset Preview</button>
-<button id="clearImageFiltersButton">Clear Filters</button>
-
-<button id="createMaskButton">Add Mask</button>
-<button id="removeSelectedMaskButton">Remove Mask</button>
-<button id="removeAllMasksButton">Remove All Masks</button>
-<ul id="maskList"></ul>
-
-<button id="enterTextModeButton">Text</button>
-<button id="exitTextModeButton">Exit Text</button>
-<input id="textColorInput" type="color" value="#ff0000" />
-<input id="textFontSizeInput" type="number" min="8" max="160" value="32" />
-
-<select id="shapeKindSelect">
-    <option value="rect">Rectangle</option>
-    <option value="line">Line</option>
-    <option value="arrow">Arrow</option>
-</select>
-<input id="shapeStrokeInput" type="color" value="#ff0000" />
-<input id="shapeStrokeWidthInput" type="range" min="1" max="24" value="3" />
-<button id="createShapeAnnotationButton">Add Shape</button>
-<button id="enterShapeModeButton">Shape Mode</button>
-<button id="exitShapeModeButton">Exit Shape</button>
-
-<button id="enterDrawModeButton">Draw</button>
-<button id="exitDrawModeButton">Exit Draw</button>
-<input id="drawColorInput" type="color" value="#ff0000" />
-<input id="drawBrushSizeInput" type="range" min="1" max="80" value="8" />
-<button id="drawBrushSubModeButton">Brush</button>
-<button id="drawEraseSubModeButton">Erase Strokes</button>
-<input id="eraserBrushSizeInput" type="range" min="4" max="96" value="18" />
-
-<button id="removeSelectedAnnotationButton">Remove Annotation</button>
-<button id="removeAllAnnotationsButton">Remove All Annotations</button>
-<button id="deleteSelectedObjectButton">Delete Selected</button>
-<button id="bringSelectedObjectForwardButton">Forward</button>
-<button id="sendSelectedObjectBackwardButton">Backward</button>
-<button id="bringSelectedObjectToFrontButton">Front</button>
-<button id="sendSelectedObjectToBackButton">Back</button>
-<ul id="annotationList"></ul>
-
 <button id="enterCropModeButton">Crop</button>
-<select id="cropAspectRatioSelect">
-    <option value="free">Free</option>
-    <option value="1:1">1:1</option>
-    <option value="3:4">3:4</option>
-    <option value="4:3">4:3</option>
-    <option value="3:2">3:2</option>
-    <option value="2:3">2:3</option>
-    <option value="9:16">9:16</option>
-    <option value="16:9">16:9</option>
-</select>
-<button id="applyCropButton">Apply Crop</button>
-<button id="cancelCropButton">Cancel Crop</button>
-
-<button id="enterMosaicModeButton">Mosaic</button>
-<button id="exitMosaicModeButton">Exit Mosaic</button>
-<label>
-    Brush size
-    <input id="mosaicBrushSizeInput" type="range" min="8" max="160" step="1" value="48" />
-</label>
-<label>
-    Block size
-    <input id="mosaicBlockSizeInput" type="range" min="2" max="40" step="1" value="8" />
-</label>
-
-<button id="mergeMasksButton">Merge Masks</button>
-<button id="mergeAnnotationsButton">Merge Annotations</button>
 <button id="downloadImageButton">Download</button>
 <button id="undoButton">Undo</button>
 <button id="redoButton">Redo</button>
-<button id="resetImageTransformButton">Reset</button>
-
 <input id="imageInput" type="file" accept="image/*" />
 ```
+
+The full demo pages show larger DOM maps with filters, masks, annotations,
+crop controls, mosaic controls, lists, and layer actions.
 
 ### TypeScript / ESM
 
@@ -292,48 +195,13 @@ const editor = new ImageEditor(fabric, {
 
 editor.init({
     canvas: 'canvas',
+    canvasContainer: 'editorContainer',
     zoomInButton: 'zoomInButton',
-    zoomOutButton: 'zoomOutButton',
-    rotateLeftButton: 'rotateLeftButton',
-    rotateLeftDegreesInput: 'rotateLeftDegreesInput',
     rotateRightButton: 'rotateRightButton',
-    rotateRightDegreesInput: 'rotateRightDegreesInput',
-    flipHorizontalButton: 'flipHorizontalButton',
-    flipVerticalButton: 'flipVerticalButton',
-    createMaskButton: 'createMaskButton',
-    removeSelectedMaskButton: 'removeSelectedMaskButton',
-    removeAllMasksButton: 'removeAllMasksButton',
-    maskList: 'maskList',
     enterCropModeButton: 'enterCropModeButton',
-    cropAspectRatioSelect: 'cropAspectRatioSelect',
-    applyCropButton: 'applyCropButton',
-    cancelCropButton: 'cancelCropButton',
-    enterMosaicModeButton: 'enterMosaicModeButton',
-    exitMosaicModeButton: 'exitMosaicModeButton',
-    mosaicBrushSizeInput: 'mosaicBrushSizeInput',
-    mosaicBlockSizeInput: 'mosaicBlockSizeInput',
-    enterTextModeButton: 'enterTextModeButton',
-    exitTextModeButton: 'exitTextModeButton',
-    textColorInput: 'textColorInput',
-    textFontSizeInput: 'textFontSizeInput',
-    enterDrawModeButton: 'enterDrawModeButton',
-    exitDrawModeButton: 'exitDrawModeButton',
-    drawColorInput: 'drawColorInput',
-    drawBrushSizeInput: 'drawBrushSizeInput',
-    removeSelectedAnnotationButton: 'removeSelectedAnnotationButton',
-    removeAllAnnotationsButton: 'removeAllAnnotationsButton',
-    deleteSelectedObjectButton: 'deleteSelectedObjectButton',
-    mergeAnnotationsButton: 'mergeAnnotationsButton',
-    bringSelectedObjectForwardButton: 'bringSelectedObjectForwardButton',
-    sendSelectedObjectBackwardButton: 'sendSelectedObjectBackwardButton',
-    bringSelectedObjectToFrontButton: 'bringSelectedObjectToFrontButton',
-    sendSelectedObjectToBackButton: 'sendSelectedObjectToBackButton',
-    annotationList: 'annotationList',
-    mergeMasksButton: 'mergeMasksButton',
     downloadImageButton: 'downloadImageButton',
     undoButton: 'undoButton',
     redoButton: 'redoButton',
-    resetImageTransformButton: 'resetImageTransformButton',
     imageInput: 'imageInput',
 });
 
@@ -372,11 +240,16 @@ constructor directly.
 
 ## Public API
 
-`ImageEditor` is the only public class. The package barrel re-exports it as
-both the default export and a named export, alongside the editor object guards
-and the documented public types. Internal helpers (animation queue, command, history
-manager, controllers, services, managers, utility modules) are intentionally
-not exported and may change without notice.
+`ImageEditor` is the only public class. The package root re-exports it as both
+the default export and a named export, alongside editor object guards and the
+documented public types. Internal controllers, action modules, runtime state,
+history management, Fabric adapters, and UI binding utilities are implementation
+details and are not part of the public package surface.
+
+The editor owns all Fabric objects it creates. Base images, masks, annotations,
+and transient session objects are tagged with editor metadata so the runtime can
+separate persistent editing state from temporary UI state such as crop
+rectangles, mask labels, previews, selections, and transform handles.
 
 ### Object model
 

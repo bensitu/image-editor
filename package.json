@@ -1,7 +1,7 @@
 {
     "name": "@bensitu/image-editor",
     "version": "2.8.3",
-    "description": "Lightweight canvas-based image editor built on Fabric.js v7",
+    "description": "TypeScript-first Fabric.js v7 image editor with masks, annotations, crop, mosaic, history, and export APIs",
     "license": "MIT",
     "author": "Ben Situ",
     "repository": {

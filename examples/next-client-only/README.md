@@ -1,6 +1,6 @@
 # Next.js client-only example
 
-Minimal App Router integration for `@bensitu/image-editor`.
+Next.js App Router integration example for `@bensitu/image-editor`.
 
 ## Run
 
