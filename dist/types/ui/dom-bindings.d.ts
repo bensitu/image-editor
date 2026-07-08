@@ -72,7 +72,8 @@ export declare class DomBindings {
     removeAll(): void;
     /**
      * Number of currently-registered listeners. Exposed for diagnostics and
-     * for unit tests under `tests/units/dom-bindings.test.mjs`.
+     * for property tests under
+     * `tests/dom-bindings.property.test.mjs`.
      */
     size(): number;
 }

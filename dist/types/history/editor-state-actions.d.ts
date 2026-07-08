@@ -9,6 +9,10 @@ import { type CanvasJson } from '../core/state-serializer.js';
 import { type AnnotationObject, type BaseImageObject, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type MaskObject, type ResolvedImageFilterConfig, type ResolvedOptions } from '../core/public-types.js';
 import { type TextControllerContext } from '../annotation/text-controller.js';
 import { type HistoryManager } from './history-manager.js';
+export declare const TRUSTED_STATE_RESTORE: unique symbol;
+export type TrustedStateRestoreOptions = {
+    [TRUSTED_STATE_RESTORE]?: true;
+};
 export interface EditorStateActionAccess {
     getCanvas(): FabricNS.Canvas | null;
     getLiveCanvas(operationName: string): FabricNS.Canvas;

@@ -103,6 +103,34 @@ export class ImageLoadTimeoutError extends Error {
 }
 
 /**
+ * Raised by `image/image-loader.ts` when the shared image-load deadline has
+ * too little budget left to start the next stage safely.
+ *
+ * Surfaces to consumer as: rejection of the `loadImage` promise after the
+ * rollback bundle has been replayed.
+ */
+export class ImageLoadBudgetExhaustedError extends Error {
+    public override readonly name = 'ImageLoadBudgetExhaustedError';
+
+    /** Step label, e.g. `'FabricImage.fromURL'`. */
+    public readonly label: string;
+    /** Remaining milliseconds when the stage was about to start. */
+    public readonly remainingMs: number;
+    /** Minimum required milliseconds for the stage to start. */
+    public readonly minimumMs: number;
+
+    constructor(label: string, remainingMs: number, minimumMs: number) {
+        super(
+            `Image load budget exhausted before ${label}: ${remainingMs}ms remaining, minimum ${minimumMs}ms required.`,
+        );
+        this.label = label;
+        this.remainingMs = remainingMs;
+        this.minimumMs = minimumMs;
+        fixPrototype(this, ImageLoadBudgetExhaustedError);
+    }
+}
+
+/**
  * Raised by `image/image-resampler.ts` when the offscreen canvas required
  * for downsampling cannot obtain a 2D rendering context (i.e.
  * `OffscreenCanvas.getContext('2d')` or the fallback `<canvas>.getContext`

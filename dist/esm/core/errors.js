@@ -58,6 +58,39 @@ export class ImageLoadTimeoutError extends Error {
         fixPrototype(this, ImageLoadTimeoutError);
     }
 }
+export class ImageLoadBudgetExhaustedError extends Error {
+    constructor(label, remainingMs, minimumMs) {
+        super(`Image load budget exhausted before ${label}: ${remainingMs}ms remaining, minimum ${minimumMs}ms required.`);
+        Object.defineProperty(this, "name", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 'ImageLoadBudgetExhaustedError'
+        });
+        Object.defineProperty(this, "label", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "remainingMs", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "minimumMs", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        this.label = label;
+        this.remainingMs = remainingMs;
+        this.minimumMs = minimumMs;
+        fixPrototype(this, ImageLoadBudgetExhaustedError);
+    }
+}
 export class DownsampleError extends Error {
     constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
         super(message);

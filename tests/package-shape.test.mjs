@@ -76,13 +76,18 @@ test('package.json declares `engines.node` at >= 20', () => {
 
 // ─── 3. Fabric peer dependency ────────────────────────────────────────────
 
-test('package.json declares fabric as a `^7.0.0` peer dependency', () => {
+test('package.json declares fabric as a `>=7.4.0 <8` peer dependency', () => {
     assert.equal(typeof pkg.peerDependencies, 'object', '`peerDependencies` must be an object');
     assert.notEqual(pkg.peerDependencies, null, '`peerDependencies` must not be null');
     assert.equal(
         pkg.peerDependencies.fabric,
-        '^7.0.0',
-        '`peerDependencies.fabric` must be exactly "^7.0.0"',
+        '>=7.4.0 <8',
+        '`peerDependencies.fabric` must be exactly ">=7.4.0 <8"',
+    );
+    assert.equal(
+        pkg.devDependencies.fabric,
+        '>=7.4.0 <8',
+        '`devDependencies.fabric` must be exactly ">=7.4.0 <8"',
     );
 });
 

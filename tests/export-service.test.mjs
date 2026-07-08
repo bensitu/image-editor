@@ -611,7 +611,6 @@ test('downloadImage: discards ActiveSelection before toDataURL', async () => {
         URL.createObjectURL = () => 'blob:mock';
         URL.revokeObjectURL = () => {};
         await downloadImage(ctx, { fileName: 'pic.jpg' });
-        await new Promise((resolve) => setTimeout(resolve, 0));
         firstDiscard = ctx.canvas.callOrder.indexOf('discardActiveObject');
         firstRender = ctx.canvas.callOrder.indexOf('toDataURL');
     } finally {
@@ -1355,6 +1354,7 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
     const previousDocument = globalThis.document;
     const previousCreateObjectURL = URL.createObjectURL;
     const previousRevokeObjectURL = URL.revokeObjectURL;
+    const previousSetTimeout = globalThis.setTimeout;
     const globalDom = new JSDOM('<!doctype html><body></body>');
     const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
     globalThis.document = globalDom.window.document;
@@ -1364,6 +1364,7 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
     const clicked = [];
     const objectUrls = [];
     const revokedUrls = [];
+    const timers = [];
     const createElement = ownerDocument.createElement.bind(ownerDocument);
     ownerDocument.createElement = (tagName, options) => {
         const element = createElement(tagName, options);
@@ -1381,6 +1382,18 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
         URL.revokeObjectURL = (url) => {
             revokedUrls.push(url);
         };
+        globalThis.setTimeout = (callback, ms) => {
+            const timer = {
+                callback,
+                ms,
+                unrefCalled: false,
+                unref() {
+                    this.unrefCalled = true;
+                },
+            };
+            timers.push(timer);
+            return timer;
+        };
         const canvas = makeMockCanvas(
             'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
         );
@@ -1388,7 +1401,6 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
         const ctx = makeContext({ canvas });
 
         await downloadImage(ctx, { fileName: 'owner-doc.jpg' });
-        await new Promise((resolve) => setTimeout(resolve, 0));
 
         assert.equal(clicked.length, 1);
         assert.equal(clicked[0].ownerDocument, ownerDocument);
@@ -1396,17 +1408,66 @@ test('downloadImage appends the anchor to the canvas ownerDocument', async () =>
         assert.equal(clicked[0].href, 'blob:owner-doc');
         assert.equal(objectUrls.length, 1);
         assert.equal(objectUrls[0].file.name, 'owner-doc.jpg');
+        assert.deepEqual(revokedUrls, []);
+        assert.equal(timers.length, 1);
+        assert.equal(timers[0].ms, 30000);
+        assert.equal(timers[0].unrefCalled, true);
+
+        timers[0].callback();
         assert.deepEqual(revokedUrls, ['blob:owner-doc']);
         assert.equal(ownerDocument.body.querySelectorAll('a').length, 0);
         assert.equal(globalThis.document.body.querySelectorAll('a').length, 0);
     } finally {
         URL.createObjectURL = previousCreateObjectURL;
         URL.revokeObjectURL = previousRevokeObjectURL;
+        globalThis.setTimeout = previousSetTimeout;
         if (previousDocument === undefined) {
             delete globalThis.document;
         } else {
             globalThis.document = previousDocument;
         }
+    }
+});
+
+test('downloadImage delayed URL cleanup ignores missing revokeObjectURL', async () => {
+    const previousCreateObjectURL = URL.createObjectURL;
+    const previousRevokeObjectURL = URL.revokeObjectURL;
+    const previousSetTimeout = globalThis.setTimeout;
+    const ownerDom = new JSDOM('<!doctype html><body><canvas id="c"></canvas></body>');
+    const ownerDocument = ownerDom.window.document;
+    const canvasElement = ownerDocument.getElementById('c');
+    const timers = [];
+    const createElement = ownerDocument.createElement.bind(ownerDocument);
+    ownerDocument.createElement = (tagName, options) => {
+        const element = createElement(tagName, options);
+        if (String(tagName).toLowerCase() === 'a') {
+            element.click = () => {};
+        }
+        return element;
+    };
+
+    try {
+        URL.createObjectURL = () => 'blob:no-revoke';
+        URL.revokeObjectURL = undefined;
+        globalThis.setTimeout = (callback, ms) => {
+            const timer = { callback, ms, unref() {} };
+            timers.push(timer);
+            return timer;
+        };
+        const canvas = makeMockCanvas(
+            'data:image/jpeg;base64,' + Buffer.from('download').toString('base64'),
+        );
+        canvas.getElement = () => canvasElement;
+        const ctx = makeContext({ canvas });
+
+        await downloadImage(ctx, { fileName: 'no-revoke.jpg' });
+
+        assert.equal(timers.length, 1);
+        assert.doesNotThrow(() => timers[0].callback());
+    } finally {
+        URL.createObjectURL = previousCreateObjectURL;
+        URL.revokeObjectURL = previousRevokeObjectURL;
+        globalThis.setTimeout = previousSetTimeout;
     }
 });
 

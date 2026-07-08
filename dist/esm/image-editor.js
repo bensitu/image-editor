@@ -3,7 +3,7 @@ import { IdleGuardError } from './core/errors.js';
 import { isCanvasElement, isInputElement, isInputOrSelectElement, resolveDomElement, resolveElementTargets, } from './core/editor-elements.js';
 import { cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedEraserConfig, cloneResolvedShapeAnnotationConfig, areResolvedEraserConfigsEqual, cloneResolvedTextAnnotationConfig, areResolvedShapeAnnotationConfigsEqual, getInvalidEraserConfigFields, getInvalidShapeAnnotationConfigFields, isLayoutMode, mergeEraserConfigPatch, mergeShapeAnnotationConfigPatch, resolveOptions, } from './core/default-options.js';
 import { areResolvedImageFilterConfigsEqual, cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, mergeImageFilterConfigPatch, } from './core/image-filter-config.js';
-import { captureSnapshotAction, loadFromStateAction, saveStateAction, } from './history/editor-state-actions.js';
+import { captureSnapshotAction, loadFromStateAction, saveStateAction, TRUSTED_STATE_RESTORE, } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
 import { isAnnotationObject, isBaseImageObject, isMaskObject } from './core/public-types.js';
 import { getActiveSelectionObjects, getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, } from './annotation/annotation-manager.js';
@@ -616,12 +616,14 @@ export class ImageEditor {
         return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
+            [TRUSTED_STATE_RESTORE]: true,
         };
     }
     withAnimationQueueBypass(options = {}) {
         return {
             ...options,
             [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
+            [TRUSTED_STATE_RESTORE]: true,
         };
     }
     assertIdleForOperation(operationName, options) {

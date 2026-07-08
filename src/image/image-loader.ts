@@ -105,7 +105,7 @@ import type {
 } from '../core/public-types.js';
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject } from '../core/editor-object-kind.js';
-import { ImageDecodeError } from '../core/errors.js';
+import { ImageDecodeError, ImageLoadBudgetExhaustedError } from '../core/errors.js';
 import { loadFromState, saveState, type LoadFromStateResult } from '../core/state-serializer.js';
 import { isSupportedImageDataUrl } from '../utils/file.js';
 import { startImageElementLoad } from '../utils/image-element-loader.js';
@@ -126,6 +126,8 @@ import {
     resampleImage,
 } from './image-resampler.js';
 import { assertImageDataUrlInputBudget } from './image-input-budget.js';
+
+const MIN_FABRIC_IMAGE_LOAD_BUDGET_MS = 10;
 
 // ─── Rollback bundle ─────────────────────────────────────────────────────────
 
@@ -394,7 +396,7 @@ export async function loadImage(
         try {
             imageElement = await withTimeout(
                 decode.promise,
-                getRemainingLoadTimeout(loadDeadline),
+                Math.max(1, getRemainingLoadTimeout(loadDeadline)),
                 'image decode',
             );
         } catch (error) {
@@ -416,6 +418,12 @@ export async function loadImage(
         // 6. Fabric image creation under the same
         //    timeout. Cross-origin is requested so canvases stay
         //    untainted for export.
+        const fabricLoadTimeoutMs = getRemainingLoadTimeout(loadDeadline);
+        assertMinimumLoadBudget(
+            'FabricImage.fromURL',
+            fabricLoadTimeoutMs,
+            MIN_FABRIC_IMAGE_LOAD_BUDGET_MS,
+        );
         const fabricAbort = createAbortController();
         const fabricCrossOrigin = 'anonymous' as const;
         const fabricLoadOptions = fabricAbort
@@ -423,7 +431,7 @@ export async function loadImage(
             : { crossOrigin: fabricCrossOrigin };
         const fabricImage = await withTimeout(
             context.fabric.FabricImage.fromURL(loadSource.dataUrl, fabricLoadOptions),
-            getRemainingLoadTimeout(loadDeadline),
+            Math.max(1, fabricLoadTimeoutMs),
             'FabricImage.fromURL',
             () => {
                 fabricAbort?.abort();
@@ -709,7 +717,12 @@ function captureRollbackState(context: LoadImageContext): string {
 }
 
 function getRemainingLoadTimeout(deadline: number): number {
-    return Math.max(1, deadline - Date.now());
+    return deadline - Date.now();
+}
+
+function assertMinimumLoadBudget(label: string, remainingMs: number, minimumMs: number): void {
+    if (remainingMs >= minimumMs) return;
+    throw new ImageLoadBudgetExhaustedError(label, remainingMs, minimumMs);
 }
 
 function createAbortController(): AbortController | null {
@@ -734,6 +747,7 @@ async function replayRollback(context: LoadImageContext, bundle: RollbackBundle)
                 context.setCanvasSize(width, height);
             },
             maxCanvasPixels: context.options.maxExportPixels,
+            restoreTrustLevel: 'trusted',
         });
         context.applyRollbackRestoredState(restoredState);
         context.setOriginalImage(restoredState.originalImage);

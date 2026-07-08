@@ -5,6 +5,7 @@ import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mas
 import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
 import { attachTextEditingHandlersToAnnotations, } from '../annotation/text-controller.js';
 import { Command } from './history-manager.js';
+export const TRUSTED_STATE_RESTORE = Symbol('ImageEditorTrustedStateRestore');
 export async function loadFromStateAction(access, jsonString, options) {
     var _a, _b, _c, _d;
     const canvas = access.getCanvas();
@@ -25,6 +26,8 @@ export async function loadFromStateAction(access, jsonString, options) {
             jsonString,
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
             maxCanvasPixels: access.getOptions().maxExportPixels,
+            maxRestoreCanvasDimension: access.getOptions().maxExportDimension,
+            restoreTrustLevel: isTrustedStateRestoreOptions(options) ? 'trusted' : 'public',
         });
         if (access.isDisposed() || !access.getCanvas())
             return;
@@ -97,6 +100,9 @@ export async function loadFromStateAction(access, jsonString, options) {
         reportError(access.getOptions(), error, 'Failed to restore canvas state.');
         throw error;
     }
+}
+function isTrustedStateRestoreOptions(options) {
+    return !!(options === null || options === void 0 ? void 0 : options[TRUSTED_STATE_RESTORE]);
 }
 export function saveStateAction(access, options) {
     var _a, _b, _c;

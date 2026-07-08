@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.8.1] - 2026-07-08
 
+### Changed
+
+- Require Fabric.js `>=7.4.0 <8` for both peer and development installs, excluding known vulnerable Fabric 7.x releases.
+- Run CI against Node.js 20, 22, and 24 with npm caching and `npm ci`.
+- Add a committed npm lockfile so CI and release checks install reproducible dependency trees.
+
+### Security
+
+- Public state restore now validates untrusted snapshots before passing them to Fabric.js, including nested Fabric object payloads and source-like fields, and the Fabric peer dependency now requires Fabric.js 7.4.0 or newer to exclude known vulnerable Fabric 7.x releases.
+
 ### Fixed
 
+- Harden public `loadFromState()` restores with snapshot byte-size, object-count, canvas-dimension, object-type, and image-source validation while keeping trusted internal restores available for history and rollback paths.
+- Keep public `loadFromState(saveState())` compatible with editor-generated custom `fabricGenerator` masks and snapshots up to the editor's configured `maxExportDimension`.
+- Delay `downloadImage()` object URL revocation and tolerate missing `URL.revokeObjectURL` so browser downloads can consume the generated Blob URL before cleanup.
+- Reject image loads before `FabricImage.fromURL()` when the remaining total timeout budget is too small for a reliable Fabric load phase.
 - Wire v2.8 image filter, Shape annotation, Draw sub-mode, and eraser controls through the `init()` DOM binding path, including public element targets, event handlers, control enablement, and input synchronization.
 - Improve Draw eraser hit-testing so eraser strokes delete only Draw annotations whose visible paths are within eraser or stroke proximity, instead of deleting annotations by broad bounding-box overlap.
 - Emit `createDrawAnnotation` for newly-created Draw strokes instead of reusing `enterDrawMode`.

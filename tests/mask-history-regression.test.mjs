@@ -121,6 +121,42 @@ test('duplicate mask modified events do not add a no-op undo step', async (t) =>
     assert.equal(restoredMask.scaleY ?? 1, 1);
 });
 
+test('public loadFromState restores editor-generated custom fabricGenerator masks', async (t) => {
+    const { editor } = await createSourceEditor();
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 120, height: 80 });
+    const mask = editor.createMask({
+        left: 12,
+        top: 14,
+        width: 30,
+        height: 28,
+        alpha: 0.6,
+        fabricGenerator: (config) =>
+            new fabric.Triangle({
+                left: config.left,
+                top: config.top,
+                width: config.width,
+                height: config.height,
+                fill: config.color,
+                opacity: config.alpha,
+                originX: 'left',
+                originY: 'top',
+            }),
+    });
+    assert.ok(mask, 'sanity: custom mask must be created');
+    assert.equal(String(mask.type).toLowerCase(), 'triangle');
+
+    const snapshot = editor.saveState();
+
+    await editor.loadFromState(snapshot);
+
+    const restoredMasks = editor.getMasks();
+    assert.equal(restoredMasks.length, 1);
+    assert.equal(restoredMasks[0].maskId, mask.maskId);
+    assert.equal(String(restoredMasks[0].type).toLowerCase(), 'triangle');
+});
+
 test('creating a mask after merge undo places it next to the restored last mask', async (t) => {
     const { editor } = await createSourceEditor();
     t.after(() => disposeEditor(editor));

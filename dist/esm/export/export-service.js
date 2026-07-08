@@ -6,6 +6,7 @@ import { getClampedCanvasRegion, getObjectBBox, getPartialExportEdges, hasMeanin
 import { startImageElementLoad } from '../utils/image-element-loader.js';
 import { resolveExportFormat } from './export-format.js';
 import { flattenOverlayGroupToBaseImage, } from './overlay-merge-service.js';
+const DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS = 30000;
 function resolveMultiplier(requested, fallback) {
     const num = Number(requested);
     if (Number.isFinite(num) && num > 0)
@@ -629,12 +630,29 @@ function triggerFileDownload(context, file) {
     }
     finally {
         body.removeChild(link);
-        if (typeof globalThis.setTimeout === 'function') {
-            globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-        }
-        else {
+        scheduleObjectUrlRevoke(objectUrl);
+    }
+}
+function scheduleObjectUrlRevoke(objectUrl) {
+    var _a, _b;
+    if (typeof globalThis.setTimeout === 'function') {
+        const timeoutId = globalThis.setTimeout(() => {
+            safeRevokeObjectUrl(objectUrl);
+        }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
+        (_b = (_a = timeoutId).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
+        return;
+    }
+    void Promise.resolve().then(() => {
+        safeRevokeObjectUrl(objectUrl);
+    });
+}
+function safeRevokeObjectUrl(objectUrl) {
+    try {
+        if (typeof URL.revokeObjectURL === 'function') {
             URL.revokeObjectURL(objectUrl);
         }
+    }
+    catch {
     }
 }
 export async function mergeMasks(context) {

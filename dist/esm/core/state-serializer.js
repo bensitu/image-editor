@@ -2,7 +2,27 @@ import { isAnnotationObject, isBaseImageObject, isMaskObject } from './public-ty
 import { markAnnotationObject, markBaseImageObject, markMaskObject } from './editor-object-kind.js';
 import { StateRestoreError } from './errors.js';
 import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, hasActiveImageFilters, normalizeImageFilterConfigSnapshot, } from './image-filter-config.js';
+import { isSupportedImageDataUrl } from '../utils/file.js';
 const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
+const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
+const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
+const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
+const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
+const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
+const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
+const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
+const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
+    'circle',
+    'ellipse',
+    'image',
+    'line',
+    'path',
+    'polygon',
+    'polyline',
+    'rect',
+    'text',
+    'textbox',
+]);
 export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'editorObjectKind',
     'sessionObjectType',
@@ -260,9 +280,21 @@ export function saveState(input) {
     return JSON.stringify(jsonObj);
 }
 export async function loadFromState(input) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g;
     const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
-    const jsonString = typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
+    const restoreTrustLevel = (_a = input.restoreTrustLevel) !== null && _a !== void 0 ? _a : 'public';
+    const isPublicRestore = restoreTrustLevel === 'public';
+    let jsonString;
+    try {
+        jsonString =
+            typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
+    }
+    catch (error) {
+        throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
+    }
+    if (isPublicRestore) {
+        assertSnapshotByteSizeAllowed(jsonString, (_b = input.maxSnapshotBytes) !== null && _b !== void 0 ? _b : DEFAULT_MAX_SNAPSHOT_BYTES);
+    }
     let json;
     try {
         json = JSON.parse(jsonString);
@@ -270,16 +302,23 @@ export async function loadFromState(input) {
     catch (error) {
         throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
     }
+    if (isPublicRestore) {
+        validatePublicSnapshot(json, {
+            maxSnapshotObjects: (_c = input.maxSnapshotObjects) !== null && _c !== void 0 ? _c : DEFAULT_MAX_SNAPSHOT_OBJECTS,
+        });
+    }
     if (typeof json.width === 'number' &&
         json.width > 0 &&
         typeof json.height === 'number' &&
         json.height > 0) {
-        assertRestoredCanvasSizeAllowed(json.width, json.height, (_a = input.maxCanvasPixels) !== null && _a !== void 0 ? _a : DEFAULT_MAX_RESTORE_CANVAS_PIXELS);
+        assertRestoredCanvasSizeAllowed(json.width, json.height, (_d = input.maxCanvasPixels) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
+            ? ((_e = input.maxRestoreCanvasDimension) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
+            : null);
         setCanvasSize(json.width, json.height);
     }
     await canvas.loadFromJSON(json);
     const objects = canvas.getObjects();
-    restoreEditorObjectPropsFromJson(objects, (_b = json.objects) !== null && _b !== void 0 ? _b : []);
+    restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
     const editorState = json._editorState && typeof json._editorState === 'object'
         ? {
             currentScale: typeof json._editorState.currentScale === 'number'
@@ -324,7 +363,7 @@ export async function loadFromState(input) {
         .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
     const masks = objects.filter(isMaskObject);
     const annotations = objects.filter(isAnnotationObject);
-    const originalImage = (_c = objects.find(isBaseImageObject)) !== null && _c !== void 0 ? _c : null;
+    const originalImage = (_g = objects.find(isBaseImageObject)) !== null && _g !== void 0 ? _g : null;
     return {
         editorState,
         maxMaskId,
@@ -336,14 +375,151 @@ export async function loadFromState(input) {
         jsonString,
     };
 }
-function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels) {
+function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels, maxCanvasDimension) {
     const safeMaxCanvasPixels = Number.isFinite(maxCanvasPixels) && maxCanvasPixels > 0
         ? Math.floor(maxCanvasPixels)
         : DEFAULT_MAX_RESTORE_CANVAS_PIXELS;
+    const safeMaxCanvasDimension = maxCanvasDimension !== null && Number.isFinite(maxCanvasDimension) && maxCanvasDimension > 0
+        ? Math.floor(maxCanvasDimension)
+        : null;
+    if (safeMaxCanvasDimension !== null &&
+        (width > safeMaxCanvasDimension || height > safeMaxCanvasDimension)) {
+        throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxRestoreCanvasDimension (${safeMaxCanvasDimension}).`);
+    }
     const pixelCount = width * height;
     if (!Number.isFinite(pixelCount) || pixelCount > safeMaxCanvasPixels) {
         throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`);
     }
+}
+function getUtf8ByteLength(value) {
+    if (typeof TextEncoder === 'function') {
+        return new TextEncoder().encode(value).byteLength;
+    }
+    return value.length;
+}
+function toPositiveIntegerLimit(value, fallback) {
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
+    const safeMaxSnapshotBytes = toPositiveIntegerLimit(maxSnapshotBytes, DEFAULT_MAX_SNAPSHOT_BYTES);
+    const byteLength = getUtf8ByteLength(jsonString);
+    if (byteLength > safeMaxSnapshotBytes) {
+        throw new StateRestoreError(`loadFromState: snapshot JSON size ${byteLength} bytes exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
+    }
+}
+function validatePublicSnapshot(json, options) {
+    var _a;
+    if (json.objects !== undefined && !Array.isArray(json.objects)) {
+        throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
+    }
+    const objects = (_a = json.objects) !== null && _a !== void 0 ? _a : [];
+    const safeMaxSnapshotObjects = toPositiveIntegerLimit(options.maxSnapshotObjects, DEFAULT_MAX_SNAPSHOT_OBJECTS);
+    if (objects.length > safeMaxSnapshotObjects) {
+        throw new StateRestoreError(`loadFromState: snapshot contains ${objects.length} objects, exceeding maxSnapshotObjects (${safeMaxSnapshotObjects}).`);
+    }
+    const context = {
+        maxSnapshotObjects: safeMaxSnapshotObjects,
+        objectCount: 0,
+        seen: new WeakSet(),
+    };
+    objects.forEach((object, index) => validatePublicSnapshotValue(object, `objects[${index}]`, {
+        validateFabricObject: true,
+        allowEditorOwnedCustomMask: true,
+        arrayEntriesAreFabricObjects: false,
+    }, context, 0));
+    for (const [key, value] of Object.entries(json)) {
+        if (key === 'objects')
+            continue;
+        validatePublicSnapshotValue(value, key, {
+            validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
+            allowEditorOwnedCustomMask: false,
+            arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
+        }, context, 0);
+    }
+}
+function validatePublicSnapshotValue(value, path, options, context, depth) {
+    if (depth > DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH) {
+        throw new StateRestoreError(`loadFromState: snapshot field "${path}" exceeds max nested object depth (${DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH}).`);
+    }
+    if (!value || typeof value !== 'object')
+        return;
+    if (options.validateFabricObject) {
+        validatePublicSnapshotFabricObjectPayload(value, path, options.allowEditorOwnedCustomMask, context);
+    }
+    if (context.seen.has(value))
+        return;
+    context.seen.add(value);
+    if (Array.isArray(value)) {
+        value.forEach((entry, entryIndex) => validatePublicSnapshotValue(entry, `${path}[${entryIndex}]`, {
+            validateFabricObject: options.arrayEntriesAreFabricObjects,
+            allowEditorOwnedCustomMask: false,
+            arrayEntriesAreFabricObjects: false,
+        }, context, depth + 1));
+        return;
+    }
+    for (const [key, nestedValue] of Object.entries(value)) {
+        const nestedPath = path ? `${path}.${key}` : key;
+        if (typeof nestedValue === 'string' &&
+            nestedValue.trim() !== '' &&
+            isPublicRestoreImageSourceKey(key) &&
+            !isSupportedImageDataUrl(nestedValue)) {
+            throw new StateRestoreError(`loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`);
+        }
+        validatePublicSnapshotValue(nestedValue, nestedPath, {
+            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key, nestedValue),
+            allowEditorOwnedCustomMask: false,
+            arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
+        }, context, depth + 1);
+    }
+}
+function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwnedCustomMask, context) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new StateRestoreError(`loadFromState: snapshot field "${path}" is invalid.`);
+    }
+    context.objectCount += 1;
+    if (context.objectCount > context.maxSnapshotObjects) {
+        throw new StateRestoreError(`loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`);
+    }
+    const object = value;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type && ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES.has(type))
+        return;
+    if (allowEditorOwnedCustomMask && isPublicRestoreEditorOwnedCustomMaskPayload(object))
+        return;
+    const typePath = path ? `${path}.type` : 'type';
+    if (!type) {
+        throw new StateRestoreError(`loadFromState: snapshot field "${typePath}" must be a supported Fabric type.`);
+    }
+    throw new StateRestoreError(`loadFromState: snapshot field "${typePath}" has unsupported Fabric type "${String(object.type)}".`);
+}
+function shouldValidatePublicRestoreNestedFabricObject(key, value) {
+    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key))
+        return true;
+    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
+}
+function hasFabricObjectType(value) {
+    return (!!value && typeof value === 'object' && typeof value.type === 'string');
+}
+function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
+    if (!isMaskObject(value))
+        return false;
+    const candidate = value;
+    const expectedMaskUid = typeof candidate.maskId === 'number' ? `mask-${candidate.maskId}` : null;
+    return (Number.isInteger(candidate.maskId) &&
+        typeof candidate.maskId === 'number' &&
+        candidate.maskId > 0 &&
+        typeof candidate.maskUid === 'string' &&
+        candidate.maskUid === expectedMaskUid &&
+        typeof candidate.maskName === 'string' &&
+        candidate.maskName.trim() !== '' &&
+        typeof candidate.originalAlpha === 'number' &&
+        Number.isFinite(candidate.originalAlpha));
+}
+function isPublicRestoreImageSourceKey(key) {
+    const normalized = key.toLowerCase();
+    return (PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
+        normalized.endsWith('src') ||
+        normalized.endsWith('source'));
 }
 function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
     var _a, _b, _c, _d;

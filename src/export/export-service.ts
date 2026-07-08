@@ -125,6 +125,8 @@ import {
     type OverlayMergeTransactionContext,
 } from './overlay-merge-service.js';
 
+const DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS = 30000;
+
 type LabelBackup = {
     readonly mask: MaskObject;
     readonly label: FabricNS.FabricObject;
@@ -1216,11 +1218,31 @@ function triggerFileDownload(context: ExportServiceContext, file: File): void {
         link.click();
     } finally {
         body.removeChild(link);
-        if (typeof globalThis.setTimeout === 'function') {
-            globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-        } else {
+        scheduleObjectUrlRevoke(objectUrl);
+    }
+}
+
+function scheduleObjectUrlRevoke(objectUrl: string): void {
+    if (typeof globalThis.setTimeout === 'function') {
+        const timeoutId = globalThis.setTimeout(() => {
+            safeRevokeObjectUrl(objectUrl);
+        }, DOWNLOAD_OBJECT_URL_REVOKE_DELAY_MS);
+        (timeoutId as { unref?: () => void }).unref?.();
+        return;
+    }
+
+    void Promise.resolve().then(() => {
+        safeRevokeObjectUrl(objectUrl);
+    });
+}
+
+function safeRevokeObjectUrl(objectUrl: string): void {
+    try {
+        if (typeof URL.revokeObjectURL === 'function') {
             URL.revokeObjectURL(objectUrl);
         }
+    } catch {
+        /* Download cleanup must not mask the already-triggered download. */
     }
 }
 

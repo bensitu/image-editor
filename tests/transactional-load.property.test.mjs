@@ -764,12 +764,12 @@ test('image load timeout is a total deadline and aborts the Fabric load phase', 
         const loadPromise = loadImage(ctx, VALID_PNG_DATA_URL);
         assert.equal(timers[0].ms, 30);
 
-        now = 1025;
+        now = 1015;
         imageInstance.dispatch('load');
         await Promise.resolve();
         await Promise.resolve();
 
-        assert.equal(timers[1].ms, 5);
+        assert.equal(timers[1].ms, 15);
         assert.equal(fabricSignal?.aborted, false);
         timers[1].callback();
 
@@ -778,6 +778,97 @@ test('image load timeout is a total deadline and aborts the Fabric load phase', 
             (error) => error?.name === 'ImageLoadTimeoutError' && /FabricImage/.test(error.message),
         );
         assert.equal(fabricSignal.aborted, true);
+    } finally {
+        globalThis.Image = OriginalImage;
+        globalThis.setTimeout = originalSetTimeout;
+        globalThis.clearTimeout = originalClearTimeout;
+        Date.now = originalDateNow;
+    }
+});
+
+test('image load rejects before Fabric load when the remaining budget is too small', async () => {
+    const document = installDom();
+    const OriginalImage = globalThis.Image;
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    const originalDateNow = Date.now;
+    const timers = [];
+    let now = 1000;
+    let imageInstance;
+    let fabricCalls = 0;
+
+    class ControlledImage {
+        constructor() {
+            this.naturalWidth = 100;
+            this.naturalHeight = 100;
+            this.listeners = new Map();
+            imageInstance = {
+                dispatch: (event) => {
+                    this.listeners.get(event)?.();
+                },
+            };
+        }
+        addEventListener(event, handler) {
+            this.listeners.set(event, handler);
+        }
+        removeEventListener(event) {
+            this.listeners.delete(event);
+        }
+        set src(value) {
+            this.source = value;
+        }
+    }
+
+    globalThis.Image = ControlledImage;
+    globalThis.setTimeout = (callback, ms) => {
+        const timer = { callback, ms, cleared: false };
+        timers.push(timer);
+        return timer;
+    };
+    globalThis.clearTimeout = (timer) => {
+        if (timer) timer.cleared = true;
+    };
+    Date.now = () => now;
+
+    try {
+        const { ctx, holder, canvas } = makeContext();
+        ctx.options = resolveOptions({
+            canvasWidth: 800,
+            canvasHeight: 600,
+            downsampleOnLoad: false,
+            imageLoadTimeoutMs: 30,
+            backgroundColor: 'transparent',
+        });
+        ctx.fabric = {
+            FabricImage: {
+                fromURL: () => {
+                    fabricCalls += 1;
+                    return new Promise(() => undefined);
+                },
+            },
+        };
+        document.body.appendChild(ctx.containerElement);
+
+        const loadPromise = loadImage(ctx, VALID_PNG_DATA_URL);
+        assert.equal(timers[0].ms, 30);
+
+        now = 1025;
+        imageInstance.dispatch('load');
+        await Promise.resolve();
+        await Promise.resolve();
+
+        await assert.rejects(
+            () => loadPromise,
+            (error) =>
+                error?.name === 'ImageLoadBudgetExhaustedError' &&
+                /FabricImage\.fromURL/.test(error.message) &&
+                /5ms remaining/.test(error.message),
+        );
+        assert.equal(fabricCalls, 0);
+        assert.equal(timers.length, 1, 'Fabric timeout timer must not be scheduled');
+        assert.equal(holder.state.originalImage, null);
+        assert.equal(holder.state.isImageLoadedToCanvas, false);
+        assert.equal(canvas.objects.length, 0);
     } finally {
         globalThis.Image = OriginalImage;
         globalThis.setTimeout = originalSetTimeout;

@@ -33,6 +33,12 @@ import {
 } from '../annotation/text-controller.js';
 import { Command, type HistoryManager } from './history-manager.js';
 
+export const TRUSTED_STATE_RESTORE = Symbol('ImageEditorTrustedStateRestore');
+
+export type TrustedStateRestoreOptions = {
+    [TRUSTED_STATE_RESTORE]?: true;
+};
+
 export interface EditorStateActionAccess {
     getCanvas(): FabricNS.Canvas | null;
     getLiveCanvas(operationName: string): FabricNS.Canvas;
@@ -120,6 +126,8 @@ export async function loadFromStateAction(
             jsonString,
             setCanvasSize: (widthPx, heightPx) => access.setCanvasSize(widthPx, heightPx),
             maxCanvasPixels: access.getOptions().maxExportPixels,
+            maxRestoreCanvasDimension: access.getOptions().maxExportDimension,
+            restoreTrustLevel: isTrustedStateRestoreOptions(options) ? 'trusted' : 'public',
         });
 
         if (access.isDisposed() || !access.getCanvas()) return;
@@ -207,6 +215,10 @@ export async function loadFromStateAction(
         reportError(access.getOptions(), error, 'Failed to restore canvas state.');
         throw error;
     }
+}
+
+function isTrustedStateRestoreOptions(options?: object | null): boolean {
+    return !!(options as TrustedStateRestoreOptions | null | undefined)?.[TRUSTED_STATE_RESTORE];
 }
 
 export function saveStateAction(access: EditorStateActionAccess, options?: object | null): void {

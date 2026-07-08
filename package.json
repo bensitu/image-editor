@@ -57,7 +57,7 @@
         "ci": "npm run check && npm run build && npm run package:check"
     },
     "peerDependencies": {
-        "fabric": "^7.0.0"
+        "fabric": ">=7.4.0 <8"
     },
     "dependencies": {
         "tslib": "^2.8.1"
@@ -71,7 +71,7 @@
         "canvas": "^3.2.3",
         "eslint": "^10.4.0",
         "eslint-config-prettier": "^10.1.8",
-        "fabric": "^7.0.0",
+        "fabric": ">=7.4.0 <8",
         "fast-check": "^3.23.0",
         "globals": "^17.6.0",
         "jsdom": "^26.1.0",

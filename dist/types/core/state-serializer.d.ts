@@ -263,6 +263,19 @@ export interface LoadFromStateInput {
      * matching the default export pixel budget.
      */
     maxCanvasPixels?: number;
+    /**
+     * Trust level for snapshot validation. Public restores apply strict
+     * limits and content checks before Fabric deserialization; trusted
+     * internal restores preserve history/rollback behavior for snapshots
+     * already produced by this editor.
+     */
+    restoreTrustLevel?: 'public' | 'trusted';
+    /** Upper bound for public snapshot JSON byte length. */
+    maxSnapshotBytes?: number;
+    /** Upper bound for public snapshot object count. */
+    maxSnapshotObjects?: number;
+    /** Upper bound for a public snapshot canvas width or height. */
+    maxRestoreCanvasDimension?: number;
 }
 /**
  * Output of {@link loadFromState}. The state serializer performs the

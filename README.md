@@ -44,7 +44,7 @@ canonical class with a stable public surface.
 ## Requirements
 
 - **Node.js**: `>= 20` for development / building from source
-- **Fabric.js**: peer dependency `^7.0.0` (must be installed by the consumer)
+- **Fabric.js**: peer dependency `>=7.4.0 <8` (must be installed by the consumer)
 - **Browsers**: modern evergreen (Chrome, Firefox, Safari, Edge). The library
   ships ES2019-targeted JavaScript and uses the Fabric v7 promise-based API.
 - **TypeScript**: strict consumers that compile dependencies with
@@ -63,7 +63,7 @@ pnpm add @bensitu/image-editor fabric
 yarn add @bensitu/image-editor fabric
 ```
 
-`fabric@^7.0.0` is a peer dependency: install it explicitly so the editor
+`fabric@>=7.4.0 <8` is a peer dependency: install it explicitly so the editor
 resolves the exact version your application uses.
 
 ## Module formats and entry points

@@ -47,6 +47,8 @@ import {
     captureSnapshotAction,
     loadFromStateAction,
     saveStateAction,
+    TRUSTED_STATE_RESTORE,
+    type TrustedStateRestoreOptions,
 } from './history/editor-state-actions.js';
 import { detectFabric } from './fabric/fabric-adapter.js';
 import type {
@@ -265,7 +267,7 @@ const INTERNAL_ALLOW_DURING_ANIMATION_QUEUE = Symbol('ImageEditorAllowDuringAnim
 type InternalOperationOptions = {
     [INTERNAL_OPERATION_TOKEN]?: OperationToken;
     [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]?: true;
-};
+} & TrustedStateRestoreOptions;
 
 function getRuntimeDocument(canvasElement: HTMLCanvasElement | null | undefined): Document | null {
     return canvasElement?.ownerDocument ?? (typeof document !== 'undefined' ? document : null);
@@ -1072,6 +1074,7 @@ export class ImageEditor {
         return {
             ...options,
             ...(token ? { [INTERNAL_OPERATION_TOKEN]: token } : {}),
+            [TRUSTED_STATE_RESTORE]: true,
         } as T & InternalOperationOptions;
     }
 
@@ -1081,6 +1084,7 @@ export class ImageEditor {
         return {
             ...options,
             [INTERNAL_ALLOW_DURING_ANIMATION_QUEUE]: true,
+            [TRUSTED_STATE_RESTORE]: true,
         } as T & InternalOperationOptions;
     }
 

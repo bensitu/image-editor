@@ -46,6 +46,8 @@ const { saveState, loadFromState, SNAPSHOT_CUSTOM_KEYS } =
     await import('../src/core/state-serializer.ts');
 const { StateRestoreError } = await import('../src/core/errors.ts');
 
+const VALID_IMAGE_SRC = 'data:image/png;base64,AAAA';
+
 // ─── Mock Fabric canvas ─────────────────────────────────────────────────────
 
 /**
@@ -107,6 +109,7 @@ class MockCanvas {
                     top: o.top ?? 0,
                     opacity: o.opacity ?? 1,
                 };
+                if ('src' in o) out.src = o.src;
                 for (const k of keys) {
                     if (k in o) out[k] = o[k];
                 }
@@ -128,6 +131,22 @@ function makeSetCanvasSize(canvas) {
         canvas.width = w;
         canvas.height = h;
     };
+}
+
+function makePublicRestoreInput(canvas, snapshot, overrides = {}) {
+    return {
+        canvas,
+        jsonString: snapshot,
+        setCanvasSize: makeSetCanvasSize(canvas),
+        ...overrides,
+    };
+}
+
+function makeTrustedRestoreInput(canvas, snapshot, overrides = {}) {
+    return makePublicRestoreInput(canvas, snapshot, {
+        restoreTrustLevel: 'trusted',
+        ...overrides,
+    });
 }
 
 test('loadFromState wraps malformed JSON in StateRestoreError', async () => {
@@ -168,12 +187,384 @@ test('loadFromState rejects oversized canvas dimensions before resizing', async 
                     resized = true;
                 },
                 maxCanvasPixels: 1000000,
+                maxRestoreCanvasDimension: 200000,
             }),
         (error) =>
             error instanceof StateRestoreError && /exceeds maxCanvasPixels/.test(error.message),
     );
 
     assert.equal(resized, false);
+});
+
+test('public loadFromState rejects oversized snapshot JSON before parsing', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, '{"version":"7.0.0","objects":[]}', {
+                    maxSnapshotBytes: 10,
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError && /exceeds maxSnapshotBytes/.test(error.message),
+    );
+});
+
+test('public loadFromState rejects snapshots with too many objects', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(
+                    canvas,
+                    {
+                        version: '7.0.0',
+                        width: 320,
+                        height: 240,
+                        objects: [
+                            { type: 'rect', left: 0, top: 0 },
+                            { type: 'rect', left: 1, top: 1 },
+                        ],
+                    },
+                    {
+                        maxSnapshotObjects: 1,
+                    },
+                ),
+            ),
+        (error) =>
+            error instanceof StateRestoreError &&
+            /exceeding maxSnapshotObjects/.test(error.message),
+    );
+});
+
+test('public loadFromState honors an explicit single-side dimension limit', async () => {
+    const canvas = new MockCanvas();
+    let resized = false;
+
+    await assert.rejects(
+        () =>
+            loadFromState({
+                canvas,
+                jsonString: {
+                    version: '7.0.0',
+                    width: 9000,
+                    height: 100,
+                    objects: [],
+                },
+                setCanvasSize: () => {
+                    resized = true;
+                },
+                maxRestoreCanvasDimension: 8192,
+            }),
+        (error) =>
+            error instanceof StateRestoreError &&
+            /exceeds maxRestoreCanvasDimension/.test(error.message),
+    );
+
+    assert.equal(resized, false);
+});
+
+test('public loadFromState accepts wide editor snapshots under the pixel budget', async () => {
+    const canvas = new MockCanvas();
+
+    await loadFromState({
+        canvas,
+        jsonString: {
+            version: '7.0.0',
+            width: 10000,
+            height: 4000,
+            objects: [],
+        },
+        setCanvasSize: makeSetCanvasSize(canvas),
+        maxCanvasPixels: 50000000,
+    });
+
+    assert.equal(canvas.width, 10000);
+    assert.equal(canvas.height, 4000);
+});
+
+test('public loadFromState rejects unsupported Fabric object types', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, {
+                    version: '7.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [{ type: 'script', left: 0, top: 0 }],
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError && /unsupported Fabric type/.test(error.message),
+    );
+});
+
+test('public loadFromState accepts editor-owned custom mask object types', async () => {
+    const canvas = new MockCanvas();
+
+    await loadFromState(
+        makePublicRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [
+                {
+                    editorObjectKind: 'mask',
+                    type: 'triangle',
+                    maskId: 1,
+                    maskUid: 'mask-1',
+                    maskName: 'Mask 1',
+                    originalAlpha: 0.5,
+                    left: 10,
+                    top: 20,
+                },
+            ],
+        }),
+    );
+
+    assert.equal(canvas.objects[0].type, 'triangle');
+    assert.equal(canvas.objects[0].maskId, 1);
+});
+
+test('public loadFromState rejects custom mask object types without strict editor metadata', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, {
+                    version: '7.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [
+                        {
+                            editorObjectKind: 'mask',
+                            type: 'triangle',
+                            maskId: 1,
+                            maskName: 'Mask 1',
+                            left: 10,
+                            top: 20,
+                        },
+                    ],
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError && /unsupported Fabric type/.test(error.message),
+    );
+});
+
+test('public loadFromState rejects unsafe remote image sources', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, {
+                    version: '7.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [
+                        {
+                            editorObjectKind: 'baseImage',
+                            type: 'image',
+                            src: 'https://example.com/image.png',
+                            left: 0,
+                            top: 0,
+                        },
+                    ],
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError && /supported data URL source/.test(error.message),
+    );
+});
+
+test('public loadFromState rejects unsafe nested source-like fields', async () => {
+    const cases = [
+        [
+            'objects[0].fill.source',
+            {
+                type: 'rect',
+                fill: {
+                    type: 'pattern',
+                    source: 'https://example.com/pattern.png',
+                },
+            },
+        ],
+        [
+            'objects[0].fill.gradientSource',
+            {
+                type: 'rect',
+                fill: {
+                    type: 'gradient',
+                    gradientSource: 'https://example.com/gradient.svg',
+                },
+            },
+        ],
+    ];
+
+    for (const [fieldPath, object] of cases) {
+        const canvas = new MockCanvas();
+
+        await assert.rejects(
+            () =>
+                loadFromState(
+                    makePublicRestoreInput(canvas, {
+                        version: '7.0.0',
+                        width: 320,
+                        height: 240,
+                        objects: [object],
+                    }),
+                ),
+            (error) =>
+                error instanceof StateRestoreError &&
+                error.message.includes(`field "${fieldPath}"`) &&
+                /supported data URL source/.test(error.message),
+        );
+    }
+});
+
+test('public loadFromState rejects unsupported nested Fabric object types', async () => {
+    const canvas = new MockCanvas();
+
+    await assert.rejects(
+        () =>
+            loadFromState(
+                makePublicRestoreInput(canvas, {
+                    version: '7.0.0',
+                    width: 320,
+                    height: 240,
+                    objects: [
+                        {
+                            type: 'rect',
+                            clipPath: {
+                                type: 'script',
+                                left: 0,
+                                top: 0,
+                            },
+                        },
+                    ],
+                }),
+            ),
+        (error) =>
+            error instanceof StateRestoreError &&
+            error.message.includes('objects[0].clipPath.type') &&
+            /unsupported Fabric type/.test(error.message),
+    );
+});
+
+test('public loadFromState accepts safe nested Fabric object payloads', async () => {
+    const canvas = new MockCanvas();
+
+    await loadFromState(
+        makePublicRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [
+                {
+                    type: 'rect',
+                    clipPath: {
+                        type: 'rect',
+                        left: 2,
+                        top: 4,
+                    },
+                },
+            ],
+        }),
+    );
+
+    assert.equal(canvas.objects[0].clipPath.type, 'rect');
+});
+
+test('public loadFromState accepts supported nested data URL sources', async () => {
+    const canvas = new MockCanvas();
+
+    await loadFromState(
+        makePublicRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [
+                {
+                    type: 'rect',
+                    fill: {
+                        type: 'pattern',
+                        source: VALID_IMAGE_SRC,
+                    },
+                },
+            ],
+        }),
+    );
+
+    assert.equal(canvas.objects[0].fill.source, VALID_IMAGE_SRC);
+});
+
+test('public loadFromState accepts supported data URL image sources', async () => {
+    const canvas = new MockCanvas();
+
+    const result = await loadFromState(
+        makePublicRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [
+                {
+                    editorObjectKind: 'baseImage',
+                    type: 'image',
+                    src: VALID_IMAGE_SRC,
+                    left: 0,
+                    top: 0,
+                },
+            ],
+            _editorState: {
+                currentScale: 1,
+                currentRotation: 0,
+                baseImageScale: 1,
+            },
+        }),
+    );
+
+    assert.ok(result.originalImage);
+    assert.equal(result.originalImage.src, VALID_IMAGE_SRC);
+});
+
+test('trusted loadFromState keeps internal restores working with unvalidated sources', async () => {
+    const canvas = new MockCanvas();
+
+    const result = await loadFromState(
+        makeTrustedRestoreInput(canvas, {
+            version: '7.0.0',
+            width: 320,
+            height: 240,
+            objects: [
+                {
+                    editorObjectKind: 'baseImage',
+                    type: 'image',
+                    src: 'https://example.com/internal-history-image.png',
+                    clipPath: {
+                        type: 'script',
+                        src: 'https://example.com/internal-clip.png',
+                    },
+                    left: 0,
+                    top: 0,
+                },
+            ],
+            _editorState: {
+                currentScale: 1,
+                currentRotation: 0,
+                baseImageScale: 1,
+            },
+        }),
+    );
+
+    assert.ok(result.originalImage);
+    assert.equal(result.originalImage.src, 'https://example.com/internal-history-image.png');
+    assert.equal(result.originalImage.clipPath.type, 'script');
 });
 
 // ─── Arbitraries ────────────────────────────────────────────────────────────
@@ -259,6 +650,7 @@ const originalImageArb = fc.option(
     fc.record({
         editorObjectKind: fc.constant('baseImage'),
         type: fc.constant('image'),
+        src: fc.constant(VALID_IMAGE_SRC),
         left: fc.integer({ min: 0, max: 100 }),
         top: fc.integer({ min: 0, max: 100 }),
         opacity: fc.constant(1),
@@ -520,7 +912,16 @@ test('loadFromState restores strictly marked base image objects', async () => {
         version: '7.0.0',
         width: 640,
         height: 480,
-        objects: [{ editorObjectKind: 'baseImage', type: 'Image', left: 0, top: 0, opacity: 1 }],
+        objects: [
+            {
+                editorObjectKind: 'baseImage',
+                type: 'Image',
+                src: VALID_IMAGE_SRC,
+                left: 0,
+                top: 0,
+                opacity: 1,
+            },
+        ],
         _editorState: {
             currentScale: 1,
             currentRotation: 0,
@@ -642,6 +1043,7 @@ test('saveState matches live objects when Fabric serializes objects in a differe
     canvas.add({
         editorObjectKind: 'baseImage',
         type: 'image',
+        src: VALID_IMAGE_SRC,
         left: 0,
         top: 0,
         opacity: 1,
@@ -706,7 +1108,14 @@ test('loadFromState restores base image and annotation metadata after Fabric reo
         width: 320,
         height: 240,
         objects: [
-            { editorObjectKind: 'baseImage', type: 'image', left: 0, top: 0, opacity: 1 },
+            {
+                editorObjectKind: 'baseImage',
+                type: 'image',
+                src: VALID_IMAGE_SRC,
+                left: 0,
+                top: 0,
+                opacity: 1,
+            },
             {
                 editorObjectKind: 'annotation',
                 type: 'textbox',
