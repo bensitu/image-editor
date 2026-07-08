@@ -204,6 +204,23 @@ import {
     updateAnnotationAction,
     updateSelectedAnnotationAction,
 } from './overlay/editable-object-actions.js';
+import {
+    exportOverlayState as exportOverlayStateImpl,
+    type OverlayStateExportRuntimeContext,
+} from './overlay/overlay-state-exporter.js';
+import {
+    importOverlayStateIntoEditor,
+    type OverlayStateImportRuntimeContext,
+} from './overlay/overlay-state-importer.js';
+import { validateOverlayState as validateOverlayStateImpl } from './overlay/overlay-state-validator.js';
+import type {
+    ExportOverlayStateOptions,
+    ImportOverlayStateOptions,
+    ImportOverlayStateResult,
+    OverlayState,
+    OverlayValidationOptions,
+    OverlayValidationResult,
+} from './overlay/overlay-state-types.js';
 
 import {
     createMaskAction,
@@ -1481,6 +1498,163 @@ export class ImageEditor {
     getAnnotations(): AnnotationObject[] {
         if (!this.runtime.canvas) return [];
         return getAnnotationsImpl(this.runtime.canvas);
+    }
+
+    /**
+     * Export stable, renderer-independent overlay JSON for the current image.
+     *
+     * This exports editable masks and annotations only. Session objects such as
+     * selection, hover labels, crop rectangles, shape previews, and in-progress
+     * draw state are intentionally excluded.
+     */
+    exportOverlayState(options: ExportOverlayStateOptions = {}): OverlayState {
+        this.assertIdleForOperation('exportOverlayState');
+        return exportOverlayStateImpl(this.buildOverlayStateExportContext(), options);
+    }
+
+    /**
+     * Validate unknown overlay JSON without mutating the editor.
+     */
+    validateOverlayState(
+        input: unknown,
+        options: OverlayValidationOptions = {},
+    ): OverlayValidationResult {
+        return validateOverlayStateImpl(input, options);
+    }
+
+    /**
+     * Import validated overlay JSON onto the currently loaded image.
+     *
+     * The import is atomic: validation failures do not mutate the editor, and
+     * runtime failures restore the pre-import canvas snapshot before rejecting.
+     * By default the full import records one undoable history entry.
+     */
+    async importOverlayState(
+        input: unknown,
+        options: ImportOverlayStateOptions = {},
+    ): Promise<ImportOverlayStateResult> {
+        const validation = validateOverlayStateImpl(input, options);
+        if (!validation.valid || !validation.state) {
+            const message =
+                validation.errors[0]?.message ?? 'Overlay state validation failed before import.';
+            const error = new Error(`[ImageEditor] importOverlayState failed: ${message}`);
+            (error as Error & { validation?: OverlayValidationResult }).validation = validation;
+            throw error;
+        }
+        if (!this.runtime.canvas || !this.runtime.originalImage) {
+            throw new Error('[ImageEditor] importOverlayState requires a loaded image.');
+        }
+
+        this.assertIdleForOperation('importOverlayState');
+        const token = this.runtime.operationGuard.beginBusyOperation('importOverlayState');
+        const callbackContext = this.buildCallbackContext('importOverlayState', false);
+        const beforeSnapshot = this.captureSnapshotInternal();
+        const previousActiveObject = this.runtime.canvas.getActiveObject();
+        const previousSuppressSaveState = this.runtime.shouldSuppressSaveState;
+        const previousMaskSignature = this.getMaskCollectionSignature();
+        const previousAnnotationSignature = this.getAnnotationCollectionSignature();
+        let result: ImportOverlayStateResult;
+
+        this.finalizeActiveTextEditingIfNeeded();
+        this.runtime.shouldSuppressSaveState = true;
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
+
+        try {
+            result = await importOverlayStateIntoEditor(
+                this.buildOverlayStateImportContext(),
+                validation.state,
+                options,
+            );
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+
+            if (
+                options.preserveSelection === true &&
+                previousActiveObject &&
+                this.runtime.canvas.getObjects().includes(previousActiveObject)
+            ) {
+                this.runtime.canvas.setActiveObject(previousActiveObject);
+            }
+
+            if (options.saveHistory !== false) {
+                this.saveStateInternal(this.withInternalOperationOptions(token));
+            } else {
+                this.runtime.lastSnapshot = this.captureSnapshotInternal();
+            }
+
+            this.updateInputs();
+            this.updateMaskList();
+            this.updateAnnotationList();
+            this.updateUi();
+            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
+                this.emitMasksChanged(callbackContext);
+            }
+            if (previousAnnotationSignature !== this.getAnnotationCollectionSignature()) {
+                this.emitAnnotationsChanged(callbackContext);
+            }
+            this.emitImageChanged(callbackContext);
+
+            return {
+                ...result,
+                warnings: [...validation.warnings, ...result.warnings],
+            };
+        } catch (error) {
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            try {
+                await this.loadFromStateInternal(
+                    beforeSnapshot,
+                    this.withInternalOperationOptions(token),
+                );
+            } catch (rollbackError) {
+                reportWarning(
+                    this.runtime.options,
+                    rollbackError,
+                    'importOverlayState rollback failed.',
+                );
+            }
+            throw error;
+        } finally {
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            this.runtime.operationGuard.endBusyOperation(token);
+            this.emitBusyChangeIfChanged(callbackContext);
+            if (!this.runtime.isDisposed && this.runtime.canvas) this.updateUi();
+        }
+    }
+
+    private buildOverlayStateExportContext(): OverlayStateExportRuntimeContext {
+        return {
+            canvas: this.runtime.canvas,
+            originalImage: this.runtime.originalImage,
+            currentRotation: this.runtime.currentRotation,
+            currentImageMimeType: this.runtime.currentImageMimeType,
+        };
+    }
+
+    private buildOverlayStateImportContext(): OverlayStateImportRuntimeContext {
+        return {
+            fabric: this.runtime.fabricModule,
+            canvas: this.runtime.getLiveCanvasOrThrow('importOverlayState'),
+            options: this.runtime.getRuntimeOptions(),
+            originalImage: this.runtime.originalImage!,
+            getMaskCounter: () => this.runtime.maskCounter,
+            setMaskCounter: (value) => {
+                this.runtime.maskCounter = value;
+            },
+            getAnnotationCounter: () => this.runtime.annotationCounter,
+            setAnnotationCounter: (value) => {
+                this.runtime.annotationCounter = value;
+            },
+            setLastMask: (mask) => {
+                this.runtime.lastMask = mask;
+            },
+            setCurrentRotation: (rotation) => {
+                this.runtime.currentRotation = rotation;
+            },
+            removeLabelForMask: (mask) => {
+                this.removeLabelForMask(mask);
+            },
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+        };
     }
 
     private getMaskCollectionSignature(): string {

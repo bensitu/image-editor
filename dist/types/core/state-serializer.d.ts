@@ -128,6 +128,10 @@ export interface CanvasJsonObject {
     annotationHasControls?: boolean;
     /** Base text editability intent restored when a text annotation is unlocked. */
     annotationEditable?: boolean;
+    /** Stable overlay-state ID carried across history restores. */
+    overlayPersistentId?: string;
+    /** JSON-compatible overlay metadata carried across history restores. */
+    overlayMetadata?: unknown;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -180,7 +184,7 @@ export interface CanvasJson {
  * cannot mutate the shared array.
  *
  */
-export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "shapeAnnotationKind", "annotationName", "annotationHidden", "annotationLocked", "annotationSelectable", "annotationEvented", "annotationHasControls", "annotationEditable"];
+export declare const SNAPSHOT_CUSTOM_KEYS: readonly ["editorObjectKind", "sessionObjectType", "maskId", "maskUid", "maskName", "isCropRect", "maskLabel", "originalAlpha", "originalStroke", "originalStrokeWidth", "hasControls", "selectable", "strokeUniform", "lockRotation", "transparentCorners", "borderColor", "cornerColor", "cornerSize", "flipX", "flipY", "isMosaicPreview", "annotationId", "annotationType", "shapeAnnotationKind", "annotationName", "annotationHidden", "annotationLocked", "annotationSelectable", "annotationEvented", "annotationHasControls", "annotationEditable", "overlayPersistentId", "overlayMetadata"];
 /**
  * Inputs to {@link saveState}. The editor facade passes the live canvas
  * plus the three transform fields that make up `_editorState`.

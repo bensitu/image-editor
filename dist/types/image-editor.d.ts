@@ -9,6 +9,7 @@
  */
 import type { CanvasJson } from './core/state-serializer.js';
 import type { AnnotationObject, AnnotationUpdateConfig, CropAspectRatio, CropModeOptions, DrawConfig, DrawSubMode, EditorToolMode, ElementMap, EraserConfig, FabricModule, ImageEditorSelection, ImageEditorState, ImageEditorOptions, ImageExportOptions, ImageFilterConfig, ImageInfo, LayoutMode, LoadImageOptions, MaskConfig, MaskObject, MosaicConfig, RemoveAllAnnotationsOptions, RemoveAllMasksOptions, RelayoutOptions, ResizeToContainerOptions, ResolvedDrawConfig, ResolvedEraserConfig, ResolvedImageFilterConfig, ResolvedMosaicConfig, ResolvedShapeAnnotationConfig, ResolvedTextAnnotationConfig, ShapeAnnotationConfig, ShapeAnnotationKind, ShapeAnnotationObject, TextAnnotationConfig, TextAnnotationObject } from './core/public-types.js';
+import type { ExportOverlayStateOptions, ImportOverlayStateOptions, ImportOverlayStateResult, OverlayState, OverlayValidationOptions, OverlayValidationResult } from './overlay/overlay-state-types.js';
 /**
  * Lightweight Fabric.js v7 image editor with masking/annotation, animated transforms,
  * crop, undo/redo, mosaic and multi-format export.
@@ -188,6 +189,28 @@ export declare class ImageEditor {
      * bypass editor history, metadata synchronization, and lifecycle callbacks.
      */
     getAnnotations(): AnnotationObject[];
+    /**
+     * Export stable, renderer-independent overlay JSON for the current image.
+     *
+     * This exports editable masks and annotations only. Session objects such as
+     * selection, hover labels, crop rectangles, shape previews, and in-progress
+     * draw state are intentionally excluded.
+     */
+    exportOverlayState(options?: ExportOverlayStateOptions): OverlayState;
+    /**
+     * Validate unknown overlay JSON without mutating the editor.
+     */
+    validateOverlayState(input: unknown, options?: OverlayValidationOptions): OverlayValidationResult;
+    /**
+     * Import validated overlay JSON onto the currently loaded image.
+     *
+     * The import is atomic: validation failures do not mutate the editor, and
+     * runtime failures restore the pre-import canvas snapshot before rejecting.
+     * By default the full import records one undoable history entry.
+     */
+    importOverlayState(input: unknown, options?: ImportOverlayStateOptions): Promise<ImportOverlayStateResult>;
+    private buildOverlayStateExportContext;
+    private buildOverlayStateImportContext;
     private getMaskCollectionSignature;
     private getAnnotationCollectionSignature;
     private buildToolModeSnapshot;

@@ -170,6 +170,10 @@ export interface CanvasJsonObject {
     annotationHasControls?: boolean;
     /** Base text editability intent restored when a text annotation is unlocked. */
     annotationEditable?: boolean;
+    /** Stable overlay-state ID carried across history restores. */
+    overlayPersistentId?: string;
+    /** JSON-compatible overlay metadata carried across history restores. */
+    overlayMetadata?: unknown;
     /** Pass-through for every other Fabric-serialized shape property. */
     [key: string]: unknown;
 }
@@ -257,6 +261,8 @@ export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'annotationEvented',
     'annotationHasControls',
     'annotationEditable',
+    'overlayPersistentId',
+    'overlayMetadata',
 ] as const);
 
 type SnapshotLiveObject = FabricNS.FabricObject &
@@ -276,6 +282,8 @@ type SnapshotLiveObject = FabricNS.FabricObject &
         annotationEvented?: boolean;
         annotationHasControls?: boolean;
         annotationEditable?: boolean;
+        overlayPersistentId?: string;
+        overlayMetadata?: unknown;
     };
 
 function readFiniteNumber(value: unknown): number | null {
@@ -493,6 +501,12 @@ function copySnapshotCustomPropsFromCanvas(
         }
         if (typeof liveObject.annotationEditable === 'boolean') {
             jsonObject.annotationEditable = liveObject.annotationEditable;
+        }
+        if (typeof liveObject.overlayPersistentId === 'string') {
+            jsonObject.overlayPersistentId = liveObject.overlayPersistentId;
+        }
+        if (liveObject.overlayMetadata !== undefined) {
+            jsonObject.overlayMetadata = liveObject.overlayMetadata;
         }
     }
 }
@@ -1267,6 +1281,13 @@ function restoreEditorObjectPropsFromJson(
                         : undefined,
                 shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
             });
+            if (typeof jObj.overlayPersistentId === 'string') {
+                (canvasObj as { overlayPersistentId?: string }).overlayPersistentId =
+                    jObj.overlayPersistentId;
+            }
+            if (jObj.overlayMetadata !== undefined) {
+                (canvasObj as { overlayMetadata?: unknown }).overlayMetadata = jObj.overlayMetadata;
+            }
             return;
         }
         if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
@@ -1346,6 +1367,8 @@ function restoreEditorObjectPropsFromJson(
             borderColor?: string;
             cornerColor?: string;
             cornerSize?: number;
+            overlayPersistentId?: string;
+            overlayMetadata?: unknown;
             opacity?: number;
         };
         const originalStroke =
@@ -1393,6 +1416,12 @@ function restoreEditorObjectPropsFromJson(
         }
         if (typeof jObj.cornerSize === 'number') {
             maskObject.cornerSize = jObj.cornerSize;
+        }
+        if (typeof jObj.overlayPersistentId === 'string') {
+            maskObject.overlayPersistentId = jObj.overlayPersistentId;
+        }
+        if (jObj.overlayMetadata !== undefined) {
+            maskObject.overlayMetadata = jObj.overlayMetadata;
         }
     }
 

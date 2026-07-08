@@ -28,6 +28,9 @@ import { createEditorRuntimeWiring, } from './runtime/editor-facade-wiring.js';
 import { EditorRuntime } from './runtime/editor-runtime.js';
 import { handleObjectModified as handleObjectModifiedImpl, handleObjectMovingScalingRotating as handleObjectMovingScalingRotatingImpl, handleSelectionChanged as handleSelectionChangedImpl, } from './selection/editor-selection-controller.js';
 import { deleteSelectedEditableObjects, moveSelectedEditableObject as moveSelectedEditableObjectImpl, removeAllAnnotationsAction, removeSelectedAnnotationAction, updateAnnotationAction, updateSelectedAnnotationAction, } from './overlay/editable-object-actions.js';
+import { exportOverlayState as exportOverlayStateImpl, } from './overlay/overlay-state-exporter.js';
+import { importOverlayStateIntoEditor, } from './overlay/overlay-state-importer.js';
+import { validateOverlayState as validateOverlayStateImpl } from './overlay/overlay-state-validator.js';
 import { createMaskAction, removeAllMasksAction as removeAllMasksActionImpl, removeSelectedMaskAction, } from './mask/mask-actions.js';
 import { hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from './mask/mask-label-manager.js';
 import { renderMaskList, updateMaskListSelection } from './mask/mask-list.js';
@@ -861,6 +864,120 @@ export class ImageEditor {
         if (!this.runtime.canvas)
             return [];
         return getAnnotationsImpl(this.runtime.canvas);
+    }
+    exportOverlayState(options = {}) {
+        this.assertIdleForOperation('exportOverlayState');
+        return exportOverlayStateImpl(this.buildOverlayStateExportContext(), options);
+    }
+    validateOverlayState(input, options = {}) {
+        return validateOverlayStateImpl(input, options);
+    }
+    async importOverlayState(input, options = {}) {
+        var _a, _b;
+        const validation = validateOverlayStateImpl(input, options);
+        if (!validation.valid || !validation.state) {
+            const message = (_b = (_a = validation.errors[0]) === null || _a === void 0 ? void 0 : _a.message) !== null && _b !== void 0 ? _b : 'Overlay state validation failed before import.';
+            const error = new Error(`[ImageEditor] importOverlayState failed: ${message}`);
+            error.validation = validation;
+            throw error;
+        }
+        if (!this.runtime.canvas || !this.runtime.originalImage) {
+            throw new Error('[ImageEditor] importOverlayState requires a loaded image.');
+        }
+        this.assertIdleForOperation('importOverlayState');
+        const token = this.runtime.operationGuard.beginBusyOperation('importOverlayState');
+        const callbackContext = this.buildCallbackContext('importOverlayState', false);
+        const beforeSnapshot = this.captureSnapshotInternal();
+        const previousActiveObject = this.runtime.canvas.getActiveObject();
+        const previousSuppressSaveState = this.runtime.shouldSuppressSaveState;
+        const previousMaskSignature = this.getMaskCollectionSignature();
+        const previousAnnotationSignature = this.getAnnotationCollectionSignature();
+        let result;
+        this.finalizeActiveTextEditingIfNeeded();
+        this.runtime.shouldSuppressSaveState = true;
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
+        try {
+            result = await importOverlayStateIntoEditor(this.buildOverlayStateImportContext(), validation.state, options);
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            if (options.preserveSelection === true &&
+                previousActiveObject &&
+                this.runtime.canvas.getObjects().includes(previousActiveObject)) {
+                this.runtime.canvas.setActiveObject(previousActiveObject);
+            }
+            if (options.saveHistory !== false) {
+                this.saveStateInternal(this.withInternalOperationOptions(token));
+            }
+            else {
+                this.runtime.lastSnapshot = this.captureSnapshotInternal();
+            }
+            this.updateInputs();
+            this.updateMaskList();
+            this.updateAnnotationList();
+            this.updateUi();
+            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
+                this.emitMasksChanged(callbackContext);
+            }
+            if (previousAnnotationSignature !== this.getAnnotationCollectionSignature()) {
+                this.emitAnnotationsChanged(callbackContext);
+            }
+            this.emitImageChanged(callbackContext);
+            return {
+                ...result,
+                warnings: [...validation.warnings, ...result.warnings],
+            };
+        }
+        catch (error) {
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            try {
+                await this.loadFromStateInternal(beforeSnapshot, this.withInternalOperationOptions(token));
+            }
+            catch (rollbackError) {
+                reportWarning(this.runtime.options, rollbackError, 'importOverlayState rollback failed.');
+            }
+            throw error;
+        }
+        finally {
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            this.runtime.operationGuard.endBusyOperation(token);
+            this.emitBusyChangeIfChanged(callbackContext);
+            if (!this.runtime.isDisposed && this.runtime.canvas)
+                this.updateUi();
+        }
+    }
+    buildOverlayStateExportContext() {
+        return {
+            canvas: this.runtime.canvas,
+            originalImage: this.runtime.originalImage,
+            currentRotation: this.runtime.currentRotation,
+            currentImageMimeType: this.runtime.currentImageMimeType,
+        };
+    }
+    buildOverlayStateImportContext() {
+        return {
+            fabric: this.runtime.fabricModule,
+            canvas: this.runtime.getLiveCanvasOrThrow('importOverlayState'),
+            options: this.runtime.getRuntimeOptions(),
+            originalImage: this.runtime.originalImage,
+            getMaskCounter: () => this.runtime.maskCounter,
+            setMaskCounter: (value) => {
+                this.runtime.maskCounter = value;
+            },
+            getAnnotationCounter: () => this.runtime.annotationCounter,
+            setAnnotationCounter: (value) => {
+                this.runtime.annotationCounter = value;
+            },
+            setLastMask: (mask) => {
+                this.runtime.lastMask = mask;
+            },
+            setCurrentRotation: (rotation) => {
+                this.runtime.currentRotation = rotation;
+            },
+            removeLabelForMask: (mask) => {
+                this.removeLabelForMask(mask);
+            },
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+        };
     }
     getMaskCollectionSignature() {
         return this.getMasks()

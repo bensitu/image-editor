@@ -11,11 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add Playwright Firefox and WebKit projects for cross-browser E2E coverage alongside Chromium.
 - Add `npm run test:e2e:all` for full Chromium, Firefox, and WebKit E2E validation.
+- Add non-destructive overlay persistence APIs: `exportOverlayState()`, `validateOverlayState()`, and async `importOverlayState()`.
+- Add the stable v1 `image-editor.overlay-state` wire format for renderer-independent mask, text, shape, draw, and custom overlay records stored in one ordered `overlays[]` array.
+- Add defensive overlay-state migration, validation, metadata, color normalization, payload limits, coordinate transform helpers, and unknown custom-overlay warnings.
+- Add atomic overlay import with replace/append modes, regenerated or preserved persistent overlay IDs, busy-operation guarding, rollback on failure, and one history entry by default.
+- Add focused overlay persistence tests for validation, coordinate transforms, mixed z-order, transform mapping, unknown custom overlays, and undo/redo after import.
 
 ### Changed
 
 - Keep local E2E and visual test scripts Chromium-only by default while CI installs all Playwright browser engines and runs the full cross-browser E2E suite.
 - Document local Chromium-only browser checks, full cross-browser E2E checks, and Playwright-managed browser installation.
+- Document non-destructive overlay persistence concepts, examples, coordinate-space semantics, base-image transform behavior, transient-state exclusion, payload limits, font fallback, custom overlay namespaces, and future format considerations.
+- Preserve overlay persistence IDs and metadata through editor history snapshots so imported overlay states survive undo/redo cycles.
 
 ## [2.8.1] - 2026-07-08
 

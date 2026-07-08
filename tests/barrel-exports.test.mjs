@@ -141,6 +141,23 @@ test('barrel re-exports documented public type names', async () => {
         'ResizeToContainerOptions',
         'RelayoutOptions',
         'FabricModule',
+        'ExportOverlayStateOptions',
+        'ImportOverlayStateOptions',
+        'ImportOverlayStateResult',
+        'OverlayBaseImageTransform',
+        'OverlayImageInfo',
+        'OverlayImportWarning',
+        'OverlayMetadata',
+        'OverlayState',
+        'OverlayValidationError',
+        'OverlayValidationOptions',
+        'OverlayValidationResult',
+        'SerializedCustomOverlay',
+        'SerializedDrawAnnotationOverlay',
+        'SerializedMaskOverlay',
+        'SerializedOverlay',
+        'SerializedShapeAnnotationOverlay',
+        'SerializedTextAnnotationOverlay',
     ];
 
     for (const name of expectedTypeNames) {

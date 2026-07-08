@@ -55,6 +55,8 @@ export const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'annotationEvented',
     'annotationHasControls',
     'annotationEditable',
+    'overlayPersistentId',
+    'overlayMetadata',
 ]);
 function readFiniteNumber(value) {
     const numeric = Number(value);
@@ -223,6 +225,12 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
         if (typeof liveObject.annotationEditable === 'boolean') {
             jsonObject.annotationEditable = liveObject.annotationEditable;
+        }
+        if (typeof liveObject.overlayPersistentId === 'string') {
+            jsonObject.overlayPersistentId = liveObject.overlayPersistentId;
+        }
+        if (liveObject.overlayMetadata !== undefined) {
+            jsonObject.overlayMetadata = liveObject.overlayMetadata;
         }
     }
 }
@@ -570,6 +578,13 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                     : undefined,
                 shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
             });
+            if (typeof jObj.overlayPersistentId === 'string') {
+                canvasObj.overlayPersistentId =
+                    jObj.overlayPersistentId;
+            }
+            if (jObj.overlayMetadata !== undefined) {
+                canvasObj.overlayMetadata = jObj.overlayMetadata;
+            }
             return;
         }
         if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
@@ -671,6 +686,12 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
         }
         if (typeof jObj.cornerSize === 'number') {
             maskObject.cornerSize = jObj.cornerSize;
+        }
+        if (typeof jObj.overlayPersistentId === 'string') {
+            maskObject.overlayPersistentId = jObj.overlayPersistentId;
+        }
+        if (jObj.overlayMetadata !== undefined) {
+            maskObject.overlayMetadata = jObj.overlayMetadata;
         }
     }
     jsonObjs.forEach((jObj, index) => {

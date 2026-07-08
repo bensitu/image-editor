@@ -2036,6 +2036,8 @@ const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
     'annotationEvented',
     'annotationHasControls',
     'annotationEditable',
+    'overlayPersistentId',
+    'overlayMetadata',
 ]);
 function readFiniteNumber(value) {
     const numeric = Number(value);
@@ -2205,6 +2207,12 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         if (typeof liveObject.annotationEditable === 'boolean') {
             jsonObject.annotationEditable = liveObject.annotationEditable;
         }
+        if (typeof liveObject.overlayPersistentId === 'string') {
+            jsonObject.overlayPersistentId = liveObject.overlayPersistentId;
+        }
+        if (liveObject.overlayMetadata !== undefined) {
+            jsonObject.overlayMetadata = liveObject.overlayMetadata;
+        }
     }
 }
 function isActiveSelectionObject$2(object) {
@@ -2372,7 +2380,7 @@ function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels, maxCanv
         throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`);
     }
 }
-function getUtf8ByteLength(value) {
+function getUtf8ByteLength$1(value) {
     if (typeof TextEncoder === 'function') {
         return new TextEncoder().encode(value).byteLength;
     }
@@ -2383,7 +2391,7 @@ function toPositiveIntegerLimit(value, fallback) {
 }
 function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
     const safeMaxSnapshotBytes = toPositiveIntegerLimit(maxSnapshotBytes, DEFAULT_MAX_SNAPSHOT_BYTES);
-    const byteLength = getUtf8ByteLength(jsonString);
+    const byteLength = getUtf8ByteLength$1(jsonString);
     if (byteLength > safeMaxSnapshotBytes) {
         throw new StateRestoreError(`loadFromState: snapshot JSON size ${byteLength} bytes exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
     }
@@ -2551,6 +2559,13 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
                     : undefined,
                 shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
             });
+            if (typeof jObj.overlayPersistentId === 'string') {
+                canvasObj.overlayPersistentId =
+                    jObj.overlayPersistentId;
+            }
+            if (jObj.overlayMetadata !== undefined) {
+                canvasObj.overlayMetadata = jObj.overlayMetadata;
+            }
             return;
         }
         if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
@@ -2652,6 +2667,12 @@ function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
         }
         if (typeof jObj.cornerSize === 'number') {
             maskObject.cornerSize = jObj.cornerSize;
+        }
+        if (typeof jObj.overlayPersistentId === 'string') {
+            maskObject.overlayPersistentId = jObj.overlayPersistentId;
+        }
+        if (jObj.overlayMetadata !== undefined) {
+            maskObject.overlayMetadata = jObj.overlayMetadata;
         }
     }
     jsonObjs.forEach((jObj, index) => {
@@ -2821,20 +2842,20 @@ function isAnnotationUnlocked(annotation) {
 function setObjectProps(object, props) {
     object.set(props);
 }
-function readBoolean(value, fallback) {
+function readBoolean$1(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;
 }
 function getBaseSelectable(annotation) {
-    return readBoolean(annotation.annotationSelectable, readBoolean(annotation.selectable, true));
+    return readBoolean$1(annotation.annotationSelectable, readBoolean$1(annotation.selectable, true));
 }
 function getBaseEvented(annotation) {
-    return readBoolean(annotation.annotationEvented, readBoolean(annotation.evented, true));
+    return readBoolean$1(annotation.annotationEvented, readBoolean$1(annotation.evented, true));
 }
 function getBaseHasControls(annotation) {
-    return readBoolean(annotation.annotationHasControls, readBoolean(annotation.hasControls, true));
+    return readBoolean$1(annotation.annotationHasControls, readBoolean$1(annotation.hasControls, true));
 }
 function getBaseEditable(annotation) {
-    return readBoolean(annotation.annotationEditable, readBoolean(annotation.editable, true));
+    return readBoolean$1(annotation.annotationEditable, readBoolean$1(annotation.editable, true));
 }
 function syncTextEditability(annotation, editable) {
     const textObject = annotation;
@@ -2842,13 +2863,13 @@ function syncTextEditability(annotation, editable) {
 }
 function ensureBaseInteractivityMetadata(annotation) {
     if (typeof annotation.annotationSelectable !== 'boolean') {
-        annotation.annotationSelectable = readBoolean(annotation.selectable, true);
+        annotation.annotationSelectable = readBoolean$1(annotation.selectable, true);
     }
     if (typeof annotation.annotationEvented !== 'boolean') {
-        annotation.annotationEvented = readBoolean(annotation.evented, true);
+        annotation.annotationEvented = readBoolean$1(annotation.evented, true);
     }
     if (typeof annotation.annotationHasControls !== 'boolean') {
-        annotation.annotationHasControls = readBoolean(annotation.hasControls, true);
+        annotation.annotationHasControls = readBoolean$1(annotation.hasControls, true);
     }
     if (isTextAnnotationObject(annotation) && typeof annotation.annotationEditable !== 'boolean') {
         annotation.annotationEditable = getBaseEditable(annotation);
@@ -4102,12 +4123,12 @@ function pointIntersectsExpandedBounds(point, bounds, radius) {
         point.y >= bounds.top - radius &&
         point.y <= bounds.top + bounds.height + radius);
 }
-function isPathCommand(value) {
+function isPathCommand$1(value) {
     return (Array.isArray(value) &&
         typeof value[0] === 'string' &&
         value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
 }
-function transformPathPoint(annotation, point) {
+function transformPathPoint$1(annotation, point) {
     var _a, _b;
     const pathLike = annotation;
     const offset = (_a = pathLike.pathOffset) !== null && _a !== void 0 ? _a : { x: 0, y: 0 };
@@ -4125,14 +4146,14 @@ function transformPathPoint(annotation, point) {
 function toAbsolutePoint(x, y, current, isRelative) {
     return isRelative ? { x: current.x + x, y: current.y + y } : { x, y };
 }
-function pathValue(values, index) {
+function pathValue$1(values, index) {
     var _a;
     return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
 }
 function addTransformedSegment(annotation, segments, start, end) {
     segments.push({
-        start: transformPathPoint(annotation, start),
-        end: transformPathPoint(annotation, end),
+        start: transformPathPoint$1(annotation, start),
+        end: transformPathPoint$1(annotation, end),
     });
 }
 function cubicPoint(start, c1, c2, end, t) {
@@ -4173,7 +4194,7 @@ function getDrawAnnotationPathSegments(annotation) {
     let current = { x: 0, y: 0 };
     let subpathStart = null;
     for (const rawCommand of pathData) {
-        if (!isPathCommand(rawCommand))
+        if (!isPathCommand$1(rawCommand))
             continue;
         const rawName = rawCommand[0];
         const command = rawName.toUpperCase();
@@ -4181,7 +4202,7 @@ function getDrawAnnotationPathSegments(annotation) {
         const values = rawCommand.slice(1);
         if (command === 'M') {
             for (let index = 0; index + 1 < values.length; index += 2) {
-                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const next = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
                 if (index > 0)
                     addTransformedSegment(annotation, segments, current, next);
                 current = next;
@@ -4192,7 +4213,7 @@ function getDrawAnnotationPathSegments(annotation) {
         }
         if (command === 'L') {
             for (let index = 0; index + 1 < values.length; index += 2) {
-                const next = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
+                const next = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
                 addTransformedSegment(annotation, segments, current, next);
                 current = next;
             }
@@ -4217,9 +4238,9 @@ function getDrawAnnotationPathSegments(annotation) {
         if (command === 'C') {
             for (let index = 0; index + 5 < values.length; index += 6) {
                 const start = current;
-                const c1 = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
-                const c2 = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
-                const end = toAbsolutePoint(pathValue(values, index + 4), pathValue(values, index + 5), current, isRelative);
+                const c1 = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
+                const c2 = toAbsolutePoint(pathValue$1(values, index + 2), pathValue$1(values, index + 3), current, isRelative);
+                const end = toAbsolutePoint(pathValue$1(values, index + 4), pathValue$1(values, index + 5), current, isRelative);
                 addSampledCurve(annotation, segments, start, end, (t) => cubicPoint(start, c1, c2, end, t));
                 current = end;
             }
@@ -4228,8 +4249,8 @@ function getDrawAnnotationPathSegments(annotation) {
         if (command === 'Q') {
             for (let index = 0; index + 3 < values.length; index += 4) {
                 const start = current;
-                const control = toAbsolutePoint(pathValue(values, index), pathValue(values, index + 1), current, isRelative);
-                const end = toAbsolutePoint(pathValue(values, index + 2), pathValue(values, index + 3), current, isRelative);
+                const control = toAbsolutePoint(pathValue$1(values, index), pathValue$1(values, index + 1), current, isRelative);
+                const end = toAbsolutePoint(pathValue$1(values, index + 2), pathValue$1(values, index + 3), current, isRelative);
                 addSampledCurve(annotation, segments, start, end, (t) => quadraticPoint(start, control, end, t));
                 current = end;
             }
@@ -4237,7 +4258,7 @@ function getDrawAnnotationPathSegments(annotation) {
         }
         if (command === 'A') {
             for (let index = 0; index + 6 < values.length; index += 7) {
-                const next = toAbsolutePoint(pathValue(values, index + 5), pathValue(values, index + 6), current, isRelative);
+                const next = toAbsolutePoint(pathValue$1(values, index + 5), pathValue$1(values, index + 6), current, isRelative);
                 addTransformedSegment(annotation, segments, current, next);
                 current = next;
             }
@@ -4557,7 +4578,7 @@ function geometryFromPoints(start, end) {
         y2: end.y,
     };
 }
-function buildArrowPath(geometry, headLength) {
+function buildArrowPath$1(geometry, headLength) {
     const { x1, y1, x2, y2 } = geometry;
     const angle = Math.atan2(y2 - y1, x2 - x1);
     const length = Math.max(1, headLength);
@@ -4592,7 +4613,7 @@ function createShapeFabricObject(context, shape, geometry, config) {
         });
     }
     const path = shape === 'arrow'
-        ? buildArrowPath(geometry, config.arrowHeadLength)
+        ? buildArrowPath$1(geometry, config.arrowHeadLength)
         : `M ${geometry.x1} ${geometry.y1} L ${geometry.x2} ${geometry.y2}`;
     return new context.fabric.Path(path, {
         fill: '',
@@ -8824,7 +8845,7 @@ class TransformController {
         this.context.setCurrentScale(clamped);
         const targetAbs = this.context.getBaseImageScale() * clamped;
         try {
-            const topLeft = computeTopLeftPoint(imageObject);
+            const topLeft = computeTopLeftPoint$1(imageObject);
             imageObject.set({ originX: 'left', originY: 'top' });
             imageObject.setPositionByOrigin(topLeft, 'left', 'top');
             imageObject.setCoords();
@@ -8914,7 +8935,7 @@ class TransformController {
         imageObject.set('angle', degrees);
         imageObject.setCoords();
         try {
-            const newTopLeft = computeTopLeftPoint(imageObject);
+            const newTopLeft = computeTopLeftPoint$1(imageObject);
             imageObject.set({ originX: 'left', originY: 'top' });
             imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
             imageObject.setCoords();
@@ -8950,7 +8971,7 @@ class TransformController {
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.set({ [property]: !imageObject[property] });
             imageObject.setCoords();
-            const newTopLeft = computeTopLeftPoint(imageObject);
+            const newTopLeft = computeTopLeftPoint$1(imageObject);
             imageObject.set({ originX: 'left', originY: 'top' });
             imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
             imageObject.setCoords();
@@ -8988,7 +9009,7 @@ class TransformController {
         this.context.saveCanvasState();
     }
 }
-function computeTopLeftPoint(object) {
+function computeTopLeftPoint$1(object) {
     object.setCoords();
     const coords = object.getCoords();
     const first = coords[0];
@@ -11649,6 +11670,1942 @@ function moveSelectedEditableObject(access, operation) {
     access.emitImageChanged(context);
 }
 
+function normalizeRotationDegrees(rotation) {
+    const value = Number(rotation !== null && rotation !== void 0 ? rotation : 0);
+    if (!Number.isFinite(value))
+        return 0;
+    return ((value % 360) + 360) % 360;
+}
+function imageNormalizedToSourcePixel(point, imageInfo) {
+    return {
+        x: point.x * imageInfo.naturalWidth,
+        y: point.y * imageInfo.naturalHeight,
+    };
+}
+function sourcePixelToImageNormalized(point, imageInfo) {
+    return {
+        x: point.x / imageInfo.naturalWidth,
+        y: point.y / imageInfo.naturalHeight,
+    };
+}
+function applyBaseImageTransform(point, imageInfo, transform) {
+    const centerX = imageInfo.naturalWidth / 2;
+    const centerY = imageInfo.naturalHeight / 2;
+    let x = point.x - centerX;
+    let y = point.y - centerY;
+    if ((transform === null || transform === void 0 ? void 0 : transform.flipX) === true)
+        x = -x;
+    if ((transform === null || transform === void 0 ? void 0 : transform.flipY) === true)
+        y = -y;
+    const radians = (normalizeRotationDegrees(transform === null || transform === void 0 ? void 0 : transform.rotation) * Math.PI) / 180;
+    if (radians !== 0) {
+        const cos = Math.cos(radians);
+        const sin = Math.sin(radians);
+        const nextX = x * cos - y * sin;
+        const nextY = x * sin + y * cos;
+        x = nextX;
+        y = nextY;
+    }
+    return { x: centerX + x, y: centerY + y };
+}
+function unapplyBaseImageTransform(point, imageInfo, transform) {
+    const centerX = imageInfo.naturalWidth / 2;
+    const centerY = imageInfo.naturalHeight / 2;
+    let x = point.x - centerX;
+    let y = point.y - centerY;
+    const radians = (-normalizeRotationDegrees(transform === null || transform === void 0 ? void 0 : transform.rotation) * Math.PI) / 180;
+    if (radians !== 0) {
+        const cos = Math.cos(radians);
+        const sin = Math.sin(radians);
+        const nextX = x * cos - y * sin;
+        const nextY = x * sin + y * cos;
+        x = nextX;
+        y = nextY;
+    }
+    if ((transform === null || transform === void 0 ? void 0 : transform.flipY) === true)
+        y = -y;
+    if ((transform === null || transform === void 0 ? void 0 : transform.flipX) === true)
+        x = -x;
+    return { x: centerX + x, y: centerY + y };
+}
+function sourcePixelToCanvas(point, geometry) {
+    const transformed = applyBaseImageTransform(point, {
+        naturalWidth: geometry.naturalWidth,
+        naturalHeight: geometry.naturalHeight,
+    }, geometry.transform);
+    return {
+        x: geometry.canvasCenterX + (transformed.x - geometry.naturalWidth / 2) * geometry.scaleX,
+        y: geometry.canvasCenterY + (transformed.y - geometry.naturalHeight / 2) * geometry.scaleY,
+    };
+}
+function canvasToSourcePixel(point, geometry) {
+    const transformed = {
+        x: geometry.naturalWidth / 2 + (point.x - geometry.canvasCenterX) / geometry.scaleX,
+        y: geometry.naturalHeight / 2 + (point.y - geometry.canvasCenterY) / geometry.scaleY,
+    };
+    return unapplyBaseImageTransform(transformed, {
+        naturalWidth: geometry.naturalWidth,
+        naturalHeight: geometry.naturalHeight,
+    }, geometry.transform);
+}
+
+const HEX_SHORT = /^#([0-9a-f]{3}|[0-9a-f]{4})$/i;
+const HEX_LONG = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i;
+const RGB_FUNCTION = /^rgba?\((.+)\)$/i;
+function toHexByte(value) {
+    return Math.max(0, Math.min(255, Math.round(value)))
+        .toString(16)
+        .padStart(2, '0')
+        .toUpperCase();
+}
+function normalizeHex(value) {
+    const trimmed = value.trim();
+    if (HEX_LONG.test(trimmed))
+        return `#${trimmed.slice(1).toUpperCase()}`;
+    if (!HEX_SHORT.test(trimmed))
+        return null;
+    const digits = trimmed.slice(1);
+    const expanded = digits
+        .split('')
+        .map((digit) => `${digit}${digit}`)
+        .join('')
+        .toUpperCase();
+    return `#${expanded}`;
+}
+function parseRgbChannel(value) {
+    const trimmed = value.trim();
+    if (trimmed.endsWith('%')) {
+        const percent = Number(trimmed.slice(0, -1));
+        if (!Number.isFinite(percent))
+            return null;
+        return Math.max(0, Math.min(100, percent)) * 2.55;
+    }
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+function parseAlpha(value) {
+    if (value === undefined)
+        return 1;
+    const trimmed = value.trim();
+    if (trimmed.endsWith('%')) {
+        const percent = Number(trimmed.slice(0, -1));
+        if (!Number.isFinite(percent))
+            return null;
+        return Math.max(0, Math.min(100, percent)) / 100;
+    }
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : null;
+}
+function normalizeRgbFunction(value) {
+    const match = value.trim().match(RGB_FUNCTION);
+    if (!match)
+        return null;
+    const parts = match[1].split(',').map((part) => part.trim());
+    if (parts.length !== 3 && parts.length !== 4)
+        return null;
+    const r = parseRgbChannel(parts[0]);
+    const g = parseRgbChannel(parts[1]);
+    const b = parseRgbChannel(parts[2]);
+    const alpha = parseAlpha(parts[3]);
+    if (r === null || g === null || b === null || alpha === null)
+        return null;
+    const rgb = `${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`;
+    return alpha >= 1 ? `#${rgb}` : `#${rgb}${toHexByte(alpha * 255)}`;
+}
+function tryNormalizeOverlayColor(value) {
+    var _a;
+    if (typeof value !== 'string')
+        return null;
+    if (value.trim().toLowerCase() === 'transparent')
+        return '#00000000';
+    return (_a = normalizeHex(value)) !== null && _a !== void 0 ? _a : normalizeRgbFunction(value);
+}
+function normalizeOverlayColor(value, fallback) {
+    var _a;
+    return (_a = tryNormalizeOverlayColor(value)) !== null && _a !== void 0 ? _a : fallback;
+}
+
+const DEFAULT_METADATA_DEPTH = 4;
+const DEFAULT_METADATA_BYTES = 65536;
+const METADATA_NAMESPACE = /^(core|app|plugin)\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/;
+function getUtf8ByteLength(value) {
+    if (typeof TextEncoder === 'function')
+        return new TextEncoder().encode(value).byteLength;
+    return value.length;
+}
+function metadataLimit(value, fallback) {
+    return Number.isFinite(value) && Number(value) > 0 ? Math.floor(Number(value)) : fallback;
+}
+function addError$1(errors, path, code, message) {
+    errors.push({ path, code, message });
+}
+function cloneJsonValue(input, path, depth, maxDepth, seen, errors) {
+    if (input === null ||
+        typeof input === 'string' ||
+        typeof input === 'number' ||
+        typeof input === 'boolean') {
+        if (typeof input === 'number' && !Number.isFinite(input)) {
+            addError$1(errors, path, 'metadata.invalidNumber', 'Metadata numbers must be finite.');
+            return undefined;
+        }
+        return input;
+    }
+    if (input === undefined || typeof input === 'function' || typeof input === 'symbol') {
+        addError$1(errors, path, 'metadata.invalidValue', 'Metadata must be JSON-compatible.');
+        return undefined;
+    }
+    if (typeof input === 'bigint') {
+        addError$1(errors, path, 'metadata.invalidBigInt', 'Metadata must not contain bigint.');
+        return undefined;
+    }
+    if (!input || typeof input !== 'object')
+        return input;
+    if (seen.has(input)) {
+        addError$1(errors, path, 'metadata.cyclic', 'Metadata must not contain cyclic references.');
+        return undefined;
+    }
+    if (depth > maxDepth) {
+        addError$1(errors, path, 'metadata.maxDepth', `Metadata exceeds max depth ${maxDepth}.`);
+        return undefined;
+    }
+    seen.add(input);
+    if (Array.isArray(input)) {
+        const output = input.map((entry, index) => cloneJsonValue(entry, `${path}[${index}]`, depth + 1, maxDepth, seen, errors));
+        seen.delete(input);
+        return output;
+    }
+    const output = {};
+    for (const [key, value] of Object.entries(input)) {
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype')
+            continue;
+        output[key] = cloneJsonValue(value, `${path}.${key}`, depth + 1, maxDepth, seen, errors);
+    }
+    seen.delete(input);
+    return output;
+}
+function validateOverlayMetadata(input, path, options = {}) {
+    const errors = [];
+    const warnings = [];
+    if (input === undefined)
+        return { errors, warnings };
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        addError$1(errors, path, 'metadata.invalidRoot', 'Metadata must be an object.');
+        return { errors, warnings };
+    }
+    const maxDepth = metadataLimit(options.maxMetadataDepth, DEFAULT_METADATA_DEPTH);
+    const maxBytes = metadataLimit(options.maxMetadataBytes, DEFAULT_METADATA_BYTES);
+    const output = {};
+    for (const [namespace, namespaceValue] of Object.entries(input)) {
+        const namespacePath = `${path}.${namespace}`;
+        if (!METADATA_NAMESPACE.test(namespace)) {
+            addError$1(errors, namespacePath, 'metadata.invalidNamespace', `Metadata namespace "${namespace}" is not valid.`);
+            continue;
+        }
+        if (!namespaceValue ||
+            typeof namespaceValue !== 'object' ||
+            Array.isArray(namespaceValue)) {
+            addError$1(errors, namespacePath, 'metadata.invalidNamespaceValue', 'Metadata namespace values must be objects.');
+            continue;
+        }
+        const cloned = cloneJsonValue(namespaceValue, namespacePath, 1, maxDepth, new WeakSet(), errors);
+        if (cloned && typeof cloned === 'object' && !Array.isArray(cloned)) {
+            output[namespace] = cloned;
+        }
+    }
+    if (errors.length === 0) {
+        const bytes = getUtf8ByteLength(JSON.stringify(output));
+        if (bytes > maxBytes) {
+            addError$1(errors, path, 'metadata.maxBytes', `Metadata size ${bytes} bytes exceeds maxMetadataBytes ${maxBytes}.`);
+        }
+    }
+    return {
+        value: errors.length === 0 ? output : undefined,
+        errors,
+        warnings,
+    };
+}
+function cloneOverlayMetadata(metadata) {
+    if (!metadata)
+        return undefined;
+    return JSON.parse(JSON.stringify(metadata));
+}
+
+function isPathCommand(value) {
+    return (Array.isArray(value) &&
+        typeof value[0] === 'string' &&
+        value.slice(1).every((entry) => typeof entry === 'number' && Number.isFinite(entry)));
+}
+function finiteNumber$1(value, fallback = 0) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+function clamp01(value) {
+    if (!Number.isFinite(value))
+        return 0;
+    return Math.max(0, Math.min(1, value));
+}
+function normalizedPoint(point, geometry) {
+    const source = canvasToSourcePixel(point, geometry);
+    const normalized = sourcePixelToImageNormalized(source, {
+        naturalWidth: geometry.naturalWidth,
+        naturalHeight: geometry.naturalHeight,
+    });
+    return { x: clamp01(normalized.x), y: clamp01(normalized.y) };
+}
+function normalizedCanvasLengthX(length, geometry) {
+    return clamp01(Math.abs(length / geometry.scaleX / geometry.naturalWidth));
+}
+function normalizedCanvasLengthY(length, geometry) {
+    return clamp01(Math.abs(length / geometry.scaleY / geometry.naturalHeight));
+}
+function getObjectCenter$1(object) {
+    var _a;
+    const center = (_a = object.getCenterPoint) === null || _a === void 0 ? void 0 : _a.call(object);
+    if (center)
+        return { x: center.x, y: center.y };
+    return {
+        x: finiteNumber$1(object.left) + finiteNumber$1(object.width) / 2,
+        y: finiteNumber$1(object.top) + finiteNumber$1(object.height) / 2,
+    };
+}
+function createCurrentImageGeometry(image, currentRotation) {
+    const center = getObjectCenter$1(image);
+    return {
+        naturalWidth: Math.max(1, finiteNumber$1(image.width, 1)),
+        naturalHeight: Math.max(1, finiteNumber$1(image.height, 1)),
+        canvasCenterX: center.x,
+        canvasCenterY: center.y,
+        scaleX: Math.max(0.000001, Math.abs(finiteNumber$1(image.scaleX, 1))),
+        scaleY: Math.max(0.000001, Math.abs(finiteNumber$1(image.scaleY, 1))),
+        transform: {
+            rotation: normalizeRotationDegrees(currentRotation),
+            flipX: image.flipX === true,
+            flipY: image.flipY === true,
+        },
+    };
+}
+function getBaseImageTransform(image, currentRotation) {
+    const rotation = normalizeRotationDegrees(currentRotation);
+    const flipX = image.flipX === true;
+    const flipY = image.flipY === true;
+    if (rotation === 0 && !flipX && !flipY)
+        return undefined;
+    return {
+        ...(rotation !== 0 ? { rotation } : {}),
+        ...(flipX ? { flipX } : {}),
+        ...(flipY ? { flipY } : {}),
+    };
+}
+function getImageInfo(image, mimeType) {
+    return {
+        naturalWidth: Math.max(1, finiteNumber$1(image.width, 1)),
+        naturalHeight: Math.max(1, finiteNumber$1(image.height, 1)),
+        ...(mimeType ? { mimeType } : {}),
+        orientation: 1,
+    };
+}
+function getPersistentId(object) {
+    const persistent = object.overlayPersistentId;
+    if (typeof persistent === 'string' && persistent.trim() !== '')
+        return persistent;
+    if (isMaskObject(object))
+        return object.maskUid || `mask-${object.maskId}`;
+    return `annotation-${object.annotationId}`;
+}
+function getPersistentMetadata(object, includeMetadata) {
+    if (!includeMetadata)
+        return undefined;
+    const metadata = object.overlayMetadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
+        return undefined;
+    return cloneOverlayMetadata(metadata);
+}
+function isHidden(object) {
+    if (isAnnotationObject(object) && object.annotationHidden === true)
+        return true;
+    return object.visible === false;
+}
+function isLocked(object) {
+    return isAnnotationObject(object) && object.annotationLocked === true;
+}
+function overlayBase(object, options) {
+    const hidden = isHidden(object);
+    const metadata = getPersistentMetadata(object, options.includeMetadata);
+    return {
+        id: getPersistentId(object),
+        ...(hidden ? { hidden: true } : {}),
+        ...(metadata ? { metadata } : {}),
+    };
+}
+function localOverlayAngle(object, geometry) {
+    var _a;
+    const objectAngle = finiteNumber$1(object.angle);
+    const baseRotation = normalizeRotationDegrees((_a = geometry.transform) === null || _a === void 0 ? void 0 : _a.rotation);
+    const local = objectAngle - baseRotation;
+    return Math.abs(local) < 0.000001 ? 0 : local;
+}
+function applyOptionalAngle(output, object, geometry) {
+    const angle = localOverlayAngle(object, geometry);
+    const target = output;
+    if (angle !== 0)
+        target.angle = angle;
+    return target;
+}
+function exportMask(mask, geometry, options) {
+    var _a, _b;
+    const type = String((_a = mask.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+    const base = overlayBase(mask, options);
+    const fill = normalizeOverlayColor(mask.fill, '#000000');
+    const alpha = clamp01(finiteNumber$1(mask.originalAlpha, finiteNumber$1(mask.opacity, 0.5)));
+    const strokeSource = mask.originalStroke !== undefined ? mask.originalStroke : mask.stroke;
+    const stroke = strokeSource === null
+        ? null
+        : strokeSource === undefined
+            ? undefined
+            : normalizeOverlayColor(strokeSource, '#000000');
+    const strokeWidth = finiteNumber$1(mask.originalStrokeWidth, finiteNumber$1(mask.strokeWidth, 1));
+    const style = {
+        fill,
+        alpha,
+        ...(stroke !== undefined ? { stroke } : {}),
+        strokeWidth,
+        ...(Array.isArray(mask.strokeDashArray)
+            ? { strokeDashArray: mask.strokeDashArray.map((entry) => finiteNumber$1(entry)) }
+            : {}),
+        ...(typeof mask.selectable === 'boolean' ? { selectable: mask.selectable } : {}),
+        ...(typeof mask.evented === 'boolean' ? { evented: mask.evented } : {}),
+        ...(typeof mask.hasControls === 'boolean' ? { hasControls: mask.hasControls } : {}),
+    };
+    if (type === 'rect') {
+        const point = normalizedPoint({ x: finiteNumber$1(mask.left), y: finiteNumber$1(mask.top) }, geometry);
+        return {
+            kind: 'mask',
+            ...base,
+            maskShape: 'rect',
+            geometry: applyOptionalAngle({
+                type: 'rect',
+                x: point.x,
+                y: point.y,
+                width: normalizedCanvasLengthX(finiteNumber$1(mask.width) * finiteNumber$1(mask.scaleX, 1), geometry),
+                height: normalizedCanvasLengthY(finiteNumber$1(mask.height) * finiteNumber$1(mask.scaleY, 1), geometry),
+                ...(finiteNumber$1(mask.rx) > 0
+                    ? {
+                        rx: normalizedCanvasLengthX(finiteNumber$1(mask.rx), geometry),
+                    }
+                    : {}),
+                ...(finiteNumber$1(mask.ry) > 0
+                    ? {
+                        ry: normalizedCanvasLengthY(finiteNumber$1(mask.ry), geometry),
+                    }
+                    : {}),
+            }, mask, geometry),
+            style,
+        };
+    }
+    if (type === 'circle') {
+        const radius = finiteNumber$1(mask.radius) * finiteNumber$1(mask.scaleX, 1);
+        const center = normalizedPoint({
+            x: finiteNumber$1(mask.left) + radius,
+            y: finiteNumber$1(mask.top) + radius,
+        }, geometry);
+        return {
+            kind: 'mask',
+            ...base,
+            maskShape: 'circle',
+            geometry: applyOptionalAngle({
+                type: 'circle',
+                cx: center.x,
+                cy: center.y,
+                radius: normalizedCanvasLengthX(radius, geometry),
+            }, mask, geometry),
+            style,
+        };
+    }
+    if (type === 'ellipse') {
+        const rx = finiteNumber$1(mask.rx) * finiteNumber$1(mask.scaleX, 1);
+        const ry = finiteNumber$1(mask.ry) * finiteNumber$1(mask.scaleY, 1);
+        const center = normalizedPoint({
+            x: finiteNumber$1(mask.left) + rx,
+            y: finiteNumber$1(mask.top) + ry,
+        }, geometry);
+        return {
+            kind: 'mask',
+            ...base,
+            maskShape: 'ellipse',
+            geometry: applyOptionalAngle({
+                type: 'ellipse',
+                cx: center.x,
+                cy: center.y,
+                rx: normalizedCanvasLengthX(rx, geometry),
+                ry: normalizedCanvasLengthY(ry, geometry),
+            }, mask, geometry),
+            style,
+        };
+    }
+    if (type === 'polygon' && Array.isArray(mask.points)) {
+        const points = ((_b = mask.points) !== null && _b !== void 0 ? _b : []).map((point) => normalizedPoint({
+            x: finiteNumber$1(mask.left) + finiteNumber$1(point.x),
+            y: finiteNumber$1(mask.top) + finiteNumber$1(point.y),
+        }, geometry));
+        return {
+            kind: 'mask',
+            ...base,
+            maskShape: 'polygon',
+            geometry: applyOptionalAngle({ type: 'polygon', points }, mask, geometry),
+            style,
+        };
+    }
+    return null;
+}
+function transformPathPoint(annotation, point) {
+    var _a, _b;
+    const pathLike = annotation;
+    const offset = (_a = pathLike.pathOffset) !== null && _a !== void 0 ? _a : { x: 0, y: 0 };
+    const x = point.x - finiteNumber$1(offset.x);
+    const y = point.y - finiteNumber$1(offset.y);
+    const matrix = (_b = pathLike.calcTransformMatrix) === null || _b === void 0 ? void 0 : _b.call(pathLike);
+    if (!Array.isArray(matrix) || matrix.length < 6) {
+        return {
+            x: finiteNumber$1(annotation.left) + point.x,
+            y: finiteNumber$1(annotation.top) + point.y,
+        };
+    }
+    const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = matrix;
+    return {
+        x: a * x + c * y + e,
+        y: b * x + d * y + f,
+    };
+}
+function pathValue(values, index) {
+    var _a;
+    return (_a = values[index]) !== null && _a !== void 0 ? _a : 0;
+}
+function extractPathPoints(annotation) {
+    const pathData = annotation.path;
+    if (!Array.isArray(pathData))
+        return [];
+    const points = [];
+    let current = { x: 0, y: 0 };
+    for (const rawCommand of pathData) {
+        if (!isPathCommand(rawCommand))
+            continue;
+        const rawName = rawCommand[0];
+        const command = rawName.toUpperCase();
+        const isRelative = rawName !== command;
+        const values = rawCommand.slice(1);
+        if (command === 'M' || command === 'L') {
+            for (let index = 0; index + 1 < values.length; index += 2) {
+                const next = {
+                    x: isRelative ? current.x + pathValue(values, index) : pathValue(values, index),
+                    y: isRelative
+                        ? current.y + pathValue(values, index + 1)
+                        : pathValue(values, index + 1),
+                };
+                points.push(transformPathPoint(annotation, next));
+                current = next;
+            }
+        }
+    }
+    return points;
+}
+function exportTextAnnotation(annotation, geometry, options) {
+    var _a;
+    const text = annotation;
+    const point = normalizedPoint({ x: finiteNumber$1(annotation.left), y: finiteNumber$1(annotation.top) }, geometry);
+    const angle = localOverlayAngle(annotation, geometry);
+    const width = finiteNumber$1(annotation.width) * finiteNumber$1(annotation.scaleX, 1);
+    return {
+        kind: 'annotation',
+        annotationType: 'text',
+        ...overlayBase(annotation, options),
+        geometry: {
+            x: point.x,
+            y: point.y,
+            ...(width > 0 ? { width: normalizedCanvasLengthX(width, geometry) } : {}),
+            ...(angle !== 0 ? { angle } : {}),
+        },
+        text: { value: String((_a = text.text) !== null && _a !== void 0 ? _a : '') },
+        style: {
+            ...(finiteNumber$1(text.fontSize) > 0 ? { fontSize: finiteNumber$1(text.fontSize) } : {}),
+            ...(typeof text.fontFamily === 'string' ? { fontFamily: text.fontFamily } : {}),
+            ...(typeof text.fontWeight === 'string' || typeof text.fontWeight === 'number'
+                ? { fontWeight: text.fontWeight }
+                : {}),
+            ...(text.fill !== undefined
+                ? { fill: normalizeOverlayColor(text.fill, '#000000') }
+                : {}),
+            ...(text.backgroundColor !== undefined
+                ? { backgroundColor: normalizeOverlayColor(text.backgroundColor, '#00000000') }
+                : {}),
+            ...(text.textAlign === 'left' ||
+                text.textAlign === 'center' ||
+                text.textAlign === 'right' ||
+                text.textAlign === 'justify'
+                ? { textAlign: text.textAlign }
+                : {}),
+            ...(finiteNumber$1(text.lineHeight) > 0
+                ? { lineHeight: finiteNumber$1(text.lineHeight) }
+                : {}),
+        },
+        ...(annotation.annotationLocked === true ? { locked: true } : {}),
+    };
+}
+function exportShapeAnnotation(annotation, geometry, options) {
+    const baseStyle = {
+        ...(annotation.stroke !== undefined
+            ? { stroke: normalizeOverlayColor(annotation.stroke, '#000000') }
+            : {}),
+        ...(finiteNumber$1(annotation.strokeWidth) >= 0
+            ? { strokeWidth: finiteNumber$1(annotation.strokeWidth) }
+            : {}),
+        ...(annotation.fill !== undefined
+            ? { fill: normalizeOverlayColor(annotation.fill, '#00000000') }
+            : {}),
+        ...(finiteNumber$1(annotation.opacity, 1) !== 1
+            ? { opacity: clamp01(finiteNumber$1(annotation.opacity, 1)) }
+            : {}),
+        ...(Array.isArray(annotation.strokeDashArray)
+            ? { strokeDashArray: annotation.strokeDashArray.map((entry) => finiteNumber$1(entry)) }
+            : {}),
+        ...(typeof annotation.selectable === 'boolean'
+            ? { selectable: annotation.selectable }
+            : {}),
+        ...(typeof annotation.evented === 'boolean' ? { evented: annotation.evented } : {}),
+    };
+    const shape = annotation.shapeAnnotationKind;
+    if (shape === 'rect') {
+        const point = normalizedPoint({ x: finiteNumber$1(annotation.left), y: finiteNumber$1(annotation.top) }, geometry);
+        const angle = localOverlayAngle(annotation, geometry);
+        return {
+            kind: 'annotation',
+            annotationType: 'shape',
+            ...overlayBase(annotation, options),
+            shape: 'rect',
+            geometry: {
+                type: 'rect',
+                x: point.x,
+                y: point.y,
+                width: normalizedCanvasLengthX(finiteNumber$1(annotation.width) * finiteNumber$1(annotation.scaleX, 1), geometry),
+                height: normalizedCanvasLengthY(finiteNumber$1(annotation.height) * finiteNumber$1(annotation.scaleY, 1), geometry),
+                ...(angle !== 0 ? { angle } : {}),
+            },
+            style: baseStyle,
+            ...(annotation.annotationLocked === true ? { locked: true } : {}),
+        };
+    }
+    const points = extractPathPoints(annotation);
+    if (points.length < 2)
+        return null;
+    const first = normalizedPoint(points[0], geometry);
+    const second = normalizedPoint(points[1], geometry);
+    if (shape === 'line') {
+        return {
+            kind: 'annotation',
+            annotationType: 'shape',
+            ...overlayBase(annotation, options),
+            shape: 'line',
+            geometry: { type: 'line', x1: first.x, y1: first.y, x2: second.x, y2: second.y },
+            style: baseStyle,
+            ...(annotation.annotationLocked === true ? { locked: true } : {}),
+        };
+    }
+    return {
+        kind: 'annotation',
+        annotationType: 'shape',
+        ...overlayBase(annotation, options),
+        shape: 'arrow',
+        geometry: { type: 'arrow', x1: first.x, y1: first.y, x2: second.x, y2: second.y },
+        style: baseStyle,
+        ...(annotation.annotationLocked === true ? { locked: true } : {}),
+    };
+}
+function exportDrawAnnotation(annotation, geometry, options) {
+    const points = extractPathPoints(annotation).map((point) => normalizedPoint(point, geometry));
+    return {
+        kind: 'annotation',
+        annotationType: 'draw',
+        ...overlayBase(annotation, options),
+        strokes: [
+            {
+                id: `${getPersistentId(annotation)}-stroke-1`,
+                points,
+                brush: {
+                    color: normalizeOverlayColor(annotation.stroke, '#000000'),
+                    width: finiteNumber$1(annotation.strokeWidth, 1),
+                    ...(finiteNumber$1(annotation.opacity, 1) !== 1
+                        ? { opacity: clamp01(finiteNumber$1(annotation.opacity, 1)) }
+                        : {}),
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                },
+            },
+        ],
+        ...(annotation.annotationLocked === true ? { locked: true } : {}),
+    };
+}
+function exportAnnotation(annotation, geometry, options) {
+    if (isTextAnnotationObject(annotation)) {
+        return exportTextAnnotation(annotation, geometry, options);
+    }
+    if (isShapeAnnotationObject(annotation)) {
+        return exportShapeAnnotation(annotation, geometry, options);
+    }
+    if (isDrawAnnotationObject(annotation)) {
+        return exportDrawAnnotation(annotation, geometry, options);
+    }
+    return null;
+}
+function exportOverlayState(context, options = {}) {
+    const canvas = context.canvas;
+    const image = context.originalImage;
+    if (!canvas || !image) {
+        throw new Error('[ImageEditor] exportOverlayState requires a loaded image.');
+    }
+    const resolvedOptions = {
+        includeHidden: options.includeHidden !== false,
+        includeLocked: options.includeLocked !== false,
+        includeMetadata: options.includeMetadata !== false,
+    };
+    const imageInfo = getImageInfo(image, context.currentImageMimeType);
+    const geometry = createCurrentImageGeometry(image, context.currentRotation);
+    const overlays = canvas
+        .getObjects()
+        .filter(isEditableOverlayObject)
+        .filter((object) => resolvedOptions.includeHidden || !isHidden(object))
+        .filter((object) => resolvedOptions.includeLocked || !isLocked(object))
+        .map((object) => {
+        if (isMaskObject(object))
+            return exportMask(object, geometry, resolvedOptions);
+        if (isAnnotationObject(object))
+            return exportAnnotation(object, geometry, resolvedOptions);
+        return null;
+    })
+        .filter((overlay) => !!overlay);
+    const baseImageTransform = getBaseImageTransform(image, context.currentRotation);
+    return {
+        schema: 'image-editor.overlay-state',
+        version: 1,
+        image: imageInfo,
+        coordinateSpace: 'image-normalized',
+        ...(baseImageTransform ? { baseImageTransform } : {}),
+        overlays,
+    };
+}
+
+const registry = new Map();
+function getOverlaySerializer(customType) {
+    return registry.get(customType);
+}
+
+function finiteNumber(value, fallback = 0) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+function cloneMetadata(metadata) {
+    return metadata ? JSON.parse(JSON.stringify(metadata)) : undefined;
+}
+function getObjectCenter(object) {
+    var _a;
+    const center = (_a = object.getCenterPoint) === null || _a === void 0 ? void 0 : _a.call(object);
+    if (center)
+        return { x: center.x, y: center.y };
+    return {
+        x: finiteNumber(object.left) + finiteNumber(object.width) / 2,
+        y: finiteNumber(object.top) + finiteNumber(object.height) / 2,
+    };
+}
+function createImportGeometry(image, transform) {
+    const center = getObjectCenter(image);
+    return {
+        naturalWidth: Math.max(1, finiteNumber(image.width, 1)),
+        naturalHeight: Math.max(1, finiteNumber(image.height, 1)),
+        canvasCenterX: center.x,
+        canvasCenterY: center.y,
+        scaleX: Math.max(0.000001, Math.abs(finiteNumber(image.scaleX, 1))),
+        scaleY: Math.max(0.000001, Math.abs(finiteNumber(image.scaleY, 1))),
+        transform: {
+            rotation: normalizeRotationDegrees(transform === null || transform === void 0 ? void 0 : transform.rotation),
+            flipX: (transform === null || transform === void 0 ? void 0 : transform.flipX) === true,
+            flipY: (transform === null || transform === void 0 ? void 0 : transform.flipY) === true,
+        },
+    };
+}
+function sourcePointFromNormalized(point, state) {
+    return imageNormalizedToSourcePixel(point, state.image);
+}
+function canvasPointFromNormalized(point, state, geometry) {
+    return sourcePixelToCanvas(sourcePointFromNormalized(point, state), geometry);
+}
+function normalizedLengthX(value, geometry) {
+    return value * geometry.naturalWidth * geometry.scaleX;
+}
+function normalizedLengthY(value, geometry) {
+    return value * geometry.naturalHeight * geometry.scaleY;
+}
+function nextMaskId(context) {
+    const id = context.getMaskCounter() + 1;
+    context.setMaskCounter(id);
+    return id;
+}
+function nextAnnotationId(context) {
+    const id = context.getAnnotationCounter() + 1;
+    context.setAnnotationCounter(id);
+    return id;
+}
+function newPersistentId(overlay, kind, runtimeId, options, existingPersistentIds, result) {
+    if (options.idStrategy === 'preserve' && !existingPersistentIds.has(overlay.id)) {
+        existingPersistentIds.add(overlay.id);
+        return overlay.id;
+    }
+    const generated = `${kind}-${runtimeId}`;
+    existingPersistentIds.add(generated);
+    if (generated !== overlay.id) {
+        result.regeneratedIds.push({ originalId: overlay.id, newId: generated });
+    }
+    return generated;
+}
+function assignPersistentFields(object, overlay, persistentId) {
+    const target = object;
+    target.overlayPersistentId = persistentId;
+    const metadata = cloneMetadata(overlay.metadata);
+    if (metadata)
+        target.overlayMetadata = metadata;
+}
+function maskStyleProps(style) {
+    var _a, _b, _c, _d, _e, _f;
+    return {
+        fill: style.fill,
+        opacity: style.alpha,
+        stroke: (_a = style.stroke) !== null && _a !== void 0 ? _a : undefined,
+        strokeWidth: (_b = style.strokeWidth) !== null && _b !== void 0 ? _b : 1,
+        strokeDashArray: (_c = style.strokeDashArray) !== null && _c !== void 0 ? _c : undefined,
+        selectable: (_d = style.selectable) !== null && _d !== void 0 ? _d : true,
+        evented: (_e = style.evented) !== null && _e !== void 0 ? _e : true,
+        hasControls: (_f = style.hasControls) !== null && _f !== void 0 ? _f : true,
+        originX: 'left',
+        originY: 'top',
+        strokeUniform: true,
+    };
+}
+function createMaskObject(context, state, overlay, geometry) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    const fabric = context.fabric;
+    let object;
+    if (overlay.geometry.type === 'rect') {
+        const point = canvasPointFromNormalized({ x: overlay.geometry.x, y: overlay.geometry.y }, state, geometry);
+        object = new fabric.Rect({
+            ...maskStyleProps(overlay.style),
+            left: point.x,
+            top: point.y,
+            width: normalizedLengthX(overlay.geometry.width, geometry),
+            height: normalizedLengthY(overlay.geometry.height, geometry),
+            rx: overlay.geometry.rx !== undefined
+                ? normalizedLengthX(overlay.geometry.rx, geometry)
+                : undefined,
+            ry: overlay.geometry.ry !== undefined
+                ? normalizedLengthY(overlay.geometry.ry, geometry)
+                : undefined,
+            angle: normalizeRotationDegrees((_a = state.baseImageTransform) === null || _a === void 0 ? void 0 : _a.rotation) +
+                finiteNumber(overlay.geometry.angle),
+        });
+    }
+    else if (overlay.geometry.type === 'circle') {
+        const radius = normalizedLengthX(overlay.geometry.radius, geometry);
+        const center = canvasPointFromNormalized({ x: overlay.geometry.cx, y: overlay.geometry.cy }, state, geometry);
+        object = new fabric.Circle({
+            ...maskStyleProps(overlay.style),
+            left: center.x - radius,
+            top: center.y - radius,
+            radius,
+            angle: normalizeRotationDegrees((_b = state.baseImageTransform) === null || _b === void 0 ? void 0 : _b.rotation) +
+                finiteNumber(overlay.geometry.angle),
+        });
+    }
+    else if (overlay.geometry.type === 'ellipse') {
+        const rx = normalizedLengthX(overlay.geometry.rx, geometry);
+        const ry = normalizedLengthY(overlay.geometry.ry, geometry);
+        const center = canvasPointFromNormalized({ x: overlay.geometry.cx, y: overlay.geometry.cy }, state, geometry);
+        object = new fabric.Ellipse({
+            ...maskStyleProps(overlay.style),
+            left: center.x - rx,
+            top: center.y - ry,
+            rx,
+            ry,
+            angle: normalizeRotationDegrees((_c = state.baseImageTransform) === null || _c === void 0 ? void 0 : _c.rotation) +
+                finiteNumber(overlay.geometry.angle),
+        });
+    }
+    else {
+        const points = overlay.geometry.points.map((point) => canvasPointFromNormalized(point, state, geometry));
+        const minX = Math.min(...points.map((point) => point.x));
+        const minY = Math.min(...points.map((point) => point.y));
+        object = new fabric.Polygon(points.map((point) => ({ x: point.x - minX, y: point.y - minY })), {
+            ...maskStyleProps(overlay.style),
+            left: minX,
+            top: minY,
+            angle: normalizeRotationDegrees((_d = state.baseImageTransform) === null || _d === void 0 ? void 0 : _d.rotation) +
+                finiteNumber(overlay.geometry.angle),
+        });
+    }
+    const maskId = nextMaskId(context);
+    const mask = markMaskObject(object, {
+        maskId,
+        maskUid: `mask-${maskId}`,
+        maskName: `${context.options.maskName}${maskId}`,
+        originalAlpha: overlay.style.alpha,
+        originalStroke: (_e = overlay.style.stroke) !== null && _e !== void 0 ? _e : null,
+        originalStrokeWidth: (_f = overlay.style.strokeWidth) !== null && _f !== void 0 ? _f : 1,
+    });
+    mask.selectable = (_g = overlay.style.selectable) !== null && _g !== void 0 ? _g : true;
+    mask.evented = (_h = overlay.style.evented) !== null && _h !== void 0 ? _h : true;
+    mask.hasControls = (_j = overlay.style.hasControls) !== null && _j !== void 0 ? _j : true;
+    mask.transparentCorners = false;
+    mask.strokeUniform = true;
+    attachMaskHoverHandlers(mask);
+    return mask;
+}
+function annotationBaseProps(locked) {
+    return {
+        annotationHidden: false,
+        annotationLocked: locked === true,
+    };
+}
+function createTextObject(context, state, overlay, geometry, warnings) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const point = canvasPointFromNormalized({ x: overlay.geometry.x, y: overlay.geometry.y }, state, geometry);
+    const requestedFont = overlay.style.fontFamily;
+    const fontFamily = requestedFont || context.options.defaultTextConfig.fontFamily;
+    const metadata = (_a = cloneMetadata(overlay.metadata)) !== null && _a !== void 0 ? _a : {};
+    if (requestedFont) {
+        metadata['core.font'] = {
+            ...((_b = metadata['core.font']) !== null && _b !== void 0 ? _b : {}),
+            requestedFontFamily: requestedFont,
+        };
+        warnings.push({
+            code: 'text.fontFamily.requested',
+            path: `overlays.${overlay.id}.style.fontFamily`,
+            message: `Text overlay requested fontFamily "${requestedFont}". Runtime font availability is host-dependent.`,
+            details: { fontFamily: requestedFont },
+        });
+    }
+    const textbox = new context.fabric.Textbox(overlay.text.value, {
+        left: point.x,
+        top: point.y,
+        width: overlay.geometry.width !== undefined
+            ? normalizedLengthX(overlay.geometry.width, geometry)
+            : context.options.defaultTextConfig.width,
+        fontSize: (_c = overlay.style.fontSize) !== null && _c !== void 0 ? _c : context.options.defaultTextConfig.fontSize,
+        fontFamily,
+        fontWeight: (_d = overlay.style.fontWeight) !== null && _d !== void 0 ? _d : context.options.defaultTextConfig.fontWeight,
+        fill: (_e = overlay.style.fill) !== null && _e !== void 0 ? _e : context.options.defaultTextConfig.fill,
+        backgroundColor: (_f = overlay.style.backgroundColor) !== null && _f !== void 0 ? _f : context.options.defaultTextConfig.backgroundColor,
+        textAlign: (_g = overlay.style.textAlign) !== null && _g !== void 0 ? _g : context.options.defaultTextConfig.textAlign,
+        lineHeight: overlay.style.lineHeight,
+        angle: normalizeRotationDegrees((_h = state.baseImageTransform) === null || _h === void 0 ? void 0 : _h.rotation) +
+            finiteNumber(overlay.geometry.angle),
+        originX: 'left',
+        originY: 'top',
+        selectable: true,
+        evented: true,
+        editable: true,
+    });
+    const annotationId = nextAnnotationId(context);
+    const annotation = markAnnotationObject(textbox, {
+        annotationId,
+        annotationType: 'text',
+        annotationName: `${context.options.textAnnotationName}${annotationId}`,
+        annotationSelectable: true,
+        annotationEvented: true,
+        annotationHasControls: textbox.hasControls !== false,
+        annotationEditable: true,
+        ...annotationBaseProps(overlay.locked),
+    });
+    if (Object.keys(metadata).length > 0) {
+        annotation.overlayMetadata = metadata;
+    }
+    syncAnnotationRuntimeState(annotation);
+    attachTextEditingHandlers(context.buildTextControllerContext(), annotation);
+    return annotation;
+}
+function buildArrowPath(x1, y1, x2, y2, headLength) {
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const length = Math.max(1, headLength);
+    const wingAngle = Math.PI / 7;
+    const head1x = x2 - length * Math.cos(angle - wingAngle);
+    const head1y = y2 - length * Math.sin(angle - wingAngle);
+    const head2x = x2 - length * Math.cos(angle + wingAngle);
+    const head2y = y2 - length * Math.sin(angle + wingAngle);
+    return `M ${x1} ${y1} L ${x2} ${y2} M ${x2} ${y2} L ${head1x} ${head1y} M ${x2} ${y2} L ${head2x} ${head2y}`;
+}
+function createShapeObject(context, state, overlay, geometry) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    const style = {
+        stroke: (_a = overlay.style.stroke) !== null && _a !== void 0 ? _a : context.options.defaultShapeConfig.stroke,
+        strokeWidth: (_b = overlay.style.strokeWidth) !== null && _b !== void 0 ? _b : context.options.defaultShapeConfig.strokeWidth,
+        fill: (_c = overlay.style.fill) !== null && _c !== void 0 ? _c : context.options.defaultShapeConfig.fill,
+        opacity: (_d = overlay.style.opacity) !== null && _d !== void 0 ? _d : context.options.defaultShapeConfig.opacity,
+        strokeDashArray: (_e = overlay.style.strokeDashArray) !== null && _e !== void 0 ? _e : undefined,
+        selectable: (_f = overlay.style.selectable) !== null && _f !== void 0 ? _f : true,
+        evented: (_g = overlay.style.evented) !== null && _g !== void 0 ? _g : true,
+        originX: 'left',
+        originY: 'top',
+    };
+    let object;
+    if (overlay.geometry.type === 'rect') {
+        const point = canvasPointFromNormalized({ x: overlay.geometry.x, y: overlay.geometry.y }, state, geometry);
+        object = new context.fabric.Rect({
+            ...style,
+            left: point.x,
+            top: point.y,
+            width: normalizedLengthX(overlay.geometry.width, geometry),
+            height: normalizedLengthY(overlay.geometry.height, geometry),
+            angle: normalizeRotationDegrees((_h = state.baseImageTransform) === null || _h === void 0 ? void 0 : _h.rotation) +
+                finiteNumber(overlay.geometry.angle),
+        });
+    }
+    else {
+        const start = canvasPointFromNormalized({ x: overlay.geometry.x1, y: overlay.geometry.y1 }, state, geometry);
+        const end = canvasPointFromNormalized({ x: overlay.geometry.x2, y: overlay.geometry.y2 }, state, geometry);
+        const path = overlay.geometry.type === 'arrow'
+            ? buildArrowPath(start.x, start.y, end.x, end.y, (_j = overlay.geometry.arrowHeadLength) !== null && _j !== void 0 ? _j : context.options.defaultShapeConfig.arrowHeadLength)
+            : `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+        object = new context.fabric.Path(path, {
+            ...style,
+            fill: '',
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            objectCaching: false,
+            angle: normalizeRotationDegrees((_k = state.baseImageTransform) === null || _k === void 0 ? void 0 : _k.rotation) +
+                finiteNumber(overlay.geometry.angle),
+        });
+    }
+    const annotationId = nextAnnotationId(context);
+    const annotation = markAnnotationObject(object, {
+        annotationId,
+        annotationType: 'shape',
+        annotationName: `${context.options.shapeAnnotationName}${annotationId}`,
+        annotationSelectable: (_l = overlay.style.selectable) !== null && _l !== void 0 ? _l : true,
+        annotationEvented: (_m = overlay.style.evented) !== null && _m !== void 0 ? _m : true,
+        annotationHasControls: object.hasControls !== false,
+        shapeAnnotationKind: overlay.shape,
+        ...annotationBaseProps(overlay.locked),
+    });
+    syncAnnotationRuntimeState(annotation);
+    return annotation;
+}
+function createDrawObject(context, state, overlay, geometry) {
+    var _a, _b, _c, _d;
+    const commands = [];
+    const firstStroke = overlay.strokes[0];
+    const brush = (_a = firstStroke === null || firstStroke === void 0 ? void 0 : firstStroke.brush) !== null && _a !== void 0 ? _a : {
+        color: context.options.defaultDrawConfig.color,
+        width: context.options.defaultDrawConfig.brushSize,
+    };
+    for (const stroke of overlay.strokes) {
+        stroke.points.forEach((point, index) => {
+            const canvasPoint = canvasPointFromNormalized(point, state, geometry);
+            commands.push(`${index === 0 ? 'M' : 'L'} ${canvasPoint.x} ${canvasPoint.y}`);
+        });
+    }
+    const object = new context.fabric.Path(commands.join(' '), {
+        fill: '',
+        stroke: brush.color,
+        strokeWidth: brush.width,
+        opacity: (_b = brush.opacity) !== null && _b !== void 0 ? _b : context.options.defaultDrawConfig.opacity,
+        strokeLineCap: (_c = brush.lineCap) !== null && _c !== void 0 ? _c : context.options.defaultDrawConfig.lineCap,
+        strokeLineJoin: (_d = brush.lineJoin) !== null && _d !== void 0 ? _d : context.options.defaultDrawConfig.lineJoin,
+        selectable: true,
+        evented: true,
+        objectCaching: false,
+    });
+    const annotationId = nextAnnotationId(context);
+    const annotation = markAnnotationObject(object, {
+        annotationId,
+        annotationType: 'draw',
+        annotationName: `${context.options.drawAnnotationName}${annotationId}`,
+        annotationSelectable: true,
+        annotationEvented: true,
+        annotationHasControls: object.hasControls !== false,
+        ...annotationBaseProps(overlay.locked),
+    });
+    syncAnnotationRuntimeState(annotation);
+    return annotation;
+}
+function removeExistingOverlays(context) {
+    for (const object of context.canvas.getObjects()) {
+        if (isMaskObject(object)) {
+            context.removeLabelForMask(object);
+            detachMaskHoverHandlers(object);
+            context.canvas.remove(object);
+        }
+        else if (isAnnotationObject(object)) {
+            context.canvas.remove(object);
+        }
+    }
+    context.canvas.discardActiveObject();
+    context.setLastMask(null);
+}
+function readExistingPersistentIds(canvas) {
+    const ids = new Set();
+    canvas.getObjects().forEach((object) => {
+        const id = object.overlayPersistentId;
+        if (typeof id === 'string')
+            ids.add(id);
+    });
+    return ids;
+}
+function computeTopLeftPoint(object) {
+    object.setCoords();
+    const coords = object.getCoords();
+    const first = coords[0];
+    if (first)
+        return first;
+    const boundingRect = object.getBoundingRect();
+    return { x: boundingRect.left, y: boundingRect.top };
+}
+function applyBaseTransformToImage(context, transform) {
+    const image = context.originalImage;
+    const rotation = normalizeRotationDegrees(transform === null || transform === void 0 ? void 0 : transform.rotation);
+    const flipX = (transform === null || transform === void 0 ? void 0 : transform.flipX) === true;
+    const flipY = (transform === null || transform === void 0 ? void 0 : transform.flipY) === true;
+    const center = image.getCenterPoint();
+    image.set({ originX: 'center', originY: 'center' });
+    image.setPositionByOrigin(center, 'center', 'center');
+    image.set({ angle: rotation, flipX, flipY });
+    image.setCoords();
+    const nextTopLeft = computeTopLeftPoint(image);
+    image.set({ originX: 'left', originY: 'top' });
+    image.setPositionByOrigin(nextTopLeft, 'left', 'top');
+    image.setCoords();
+    context.setCurrentRotation(rotation);
+}
+function skipCustomOverlay(overlay, result) {
+    result.skippedOverlays += 1;
+    result.warnings.push({
+        code: 'custom.unknownType',
+        path: `overlays.${overlay.id}`,
+        message: `Custom overlay type "${overlay.customType}" has no registered importer and was skipped.`,
+        details: { customType: overlay.customType },
+    });
+}
+async function importOverlayStateIntoEditor(context, state, options = {}) {
+    var _a;
+    const result = {
+        importedOverlays: 0,
+        importedMasks: 0,
+        importedAnnotations: 0,
+        skippedOverlays: 0,
+        regeneratedIds: [],
+        warnings: [],
+    };
+    const mode = (_a = options.mode) !== null && _a !== void 0 ? _a : 'replace';
+    if (mode === 'replace')
+        removeExistingOverlays(context);
+    applyBaseTransformToImage(context, state.baseImageTransform);
+    const geometry = createImportGeometry(context.originalImage, state.baseImageTransform);
+    const existingPersistentIds = readExistingPersistentIds(context.canvas);
+    for (const overlay of state.overlays) {
+        if (overlay.kind === 'custom') {
+            const entry = getOverlaySerializer(overlay.customType);
+            if (!entry) {
+                skipCustomOverlay(overlay, result);
+                continue;
+            }
+            await entry.import(overlay.data, { state });
+            result.importedOverlays += 1;
+            continue;
+        }
+        if (overlay.kind === 'mask') {
+            const mask = createMaskObject(context, state, overlay, geometry);
+            const persistentId = newPersistentId(overlay, 'mask', mask.maskId, options, existingPersistentIds, result);
+            assignPersistentFields(mask, overlay, persistentId);
+            placeMaskObject(context.canvas, mask);
+            context.setLastMask(mask);
+            result.importedOverlays += 1;
+            result.importedMasks += 1;
+            continue;
+        }
+        let annotation;
+        if (overlay.annotationType === 'text') {
+            annotation = createTextObject(context, state, overlay, geometry, result.warnings);
+        }
+        else if (overlay.annotationType === 'shape') {
+            annotation = createShapeObject(context, state, overlay, geometry);
+        }
+        else {
+            annotation = createDrawObject(context, state, overlay, geometry);
+        }
+        const persistentId = newPersistentId(overlay, 'annotation', annotation.annotationId, options, existingPersistentIds, result);
+        assignPersistentFields(annotation, overlay, persistentId);
+        placeAnnotationObject(context.canvas, annotation);
+        if (annotation.selectable !== false && isAnnotationUnlocked(annotation)) {
+            context.canvas.setActiveObject(annotation);
+        }
+        result.importedOverlays += 1;
+        result.importedAnnotations += 1;
+    }
+    normalizeLayerOrder(context.canvas);
+    if (options.preserveSelection !== true) {
+        context.canvas.discardActiveObject();
+    }
+    context.canvas.renderAll();
+    return result;
+}
+
+function error(path, code, message) {
+    return { path, code, message };
+}
+function migrateOverlayState(input) {
+    const errors = [];
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        errors.push(error('', 'state.invalidRoot', 'Overlay state must be an object.'));
+        return { errors, warnings: [] };
+    }
+    const candidate = input;
+    if (candidate.schema !== 'image-editor.overlay-state') {
+        errors.push(error('schema', 'state.unsupportedSchema', 'Overlay state schema must be "image-editor.overlay-state".'));
+        return { errors, warnings: [] };
+    }
+    if (typeof candidate.version !== 'number' || !Number.isInteger(candidate.version)) {
+        errors.push(error('version', 'state.invalidVersion', 'Overlay state version is invalid.'));
+        return { errors, warnings: [] };
+    }
+    if (candidate.version > 1) {
+        errors.push(error('version', 'state.futureVersion', `Overlay state version ${candidate.version} is newer than supported version 1.`));
+        return { errors, warnings: [] };
+    }
+    if (candidate.version !== 1) {
+        errors.push(error('version', 'state.unsupportedVersion', `Overlay state version ${candidate.version} is not supported.`));
+        return { errors, warnings: [] };
+    }
+    return { state: candidate, errors, warnings: [] };
+}
+
+const DEFAULT_OVERLAY_VALIDATION_LIMITS = Object.freeze({
+    maxOverlays: 500,
+    maxPolygonPoints: 1000,
+    maxDrawStrokes: 500,
+    maxDrawPointsPerStroke: 5000,
+    maxDrawTotalPoints: 100000,
+    maxTextLength: 10000,
+    maxMetadataDepth: DEFAULT_METADATA_DEPTH,
+    maxMetadataBytes: DEFAULT_METADATA_BYTES,
+});
+function resolveLimits(options = {}) {
+    const positive = (value, fallback) => Number.isFinite(value) && Number(value) > 0 ? Math.floor(Number(value)) : fallback;
+    return {
+        maxOverlays: positive(options.maxOverlays, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxOverlays),
+        maxPolygonPoints: positive(options.maxPolygonPoints, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxPolygonPoints),
+        maxDrawStrokes: positive(options.maxDrawStrokes, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxDrawStrokes),
+        maxDrawPointsPerStroke: positive(options.maxDrawPointsPerStroke, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxDrawPointsPerStroke),
+        maxDrawTotalPoints: positive(options.maxDrawTotalPoints, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxDrawTotalPoints),
+        maxTextLength: positive(options.maxTextLength, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxTextLength),
+        maxMetadataDepth: positive(options.maxMetadataDepth, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxMetadataDepth),
+        maxMetadataBytes: positive(options.maxMetadataBytes, DEFAULT_OVERLAY_VALIDATION_LIMITS.maxMetadataBytes),
+    };
+}
+function addError(context, path, code, message) {
+    context.errors.push({ path, code, message });
+}
+function addWarning(context, path, code, message, details) {
+    context.warnings.push({ path, code, message, ...(details ? { details } : {}) });
+}
+function hasCycle(value, seen = new WeakSet()) {
+    if (!value || typeof value !== 'object')
+        return false;
+    if (seen.has(value))
+        return true;
+    seen.add(value);
+    if (Array.isArray(value))
+        return value.some((entry) => hasCycle(entry, seen));
+    return Object.values(value).some((entry) => hasCycle(entry, seen));
+}
+function isRecord(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+function finite(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+function readFinite(context, object, key, path, options = {}) {
+    const value = object[key];
+    if (value === undefined) {
+        if (options.required)
+            addError(context, path, 'number.required', `${path} is required.`);
+        return undefined;
+    }
+    if (!finite(value)) {
+        addError(context, path, 'number.invalid', `${path} must be a finite number.`);
+        return undefined;
+    }
+    if (options.min !== undefined && value < options.min) {
+        addError(context, path, 'number.min', `${path} must be >= ${options.min}.`);
+    }
+    if (options.max !== undefined && value > options.max) {
+        addError(context, path, 'number.max', `${path} must be <= ${options.max}.`);
+    }
+    return value;
+}
+function readNormalized(context, object, key, path, required = true) {
+    return readFinite(context, object, key, path, {
+        required,
+        min: 0,
+        max: 1,
+    });
+}
+function readBoolean(context, object, key, path) {
+    const value = object[key];
+    if (value === undefined)
+        return undefined;
+    if (typeof value !== 'boolean') {
+        addError(context, path, 'boolean.invalid', `${path} must be a boolean.`);
+        return undefined;
+    }
+    return value;
+}
+function readString(context, object, key, path, required = false) {
+    const value = object[key];
+    if (value === undefined) {
+        if (required)
+            addError(context, path, 'string.required', `${path} is required.`);
+        return undefined;
+    }
+    if (typeof value !== 'string') {
+        addError(context, path, 'string.invalid', `${path} must be a string.`);
+        return undefined;
+    }
+    return value;
+}
+function normalizeColorField(context, value, path, required) {
+    if (value === undefined || value === null) {
+        if (required)
+            addError(context, path, 'color.required', `${path} is required.`);
+        return undefined;
+    }
+    const normalized = tryNormalizeOverlayColor(value);
+    if (!normalized) {
+        addError(context, path, 'color.invalid', `${path} must be #RRGGBB, #RRGGBBAA, rgb(), or rgba().`);
+        return undefined;
+    }
+    return normalized;
+}
+function normalizeDashArray(context, value, path) {
+    if (value === undefined)
+        return undefined;
+    if (value === null)
+        return null;
+    if (!Array.isArray(value)) {
+        addError(context, path, 'dash.invalid', `${path} must be an array or null.`);
+        return undefined;
+    }
+    const output = [];
+    value.forEach((entry, index) => {
+        if (!finite(entry) || entry < 0) {
+            addError(context, `${path}[${index}]`, 'dash.invalidEntry', 'Dash entries must be non-negative finite numbers.');
+            return;
+        }
+        output.push(entry);
+    });
+    return output;
+}
+function normalizeMetadata(context, value, path) {
+    const result = validateOverlayMetadata(value, path, {
+        maxMetadataDepth: context.limits.maxMetadataDepth,
+        maxMetadataBytes: context.limits.maxMetadataBytes,
+    });
+    context.errors.push(...result.errors);
+    context.warnings.push(...result.warnings);
+    return result.value;
+}
+function normalizeOverlayId(context, value, path) {
+    if (typeof value !== 'string' || value.trim() === '') {
+        addError(context, path, 'overlay.id.invalid', `${path} must be a non-empty string.`);
+        return '';
+    }
+    if (value.length > 256 || !/^[A-Za-z0-9._:-]+$/.test(value)) {
+        addError(context, path, 'overlay.id.unsupported', `${path} contains unsupported characters.`);
+    }
+    return value;
+}
+function normalizeBaseOverlay(context, overlay, path) {
+    const id = normalizeOverlayId(context, overlay.id, `${path}.id`);
+    const version = overlay.overlayVersion;
+    let overlayVersion;
+    if (version !== undefined) {
+        if (!Number.isInteger(version) || Number(version) <= 0) {
+            addError(context, `${path}.overlayVersion`, 'overlay.version.invalid', 'overlayVersion must be a positive integer.');
+        }
+        else {
+            overlayVersion = Number(version);
+        }
+    }
+    const hidden = readBoolean(context, overlay, 'hidden', `${path}.hidden`);
+    const metadata = normalizeMetadata(context, overlay.metadata, `${path}.metadata`);
+    return {
+        id,
+        ...(overlayVersion !== undefined ? { overlayVersion } : {}),
+        ...(hidden !== undefined ? { hidden } : {}),
+        ...(metadata !== undefined ? { metadata } : {}),
+    };
+}
+function validateImageInfo(context, value) {
+    if (!isRecord(value)) {
+        addError(context, 'image', 'image.invalid', 'image must be an object.');
+        return undefined;
+    }
+    const naturalWidth = readFinite(context, value, 'naturalWidth', 'image.naturalWidth', {
+        required: true,
+        min: 1,
+    });
+    const naturalHeight = readFinite(context, value, 'naturalHeight', 'image.naturalHeight', {
+        required: true,
+        min: 1,
+    });
+    const mimeType = value.mimeType;
+    const orientation = value.orientation;
+    const sourceId = readString(context, value, 'sourceId', 'image.sourceId');
+    const checksum = readString(context, value, 'checksum', 'image.checksum');
+    if (mimeType !== undefined &&
+        mimeType !== 'image/jpeg' &&
+        mimeType !== 'image/png' &&
+        mimeType !== 'image/webp') {
+        addError(context, 'image.mimeType', 'image.mimeType.invalid', 'Unsupported image MIME type.');
+    }
+    if (orientation !== undefined && ![1, 2, 3, 4, 5, 6, 7, 8].includes(orientation)) {
+        addError(context, 'image.orientation', 'image.orientation.invalid', 'EXIF orientation must be 1 through 8.');
+    }
+    if (naturalWidth === undefined || naturalHeight === undefined)
+        return undefined;
+    return {
+        naturalWidth,
+        naturalHeight,
+        ...(typeof mimeType === 'string'
+            ? { mimeType: mimeType }
+            : {}),
+        ...(typeof orientation === 'number'
+            ? { orientation: orientation }
+            : {}),
+        ...(sourceId !== undefined ? { sourceId } : {}),
+        ...(checksum !== undefined ? { checksum } : {}),
+    };
+}
+function validateBaseImageTransform(context, value) {
+    if (value === undefined)
+        return undefined;
+    if (!isRecord(value)) {
+        addError(context, 'baseImageTransform', 'baseTransform.invalid', 'baseImageTransform must be an object.');
+        return undefined;
+    }
+    const rotation = readFinite(context, value, 'rotation', 'baseImageTransform.rotation', {
+        required: false,
+    });
+    const flipX = readBoolean(context, value, 'flipX', 'baseImageTransform.flipX');
+    const flipY = readBoolean(context, value, 'flipY', 'baseImageTransform.flipY');
+    return {
+        ...(rotation !== undefined ? { rotation } : {}),
+        ...(flipX !== undefined ? { flipX } : {}),
+        ...(flipY !== undefined ? { flipY } : {}),
+    };
+}
+function validateMaskOverlay(context, overlay, path) {
+    const base = normalizeBaseOverlay(context, overlay, path);
+    const maskShape = overlay.maskShape;
+    if (maskShape !== 'rect' &&
+        maskShape !== 'circle' &&
+        maskShape !== 'ellipse' &&
+        maskShape !== 'polygon') {
+        addError(context, `${path}.maskShape`, 'mask.shape.invalid', 'Unsupported mask shape.');
+        return null;
+    }
+    if (!isRecord(overlay.geometry)) {
+        addError(context, `${path}.geometry`, 'mask.geometry.invalid', 'Mask geometry must be an object.');
+        return null;
+    }
+    if (!isRecord(overlay.style)) {
+        addError(context, `${path}.style`, 'mask.style.invalid', 'Mask style must be an object.');
+        return null;
+    }
+    const geometry = overlay.geometry;
+    let normalizedGeometry = null;
+    if (maskShape === 'rect' && geometry.type === 'rect') {
+        const x = readNormalized(context, geometry, 'x', `${path}.geometry.x`);
+        const y = readNormalized(context, geometry, 'y', `${path}.geometry.y`);
+        const width = readNormalized(context, geometry, 'width', `${path}.geometry.width`);
+        const height = readNormalized(context, geometry, 'height', `${path}.geometry.height`);
+        const rx = readNormalized(context, geometry, 'rx', `${path}.geometry.rx`, false);
+        const ry = readNormalized(context, geometry, 'ry', `${path}.geometry.ry`, false);
+        const angle = readFinite(context, geometry, 'angle', `${path}.geometry.angle`);
+        if (x !== undefined && y !== undefined && width !== undefined && height !== undefined) {
+            normalizedGeometry = {
+                type: 'rect',
+                x,
+                y,
+                width,
+                height,
+                ...(rx !== undefined ? { rx } : {}),
+                ...(ry !== undefined ? { ry } : {}),
+                ...(angle !== undefined ? { angle } : {}),
+            };
+        }
+    }
+    else if (maskShape === 'circle' && geometry.type === 'circle') {
+        const cx = readNormalized(context, geometry, 'cx', `${path}.geometry.cx`);
+        const cy = readNormalized(context, geometry, 'cy', `${path}.geometry.cy`);
+        const radius = readNormalized(context, geometry, 'radius', `${path}.geometry.radius`);
+        const angle = readFinite(context, geometry, 'angle', `${path}.geometry.angle`);
+        if (cx !== undefined && cy !== undefined && radius !== undefined) {
+            normalizedGeometry = {
+                type: 'circle',
+                cx,
+                cy,
+                radius,
+                ...(angle !== undefined ? { angle } : {}),
+            };
+        }
+    }
+    else if (maskShape === 'ellipse' && geometry.type === 'ellipse') {
+        const cx = readNormalized(context, geometry, 'cx', `${path}.geometry.cx`);
+        const cy = readNormalized(context, geometry, 'cy', `${path}.geometry.cy`);
+        const rx = readNormalized(context, geometry, 'rx', `${path}.geometry.rx`);
+        const ry = readNormalized(context, geometry, 'ry', `${path}.geometry.ry`);
+        const angle = readFinite(context, geometry, 'angle', `${path}.geometry.angle`);
+        if (cx !== undefined && cy !== undefined && rx !== undefined && ry !== undefined) {
+            normalizedGeometry = {
+                type: 'ellipse',
+                cx,
+                cy,
+                rx,
+                ry,
+                ...(angle !== undefined ? { angle } : {}),
+            };
+        }
+    }
+    else if (maskShape === 'polygon' && geometry.type === 'polygon') {
+        if (!Array.isArray(geometry.points)) {
+            addError(context, `${path}.geometry.points`, 'mask.polygon.points.invalid', 'Polygon points must be an array.');
+        }
+        else if (geometry.points.length > context.limits.maxPolygonPoints) {
+            addError(context, `${path}.geometry.points`, 'mask.polygon.points.max', `Polygon has ${geometry.points.length} points, exceeding maxPolygonPoints ${context.limits.maxPolygonPoints}.`);
+        }
+        else {
+            const points = geometry.points.map((point, index) => {
+                var _a, _b;
+                if (!isRecord(point)) {
+                    addError(context, `${path}.geometry.points[${index}]`, 'mask.polygon.point.invalid', 'Polygon point must be an object.');
+                    return { x: 0, y: 0 };
+                }
+                return {
+                    x: (_a = readNormalized(context, point, 'x', `${path}.geometry.points[${index}].x`)) !== null && _a !== void 0 ? _a : 0,
+                    y: (_b = readNormalized(context, point, 'y', `${path}.geometry.points[${index}].y`)) !== null && _b !== void 0 ? _b : 0,
+                };
+            });
+            const angle = readFinite(context, geometry, 'angle', `${path}.geometry.angle`);
+            normalizedGeometry = {
+                type: 'polygon',
+                points,
+                ...(angle !== undefined ? { angle } : {}),
+            };
+        }
+    }
+    else {
+        addError(context, `${path}.geometry.type`, 'mask.geometry.typeMismatch', 'Mask geometry type must match maskShape.');
+    }
+    const style = overlay.style;
+    const fill = normalizeColorField(context, style.fill, `${path}.style.fill`, true);
+    const alpha = readFinite(context, style, 'alpha', `${path}.style.alpha`, {
+        required: true,
+        min: 0,
+        max: 1,
+    });
+    const stroke = style.stroke === null
+        ? null
+        : normalizeColorField(context, style.stroke, `${path}.style.stroke`, false);
+    const strokeWidth = readFinite(context, style, 'strokeWidth', `${path}.style.strokeWidth`, {
+        min: 0,
+    });
+    const strokeDashArray = normalizeDashArray(context, style.strokeDashArray, `${path}.style.strokeDashArray`);
+    const selectable = readBoolean(context, style, 'selectable', `${path}.style.selectable`);
+    const evented = readBoolean(context, style, 'evented', `${path}.style.evented`);
+    const hasControls = readBoolean(context, style, 'hasControls', `${path}.style.hasControls`);
+    if (!normalizedGeometry || !fill || alpha === undefined)
+        return null;
+    return {
+        kind: 'mask',
+        ...base,
+        maskShape,
+        geometry: normalizedGeometry,
+        style: {
+            fill,
+            alpha,
+            ...(stroke !== undefined ? { stroke } : {}),
+            ...(strokeWidth !== undefined ? { strokeWidth } : {}),
+            ...(strokeDashArray !== undefined ? { strokeDashArray } : {}),
+            ...(selectable !== undefined ? { selectable } : {}),
+            ...(evented !== undefined ? { evented } : {}),
+            ...(hasControls !== undefined ? { hasControls } : {}),
+        },
+    };
+}
+function validateTextOverlay(context, overlay, path) {
+    var _a;
+    const base = normalizeBaseOverlay(context, overlay, path);
+    if (!isRecord(overlay.geometry) || !isRecord(overlay.text) || !isRecord(overlay.style)) {
+        addError(context, path, 'text.invalid', 'Text overlays require geometry, text, and style objects.');
+        return null;
+    }
+    const x = readNormalized(context, overlay.geometry, 'x', `${path}.geometry.x`);
+    const y = readNormalized(context, overlay.geometry, 'y', `${path}.geometry.y`);
+    const width = readNormalized(context, overlay.geometry, 'width', `${path}.geometry.width`, false);
+    const angle = readFinite(context, overlay.geometry, 'angle', `${path}.geometry.angle`);
+    const value = (_a = readString(context, overlay.text, 'value', `${path}.text.value`, true)) !== null && _a !== void 0 ? _a : '';
+    if (value.length > context.limits.maxTextLength) {
+        addError(context, `${path}.text.value`, 'text.maxLength', `Text length exceeds maxTextLength ${context.limits.maxTextLength}.`);
+    }
+    const fontSize = readFinite(context, overlay.style, 'fontSize', `${path}.style.fontSize`, {
+        min: 0,
+    });
+    const fontFamily = readString(context, overlay.style, 'fontFamily', `${path}.style.fontFamily`);
+    const fontWeight = overlay.style.fontWeight;
+    if (fontWeight !== undefined &&
+        typeof fontWeight !== 'string' &&
+        (typeof fontWeight !== 'number' || !Number.isFinite(fontWeight))) {
+        addError(context, `${path}.style.fontWeight`, 'text.fontWeight.invalid', 'fontWeight must be a string or finite number.');
+    }
+    const fill = normalizeColorField(context, overlay.style.fill, `${path}.style.fill`, false);
+    const backgroundColor = normalizeColorField(context, overlay.style.backgroundColor, `${path}.style.backgroundColor`, false);
+    const textAlign = overlay.style.textAlign;
+    if (textAlign !== undefined &&
+        textAlign !== 'left' &&
+        textAlign !== 'center' &&
+        textAlign !== 'right' &&
+        textAlign !== 'justify') {
+        addError(context, `${path}.style.textAlign`, 'text.align.invalid', 'Unsupported textAlign.');
+    }
+    const lineHeight = readFinite(context, overlay.style, 'lineHeight', `${path}.style.lineHeight`, { min: 0 });
+    const locked = readBoolean(context, overlay, 'locked', `${path}.locked`);
+    if (x === undefined || y === undefined)
+        return null;
+    return {
+        kind: 'annotation',
+        annotationType: 'text',
+        ...base,
+        geometry: {
+            x,
+            y,
+            ...(width !== undefined ? { width } : {}),
+            ...(angle !== undefined ? { angle } : {}),
+        },
+        text: { value },
+        style: {
+            ...(fontSize !== undefined ? { fontSize } : {}),
+            ...(fontFamily !== undefined ? { fontFamily } : {}),
+            ...(fontWeight !== undefined ? { fontWeight: fontWeight } : {}),
+            ...(fill !== undefined ? { fill } : {}),
+            ...(backgroundColor !== undefined ? { backgroundColor } : {}),
+            ...(typeof textAlign === 'string'
+                ? { textAlign: textAlign }
+                : {}),
+            ...(lineHeight !== undefined ? { lineHeight } : {}),
+        },
+        ...(locked !== undefined ? { locked } : {}),
+    };
+}
+function validateShapeOverlay(context, overlay, path) {
+    const base = normalizeBaseOverlay(context, overlay, path);
+    const shape = overlay.shape;
+    if (shape !== 'rect' && shape !== 'line' && shape !== 'arrow') {
+        addError(context, `${path}.shape`, 'shape.invalid', 'Unsupported shape annotation kind.');
+        return null;
+    }
+    if (!isRecord(overlay.geometry) || !isRecord(overlay.style)) {
+        addError(context, path, 'shape.invalidObjects', 'Shape overlays require geometry and style objects.');
+        return null;
+    }
+    let geometry = null;
+    if (shape === 'rect' && overlay.geometry.type === 'rect') {
+        const x = readNormalized(context, overlay.geometry, 'x', `${path}.geometry.x`);
+        const y = readNormalized(context, overlay.geometry, 'y', `${path}.geometry.y`);
+        const width = readNormalized(context, overlay.geometry, 'width', `${path}.geometry.width`);
+        const height = readNormalized(context, overlay.geometry, 'height', `${path}.geometry.height`);
+        const angle = readFinite(context, overlay.geometry, 'angle', `${path}.geometry.angle`);
+        if (x !== undefined && y !== undefined && width !== undefined && height !== undefined) {
+            geometry = {
+                type: 'rect',
+                x,
+                y,
+                width,
+                height,
+                ...(angle !== undefined ? { angle } : {}),
+            };
+        }
+    }
+    else if ((shape === 'line' || shape === 'arrow') && overlay.geometry.type === shape) {
+        const x1 = readNormalized(context, overlay.geometry, 'x1', `${path}.geometry.x1`);
+        const y1 = readNormalized(context, overlay.geometry, 'y1', `${path}.geometry.y1`);
+        const x2 = readNormalized(context, overlay.geometry, 'x2', `${path}.geometry.x2`);
+        const y2 = readNormalized(context, overlay.geometry, 'y2', `${path}.geometry.y2`);
+        const angle = readFinite(context, overlay.geometry, 'angle', `${path}.geometry.angle`);
+        if (x1 !== undefined && y1 !== undefined && x2 !== undefined && y2 !== undefined) {
+            if (shape === 'line') {
+                geometry = {
+                    type: 'line',
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    ...(angle !== undefined ? { angle } : {}),
+                };
+            }
+            else {
+                const arrowHeadLength = readFinite(context, overlay.geometry, 'arrowHeadLength', `${path}.geometry.arrowHeadLength`, { min: 0 });
+                geometry = {
+                    type: 'arrow',
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    ...(arrowHeadLength !== undefined ? { arrowHeadLength } : {}),
+                    ...(angle !== undefined ? { angle } : {}),
+                };
+            }
+        }
+    }
+    else {
+        addError(context, `${path}.geometry.type`, 'shape.geometry.typeMismatch', 'Shape geometry type must match shape.');
+    }
+    const stroke = normalizeColorField(context, overlay.style.stroke, `${path}.style.stroke`, false);
+    const strokeWidth = readFinite(context, overlay.style, 'strokeWidth', `${path}.style.strokeWidth`, { min: 0 });
+    const fill = normalizeColorField(context, overlay.style.fill, `${path}.style.fill`, false);
+    const opacity = readFinite(context, overlay.style, 'opacity', `${path}.style.opacity`, {
+        min: 0,
+        max: 1,
+    });
+    const strokeDashArray = normalizeDashArray(context, overlay.style.strokeDashArray, `${path}.style.strokeDashArray`);
+    const selectable = readBoolean(context, overlay.style, 'selectable', `${path}.style.selectable`);
+    const evented = readBoolean(context, overlay.style, 'evented', `${path}.style.evented`);
+    const locked = readBoolean(context, overlay, 'locked', `${path}.locked`);
+    if (!geometry)
+        return null;
+    return {
+        kind: 'annotation',
+        annotationType: 'shape',
+        ...base,
+        shape,
+        geometry,
+        style: {
+            ...(stroke !== undefined ? { stroke } : {}),
+            ...(strokeWidth !== undefined ? { strokeWidth } : {}),
+            ...(fill !== undefined ? { fill } : {}),
+            ...(opacity !== undefined ? { opacity } : {}),
+            ...(strokeDashArray !== undefined ? { strokeDashArray } : {}),
+            ...(selectable !== undefined ? { selectable } : {}),
+            ...(evented !== undefined ? { evented } : {}),
+        },
+        ...(locked !== undefined ? { locked } : {}),
+    };
+}
+function normalizeDrawBrush(context, value, path) {
+    if (!isRecord(value)) {
+        addError(context, path, 'draw.brush.invalid', 'Draw brush must be an object.');
+        return null;
+    }
+    const color = normalizeColorField(context, value.color, `${path}.color`, true);
+    const width = readFinite(context, value, 'width', `${path}.width`, { required: true, min: 0 });
+    const opacity = readFinite(context, value, 'opacity', `${path}.opacity`, { min: 0, max: 1 });
+    const lineCap = value.lineCap;
+    const lineJoin = value.lineJoin;
+    if (lineCap !== undefined &&
+        lineCap !== 'butt' &&
+        lineCap !== 'round' &&
+        lineCap !== 'square') {
+        addError(context, `${path}.lineCap`, 'draw.lineCap.invalid', 'Unsupported lineCap.');
+    }
+    if (lineJoin !== undefined &&
+        lineJoin !== 'bevel' &&
+        lineJoin !== 'round' &&
+        lineJoin !== 'miter') {
+        addError(context, `${path}.lineJoin`, 'draw.lineJoin.invalid', 'Unsupported lineJoin.');
+    }
+    if (!color || width === undefined)
+        return null;
+    return {
+        color,
+        width,
+        ...(opacity !== undefined ? { opacity } : {}),
+        ...(typeof lineCap === 'string' ? { lineCap: lineCap } : {}),
+        ...(typeof lineJoin === 'string' ? { lineJoin: lineJoin } : {}),
+    };
+}
+function normalizeDrawPoint(context, value, path) {
+    if (!isRecord(value)) {
+        addError(context, path, 'draw.point.invalid', 'Draw points must be objects.');
+        return null;
+    }
+    const x = readNormalized(context, value, 'x', `${path}.x`);
+    const y = readNormalized(context, value, 'y', `${path}.y`);
+    const pressure = readFinite(context, value, 'pressure', `${path}.pressure`, { min: 0, max: 1 });
+    const t = readFinite(context, value, 't', `${path}.t`, { min: 0 });
+    if (x === undefined || y === undefined)
+        return null;
+    return {
+        x,
+        y,
+        ...(pressure !== undefined ? { pressure } : {}),
+        ...(t !== undefined ? { t } : {}),
+    };
+}
+function validateDrawOverlay(context, overlay, path) {
+    const base = normalizeBaseOverlay(context, overlay, path);
+    if (!Array.isArray(overlay.strokes)) {
+        addError(context, `${path}.strokes`, 'draw.strokes.invalid', 'Draw strokes must be an array.');
+        return null;
+    }
+    if (overlay.strokes.length > context.limits.maxDrawStrokes) {
+        addError(context, `${path}.strokes`, 'draw.strokes.max', `Draw strokes exceed maxDrawStrokes ${context.limits.maxDrawStrokes}.`);
+        return null;
+    }
+    const strokes = [];
+    overlay.strokes.forEach((strokeValue, strokeIndex) => {
+        const strokePath = `${path}.strokes[${strokeIndex}]`;
+        if (!isRecord(strokeValue)) {
+            addError(context, strokePath, 'draw.stroke.invalid', 'Draw stroke must be an object.');
+            return;
+        }
+        const id = readString(context, strokeValue, 'id', `${strokePath}.id`);
+        if (!Array.isArray(strokeValue.points)) {
+            addError(context, `${strokePath}.points`, 'draw.points.invalid', 'Draw stroke points must be an array.');
+            return;
+        }
+        if (strokeValue.points.length > context.limits.maxDrawPointsPerStroke) {
+            addError(context, `${strokePath}.points`, 'draw.points.maxPerStroke', `Draw stroke exceeds maxDrawPointsPerStroke ${context.limits.maxDrawPointsPerStroke}.`);
+        }
+        context.drawTotalPoints += strokeValue.points.length;
+        if (context.drawTotalPoints > context.limits.maxDrawTotalPoints) {
+            addError(context, `${strokePath}.points`, 'draw.points.maxTotal', `Draw points exceed maxDrawTotalPoints ${context.limits.maxDrawTotalPoints}.`);
+        }
+        const points = strokeValue.points
+            .map((point, pointIndex) => normalizeDrawPoint(context, point, `${strokePath}.points[${pointIndex}]`))
+            .filter((point) => !!point);
+        let previousT = -Infinity;
+        points.forEach((point, pointIndex) => {
+            if (point.t === undefined)
+                return;
+            if (point.t < previousT) {
+                addError(context, `${strokePath}.points[${pointIndex}].t`, 'draw.t.notMonotonic', 'Draw point t values must be monotonically non-decreasing.');
+            }
+            previousT = point.t;
+        });
+        const brush = normalizeDrawBrush(context, strokeValue.brush, `${strokePath}.brush`);
+        if (brush)
+            strokes.push({ ...(id !== undefined ? { id } : {}), points, brush });
+    });
+    const locked = readBoolean(context, overlay, 'locked', `${path}.locked`);
+    return {
+        kind: 'annotation',
+        annotationType: 'draw',
+        ...base,
+        strokes,
+        ...(locked !== undefined ? { locked } : {}),
+    };
+}
+function validateCustomOverlay(context, overlay, path) {
+    const base = normalizeBaseOverlay(context, overlay, path);
+    const customType = readString(context, overlay, 'customType', `${path}.customType`, true);
+    if (customType &&
+        !/^(builtin|app|plugin)\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(customType)) {
+        addError(context, `${path}.customType`, 'custom.type.invalid', 'customType must be namespaced.');
+    }
+    if (!isRecord(overlay.data)) {
+        addError(context, `${path}.data`, 'custom.data.invalid', 'Custom overlay data must be an object.');
+        return null;
+    }
+    const metadataResult = validateOverlayMetadata({ 'app.customData': overlay.data }, `${path}.data`, {
+        maxMetadataDepth: context.limits.maxMetadataDepth,
+        maxMetadataBytes: context.limits.maxMetadataBytes,
+    });
+    context.errors.push(...metadataResult.errors);
+    if (customType && !getOverlaySerializer(customType)) {
+        addWarning(context, path, 'custom.unknownType', `Custom overlay type "${customType}" has no registered importer and will be skipped.`, { customType });
+    }
+    return customType
+        ? {
+            kind: 'custom',
+            ...base,
+            customType,
+            data: JSON.parse(JSON.stringify(overlay.data)),
+        }
+        : null;
+}
+function validateOverlay(context, value, index) {
+    const path = `overlays[${index}]`;
+    if (!isRecord(value)) {
+        addError(context, path, 'overlay.invalid', 'Overlay must be an object.');
+        return null;
+    }
+    if (value.kind === 'mask')
+        return validateMaskOverlay(context, value, path);
+    if (value.kind === 'custom')
+        return validateCustomOverlay(context, value, path);
+    if (value.kind === 'annotation') {
+        if (value.annotationType === 'text')
+            return validateTextOverlay(context, value, path);
+        if (value.annotationType === 'shape')
+            return validateShapeOverlay(context, value, path);
+        if (value.annotationType === 'draw')
+            return validateDrawOverlay(context, value, path);
+        addError(context, `${path}.annotationType`, 'annotation.type.invalid', 'Unsupported annotation type.');
+        return null;
+    }
+    addError(context, `${path}.kind`, 'overlay.kind.invalid', 'Unsupported overlay kind.');
+    return null;
+}
+function validateOverlayState(input, options = {}) {
+    const context = {
+        limits: resolveLimits(options),
+        errors: [],
+        warnings: [],
+        drawTotalPoints: 0,
+    };
+    if (hasCycle(input)) {
+        addError(context, '', 'state.cyclic', 'Overlay state must not contain cyclic objects.');
+        return { valid: false, errors: context.errors, warnings: context.warnings };
+    }
+    const migration = migrateOverlayState(input);
+    context.errors.push(...migration.errors);
+    context.warnings.push(...migration.warnings);
+    if (!migration.state || context.errors.length > 0) {
+        return { valid: false, errors: context.errors, warnings: context.warnings };
+    }
+    const raw = migration.state;
+    const image = validateImageInfo(context, raw.image);
+    if (raw.coordinateSpace !== 'image-normalized') {
+        addError(context, 'coordinateSpace', 'state.coordinateSpace.invalid', 'coordinateSpace must be "image-normalized".');
+    }
+    const baseImageTransform = validateBaseImageTransform(context, raw.baseImageTransform);
+    if (!Array.isArray(raw.overlays)) {
+        addError(context, 'overlays', 'overlays.invalid', 'overlays must be an array.');
+    }
+    else if (raw.overlays.length > context.limits.maxOverlays) {
+        addError(context, 'overlays', 'overlays.max', `Overlay count ${raw.overlays.length} exceeds maxOverlays ${context.limits.maxOverlays}.`);
+    }
+    const metadata = normalizeMetadata(context, raw.metadata, 'metadata');
+    const overlays = Array.isArray(raw.overlays)
+        ? raw.overlays
+            .map((overlay, index) => validateOverlay(context, overlay, index))
+            .filter((overlay) => !!overlay)
+        : [];
+    if (!image || context.errors.length > 0) {
+        return { valid: false, errors: context.errors, warnings: context.warnings };
+    }
+    const state = {
+        schema: 'image-editor.overlay-state',
+        version: 1,
+        image,
+        coordinateSpace: 'image-normalized',
+        ...(baseImageTransform !== undefined ? { baseImageTransform } : {}),
+        overlays,
+        ...(metadata !== undefined ? { metadata } : {}),
+    };
+    return { valid: true, state, errors: [], warnings: context.warnings };
+}
+
 function createMaskAction(access, config = {}) {
     if (!access.getCanvas())
         return null;
@@ -13005,6 +14962,9 @@ const IMAGE_EDITOR_OPERATIONS = new Set([
     'setMosaicBlockSize',
     'undo',
     'redo',
+    'exportOverlayState',
+    'validateOverlayState',
+    'importOverlayState',
     'exportImageBase64',
     'exportImageFile',
     'downloadImage',
@@ -13853,6 +15813,120 @@ class ImageEditor {
         if (!this.runtime.canvas)
             return [];
         return getAnnotations(this.runtime.canvas);
+    }
+    exportOverlayState(options = {}) {
+        this.assertIdleForOperation('exportOverlayState');
+        return exportOverlayState(this.buildOverlayStateExportContext(), options);
+    }
+    validateOverlayState(input, options = {}) {
+        return validateOverlayState(input, options);
+    }
+    async importOverlayState(input, options = {}) {
+        var _a, _b;
+        const validation = validateOverlayState(input, options);
+        if (!validation.valid || !validation.state) {
+            const message = (_b = (_a = validation.errors[0]) === null || _a === void 0 ? void 0 : _a.message) !== null && _b !== void 0 ? _b : 'Overlay state validation failed before import.';
+            const error = new Error(`[ImageEditor] importOverlayState failed: ${message}`);
+            error.validation = validation;
+            throw error;
+        }
+        if (!this.runtime.canvas || !this.runtime.originalImage) {
+            throw new Error('[ImageEditor] importOverlayState requires a loaded image.');
+        }
+        this.assertIdleForOperation('importOverlayState');
+        const token = this.runtime.operationGuard.beginBusyOperation('importOverlayState');
+        const callbackContext = this.buildCallbackContext('importOverlayState', false);
+        const beforeSnapshot = this.captureSnapshotInternal();
+        const previousActiveObject = this.runtime.canvas.getActiveObject();
+        const previousSuppressSaveState = this.runtime.shouldSuppressSaveState;
+        const previousMaskSignature = this.getMaskCollectionSignature();
+        const previousAnnotationSignature = this.getAnnotationCollectionSignature();
+        let result;
+        this.finalizeActiveTextEditingIfNeeded();
+        this.runtime.shouldSuppressSaveState = true;
+        this.emitBusyChangeIfChanged(callbackContext);
+        this.updateUi();
+        try {
+            result = await importOverlayStateIntoEditor(this.buildOverlayStateImportContext(), validation.state, options);
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            if (options.preserveSelection === true &&
+                previousActiveObject &&
+                this.runtime.canvas.getObjects().includes(previousActiveObject)) {
+                this.runtime.canvas.setActiveObject(previousActiveObject);
+            }
+            if (options.saveHistory !== false) {
+                this.saveStateInternal(this.withInternalOperationOptions(token));
+            }
+            else {
+                this.runtime.lastSnapshot = this.captureSnapshotInternal();
+            }
+            this.updateInputs();
+            this.updateMaskList();
+            this.updateAnnotationList();
+            this.updateUi();
+            if (previousMaskSignature !== this.getMaskCollectionSignature()) {
+                this.emitMasksChanged(callbackContext);
+            }
+            if (previousAnnotationSignature !== this.getAnnotationCollectionSignature()) {
+                this.emitAnnotationsChanged(callbackContext);
+            }
+            this.emitImageChanged(callbackContext);
+            return {
+                ...result,
+                warnings: [...validation.warnings, ...result.warnings],
+            };
+        }
+        catch (error) {
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            try {
+                await this.loadFromStateInternal(beforeSnapshot, this.withInternalOperationOptions(token));
+            }
+            catch (rollbackError) {
+                reportWarning(this.runtime.options, rollbackError, 'importOverlayState rollback failed.');
+            }
+            throw error;
+        }
+        finally {
+            this.runtime.shouldSuppressSaveState = previousSuppressSaveState;
+            this.runtime.operationGuard.endBusyOperation(token);
+            this.emitBusyChangeIfChanged(callbackContext);
+            if (!this.runtime.isDisposed && this.runtime.canvas)
+                this.updateUi();
+        }
+    }
+    buildOverlayStateExportContext() {
+        return {
+            canvas: this.runtime.canvas,
+            originalImage: this.runtime.originalImage,
+            currentRotation: this.runtime.currentRotation,
+            currentImageMimeType: this.runtime.currentImageMimeType,
+        };
+    }
+    buildOverlayStateImportContext() {
+        return {
+            fabric: this.runtime.fabricModule,
+            canvas: this.runtime.getLiveCanvasOrThrow('importOverlayState'),
+            options: this.runtime.getRuntimeOptions(),
+            originalImage: this.runtime.originalImage,
+            getMaskCounter: () => this.runtime.maskCounter,
+            setMaskCounter: (value) => {
+                this.runtime.maskCounter = value;
+            },
+            getAnnotationCounter: () => this.runtime.annotationCounter,
+            setAnnotationCounter: (value) => {
+                this.runtime.annotationCounter = value;
+            },
+            setLastMask: (mask) => {
+                this.runtime.lastMask = mask;
+            },
+            setCurrentRotation: (rotation) => {
+                this.runtime.currentRotation = rotation;
+            },
+            removeLabelForMask: (mask) => {
+                this.removeLabelForMask(mask);
+            },
+            buildTextControllerContext: () => this.buildTextControllerContext(),
+        };
     }
     getMaskCollectionSignature() {
         return this.getMasks()
