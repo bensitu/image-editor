@@ -4,6 +4,10 @@
 [![npm](https://img.shields.io/npm/v/@bensitu/image-editor.svg)](https://www.npmjs.com/package/@bensitu/image-editor)
 [![](https://data.jsdelivr.com/v1/package/npm/@bensitu/image-editor/badge)](https://www.jsdelivr.com/package/npm/@bensitu/image-editor)
 
+[![ImageEditor demo landing page showing selectable masks, filters, mosaic-style redaction, and annotations](https://raw.githubusercontent.com/bensitu/image-editor/main/docs/assets/demo-screenshot.jpg)](https://bensitu.github.io/image-editor/)
+
+Click the screenshot to open the live demo.
+
 A TypeScript-first image editor built on [Fabric.js](https://fabricjs.com/) v7.
 It provides a focused canvas editing API for loading images, transforming the
 base image, creating masks and annotations, applying crop and mosaic operations,
