@@ -803,6 +803,35 @@ canvas {
     gap: 7px;
 }
 
+.landing-actions {
+    margin-top: 3px;
+}
+
+.landing-actions .button {
+    min-height: 40px;
+}
+
+.landing-highlights {
+    display: flex;
+    max-width: 920px;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 2px;
+}
+
+.landing-highlights span {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    padding: 5px 9px;
+    border: 1px solid rgba(36, 104, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.76);
+    color: #34506d;
+    font-size: 12px;
+    font-weight: 740;
+}
+
 .eyebrow {
     display: inline-flex;
     width: fit-content;
@@ -831,7 +860,7 @@ canvas {
 .landing-showcase {
     position: relative;
     display: grid;
-    height: 264px;
+    height: 340px;
     grid-template-rows: 38px minmax(0, 1fr);
     overflow: hidden;
     border: 1px solid var(--border);
@@ -1106,7 +1135,7 @@ canvas {
     }
 
     .showcase-body {
-        grid-template-columns: 140px minmax(0, 1fr) 160px;
+        grid-template-columns: 132px minmax(0, 1fr) 148px;
     }
 
     .landing-grid {
@@ -1137,11 +1166,11 @@ canvas {
     }
 
     .landing-showcase {
-        height: 236px;
+        height: 286px;
     }
 
     .showcase-body {
-        grid-template-columns: 120px minmax(0, 1fr);
+        grid-template-columns: 112px minmax(0, 1fr);
     }
 
     .showcase-inspector {
@@ -1172,8 +1201,12 @@ canvas {
     }
 
     .landing-showcase {
-        height: 236px;
+        height: clamp(176px, 42vw, 246px);
         grid-template-rows: 44px minmax(0, 1fr);
+    }
+
+    .landing-actions .button {
+        flex: 1 1 190px;
     }
 
     .showcase-body {
