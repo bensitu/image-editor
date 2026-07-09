@@ -824,6 +824,8 @@ export type MaskNumericProp =
  */
 export type PolygonPoint = { x: number; y: number } | [number, number];
 
+export type MaskShapeKind = 'rect' | 'circle' | 'ellipse' | 'polygon';
+
 /**
  * Configuration object passed to {@link ImageEditor.createMask}.
  *
@@ -833,7 +835,7 @@ export type PolygonPoint = { x: number; y: number } | [number, number];
  */
 export interface MaskConfig {
     /** Shape type. @default 'rect' */
-    shape?: 'rect' | 'circle' | 'ellipse' | 'polygon' | string;
+    shape?: MaskShapeKind | (string & {});
 
     /**
      * Polygon vertex array. Required when `shape === 'polygon'`.

@@ -19,8 +19,8 @@
  * (the {@link ImageEditor} constructor) is then expected to make `init`
  * and `loadImage` no-ops that resolve to `undefined`.
  *
- * Wrapping policy: this adapter does NOT proxy or normalize Fabric APIs.
- * Callers MUST only invoke Fabric v7-compatible APIs directly:
+ * Wrapping policy: this adapter does not proxy or normalize Fabric APIs.
+ * Callers must only invoke Fabric v7-compatible APIs directly:
  * - `FabricImage.fromURL(...)` returning a Promise
  * - `canvas.loadFromJSON(...)` returning a Promise
  * - `canvas.setDimensions({ width, height})`
@@ -35,12 +35,11 @@ import type { FabricModule, ImageEditorOptions } from '../core/public-types.js';
 /**
  * Result of {@link detectFabric}. The caller should:
  *   - store `fabric` and `isFabricLoaded` in the editor runtime,
- *   - use `options` as the ImageEditorOptions partial to feed into
- *     `core/default-options.ts`.
+ *   - pass `options` through normal ImageEditor option resolution.
  *
  * `isFabricLoaded === false` means no usable Fabric module was found and
- * `fabric` is `null`. The constructor SHALL guard `init` and
- * `loadImage` accordingly.
+ * `fabric` is `null`. The constructor must guard `init` and `loadImage`
+ * accordingly.
  */
 export interface FabricDetectionResult {
     /** The detected Fabric module, or `null` when no module is available. */
@@ -59,7 +58,7 @@ export interface FabricDetectionResult {
  * | First arg                                         | Result                                                       |
  * | ------------------------------------------------- | ------------------------------------------------------------ |
  * | Has `Canvas` function property                    | `{ fabric: arg, isFabricLoaded: true, options: maybeOptions}` |
- * | Lacks `Canvas`, `globalScope.fabric.Canvas` is callback | `{ fabric: globalScope.fabric, isFabricLoaded: true, options: arg}` |
+ * | Lacks `Canvas`, `globalScope.fabric.Canvas` is function | `{ fabric: globalScope.fabric, isFabricLoaded: true, options: arg}` |
  * | Lacks `Canvas`, no usable global                  | `{ fabric: null, isFabricLoaded: false, options: arg}` + single `console.error` |
  *
  * `null` / `undefined` first argument is normalized to an empty options

@@ -113,6 +113,13 @@ interface MosaicOutputFormat {
     quality?: number;
 }
 
+interface MosaicDirtyRect {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+}
+
 const MAX_PENDING_MOSAIC_POINTS = 4096;
 
 function getCanvasDocument(context: MosaicControllerContext): Document {
@@ -640,25 +647,91 @@ function applyMosaicImagePoint(
         : [imagePoint];
 
     let changed = false;
+    let dirtyRect: MosaicDirtyRect | null = null;
     for (const point of points) {
-        changed =
-            applyCircularMosaicToImageData({
-                imageData: rasterCache.imageData,
-                centerX: point.sourceX,
-                centerY: point.sourceY,
-                radius: point.sourceRadius,
-                blockSize: config.blockSize,
-            }) || changed;
+        const pointChanged = applyCircularMosaicToImageData({
+            imageData: rasterCache.imageData,
+            centerX: point.sourceX,
+            centerY: point.sourceY,
+            radius: point.sourceRadius,
+            blockSize: config.blockSize,
+        });
+        if (!pointChanged) continue;
+        dirtyRect = mergeMosaicDirtyRects(
+            dirtyRect,
+            getMosaicPointDirtyRect(rasterCache.imageData, point),
+        );
+        changed = true;
     }
 
     session.lastImagePoint = imagePoint;
     if (changed) {
         session.hasUncommittedChanges = true;
-        rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+        putMosaicImageData(rasterCache, dirtyRect);
         ensurePreviewImage(context, session, sourceImage);
         safeRender(context.canvas);
     }
     return changed;
+}
+
+function getMosaicPointDirtyRect(
+    imageData: ImageData,
+    point: MosaicImagePoint,
+): MosaicDirtyRect | null {
+    const centerX = Number(point.sourceX);
+    const centerY = Number(point.sourceY);
+    const radius = Number(point.sourceRadius);
+    if (
+        !Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        imageData.width <= 0 ||
+        imageData.height <= 0
+    ) {
+        return null;
+    }
+
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(imageData.width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(imageData.height - 1, Math.ceil(centerY + radius));
+    if (minX > maxX || minY > maxY) return null;
+    return { minX, minY, maxX, maxY };
+}
+
+function mergeMosaicDirtyRects(
+    current: MosaicDirtyRect | null,
+    next: MosaicDirtyRect | null,
+): MosaicDirtyRect | null {
+    if (!next) return current;
+    if (!current) return next;
+    return {
+        minX: Math.min(current.minX, next.minX),
+        minY: Math.min(current.minY, next.minY),
+        maxX: Math.max(current.maxX, next.maxX),
+        maxY: Math.max(current.maxY, next.maxY),
+    };
+}
+
+function putMosaicImageData(
+    rasterCache: MosaicRasterCache,
+    dirtyRect: MosaicDirtyRect | null,
+): void {
+    if (!dirtyRect) {
+        rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+        return;
+    }
+
+    rasterCache.renderingContext.putImageData(
+        rasterCache.imageData,
+        0,
+        0,
+        dirtyRect.minX,
+        dirtyRect.minY,
+        dirtyRect.maxX - dirtyRect.minX + 1,
+        dirtyRect.maxY - dirtyRect.minY + 1,
+    );
 }
 
 function interpolateMosaicPoints(

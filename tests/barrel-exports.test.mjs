@@ -119,6 +119,7 @@ test('barrel re-exports documented public type names', async () => {
         'MaskConfig',
         'MaskObject',
         'MaskNumericProp',
+        'MaskShapeKind',
         'ResolvedMaskConfig',
         'BaseImageObject',
         'SessionObject',

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarify overlay-state schema version 1 wording in comments and documentation so it is not confused with the npm package version or a feature roadmap.
 - Restructure README as a package landing page and move detailed API, options, overlay-state, and local-check references into dedicated docs.
 - Refresh the docs landing page and studio preview to showcase filters, mosaic-style redaction, and selectable masks/text/shape annotations together.
+- Use dirty-rectangle `putImageData()` writes for Mosaic live-preview strokes to avoid repainting the full raster cache on every brush update.
 
 ### Security
 
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject public `setCanvasSize()` and `resizeToContainer()` fallback dimensions that exceed `maxExportDimension` or `maxExportPixels`, leaving the previous canvas size unchanged and emitting `onWarning`.
 - Preserve selected mask label state when `loadImage()` fails during input-budget validation before the transactional loader starts.
 - Reject malformed JPEG SOF headers that do not declare enough segment data for precision, height, and width before reading dimensions.
+- Preserve `MaskConfig.shape` literal completions while still accepting custom strings, and warn when an unsupported shape without `fabricGenerator` falls back to a rectangle.
 
 ## [2.8.2] - 2026-07-09
 

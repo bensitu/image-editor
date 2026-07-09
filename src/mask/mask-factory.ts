@@ -87,6 +87,7 @@ import type {
     FabricModule,
     MaskConfig,
     MaskObject,
+    MaskShapeKind,
     RemoveAllMasksOptions,
     ResolvedMaskConfig,
     ResolvedOptions,
@@ -100,6 +101,7 @@ import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.j
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 
 const POLYGON_AREA_EPSILON = 1e-6;
+const BUILT_IN_MASK_SHAPES = new Set<string>(['rect', 'circle', 'ellipse', 'polygon']);
 
 function createMaskUid(maskId: number): string {
     return `mask-${maskId}`;
@@ -177,6 +179,23 @@ function mergeMaskConfig(defaultMaskConfig: DefaultMaskConfig, config: MaskConfi
 
 function warnInvalidMask(options: ResolvedOptions, reason: string): void {
     reportWarning(options, null, `createMask skipped: ${reason}.`);
+}
+
+function isBuiltInMaskShape(value: unknown): value is MaskShapeKind {
+    return typeof value === 'string' && BUILT_IN_MASK_SHAPES.has(value);
+}
+
+function resolveMaskShape(
+    options: ResolvedOptions,
+    shape: NonNullable<MaskConfig['shape']>,
+): MaskShapeKind {
+    if (isBuiltInMaskShape(shape)) return shape;
+    reportWarning(
+        options,
+        null,
+        `createMask received unsupported shape "${String(shape)}"; using "rect" instead.`,
+    );
+    return 'rect';
 }
 
 function isResolvableNumericInput(value: unknown): boolean {
@@ -338,8 +357,13 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
     if (!canvas) return null;
 
     const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
-    const shapeType = mergedConfig.shape ?? 'rect';
+    const requestedShapeType = mergedConfig.shape ?? 'rect';
     if (!validateNumericInputs(options, mergedConfig)) return null;
+
+    const shapeType =
+        typeof config.fabricGenerator === 'function'
+            ? requestedShapeType
+            : resolveMaskShape(options, requestedShapeType);
 
     // ── Resolve config (defaults merged with the user overrides) ──────────
     const resolvedConfig: ResolvedMaskConfig = {

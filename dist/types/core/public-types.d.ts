@@ -270,7 +270,7 @@ export interface LabelConfig {
      */
     textOptions?: Partial<FabricNS.TextProps>;
     /**
-     * Advanced: supply a factory that builds the label object directly.
+     * Supply a factory that builds the label object directly.
      * When provided, `getText` and `textOptions` are ignored.
      *
      * @returns A Fabric.js Text instance, or `null` to fall back to defaults.
@@ -278,7 +278,7 @@ export interface LabelConfig {
     create?: (mask: MaskObject, fabric: FabricModule) => FabricNS.FabricText | null;
 }
 /**
- * Crop-mode configuration. Defaults are applied by `core/default-options.ts`.
+ * Crop-mode configuration. Defaults are applied during editor construction.
  */
 export interface CropConfig {
     /**
@@ -600,6 +600,7 @@ export type PolygonPoint = {
     x: number;
     y: number;
 } | [number, number];
+export type MaskShapeKind = 'rect' | 'circle' | 'ellipse' | 'polygon';
 /**
  * Configuration object passed to {@link ImageEditor.createMask}.
  *
@@ -609,7 +610,7 @@ export type PolygonPoint = {
  */
 export interface MaskConfig {
     /** Shape type. @default 'rect' */
-    shape?: 'rect' | 'circle' | 'ellipse' | 'polygon' | string;
+    shape?: MaskShapeKind | (string & {});
     /**
      * Polygon vertex array. Required when `shape === 'polygon'`.
      * Each element may be `{ x, y }` or `[x, y]`.
@@ -672,9 +673,8 @@ export interface MaskConfig {
      */
     onCreate?: (mask: MaskObject, canvas: FabricNS.Canvas) => void;
     /**
-     * Advanced: bypass the built-in shape logic and supply your own Fabric.js
-     * object. Receives the fully resolved config, the canvas, and the
-     * resolved editor options.
+     * Bypass the built-in shape logic and supply a Fabric.js object directly.
+     * Receives the fully resolved config, canvas, and editor options.
      */
     fabricGenerator?: (config: ResolvedMaskConfig, canvas: FabricNS.Canvas, options: ResolvedOptions) => FabricNS.FabricObject;
 }
@@ -972,9 +972,8 @@ export interface ImageExportOptions extends OverlayExportOptions {
 /**
  * Configuration passed to the {@link ImageEditor} constructor.
  *
- * All properties are optional; sensible defaults are applied internally by
- * `core/default-options.ts`. Unknown keys are
- * ignored without throwing.
+ * All properties are optional. The editor applies documented defaults during
+ * construction and ignores unknown keys without throwing.
  */
 export interface ImageEditorOptions {
     /** Initial and hidden-container fallback canvas width in pixels. @default 800 */
@@ -1204,9 +1203,8 @@ export interface ImageEditorOptions {
     defaultShapeConfig?: ShapeAnnotationConfig;
 }
 /**
- * Fully resolved options with every required field guaranteed present.
- * Produced by `core/default-options.ts` after merging defaults with the
- * user-supplied partial options.
+ * Fully resolved options with every required field guaranteed present after
+ * merging defaults with the user-supplied partial options.
  */
 export interface ResolvedOptions extends Required<Omit<ImageEditorOptions, 'label' | 'crop' | 'defaultMosaicConfig' | 'defaultTextConfig' | 'defaultDrawConfig' | 'defaultEraserConfig' | 'defaultShapeConfig' | 'onImageLoadStart' | 'onImageLoaded' | 'onImageCleared' | 'onImageChanged' | 'onBusyChange' | 'onToolModeChange' | 'onHistoryChange' | 'onEditorDisposed' | 'onMasksChanged' | 'onAnnotationsChanged' | 'onSelectionChange' | 'onError' | 'onWarning' | 'downsampleQuality' | 'maxInputBytes' | 'maxInputPixels' | 'maxExportPixels' | 'maxExportDimension'>> {
     downsampleQuality: number;

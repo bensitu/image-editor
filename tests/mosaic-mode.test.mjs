@@ -275,6 +275,52 @@ test('Mosaic drag shows live preview before mouseup commits the stroke', async (
     }
 });
 
+test('Mosaic drag writes preview cache through dirty rectangles', async () => {
+    const { editor } = await createEditor({
+        defaultMosaicConfig: { brushSize: 12, blockSize: 4 },
+    });
+    try {
+        await editor.loadImage(makeGradientDataUrl({ width: 64, height: 64 }));
+        const canvas = requireEditorCanvas(editor);
+        const center = getImageCenter(editor);
+
+        editor.enterMosaicMode();
+        canvas.fire('mouse:down', { scenePoint: center });
+        await waitForCanvasCallbacks(250);
+
+        const session = getMosaicSession(editor);
+        assert.ok(session?.rasterCache, 'mousedown should create the raster cache');
+        const { renderingContext, width, height } = session.rasterCache;
+        const putImageDataCalls = [];
+        const originalPutImageData = renderingContext.putImageData.bind(renderingContext);
+        renderingContext.putImageData = (...args) => {
+            putImageDataCalls.push(args);
+            return originalPutImageData(...args);
+        };
+
+        canvas.fire('mouse:move', {
+            scenePoint: { x: center.x + 18, y: center.y + 6 },
+        });
+        await waitForCanvasCallbacks(250);
+
+        assert.ok(putImageDataCalls.length > 0, 'mousemove should update the live preview cache');
+        for (const args of putImageDataCalls) {
+            assert.equal(args.length, 7, 'preview writes must use the dirty rectangle overload');
+            assert.equal(args[1], 0);
+            assert.equal(args[2], 0);
+            assert.ok(args[3] >= 0 && args[3] < width, 'dirtyX must stay inside the raster');
+            assert.ok(args[4] >= 0 && args[4] < height, 'dirtyY must stay inside the raster');
+            assert.ok(args[5] > 0 && args[5] < width, 'dirtyWidth must be smaller than the raster');
+            assert.ok(
+                args[6] > 0 && args[6] < height,
+                'dirtyHeight must be smaller than the raster',
+            );
+        }
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
 test('Mosaic commit refreshes the raster cache to the committed source', async () => {
     const { editor } = await createEditor({
         defaultMosaicConfig: { brushSize: 14, blockSize: 4 },

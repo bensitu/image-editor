@@ -6446,24 +6446,67 @@ function applyMosaicImagePoint(context, session, sourceImage, imagePoint) {
         ? interpolateMosaicPoints(previousPoint, imagePoint)
         : [imagePoint];
     let changed = false;
+    let dirtyRect = null;
     for (const point of points) {
-        changed =
-            applyCircularMosaicToImageData({
-                imageData: rasterCache.imageData,
-                centerX: point.sourceX,
-                centerY: point.sourceY,
-                radius: point.sourceRadius,
-                blockSize: config.blockSize,
-            }) || changed;
+        const pointChanged = applyCircularMosaicToImageData({
+            imageData: rasterCache.imageData,
+            centerX: point.sourceX,
+            centerY: point.sourceY,
+            radius: point.sourceRadius,
+            blockSize: config.blockSize,
+        });
+        if (!pointChanged)
+            continue;
+        dirtyRect = mergeMosaicDirtyRects(dirtyRect, getMosaicPointDirtyRect(rasterCache.imageData, point));
+        changed = true;
     }
     session.lastImagePoint = imagePoint;
     if (changed) {
         session.hasUncommittedChanges = true;
-        rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+        putMosaicImageData(rasterCache, dirtyRect);
         ensurePreviewImage(context, session, sourceImage);
         safeRender(context.canvas);
     }
     return changed;
+}
+function getMosaicPointDirtyRect(imageData, point) {
+    const centerX = Number(point.sourceX);
+    const centerY = Number(point.sourceY);
+    const radius = Number(point.sourceRadius);
+    if (!Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        imageData.width <= 0 ||
+        imageData.height <= 0) {
+        return null;
+    }
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(imageData.width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(imageData.height - 1, Math.ceil(centerY + radius));
+    if (minX > maxX || minY > maxY)
+        return null;
+    return { minX, minY, maxX, maxY };
+}
+function mergeMosaicDirtyRects(current, next) {
+    if (!next)
+        return current;
+    if (!current)
+        return next;
+    return {
+        minX: Math.min(current.minX, next.minX),
+        minY: Math.min(current.minY, next.minY),
+        maxX: Math.max(current.maxX, next.maxX),
+        maxY: Math.max(current.maxY, next.maxY),
+    };
+}
+function putMosaicImageData(rasterCache, dirtyRect) {
+    if (!dirtyRect) {
+        rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0);
+        return;
+    }
+    rasterCache.renderingContext.putImageData(rasterCache.imageData, 0, 0, dirtyRect.minX, dirtyRect.minY, dirtyRect.maxX - dirtyRect.minX + 1, dirtyRect.maxY - dirtyRect.minY + 1);
 }
 function interpolateMosaicPoints(start, end) {
     const dx = end.sourceX - start.sourceX;
@@ -9611,6 +9654,7 @@ function setPlaceholderVisible(placeholderElement, containerElement, show) {
 }
 
 const POLYGON_AREA_EPSILON = 1e-6;
+const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
 function createMaskUid(maskId) {
     return `mask-${maskId}`;
 }
@@ -9643,6 +9687,15 @@ function mergeMaskConfig(defaultMaskConfig, config) {
 }
 function warnInvalidMask(options, reason) {
     reportWarning(options, null, `createMask skipped: ${reason}.`);
+}
+function isBuiltInMaskShape(value) {
+    return typeof value === 'string' && BUILT_IN_MASK_SHAPES.has(value);
+}
+function resolveMaskShape(options, shape) {
+    if (isBuiltInMaskShape(shape))
+        return shape;
+    reportWarning(options, null, `createMask received unsupported shape "${String(shape)}"; using "rect" instead.`);
+    return 'rect';
 }
 function isResolvableNumericInput(value) {
     if (value === undefined)
@@ -9744,9 +9797,12 @@ function createMask(context, config = {}) {
     if (!canvas)
         return null;
     const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
-    const shapeType = (_a = mergedConfig.shape) !== null && _a !== void 0 ? _a : 'rect';
+    const requestedShapeType = (_a = mergedConfig.shape) !== null && _a !== void 0 ? _a : 'rect';
     if (!validateNumericInputs(options, mergedConfig))
         return null;
+    const shapeType = typeof config.fabricGenerator === 'function'
+        ? requestedShapeType
+        : resolveMaskShape(options, requestedShapeType);
     const resolvedConfig = {
         width: options.defaultMaskWidth,
         height: options.defaultMaskHeight,

@@ -146,10 +146,13 @@ booleans. `vintage` uses Fabric's native Vintage filter when available.
 | `removeSelectedMask()`     | Remove the currently selected mask and push one history entry.                |
 | `removeAllMasks(options?)` | Remove every mask. `options.saveHistory` defaults to `true`.                  |
 
-`MaskConfig` supports rect, circle, ellipse, polygon, and a custom
-`fabricGenerator`. Falsy values in `styles` (`0`, `false`, `null`, `''`, `NaN`)
-are applied verbatim. Every mask is marked as `editorObjectKind: 'mask'` and
-includes required `maskId`, `maskUid`, and `maskName` metadata.
+`MaskConfig` supports rect, circle, ellipse, polygon, and custom
+`fabricGenerator` masks. Custom shape strings are passed through to
+`fabricGenerator`; unsupported shape strings without a generator warn and fall
+back to the historical rectangle behavior. Falsy values in `styles` (`0`,
+`false`, `null`, `''`, `NaN`) are applied verbatim. Every mask is marked as
+`editorObjectKind: 'mask'` and includes required `maskId`, `maskUid`, and
+`maskName` metadata.
 
 Use `defaultMaskConfig` to define constructor-level defaults for masks created
 through either `createMask()` or the built-in `createMaskButton`. Per-call

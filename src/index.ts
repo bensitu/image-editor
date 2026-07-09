@@ -87,6 +87,7 @@ export type {
     MaskConfig,
     MaskObject,
     MaskNumericProp,
+    MaskShapeKind,
     ResolvedMaskConfig,
     // Objects and annotations
     BaseImageObject,

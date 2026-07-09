@@ -6,6 +6,7 @@ import { copySafeOwnProperties } from '../core/safe-object-copy.js';
 import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 const POLYGON_AREA_EPSILON = 1e-6;
+const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
 function createMaskUid(maskId) {
     return `mask-${maskId}`;
 }
@@ -38,6 +39,15 @@ function mergeMaskConfig(defaultMaskConfig, config) {
 }
 function warnInvalidMask(options, reason) {
     reportWarning(options, null, `createMask skipped: ${reason}.`);
+}
+function isBuiltInMaskShape(value) {
+    return typeof value === 'string' && BUILT_IN_MASK_SHAPES.has(value);
+}
+function resolveMaskShape(options, shape) {
+    if (isBuiltInMaskShape(shape))
+        return shape;
+    reportWarning(options, null, `createMask received unsupported shape "${String(shape)}"; using "rect" instead.`);
+    return 'rect';
 }
 function isResolvableNumericInput(value) {
     if (value === undefined)
@@ -139,9 +149,12 @@ export function createMask(context, config = {}) {
     if (!canvas)
         return null;
     const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
-    const shapeType = (_a = mergedConfig.shape) !== null && _a !== void 0 ? _a : 'rect';
+    const requestedShapeType = (_a = mergedConfig.shape) !== null && _a !== void 0 ? _a : 'rect';
     if (!validateNumericInputs(options, mergedConfig))
         return null;
+    const shapeType = typeof config.fabricGenerator === 'function'
+        ? requestedShapeType
+        : resolveMaskShape(options, requestedShapeType);
     const resolvedConfig = {
         width: options.defaultMaskWidth,
         height: options.defaultMaskHeight,

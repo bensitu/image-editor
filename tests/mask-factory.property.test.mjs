@@ -362,6 +362,65 @@ test('invalid mask configs are rejected without canvas, counter, list, or histor
     }
 });
 
+test('unsupported mask shape warns and falls back to rect without a fabricGenerator', () => {
+    const warnings = [];
+    const ctx = makeContext({
+        options: {
+            onWarning: (error, message) => {
+                warnings.push({ error, message });
+            },
+        },
+    });
+
+    const mask = createMask(ctx, {
+        shape: 'oval',
+        width: 40,
+        height: 24,
+    });
+
+    assert.ok(mask, 'unsupported shape must preserve the historical rect fallback');
+    assert.equal(mask.type, 'rect');
+    assert.equal(mask.width, 40);
+    assert.equal(mask.height, 24);
+    assert.equal(warnings.length, 1, 'unsupported shape must emit one warning');
+    assert.match(warnings[0].message, /unsupported shape "oval"/);
+    assert.match(warnings[0].message, /using "rect"/);
+});
+
+test('custom mask shape strings are passed through to fabricGenerator without warning', () => {
+    const warnings = [];
+    const ctx = makeContext({
+        options: {
+            onWarning: (error, message) => {
+                warnings.push({ error, message });
+            },
+        },
+    });
+    let resolvedShape = null;
+
+    const mask = createMask(ctx, {
+        shape: 'ticket-hole',
+        width: 40,
+        height: 24,
+        fabricGenerator: (resolvedConfig) => {
+            resolvedShape = resolvedConfig.shape;
+            return new ctx.fabric.Rect({
+                left: resolvedConfig.left,
+                top: resolvedConfig.top,
+                width: resolvedConfig.width,
+                height: resolvedConfig.height,
+                fill: resolvedConfig.color,
+                opacity: resolvedConfig.alpha,
+            });
+        },
+    });
+
+    assert.ok(mask, 'custom generator mask must be created');
+    assert.equal(resolvedShape, 'ticket-hole');
+    assert.equal(mask.type, 'rect');
+    assert.equal(warnings.length, 0, 'custom generator shape must not warn');
+});
+
 test('per-shape origin is left/top for rect, circle, ellipse', () => {
     fc.assert(
         fc.property(shapeArb, (shape) => {
