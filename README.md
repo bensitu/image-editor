@@ -153,6 +153,7 @@ crop controls, mosaic controls, lists, and layer actions.
 
 - [API reference](docs/api.md)
 - [Options reference](docs/options.md)
+- [Overlay transform binding](docs/overlay-transform-binding.md)
 - [Overlay-state persistence](docs/overlay-state.md)
 - [Contributing and local checks](docs/contributing.md)
 - [Changelog](CHANGELOG.md)

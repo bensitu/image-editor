@@ -993,6 +993,21 @@ export interface ImageEditorOptions {
     /** Rotation step in degrees. Non-finite values fall back to the default. @default 90 */
     rotationStep?: number;
     /**
+     * When true, masks follow the base image when it is scaled, rotated,
+     * flipped, or reset. @default false
+     */
+    bindMasksToImageTransform?: boolean;
+    /**
+     * When true, annotations follow the base image when it is scaled, rotated,
+     * flipped, or reset. @default false
+     */
+    bindAnnotationsToImageTransform?: boolean;
+    /**
+     * Controls whether text glyphs stay readable or mirror with the base image
+     * when annotation transform binding is enabled. @default 'preserve-readable'
+     */
+    textAnnotationFlipBehavior?: 'preserve-readable' | 'mirror';
+    /**
      * Initial layout mode used for image loads until changed by
      * {@link ImageEditor.setLayoutMode}.
      *

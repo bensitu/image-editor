@@ -78,10 +78,13 @@ is `flipX`, then `flipY`, then `rotation`, around the original image center.
 Overlay `angle` remains local to the overlay. Conceptually, visual rotation is
 `baseImageTransform.rotation + overlay.angle`.
 
-Existing interactive `flipHorizontal()` and `flipVertical()` remain
-base-image-only: they do not move existing overlays. Overlay persistence handles
-that compatibility explicitly by recording the base-image flip state on export
-and mapping imported overlay coordinates through the persisted transform.
+With the default transform-binding options, interactive image transforms remain
+base-image-only and do not move existing overlays. When mask or annotation
+binding is enabled, live overlays follow the image while remaining stable in
+this same source-pixel coordinate space. Overlay persistence continues to record
+the base-image flip state and map imported coordinates through the persisted
+transform; its schema is unchanged. See
+[Overlay Transform Binding](./overlay-transform-binding.md).
 
 ## Excluded Session State
 

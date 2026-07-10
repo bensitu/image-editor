@@ -6,9 +6,10 @@
  *   Verifies public base-image flip APIs, history, and state restoration.
  *
  * Scope:
- *   - flipHorizontal and flipVertical mutate only the committed base image.
- *   - Masks and annotations keep their geometry and flip state while the base
- *     image is flipped.
+ *   - With transform binding disabled, flipHorizontal and flipVertical mutate
+ *     only the committed base image.
+ *   - Masks and annotations keep their geometry and flip state under the
+ *     default options.
  *   - Flip operations are rejected while crop, mosaic, text, or draw mode owns
  *     the canvas.
  *   - Undo, redo, loadFromState, and resetImageTransform preserve or clear flip
@@ -60,7 +61,7 @@ function createSourceEditor(options = {}) {
     return { editor, ids };
 }
 
-test('flipHorizontal and flipVertical affect only the base image and participate in history', async (t) => {
+test('default-off flips affect only the base image and participate in history', async (t) => {
     const { editor } = createSourceEditor();
     t.after(() => disposeEditor(editor));
 

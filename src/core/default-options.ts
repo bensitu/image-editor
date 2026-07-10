@@ -76,6 +76,9 @@ export const DEFAULT_OPTIONS: Omit<
     maxScale: 5.0,
     scaleStep: 0.05,
     rotationStep: 90,
+    bindMasksToImageTransform: false,
+    bindAnnotationsToImageTransform: false,
+    textAnnotationFlipBehavior: 'preserve-readable',
 
     // Layout
     defaultLayoutMode: DEFAULT_LAYOUT_MODE,
@@ -283,6 +286,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set<keyof ImageEditorOptions>([
     'maxScale',
     'scaleStep',
     'rotationStep',
+    'bindMasksToImageTransform',
+    'bindAnnotationsToImageTransform',
+    'textAnnotationFlipBehavior',
     'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
@@ -1352,6 +1358,25 @@ export function resolveOptions(input?: ImageEditorOptions | null): ResolvedOptio
         if (value === undefined) continue;
         if (key === 'backgroundColor') {
             resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
+            continue;
+        }
+        if (key === 'bindMasksToImageTransform') {
+            resolved.bindMasksToImageTransform = normalizeBoolean(
+                value,
+                DEFAULT_OPTIONS.bindMasksToImageTransform,
+            );
+            continue;
+        }
+        if (key === 'bindAnnotationsToImageTransform') {
+            resolved.bindAnnotationsToImageTransform = normalizeBoolean(
+                value,
+                DEFAULT_OPTIONS.bindAnnotationsToImageTransform,
+            );
+            continue;
+        }
+        if (key === 'textAnnotationFlipBehavior') {
+            resolved.textAnnotationFlipBehavior =
+                value === 'mirror' ? 'mirror' : 'preserve-readable';
             continue;
         }
         if (key === 'downsampleOnLoad') {

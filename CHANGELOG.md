@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-07-11
+
+### Added
+
+- Add opt-in `bindMasksToImageTransform` and `bindAnnotationsToImageTransform` options so live overlays can stay stable in image-local/source-pixel coordinates across scale, rotation, horizontal/vertical flips, and reset.
+- Add `textAnnotationFlipBehavior` with readable non-mirrored Text as the default binding policy and complete Text mirroring as an opt-in mode.
+- Add affine-delta, reflection, mixed-operation, ActiveSelection, label, history, overlay round-trip, and crop-combination regression coverage for transform binding.
+
+### Changed
+
+- Split final image snapping, live overlay delta application, and session-state synchronization into explicit transform phases while keeping all new binding behavior disabled by default.
+
 ## [2.8.3] - 2026-07-10
 
 ### Changed

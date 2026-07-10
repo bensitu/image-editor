@@ -63,7 +63,7 @@ export function getScrollbarStableViewportCanvasSize(viewport: ViewportSize): Vi
 
 /**
  * Resize the canvas to fit the transformed image bounds. Used by the
- * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
+ * transform pipeline's final image snap so a post-rotation/scale
  * image that exceeds the viewport gets a real scroll range.
  */
 export function updateCanvasSizeToImageBounds(

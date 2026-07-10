@@ -29,9 +29,9 @@
  *   the entire reset is one undoable step. Failures inside the chain
  *   still release the suppression flag in `finally` so subsequent
  *   transforms continue to record history.
- * - `flipHorizontal` and `flipVertical` toggle only the base image's
- *   Fabric `flipX` / `flipY` flags. Masks and annotations are not
- *   mirrored; they remain in their existing canvas positions by design.
+ * - `flipHorizontal` and `flipVertical` toggle the base image's Fabric
+ *   `flipX` / `flipY` flags. Enabled masks and annotations receive the final
+ *   image matrix delta after the image bounding box is aligned.
  * - `scaleImage`, `rotateImage`, flip operations, and
  *   `resetImageTransform` each call `saveCanvasState` on success so
  *   the new state is undoable. The facade wires
@@ -78,6 +78,7 @@
 import type * as FabricNS from 'fabric';
 import type { ResolvedOptions } from '../core/public-types.js';
 import type { OperationGuard } from '../core/operation-guard.js';
+import type { FabricUtilAccess } from './overlay-transform-delta.js';
 /**
  * Dependency bundle passed by the `ImageEditor` facade into
  * {@link TransformController}. Mirrors the
@@ -144,22 +145,22 @@ export interface TransformContext {
      * controller's only handle on it.
      */
     setSuppressSaveState(suppress: boolean): void;
-    /**
-     * Optional post-snap hook the orchestrator wires for legacy parity. Runs
-     * AFTER the controller commits the final value with `set` /
-     * `setCoords` and BEFORE `saveCanvasState`. Used to:
-     *
-     * - resize the canvas according to the current layout mode,
-     * - re-align the image bounding box to the canvas top-left,
-     * - re-sync mask label positions for visible labels.
-     *
-     * The hook is invoked only on the success path (no dispose) and only
-     * when defined — controllers running outside the facade (in tests)
-     * may omit it. Errors thrown from the hook propagate to the caller's
-     * `try/catch`, which mirrors legacy behaviour where the post-snap UI
-     * helpers ran inline inside the transform method.
-     */
-    afterTransformSnap?(): void;
+    /** Narrow Fabric matrix utility adapter used by overlay binding. */
+    getFabricUtil(): FabricUtilAccess;
+    /** Return live overlay objects enabled for the requested binding kind. */
+    getBoundOverlayTargets(kind: 'masks' | 'annotations'): FabricNS.FabricObject[];
+    /** Return whether a bound annotation should remove reflection locally. */
+    shouldPreserveReadableForAnnotation(object: FabricNS.FabricObject): boolean;
+    /** Resize the canvas and align the final image bounding box to top-left. */
+    finalizeImageTransformSnap(): void;
+    /** Apply the final base-image matrix delta to enabled live overlays. */
+    applyOverlayTransformDelta(beforeMatrix: number[]): void;
+    /** Synchronize session state such as mask labels after overlay mutation. */
+    syncOverlayAfterTransform(): void;
+    /** Suppress intermediate overlay deltas during compound transforms. */
+    setSuppressOverlaySync(suppress: boolean): void;
+    /** Read the compound-transform overlay suppression state. */
+    isOverlaySyncSuppressed(): boolean;
 }
 /**
  * Owns the animated `scaleImage`, `rotateImage`, base-image flip, and
@@ -201,8 +202,8 @@ export declare class TransformController {
      * 5. After the animation settles, snap to the exact target via
      *    `set({ scaleX, scaleY})` + `setCoords` so floating-point
      *    drift on the last tick does not leak into history.
-     * 6. Run the optional {@link TransformContext.afterTransformSnap}
-     *    hook for canvas resize / mask label sync.
+     * 6. Finalize image geometry, apply the optional overlay delta, and
+     *    synchronize mask labels.
      * 7. Call {@link TransformContext.saveCanvasState} in a `finally`
      *    after the hook so the new state is undoable even if post-snap
      *    UI sync fails. When dispose ran during the
@@ -237,8 +238,8 @@ export declare class TransformController {
      * 6. Restore the `'left'/'top'` origin around the new visual
      *    top-left corner so subsequent placements (mask creation, crop
      *    rectangle, etc.) read off the documented origin.
-     * 7. Run the optional {@link TransformContext.afterTransformSnap}
-     *    hook for canvas resize and mask label sync.
+     * 7. Finalize image geometry, apply the optional overlay delta, and
+     *    synchronize mask labels.
      * 8. Call {@link TransformContext.saveCanvasState}.
      *
      * If the animation fails before step 6, the catch path restores the
@@ -285,4 +286,6 @@ export declare class TransformController {
      *
      */
     resetImageTransform(): Promise<void>;
+    /** Run the three post-snap transform phases in their required order. */
+    private completeImageTransform;
 }

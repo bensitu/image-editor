@@ -1948,7 +1948,7 @@ export class ImageEditor {
     /**
      * Re-align an object so its bounding-box top-left maps to the
      * object's `(left, top)` reference. Used by the transform pipeline's
-     * `afterTransformSnap` hook to absorb floating-point drift on the
+     * `finalizeImageTransformSnap` hook to absorb floating-point drift on the
      * final animation tick.
      */
     private alignObjectBoundingBoxToCanvasTopLeft(object: FabricNS.FabricObject): void {
@@ -1997,7 +1997,7 @@ export class ImageEditor {
 
     /**
      * Resize the canvas to fit the transformed image bounds. Used by the
-     * transform pipeline's `afterTransformSnap` hook so a post-rotation/scale
+     * transform pipeline's final image snap so a post-rotation/scale
      * image that exceeds the viewport gets a real scroll range.
      */
     private updateCanvasSizeToImageBounds(

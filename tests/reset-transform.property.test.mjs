@@ -60,6 +60,22 @@ class MockCanvas {
     }
 }
 
+function makeNoopOverlayTransformHooks() {
+    let suppressed = false;
+    return {
+        getFabricUtil: () => ({}),
+        getBoundOverlayTargets: () => [],
+        shouldPreserveReadableForAnnotation: () => false,
+        finalizeImageTransformSnap: () => {},
+        applyOverlayTransformDelta: () => {},
+        syncOverlayAfterTransform: () => {},
+        setSuppressOverlaySync: (value) => {
+            suppressed = value;
+        },
+        isOverlaySyncSuppressed: () => suppressed,
+    };
+}
+
 /**
  * Build a fake Fabric image whose `animate` resolves the wrapper
  * Promise synchronously by firing `opts.onComplete` once per property.
@@ -104,6 +120,9 @@ function makeFabricImageMock(initial) {
         },
         getBoundingRect() {
             return { left: 0, top: 0, width: 100, height: 100 };
+        },
+        calcTransformMatrix() {
+            return [this.scaleX, 0, 0, this.scaleY, this.left, this.top];
         },
         animate(props, opts) {
             // Fire `onComplete` once per property to match Fabric v7's
@@ -195,6 +214,7 @@ function makeContextWithSuppression({ initialScale, initialRotation, initialFlip
         setSuppressSaveState: (v) => {
             suppressed = v;
         },
+        ...makeNoopOverlayTransformHooks(),
     };
 
     return {
@@ -324,6 +344,34 @@ test('inner scaleImage/rotateImage calls run under suppression; final save does 
     );
 });
 
+test('resetImageTransform applies exactly one final overlay delta', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 2,
+        initialRotation: 37,
+        initialFlipX: true,
+        initialFlipY: false,
+    });
+    const initialMatrix = harness.image.calcTransformMatrix().slice();
+    const deltaCalls = [];
+    harness.ctx.applyOverlayTransformDelta = (beforeMatrix) => {
+        deltaCalls.push({
+            beforeMatrix: beforeMatrix.slice(),
+            suppressed: harness.ctx.isOverlaySyncSuppressed(),
+        });
+    };
+    const controller = new TransformController(harness.ctx);
+
+    await controller.resetImageTransform();
+
+    assert.deepEqual(deltaCalls, [
+        {
+            beforeMatrix: initialMatrix,
+            suppressed: false,
+        },
+    ]);
+    assert.equal(harness.ctx.isOverlaySyncSuppressed(), false);
+});
+
 test('resetImageTransform is a no-op when no image is loaded', async () => {
     const harness = makeContextWithSuppression({
         initialScale: 2,
@@ -383,6 +431,7 @@ test('scaleImage rolls back runtime state when animation fails', async () => {
             throw new Error('failed scale must not save history');
         },
         setSuppressSaveState: () => {},
+        ...makeNoopOverlayTransformHooks(),
     });
 
     await controller.scaleImage(3);
@@ -422,6 +471,7 @@ test('rotateImage rolls back runtime state when animation fails', async () => {
             throw new Error('failed rotate must not save history');
         },
         setSuppressSaveState: () => {},
+        ...makeNoopOverlayTransformHooks(),
     });
 
     await controller.rotateImage(90);
@@ -432,7 +482,7 @@ test('rotateImage rolls back runtime state when animation fails', async () => {
     assert.equal(image.originY, 'top');
 });
 
-test('scaleImage records history when afterTransformSnap throws after a successful animation', async () => {
+test('scaleImage records history when final image snap throws after a successful animation', async () => {
     const canvas = new MockCanvas();
     const guard = new OperationGuard();
     const image = makeFabricImageMock({ scaleX: 1, scaleY: 1, angle: 0 });
@@ -460,7 +510,8 @@ test('scaleImage records history when afterTransformSnap throws after a successf
             saveCalls += 1;
         },
         setSuppressSaveState: () => {},
-        afterTransformSnap: () => {
+        ...makeNoopOverlayTransformHooks(),
+        finalizeImageTransformSnap: () => {
             throw new Error('snap failed');
         },
     });

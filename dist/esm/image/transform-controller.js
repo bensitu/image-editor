@@ -20,6 +20,8 @@ export class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         const previousScale = this.context.getCurrentScale();
         const previousScaleX = imageObject.scaleX;
         const previousScaleY = imageObject.scaleY;
@@ -46,8 +48,7 @@ export class TransformController {
             if (!this.context.guard.isDisposed()) {
                 imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
@@ -57,8 +58,7 @@ export class TransformController {
         imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
         imageObject.setCoords();
         try {
-            if (this.context.afterTransformSnap)
-                this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         }
         finally {
             this.context.saveCanvasState();
@@ -74,6 +74,8 @@ export class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         const previousRotation = this.context.getCurrentRotation();
         const previousAngle = imageObject.angle;
         this.context.setCurrentRotation(degrees);
@@ -100,8 +102,7 @@ export class TransformController {
                 imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
                 imageObject.setCoords();
                 restoreOrigin(imageObject, 'left', 'top');
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'rotateImage animation failed.');
         }
@@ -126,8 +127,7 @@ export class TransformController {
             reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
         try {
-            if (this.context.afterTransformSnap)
-                this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         }
         finally {
             this.context.saveCanvasState();
@@ -147,6 +147,8 @@ export class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         try {
             const centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
@@ -164,14 +166,18 @@ export class TransformController {
         }
         if (this.context.guard.isDisposed())
             return;
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
+        this.completeImageTransform(beforeMatrix);
         this.context.saveCanvasState();
     }
     async resetImageTransform() {
-        if (!this.context.getOriginalImage())
+        const initialImage = this.context.getOriginalImage();
+        if (!initialImage)
             return;
+        initialImage.setCoords();
+        const beforeMatrix = initialImage.calcTransformMatrix();
+        const previousOverlaySyncSuppressed = this.context.isOverlaySyncSuppressed();
         this.context.setSuppressSaveState(true);
+        this.context.setSuppressOverlaySync(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
@@ -179,16 +185,27 @@ export class TransformController {
             if (imageObject && !this.context.guard.isDisposed()) {
                 imageObject.set({ flipX: false, flipY: false });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.context.finalizeImageTransformSnap();
             }
         }
         finally {
+            this.context.setSuppressOverlaySync(previousOverlaySyncSuppressed);
             this.context.setSuppressSaveState(false);
         }
         if (this.context.guard.isDisposed())
             return;
+        if (!this.context.isOverlaySyncSuppressed()) {
+            this.context.applyOverlayTransformDelta(beforeMatrix);
+        }
+        this.context.syncOverlayAfterTransform();
         this.context.saveCanvasState();
+    }
+    completeImageTransform(beforeMatrix) {
+        this.context.finalizeImageTransformSnap();
+        if (!this.context.isOverlaySyncSuppressed()) {
+            this.context.applyOverlayTransformDelta(beforeMatrix);
+        }
+        this.context.syncOverlayAfterTransform();
     }
 }
 function computeTopLeftPoint(object) {

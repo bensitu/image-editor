@@ -463,6 +463,9 @@ const DEFAULT_OPTIONS = {
     maxScale: 5.0,
     scaleStep: 0.05,
     rotationStep: 90,
+    bindMasksToImageTransform: false,
+    bindAnnotationsToImageTransform: false,
+    textAnnotationFlipBehavior: 'preserve-readable',
     defaultLayoutMode: DEFAULT_LAYOUT_MODE,
     layoutMode: DEFAULT_LAYOUT_MODE,
     downsampleOnLoad: true,
@@ -616,6 +619,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maxScale',
     'scaleStep',
     'rotationStep',
+    'bindMasksToImageTransform',
+    'bindAnnotationsToImageTransform',
+    'textAnnotationFlipBehavior',
     'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
@@ -1481,6 +1487,19 @@ function resolveOptions(input) {
             resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
             continue;
         }
+        if (key === 'bindMasksToImageTransform') {
+            resolved.bindMasksToImageTransform = normalizeBoolean(value, DEFAULT_OPTIONS.bindMasksToImageTransform);
+            continue;
+        }
+        if (key === 'bindAnnotationsToImageTransform') {
+            resolved.bindAnnotationsToImageTransform = normalizeBoolean(value, DEFAULT_OPTIONS.bindAnnotationsToImageTransform);
+            continue;
+        }
+        if (key === 'textAnnotationFlipBehavior') {
+            resolved.textAnnotationFlipBehavior =
+                value === 'mirror' ? 'mirror' : 'preserve-readable';
+            continue;
+        }
         if (key === 'downsampleOnLoad') {
             resolved.downsampleOnLoad = normalizeBoolean(value, DEFAULT_OPTIONS.downsampleOnLoad);
             continue;
@@ -2248,7 +2267,7 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
     }
 }
-function isActiveSelectionObject$2(object) {
+function isActiveSelectionObject$3(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -2272,7 +2291,7 @@ function saveState(input) {
         : typeof input.activeAnnotationId === 'number'
             ? input.activeAnnotationId
             : null;
-    if (isActiveSelectionObject$2(activeObject)) {
+    if (isActiveSelectionObject$3(activeObject)) {
         canvas.discardActiveObject();
     }
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
@@ -3824,7 +3843,7 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
     };
 }
 
-function isActiveSelectionObject$1(object) {
+function isActiveSelectionObject$2(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -3838,7 +3857,7 @@ function getActiveSelectionObjects(canvas) {
     const active = canvas.getActiveObject();
     if (!active)
         return [];
-    if (!isActiveSelectionObject$1(active))
+    if (!isActiveSelectionObject$2(active))
         return [active];
     const getObjects = active.getObjects;
     return typeof getObjects === 'function' ? getObjects.call(active) : [];
@@ -8935,6 +8954,8 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         const previousScale = this.context.getCurrentScale();
         const previousScaleX = imageObject.scaleX;
         const previousScaleY = imageObject.scaleY;
@@ -8961,8 +8982,7 @@ class TransformController {
             if (!this.context.guard.isDisposed()) {
                 imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
@@ -8972,8 +8992,7 @@ class TransformController {
         imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
         imageObject.setCoords();
         try {
-            if (this.context.afterTransformSnap)
-                this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         }
         finally {
             this.context.saveCanvasState();
@@ -8989,6 +9008,8 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         const previousRotation = this.context.getCurrentRotation();
         const previousAngle = imageObject.angle;
         this.context.setCurrentRotation(degrees);
@@ -9015,8 +9036,7 @@ class TransformController {
                 imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
                 imageObject.setCoords();
                 restoreOrigin(imageObject, 'left', 'top');
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'rotateImage animation failed.');
         }
@@ -9041,8 +9061,7 @@ class TransformController {
             reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
         try {
-            if (this.context.afterTransformSnap)
-                this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         }
         finally {
             this.context.saveCanvasState();
@@ -9062,6 +9081,8 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         try {
             const centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
@@ -9079,14 +9100,18 @@ class TransformController {
         }
         if (this.context.guard.isDisposed())
             return;
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
+        this.completeImageTransform(beforeMatrix);
         this.context.saveCanvasState();
     }
     async resetImageTransform() {
-        if (!this.context.getOriginalImage())
+        const initialImage = this.context.getOriginalImage();
+        if (!initialImage)
             return;
+        initialImage.setCoords();
+        const beforeMatrix = initialImage.calcTransformMatrix();
+        const previousOverlaySyncSuppressed = this.context.isOverlaySyncSuppressed();
         this.context.setSuppressSaveState(true);
+        this.context.setSuppressOverlaySync(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
@@ -9094,16 +9119,27 @@ class TransformController {
             if (imageObject && !this.context.guard.isDisposed()) {
                 imageObject.set({ flipX: false, flipY: false });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.context.finalizeImageTransformSnap();
             }
         }
         finally {
+            this.context.setSuppressOverlaySync(previousOverlaySyncSuppressed);
             this.context.setSuppressSaveState(false);
         }
         if (this.context.guard.isDisposed())
             return;
+        if (!this.context.isOverlaySyncSuppressed()) {
+            this.context.applyOverlayTransformDelta(beforeMatrix);
+        }
+        this.context.syncOverlayAfterTransform();
         this.context.saveCanvasState();
+    }
+    completeImageTransform(beforeMatrix) {
+        this.context.finalizeImageTransformSnap();
+        if (!this.context.isOverlaySyncSuppressed()) {
+            this.context.applyOverlayTransformDelta(beforeMatrix);
+        }
+        this.context.syncOverlayAfterTransform();
     }
 }
 function computeTopLeftPoint$1(object) {
@@ -9653,6 +9689,95 @@ function setPlaceholderVisible(placeholderElement, containerElement, show) {
     }
 }
 
+function isFiniteTransformMatrix(matrix) {
+    return (Array.isArray(matrix) &&
+        matrix.length === 6 &&
+        matrix.every((value) => Number.isFinite(value)));
+}
+function isApproximatelyIdentityTransform(matrix, epsilon = 1e-10) {
+    const identity = [1, 0, 0, 1, 0, 0];
+    return (matrix.length === identity.length &&
+        matrix.every((value, index) => Math.abs(value - identity[index]) <= epsilon));
+}
+function computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil) {
+    if (!isFiniteTransformMatrix(beforeMatrix) || !isFiniteTransformMatrix(afterMatrix)) {
+        return [];
+    }
+    return fabricUtil.multiplyTransformMatrices(afterMatrix, fabricUtil.invertTransform(beforeMatrix));
+}
+function deltaHasReflection(delta) {
+    if (!isFiniteTransformMatrix(delta))
+        return false;
+    const [a, b, c, d] = delta;
+    return a * d - b * c < 0;
+}
+function transformPointByMatrix(point, matrix, fabricUtil) {
+    const [a, b, c, d, e, f] = matrix;
+    return new fabricUtil.Point(a * point.x + c * point.y + e, b * point.x + d * point.y + f);
+}
+function stripReflectionFromDelta(delta, fabricUtil) {
+    if (!deltaHasReflection(delta))
+        return delta;
+    const flipXMatrix = [-1, 0, 0, 1, 0, 0];
+    return fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+}
+function applyDeltaToObject(object, fullDelta, context) {
+    var _a, _b;
+    if (!isFiniteTransformMatrix(fullDelta))
+        return;
+    if (isApproximatelyIdentityTransform(fullDelta))
+        return;
+    const { fabricUtil } = context;
+    object.setCoords();
+    const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
+    const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
+    const originalCenter = object.getCenterPoint();
+    const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
+    const orientationDelta = context.preserveReadableText
+        ? stripReflectionFromDelta(fullDelta, fabricUtil)
+        : fullDelta;
+    object.set({
+        originX: 'center',
+        originY: 'center',
+    });
+    object.setPositionByOrigin(originalCenter, 'center', 'center');
+    object.setCoords();
+    const currentObjectMatrix = object.calcTransformMatrix();
+    const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
+    if (!isFiniteTransformMatrix(nextMatrix)) {
+        object.set({
+            originX: previousOriginX,
+            originY: previousOriginY,
+        });
+        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setCoords();
+        return;
+    }
+    const decomposed = fabricUtil.qrDecompose(nextMatrix);
+    object.set({
+        flipX: false,
+        flipY: false,
+    });
+    object.set({
+        angle: decomposed.angle,
+        scaleX: decomposed.scaleX,
+        scaleY: decomposed.scaleY,
+        skewX: decomposed.skewX,
+    });
+    if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
+        object.set({
+            ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
+            ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
+        });
+    }
+    object.set({
+        originX: previousOriginX,
+        originY: previousOriginY,
+    });
+    object.setPositionByOrigin(targetCenter, 'center', 'center');
+    object.setCoords();
+}
+
 const POLYGON_AREA_EPSILON = 1e-6;
 const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
 function createMaskUid(maskId) {
@@ -10043,7 +10168,7 @@ function createMask(context, config = {}) {
     }
     return maskObject;
 }
-function isActiveSelectionObject(object) {
+function isActiveSelectionObject$1(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -10057,7 +10182,7 @@ function getSelectedMaskObjects(canvas) {
     const active = canvas.getActiveObject();
     if (!active)
         return [];
-    if (!isActiveSelectionObject(active))
+    if (!isActiveSelectionObject$1(active))
         return isMaskObject(active) ? [active] : [];
     const getObjects = active.getObjects;
     const objects = typeof getObjects === 'function' ? getObjects.call(active) : [];
@@ -10095,6 +10220,27 @@ function removeAllMasks(context, options = {}) {
     }
 }
 
+function asFabricTransformMatrix(matrix) {
+    return matrix;
+}
+function createFabricUtilAccess(fabricModule) {
+    return {
+        multiplyTransformMatrices: (a, b) => fabricModule.util.multiplyTransformMatrices(asFabricTransformMatrix(a), asFabricTransformMatrix(b)),
+        invertTransform: (matrix) => fabricModule.util.invertTransform(asFabricTransformMatrix(matrix)),
+        qrDecompose: (matrix) => fabricModule.util.qrDecompose(asFabricTransformMatrix(matrix)),
+        Point: fabricModule.Point,
+    };
+}
+function isActiveSelectionObject(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
+}
 class EditorContextFactory {
     constructor(access) {
         Object.defineProperty(this, "access", {
@@ -10237,6 +10383,29 @@ class EditorContextFactory {
     }
     buildTransformContext() {
         const access = this.access;
+        const fabricUtil = createFabricUtilAccess(access.getFabric());
+        let suppressOverlaySync = false;
+        const getBoundOverlayTargets = (kind) => {
+            const canvas = access.getCanvas();
+            const options = access.getOptions();
+            if (!canvas)
+                return [];
+            if (kind === 'masks') {
+                if (!options.bindMasksToImageTransform)
+                    return [];
+                return canvas.getObjects().filter(isMaskObject);
+            }
+            if (!options.bindAnnotationsToImageTransform)
+                return [];
+            return canvas.getObjects().filter(isAnnotationObject);
+        };
+        const shouldPreserveReadableForAnnotation = (object) => {
+            const options = access.getOptions();
+            return (options.bindAnnotationsToImageTransform &&
+                options.textAnnotationFlipBehavior === 'preserve-readable' &&
+                isAnnotationObject(object) &&
+                object.annotationType === 'text');
+        };
         return {
             canvas: access.getLiveCanvas('buildTransformContext'),
             options: access.getOptions(),
@@ -10257,20 +10426,63 @@ class EditorContextFactory {
             setSuppressSaveState: (suppress) => {
                 access.setSuppressSaveState(suppress);
             },
-            afterTransformSnap: () => {
+            getFabricUtil: () => fabricUtil,
+            getBoundOverlayTargets,
+            shouldPreserveReadableForAnnotation,
+            finalizeImageTransformSnap: () => {
                 const canvas = access.getCanvas();
                 const originalImage = access.getOriginalImage();
                 if (access.isDisposed() || !canvas || !originalImage)
                     return;
                 access.updateCanvasSizeToImageBounds();
                 access.alignObjectBoundingBoxToCanvasTopLeft(originalImage);
+            },
+            applyOverlayTransformDelta: (beforeMatrix) => {
+                if (suppressOverlaySync)
+                    return;
+                const canvas = access.getCanvas();
+                const originalImage = access.getOriginalImage();
+                if (access.isDisposed() || !canvas || !originalImage)
+                    return;
+                const targets = [
+                    ...getBoundOverlayTargets('masks'),
+                    ...getBoundOverlayTargets('annotations'),
+                ];
+                if (targets.length === 0)
+                    return;
+                originalImage.setCoords();
+                const afterMatrix = originalImage.calcTransformMatrix();
+                const delta = computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil);
+                if (!isFiniteTransformMatrix(delta) || isApproximatelyIdentityTransform(delta)) {
+                    return;
+                }
+                if (isActiveSelectionObject(canvas.getActiveObject())) {
+                    canvas.discardActiveObject();
+                }
+                targets.forEach((object) => {
+                    applyDeltaToObject(object, delta, {
+                        fabricUtil,
+                        preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                    });
+                });
+                canvas.requestRenderAll();
+            },
+            syncOverlayAfterTransform: () => {
+                const canvas = access.getCanvas();
+                if (access.isDisposed() || !canvas)
+                    return;
                 canvas
                     .getObjects()
                     .filter(isMaskObject)
                     .forEach((maskObject) => {
                     access.syncMaskLabel(maskObject);
                 });
+                canvas.requestRenderAll();
             },
+            setSuppressOverlaySync: (suppress) => {
+                suppressOverlaySync = suppress;
+            },
+            isOverlaySyncSuppressed: () => suppressOverlaySync,
         };
     }
     buildCreateMaskContext() {
