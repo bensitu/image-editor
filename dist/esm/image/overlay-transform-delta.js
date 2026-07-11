@@ -47,7 +47,7 @@ export function stripReflectionFromDelta(delta, fabricUtil) {
         : flipXCandidate;
 }
 export function applyDeltaToObject(object, fullDelta, context) {
-    var _a, _b;
+    var _a, _b, _c;
     if (!isFiniteTransformMatrix(fullDelta))
         return;
     if (isApproximatelyIdentityTransform(fullDelta))
@@ -83,6 +83,7 @@ export function applyDeltaToObject(object, fullDelta, context) {
             scaleX: decomposed.scaleX,
             scaleY: decomposed.scaleY,
             skewX: decomposed.skewX,
+            skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0,
         });
         if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
             object.set({

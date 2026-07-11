@@ -17,10 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Split final image snapping, live overlay delta application, and session-state synchronization into explicit transform phases while keeping all new binding behavior disabled by default.
+- Share one clipped circular-brush bounds calculation between Mosaic pixel processing and dirty-rectangle refreshes.
 
 ### Fixed
 
 - Keep `preserve-readable` Text annotations upright for both horizontal and vertical image flips instead of allowing a vertical reflection to become a compensating 180-degree text rotation.
+- Clear stale `skewY` values when applying decomposed affine deltas so transformed overlays keep the exact expected matrix.
 - Roll back base-image flip flags, origin, and position when a flip operation fails after mutation, then resynchronize bound overlays without recording a failed history entry.
 - Restore an overlay object's original origin and center through `try`/`finally` when Fabric matrix decomposition or transform application throws.
 - Isolate per-object overlay transform failures through `onWarning` so one malformed overlay does not prevent remaining bound overlays from transforming or the canvas from rendering.

@@ -16,6 +16,21 @@ export interface MosaicPixelateOptions {
     blockSize: number;
 }
 
+export interface CircularMosaicBoundsOptions {
+    width: number;
+    height: number;
+    centerX: number;
+    centerY: number;
+    radius: number;
+}
+
+export interface MosaicPixelBounds {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+}
+
 function normalizeBlockSize(value: number): number {
     return Number.isFinite(value) && value > 0 ? Math.max(1, Math.floor(value)) : 1;
 }
@@ -36,6 +51,37 @@ function pixelOffset(width: number, x: number, y: number): number {
     return (y * width + x) * 4;
 }
 
+/** Resolve the clipped inclusive pixel bounds for a circular Mosaic brush. */
+export function getCircularMosaicBounds(
+    options: CircularMosaicBoundsOptions,
+): MosaicPixelBounds | null {
+    const width = Number(options.width);
+    const height = Number(options.height);
+    const centerX = Number(options.centerX);
+    const centerY = Number(options.centerY);
+    const radius = Number(options.radius);
+
+    if (
+        !Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        !Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        width <= 0 ||
+        height <= 0
+    ) {
+        return null;
+    }
+
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
+
+    return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null;
+}
+
 /**
  * Applies blocky pixelation inside a circular brush region.
  *
@@ -47,25 +93,11 @@ export function applyCircularMosaicToImageData(options: MosaicPixelateOptions): 
     const centerX = Number(options.centerX);
     const centerY = Number(options.centerY);
     const radius = Number(options.radius);
-
-    if (
-        !Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        width <= 0 ||
-        height <= 0
-    ) {
-        return false;
-    }
+    const bounds = getCircularMosaicBounds({ width, height, centerX, centerY, radius });
+    if (!bounds) return false;
 
     const blockSize = normalizeBlockSize(options.blockSize);
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
-
-    if (minX > maxX || minY > maxY) return false;
+    const { minX, minY, maxX, maxY } = bounds;
 
     const radiusSquared = radius * radius;
     let processed = false;

@@ -180,6 +180,7 @@ export function applyDeltaToObject(
             scaleX: decomposed.scaleX,
             scaleY: decomposed.scaleY,
             skewX: decomposed.skewX,
+            skewY: decomposed.skewY ?? 0,
         });
 
         // Newer Fabric versions may expose explicit decomposition flip flags.

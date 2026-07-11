@@ -6002,6 +6002,28 @@ function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
 function pixelOffset(width, x, y) {
     return (y * width + x) * 4;
 }
+function getCircularMosaicBounds(options) {
+    const width = Number(options.width);
+    const height = Number(options.height);
+    const centerX = Number(options.centerX);
+    const centerY = Number(options.centerY);
+    const radius = Number(options.radius);
+    if (!Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        !Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        width <= 0 ||
+        height <= 0) {
+        return null;
+    }
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
+    return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null;
+}
 function applyCircularMosaicToImageData(options) {
     var _a, _b, _c, _d;
     const { imageData } = options;
@@ -6009,21 +6031,11 @@ function applyCircularMosaicToImageData(options) {
     const centerX = Number(options.centerX);
     const centerY = Number(options.centerY);
     const radius = Number(options.radius);
-    if (!Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        width <= 0 ||
-        height <= 0) {
+    const bounds = getCircularMosaicBounds({ width, height, centerX, centerY, radius });
+    if (!bounds)
         return false;
-    }
     const blockSize = normalizeBlockSize(options.blockSize);
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
-    if (minX > maxX || minY > maxY)
-        return false;
+    const { minX, minY, maxX, maxY } = bounds;
     const radiusSquared = radius * radius;
     let processed = false;
     for (let blockY = minY; blockY <= maxY; blockY += blockSize) {
@@ -6495,24 +6507,13 @@ function applyMosaicImagePoint(context, session, sourceImage, imagePoint) {
     return changed;
 }
 function getMosaicPointDirtyRect(imageData, point) {
-    const centerX = Number(point.sourceX);
-    const centerY = Number(point.sourceY);
-    const radius = Number(point.sourceRadius);
-    if (!Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        imageData.width <= 0 ||
-        imageData.height <= 0) {
-        return null;
-    }
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(imageData.width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(imageData.height - 1, Math.ceil(centerY + radius));
-    if (minX > maxX || minY > maxY)
-        return null;
-    return { minX, minY, maxX, maxY };
+    return getCircularMosaicBounds({
+        width: imageData.width,
+        height: imageData.height,
+        centerX: point.sourceX,
+        centerY: point.sourceY,
+        radius: point.sourceRadius,
+    });
 }
 function mergeMosaicDirtyRects(current, next) {
     if (!next)
@@ -9769,7 +9770,7 @@ function stripReflectionFromDelta(delta, fabricUtil) {
         : flipXCandidate;
 }
 function applyDeltaToObject(object, fullDelta, context) {
-    var _a, _b;
+    var _a, _b, _c;
     if (!isFiniteTransformMatrix(fullDelta))
         return;
     if (isApproximatelyIdentityTransform(fullDelta))
@@ -9805,6 +9806,7 @@ function applyDeltaToObject(object, fullDelta, context) {
             scaleX: decomposed.scaleX,
             scaleY: decomposed.scaleY,
             skewX: decomposed.skewX,
+            skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0,
         });
         if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
             object.set({

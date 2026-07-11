@@ -194,6 +194,29 @@ test('applyDeltaToObject preserves reflection and an asymmetric local marker', (
     );
 });
 
+test('applyDeltaToObject clears stale skewY after decomposing the transformed matrix', () => {
+    const object = new fabric.Rect({
+        left: 40,
+        top: 30,
+        width: 48,
+        height: 26,
+        skewY: 25,
+    });
+    object.setCoords();
+    const before = object.calcTransformMatrix().slice();
+    const delta = rotationMatrix(90);
+    const expected = fabric.util.multiplyTransformMatrices(delta, before);
+
+    applyDeltaToObject(object, delta, { fabricUtil });
+
+    assert.equal(object.skewY, 0);
+    assertMatrixClose(
+        object.calcTransformMatrix(),
+        expected,
+        'transformed matrix with decomposed skewY',
+    );
+});
+
 test('consecutive horizontal and vertical flips do not retain stale flip state', () => {
     for (const [name, delta] of [
         ['horizontal', [-1, 0, 0, 1, 220, 0]],

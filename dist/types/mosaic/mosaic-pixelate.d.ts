@@ -14,6 +14,21 @@ export interface MosaicPixelateOptions {
     radius: number;
     blockSize: number;
 }
+export interface CircularMosaicBoundsOptions {
+    width: number;
+    height: number;
+    centerX: number;
+    centerY: number;
+    radius: number;
+}
+export interface MosaicPixelBounds {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+}
+/** Resolve the clipped inclusive pixel bounds for a circular Mosaic brush. */
+export declare function getCircularMosaicBounds(options: CircularMosaicBoundsOptions): MosaicPixelBounds | null;
 /**
  * Applies blocky pixelation inside a circular brush region.
  *

@@ -32,7 +32,31 @@ register('./helpers/ts-resolve-hook.mjs', import.meta.url);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { applyCircularMosaicToImageData } = await import('../src/mosaic/mosaic-pixelate.ts');
+const { applyCircularMosaicToImageData, getCircularMosaicBounds } =
+    await import('../src/mosaic/mosaic-pixelate.ts');
+
+test('circular Mosaic bounds clip to the image and reject empty intersections', () => {
+    assert.deepEqual(
+        getCircularMosaicBounds({
+            width: 10,
+            height: 8,
+            centerX: 1.2,
+            centerY: 6.5,
+            radius: 3,
+        }),
+        { minX: 0, minY: 3, maxX: 5, maxY: 7 },
+    );
+    assert.equal(
+        getCircularMosaicBounds({
+            width: 10,
+            height: 8,
+            centerX: 20,
+            centerY: 20,
+            radius: 2,
+        }),
+        null,
+    );
+});
 
 function makeImageData(width, height) {
     const data = new Uint8ClampedArray(width * height * 4);
