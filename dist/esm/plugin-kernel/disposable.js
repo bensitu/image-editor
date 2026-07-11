@@ -1,0 +1,69 @@
+import { PluginAggregateError } from './errors.js';
+import { reportWarningSafely } from './reporting.js';
+function isPromiseLike(value) {
+    return ((typeof value === 'object' || typeof value === 'function') &&
+        value !== null &&
+        typeof value.then === 'function');
+}
+export function createDisposable(cleanup) {
+    let state = 'active';
+    let pending = null;
+    return {
+        dispose() {
+            if (state === 'disposed')
+                return undefined;
+            if (state === 'disposing')
+                return pending !== null && pending !== void 0 ? pending : undefined;
+            state = 'disposing';
+            try {
+                const result = cleanup();
+                if (isPromiseLike(result)) {
+                    pending = Promise.resolve(result).finally(() => {
+                        state = 'disposed';
+                    });
+                    return pending;
+                }
+                state = 'disposed';
+                return undefined;
+            }
+            catch (error) {
+                state = 'disposed';
+                throw error;
+            }
+        },
+    };
+}
+export function createNoopDisposable() {
+    return createDisposable(() => undefined);
+}
+export async function disposeInReverse(disposables, options = {}) {
+    var _a;
+    const errors = [];
+    for (let index = disposables.length - 1; index >= 0; index -= 1) {
+        try {
+            await ((_a = disposables[index]) === null || _a === void 0 ? void 0 : _a.dispose());
+        }
+        catch (error) {
+            errors.push(error);
+            reportWarningSafely(options.warningSink, options.errorSink, {
+                code: 'PLUGIN_CLEANUP_FAILED',
+                message: `Plugin cleanup item ${index} failed; remaining cleanup continued.`,
+                pluginId: options.pluginId,
+                cause: error,
+                details: { cleanupIndex: index },
+            });
+        }
+    }
+    return errors;
+}
+export function createCompositeDisposable(disposables, options = {}) {
+    return createDisposable(async () => {
+        const errors = await disposeInReverse(disposables, options);
+        if (errors.length > 0) {
+            throw new PluginAggregateError('One or more composite cleanup items failed.', errors, {
+                pluginId: options.pluginId,
+            });
+        }
+    });
+}
+//# sourceMappingURL=disposable.js.map

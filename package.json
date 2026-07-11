@@ -48,6 +48,8 @@
         "lint:fix": "eslint . --fix",
         "package:check": "publint",
         "test": "node scripts/run-node-tests.mjs",
+        "test:plugin-kernel": "node scripts/run-node-tests.mjs tests/plugin-kernel",
+        "test:types": "tsc -p tests/types/tsconfig.json --noEmit",
         "test:e2e": "playwright test tests/browser/e2e --project=chromium",
         "test:e2e:all": "playwright test tests/browser/e2e",
         "test:visual": "playwright test tests/browser/visual --project=chromium",
@@ -58,21 +60,27 @@
         "release:gate": "node scripts/release-gate.mjs",
         "release:check": "npm run build && npm run package:check && npm run release:gate && npm pack --dry-run",
         "typecheck": "tsc -p tsconfig.json --noEmit",
+        "check:architecture": "node scripts/check-architecture.mjs",
+        "check:bundle-size": "npm run build:esm && node scripts/check-bundle-size.mjs",
+        "check:refactor-baseline": "npm run check:architecture && npm run check:bundle-size && npm run test:plugin-kernel && npm run test:types",
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-        "ci": "npm run check && npm run release:check"
+        "ci": "npm run check && npm run check:refactor-baseline && npm run release:check"
     },
     "peerDependencies": {
         "fabric": ">=7.4.0 <8"
     },
     "dependencies": {
+        "semver": "^7.8.5",
         "tslib": "^2.8.1"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.61.1",
+        "@rollup/plugin-commonjs": "^29.0.3",
         "@rollup/plugin-node-resolve": "^15.0.0",
         "@rollup/plugin-terser": "^1.0.0",
         "@rollup/plugin-typescript": "^11.0.0",
+        "@types/semver": "^7.7.1",
         "canvas": "^3.2.3",
         "eslint": "^10.4.0",
         "eslint-config-prettier": "^10.1.8",

@@ -11,7 +11,15 @@ import { fileURLToPath } from 'node:url';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
-const testsRoot = path.join(repoRoot, 'tests');
+const requestedRoot = process.argv[2];
+const testsRoot = requestedRoot
+    ? path.resolve(repoRoot, requestedRoot)
+    : path.join(repoRoot, 'tests');
+
+if (!testsRoot.startsWith(`${repoRoot}${path.sep}`)) {
+    console.error('Test root must stay inside the repository.');
+    process.exit(1);
+}
 
 async function collectTestFiles(directory) {
     const entries = await readdir(directory, { withFileTypes: true });

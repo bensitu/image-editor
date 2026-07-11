@@ -1,0 +1,71 @@
+{
+    "schemaVersion": 1,
+    "policy": "Active budgets allow five percent headroom over the measured baseline. Pending Phase 2+ entries have no numeric budget.",
+    "fixtures": {
+        "full-root": {
+            "status": "active",
+            "baseline": "current",
+            "maximum": {
+                "rawBytes": 726364,
+                "minifiedBytes": 346395,
+                "gzipBytes": 81936,
+                "brotliBytes": 66866,
+                "moduleCount": 91
+            }
+        },
+        "public-api": {
+            "status": "active",
+            "baseline": "current",
+            "maximum": {
+                "rawBytes": 726566,
+                "minifiedBytes": 346629,
+                "gzipBytes": 82010,
+                "brotliBytes": 66908,
+                "moduleCount": 91
+            }
+        },
+        "plugin-kernel": {
+            "status": "active",
+            "baseline": "after-phase-1",
+            "maximum": {
+                "rawBytes": 152707,
+                "minifiedBytes": 63146,
+                "gzipBytes": 16565,
+                "brotliBytes": 14626,
+                "moduleCount": 67
+            }
+        },
+        "core-only": {
+            "status": "pending",
+            "phase": 2
+        },
+        "core-transform": {
+            "status": "pending",
+            "phase": 3
+        },
+        "core-mask": {
+            "status": "pending",
+            "phase": 4
+        },
+        "core-transform-mask": {
+            "status": "pending",
+            "phase": 4
+        },
+        "minimal-preset": {
+            "status": "pending",
+            "phase": 8
+        },
+        "redaction-preset": {
+            "status": "pending",
+            "phase": 8
+        },
+        "annotation-preset": {
+            "status": "pending",
+            "phase": 8
+        },
+        "full-preset": {
+            "status": "pending",
+            "phase": 8
+        }
+    }
+}
