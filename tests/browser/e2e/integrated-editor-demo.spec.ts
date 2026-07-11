@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-test('combined demo exercises masks, annotations, and bound image transforms', async ({ page }) => {
+test('integrated demo preserves the scene while transform following is configured', async ({
+    page,
+}) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
 
-    await page.goto('/docs/transform-binding.html');
+    await page.goto('/docs/integrated-editor.html');
+    await expect(page.locator('h1')).toHaveText('Integrated Editor Demo');
 
     const apiSurface = await page.evaluate(() => {
         const namespace = Reflect.get(globalThis, 'ImageEditor') as Record<string, unknown>;
@@ -32,6 +35,15 @@ test('combined demo exercises masks, annotations, and bound image transforms', a
     await expect(page.locator('#statusAnnotations')).toHaveText('2');
     await expect(page.locator('#maskList li')).toHaveCount(2);
     await expect(page.locator('#annotationList li')).toHaveCount(2);
+    await expect(page.locator('#bindMasksToImageTransformInput')).toBeChecked();
+    await expect(page.locator('#bindAnnotationsToImageTransformInput')).toBeChecked();
+    await expect(page.locator('#statusMaskBinding')).toHaveText('Follow');
+    await expect(page.locator('#statusAnnotationBinding')).toHaveText('Follow');
+
+    await page.locator('#bindMasksToImageTransformInput').uncheck();
+    await expect(page.locator('#statusMaskBinding')).toHaveText('Fixed');
+    await expect(page.locator('#statusMasks')).toHaveText('2');
+    await expect(page.locator('#statusAnnotations')).toHaveText('2');
 
     await page.locator('#createMaskButton').click();
     await expect(page.locator('#statusMasks')).toHaveText('3');
@@ -53,6 +65,20 @@ test('combined demo exercises masks, annotations, and bound image transforms', a
 
     await page.locator('#zoomInButton').click();
     await expect(page.locator('#statusScale')).not.toHaveText('100%');
+    const transformedScale = await page.locator('#statusScale').textContent();
+
+    await page.locator('#bindAnnotationsToImageTransformInput').uncheck();
+    await expect(page.locator('#statusAnnotationBinding')).toHaveText('Fixed');
+    await expect(page.locator('#statusRotation')).toHaveText('37 deg');
+    await expect(page.locator('#statusScale')).toHaveText(transformedScale || '105%');
+    await expect(page.locator('#statusMasks')).toHaveText('3');
+    await expect(page.locator('#statusAnnotations')).toHaveText('4');
+
+    await page.locator('#bindMasksToImageTransformInput').check();
+    await expect(page.locator('#statusMaskBinding')).toHaveText('Follow');
+    await expect(page.locator('#statusAnnotationBinding')).toHaveText('Fixed');
+    await expect(page.locator('#statusRotation')).toHaveText('37 deg');
+    await expect(page.locator('#statusScale')).toHaveText(transformedScale || '105%');
 
     await page.locator('#flipHorizontalButton').click();
     await expect(page.locator('#statusFlipX')).toHaveText('Yes');

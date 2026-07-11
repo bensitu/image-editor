@@ -37,6 +37,7 @@ export interface DrawSession {
     previousDrawingMode: boolean;
     previousBrush: unknown;
     previousCanvasSelection: boolean;
+    previousSkipTargetFind: boolean;
     previousDefaultCursor: string | undefined;
     eraserPreview: (FabricNS.Circle & SessionObject) | null;
     eraserPoints: Array<{ x: number; y: number }>;
@@ -402,6 +403,7 @@ export function enterDrawMode(context: DrawControllerContext): void {
     const previousDrawingMode = !!canvasWithDrawing.isDrawingMode;
     const previousBrush = canvasWithDrawing.freeDrawingBrush;
     const previousCanvasSelection = !!canvas.selection;
+    const previousSkipTargetFind = !!canvas.skipTargetFind;
     const previousDefaultCursor = canvas.defaultCursor;
 
     canvas.selection = false;
@@ -444,6 +446,7 @@ export function enterDrawMode(context: DrawControllerContext): void {
         previousDrawingMode,
         previousBrush,
         previousCanvasSelection,
+        previousSkipTargetFind,
         previousDefaultCursor,
         eraserPreview: null,
         eraserPoints: [],
@@ -471,6 +474,7 @@ export function enterDrawMode(context: DrawControllerContext): void {
             canvasWithDrawing.isDrawingMode = previousDrawingMode;
             canvasWithDrawing.freeDrawingBrush = previousBrush;
             canvas.selection = previousCanvasSelection;
+            canvas.skipTargetFind = previousSkipTargetFind;
             canvas.defaultCursor = previousDefaultCursor ?? 'default';
         },
     };
@@ -500,10 +504,13 @@ export function setDrawSubMode(context: DrawControllerContext, subMode: DrawSubM
     session.isErasing = false;
     session.eraserPoints = [];
     if (subMode === 'brush') {
+        context.canvas.skipTargetFind = session.previousSkipTargetFind;
         hideEraserPreview(context, session);
         configureBrush(context);
         setDrawingMode(context, true);
     } else {
+        context.canvas.discardActiveObject();
+        context.canvas.skipTargetFind = true;
         setDrawingMode(context, false);
         ensureEraserPreview(context, session).set({ visible: false });
     }

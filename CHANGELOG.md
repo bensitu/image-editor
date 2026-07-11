@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add opt-in `bindMasksToImageTransform` and `bindAnnotationsToImageTransform` options so live overlays can stay stable in image-local/source-pixel coordinates across scale, rotation, horizontal/vertical flips, and reset.
 - Add `textAnnotationFlipBehavior` with readable non-mirrored Text as the default binding policy and complete Text mirroring as an opt-in mode.
 - Add affine-delta, reflection, mixed-operation, ActiveSelection, label, history, overlay round-trip, and crop-combination regression coverage for transform binding.
+- Add an Integrated Editor demo that combines image transforms, Masks, Text/Shape/Draw annotations, layer controls, history, and export, with independent runtime controls for whether Masks and Annotations follow image transforms.
 
 ### Changed
 
@@ -25,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Isolate per-object overlay transform failures through `onWarning` so one malformed overlay does not prevent remaining bound overlays from transforming or the canvas from rendering.
 - Recognize lowercase-only `activeselection` values returned by Fabric-compatible `isType()` implementations before applying bound overlay transforms.
 - Skip redundant intermediate mask-label/session synchronization while compound reset transforms suppress overlay deltas, leaving one final synchronization pass.
+- Keep HTML color inputs unchanged when editor state contains CSS color syntax that `input[type="color"]` cannot represent, instead of allowing the browser to coerce the control to black.
+- Disable Fabric object target finding during Draw erasure so drag gestures erase intersected strokes instead of moving selectable Draw annotations.
 
 ## [2.8.3] - 2026-07-10
 

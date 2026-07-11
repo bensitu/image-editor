@@ -4510,6 +4510,7 @@ function enterDrawMode(context) {
     const previousDrawingMode = !!canvasWithDrawing.isDrawingMode;
     const previousBrush = canvasWithDrawing.freeDrawingBrush;
     const previousCanvasSelection = !!canvas.selection;
+    const previousSkipTargetFind = !!canvas.skipTargetFind;
     const previousDefaultCursor = canvas.defaultCursor;
     canvas.selection = false;
     canvas.defaultCursor = 'crosshair';
@@ -4535,6 +4536,7 @@ function enterDrawMode(context) {
         previousDrawingMode,
         previousBrush,
         previousCanvasSelection,
+        previousSkipTargetFind,
         previousDefaultCursor,
         eraserPreview: null,
         eraserPoints: [],
@@ -4558,6 +4560,7 @@ function enterDrawMode(context) {
             canvasWithDrawing.isDrawingMode = previousDrawingMode;
             canvasWithDrawing.freeDrawingBrush = previousBrush;
             canvas.selection = previousCanvasSelection;
+            canvas.skipTargetFind = previousSkipTargetFind;
             canvas.defaultCursor = previousDefaultCursor !== null && previousDefaultCursor !== void 0 ? previousDefaultCursor : 'default';
         },
     };
@@ -4588,11 +4591,14 @@ function setDrawSubMode(context, subMode) {
     session.isErasing = false;
     session.eraserPoints = [];
     if (subMode === 'brush') {
+        context.canvas.skipTargetFind = session.previousSkipTargetFind;
         hideEraserPreview(context, session);
         configureBrush(context);
         setDrawingMode(context, true);
     }
     else {
+        context.canvas.discardActiveObject();
+        context.canvas.skipTargetFind = true;
         setDrawingMode(context, false);
         ensureEraserPreview(context, session).set({ visible: false });
     }
@@ -15097,11 +15103,16 @@ function isCheckedInput(element) {
 function isReadOnlyControl(element) {
     return 'readOnly' in element && element.readOnly;
 }
+function isColorInput(element) {
+    return element.tagName.toLowerCase() === 'input' && element.type === 'color';
+}
 function syncInputValue(element, value) {
     if (!isValueControl(element))
         return;
     const ownerDocument = element.ownerDocument;
     if (ownerDocument.activeElement === element && !isReadOnlyControl(element))
+        return;
+    if (isColorInput(element) && !/^#[0-9a-f]{6}$/i.test(value))
         return;
     if (element.value !== value)
         element.value = value;

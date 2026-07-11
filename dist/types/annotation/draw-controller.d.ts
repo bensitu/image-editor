@@ -14,6 +14,7 @@ export interface DrawSession {
     previousDrawingMode: boolean;
     previousBrush: unknown;
     previousCanvasSelection: boolean;
+    previousSkipTargetFind: boolean;
     previousDefaultCursor: string | undefined;
     eraserPreview: (FabricNS.Circle & SessionObject) | null;
     eraserPoints: Array<{

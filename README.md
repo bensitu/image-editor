@@ -145,7 +145,7 @@ crop controls, mosaic controls, lists, and layer actions.
 ## Demo and Examples
 
 - [Demo landing page](https://bensitu.github.io/image-editor/)
-- [Transform binding demo](docs/transform-binding.html)
+- [Integrated editor demo](docs/integrated-editor.html)
 - [React basic example](examples/react-basic)
 - [Vue basic example](examples/vue-basic)
 - [Next.js client-only example](examples/next-client-only)

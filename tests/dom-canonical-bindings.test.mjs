@@ -208,7 +208,7 @@ function installDom() {
             </select>
             <input id="${CANONICAL_IDS.shapeStrokeInput}" value="#b45309">
             <input id="${CANONICAL_IDS.shapeStrokeWidthInput}" value="4">
-            <input id="${CANONICAL_IDS.shapeFillInput}" value="#f59e0b">
+            <input id="${CANONICAL_IDS.shapeFillInput}" type="color" value="#f59e0b">
             <button id="${CANONICAL_IDS.createShapeAnnotationButton}"></button>
             <button id="${CANONICAL_IDS.enterShapeModeButton}"></button>
             <button id="${CANONICAL_IDS.exitShapeModeButton}"></button>
@@ -733,6 +733,18 @@ test('v2.8 DOM inputs synchronize from editor state', () => {
         document.getElementById(CANONICAL_IDS.drawEraseSubModeButton).getAttribute('aria-pressed'),
         'true',
     );
+});
+
+test('color DOM inputs preserve their value when editor state uses unsupported CSS syntax', () => {
+    installDom();
+    const editor = createEditor();
+    const shapeFillInput = document.getElementById(CANONICAL_IDS.shapeFillInput);
+    shapeFillInput.value = '#f59e0b';
+
+    editor.setShapeConfig({ fill: 'rgba(245,158,11,0.16)' });
+
+    assert.equal(editor.getShapeConfig().fill, 'rgba(245,158,11,0.16)');
+    assert.equal(shapeFillInput.value, '#f59e0b');
 });
 
 test('isImageLoaded uses base-image metadata instead of FabricImage instanceof', () => {

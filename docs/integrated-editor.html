@@ -4,31 +4,31 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta content="IE=edge" http-equiv="X-UA-Compatible" />
-        <title>Transform Binding Demo - @bensitu/image-editor</title>
+        <title>Integrated Editor Demo - @bensitu/image-editor</title>
         <link rel="icon" href="./favicon.ico" type="image/x-icon" />
         <link rel="stylesheet" href="css/demo-pages.css" />
     </head>
-    <body data-demo-page="transform-binding">
+    <body data-demo-page="integrated-editor">
         <header class="site-header">
             <a class="brand-link" href="./index.html">
                 @bensitu/image-editor
-                <span>Transform Binding Demo</span>
+                <span>Integrated Editor Demo</span>
             </a>
             <nav class="demo-nav" aria-label="Demo pages">
                 <a href="./basic.html">Basic</a>
                 <a href="./annotation.html">Annotation</a>
                 <a href="./mask-mosaic.html">Mask &amp; Mosaic</a>
-                <a href="./transform-binding.html" aria-current="page">Transform Binding</a>
+                <a href="./integrated-editor.html" aria-current="page">Integrated</a>
             </nav>
         </header>
 
         <main class="page-shell">
             <section class="hero">
                 <div>
-                    <h1>Transform Binding Demo</h1>
+                    <h1>Integrated Editor Demo</h1>
                     <p>
-                        Test masks and annotations together while zooming, rotating, and flipping
-                        the source image as one bound visual scene.
+                        Explore image transforms, masks, text, shapes, drawing, layer controls,
+                        history, and export together in one workspace.
                     </p>
                 </div>
                 <div class="hero-actions">
@@ -38,7 +38,7 @@
                 </div>
             </section>
 
-            <section class="workspace" aria-label="Transform binding workspace">
+            <section class="workspace" aria-label="Integrated editor workspace">
                 <aside class="panel control-panel" aria-label="Transform and overlay controls">
                     <section class="panel-section">
                         <h2>Image upload</h2>
@@ -281,7 +281,7 @@
                 <section class="panel editor-panel" aria-label="Canvas editor">
                     <div class="canvas-toolbar">
                         <div class="canvas-title">
-                            <strong>Bound image scene</strong>
+                            <strong>Integrated editing workspace</strong>
                             <span id="demoMessage" class="message" role="status"></span>
                         </div>
                     </div>
@@ -290,31 +290,50 @@
                             <div class="empty-card">
                                 <div class="empty-mark" aria-hidden="true">IMG</div>
                                 <h2>No image loaded</h2>
-                                <p>Load the synthetic transform sample or upload a local image.</p>
+                                <p>Load the integrated sample or upload a local image.</p>
                             </div>
                         </div>
                         <div id="canvasContainer" class="canvas-viewport" hidden>
                             <canvas
                                 id="canvas"
-                                aria-label="Editable transform binding canvas"
+                                aria-label="Integrated image editing canvas"
                             ></canvas>
                         </div>
                     </div>
                 </section>
 
-                <aside class="panel details-panel" aria-label="Transform binding details">
+                <aside class="panel details-panel" aria-label="Integrated editor details">
                     <section class="panel-section">
-                        <h2>Binding configuration</h2>
+                        <h2>Transform behavior</h2>
+                        <label class="field check-field" for="bindMasksToImageTransformInput">
+                            <span>Masks follow transforms</span>
+                            <input id="bindMasksToImageTransformInput" type="checkbox" checked />
+                        </label>
+                        <label class="field check-field" for="bindAnnotationsToImageTransformInput">
+                            <span>Annotations follow transforms</span>
+                            <input
+                                id="bindAnnotationsToImageTransformInput"
+                                type="checkbox"
+                                checked
+                            />
+                        </label>
                         <div class="status-grid status-card-grid">
-                            <div class="status-row"><span>Masks</span><span>Bound</span></div>
-                            <div class="status-row"><span>Annotations</span><span>Bound</span></div>
+                            <div class="status-row">
+                                <span>Mask behavior</span><span id="statusMaskBinding">Follow</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Annotation behavior</span
+                                ><span id="statusAnnotationBinding">Follow</span>
+                            </div>
                             <div class="status-row">
                                 <span>Text on flip</span><span>Readable</span>
                             </div>
                         </div>
                         <p class="note">
-                            Both binding options are enabled. Text uses
-                            <code>preserve-readable</code> flip behavior.
+                            Change either option at any time. The page preserves the current image
+                            and overlays while applying the new behavior, then starts a fresh undo
+                            history. Text uses <code>preserve-readable</code> when annotation
+                            following is enabled.
                         </p>
                     </section>
 
@@ -489,7 +508,7 @@
                                 id="exportDownloadLink"
                                 class="button"
                                 href="#"
-                                download="image-editor-transform-binding.png"
+                                download="image-editor-integrated-editor.png"
                             >
                                 Save last export
                             </a>
@@ -507,6 +526,8 @@
                             <code>createShapeAnnotation()</code>
                             <code>enterDrawMode()</code>
                             <code>resetImageTransform()</code>
+                            <code>exportOverlayState()</code>
+                            <code>importOverlayState()</code>
                             <code>exportImageBase64()</code>
                         </div>
                     </section>

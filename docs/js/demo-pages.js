@@ -2,7 +2,7 @@
     'use strict';
 
     const pageName = document.body.dataset.demoPage || 'basic';
-    const isTransformBindingPage = pageName === 'transform-binding';
+    const isIntegratedEditorPage = pageName === 'integrated-editor';
     const demoRuntime = window.__imageEditorDemoRuntime;
     const editorTargetIds = [
         'scalePercentageInput',
@@ -112,10 +112,32 @@
         'resetImageFiltersButton',
         'clearImageFiltersButton',
     ];
+    const demoOwnedEditorTargetIds = [
+        ...imageFilterControlIds,
+        'createMaskButton',
+        'createShapeAnnotationButton',
+        'enterShapeModeButton',
+        'exitShapeModeButton',
+        'shapeKindSelect',
+        'shapeStrokeInput',
+        'shapeStrokeWidthInput',
+        'shapeFillInput',
+        'drawBrushSubModeButton',
+        'drawEraseSubModeButton',
+        'eraserBrushSizeInput',
+        'downloadImageButton',
+        'imageInput',
+        'uploadArea',
+    ];
     const demoState = {
         editor: null,
         isLoading: false,
         lastOperation: null,
+        currentImageDataUrl: null,
+        bindingOptions: {
+            bindMasksToImageTransform: false,
+            bindAnnotationsToImageTransform: false,
+        },
     };
 
     function getOptionalElement(id) {
@@ -158,6 +180,10 @@
         if ('checked' in (element || {})) element.checked = !!checked;
     }
 
+    function setControlPressed(id, pressed) {
+        getOptionalElement(id)?.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    }
+
     function readNumberControl(id, fallback) {
         const value = Number(getOptionalElement(id)?.value);
         return Number.isFinite(value) ? value : fallback;
@@ -182,12 +208,41 @@
         setText('statusLastOperation', demoState.lastOperation || 'None');
     }
 
-    function initEditor() {
+    function readBindingOptionsFromControls() {
+        return {
+            bindMasksToImageTransform:
+                isIntegratedEditorPage &&
+                getOptionalElement('bindMasksToImageTransformInput')?.checked === true,
+            bindAnnotationsToImageTransform:
+                isIntegratedEditorPage &&
+                getOptionalElement('bindAnnotationsToImageTransformInput')?.checked === true,
+        };
+    }
+
+    function syncBindingControls(options) {
+        setControlChecked('bindMasksToImageTransformInput', options.bindMasksToImageTransform);
+        setControlChecked(
+            'bindAnnotationsToImageTransformInput',
+            options.bindAnnotationsToImageTransform,
+        );
+    }
+
+    function haveSameBindingOptions(left, right) {
+        return (
+            left.bindMasksToImageTransform === right.bindMasksToImageTransform &&
+            left.bindAnnotationsToImageTransform === right.bindAnnotationsToImageTransform
+        );
+    }
+
+    function initEditor(bindingOptions = readBindingOptionsFromControls()) {
         const ImageEditorCtor = demoRuntime?.getImageEditorConstructor();
         if (!ImageEditorCtor) {
             showMessage('ImageEditor could not be loaded.', 'error');
             return;
         }
+
+        demoState.bindingOptions = { ...bindingOptions };
+        syncBindingControls(demoState.bindingOptions);
 
         demoState.editor = new ImageEditorCtor({
             backgroundColor: 'transparent',
@@ -205,8 +260,8 @@
             shapeAnnotationName: 'shape',
             maskListOrder: 'front-to-back',
             annotationListOrder: 'front-to-back',
-            bindMasksToImageTransform: isTransformBindingPage,
-            bindAnnotationsToImageTransform: isTransformBindingPage,
+            bindMasksToImageTransform: bindingOptions.bindMasksToImageTransform,
+            bindAnnotationsToImageTransform: bindingOptions.bindAnnotationsToImageTransform,
             textAnnotationFlipBehavior: 'preserve-readable',
             exportAreaByDefault: 'image',
             mergeMasksByDefault: true,
@@ -312,14 +367,69 @@
             ...Object.fromEntries(
                 editorTargetIds.map((id) => [id, getOptionalElement(id) ? id : null]),
             ),
-            createMaskButton: null,
-            createShapeAnnotationButton: null,
-            downloadImageButton: null,
-            imageInput: null,
-            uploadArea: null,
+            ...Object.fromEntries(demoOwnedEditorTargetIds.map((id) => [id, null])),
         });
 
         updateDemoUi();
+    }
+
+    async function applyBindingOptionsFromControls() {
+        if (!isIntegratedEditorPage) return;
+
+        const editor = demoState.editor;
+        const nextOptions = readBindingOptionsFromControls();
+        const activeToolMode = editor?.getActiveToolMode?.() ?? null;
+        if (!editor || isDemoBusy() || activeToolMode !== null) {
+            syncBindingControls(demoState.bindingOptions);
+            return;
+        }
+        if (haveSameBindingOptions(nextOptions, demoState.bindingOptions)) return;
+
+        const hasImage = editor.isImageLoaded();
+        const editorState = hasImage ? editor.getEditorState() : null;
+        const sourceDataUrl = demoState.currentImageDataUrl;
+        demoState.isLoading = true;
+        updateDemoUi();
+
+        try {
+            const overlayState = hasImage ? editor.exportOverlayState() : null;
+            await editor.disposeAsync();
+            if (demoState.editor === editor) demoState.editor = null;
+
+            initEditor(nextOptions);
+            const nextEditor = demoState.editor;
+            if (!nextEditor) throw new Error('ImageEditor could not be reinitialized.');
+
+            if (hasImage) {
+                if (!sourceDataUrl) {
+                    throw new Error(
+                        'The current image source is unavailable for reinitialization.',
+                    );
+                }
+                setLayoutModeFromControl();
+                await nextEditor.loadImage(sourceDataUrl);
+                if (editorState && Math.abs(editorState.currentScale - 1) > 1e-10) {
+                    await nextEditor.scaleImage(editorState.currentScale);
+                }
+                if (overlayState) {
+                    await nextEditor.importOverlayState(overlayState, { saveHistory: false });
+                }
+            }
+
+            const maskBehavior = nextOptions.bindMasksToImageTransform ? 'follow' : 'stay fixed';
+            const annotationBehavior = nextOptions.bindAnnotationsToImageTransform
+                ? 'follow'
+                : 'stay fixed';
+            showMessage(
+                `Transform behavior updated: masks ${maskBehavior}; annotations ${annotationBehavior}.`,
+                'success',
+            );
+        } catch (error) {
+            showMessage(error, 'error');
+        } finally {
+            demoState.isLoading = false;
+            updateDemoUi();
+        }
     }
 
     function isDemoBusy() {
@@ -367,6 +477,14 @@
         setText('statusMasks', String(nextState?.maskCount || 0));
         setText('statusAnnotations', String(nextState?.annotationCount || 0));
         setText(
+            'statusMaskBinding',
+            demoState.bindingOptions.bindMasksToImageTransform ? 'Follow' : 'Fixed',
+        );
+        setText(
+            'statusAnnotationBinding',
+            demoState.bindingOptions.bindAnnotationsToImageTransform ? 'Follow' : 'Fixed',
+        );
+        setText(
             'statusMosaic',
             mosaicConfig
                 ? `${mosaicConfig.brushSize}px / ${mosaicConfig.blockSize}px`
@@ -377,6 +495,14 @@
         setDisabled('loadSampleButton', !canLoad);
         setDisabled('imageInput', !canLoad);
         setDisabled('layoutModeSelect', !canLoad);
+        setDisabled(
+            'bindMasksToImageTransformInput',
+            !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
+        );
+        setDisabled(
+            'bindAnnotationsToImageTransformInput',
+            !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
+        );
         setDisabled('createMaskButton', !canUseIdleImage);
         setDisabled('createTextAnnotationButton', !canUseIdleImage);
         setImageFilterControlsDisabled(!canUseImageFilters);
@@ -409,6 +535,8 @@
             'primary',
             drawSubMode === 'erase',
         );
+        setControlPressed('drawBrushSubModeButton', drawSubMode === 'brush');
+        setControlPressed('drawEraseSubModeButton', drawSubMode === 'erase');
 
         setText(
             'annotationVisibilityState',
@@ -521,6 +649,7 @@
         try {
             await demoState.editor.loadImage(dataUrl);
             if (demoState.editor.isImageLoaded()) {
+                demoState.currentImageDataUrl = dataUrl;
                 showMessage(successMessage || 'Image loaded.', 'success');
             } else {
                 showMessage('Unsupported image format. Use PNG, JPEG, or WebP.', 'error');
@@ -535,12 +664,12 @@
 
     async function loadSample() {
         await loadDataUrl(createSampleDataUrl(pageName), 'Sample image loaded.');
-        if (isTransformBindingPage && demoState.editor?.isImageLoaded()) {
-            createTransformBindingSampleOverlays();
+        if (isIntegratedEditorPage && demoState.editor?.isImageLoaded()) {
+            createIntegratedSampleOverlays();
         }
     }
 
-    function createTransformBindingSampleOverlays() {
+    function createIntegratedSampleOverlays() {
         const editor = demoState.editor;
         if (!editor || !editor.isImageLoaded()) return;
 
@@ -865,6 +994,8 @@
             ['toggleAnnotationLockedButton', 'click', toggleAnnotationLocked],
             ['exportImageButton', 'click', exportImage],
             ['downloadExportButton', 'click', downloadExport],
+            ['bindMasksToImageTransformInput', 'change', applyBindingOptionsFromControls],
+            ['bindAnnotationsToImageTransformInput', 'change', applyBindingOptionsFromControls],
         ].forEach(([id, eventName, handler]) => {
             getOptionalElement(id)?.addEventListener(eventName, handler);
         });
@@ -902,7 +1033,7 @@
         const { canvas, context } = demoRuntime.createCanvas(960, 620);
         if (kind === 'annotation') drawAnnotationSample(context);
         else if (kind === 'mask-mosaic') drawPrivacySample(context);
-        else if (kind === 'transform-binding') drawTransformBindingSample(context);
+        else if (kind === 'integrated-editor') drawIntegratedSample(context);
         else drawBasicSample(context);
         return canvas.toDataURL('image/png');
     }
@@ -991,17 +1122,17 @@
         context.fillText('Email: alex@example.test', 674, 492);
     }
 
-    function drawTransformBindingSample(context) {
+    function drawIntegratedSample(context) {
         fillBackground(context, '#eef4ff');
         demoRuntime.drawPanel(context, 58, 48, 844, 524, '#ffffff');
 
         context.fillStyle = '#0f172a';
         context.font = '700 30px Arial';
-        context.fillText('Overlay Transform Binding Test Board', 98, 112);
+        context.fillText('Integrated Editor Test Board', 98, 112);
         context.fillStyle = '#64748b';
         context.font = '17px Arial';
         context.fillText(
-            'Scale, rotate, flip, and reset while overlays stay on image content.',
+            'Exercise transforms, masks, annotations, layers, history, and export together.',
             98,
             146,
         );
