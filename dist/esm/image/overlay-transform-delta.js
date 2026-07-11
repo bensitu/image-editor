@@ -28,7 +28,23 @@ export function stripReflectionFromDelta(delta, fabricUtil) {
     if (!deltaHasReflection(delta))
         return delta;
     const flipXMatrix = [-1, 0, 0, 1, 0, 0];
-    return fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYMatrix = [1, 0, 0, -1, 0, 0];
+    const flipXCandidate = fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYCandidate = fabricUtil.multiplyTransformMatrices(delta, flipYMatrix);
+    const normalizedAngleMagnitude = (matrix) => {
+        try {
+            const angle = fabricUtil.qrDecompose(matrix).angle;
+            if (!Number.isFinite(angle))
+                return Number.POSITIVE_INFINITY;
+            return Math.abs((((angle % 360) + 540) % 360) - 180);
+        }
+        catch {
+            return Number.POSITIVE_INFINITY;
+        }
+    };
+    return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate)
+        ? flipYCandidate
+        : flipXCandidate;
 }
 export function applyDeltaToObject(object, fullDelta, context) {
     var _a, _b;
@@ -45,45 +61,44 @@ export function applyDeltaToObject(object, fullDelta, context) {
     const orientationDelta = context.preserveReadableText
         ? stripReflectionFromDelta(fullDelta, fabricUtil)
         : fullDelta;
-    object.set({
-        originX: 'center',
-        originY: 'center',
-    });
-    object.setPositionByOrigin(originalCenter, 'center', 'center');
-    object.setCoords();
-    const currentObjectMatrix = object.calcTransformMatrix();
-    const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
-    if (!isFiniteTransformMatrix(nextMatrix)) {
+    let restoreCenter = originalCenter;
+    try {
+        object.set({
+            originX: 'center',
+            originY: 'center',
+        });
+        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setCoords();
+        const currentObjectMatrix = object.calcTransformMatrix();
+        const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
+        if (!isFiniteTransformMatrix(nextMatrix))
+            return;
+        const decomposed = fabricUtil.qrDecompose(nextMatrix);
+        object.set({
+            flipX: false,
+            flipY: false,
+        });
+        object.set({
+            angle: decomposed.angle,
+            scaleX: decomposed.scaleX,
+            scaleY: decomposed.scaleY,
+            skewX: decomposed.skewX,
+        });
+        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
+            object.set({
+                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
+                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
+            });
+        }
+        restoreCenter = targetCenter;
+    }
+    finally {
         object.set({
             originX: previousOriginX,
             originY: previousOriginY,
         });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
-        return;
     }
-    const decomposed = fabricUtil.qrDecompose(nextMatrix);
-    object.set({
-        flipX: false,
-        flipY: false,
-    });
-    object.set({
-        angle: decomposed.angle,
-        scaleX: decomposed.scaleX,
-        scaleY: decomposed.scaleY,
-        skewX: decomposed.skewX,
-    });
-    if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
-        object.set({
-            ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
-            ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
-        });
-    }
-    object.set({
-        originX: previousOriginX,
-        originY: previousOriginY,
-    });
-    object.setPositionByOrigin(targetCenter, 'center', 'center');
-    object.setCoords();
 }
 //# sourceMappingURL=overlay-transform-delta.js.map

@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Split final image snapping, live overlay delta application, and session-state synchronization into explicit transform phases while keeping all new binding behavior disabled by default.
 
+### Fixed
+
+- Keep `preserve-readable` Text annotations upright for both horizontal and vertical image flips instead of allowing a vertical reflection to become a compensating 180-degree text rotation.
+- Roll back base-image flip flags, origin, and position when a flip operation fails after mutation, then resynchronize bound overlays without recording a failed history entry.
+- Restore an overlay object's original origin and center through `try`/`finally` when Fabric matrix decomposition or transform application throws.
+- Isolate per-object overlay transform failures through `onWarning` so one malformed overlay does not prevent remaining bound overlays from transforming or the canvas from rendering.
+- Recognize lowercase-only `activeselection` values returned by Fabric-compatible `isType()` implementations before applying bound overlay transforms.
+- Skip redundant intermediate mask-label/session synchronization while compound reset transforms suppress overlay deltas, leaving one final synchronization pass.
+
 ## [2.8.3] - 2026-07-10
 
 ### Changed

@@ -454,9 +454,15 @@ export class TransformController {
 
         imageObject.setCoords();
         const beforeMatrix = imageObject.calcTransformMatrix() as number[];
+        const previousFlipX = imageObject.flipX;
+        const previousFlipY = imageObject.flipY;
+        const previousOriginX = imageObject.originX ?? 'left';
+        const previousOriginY = imageObject.originY ?? 'top';
+        const operationName = property === 'flipX' ? 'flipHorizontal' : 'flipVertical';
+        let centre: FabricNS.Point | null = null;
 
         try {
-            const centre = imageObject.getCenterPoint();
+            centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.set({ [property]: !imageObject[property] });
@@ -467,11 +473,28 @@ export class TransformController {
             imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
             imageObject.setCoords();
         } catch (error) {
-            reportWarning(
-                this.context.options,
-                error,
-                `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`,
-            );
+            if (!this.context.guard.isDisposed()) {
+                try {
+                    imageObject.set({
+                        flipX: previousFlipX,
+                        flipY: previousFlipY,
+                        originX: previousOriginX,
+                        originY: previousOriginY,
+                    });
+                    if (centre) {
+                        imageObject.setPositionByOrigin(centre, 'center', 'center');
+                    }
+                    imageObject.setCoords();
+                    this.completeImageTransform(beforeMatrix);
+                } catch (rollbackError) {
+                    reportWarning(
+                        this.context.options,
+                        rollbackError,
+                        `${operationName} rollback failed.`,
+                    );
+                }
+            }
+            reportWarning(this.context.options, error, `${operationName} failed.`);
             return;
         }
 
@@ -545,9 +568,8 @@ export class TransformController {
     /** Run the three post-snap transform phases in their required order. */
     private completeImageTransform(beforeMatrix: number[]): void {
         this.context.finalizeImageTransformSnap();
-        if (!this.context.isOverlaySyncSuppressed()) {
-            this.context.applyOverlayTransformDelta(beforeMatrix);
-        }
+        if (this.context.isOverlaySyncSuppressed()) return;
+        this.context.applyOverlayTransformDelta(beforeMatrix);
         this.context.syncOverlayAfterTransform();
     }
 }

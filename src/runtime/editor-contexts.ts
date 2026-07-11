@@ -7,6 +7,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { reportWarning } from '../core/callback-reporter.js';
 import {
     attachTextEditingHandlersToAnnotations,
     type TextControllerContext,
@@ -95,7 +96,9 @@ function isActiveSelectionObject(object: FabricNS.FabricObject | null | undefine
     const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
     return (
         typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection'))
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection'))
     );
 }
 
@@ -433,12 +436,20 @@ export class EditorContextFactory {
                     canvas.discardActiveObject();
                 }
 
-                targets.forEach((object) => {
-                    applyDeltaToObject(object, delta, {
-                        fabricUtil,
-                        preserveReadableText: shouldPreserveReadableForAnnotation(object),
-                    });
-                });
+                for (const object of targets) {
+                    try {
+                        applyDeltaToObject(object, delta, {
+                            fabricUtil,
+                            preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                        });
+                    } catch (error) {
+                        reportWarning(
+                            access.getOptions(),
+                            error,
+                            'Overlay transform skipped an object after its Fabric transform failed.',
+                        );
+                    }
+                }
                 canvas.requestRenderAll();
             },
             syncOverlayAfterTransform: () => {

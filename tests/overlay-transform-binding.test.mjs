@@ -63,6 +63,11 @@ function assertMatrixClose(actual, expected, message, epsilon = 1e-6) {
     });
 }
 
+function assertAngleClose(actual, expected, message, epsilon = 1e-6) {
+    const normalizedDelta = ((((actual - expected) % 360) + 540) % 360) - 180;
+    assertClose(normalizedDelta, 0, message, epsilon);
+}
+
 function imageInverse(image) {
     image.setCoords();
     return fabric.util.invertTransform(image.calcTransformMatrix());
@@ -384,6 +389,7 @@ test('readable text follows full image position without receiving reflection', a
     assert.ok(determinant(text.calcTransformMatrix()) > 0, 'text glyph transform is not mirrored');
     assert.equal(text.flipX, false);
     assert.equal(text.flipY, false);
+    assertAngleClose(text.angle, 12, 'horizontal flip keeps readable text upright');
     assertFullProjection(shape, image, shapeProjection, 'shape beside readable text');
 
     await editor.resetImageTransform();
@@ -397,6 +403,7 @@ test('readable text follows full image position without receiving reflection', a
         determinant(text.calcTransformMatrix()) > 0,
         'vertical flip also avoids text reflection',
     );
+    assertAngleClose(text.angle, 12, 'vertical flip keeps readable text upright');
 });
 
 test('binding discards ActiveSelection while transforming its underlying objects', async (t) => {
@@ -433,6 +440,65 @@ test('binding discards ActiveSelection while transforming its underlying objects
     );
     assertFullProjection(mask, image, maskProjection, 'selected mask');
     assertFullProjection(annotation, image, annotationProjection, 'selected annotation');
+});
+
+test('binding recognizes lowercase-only ActiveSelection isType implementations', async (t) => {
+    const editor = createSourceEditor({
+        bindMasksToImageTransform: true,
+        groupSelection: true,
+        maskLabelOnSelect: false,
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 120, height: 80 });
+    const first = editor.createMask({ left: 12, top: 14, width: 24, height: 18 });
+    const second = editor.createMask({ left: 61, top: 24, width: 26, height: 19 });
+    const canvas = requireEditorCanvas(editor);
+    const selection = new fabric.ActiveSelection([first, second], { canvas });
+    canvas.setActiveObject(selection);
+    Object.defineProperty(selection, 'type', {
+        configurable: true,
+        value: 'custom-selection',
+    });
+    selection.isType = (...types) => types.includes('activeselection');
+
+    await editor.flipHorizontal();
+
+    assert.equal(canvas.getActiveObject(), undefined, 'lowercase ActiveSelection is discarded');
+});
+
+test('one malformed overlay does not block later bound overlays', async (t) => {
+    const warnings = [];
+    const editor = createSourceEditor({
+        bindMasksToImageTransform: true,
+        maskLabelOnSelect: false,
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+    t.after(() => disposeEditor(editor));
+
+    await loadFixtureImage(editor, { width: 120, height: 80 });
+    const malformed = editor.createMask({ left: 12, top: 14, width: 24, height: 18 });
+    const healthy = editor.createMask({ left: 61, top: 24, width: 26, height: 19 });
+    const image = requireOriginalImage(editor);
+    const healthyProjection = captureFullProjection(healthy, image);
+    const originalGetCenterPoint = malformed.getCenterPoint.bind(malformed);
+    let shouldThrow = true;
+    malformed.getCenterPoint = () => {
+        if (shouldThrow) {
+            shouldThrow = false;
+            throw new Error('malformed overlay center');
+        }
+        return originalGetCenterPoint();
+    };
+
+    await editor.flipHorizontal();
+
+    assert.equal(malformed.originX, 'left');
+    assert.equal(malformed.originY, 'top');
+    assertFullProjection(healthy, image, healthyProjection, 'healthy overlay after peer failure');
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /overlay transform/i);
+    assert.match(String(warnings[0].error), /malformed overlay center/);
 });
 
 test('mask labels are session objects synchronized after bound mask geometry changes', async (t) => {

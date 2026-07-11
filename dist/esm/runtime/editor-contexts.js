@@ -1,3 +1,4 @@
+import { reportWarning } from '../core/callback-reporter.js';
 import { attachTextEditingHandlersToAnnotations, } from '../annotation/text-controller.js';
 import { removeAllAnnotations as removeAllAnnotationsImpl, } from '../annotation/annotation-manager.js';
 import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
@@ -25,7 +26,9 @@ function isActiveSelectionObject(object) {
         return true;
     const isType = object.isType;
     return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection')));
 }
 export class EditorContextFactory {
     constructor(access) {
@@ -245,12 +248,17 @@ export class EditorContextFactory {
                 if (isActiveSelectionObject(canvas.getActiveObject())) {
                     canvas.discardActiveObject();
                 }
-                targets.forEach((object) => {
-                    applyDeltaToObject(object, delta, {
-                        fabricUtil,
-                        preserveReadableText: shouldPreserveReadableForAnnotation(object),
-                    });
-                });
+                for (const object of targets) {
+                    try {
+                        applyDeltaToObject(object, delta, {
+                            fabricUtil,
+                            preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                        });
+                    }
+                    catch (error) {
+                        reportWarning(access.getOptions(), error, 'Overlay transform skipped an object after its Fabric transform failed.');
+                    }
+                }
                 canvas.requestRenderAll();
             },
             syncOverlayAfterTransform: () => {

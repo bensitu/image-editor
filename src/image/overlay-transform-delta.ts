@@ -100,7 +100,27 @@ export function stripReflectionFromDelta(delta: number[], fabricUtil: FabricUtil
     if (!deltaHasReflection(delta)) return delta;
 
     const flipXMatrix = [-1, 0, 0, 1, 0, 0];
-    return fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYMatrix = [1, 0, 0, -1, 0, 0];
+    const flipXCandidate = fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYCandidate = fabricUtil.multiplyTransformMatrices(delta, flipYMatrix);
+
+    const normalizedAngleMagnitude = (matrix: number[]): number => {
+        try {
+            const angle = fabricUtil.qrDecompose(matrix).angle;
+            if (!Number.isFinite(angle)) return Number.POSITIVE_INFINITY;
+            return Math.abs((((angle % 360) + 540) % 360) - 180);
+        } catch {
+            return Number.POSITIVE_INFINITY;
+        }
+    };
+
+    // A reflected matrix has two equivalent non-reflected decompositions
+    // separated by 180 degrees. Prefer the correction with the smaller
+    // compensating rotation so a vertical flip does not turn readable text
+    // upside down. Ties retain the historical horizontal correction.
+    return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate)
+        ? flipYCandidate
+        : flipXCandidate;
 }
 
 /**
@@ -130,53 +150,53 @@ export function applyDeltaToObject(
         ? stripReflectionFromDelta(fullDelta, fabricUtil)
         : fullDelta;
 
-    object.set({
-        originX: 'center',
-        originY: 'center',
-    });
-    object.setPositionByOrigin(originalCenter, 'center', 'center');
-    object.setCoords();
+    let restoreCenter = originalCenter;
+    try {
+        object.set({
+            originX: 'center',
+            originY: 'center',
+        });
+        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setCoords();
 
-    const currentObjectMatrix = object.calcTransformMatrix() as number[];
-    const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
+        const currentObjectMatrix = object.calcTransformMatrix() as number[];
+        const nextMatrix = fabricUtil.multiplyTransformMatrices(
+            orientationDelta,
+            currentObjectMatrix,
+        );
 
-    if (!isFiniteTransformMatrix(nextMatrix)) {
+        if (!isFiniteTransformMatrix(nextMatrix)) return;
+
+        const decomposed = fabricUtil.qrDecompose(nextMatrix);
+
+        // Reset first because Fabric 7.4 converts negative scales into flip flags.
+        object.set({
+            flipX: false,
+            flipY: false,
+        });
+
+        object.set({
+            angle: decomposed.angle,
+            scaleX: decomposed.scaleX,
+            scaleY: decomposed.scaleY,
+            skewX: decomposed.skewX,
+        });
+
+        // Newer Fabric versions may expose explicit decomposition flip flags.
+        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
+            object.set({
+                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
+                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
+            });
+        }
+
+        restoreCenter = targetCenter;
+    } finally {
         object.set({
             originX: previousOriginX,
             originY: previousOriginY,
         });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
-        return;
     }
-
-    const decomposed = fabricUtil.qrDecompose(nextMatrix);
-
-    // Reset first because Fabric 7.4 converts negative scales into flip flags.
-    object.set({
-        flipX: false,
-        flipY: false,
-    });
-
-    object.set({
-        angle: decomposed.angle,
-        scaleX: decomposed.scaleX,
-        scaleY: decomposed.scaleY,
-        skewX: decomposed.skewX,
-    });
-
-    // Newer Fabric versions may expose explicit decomposition flip flags.
-    if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
-        object.set({
-            ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
-            ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
-        });
-    }
-
-    object.set({
-        originX: previousOriginX,
-        originY: previousOriginY,
-    });
-    object.setPositionByOrigin(targetCenter, 'center', 'center');
-    object.setCoords();
 }

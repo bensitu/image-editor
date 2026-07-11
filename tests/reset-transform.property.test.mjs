@@ -372,6 +372,24 @@ test('resetImageTransform applies exactly one final overlay delta', async () => 
     assert.equal(harness.ctx.isOverlaySyncSuppressed(), false);
 });
 
+test('resetImageTransform synchronizes overlay session state only once', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 2,
+        initialRotation: 37,
+        initialFlipX: true,
+        initialFlipY: false,
+    });
+    let syncCalls = 0;
+    harness.ctx.syncOverlayAfterTransform = () => {
+        syncCalls += 1;
+    };
+    const controller = new TransformController(harness.ctx);
+
+    await controller.resetImageTransform();
+
+    assert.equal(syncCalls, 1, 'only the final compound transform synchronizes overlays');
+});
+
 test('resetImageTransform is a no-op when no image is loaded', async () => {
     const harness = makeContextWithSuppression({
         initialScale: 2,
@@ -576,6 +594,44 @@ test('flipVertical toggles only base image flipY and records one history entry',
 
     assert.equal(harness.image.flipY, false);
     assert.equal(harness.getSaveCalls(), 2);
+});
+
+test('flip failure restores image state and synchronizes overlays without saving history', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 1,
+        initialRotation: 0,
+        initialFlipX: false,
+        initialFlipY: true,
+    });
+    const warnings = [];
+    harness.ctx.options = resolveOptions({
+        animationDuration: 1,
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+    harness.image.getCoords = () => {
+        throw new Error('top-left lookup failed');
+    };
+    const deltaCalls = [];
+    let syncCalls = 0;
+    harness.ctx.applyOverlayTransformDelta = (beforeMatrix) => {
+        deltaCalls.push(beforeMatrix.slice());
+    };
+    harness.ctx.syncOverlayAfterTransform = () => {
+        syncCalls += 1;
+    };
+    const controller = new TransformController(harness.ctx);
+
+    await controller.flipHorizontal();
+
+    assert.equal(harness.image.flipX, false);
+    assert.equal(harness.image.flipY, true);
+    assert.equal(harness.image.originX, 'left');
+    assert.equal(harness.image.originY, 'top');
+    assert.equal(harness.getSaveCalls(), 0);
+    assert.equal(deltaCalls.length, 1, 'rollback synchronizes overlay geometry');
+    assert.equal(syncCalls, 1, 'rollback synchronizes overlay session state');
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /flipHorizontal failed/);
 });
 
 test('flip is a no-op when no image is loaded or the editor is disposed', async () => {

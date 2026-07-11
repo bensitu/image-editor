@@ -140,6 +140,7 @@ export class TransformController {
         await this.flipImage('flipY');
     }
     async flipImage(property) {
+        var _a, _b;
         const imageObject = this.context.getOriginalImage();
         if (!imageObject)
             return;
@@ -149,8 +150,14 @@ export class TransformController {
             return;
         imageObject.setCoords();
         const beforeMatrix = imageObject.calcTransformMatrix();
+        const previousFlipX = imageObject.flipX;
+        const previousFlipY = imageObject.flipY;
+        const previousOriginX = (_a = imageObject.originX) !== null && _a !== void 0 ? _a : 'left';
+        const previousOriginY = (_b = imageObject.originY) !== null && _b !== void 0 ? _b : 'top';
+        const operationName = property === 'flipX' ? 'flipHorizontal' : 'flipVertical';
+        let centre = null;
         try {
-            const centre = imageObject.getCenterPoint();
+            centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.set({ [property]: !imageObject[property] });
@@ -161,7 +168,25 @@ export class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            reportWarning(this.context.options, error, `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`);
+            if (!this.context.guard.isDisposed()) {
+                try {
+                    imageObject.set({
+                        flipX: previousFlipX,
+                        flipY: previousFlipY,
+                        originX: previousOriginX,
+                        originY: previousOriginY,
+                    });
+                    if (centre) {
+                        imageObject.setPositionByOrigin(centre, 'center', 'center');
+                    }
+                    imageObject.setCoords();
+                    this.completeImageTransform(beforeMatrix);
+                }
+                catch (rollbackError) {
+                    reportWarning(this.context.options, rollbackError, `${operationName} rollback failed.`);
+                }
+            }
+            reportWarning(this.context.options, error, `${operationName} failed.`);
             return;
         }
         if (this.context.guard.isDisposed())
@@ -202,9 +227,9 @@ export class TransformController {
     }
     completeImageTransform(beforeMatrix) {
         this.context.finalizeImageTransformSnap();
-        if (!this.context.isOverlaySyncSuppressed()) {
-            this.context.applyOverlayTransformDelta(beforeMatrix);
-        }
+        if (this.context.isOverlaySyncSuppressed())
+            return;
+        this.context.applyOverlayTransformDelta(beforeMatrix);
         this.context.syncOverlayAfterTransform();
     }
 }

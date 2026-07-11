@@ -115,6 +115,50 @@ test('delta calculation, reflection stripping, and Point construction preserve a
     assertPointClose(point, new fabric.Point(210, 12), 'transformed point');
 });
 
+test('reflection stripping keeps horizontal and vertical flips upright', () => {
+    for (const [name, delta] of [
+        ['horizontal', [-1, 0, 0, 1, 220, 0]],
+        ['vertical', [1, 0, 0, -1, 0, 160]],
+    ]) {
+        const stripped = stripReflectionFromDelta(delta, fabricUtil);
+
+        assertMatrixClose(
+            stripped,
+            [1, 0, 0, 1, delta[4], delta[5]],
+            `${name} reflection-stripped delta`,
+        );
+    }
+});
+
+test('applyDeltaToObject restores the original origin when decomposition throws', () => {
+    const object = new fabric.Rect({
+        left: 32,
+        top: 18,
+        width: 41,
+        height: 23,
+        angle: 17,
+        originX: 'right',
+        originY: 'bottom',
+    });
+    object.setCoords();
+    const originalCenter = object.getCenterPoint();
+    const throwingUtil = {
+        ...fabricUtil,
+        qrDecompose() {
+            throw new Error('decomposition failed');
+        },
+    };
+
+    assert.throws(
+        () => applyDeltaToObject(object, [-1, 0, 0, 1, 220, 0], { fabricUtil: throwingUtil }),
+        /decomposition failed/,
+    );
+
+    assert.equal(object.originX, 'right');
+    assert.equal(object.originY, 'bottom');
+    assertPointClose(object.getCenterPoint(), originalCenter, 'center after failed decomposition');
+});
+
 test('applyDeltaToObject preserves reflection and an asymmetric local marker', () => {
     const object = new fabric.Rect({
         left: 32,

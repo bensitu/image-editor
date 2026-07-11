@@ -9074,6 +9074,7 @@ class TransformController {
         await this.flipImage('flipY');
     }
     async flipImage(property) {
+        var _a, _b;
         const imageObject = this.context.getOriginalImage();
         if (!imageObject)
             return;
@@ -9083,8 +9084,14 @@ class TransformController {
             return;
         imageObject.setCoords();
         const beforeMatrix = imageObject.calcTransformMatrix();
+        const previousFlipX = imageObject.flipX;
+        const previousFlipY = imageObject.flipY;
+        const previousOriginX = (_a = imageObject.originX) !== null && _a !== void 0 ? _a : 'left';
+        const previousOriginY = (_b = imageObject.originY) !== null && _b !== void 0 ? _b : 'top';
+        const operationName = property === 'flipX' ? 'flipHorizontal' : 'flipVertical';
+        let centre = null;
         try {
-            const centre = imageObject.getCenterPoint();
+            centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.set({ [property]: !imageObject[property] });
@@ -9095,7 +9102,25 @@ class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            reportWarning(this.context.options, error, `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`);
+            if (!this.context.guard.isDisposed()) {
+                try {
+                    imageObject.set({
+                        flipX: previousFlipX,
+                        flipY: previousFlipY,
+                        originX: previousOriginX,
+                        originY: previousOriginY,
+                    });
+                    if (centre) {
+                        imageObject.setPositionByOrigin(centre, 'center', 'center');
+                    }
+                    imageObject.setCoords();
+                    this.completeImageTransform(beforeMatrix);
+                }
+                catch (rollbackError) {
+                    reportWarning(this.context.options, rollbackError, `${operationName} rollback failed.`);
+                }
+            }
+            reportWarning(this.context.options, error, `${operationName} failed.`);
             return;
         }
         if (this.context.guard.isDisposed())
@@ -9136,9 +9161,9 @@ class TransformController {
     }
     completeImageTransform(beforeMatrix) {
         this.context.finalizeImageTransformSnap();
-        if (!this.context.isOverlaySyncSuppressed()) {
-            this.context.applyOverlayTransformDelta(beforeMatrix);
-        }
+        if (this.context.isOverlaySyncSuppressed())
+            return;
+        this.context.applyOverlayTransformDelta(beforeMatrix);
         this.context.syncOverlayAfterTransform();
     }
 }
@@ -9719,7 +9744,23 @@ function stripReflectionFromDelta(delta, fabricUtil) {
     if (!deltaHasReflection(delta))
         return delta;
     const flipXMatrix = [-1, 0, 0, 1, 0, 0];
-    return fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYMatrix = [1, 0, 0, -1, 0, 0];
+    const flipXCandidate = fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYCandidate = fabricUtil.multiplyTransformMatrices(delta, flipYMatrix);
+    const normalizedAngleMagnitude = (matrix) => {
+        try {
+            const angle = fabricUtil.qrDecompose(matrix).angle;
+            if (!Number.isFinite(angle))
+                return Number.POSITIVE_INFINITY;
+            return Math.abs((((angle % 360) + 540) % 360) - 180);
+        }
+        catch {
+            return Number.POSITIVE_INFINITY;
+        }
+    };
+    return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate)
+        ? flipYCandidate
+        : flipXCandidate;
 }
 function applyDeltaToObject(object, fullDelta, context) {
     var _a, _b;
@@ -9736,46 +9777,45 @@ function applyDeltaToObject(object, fullDelta, context) {
     const orientationDelta = context.preserveReadableText
         ? stripReflectionFromDelta(fullDelta, fabricUtil)
         : fullDelta;
-    object.set({
-        originX: 'center',
-        originY: 'center',
-    });
-    object.setPositionByOrigin(originalCenter, 'center', 'center');
-    object.setCoords();
-    const currentObjectMatrix = object.calcTransformMatrix();
-    const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
-    if (!isFiniteTransformMatrix(nextMatrix)) {
+    let restoreCenter = originalCenter;
+    try {
+        object.set({
+            originX: 'center',
+            originY: 'center',
+        });
+        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setCoords();
+        const currentObjectMatrix = object.calcTransformMatrix();
+        const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
+        if (!isFiniteTransformMatrix(nextMatrix))
+            return;
+        const decomposed = fabricUtil.qrDecompose(nextMatrix);
+        object.set({
+            flipX: false,
+            flipY: false,
+        });
+        object.set({
+            angle: decomposed.angle,
+            scaleX: decomposed.scaleX,
+            scaleY: decomposed.scaleY,
+            skewX: decomposed.skewX,
+        });
+        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
+            object.set({
+                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
+                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
+            });
+        }
+        restoreCenter = targetCenter;
+    }
+    finally {
         object.set({
             originX: previousOriginX,
             originY: previousOriginY,
         });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setPositionByOrigin(restoreCenter, 'center', 'center');
         object.setCoords();
-        return;
     }
-    const decomposed = fabricUtil.qrDecompose(nextMatrix);
-    object.set({
-        flipX: false,
-        flipY: false,
-    });
-    object.set({
-        angle: decomposed.angle,
-        scaleX: decomposed.scaleX,
-        scaleY: decomposed.scaleY,
-        skewX: decomposed.skewX,
-    });
-    if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
-        object.set({
-            ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
-            ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
-        });
-    }
-    object.set({
-        originX: previousOriginX,
-        originY: previousOriginY,
-    });
-    object.setPositionByOrigin(targetCenter, 'center', 'center');
-    object.setCoords();
 }
 
 const POLYGON_AREA_EPSILON = 1e-6;
@@ -10239,7 +10279,9 @@ function isActiveSelectionObject(object) {
         return true;
     const isType = object.isType;
     return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection')));
 }
 class EditorContextFactory {
     constructor(access) {
@@ -10459,12 +10501,17 @@ class EditorContextFactory {
                 if (isActiveSelectionObject(canvas.getActiveObject())) {
                     canvas.discardActiveObject();
                 }
-                targets.forEach((object) => {
-                    applyDeltaToObject(object, delta, {
-                        fabricUtil,
-                        preserveReadableText: shouldPreserveReadableForAnnotation(object),
-                    });
-                });
+                for (const object of targets) {
+                    try {
+                        applyDeltaToObject(object, delta, {
+                            fabricUtil,
+                            preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                        });
+                    }
+                    catch (error) {
+                        reportWarning(access.getOptions(), error, 'Overlay transform skipped an object after its Fabric transform failed.');
+                    }
+                }
                 canvas.requestRenderAll();
             },
             syncOverlayAfterTransform: () => {
