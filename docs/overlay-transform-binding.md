@@ -4,6 +4,9 @@ Overlay transform binding is an opt-in mode that keeps editable overlays aligned
 with the same source-image content while the base image is scaled, rotated,
 flipped, or reset.
 
+Use the [Transform Binding demo](transform-binding.html) to exercise masks,
+annotations, zoom, arbitrary-angle rotation, flips, and reset together.
+
 ```ts
 const editor = new ImageEditor(fabric, {
     bindMasksToImageTransform: true,

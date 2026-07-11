@@ -4,42 +4,42 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta content="IE=edge" http-equiv="X-UA-Compatible" />
-        <title>Annotation Demo - @bensitu/image-editor</title>
+        <title>Transform Binding Demo - @bensitu/image-editor</title>
         <link rel="icon" href="./favicon.ico" type="image/x-icon" />
         <link rel="stylesheet" href="css/demo-pages.css" />
     </head>
-    <body data-demo-page="annotation">
+    <body data-demo-page="transform-binding">
         <header class="site-header">
             <a class="brand-link" href="./index.html">
                 @bensitu/image-editor
-                <span>Annotation Demo</span>
+                <span>Transform Binding Demo</span>
             </a>
             <nav class="demo-nav" aria-label="Demo pages">
                 <a href="./basic.html">Basic</a>
-                <a href="./annotation.html" aria-current="page">Annotation</a>
+                <a href="./annotation.html">Annotation</a>
                 <a href="./mask-mosaic.html">Mask &amp; Mosaic</a>
-                <a href="./transform-binding.html">Transform Binding</a>
+                <a href="./transform-binding.html" aria-current="page">Transform Binding</a>
             </nav>
         </header>
 
         <main class="page-shell">
             <section class="hero">
                 <div>
-                    <h1>Annotation Demo</h1>
+                    <h1>Transform Binding Demo</h1>
                     <p>
-                        Mark up screenshots, documents, QA notes, and review material with text
-                        annotations, shapes, and freehand drawing.
+                        Test masks and annotations together while zooming, rotating, and flipping
+                        the source image as one bound visual scene.
                     </p>
                 </div>
                 <div class="hero-actions">
                     <button id="loadSampleButton" class="button primary" type="button">
-                        Load sample
+                        Load sample with overlays
                     </button>
                 </div>
             </section>
 
-            <section class="workspace" aria-label="Annotation workspace">
-                <aside class="panel control-panel" aria-label="Annotation controls">
+            <section class="workspace" aria-label="Transform binding workspace">
+                <aside class="panel control-panel" aria-label="Transform and overlay controls">
                     <section class="panel-section">
                         <h2>Image upload</h2>
                         <input
@@ -60,10 +60,94 @@
                     </section>
 
                     <section class="panel-section">
-                        <h2>Text</h2>
+                        <h2>Transform</h2>
+                        <div class="control-grid three">
+                            <button id="zoomOutButton" class="button" type="button">Zoom -</button>
+                            <div class="scale-readout">
+                                <input
+                                    id="scalePercentageInput"
+                                    value="100"
+                                    readonly
+                                    aria-label="Scale percentage"
+                                />
+                                <span>%</span>
+                            </div>
+                            <button id="zoomInButton" class="button" type="button">Zoom +</button>
+                        </div>
+                        <div class="control-grid">
+                            <label class="field" for="rotateLeftDegreesInput">
+                                <span>Left degrees</span>
+                                <input
+                                    id="rotateLeftDegreesInput"
+                                    type="number"
+                                    min="1"
+                                    max="359"
+                                    step="1"
+                                    value="37"
+                                />
+                            </label>
+                            <label class="field" for="rotateRightDegreesInput">
+                                <span>Right degrees</span>
+                                <input
+                                    id="rotateRightDegreesInput"
+                                    type="number"
+                                    min="1"
+                                    max="359"
+                                    step="1"
+                                    value="37"
+                                />
+                            </label>
+                        </div>
+                        <div class="control-grid">
+                            <button id="rotateLeftButton" class="button" type="button">
+                                Rotate left
+                            </button>
+                            <button id="rotateRightButton" class="button" type="button">
+                                Rotate right
+                            </button>
+                            <button id="flipHorizontalButton" class="button" type="button">
+                                Flip horizontal
+                            </button>
+                            <button id="flipVerticalButton" class="button" type="button">
+                                Flip vertical
+                            </button>
+                            <button id="resetImageTransformButton" class="button" type="button">
+                                Reset transform
+                            </button>
+                            <button id="undoButton" class="button" type="button">Undo</button>
+                            <button id="redoButton" class="button" type="button">Redo</button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Masks</h2>
+                        <label class="field" for="maskShapeSelect">
+                            <span>Shape</span>
+                            <select id="maskShapeSelect">
+                                <option value="rect" selected>Rectangle</option>
+                                <option value="circle">Circle</option>
+                                <option value="ellipse">Ellipse</option>
+                                <option value="polygon">Polygon</option>
+                            </select>
+                        </label>
+                        <div class="control-grid">
+                            <button id="createMaskButton" class="button primary" type="button">
+                                Add mask
+                            </button>
+                            <button id="removeSelectedMaskButton" class="button" type="button">
+                                Remove selected
+                            </button>
+                            <button id="removeAllMasksButton" class="button danger" type="button">
+                                Remove all
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Text annotation</h2>
                         <label class="field" for="textValueInput">
                             <span>Text</span>
-                            <input id="textValueInput" value="Needs review" />
+                            <input id="textValueInput" value="Bound note" />
                         </label>
                         <div class="control-grid">
                             <label class="field" for="textColorInput">
@@ -100,7 +184,7 @@
                     </section>
 
                     <section class="panel-section">
-                        <h2>Shape</h2>
+                        <h2>Shape annotation</h2>
                         <label class="field" for="shapeKindSelect">
                             <span>Shape</span>
                             <select id="shapeKindSelect">
@@ -148,7 +232,7 @@
                     </section>
 
                     <section class="panel-section">
-                        <h2>Draw</h2>
+                        <h2>Draw annotation</h2>
                         <div class="control-grid">
                             <label class="field" for="drawColorInput">
                                 <span>Color</span>
@@ -173,8 +257,6 @@
                             <button id="exitDrawModeButton" class="button" type="button">
                                 Exit draw
                             </button>
-                        </div>
-                        <div class="control-grid">
                             <button id="drawBrushSubModeButton" class="button" type="button">
                                 Brush
                             </button>
@@ -183,7 +265,7 @@
                             </button>
                         </div>
                         <label class="field" for="eraserBrushSizeInput">
-                            <span>Eraser</span>
+                            <span>Eraser size</span>
                             <input
                                 id="eraserBrushSizeInput"
                                 type="range"
@@ -193,17 +275,13 @@
                                 value="18"
                             />
                         </label>
-                        <p class="note">
-                            Eraser removes intersected draw strokes only. Image pixels, masks, text,
-                            and shapes remain unchanged.
-                        </p>
                     </section>
                 </aside>
 
                 <section class="panel editor-panel" aria-label="Canvas editor">
                     <div class="canvas-toolbar">
                         <div class="canvas-title">
-                            <strong>Markup workspace</strong>
+                            <strong>Bound image scene</strong>
                             <span id="demoMessage" class="message" role="status"></span>
                         </div>
                     </div>
@@ -212,30 +290,57 @@
                             <div class="empty-card">
                                 <div class="empty-mark" aria-hidden="true">IMG</div>
                                 <h2>No image loaded</h2>
-                                <p>
-                                    Load the sample screenshot or upload an image to start marking
-                                    up.
-                                </p>
+                                <p>Load the synthetic transform sample or upload a local image.</p>
                             </div>
                         </div>
                         <div id="canvasContainer" class="canvas-viewport" hidden>
-                            <canvas id="canvas" aria-label="Editable annotation canvas"></canvas>
+                            <canvas
+                                id="canvas"
+                                aria-label="Editable transform binding canvas"
+                            ></canvas>
                         </div>
                     </div>
                 </section>
 
-                <aside
-                    class="panel details-panel annotation-details-panel"
-                    aria-label="Annotation details"
-                >
+                <aside class="panel details-panel" aria-label="Transform binding details">
                     <section class="panel-section">
-                        <h2>Editor State</h2>
+                        <h2>Binding configuration</h2>
+                        <div class="status-grid status-card-grid">
+                            <div class="status-row"><span>Masks</span><span>Bound</span></div>
+                            <div class="status-row"><span>Annotations</span><span>Bound</span></div>
+                            <div class="status-row">
+                                <span>Text on flip</span><span>Readable</span>
+                            </div>
+                        </div>
+                        <p class="note">
+                            Both binding options are enabled. Text uses
+                            <code>preserve-readable</code> flip behavior.
+                        </p>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Editor state</h2>
                         <div class="status-grid status-card-grid">
                             <div class="status-row">
                                 <span>Image</span><span id="statusImage">Empty</span>
                             </div>
                             <div class="status-row">
+                                <span>Scale</span><span id="statusScale">100%</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Rotation</span><span id="statusRotation">0 deg</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Flip X</span><span id="statusFlipX">No</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Flip Y</span><span id="statusFlipY">No</span>
+                            </div>
+                            <div class="status-row">
                                 <span>Tool</span><span id="statusTool">None</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Masks</span><span id="statusMasks">0</span>
                             </div>
                             <div class="status-row">
                                 <span>Annotations</span><span id="statusAnnotations">0</span>
@@ -247,6 +352,9 @@
                                 <span>Undo</span><span id="statusUndo">No</span>
                             </div>
                             <div class="status-row">
+                                <span>Redo</span><span id="statusRedo">No</span>
+                            </div>
+                            <div class="status-row">
                                 <span>Last operation</span
                                 ><span id="statusLastOperation">None</span>
                             </div>
@@ -254,7 +362,12 @@
                     </section>
 
                     <section class="panel-section">
-                        <h2>Annotations</h2>
+                        <h2>Mask list</h2>
+                        <ul id="maskList" class="list" data-empty="No masks yet"></ul>
+                    </section>
+
+                    <section class="panel-section">
+                        <h2>Annotation list</h2>
                         <ul id="annotationList" class="list" data-empty="No annotations yet"></ul>
                         <div class="status-grid status-card-grid">
                             <div class="status-row">
@@ -332,9 +445,6 @@
 
                     <section class="panel-section">
                         <h2>Export</h2>
-                        <button id="mergeAnnotationsButton" class="button" type="button">
-                            Bake overlays into image
-                        </button>
                         <div class="control-grid">
                             <label class="field" for="exportFormatSelect">
                                 <span>Format</span>
@@ -356,11 +466,14 @@
                                 />
                             </label>
                         </div>
+                        <label class="field check-field" for="exportMasksInput">
+                            <span>Include masks</span>
+                            <input id="exportMasksInput" type="checkbox" checked />
+                        </label>
                         <label class="field check-field" for="exportAnnotationsInput">
-                            <span>Include overlays in export</span>
+                            <span>Include annotations</span>
                             <input id="exportAnnotationsInput" type="checkbox" checked />
                         </label>
-                        <input id="exportMasksInput" class="sr-only" type="checkbox" checked />
                         <div class="control-grid">
                             <button id="exportImageButton" class="button primary" type="button">
                                 Export preview
@@ -376,7 +489,7 @@
                                 id="exportDownloadLink"
                                 class="button"
                                 href="#"
-                                download="image-editor-annotation.png"
+                                download="image-editor-transform-binding.png"
                             >
                                 Save last export
                             </a>
@@ -384,18 +497,16 @@
                     </section>
 
                     <section class="panel-section">
-                        <h2>Public APIs Used</h2>
+                        <h2>Public APIs used</h2>
                         <div class="api-list">
+                            <code>zoomIn()</code>
+                            <code>rotateRight()</code>
+                            <code>flipHorizontal()</code>
+                            <code>createMask()</code>
                             <code>createTextAnnotation()</code>
                             <code>createShapeAnnotation()</code>
-                            <code>enterShapeMode()</code>
                             <code>enterDrawMode()</code>
-                            <code>setDrawSubMode()</code>
-                            <code>setEraserConfig()</code>
-                            <code>updateAnnotation()</code>
-                            <code>removeSelectedAnnotation()</code>
-                            <code>bringSelectedObjectForward()</code>
-                            <code>mergeAnnotations()</code>
+                            <code>resetImageTransform()</code>
                             <code>exportImageBase64()</code>
                         </div>
                     </section>
