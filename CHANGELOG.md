@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-07-11
+
+### Added
+
+- Add opt-in `bindMasksToImageTransform` and `bindAnnotationsToImageTransform` options so live overlays can stay stable in image-local/source-pixel coordinates across scale, rotation, horizontal/vertical flips, and reset.
+- Add `textAnnotationFlipBehavior` with readable non-mirrored Text as the default binding policy and complete Text mirroring as an opt-in mode.
+- Add affine-delta, reflection, mixed-operation, ActiveSelection, label, history, overlay round-trip, and crop-combination regression coverage for transform binding.
+- Add an Integrated Editor demo that combines image transforms, Masks, Text/Shape/Draw annotations, layer controls, history, and export, with independent runtime controls for whether Masks and Annotations follow image transforms.
+
+### Changed
+
+- Split final image snapping, live overlay delta application, and session-state synchronization into explicit transform phases while keeping all new binding behavior disabled by default.
+- Share one clipped circular-brush bounds calculation between Mosaic pixel processing and dirty-rectangle refreshes.
+
+### Fixed
+
+- Keep `preserve-readable` Text annotations upright for both horizontal and vertical image flips instead of allowing a vertical reflection to become a compensating 180-degree text rotation.
+- Clear stale `skewY` values when applying decomposed affine deltas so transformed overlays keep the exact expected matrix.
+- Roll back base-image flip flags, origin, and position when a flip operation fails after mutation, then resynchronize bound overlays without recording a failed history entry.
+- Restore an overlay object's original origin and center through `try`/`finally` when Fabric matrix decomposition or transform application throws.
+- Isolate per-object overlay transform failures through `onWarning` so one malformed overlay does not prevent remaining bound overlays from transforming or the canvas from rendering.
+- Recognize lowercase-only `activeselection` values returned by Fabric-compatible `isType()` implementations before applying bound overlay transforms.
+- Skip redundant intermediate mask-label/session synchronization while compound reset transforms suppress overlay deltas, leaving one final synchronization pass.
+- Keep HTML color inputs unchanged when editor state contains CSS color syntax that `input[type="color"]` cannot represent, instead of allowing the browser to coerce the control to black.
+- Disable Fabric object target finding during Draw erasure so drag gestures erase intersected strokes instead of moving selectable Draw annotations.
+
 ## [2.8.3] - 2026-07-10
 
 ### Changed

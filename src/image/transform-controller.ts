@@ -29,9 +29,9 @@
  *   the entire reset is one undoable step. Failures inside the chain
  *   still release the suppression flag in `finally` so subsequent
  *   transforms continue to record history.
- * - `flipHorizontal` and `flipVertical` toggle only the base image's
- *   Fabric `flipX` / `flipY` flags. Masks and annotations are not
- *   mirrored; they remain in their existing canvas positions by design.
+ * - `flipHorizontal` and `flipVertical` toggle the base image's Fabric
+ *   `flipX` / `flipY` flags. Enabled masks and annotations receive the final
+ *   image matrix delta after the image bounding box is aligned.
  * - `scaleImage`, `rotateImage`, flip operations, and
  *   `resetImageTransform` each call `saveCanvasState` on success so
  *   the new state is undoable. The facade wires
@@ -82,6 +82,7 @@ import { reportWarning } from '../core/callback-reporter.js';
 import type { ResolvedOptions } from '../core/public-types.js';
 import type { OperationGuard } from '../core/operation-guard.js';
 import { animateProps, restoreOrigin } from '../fabric/fabric-animation.js';
+import type { FabricUtilAccess } from './overlay-transform-delta.js';
 
 // ─── Transform context ───────────────────────────────────────────────────────
 
@@ -158,22 +159,22 @@ export interface TransformContext {
      */
     setSuppressSaveState(suppress: boolean): void;
 
-    /**
-     * Optional post-snap hook the orchestrator wires for legacy parity. Runs
-     * AFTER the controller commits the final value with `set` /
-     * `setCoords` and BEFORE `saveCanvasState`. Used to:
-     *
-     * - resize the canvas according to the current layout mode,
-     * - re-align the image bounding box to the canvas top-left,
-     * - re-sync mask label positions for visible labels.
-     *
-     * The hook is invoked only on the success path (no dispose) and only
-     * when defined — controllers running outside the facade (in tests)
-     * may omit it. Errors thrown from the hook propagate to the caller's
-     * `try/catch`, which mirrors legacy behaviour where the post-snap UI
-     * helpers ran inline inside the transform method.
-     */
-    afterTransformSnap?(): void;
+    /** Narrow Fabric matrix utility adapter used by overlay binding. */
+    getFabricUtil(): FabricUtilAccess;
+    /** Return live overlay objects enabled for the requested binding kind. */
+    getBoundOverlayTargets(kind: 'masks' | 'annotations'): FabricNS.FabricObject[];
+    /** Return whether a bound annotation should remove reflection locally. */
+    shouldPreserveReadableForAnnotation(object: FabricNS.FabricObject): boolean;
+    /** Resize the canvas and align the final image bounding box to top-left. */
+    finalizeImageTransformSnap(): void;
+    /** Apply the final base-image matrix delta to enabled live overlays. */
+    applyOverlayTransformDelta(beforeMatrix: number[]): void;
+    /** Synchronize session state such as mask labels after overlay mutation. */
+    syncOverlayAfterTransform(): void;
+    /** Suppress intermediate overlay deltas during compound transforms. */
+    setSuppressOverlaySync(suppress: boolean): void;
+    /** Read the compound-transform overlay suppression state. */
+    isOverlaySyncSuppressed(): boolean;
 }
 
 // ─── TransformController ─────────────────────────────────────────────────────
@@ -222,8 +223,8 @@ export class TransformController {
      * 5. After the animation settles, snap to the exact target via
      *    `set({ scaleX, scaleY})` + `setCoords` so floating-point
      *    drift on the last tick does not leak into history.
-     * 6. Run the optional {@link TransformContext.afterTransformSnap}
-     *    hook for canvas resize / mask label sync.
+     * 6. Finalize image geometry, apply the optional overlay delta, and
+     *    synchronize mask labels.
      * 7. Call {@link TransformContext.saveCanvasState} in a `finally`
      *    after the hook so the new state is undoable even if post-snap
      *    UI sync fails. When dispose ran during the
@@ -245,6 +246,9 @@ export class TransformController {
         if (this.context.guard.isAnimating()) return;
         if (this.context.guard.isDisposed()) return;
 
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix() as number[];
+
         const previousScale = this.context.getCurrentScale();
         const previousScaleX = imageObject.scaleX;
         const previousScaleY = imageObject.scaleY;
@@ -260,7 +264,7 @@ export class TransformController {
 
         // legacy parity — re-anchor to the current top-left so the scale
         // animation tweens around the upper-left corner rather than the
-        // Fabric default centre. The orchestrator's afterTransformSnap
+        // Fabric default centre. The final image snap
         // re-aligns the bounding box once the animation finishes.
         try {
             const topLeft = computeTopLeftPoint(imageObject);
@@ -290,7 +294,7 @@ export class TransformController {
             if (!this.context.guard.isDisposed()) {
                 imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
@@ -303,7 +307,7 @@ export class TransformController {
         imageObject.setCoords();
 
         try {
-            if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         } finally {
             // record a snapshot so the new scale is undoable.
             this.context.saveCanvasState();
@@ -330,8 +334,8 @@ export class TransformController {
      * 6. Restore the `'left'/'top'` origin around the new visual
      *    top-left corner so subsequent placements (mask creation, crop
      *    rectangle, etc.) read off the documented origin.
-     * 7. Run the optional {@link TransformContext.afterTransformSnap}
-     *    hook for canvas resize and mask label sync.
+     * 7. Finalize image geometry, apply the optional overlay delta, and
+     *    synchronize mask labels.
      * 8. Call {@link TransformContext.saveCanvasState}.
      *
      * If the animation fails before step 6, the catch path restores the
@@ -354,6 +358,9 @@ export class TransformController {
         if (!imageObject) return;
         if (this.context.guard.isAnimating()) return;
         if (this.context.guard.isDisposed()) return;
+
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix() as number[];
 
         const previousRotation = this.context.getCurrentRotation();
         const previousAngle = imageObject.angle;
@@ -390,7 +397,7 @@ export class TransformController {
                 imageObject.set('angle', previousAngle ?? previousRotation);
                 imageObject.setCoords();
                 restoreOrigin(imageObject, 'left', 'top');
-                if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'rotateImage animation failed.');
         } finally {
@@ -424,7 +431,7 @@ export class TransformController {
         }
 
         try {
-            if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         } finally {
             // record a snapshot so the new rotation is undoable.
             this.context.saveCanvasState();
@@ -445,10 +452,17 @@ export class TransformController {
         if (this.context.guard.isAnimating()) return;
         if (this.context.guard.isDisposed()) return;
 
-        // Flip is intentionally base-image-only. Overlays stay in their
-        // existing canvas coordinates instead of being mirrored with the image.
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix() as number[];
+        const previousFlipX = imageObject.flipX;
+        const previousFlipY = imageObject.flipY;
+        const previousOriginX = imageObject.originX ?? 'left';
+        const previousOriginY = imageObject.originY ?? 'top';
+        const operationName = property === 'flipX' ? 'flipHorizontal' : 'flipVertical';
+        let centre: FabricNS.Point | null = null;
+
         try {
-            const centre = imageObject.getCenterPoint();
+            centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.set({ [property]: !imageObject[property] });
@@ -459,16 +473,33 @@ export class TransformController {
             imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
             imageObject.setCoords();
         } catch (error) {
-            reportWarning(
-                this.context.options,
-                error,
-                `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`,
-            );
+            if (!this.context.guard.isDisposed()) {
+                try {
+                    imageObject.set({
+                        flipX: previousFlipX,
+                        flipY: previousFlipY,
+                        originX: previousOriginX,
+                        originY: previousOriginY,
+                    });
+                    if (centre) {
+                        imageObject.setPositionByOrigin(centre, 'center', 'center');
+                    }
+                    imageObject.setCoords();
+                    this.completeImageTransform(beforeMatrix);
+                } catch (rollbackError) {
+                    reportWarning(
+                        this.context.options,
+                        rollbackError,
+                        `${operationName} rollback failed.`,
+                    );
+                }
+            }
+            reportWarning(this.context.options, error, `${operationName} failed.`);
             return;
         }
 
         if (this.context.guard.isDisposed()) return;
-        if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+        this.completeImageTransform(beforeMatrix);
         this.context.saveCanvasState();
     }
 
@@ -500,9 +531,15 @@ export class TransformController {
      *
      */
     async resetImageTransform(): Promise<void> {
-        if (!this.context.getOriginalImage()) return;
+        const initialImage = this.context.getOriginalImage();
+        if (!initialImage) return;
+
+        initialImage.setCoords();
+        const beforeMatrix = initialImage.calcTransformMatrix() as number[];
+        const previousOverlaySyncSuppressed = this.context.isOverlaySyncSuppressed();
 
         this.context.setSuppressSaveState(true);
+        this.context.setSuppressOverlaySync(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
@@ -510,16 +547,30 @@ export class TransformController {
             if (imageObject && !this.context.guard.isDisposed()) {
                 imageObject.set({ flipX: false, flipY: false });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap) this.context.afterTransformSnap();
+                this.context.finalizeImageTransformSnap();
             }
         } finally {
+            this.context.setSuppressOverlaySync(previousOverlaySyncSuppressed);
             this.context.setSuppressSaveState(false);
         }
 
         if (this.context.guard.isDisposed()) return;
 
+        if (!this.context.isOverlaySyncSuppressed()) {
+            this.context.applyOverlayTransformDelta(beforeMatrix);
+        }
+        this.context.syncOverlayAfterTransform();
+
         // single history entry for the whole reset.
         this.context.saveCanvasState();
+    }
+
+    /** Run the three post-snap transform phases in their required order. */
+    private completeImageTransform(beforeMatrix: number[]): void {
+        this.context.finalizeImageTransformSnap();
+        if (this.context.isOverlaySyncSuppressed()) return;
+        this.context.applyOverlayTransformDelta(beforeMatrix);
+        this.context.syncOverlayAfterTransform();
     }
 }
 

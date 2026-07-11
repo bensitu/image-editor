@@ -9,6 +9,28 @@ function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
 function pixelOffset(width, x, y) {
     return (y * width + x) * 4;
 }
+export function getCircularMosaicBounds(options) {
+    const width = Number(options.width);
+    const height = Number(options.height);
+    const centerX = Number(options.centerX);
+    const centerY = Number(options.centerY);
+    const radius = Number(options.radius);
+    if (!Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        !Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        width <= 0 ||
+        height <= 0) {
+        return null;
+    }
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
+    return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null;
+}
 export function applyCircularMosaicToImageData(options) {
     var _a, _b, _c, _d;
     const { imageData } = options;
@@ -16,21 +38,11 @@ export function applyCircularMosaicToImageData(options) {
     const centerX = Number(options.centerX);
     const centerY = Number(options.centerY);
     const radius = Number(options.radius);
-    if (!Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        width <= 0 ||
-        height <= 0) {
+    const bounds = getCircularMosaicBounds({ width, height, centerX, centerY, radius });
+    if (!bounds)
         return false;
-    }
     const blockSize = normalizeBlockSize(options.blockSize);
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
-    if (minX > maxX || minY > maxY)
-        return false;
+    const { minX, minY, maxX, maxY } = bounds;
     const radiusSquared = radius * radius;
     let processed = false;
     for (let blockY = minY; blockY <= maxY; blockY += blockSize) {

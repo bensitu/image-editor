@@ -60,6 +60,9 @@ const TOP_LEVEL_SCALAR_KEYS = [
     'maxScale',
     'scaleStep',
     'rotationStep',
+    'bindMasksToImageTransform',
+    'bindAnnotationsToImageTransform',
+    'textAnnotationFlipBehavior',
     'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
@@ -165,6 +168,9 @@ function topLevelScalarOverridesArb() {
             maxScale: fc.double({ min: 1, max: 10, noNaN: true, noDefaultInfinity: true }),
             scaleStep: fc.double({ min: 0.01, max: 0.5, noNaN: true, noDefaultInfinity: true }),
             rotationStep: fc.integer({ min: 1, max: 360 }),
+            bindMasksToImageTransform: fc.boolean(),
+            bindAnnotationsToImageTransform: fc.boolean(),
+            textAnnotationFlipBehavior: fc.constantFrom('preserve-readable', 'mirror'),
             defaultLayoutMode: fc.constantFrom('fit', 'cover', 'expand'),
             downsampleOnLoad: fc.boolean(),
             downsampleMaxWidth: fc.integer({ min: 100, max: 10000 }),
@@ -749,6 +755,9 @@ test('invalid overlay list orders fall back to front-to-back', () => {
 test('invalid top-level runtime option values fall back to defaults', () => {
     const resolved = resolveOptions({
         backgroundColor: 123,
+        bindMasksToImageTransform: 'yes',
+        bindAnnotationsToImageTransform: 1,
+        textAnnotationFlipBehavior: 'flip',
         downsampleOnLoad: 'yes',
         preserveSourceFormat: 'no',
         downsampleMimeType: 'image/gif',
@@ -768,6 +777,12 @@ test('invalid top-level runtime option values fall back to defaults', () => {
     });
 
     assert.equal(resolved.backgroundColor, DEFAULT_OPTIONS.backgroundColor);
+    assert.equal(resolved.bindMasksToImageTransform, DEFAULT_OPTIONS.bindMasksToImageTransform);
+    assert.equal(
+        resolved.bindAnnotationsToImageTransform,
+        DEFAULT_OPTIONS.bindAnnotationsToImageTransform,
+    );
+    assert.equal(resolved.textAnnotationFlipBehavior, DEFAULT_OPTIONS.textAnnotationFlipBehavior);
     assert.equal(resolved.downsampleOnLoad, DEFAULT_OPTIONS.downsampleOnLoad);
     assert.equal(resolved.preserveSourceFormat, DEFAULT_OPTIONS.preserveSourceFormat);
     assert.equal(resolved.downsampleMimeType, DEFAULT_OPTIONS.downsampleMimeType);
@@ -996,6 +1011,9 @@ test('boundary: null/undefined/empty inputs return full default surface', () => 
         assert.equal(resolved.autoOrientImage, true);
         assert.equal(resolved.autoOrientImageQuality, null);
         assert.equal(resolved.imageLoadTimeoutMs, 30000);
+        assert.equal(resolved.bindMasksToImageTransform, false);
+        assert.equal(resolved.bindAnnotationsToImageTransform, false);
+        assert.equal(resolved.textAnnotationFlipBehavior, 'preserve-readable');
         assert.equal(resolved.crop.preserveMasksAfterCrop, false);
         assert.equal(Object.isFrozen(resolved), true);
         assert.equal(Object.isFrozen(resolved.label), true);

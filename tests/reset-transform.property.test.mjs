@@ -60,6 +60,22 @@ class MockCanvas {
     }
 }
 
+function makeNoopOverlayTransformHooks() {
+    let suppressed = false;
+    return {
+        getFabricUtil: () => ({}),
+        getBoundOverlayTargets: () => [],
+        shouldPreserveReadableForAnnotation: () => false,
+        finalizeImageTransformSnap: () => {},
+        applyOverlayTransformDelta: () => {},
+        syncOverlayAfterTransform: () => {},
+        setSuppressOverlaySync: (value) => {
+            suppressed = value;
+        },
+        isOverlaySyncSuppressed: () => suppressed,
+    };
+}
+
 /**
  * Build a fake Fabric image whose `animate` resolves the wrapper
  * Promise synchronously by firing `opts.onComplete` once per property.
@@ -104,6 +120,9 @@ function makeFabricImageMock(initial) {
         },
         getBoundingRect() {
             return { left: 0, top: 0, width: 100, height: 100 };
+        },
+        calcTransformMatrix() {
+            return [this.scaleX, 0, 0, this.scaleY, this.left, this.top];
         },
         animate(props, opts) {
             // Fire `onComplete` once per property to match Fabric v7's
@@ -195,6 +214,7 @@ function makeContextWithSuppression({ initialScale, initialRotation, initialFlip
         setSuppressSaveState: (v) => {
             suppressed = v;
         },
+        ...makeNoopOverlayTransformHooks(),
     };
 
     return {
@@ -324,6 +344,52 @@ test('inner scaleImage/rotateImage calls run under suppression; final save does 
     );
 });
 
+test('resetImageTransform applies exactly one final overlay delta', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 2,
+        initialRotation: 37,
+        initialFlipX: true,
+        initialFlipY: false,
+    });
+    const initialMatrix = harness.image.calcTransformMatrix().slice();
+    const deltaCalls = [];
+    harness.ctx.applyOverlayTransformDelta = (beforeMatrix) => {
+        deltaCalls.push({
+            beforeMatrix: beforeMatrix.slice(),
+            suppressed: harness.ctx.isOverlaySyncSuppressed(),
+        });
+    };
+    const controller = new TransformController(harness.ctx);
+
+    await controller.resetImageTransform();
+
+    assert.deepEqual(deltaCalls, [
+        {
+            beforeMatrix: initialMatrix,
+            suppressed: false,
+        },
+    ]);
+    assert.equal(harness.ctx.isOverlaySyncSuppressed(), false);
+});
+
+test('resetImageTransform synchronizes overlay session state only once', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 2,
+        initialRotation: 37,
+        initialFlipX: true,
+        initialFlipY: false,
+    });
+    let syncCalls = 0;
+    harness.ctx.syncOverlayAfterTransform = () => {
+        syncCalls += 1;
+    };
+    const controller = new TransformController(harness.ctx);
+
+    await controller.resetImageTransform();
+
+    assert.equal(syncCalls, 1, 'only the final compound transform synchronizes overlays');
+});
+
 test('resetImageTransform is a no-op when no image is loaded', async () => {
     const harness = makeContextWithSuppression({
         initialScale: 2,
@@ -383,6 +449,7 @@ test('scaleImage rolls back runtime state when animation fails', async () => {
             throw new Error('failed scale must not save history');
         },
         setSuppressSaveState: () => {},
+        ...makeNoopOverlayTransformHooks(),
     });
 
     await controller.scaleImage(3);
@@ -422,6 +489,7 @@ test('rotateImage rolls back runtime state when animation fails', async () => {
             throw new Error('failed rotate must not save history');
         },
         setSuppressSaveState: () => {},
+        ...makeNoopOverlayTransformHooks(),
     });
 
     await controller.rotateImage(90);
@@ -432,7 +500,7 @@ test('rotateImage rolls back runtime state when animation fails', async () => {
     assert.equal(image.originY, 'top');
 });
 
-test('scaleImage records history when afterTransformSnap throws after a successful animation', async () => {
+test('scaleImage records history when final image snap throws after a successful animation', async () => {
     const canvas = new MockCanvas();
     const guard = new OperationGuard();
     const image = makeFabricImageMock({ scaleX: 1, scaleY: 1, angle: 0 });
@@ -460,7 +528,8 @@ test('scaleImage records history when afterTransformSnap throws after a successf
             saveCalls += 1;
         },
         setSuppressSaveState: () => {},
-        afterTransformSnap: () => {
+        ...makeNoopOverlayTransformHooks(),
+        finalizeImageTransformSnap: () => {
             throw new Error('snap failed');
         },
     });
@@ -525,6 +594,44 @@ test('flipVertical toggles only base image flipY and records one history entry',
 
     assert.equal(harness.image.flipY, false);
     assert.equal(harness.getSaveCalls(), 2);
+});
+
+test('flip failure restores image state and synchronizes overlays without saving history', async () => {
+    const harness = makeContextWithSuppression({
+        initialScale: 1,
+        initialRotation: 0,
+        initialFlipX: false,
+        initialFlipY: true,
+    });
+    const warnings = [];
+    harness.ctx.options = resolveOptions({
+        animationDuration: 1,
+        onWarning: (error, message) => warnings.push({ error, message }),
+    });
+    harness.image.getCoords = () => {
+        throw new Error('top-left lookup failed');
+    };
+    const deltaCalls = [];
+    let syncCalls = 0;
+    harness.ctx.applyOverlayTransformDelta = (beforeMatrix) => {
+        deltaCalls.push(beforeMatrix.slice());
+    };
+    harness.ctx.syncOverlayAfterTransform = () => {
+        syncCalls += 1;
+    };
+    const controller = new TransformController(harness.ctx);
+
+    await controller.flipHorizontal();
+
+    assert.equal(harness.image.flipX, false);
+    assert.equal(harness.image.flipY, true);
+    assert.equal(harness.image.originX, 'left');
+    assert.equal(harness.image.originY, 'top');
+    assert.equal(harness.getSaveCalls(), 0);
+    assert.equal(deltaCalls.length, 1, 'rollback synchronizes overlay geometry');
+    assert.equal(syncCalls, 1, 'rollback synchronizes overlay session state');
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0].message, /flipHorizontal failed/);
 });
 
 test('flip is a no-op when no image is loaded or the editor is disposed', async () => {

@@ -179,6 +179,10 @@ class FakeImage {
         return { left: this.left || 0, top: this.top || 0, width, height };
     }
 
+    calcTransformMatrix() {
+        return [this.scaleX, 0, 0, this.scaleY, this.left, this.top];
+    }
+
     animate(props, options) {
         Object.assign(this, props);
         options.onChange?.();

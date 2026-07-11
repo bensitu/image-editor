@@ -164,6 +164,32 @@ test('Draw erase sub-mode removes only the touched draw annotation', async () =>
     }
 });
 
+test('Draw erase sub-mode suppresses object targeting and restores the previous setting', async () => {
+    const editor = createSourceEditor();
+    try {
+        await loadFixtureImage(editor, { width: 80, height: 60 });
+        const draw = addDrawAnnotation(editor, 104, 'M 20 70 L 120 110');
+        const canvas = requireEditorCanvas(editor);
+        canvas.skipTargetFind = false;
+        canvas.setActiveObject(draw);
+
+        editor.enterDrawMode();
+        editor.setDrawSubMode('erase');
+
+        assert.equal(canvas.skipTargetFind, true);
+        assert.equal(canvas.getActiveObject(), undefined);
+
+        editor.setDrawSubMode('brush');
+        assert.equal(canvas.skipTargetFind, false);
+
+        editor.setDrawSubMode('erase');
+        editor.exitDrawMode();
+        assert.equal(canvas.skipTargetFind, false);
+    } finally {
+        disposeEditor(editor);
+    }
+});
+
 test('Draw path creation reports createDrawAnnotation operation', async () => {
     const operations = [];
     const editor = createSourceEditor({

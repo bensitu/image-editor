@@ -7,7 +7,7 @@ import { detectSourceMimeType } from '../image/image-resampler.js';
 import { getPointerFromFabricEvent } from '../utils/pointer.js';
 import { withTimeout } from '../utils/timeout.js';
 import { getMosaicImagePoint } from './mosaic-geometry.js';
-import { applyCircularMosaicToImageData } from './mosaic-pixelate.js';
+import { applyCircularMosaicToImageData, getCircularMosaicBounds, } from './mosaic-pixelate.js';
 const MAX_PENDING_MOSAIC_POINTS = 4096;
 function getCanvasDocument(context) {
     var _a, _b, _c, _d, _e;
@@ -441,24 +441,13 @@ function applyMosaicImagePoint(context, session, sourceImage, imagePoint) {
     return changed;
 }
 function getMosaicPointDirtyRect(imageData, point) {
-    const centerX = Number(point.sourceX);
-    const centerY = Number(point.sourceY);
-    const radius = Number(point.sourceRadius);
-    if (!Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        imageData.width <= 0 ||
-        imageData.height <= 0) {
-        return null;
-    }
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(imageData.width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(imageData.height - 1, Math.ceil(centerY + radius));
-    if (minX > maxX || minY > maxY)
-        return null;
-    return { minX, minY, maxX, maxY };
+    return getCircularMosaicBounds({
+        width: imageData.width,
+        height: imageData.height,
+        centerX: point.sourceX,
+        centerY: point.sourceY,
+        radius: point.sourceRadius,
+    });
 }
 function mergeMosaicDirtyRects(current, next) {
     if (!next)

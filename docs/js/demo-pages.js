@@ -2,6 +2,7 @@
     'use strict';
 
     const pageName = document.body.dataset.demoPage || 'basic';
+    const isIntegratedEditorPage = pageName === 'integrated-editor';
     const demoRuntime = window.__imageEditorDemoRuntime;
     const editorTargetIds = [
         'scalePercentageInput',
@@ -111,10 +112,32 @@
         'resetImageFiltersButton',
         'clearImageFiltersButton',
     ];
+    const demoOwnedEditorTargetIds = [
+        ...imageFilterControlIds,
+        'createMaskButton',
+        'createShapeAnnotationButton',
+        'enterShapeModeButton',
+        'exitShapeModeButton',
+        'shapeKindSelect',
+        'shapeStrokeInput',
+        'shapeStrokeWidthInput',
+        'shapeFillInput',
+        'drawBrushSubModeButton',
+        'drawEraseSubModeButton',
+        'eraserBrushSizeInput',
+        'downloadImageButton',
+        'imageInput',
+        'uploadArea',
+    ];
     const demoState = {
         editor: null,
         isLoading: false,
         lastOperation: null,
+        currentImageDataUrl: null,
+        bindingOptions: {
+            bindMasksToImageTransform: false,
+            bindAnnotationsToImageTransform: false,
+        },
     };
 
     function getOptionalElement(id) {
@@ -157,6 +180,10 @@
         if ('checked' in (element || {})) element.checked = !!checked;
     }
 
+    function setControlPressed(id, pressed) {
+        getOptionalElement(id)?.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    }
+
     function readNumberControl(id, fallback) {
         const value = Number(getOptionalElement(id)?.value);
         return Number.isFinite(value) ? value : fallback;
@@ -181,12 +208,41 @@
         setText('statusLastOperation', demoState.lastOperation || 'None');
     }
 
-    function initEditor() {
+    function readBindingOptionsFromControls() {
+        return {
+            bindMasksToImageTransform:
+                isIntegratedEditorPage &&
+                getOptionalElement('bindMasksToImageTransformInput')?.checked === true,
+            bindAnnotationsToImageTransform:
+                isIntegratedEditorPage &&
+                getOptionalElement('bindAnnotationsToImageTransformInput')?.checked === true,
+        };
+    }
+
+    function syncBindingControls(options) {
+        setControlChecked('bindMasksToImageTransformInput', options.bindMasksToImageTransform);
+        setControlChecked(
+            'bindAnnotationsToImageTransformInput',
+            options.bindAnnotationsToImageTransform,
+        );
+    }
+
+    function haveSameBindingOptions(left, right) {
+        return (
+            left.bindMasksToImageTransform === right.bindMasksToImageTransform &&
+            left.bindAnnotationsToImageTransform === right.bindAnnotationsToImageTransform
+        );
+    }
+
+    function initEditor(bindingOptions = readBindingOptionsFromControls()) {
         const ImageEditorCtor = demoRuntime?.getImageEditorConstructor();
         if (!ImageEditorCtor) {
             showMessage('ImageEditor could not be loaded.', 'error');
             return;
         }
+
+        demoState.bindingOptions = { ...bindingOptions };
+        syncBindingControls(demoState.bindingOptions);
 
         demoState.editor = new ImageEditorCtor({
             backgroundColor: 'transparent',
@@ -204,6 +260,9 @@
             shapeAnnotationName: 'shape',
             maskListOrder: 'front-to-back',
             annotationListOrder: 'front-to-back',
+            bindMasksToImageTransform: bindingOptions.bindMasksToImageTransform,
+            bindAnnotationsToImageTransform: bindingOptions.bindAnnotationsToImageTransform,
+            textAnnotationFlipBehavior: 'preserve-readable',
             exportAreaByDefault: 'image',
             mergeMasksByDefault: true,
             mergeAnnotationsByDefault: true,
@@ -308,13 +367,69 @@
             ...Object.fromEntries(
                 editorTargetIds.map((id) => [id, getOptionalElement(id) ? id : null]),
             ),
-            createMaskButton: null,
-            downloadImageButton: null,
-            imageInput: null,
-            uploadArea: null,
+            ...Object.fromEntries(demoOwnedEditorTargetIds.map((id) => [id, null])),
         });
 
         updateDemoUi();
+    }
+
+    async function applyBindingOptionsFromControls() {
+        if (!isIntegratedEditorPage) return;
+
+        const editor = demoState.editor;
+        const nextOptions = readBindingOptionsFromControls();
+        const activeToolMode = editor?.getActiveToolMode?.() ?? null;
+        if (!editor || isDemoBusy() || activeToolMode !== null) {
+            syncBindingControls(demoState.bindingOptions);
+            return;
+        }
+        if (haveSameBindingOptions(nextOptions, demoState.bindingOptions)) return;
+
+        const hasImage = editor.isImageLoaded();
+        const editorState = hasImage ? editor.getEditorState() : null;
+        const sourceDataUrl = demoState.currentImageDataUrl;
+        demoState.isLoading = true;
+        updateDemoUi();
+
+        try {
+            const overlayState = hasImage ? editor.exportOverlayState() : null;
+            await editor.disposeAsync();
+            if (demoState.editor === editor) demoState.editor = null;
+
+            initEditor(nextOptions);
+            const nextEditor = demoState.editor;
+            if (!nextEditor) throw new Error('ImageEditor could not be reinitialized.');
+
+            if (hasImage) {
+                if (!sourceDataUrl) {
+                    throw new Error(
+                        'The current image source is unavailable for reinitialization.',
+                    );
+                }
+                setLayoutModeFromControl();
+                await nextEditor.loadImage(sourceDataUrl);
+                if (editorState && Math.abs(editorState.currentScale - 1) > 1e-10) {
+                    await nextEditor.scaleImage(editorState.currentScale);
+                }
+                if (overlayState) {
+                    await nextEditor.importOverlayState(overlayState, { saveHistory: false });
+                }
+            }
+
+            const maskBehavior = nextOptions.bindMasksToImageTransform ? 'follow' : 'stay fixed';
+            const annotationBehavior = nextOptions.bindAnnotationsToImageTransform
+                ? 'follow'
+                : 'stay fixed';
+            showMessage(
+                `Transform behavior updated: masks ${maskBehavior}; annotations ${annotationBehavior}.`,
+                'success',
+            );
+        } catch (error) {
+            showMessage(error, 'error');
+        } finally {
+            demoState.isLoading = false;
+            updateDemoUi();
+        }
     }
 
     function isDemoBusy() {
@@ -362,6 +477,14 @@
         setText('statusMasks', String(nextState?.maskCount || 0));
         setText('statusAnnotations', String(nextState?.annotationCount || 0));
         setText(
+            'statusMaskBinding',
+            demoState.bindingOptions.bindMasksToImageTransform ? 'Follow' : 'Fixed',
+        );
+        setText(
+            'statusAnnotationBinding',
+            demoState.bindingOptions.bindAnnotationsToImageTransform ? 'Follow' : 'Fixed',
+        );
+        setText(
             'statusMosaic',
             mosaicConfig
                 ? `${mosaicConfig.brushSize}px / ${mosaicConfig.blockSize}px`
@@ -372,6 +495,14 @@
         setDisabled('loadSampleButton', !canLoad);
         setDisabled('imageInput', !canLoad);
         setDisabled('layoutModeSelect', !canLoad);
+        setDisabled(
+            'bindMasksToImageTransformInput',
+            !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
+        );
+        setDisabled(
+            'bindAnnotationsToImageTransformInput',
+            !isIntegratedEditorPage || !editor || busy || activeToolMode !== null,
+        );
         setDisabled('createMaskButton', !canUseIdleImage);
         setDisabled('createTextAnnotationButton', !canUseIdleImage);
         setImageFilterControlsDisabled(!canUseImageFilters);
@@ -404,6 +535,8 @@
             'primary',
             drawSubMode === 'erase',
         );
+        setControlPressed('drawBrushSubModeButton', drawSubMode === 'brush');
+        setControlPressed('drawEraseSubModeButton', drawSubMode === 'erase');
 
         setText(
             'annotationVisibilityState',
@@ -516,6 +649,7 @@
         try {
             await demoState.editor.loadImage(dataUrl);
             if (demoState.editor.isImageLoaded()) {
+                demoState.currentImageDataUrl = dataUrl;
                 showMessage(successMessage || 'Image loaded.', 'success');
             } else {
                 showMessage('Unsupported image format. Use PNG, JPEG, or WebP.', 'error');
@@ -530,6 +664,57 @@
 
     async function loadSample() {
         await loadDataUrl(createSampleDataUrl(pageName), 'Sample image loaded.');
+        if (isIntegratedEditorPage && demoState.editor?.isImageLoaded()) {
+            createIntegratedSampleOverlays();
+        }
+    }
+
+    function createIntegratedSampleOverlays() {
+        const editor = demoState.editor;
+        if (!editor || !editor.isImageLoaded()) return;
+
+        editor.createMask({
+            ...maskShapeBase,
+            styles: { ...maskShapeBase.styles },
+            shape: 'rect',
+            left: '13%',
+            top: '31%',
+            width: '25%',
+            height: '13%',
+            angle: -4,
+        });
+        editor.createMask({
+            ...maskShapeBase,
+            styles: { ...maskShapeBase.styles },
+            shape: 'ellipse',
+            left: '62%',
+            top: '52%',
+            width: '21%',
+            height: '15%',
+            angle: 9,
+        });
+        editor.createTextAnnotation({
+            text: 'Readable text',
+            left: '45%',
+            top: '18%',
+            width: 260,
+            fontSize: 30,
+            fill: '#b45309',
+            backgroundColor: 'rgba(255,255,255,0.78)',
+            enterEditing: false,
+        });
+        editor.createShapeAnnotation({
+            shape: 'arrow',
+            x1: '24%',
+            y1: '69%',
+            x2: '62%',
+            y2: '57%',
+            stroke: '#b45309',
+            strokeWidth: 5,
+            arrowHeadLength: 22,
+        });
+        showMessage('Sample loaded with two masks and two annotations.', 'success');
+        updateDemoUi();
     }
 
     async function handleFileInputChange(event) {
@@ -809,6 +994,8 @@
             ['toggleAnnotationLockedButton', 'click', toggleAnnotationLocked],
             ['exportImageButton', 'click', exportImage],
             ['downloadExportButton', 'click', downloadExport],
+            ['bindMasksToImageTransformInput', 'change', applyBindingOptionsFromControls],
+            ['bindAnnotationsToImageTransformInput', 'change', applyBindingOptionsFromControls],
         ].forEach(([id, eventName, handler]) => {
             getOptionalElement(id)?.addEventListener(eventName, handler);
         });
@@ -846,6 +1033,7 @@
         const { canvas, context } = demoRuntime.createCanvas(960, 620);
         if (kind === 'annotation') drawAnnotationSample(context);
         else if (kind === 'mask-mosaic') drawPrivacySample(context);
+        else if (kind === 'integrated-editor') drawIntegratedSample(context);
         else drawBasicSample(context);
         return canvas.toDataURL('image/png');
     }
@@ -932,6 +1120,66 @@
         context.fillStyle = '#475569';
         context.fillText('Card: 4242 4242 4242 4242', 674, 466);
         context.fillText('Email: alex@example.test', 674, 492);
+    }
+
+    function drawIntegratedSample(context) {
+        fillBackground(context, '#eef4ff');
+        demoRuntime.drawPanel(context, 58, 48, 844, 524, '#ffffff');
+
+        context.fillStyle = '#0f172a';
+        context.font = '700 30px Arial';
+        context.fillText('Integrated Editor Test Board', 98, 112);
+        context.fillStyle = '#64748b';
+        context.font = '17px Arial';
+        context.fillText(
+            'Exercise transforms, masks, annotations, layers, history, and export together.',
+            98,
+            146,
+        );
+
+        context.strokeStyle = '#dbe5f4';
+        context.lineWidth = 1;
+        for (let x = 98; x <= 862; x += 64) {
+            context.beginPath();
+            context.moveTo(x, 184);
+            context.lineTo(x, 520);
+            context.stroke();
+        }
+        for (let y = 184; y <= 520; y += 56) {
+            context.beginPath();
+            context.moveTo(98, y);
+            context.lineTo(862, y);
+            context.stroke();
+        }
+
+        demoRuntime.drawPanel(context, 126, 224, 238, 102, '#dbeafe', {
+            stroke: '#2563eb',
+            radius: 10,
+        });
+        demoRuntime.drawPanel(context, 422, 206, 266, 112, '#fffbeb', {
+            stroke: '#f59e0b',
+            radius: 10,
+        });
+        demoRuntime.drawPanel(context, 606, 354, 204, 112, '#ccfbf1', {
+            stroke: '#0f766e',
+            radius: 10,
+        });
+
+        context.fillStyle = '#1d4ed8';
+        context.font = '700 18px Arial';
+        context.fillText('MASK TARGET A', 154, 280);
+        context.fillStyle = '#b45309';
+        context.fillText('TEXT / SHAPE TARGET', 450, 266);
+        context.fillStyle = '#0f766e';
+        context.fillText('MASK TARGET B', 632, 416);
+
+        context.fillStyle = '#475569';
+        context.font = '15px Arial';
+        context.fillText(
+            'Use the grid and asymmetric cards to spot drift or lost reflection.',
+            110,
+            542,
+        );
     }
 
     function fillBackground(context, color) {

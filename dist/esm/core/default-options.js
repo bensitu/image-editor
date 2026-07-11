@@ -12,6 +12,9 @@ export const DEFAULT_OPTIONS = {
     maxScale: 5.0,
     scaleStep: 0.05,
     rotationStep: 90,
+    bindMasksToImageTransform: false,
+    bindAnnotationsToImageTransform: false,
+    textAnnotationFlipBehavior: 'preserve-readable',
     defaultLayoutMode: DEFAULT_LAYOUT_MODE,
     layoutMode: DEFAULT_LAYOUT_MODE,
     downsampleOnLoad: true,
@@ -169,6 +172,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maxScale',
     'scaleStep',
     'rotationStep',
+    'bindMasksToImageTransform',
+    'bindAnnotationsToImageTransform',
+    'textAnnotationFlipBehavior',
     'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
@@ -1032,6 +1038,19 @@ export function resolveOptions(input) {
             continue;
         if (key === 'backgroundColor') {
             resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
+            continue;
+        }
+        if (key === 'bindMasksToImageTransform') {
+            resolved.bindMasksToImageTransform = normalizeBoolean(value, DEFAULT_OPTIONS.bindMasksToImageTransform);
+            continue;
+        }
+        if (key === 'bindAnnotationsToImageTransform') {
+            resolved.bindAnnotationsToImageTransform = normalizeBoolean(value, DEFAULT_OPTIONS.bindAnnotationsToImageTransform);
+            continue;
+        }
+        if (key === 'textAnnotationFlipBehavior') {
+            resolved.textAnnotationFlipBehavior =
+                value === 'mirror' ? 'mirror' : 'preserve-readable';
             continue;
         }
         if (key === 'downsampleOnLoad') {

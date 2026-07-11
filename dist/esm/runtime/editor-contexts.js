@@ -1,10 +1,35 @@
+import { reportWarning } from '../core/callback-reporter.js';
 import { attachTextEditingHandlersToAnnotations, } from '../annotation/text-controller.js';
 import { removeAllAnnotations as removeAllAnnotationsImpl, } from '../annotation/annotation-manager.js';
 import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
 import { exportImageBase64 as exportImageBase64Impl, } from '../export/export-service.js';
+import { applyDeltaToObject, computeImageTransformDelta, isApproximatelyIdentityTransform, isFiniteTransformMatrix, } from '../image/overlay-transform-delta.js';
 import { removeAllMasks as removeAllMasksImpl, } from '../mask/mask-factory.js';
 import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mask-style.js';
-import { isMaskObject, } from '../core/public-types.js';
+import { isAnnotationObject, isMaskObject, } from '../core/public-types.js';
+function asFabricTransformMatrix(matrix) {
+    return matrix;
+}
+function createFabricUtilAccess(fabricModule) {
+    return {
+        multiplyTransformMatrices: (a, b) => fabricModule.util.multiplyTransformMatrices(asFabricTransformMatrix(a), asFabricTransformMatrix(b)),
+        invertTransform: (matrix) => fabricModule.util.invertTransform(asFabricTransformMatrix(matrix)),
+        qrDecompose: (matrix) => fabricModule.util.qrDecompose(asFabricTransformMatrix(matrix)),
+        Point: fabricModule.Point,
+    };
+}
+function isActiveSelectionObject(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection')));
+}
 export class EditorContextFactory {
     constructor(access) {
         Object.defineProperty(this, "access", {
@@ -147,6 +172,29 @@ export class EditorContextFactory {
     }
     buildTransformContext() {
         const access = this.access;
+        const fabricUtil = createFabricUtilAccess(access.getFabric());
+        let suppressOverlaySync = false;
+        const getBoundOverlayTargets = (kind) => {
+            const canvas = access.getCanvas();
+            const options = access.getOptions();
+            if (!canvas)
+                return [];
+            if (kind === 'masks') {
+                if (!options.bindMasksToImageTransform)
+                    return [];
+                return canvas.getObjects().filter(isMaskObject);
+            }
+            if (!options.bindAnnotationsToImageTransform)
+                return [];
+            return canvas.getObjects().filter(isAnnotationObject);
+        };
+        const shouldPreserveReadableForAnnotation = (object) => {
+            const options = access.getOptions();
+            return (options.bindAnnotationsToImageTransform &&
+                options.textAnnotationFlipBehavior === 'preserve-readable' &&
+                isAnnotationObject(object) &&
+                object.annotationType === 'text');
+        };
         return {
             canvas: access.getLiveCanvas('buildTransformContext'),
             options: access.getOptions(),
@@ -167,20 +215,68 @@ export class EditorContextFactory {
             setSuppressSaveState: (suppress) => {
                 access.setSuppressSaveState(suppress);
             },
-            afterTransformSnap: () => {
+            getFabricUtil: () => fabricUtil,
+            getBoundOverlayTargets,
+            shouldPreserveReadableForAnnotation,
+            finalizeImageTransformSnap: () => {
                 const canvas = access.getCanvas();
                 const originalImage = access.getOriginalImage();
                 if (access.isDisposed() || !canvas || !originalImage)
                     return;
                 access.updateCanvasSizeToImageBounds();
                 access.alignObjectBoundingBoxToCanvasTopLeft(originalImage);
+            },
+            applyOverlayTransformDelta: (beforeMatrix) => {
+                if (suppressOverlaySync)
+                    return;
+                const canvas = access.getCanvas();
+                const originalImage = access.getOriginalImage();
+                if (access.isDisposed() || !canvas || !originalImage)
+                    return;
+                const targets = [
+                    ...getBoundOverlayTargets('masks'),
+                    ...getBoundOverlayTargets('annotations'),
+                ];
+                if (targets.length === 0)
+                    return;
+                originalImage.setCoords();
+                const afterMatrix = originalImage.calcTransformMatrix();
+                const delta = computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil);
+                if (!isFiniteTransformMatrix(delta) || isApproximatelyIdentityTransform(delta)) {
+                    return;
+                }
+                if (isActiveSelectionObject(canvas.getActiveObject())) {
+                    canvas.discardActiveObject();
+                }
+                for (const object of targets) {
+                    try {
+                        applyDeltaToObject(object, delta, {
+                            fabricUtil,
+                            preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                        });
+                    }
+                    catch (error) {
+                        reportWarning(access.getOptions(), error, 'Overlay transform skipped an object after its Fabric transform failed.');
+                    }
+                }
+                canvas.requestRenderAll();
+            },
+            syncOverlayAfterTransform: () => {
+                const canvas = access.getCanvas();
+                if (access.isDisposed() || !canvas)
+                    return;
                 canvas
                     .getObjects()
                     .filter(isMaskObject)
                     .forEach((maskObject) => {
                     access.syncMaskLabel(maskObject);
                 });
+                canvas.requestRenderAll();
             },
+            setSuppressOverlaySync: (suppress) => {
+                suppressOverlaySync = suppress;
+            },
+            isOverlaySyncSuppressed: () => suppressOverlaySync,
         };
     }
     buildCreateMaskContext() {

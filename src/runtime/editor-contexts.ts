@@ -7,6 +7,7 @@
 
 import type * as FabricNS from 'fabric';
 
+import { reportWarning } from '../core/callback-reporter.js';
 import {
     attachTextEditingHandlersToAnnotations,
     type TextControllerContext,
@@ -30,6 +31,13 @@ import {
 import type { HistoryManager } from '../history/history-manager.js';
 import type { LoadImageContext } from '../image/image-loader.js';
 import type { ViewportCache } from '../image/layout-manager.js';
+import {
+    applyDeltaToObject,
+    computeImageTransformDelta,
+    isApproximatelyIdentityTransform,
+    isFiniteTransformMatrix,
+    type FabricUtilAccess,
+} from '../image/overlay-transform-delta.js';
 import type { TransformContext } from '../image/transform-controller.js';
 import {
     removeAllMasks as removeAllMasksImpl,
@@ -42,6 +50,7 @@ import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mas
 import type { MosaicControllerContext, MosaicSession } from '../mosaic/mosaic-controller.js';
 import type { OperationGuard, OperationToken } from '../core/operation-guard.js';
 import {
+    isAnnotationObject,
     isMaskObject,
     type AnnotationObject,
     type BaseImageObject,
@@ -59,6 +68,39 @@ import {
     type ResolvedShapeAnnotationConfig,
     type ResolvedTextAnnotationConfig,
 } from '../core/public-types.js';
+
+type FabricTransformMatrix = [number, number, number, number, number, number];
+
+function asFabricTransformMatrix(matrix: number[]): FabricTransformMatrix {
+    return matrix as FabricTransformMatrix;
+}
+
+function createFabricUtilAccess(fabricModule: FabricModule): FabricUtilAccess {
+    return {
+        multiplyTransformMatrices: (a, b) =>
+            fabricModule.util.multiplyTransformMatrices(
+                asFabricTransformMatrix(a),
+                asFabricTransformMatrix(b),
+            ),
+        invertTransform: (matrix) =>
+            fabricModule.util.invertTransform(asFabricTransformMatrix(matrix)),
+        qrDecompose: (matrix) => fabricModule.util.qrDecompose(asFabricTransformMatrix(matrix)),
+        Point: fabricModule.Point,
+    };
+}
+
+function isActiveSelectionObject(object: FabricNS.FabricObject | null | undefined): boolean {
+    if (!object) return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection') return true;
+    const isType = (object as { isType?: (...types: string[]) => boolean }).isType;
+    return (
+        typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection'))
+    );
+}
 
 export interface EditorContextFactoryAccess {
     getFabric(): FabricModule;
@@ -312,6 +354,34 @@ export class EditorContextFactory {
 
     buildTransformContext(): TransformContext {
         const access = this.access;
+        const fabricUtil = createFabricUtilAccess(access.getFabric());
+        let suppressOverlaySync = false;
+
+        const getBoundOverlayTargets = (kind: 'masks' | 'annotations'): FabricNS.FabricObject[] => {
+            const canvas = access.getCanvas();
+            const options = access.getOptions();
+
+            if (!canvas) return [];
+
+            if (kind === 'masks') {
+                if (!options.bindMasksToImageTransform) return [];
+                return canvas.getObjects().filter(isMaskObject);
+            }
+
+            if (!options.bindAnnotationsToImageTransform) return [];
+            return canvas.getObjects().filter(isAnnotationObject);
+        };
+
+        const shouldPreserveReadableForAnnotation = (object: FabricNS.FabricObject): boolean => {
+            const options = access.getOptions();
+            return (
+                options.bindAnnotationsToImageTransform &&
+                options.textAnnotationFlipBehavior === 'preserve-readable' &&
+                isAnnotationObject(object) &&
+                object.annotationType === 'text'
+            );
+        };
+
         return {
             canvas: access.getLiveCanvas('buildTransformContext'),
             options: access.getOptions(),
@@ -332,19 +402,71 @@ export class EditorContextFactory {
             setSuppressSaveState: (suppress) => {
                 access.setSuppressSaveState(suppress);
             },
-            afterTransformSnap: () => {
+            getFabricUtil: () => fabricUtil,
+            getBoundOverlayTargets,
+            shouldPreserveReadableForAnnotation,
+            finalizeImageTransformSnap: () => {
                 const canvas = access.getCanvas();
                 const originalImage = access.getOriginalImage();
                 if (access.isDisposed() || !canvas || !originalImage) return;
                 access.updateCanvasSizeToImageBounds();
                 access.alignObjectBoundingBoxToCanvasTopLeft(originalImage);
+            },
+            applyOverlayTransformDelta: (beforeMatrix) => {
+                if (suppressOverlaySync) return;
+
+                const canvas = access.getCanvas();
+                const originalImage = access.getOriginalImage();
+                if (access.isDisposed() || !canvas || !originalImage) return;
+
+                const targets = [
+                    ...getBoundOverlayTargets('masks'),
+                    ...getBoundOverlayTargets('annotations'),
+                ];
+                if (targets.length === 0) return;
+
+                originalImage.setCoords();
+                const afterMatrix = originalImage.calcTransformMatrix() as number[];
+                const delta = computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil);
+                if (!isFiniteTransformMatrix(delta) || isApproximatelyIdentityTransform(delta)) {
+                    return;
+                }
+
+                if (isActiveSelectionObject(canvas.getActiveObject())) {
+                    canvas.discardActiveObject();
+                }
+
+                for (const object of targets) {
+                    try {
+                        applyDeltaToObject(object, delta, {
+                            fabricUtil,
+                            preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                        });
+                    } catch (error) {
+                        reportWarning(
+                            access.getOptions(),
+                            error,
+                            'Overlay transform skipped an object after its Fabric transform failed.',
+                        );
+                    }
+                }
+                canvas.requestRenderAll();
+            },
+            syncOverlayAfterTransform: () => {
+                const canvas = access.getCanvas();
+                if (access.isDisposed() || !canvas) return;
                 canvas
                     .getObjects()
                     .filter(isMaskObject)
                     .forEach((maskObject) => {
                         access.syncMaskLabel(maskObject);
                     });
+                canvas.requestRenderAll();
             },
+            setSuppressOverlaySync: (suppress) => {
+                suppressOverlaySync = suppress;
+            },
+            isOverlaySyncSuppressed: () => suppressOverlaySync,
         };
     }
 

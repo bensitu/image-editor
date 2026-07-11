@@ -463,6 +463,9 @@ const DEFAULT_OPTIONS = {
     maxScale: 5.0,
     scaleStep: 0.05,
     rotationStep: 90,
+    bindMasksToImageTransform: false,
+    bindAnnotationsToImageTransform: false,
+    textAnnotationFlipBehavior: 'preserve-readable',
     defaultLayoutMode: DEFAULT_LAYOUT_MODE,
     layoutMode: DEFAULT_LAYOUT_MODE,
     downsampleOnLoad: true,
@@ -616,6 +619,9 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
     'maxScale',
     'scaleStep',
     'rotationStep',
+    'bindMasksToImageTransform',
+    'bindAnnotationsToImageTransform',
+    'textAnnotationFlipBehavior',
     'defaultLayoutMode',
     'downsampleOnLoad',
     'downsampleMaxWidth',
@@ -1481,6 +1487,19 @@ function resolveOptions(input) {
             resolved.backgroundColor = normalizeString(value, DEFAULT_OPTIONS.backgroundColor);
             continue;
         }
+        if (key === 'bindMasksToImageTransform') {
+            resolved.bindMasksToImageTransform = normalizeBoolean(value, DEFAULT_OPTIONS.bindMasksToImageTransform);
+            continue;
+        }
+        if (key === 'bindAnnotationsToImageTransform') {
+            resolved.bindAnnotationsToImageTransform = normalizeBoolean(value, DEFAULT_OPTIONS.bindAnnotationsToImageTransform);
+            continue;
+        }
+        if (key === 'textAnnotationFlipBehavior') {
+            resolved.textAnnotationFlipBehavior =
+                value === 'mirror' ? 'mirror' : 'preserve-readable';
+            continue;
+        }
         if (key === 'downsampleOnLoad') {
             resolved.downsampleOnLoad = normalizeBoolean(value, DEFAULT_OPTIONS.downsampleOnLoad);
             continue;
@@ -2248,7 +2267,7 @@ function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
         }
     }
 }
-function isActiveSelectionObject$2(object) {
+function isActiveSelectionObject$3(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -2272,7 +2291,7 @@ function saveState(input) {
         : typeof input.activeAnnotationId === 'number'
             ? input.activeAnnotationId
             : null;
-    if (isActiveSelectionObject$2(activeObject)) {
+    if (isActiveSelectionObject$3(activeObject)) {
         canvas.discardActiveObject();
     }
     const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
@@ -3824,7 +3843,7 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
     };
 }
 
-function isActiveSelectionObject$1(object) {
+function isActiveSelectionObject$2(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -3838,7 +3857,7 @@ function getActiveSelectionObjects(canvas) {
     const active = canvas.getActiveObject();
     if (!active)
         return [];
-    if (!isActiveSelectionObject$1(active))
+    if (!isActiveSelectionObject$2(active))
         return [active];
     const getObjects = active.getObjects;
     return typeof getObjects === 'function' ? getObjects.call(active) : [];
@@ -4491,6 +4510,7 @@ function enterDrawMode(context) {
     const previousDrawingMode = !!canvasWithDrawing.isDrawingMode;
     const previousBrush = canvasWithDrawing.freeDrawingBrush;
     const previousCanvasSelection = !!canvas.selection;
+    const previousSkipTargetFind = !!canvas.skipTargetFind;
     const previousDefaultCursor = canvas.defaultCursor;
     canvas.selection = false;
     canvas.defaultCursor = 'crosshair';
@@ -4516,6 +4536,7 @@ function enterDrawMode(context) {
         previousDrawingMode,
         previousBrush,
         previousCanvasSelection,
+        previousSkipTargetFind,
         previousDefaultCursor,
         eraserPreview: null,
         eraserPoints: [],
@@ -4539,6 +4560,7 @@ function enterDrawMode(context) {
             canvasWithDrawing.isDrawingMode = previousDrawingMode;
             canvasWithDrawing.freeDrawingBrush = previousBrush;
             canvas.selection = previousCanvasSelection;
+            canvas.skipTargetFind = previousSkipTargetFind;
             canvas.defaultCursor = previousDefaultCursor !== null && previousDefaultCursor !== void 0 ? previousDefaultCursor : 'default';
         },
     };
@@ -4569,11 +4591,14 @@ function setDrawSubMode(context, subMode) {
     session.isErasing = false;
     session.eraserPoints = [];
     if (subMode === 'brush') {
+        context.canvas.skipTargetFind = session.previousSkipTargetFind;
         hideEraserPreview(context, session);
         configureBrush(context);
         setDrawingMode(context, true);
     }
     else {
+        context.canvas.discardActiveObject();
+        context.canvas.skipTargetFind = true;
         setDrawingMode(context, false);
         ensureEraserPreview(context, session).set({ visible: false });
     }
@@ -5977,6 +6002,28 @@ function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
 function pixelOffset(width, x, y) {
     return (y * width + x) * 4;
 }
+function getCircularMosaicBounds(options) {
+    const width = Number(options.width);
+    const height = Number(options.height);
+    const centerX = Number(options.centerX);
+    const centerY = Number(options.centerY);
+    const radius = Number(options.radius);
+    if (!Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        !Number.isFinite(centerX) ||
+        !Number.isFinite(centerY) ||
+        !Number.isFinite(radius) ||
+        radius <= 0 ||
+        width <= 0 ||
+        height <= 0) {
+        return null;
+    }
+    const minX = Math.max(0, Math.floor(centerX - radius));
+    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
+    const minY = Math.max(0, Math.floor(centerY - radius));
+    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
+    return minX <= maxX && minY <= maxY ? { minX, minY, maxX, maxY } : null;
+}
 function applyCircularMosaicToImageData(options) {
     var _a, _b, _c, _d;
     const { imageData } = options;
@@ -5984,21 +6031,11 @@ function applyCircularMosaicToImageData(options) {
     const centerX = Number(options.centerX);
     const centerY = Number(options.centerY);
     const radius = Number(options.radius);
-    if (!Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        width <= 0 ||
-        height <= 0) {
+    const bounds = getCircularMosaicBounds({ width, height, centerX, centerY, radius });
+    if (!bounds)
         return false;
-    }
     const blockSize = normalizeBlockSize(options.blockSize);
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(height - 1, Math.ceil(centerY + radius));
-    if (minX > maxX || minY > maxY)
-        return false;
+    const { minX, minY, maxX, maxY } = bounds;
     const radiusSquared = radius * radius;
     let processed = false;
     for (let blockY = minY; blockY <= maxY; blockY += blockSize) {
@@ -6470,24 +6507,13 @@ function applyMosaicImagePoint(context, session, sourceImage, imagePoint) {
     return changed;
 }
 function getMosaicPointDirtyRect(imageData, point) {
-    const centerX = Number(point.sourceX);
-    const centerY = Number(point.sourceY);
-    const radius = Number(point.sourceRadius);
-    if (!Number.isFinite(centerX) ||
-        !Number.isFinite(centerY) ||
-        !Number.isFinite(radius) ||
-        radius <= 0 ||
-        imageData.width <= 0 ||
-        imageData.height <= 0) {
-        return null;
-    }
-    const minX = Math.max(0, Math.floor(centerX - radius));
-    const maxX = Math.min(imageData.width - 1, Math.ceil(centerX + radius));
-    const minY = Math.max(0, Math.floor(centerY - radius));
-    const maxY = Math.min(imageData.height - 1, Math.ceil(centerY + radius));
-    if (minX > maxX || minY > maxY)
-        return null;
-    return { minX, minY, maxX, maxY };
+    return getCircularMosaicBounds({
+        width: imageData.width,
+        height: imageData.height,
+        centerX: point.sourceX,
+        centerY: point.sourceY,
+        radius: point.sourceRadius,
+    });
 }
 function mergeMosaicDirtyRects(current, next) {
     if (!next)
@@ -8935,6 +8961,8 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         const previousScale = this.context.getCurrentScale();
         const previousScaleX = imageObject.scaleX;
         const previousScaleY = imageObject.scaleY;
@@ -8961,8 +8989,7 @@ class TransformController {
             if (!this.context.guard.isDisposed()) {
                 imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'scaleImage animation failed.');
             return;
@@ -8972,8 +8999,7 @@ class TransformController {
         imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
         imageObject.setCoords();
         try {
-            if (this.context.afterTransformSnap)
-                this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         }
         finally {
             this.context.saveCanvasState();
@@ -8989,6 +9015,8 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
         const previousRotation = this.context.getCurrentRotation();
         const previousAngle = imageObject.angle;
         this.context.setCurrentRotation(degrees);
@@ -9015,8 +9043,7 @@ class TransformController {
                 imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
                 imageObject.setCoords();
                 restoreOrigin(imageObject, 'left', 'top');
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.completeImageTransform(beforeMatrix);
             }
             reportWarning(this.context.options, error, 'rotateImage animation failed.');
         }
@@ -9041,8 +9068,7 @@ class TransformController {
             reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
         }
         try {
-            if (this.context.afterTransformSnap)
-                this.context.afterTransformSnap();
+            this.completeImageTransform(beforeMatrix);
         }
         finally {
             this.context.saveCanvasState();
@@ -9055,6 +9081,7 @@ class TransformController {
         await this.flipImage('flipY');
     }
     async flipImage(property) {
+        var _a, _b;
         const imageObject = this.context.getOriginalImage();
         if (!imageObject)
             return;
@@ -9062,8 +9089,16 @@ class TransformController {
             return;
         if (this.context.guard.isDisposed())
             return;
+        imageObject.setCoords();
+        const beforeMatrix = imageObject.calcTransformMatrix();
+        const previousFlipX = imageObject.flipX;
+        const previousFlipY = imageObject.flipY;
+        const previousOriginX = (_a = imageObject.originX) !== null && _a !== void 0 ? _a : 'left';
+        const previousOriginY = (_b = imageObject.originY) !== null && _b !== void 0 ? _b : 'top';
+        const operationName = property === 'flipX' ? 'flipHorizontal' : 'flipVertical';
+        let centre = null;
         try {
-            const centre = imageObject.getCenterPoint();
+            centre = imageObject.getCenterPoint();
             imageObject.set({ originX: 'center', originY: 'center' });
             imageObject.setPositionByOrigin(centre, 'center', 'center');
             imageObject.set({ [property]: !imageObject[property] });
@@ -9074,19 +9109,41 @@ class TransformController {
             imageObject.setCoords();
         }
         catch (error) {
-            reportWarning(this.context.options, error, `${property === 'flipX' ? 'flipHorizontal' : 'flipVertical'} failed.`);
+            if (!this.context.guard.isDisposed()) {
+                try {
+                    imageObject.set({
+                        flipX: previousFlipX,
+                        flipY: previousFlipY,
+                        originX: previousOriginX,
+                        originY: previousOriginY,
+                    });
+                    if (centre) {
+                        imageObject.setPositionByOrigin(centre, 'center', 'center');
+                    }
+                    imageObject.setCoords();
+                    this.completeImageTransform(beforeMatrix);
+                }
+                catch (rollbackError) {
+                    reportWarning(this.context.options, rollbackError, `${operationName} rollback failed.`);
+                }
+            }
+            reportWarning(this.context.options, error, `${operationName} failed.`);
             return;
         }
         if (this.context.guard.isDisposed())
             return;
-        if (this.context.afterTransformSnap)
-            this.context.afterTransformSnap();
+        this.completeImageTransform(beforeMatrix);
         this.context.saveCanvasState();
     }
     async resetImageTransform() {
-        if (!this.context.getOriginalImage())
+        const initialImage = this.context.getOriginalImage();
+        if (!initialImage)
             return;
+        initialImage.setCoords();
+        const beforeMatrix = initialImage.calcTransformMatrix();
+        const previousOverlaySyncSuppressed = this.context.isOverlaySyncSuppressed();
         this.context.setSuppressSaveState(true);
+        this.context.setSuppressOverlaySync(true);
         try {
             await this.scaleImage(1);
             await this.rotateImage(0);
@@ -9094,16 +9151,27 @@ class TransformController {
             if (imageObject && !this.context.guard.isDisposed()) {
                 imageObject.set({ flipX: false, flipY: false });
                 imageObject.setCoords();
-                if (this.context.afterTransformSnap)
-                    this.context.afterTransformSnap();
+                this.context.finalizeImageTransformSnap();
             }
         }
         finally {
+            this.context.setSuppressOverlaySync(previousOverlaySyncSuppressed);
             this.context.setSuppressSaveState(false);
         }
         if (this.context.guard.isDisposed())
             return;
+        if (!this.context.isOverlaySyncSuppressed()) {
+            this.context.applyOverlayTransformDelta(beforeMatrix);
+        }
+        this.context.syncOverlayAfterTransform();
         this.context.saveCanvasState();
+    }
+    completeImageTransform(beforeMatrix) {
+        this.context.finalizeImageTransformSnap();
+        if (this.context.isOverlaySyncSuppressed())
+            return;
+        this.context.applyOverlayTransformDelta(beforeMatrix);
+        this.context.syncOverlayAfterTransform();
     }
 }
 function computeTopLeftPoint$1(object) {
@@ -9653,6 +9721,111 @@ function setPlaceholderVisible(placeholderElement, containerElement, show) {
     }
 }
 
+function isFiniteTransformMatrix(matrix) {
+    return (Array.isArray(matrix) &&
+        matrix.length === 6 &&
+        matrix.every((value) => Number.isFinite(value)));
+}
+function isApproximatelyIdentityTransform(matrix, epsilon = 1e-10) {
+    const identity = [1, 0, 0, 1, 0, 0];
+    return (matrix.length === identity.length &&
+        matrix.every((value, index) => Math.abs(value - identity[index]) <= epsilon));
+}
+function computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil) {
+    if (!isFiniteTransformMatrix(beforeMatrix) || !isFiniteTransformMatrix(afterMatrix)) {
+        return [];
+    }
+    return fabricUtil.multiplyTransformMatrices(afterMatrix, fabricUtil.invertTransform(beforeMatrix));
+}
+function deltaHasReflection(delta) {
+    if (!isFiniteTransformMatrix(delta))
+        return false;
+    const [a, b, c, d] = delta;
+    return a * d - b * c < 0;
+}
+function transformPointByMatrix(point, matrix, fabricUtil) {
+    const [a, b, c, d, e, f] = matrix;
+    return new fabricUtil.Point(a * point.x + c * point.y + e, b * point.x + d * point.y + f);
+}
+function stripReflectionFromDelta(delta, fabricUtil) {
+    if (!deltaHasReflection(delta))
+        return delta;
+    const flipXMatrix = [-1, 0, 0, 1, 0, 0];
+    const flipYMatrix = [1, 0, 0, -1, 0, 0];
+    const flipXCandidate = fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
+    const flipYCandidate = fabricUtil.multiplyTransformMatrices(delta, flipYMatrix);
+    const normalizedAngleMagnitude = (matrix) => {
+        try {
+            const angle = fabricUtil.qrDecompose(matrix).angle;
+            if (!Number.isFinite(angle))
+                return Number.POSITIVE_INFINITY;
+            return Math.abs((((angle % 360) + 540) % 360) - 180);
+        }
+        catch {
+            return Number.POSITIVE_INFINITY;
+        }
+    };
+    return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate)
+        ? flipYCandidate
+        : flipXCandidate;
+}
+function applyDeltaToObject(object, fullDelta, context) {
+    var _a, _b, _c;
+    if (!isFiniteTransformMatrix(fullDelta))
+        return;
+    if (isApproximatelyIdentityTransform(fullDelta))
+        return;
+    const { fabricUtil } = context;
+    object.setCoords();
+    const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
+    const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
+    const originalCenter = object.getCenterPoint();
+    const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
+    const orientationDelta = context.preserveReadableText
+        ? stripReflectionFromDelta(fullDelta, fabricUtil)
+        : fullDelta;
+    let restoreCenter = originalCenter;
+    try {
+        object.set({
+            originX: 'center',
+            originY: 'center',
+        });
+        object.setPositionByOrigin(originalCenter, 'center', 'center');
+        object.setCoords();
+        const currentObjectMatrix = object.calcTransformMatrix();
+        const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
+        if (!isFiniteTransformMatrix(nextMatrix))
+            return;
+        const decomposed = fabricUtil.qrDecompose(nextMatrix);
+        object.set({
+            flipX: false,
+            flipY: false,
+        });
+        object.set({
+            angle: decomposed.angle,
+            scaleX: decomposed.scaleX,
+            scaleY: decomposed.scaleY,
+            skewX: decomposed.skewX,
+            skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0,
+        });
+        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
+            object.set({
+                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
+                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
+            });
+        }
+        restoreCenter = targetCenter;
+    }
+    finally {
+        object.set({
+            originX: previousOriginX,
+            originY: previousOriginY,
+        });
+        object.setPositionByOrigin(restoreCenter, 'center', 'center');
+        object.setCoords();
+    }
+}
+
 const POLYGON_AREA_EPSILON = 1e-6;
 const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
 function createMaskUid(maskId) {
@@ -10043,7 +10216,7 @@ function createMask(context, config = {}) {
     }
     return maskObject;
 }
-function isActiveSelectionObject(object) {
+function isActiveSelectionObject$1(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -10057,7 +10230,7 @@ function getSelectedMaskObjects(canvas) {
     const active = canvas.getActiveObject();
     if (!active)
         return [];
-    if (!isActiveSelectionObject(active))
+    if (!isActiveSelectionObject$1(active))
         return isMaskObject(active) ? [active] : [];
     const getObjects = active.getObjects;
     const objects = typeof getObjects === 'function' ? getObjects.call(active) : [];
@@ -10095,6 +10268,29 @@ function removeAllMasks(context, options = {}) {
     }
 }
 
+function asFabricTransformMatrix(matrix) {
+    return matrix;
+}
+function createFabricUtilAccess(fabricModule) {
+    return {
+        multiplyTransformMatrices: (a, b) => fabricModule.util.multiplyTransformMatrices(asFabricTransformMatrix(a), asFabricTransformMatrix(b)),
+        invertTransform: (matrix) => fabricModule.util.invertTransform(asFabricTransformMatrix(matrix)),
+        qrDecompose: (matrix) => fabricModule.util.qrDecompose(asFabricTransformMatrix(matrix)),
+        Point: fabricModule.Point,
+    };
+}
+function isActiveSelectionObject(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') ||
+            isType.call(object, 'activeSelection') ||
+            isType.call(object, 'activeselection')));
+}
 class EditorContextFactory {
     constructor(access) {
         Object.defineProperty(this, "access", {
@@ -10237,6 +10433,29 @@ class EditorContextFactory {
     }
     buildTransformContext() {
         const access = this.access;
+        const fabricUtil = createFabricUtilAccess(access.getFabric());
+        let suppressOverlaySync = false;
+        const getBoundOverlayTargets = (kind) => {
+            const canvas = access.getCanvas();
+            const options = access.getOptions();
+            if (!canvas)
+                return [];
+            if (kind === 'masks') {
+                if (!options.bindMasksToImageTransform)
+                    return [];
+                return canvas.getObjects().filter(isMaskObject);
+            }
+            if (!options.bindAnnotationsToImageTransform)
+                return [];
+            return canvas.getObjects().filter(isAnnotationObject);
+        };
+        const shouldPreserveReadableForAnnotation = (object) => {
+            const options = access.getOptions();
+            return (options.bindAnnotationsToImageTransform &&
+                options.textAnnotationFlipBehavior === 'preserve-readable' &&
+                isAnnotationObject(object) &&
+                object.annotationType === 'text');
+        };
         return {
             canvas: access.getLiveCanvas('buildTransformContext'),
             options: access.getOptions(),
@@ -10257,20 +10476,68 @@ class EditorContextFactory {
             setSuppressSaveState: (suppress) => {
                 access.setSuppressSaveState(suppress);
             },
-            afterTransformSnap: () => {
+            getFabricUtil: () => fabricUtil,
+            getBoundOverlayTargets,
+            shouldPreserveReadableForAnnotation,
+            finalizeImageTransformSnap: () => {
                 const canvas = access.getCanvas();
                 const originalImage = access.getOriginalImage();
                 if (access.isDisposed() || !canvas || !originalImage)
                     return;
                 access.updateCanvasSizeToImageBounds();
                 access.alignObjectBoundingBoxToCanvasTopLeft(originalImage);
+            },
+            applyOverlayTransformDelta: (beforeMatrix) => {
+                if (suppressOverlaySync)
+                    return;
+                const canvas = access.getCanvas();
+                const originalImage = access.getOriginalImage();
+                if (access.isDisposed() || !canvas || !originalImage)
+                    return;
+                const targets = [
+                    ...getBoundOverlayTargets('masks'),
+                    ...getBoundOverlayTargets('annotations'),
+                ];
+                if (targets.length === 0)
+                    return;
+                originalImage.setCoords();
+                const afterMatrix = originalImage.calcTransformMatrix();
+                const delta = computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil);
+                if (!isFiniteTransformMatrix(delta) || isApproximatelyIdentityTransform(delta)) {
+                    return;
+                }
+                if (isActiveSelectionObject(canvas.getActiveObject())) {
+                    canvas.discardActiveObject();
+                }
+                for (const object of targets) {
+                    try {
+                        applyDeltaToObject(object, delta, {
+                            fabricUtil,
+                            preserveReadableText: shouldPreserveReadableForAnnotation(object),
+                        });
+                    }
+                    catch (error) {
+                        reportWarning(access.getOptions(), error, 'Overlay transform skipped an object after its Fabric transform failed.');
+                    }
+                }
+                canvas.requestRenderAll();
+            },
+            syncOverlayAfterTransform: () => {
+                const canvas = access.getCanvas();
+                if (access.isDisposed() || !canvas)
+                    return;
                 canvas
                     .getObjects()
                     .filter(isMaskObject)
                     .forEach((maskObject) => {
                     access.syncMaskLabel(maskObject);
                 });
+                canvas.requestRenderAll();
             },
+            setSuppressOverlaySync: (suppress) => {
+                suppressOverlaySync = suppress;
+            },
+            isOverlaySyncSuppressed: () => suppressOverlaySync,
         };
     }
     buildCreateMaskContext() {
@@ -14838,11 +15105,16 @@ function isCheckedInput(element) {
 function isReadOnlyControl(element) {
     return 'readOnly' in element && element.readOnly;
 }
+function isColorInput(element) {
+    return element.tagName.toLowerCase() === 'input' && element.type === 'color';
+}
 function syncInputValue(element, value) {
     if (!isValueControl(element))
         return;
     const ownerDocument = element.ownerDocument;
     if (ownerDocument.activeElement === element && !isReadOnlyControl(element))
+        return;
+    if (isColorInput(element) && !/^#[0-9a-f]{6}$/i.test(value))
         return;
     if (element.value !== value)
         element.value = value;

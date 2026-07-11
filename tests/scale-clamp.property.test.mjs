@@ -63,6 +63,22 @@ class MockCanvas {
     }
 }
 
+function makeNoopOverlayTransformHooks() {
+    let suppressed = false;
+    return {
+        getFabricUtil: () => ({}),
+        getBoundOverlayTargets: () => [],
+        shouldPreserveReadableForAnnotation: () => false,
+        finalizeImageTransformSnap: () => {},
+        applyOverlayTransformDelta: () => {},
+        syncOverlayAfterTransform: () => {},
+        setSuppressOverlaySync: (value) => {
+            suppressed = value;
+        },
+        isOverlaySyncSuppressed: () => suppressed,
+    };
+}
+
 /**
  * Build a fake Fabric image whose `animate` resolves the wrapper
  * Promise synchronously.
@@ -115,6 +131,9 @@ function makeFabricImageMock() {
         },
         getBoundingRect() {
             return { left: 0, top: 0, width: 100, height: 100 };
+        },
+        calcTransformMatrix() {
+            return [this.scaleX, 0, 0, this.scaleY, this.left, this.top];
         },
         animate(props, opts) {
             // Fire `onComplete` once per property to match Fabric v7's
@@ -177,6 +196,7 @@ function makeTransformCtx({ minScale, maxScale, baseImageScale = 1 }) {
             // The orchestrator's `resetImageTransform` does, but Property
             // 11 only exercises the direct `scaleImage` path.
         },
+        ...makeNoopOverlayTransformHooks(),
     };
 
     return { ctx, state, image, saveCalls };

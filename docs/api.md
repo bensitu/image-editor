@@ -110,13 +110,17 @@ synchronization, and change callbacks.
 
 ## Transforms
 
-| Method                  | Description                                                                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Non-finite values are no-ops. Animated.                                     |
-| `rotateImage(degrees)`  | Rotate to `degrees`. Non-finite values resolve without changing canvas state. Animated.                                            |
-| `flipHorizontal()`      | Toggle horizontal flip on the base image only. Masks, annotations, and session overlays are not mirrored. Returns `Promise<void>`. |
-| `flipVertical()`        | Toggle vertical flip on the base image only. Masks, annotations, and session overlays are not mirrored. Returns `Promise<void>`.   |
-| `resetImageTransform()` | Animate to scale 1, rotation 0, and an unflipped state. Records exactly one history entry covering the entire transform.           |
+| Method                  | Description                                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Non-finite values are no-ops. Animated. Enabled bound overlays snap to the final image transform. |
+| `rotateImage(degrees)`  | Rotate to `degrees`. Non-finite values resolve without changing canvas state. Animated. Enabled bound overlays snap to the final image transform.        |
+| `flipHorizontal()`      | Toggle horizontal flip on the base image. Enabled bound masks and annotations follow; session overlays are not mirrored. Returns `Promise<void>`.        |
+| `flipVertical()`        | Toggle vertical flip on the base image. Enabled bound masks and annotations follow; session overlays are not mirrored. Returns `Promise<void>`.          |
+| `resetImageTransform()` | Animate to scale 1, rotation 0, and an unflipped state. Records exactly one history entry and applies one final delta to enabled bound overlays.         |
+
+Overlay transform binding is disabled by default. See
+[Overlay Transform Binding](./overlay-transform-binding.md) for constructor
+options and Text reflection behavior.
 
 ## Image Filters
 

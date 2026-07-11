@@ -7,11 +7,16 @@ function isCheckedInput(element) {
 function isReadOnlyControl(element) {
     return 'readOnly' in element && element.readOnly;
 }
+function isColorInput(element) {
+    return element.tagName.toLowerCase() === 'input' && element.type === 'color';
+}
 function syncInputValue(element, value) {
     if (!isValueControl(element))
         return;
     const ownerDocument = element.ownerDocument;
     if (ownerDocument.activeElement === element && !isReadOnlyControl(element))
+        return;
+    if (isColorInput(element) && !/^#[0-9a-f]{6}$/i.test(value))
         return;
     if (element.value !== value)
         element.value = value;

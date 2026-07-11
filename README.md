@@ -145,6 +145,7 @@ crop controls, mosaic controls, lists, and layer actions.
 ## Demo and Examples
 
 - [Demo landing page](https://bensitu.github.io/image-editor/)
+- [Integrated editor demo](docs/integrated-editor.html)
 - [React basic example](examples/react-basic)
 - [Vue basic example](examples/vue-basic)
 - [Next.js client-only example](examples/next-client-only)
@@ -153,6 +154,7 @@ crop controls, mosaic controls, lists, and layer actions.
 
 - [API reference](docs/api.md)
 - [Options reference](docs/options.md)
+- [Overlay transform binding](docs/overlay-transform-binding.md)
 - [Overlay-state persistence](docs/overlay-state.md)
 - [Contributing and local checks](docs/contributing.md)
 - [Changelog](CHANGELOG.md)
