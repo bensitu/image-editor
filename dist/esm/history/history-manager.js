@@ -1,21 +1,4 @@
-export class Command {
-    constructor(execute, undo) {
-        Object.defineProperty(this, "execute", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "undo", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.execute = execute;
-        this.undo = undo;
-    }
-}
+export { Command } from './history-port.js';
 export class HistoryManager {
     constructor(maxSize = 50) {
         Object.defineProperty(this, "history", {

@@ -34,6 +34,11 @@ export declare class ImageEditor {
     private readonly runtime;
     private readonly contextFactory;
     private readonly actionAccessFactory;
+    private readonly historyFacade;
+    private pluginCore;
+    private pluginHistoryAdapter;
+    private transformPluginApi;
+    private maskPluginApi;
     /**
      * Creates a new image editor instance.
      *
@@ -42,6 +47,12 @@ export declare class ImageEditor {
      * applications; the UMD form reads `globalThis.fabric`.
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
+    private initializePluginRuntime;
+    private synchronizePluginCoreImage;
+    private synchronizeRuntimeTransformState;
+    private captureFullFacadeMementoState;
+    private restoreFullFacadeMementoState;
+    private resetFullFacadeMementoState;
     private createRuntimeWiring;
     /** Initializes DOM bindings, canvas state, and the optional initial image. */
     init(elementMap?: ElementMap): void;
@@ -262,8 +273,6 @@ export declare class ImageEditor {
     private settleFitCoverScrollbarsAfterStateRestore;
     private captureImageDisplayGeometry;
     private restoreMergedImageDisplayGeometry;
-    /** Builds the transform controller context from the shared runtime state. */
-    private buildTransformContext;
     /** Animates the image to the given scale factor, clamped to configured limits. */
     scaleImage(factor: number): Promise<void>;
     /** Animates the image to the given rotation angle. Non-finite input no-ops. */

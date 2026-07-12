@@ -28,7 +28,7 @@ import {
     type MergeAnnotationsContext,
     type MergeMasksContext,
 } from '../export/export-service.js';
-import type { HistoryManager } from '../history/history-manager.js';
+import type { LegacyHistoryPort } from '../history/history-port.js';
 import type { LoadImageContext } from '../image/image-loader.js';
 import type { ViewportCache } from '../image/layout-manager.js';
 import {
@@ -106,7 +106,7 @@ export interface EditorContextFactoryAccess {
     getFabric(): FabricModule;
     getOptions(): ResolvedOptions;
     getRuntimeOptions(): ResolvedOptions;
-    getHistoryManager(): HistoryManager;
+    getHistoryManager(): LegacyHistoryPort;
     getOperationGuard(): OperationGuard;
     getCanvas(): FabricNS.Canvas | null;
     getLiveCanvas(operationName: string): FabricNS.Canvas;

@@ -29,6 +29,56 @@
                 "default": "./dist/cjs/index.cjs"
             },
             "default": "./dist/esm/index.js"
+        },
+        "./core": {
+            "import": {
+                "types": "./dist/types/core/index.d.ts",
+                "default": "./dist/esm/core/index.js"
+            },
+            "require": {
+                "types": "./dist/types/core/index.d.cts",
+                "default": "./dist/cjs/core/index.cjs"
+            }
+        },
+        "./plugins/overlay": {
+            "import": {
+                "types": "./dist/types/foundations/overlay/index.d.ts",
+                "default": "./dist/esm/foundations/overlay/index.js"
+            },
+            "require": {
+                "types": "./dist/types/foundations/overlay/index.d.cts",
+                "default": "./dist/cjs/foundations/overlay/index.cjs"
+            }
+        },
+        "./plugins/transform": {
+            "import": {
+                "types": "./dist/types/plugins/transform/index.d.ts",
+                "default": "./dist/esm/plugins/transform/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/transform/index.d.cts",
+                "default": "./dist/cjs/plugins/transform/index.cjs"
+            }
+        },
+        "./plugins/mask": {
+            "import": {
+                "types": "./dist/types/plugins/mask/index.d.ts",
+                "default": "./dist/esm/plugins/mask/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/mask/index.d.cts",
+                "default": "./dist/cjs/plugins/mask/index.cjs"
+            }
+        },
+        "./plugins/history": {
+            "import": {
+                "types": "./dist/types/plugins/history/index.d.ts",
+                "default": "./dist/esm/plugins/history/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/history/index.d.cts",
+                "default": "./dist/cjs/plugins/history/index.cjs"
+            }
         }
     },
     "files": [
@@ -49,6 +99,14 @@
         "package:check": "publint",
         "test": "node scripts/run-node-tests.mjs",
         "test:plugin-kernel": "node scripts/run-node-tests.mjs tests/plugin-kernel",
+        "test:core-contract": "node scripts/run-node-tests.mjs tests/core",
+        "test:transform-plugin": "node scripts/run-node-tests.mjs tests/plugins/transform",
+        "test:overlay-foundation": "node scripts/run-node-tests.mjs tests/foundations/overlay",
+        "test:mask-plugin": "node scripts/run-node-tests.mjs tests/plugins/mask",
+        "test:history-plugin": "node scripts/run-node-tests.mjs tests/plugins/history",
+        "test:package-entries": "node tests/package/esm-consumer.mjs && node tests/package/cjs-consumer.cjs",
+        "test:packed-entries": "node scripts/check-packed-entries.mjs",
+        "test:package-types": "tsc -p tests/package/tsconfig.json --noEmit",
         "test:types": "tsc -p tests/types/tsconfig.json --noEmit",
         "test:e2e": "playwright test tests/browser/e2e --project=chromium",
         "test:e2e:all": "playwright test tests/browser/e2e",
@@ -58,11 +116,11 @@
         "test:browser:release": "npm run test:e2e:all && npm run test:visual",
         "test:browser:all": "npm run test:browser:release",
         "release:gate": "node scripts/release-gate.mjs",
-        "release:check": "npm run build && npm run package:check && npm run release:gate && npm pack --dry-run",
+        "release:check": "npm run build && npm run package:check && npm run test:package-entries && npm run test:packed-entries && npm run test:package-types && npm run release:gate && npm pack --dry-run",
         "typecheck": "tsc -p tsconfig.json --noEmit",
         "check:architecture": "node scripts/check-architecture.mjs",
         "check:bundle-size": "npm run build:esm && node scripts/check-bundle-size.mjs",
-        "check:refactor-baseline": "npm run check:architecture && npm run check:bundle-size && npm run test:plugin-kernel && npm run test:types",
+        "check:refactor-baseline": "npm run check:architecture && npm run check:bundle-size && npm run test:plugin-kernel && npm run test:core-contract && npm run test:transform-plugin && npm run test:overlay-foundation && npm run test:mask-plugin && npm run test:history-plugin && npm run test:types",
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
         "ci": "npm run check && npm run check:refactor-baseline && npm run release:check"
     },
@@ -80,6 +138,7 @@
         "@rollup/plugin-node-resolve": "^15.0.0",
         "@rollup/plugin-terser": "^1.0.0",
         "@rollup/plugin-typescript": "^11.0.0",
+        "@types/jsdom": "^21.1.7",
         "@types/semver": "^7.7.1",
         "canvas": "^3.2.3",
         "eslint": "^10.4.0",

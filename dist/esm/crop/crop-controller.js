@@ -2,7 +2,7 @@ import { reportWarning } from '../core/callback-reporter.js';
 import { CropApplyError } from '../core/errors.js';
 import { markSessionObject } from '../core/editor-object-kind.js';
 import { isMaskObject } from '../core/public-types.js';
-import { Command } from '../history/history-manager.js';
+import { Command } from '../history/history-port.js';
 import { applyCropHideMaskStyle, captureMaskStyleBackup, reattachMaskHoverHandlers, restoreMaskStyleBackup, } from '../mask/mask-style.js';
 import { getClampedCanvasRegion, getObjectBBox, hasMeaningfulCanvasRegion, } from '../utils/canvas-region.js';
 import { clampQuality as clampExportQuality, mimeTypeFor, tryNormalizeImageFormat, } from '../export/export-format.js';

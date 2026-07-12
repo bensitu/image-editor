@@ -3,10 +3,10 @@ import { cloneResolvedDrawConfig, cloneResolvedEraserConfig, cloneResolvedMosaic
 import { cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, } from '../core/image-filter-config.js';
 import { OperationGuard } from '../core/operation-guard.js';
 import { isBaseImageObject } from '../core/public-types.js';
-import { HistoryManager } from '../history/history-manager.js';
+import { DeferredHistoryPort } from '../compatibility/plugin-history-adapter.js';
 import { ViewportCache } from '../image/layout-manager.js';
 export class EditorRuntime {
-    constructor(fabricModule, isFabricLoaded, options) {
+    constructor(fabricModule, isFabricLoaded, options, historyManager = new DeferredHistoryPort(options.maxHistorySize)) {
         Object.defineProperty(this, "fabricModule", {
             enumerable: true,
             configurable: true,
@@ -353,7 +353,7 @@ export class EditorRuntime {
         this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
         this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
-        this.historyManager = new HistoryManager(options.maxHistorySize);
+        this.historyManager = historyManager;
         this.lastEmittedHistoryState = {
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),

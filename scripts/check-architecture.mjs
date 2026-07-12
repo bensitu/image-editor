@@ -50,16 +50,76 @@ const forbiddenCoreTargets = [
     ['src/ui/', 'DOM controls belong above Core and must not be imported by Core.'],
 ];
 const featureMatchers = {
-    history: (file) => file.startsWith('src/history/'),
+    history: (file) => file.startsWith('src/plugins/history/') || file.startsWith('src/history/'),
     transform: (file) =>
-        file.startsWith('src/image/transform-') || file === 'src/image/overlay-transform-delta.ts',
-    mask: (file) => file.startsWith('src/mask/'),
+        file.startsWith('src/plugins/transform/') || file.startsWith('src/image/transform-'),
+    overlayFoundation: (file) => file.startsWith('src/foundations/overlay/'),
+    mask: (file) => file.startsWith('src/plugins/mask/') || file.startsWith('src/mask/'),
     crop: (file) => file.startsWith('src/crop/'),
     mosaic: (file) => file.startsWith('src/mosaic/'),
     filters: (file) => file === 'src/image/image-filters.ts',
     annotation: (file) => file.startsWith('src/annotation/'),
     domBindings: (file) => file.startsWith('src/ui/'),
 };
+const featureImportRules = [
+    {
+        source: 'src/plugins/transform/',
+        forbidden: [
+            'src/mask/',
+            'src/annotation/',
+            'src/history/',
+            'src/plugins/mask/',
+            'src/plugins/history/',
+            'src/foundations/',
+        ],
+        rule: 'transform-plugin-isolation',
+        recommendation:
+            'Transform must coordinate through Core Geometry and must not import Overlay, Mask, Annotation, or History implementations.',
+    },
+    {
+        source: 'src/foundations/overlay/',
+        forbidden: [
+            'src/plugins/',
+            'src/mask/',
+            'src/annotation/',
+            'src/history/',
+            'src/crop/',
+            'src/mosaic/',
+        ],
+        rule: 'overlay-foundation-isolation',
+        recommendation:
+            'Overlay Foundation must remain feature-neutral and must not import official Feature implementations.',
+    },
+    {
+        source: 'src/plugins/mask/',
+        forbidden: [
+            'src/plugins/transform/',
+            'src/plugins/history/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+            'src/image/image-filters',
+        ],
+        rule: 'mask-plugin-isolation',
+        recommendation:
+            'Mask must coordinate through Overlay and Core capabilities without importing later Features.',
+    },
+    {
+        source: 'src/plugins/history/',
+        forbidden: [
+            'src/plugins/transform/',
+            'src/plugins/mask/',
+            'src/foundations/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+        ],
+        rule: 'history-plugin-isolation',
+        recommendation:
+            'History must consume Core Mementos and must not know concrete Feature state.',
+    },
+];
 
 function parseArguments(argv) {
     const options = { packageRoot: repoRoot, reportName: null };
@@ -286,7 +346,11 @@ async function analyze(packageRoot) {
                 }
             }
 
-            if (sourceRelative.startsWith('src/core/') && targetRelative) {
+            if (
+                (sourceRelative.startsWith('src/core/') ||
+                    sourceRelative.startsWith('src/core-runtime/')) &&
+                targetRelative
+            ) {
                 for (const [prefix, recommendation] of forbiddenCoreTargets) {
                     if (targetRelative.startsWith(prefix)) {
                         violations.push({
@@ -296,6 +360,21 @@ async function analyze(packageRoot) {
                             recommendation,
                         });
                     }
+                }
+            }
+
+            for (const importRule of featureImportRules) {
+                if (
+                    sourceRelative.startsWith(importRule.source) &&
+                    targetRelative &&
+                    importRule.forbidden.some((prefix) => targetRelative.startsWith(prefix))
+                ) {
+                    violations.push({
+                        sourceFile: sourceRelative,
+                        forbiddenImport: specifier,
+                        rule: importRule.rule,
+                        recommendation: importRule.recommendation,
+                    });
                 }
             }
 
@@ -351,6 +430,25 @@ async function analyze(packageRoot) {
     }
     const kernelEntry = path.join(sourceRoot, 'plugin-kernel', 'index.ts');
     const kernelReachable = getReachable(graph, kernelEntry);
+    const isolatedEntries = Object.fromEntries(
+        [
+            ['core', path.join(sourceRoot, 'core', 'index.ts')],
+            ['transform', path.join(sourceRoot, 'plugins', 'transform', 'index.ts')],
+            ['overlay', path.join(sourceRoot, 'foundations', 'overlay', 'index.ts')],
+            ['mask', path.join(sourceRoot, 'plugins', 'mask', 'index.ts')],
+            ['history', path.join(sourceRoot, 'plugins', 'history', 'index.ts')],
+        ].map(([name, entryPath]) => {
+            const modules = getReachable(graph, entryPath);
+            return [
+                name,
+                {
+                    present: graph.has(entryPath),
+                    moduleCount: modules.size,
+                    modules: [...modules].map((file) => relativeTo(packageRoot, file)).sort(),
+                },
+            ];
+        }),
+    );
 
     return {
         schemaVersion: 1,
@@ -385,6 +483,7 @@ async function analyze(packageRoot) {
                 .map((file) => relativeTo(packageRoot, file))
                 .filter((file) => !file.startsWith('src/plugin-kernel/')),
         },
+        isolatedEntries,
         violations,
     };
 }

@@ -1,12 +1,19 @@
+import { type CapabilityIdentity } from './capability-token.js';
 import { type PluginEventMap } from './committed-event-bus.js';
 import { type Disposable } from './disposable.js';
 import { type PluginRef } from './plugin-ref.js';
-import type { EditorPlugin } from './plugin-types.js';
+import type { EditorPlugin, SynchronousEditorPlugin } from './plugin-types.js';
 import { type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 export type PluginHostState = 'created' | 'initializing' | 'initialized' | 'disposing' | 'disposed';
 export interface PluginManagerOptions {
     readonly warningSink?: PluginWarningSink;
     readonly errorSink?: PluginErrorSink;
+    readonly hostCapabilities?: readonly PluginHostCapabilityProvider[];
+}
+export interface PluginHostCapabilityProvider {
+    readonly token: CapabilityIdentity;
+    readonly implementation: unknown;
+    readonly providerId?: string;
 }
 export declare class PluginManager<TEvents extends object = PluginEventMap> implements Disposable {
     private readonly options;
@@ -23,21 +30,26 @@ export declare class PluginManager<TEvents extends object = PluginEventMap> impl
     constructor(options?: PluginManagerOptions);
     get state(): PluginHostState;
     install<TApi>(plugin: EditorPlugin<TApi, TEvents>): Promise<TApi>;
+    installSync<TApi>(plugin: SynchronousEditorPlugin<TApi, TEvents>): TApi;
     get<TApi>(ref: PluginRef<TApi>): TApi | null;
     require<TApi>(ref: PluginRef<TApi>): TApi;
     getById(pluginId: string): unknown | null;
     has<TApi>(refOrId: PluginRef<TApi> | string): boolean;
     initialize(): Promise<void>;
+    initializeSync(): void;
     notifyImageLoaded(image: unknown): Promise<void>;
     notifyImageCleared(): Promise<void>;
     dispose(): Promise<void>;
+    disposeSync(): void;
     private performInstall;
+    private performInstallSync;
     private resolveCapabilities;
     private createContexts;
     private rollbackInstalledPlugin;
     private validatePluginDefinition;
     private performDispose;
     private cleanupAll;
+    private cleanupAllSync;
     private assertCanInstall;
     private assertLifecycleReady;
     private assertUsable;

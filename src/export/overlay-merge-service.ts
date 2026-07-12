@@ -19,14 +19,14 @@ import type {
     ResolvedOptions,
 } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
-import { Command, type HistoryManager } from '../history/history-manager.js';
+import { Command, type LegacyHistoryPort } from '../history/history-port.js';
 
 export type OverlayMergeOperation = 'mergeMasks' | 'mergeAnnotations';
 
 export interface OverlayMergeTransactionContext {
     readonly canvas: FabricNS.Canvas;
     readonly options: ResolvedOptions;
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     readonly containerElement: HTMLElement | null;
     isImageLoaded(): boolean;
     captureSnapshot(): string;

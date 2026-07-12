@@ -80,6 +80,18 @@ export class OperationRegistry {
         this.activeToken = Object.freeze(token);
         return this.activeToken;
     }
+    beginForHost(operationId) {
+        this.assertActive('begin an operation');
+        const registered = this.operations.get(operationId);
+        if (!registered) {
+            throw new OperationConflictError(`Operation "${operationId}" is not registered.`, '@bensitu/core');
+        }
+        return this.begin(operationId, registered.ownerPluginId);
+    }
+    has(operationId) {
+        this.assertActive('inspect an operation');
+        return this.operations.has(operationId);
+    }
     get(operationId) {
         var _a, _b;
         this.assertActive('inspect an operation');

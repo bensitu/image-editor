@@ -26,6 +26,13 @@ const baselinesRoot = path.join(repoRoot, 'tests', 'bundle', 'baselines');
 const budgetsPath = path.join(repoRoot, 'tests', 'bundle', 'budgets.json');
 const packageName = '@bensitu/image-editor';
 const kernelTestSpecifier = '@bensitu/image-editor/plugin-kernel-internal';
+const packageSubpathEntries = Object.freeze({
+    [`${packageName}/core`]: ['core', 'index.js'],
+    [`${packageName}/plugins/overlay`]: ['foundations', 'overlay', 'index.js'],
+    [`${packageName}/plugins/transform`]: ['plugins', 'transform', 'index.js'],
+    [`${packageName}/plugins/mask`]: ['plugins', 'mask', 'index.js'],
+    [`${packageName}/plugins/history`]: ['plugins', 'history', 'index.js'],
+});
 const forbiddenKernelSymbols = [
     'createMask',
     'MaskObject',
@@ -40,6 +47,52 @@ const forbiddenKernelSymbols = [
     'overlay-state',
     'TransformController',
 ];
+const fixtureForbiddenSymbols = Object.freeze({
+    'core-only': forbiddenKernelSymbols,
+    'core-transform': [
+        'createMask',
+        'MaskObject',
+        'enterCropMode',
+        'CropSession',
+        'mosaicPreview',
+        'annotationType',
+        'createTextAnnotation',
+        'Brightness',
+        'Contrast',
+        'HistoryManager',
+        'overlay-state',
+    ],
+    'core-mask': [
+        'TransformPluginController',
+        'HistoryManager',
+        'annotationType',
+        'createTextAnnotation',
+        'enterCropMode',
+        'CropSession',
+        'mosaicPreview',
+        'Brightness',
+        'Contrast',
+    ],
+    'core-transform-mask': [
+        'HistoryManager',
+        'annotationType',
+        'createTextAnnotation',
+        'enterCropMode',
+        'CropSession',
+        'mosaicPreview',
+        'Brightness',
+        'Contrast',
+    ],
+    'core-history': [
+        'TransformPluginController',
+        'createMask',
+        'MaskObject',
+        'annotationType',
+        'enterCropMode',
+        'mosaicPreview',
+        'Brightness',
+    ],
+});
 const measuredFields = ['rawBytes', 'minifiedBytes', 'gzipBytes', 'brotliBytes', 'moduleCount'];
 
 function parseArguments(argv) {
@@ -146,6 +199,8 @@ function packageAlias(packageRoot) {
         resolveId(source) {
             if (source === packageName) return rootEntry;
             if (source === kernelTestSpecifier) return kernelEntry;
+            const subpath = packageSubpathEntries[source];
+            if (subpath) return path.join(packageRoot, 'dist', 'esm', ...subpath);
             return null;
         },
     };
@@ -210,13 +265,17 @@ async function measureFixture(fixture, packageRoot) {
             .map((moduleId) => normalizeModuleId(moduleId, packageRoot))
             .sort();
 
-        if (fixture.name === 'plugin-kernel') {
-            const foundSymbols = forbiddenKernelSymbols.filter((symbol) =>
+        const forbiddenSymbols =
+            fixture.name === 'plugin-kernel'
+                ? forbiddenKernelSymbols
+                : fixtureForbiddenSymbols[fixture.name];
+        if (forbiddenSymbols) {
+            const foundSymbols = forbiddenSymbols.filter((symbol) =>
                 rawChunk.code.includes(symbol),
             );
             if (foundSymbols.length > 0) {
                 throw new Error(
-                    `plugin-kernel contains forbidden business symbols: ${foundSymbols.join(', ')}`,
+                    `${fixture.name} contains forbidden business symbols: ${foundSymbols.join(', ')}`,
                 );
             }
         }

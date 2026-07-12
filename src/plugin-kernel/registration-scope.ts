@@ -1,6 +1,7 @@
 import {
     createDisposable,
     disposeInReverse,
+    disposeInReverseSync,
     type CommitAwareDisposable,
     type Disposable,
 } from './disposable.js';
@@ -93,6 +94,24 @@ export class RegistrationScope implements Disposable {
         return errors;
     }
 
+    rollbackSync(): readonly unknown[] {
+        if (this.state === 'disposed') return Object.freeze([]);
+        const errors = [
+            ...disposeInReverseSync(
+                this.entries.map((entry) => entry.disposable),
+                { pluginId: this.pluginId, ...this.options },
+            ),
+            ...disposeInReverseSync(this.finalizers, {
+                pluginId: this.pluginId,
+                ...this.options,
+            }),
+        ];
+        this.entries.length = 0;
+        this.finalizers.length = 0;
+        this.state = 'disposed';
+        return Object.freeze(errors);
+    }
+
     async dispose(): Promise<void> {
         if (this.state === 'disposed') return;
         const errors = [
@@ -111,6 +130,18 @@ export class RegistrationScope implements Disposable {
         if (errors.length > 0) {
             throw new PluginAggregateError(
                 `[ImageEditor] Plugin "${this.pluginId}" cleanup failed.`,
+                errors,
+                { pluginId: this.pluginId },
+            );
+        }
+    }
+
+    disposeSync(): void {
+        if (this.state === 'disposed') return;
+        const errors = this.rollbackSync();
+        if (errors.length > 0) {
+            throw new PluginAggregateError(
+                `[ImageEditor] Plugin "${this.pluginId}" synchronous cleanup failed.`,
                 errors,
                 { pluginId: this.pluginId },
             );

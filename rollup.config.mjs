@@ -27,6 +27,7 @@
  */
 
 import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
 
 const FORMAT = process.env.FORMAT ?? 'umd';
@@ -37,6 +38,14 @@ const FORMAT = process.env.FORMAT ?? 'umd';
  * decomposed `dist/esm/<subsystem>/...` tree into a single output file.
  */
 const INPUT = 'dist/esm/index.js';
+const CJS_INPUTS = {
+    index: INPUT,
+    'core/index': 'dist/esm/core/index.js',
+    'foundations/overlay/index': 'dist/esm/foundations/overlay/index.js',
+    'plugins/transform/index': 'dist/esm/plugins/transform/index.js',
+    'plugins/mask/index': 'dist/esm/plugins/mask/index.js',
+    'plugins/history/index': 'dist/esm/plugins/history/index.js',
+};
 
 /**
  * `fabric` is a peer dependency. It must never be inlined into the CJS or
@@ -47,15 +56,17 @@ const EXTERNAL = ['fabric'];
 
 const configs = {
     cjs: {
-        input: INPUT,
+        input: CJS_INPUTS,
         external: EXTERNAL,
         output: {
-            file: 'dist/cjs/index.cjs',
+            dir: 'dist/cjs',
+            entryFileNames: '[name].cjs',
+            chunkFileNames: 'chunks/[name]-[hash].cjs',
             format: 'cjs',
             exports: 'named',
             sourcemap: true,
         },
-        plugins: [resolve()],
+        plugins: [resolve(), commonjs()],
     },
     umd: {
         input: INPUT,
@@ -68,7 +79,7 @@ const configs = {
             globals: { fabric: 'fabric' },
             sourcemap: true,
         },
-        plugins: [resolve(), terser()],
+        plugins: [resolve(), commonjs(), terser()],
     },
 };
 

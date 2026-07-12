@@ -48,6 +48,12 @@ export class CapabilityRegistry {
         registration.commit();
         return registration;
     }
+    provideHost(token, implementation, providerPluginId = '@bensitu/core') {
+        if (!isCapabilityToken(token)) {
+            throw new InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
+        }
+        return this.provide(token, implementation, providerPluginId);
+    }
     providePending(token, implementation, providerPluginId, transactionId) {
         this.assertActive('provide a capability');
         validateProvider(token, implementation, providerPluginId);

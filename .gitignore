@@ -141,3 +141,6 @@ examples/*/dist/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# refactor documentation
+docs/refactor/*

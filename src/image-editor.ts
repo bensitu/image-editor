@@ -9,6 +9,16 @@
  */
 
 import type * as FabricNS from 'fabric';
+import {
+    fullFacadeStatePlugin,
+    type FullFacadeMementoState,
+} from './compatibility/full-facade-state-plugin.js';
+import { fullFacadeAnnotationPlugin } from './compatibility/full-facade-annotation-plugin.js';
+import {
+    DeferredHistoryPort,
+    PluginHistoryAdapter,
+} from './compatibility/plugin-history-adapter.js';
+import { ImageEditorCore } from './core-runtime/image-editor-core.js';
 import { reportError, reportWarning } from './core/callback-reporter.js';
 import { IdleGuardError } from './core/errors.js';
 import {
@@ -104,8 +114,10 @@ import {
 import {
     exitTextMode as exitTextModeImpl,
     finalizeActiveTextEditing,
+    attachTextEditingHandlersToAnnotations,
     type TextControllerContext,
 } from './annotation/text-controller.js';
+import { syncAnnotationRuntimeStates } from './annotation/annotation-style.js';
 import {
     exitDrawMode as exitDrawModeImpl,
     setDrawSubMode as setDrawSubModeImpl,
@@ -160,7 +172,6 @@ import {
     exportImageBase64Action,
     exportImageFileAction,
     mergeAnnotationsAction,
-    mergeMasksAction,
 } from './export/export-actions.js';
 import { loadImage as loadImageImpl } from './image/image-loader.js';
 import { loadImageFile as loadImageFileImpl } from './image/image-file-loader.js';
@@ -177,7 +188,6 @@ import {
     type ImageDisplayGeometry,
 } from './image/display-geometry.js';
 import { applyCanvasDimensions, type ViewportSize } from './image/layout-manager.js';
-import { TransformController, type TransformContext } from './image/transform-controller.js';
 import {
     flipHorizontalAction,
     flipVerticalAction,
@@ -224,11 +234,6 @@ import type {
 } from './overlay/overlay-state-types.js';
 
 import {
-    createMaskAction,
-    removeAllMasksAction as removeAllMasksActionImpl,
-    removeSelectedMaskAction,
-} from './mask/mask-actions.js';
-import {
     hideAllMaskLabels,
     removeLabelForMask,
     showLabelForMask,
@@ -267,6 +272,10 @@ import {
 } from './tool-mode/tool-mode-policy.js';
 import { isSupportedImageDataUrl } from './utils/file.js';
 import { detectSourceMimeType } from './image/image-resampler.js';
+import { overlayFoundationPlugin } from './foundations/overlay/index.js';
+import { historyPlugin } from './plugins/history/index.js';
+import { maskPlugin, type MaskPluginApi } from './plugins/mask/index.js';
+import { transformPlugin, type TransformPluginApi } from './plugins/transform/index.js';
 
 /**
  * Private marker used only by facade-created option objects. Matching tokens
@@ -330,6 +339,17 @@ function isPositiveFiniteDimension(value: number): boolean {
     return Number.isFinite(value) && value > 0;
 }
 
+function getCanvasActiveObjects(canvas: FabricNS.Canvas | null): FabricNS.FabricObject[] {
+    if (!canvas) return [];
+    const candidate = canvas as FabricNS.Canvas & {
+        getActiveObjects?: () => FabricNS.FabricObject[];
+        getActiveObject?: () => FabricNS.FabricObject | null;
+    };
+    if (typeof candidate.getActiveObjects === 'function') return candidate.getActiveObjects();
+    const active = candidate.getActiveObject?.();
+    return active ? [active] : [];
+}
+
 // ─── ImageEditor ─────────────────────────────────────────────────────────────
 
 /**
@@ -356,6 +376,11 @@ export class ImageEditor {
     private readonly runtime: EditorRuntime;
     private readonly contextFactory: EditorContextFactory;
     private readonly actionAccessFactory: EditorActionAccessFactory;
+    private readonly historyFacade: DeferredHistoryPort;
+    private pluginCore: ImageEditorCore | null = null;
+    private pluginHistoryAdapter: PluginHistoryAdapter | null = null;
+    private transformPluginApi: TransformPluginApi | null = null;
+    private maskPluginApi: MaskPluginApi | null = null;
 
     // ── Callbacks ───────────────────────────────────────────────────────────
     // The `onImageLoaded`, `onError`, and `onWarning` callbacks live on the
@@ -381,10 +406,13 @@ export class ImageEditor {
         const detected = detectFabric(fabricModuleOrOptions, options);
         const resolvedOptions = resolveOptions(detected.options);
 
+        this.historyFacade = new DeferredHistoryPort(resolvedOptions.maxHistorySize);
+
         this.runtime = new EditorRuntime(
             detected.fabric ?? ({} as FabricModule),
             detected.isFabricLoaded,
             resolvedOptions,
+            this.historyFacade,
         );
 
         const rawDefaultLayoutMode = (detected.options as Record<string, unknown>)
@@ -420,6 +448,230 @@ export class ImageEditor {
         const wiring = this.createRuntimeWiring();
         this.contextFactory = wiring.contextFactory;
         this.actionAccessFactory = wiring.actionAccessFactory;
+    }
+
+    private initializePluginRuntime(): void {
+        if (this.pluginCore) return;
+        const options = this.runtime.options;
+        const core = new ImageEditorCore(this.runtime.fabricModule, {
+            canvasWidth: options.canvasWidth,
+            canvasHeight: options.canvasHeight,
+            backgroundColor: options.backgroundColor,
+            defaultLayoutMode: this.runtime.currentLayoutMode,
+            groupSelection: options.groupSelection,
+            maxInputBytes: options.maxInputBytes,
+            maxInputPixels: options.maxInputPixels,
+            imageLoadTimeoutMs: options.imageLoadTimeoutMs,
+            maxExportPixels: options.maxExportPixels,
+            maxExportDimension: options.maxExportDimension,
+            exportMultiplier: options.exportMultiplier,
+            onError: options.onError ?? undefined,
+            onWarning: options.onWarning ?? undefined,
+        });
+
+        let historyAdapter: PluginHistoryAdapter | null = null;
+        try {
+            const history = core.use(historyPlugin({ maxSize: options.maxHistorySize }));
+            core.use(overlayFoundationPlugin());
+            const transform = core.use(
+                transformPlugin({
+                    animationDuration: options.animationDuration,
+                    minScale: options.minScale,
+                    maxScale: options.maxScale,
+                    rotationStep: options.rotationStep,
+                }),
+            );
+            const masks = core.use(
+                maskPlugin({
+                    defaultWidth: options.defaultMaskWidth,
+                    defaultHeight: options.defaultMaskHeight,
+                    defaultConfig: options.defaultMaskConfig,
+                    rotatable: options.maskRotatable,
+                    label: options.maskLabelOnSelect ? options.label : false,
+                    labelOffset: options.maskLabelOffset,
+                    listOrder: options.maskListOrder,
+                    bindToImageTransform: options.bindMasksToImageTransform,
+                    namePrefix: options.maskName,
+                }),
+            );
+            core.use(
+                fullFacadeAnnotationPlugin({
+                    bindToImageTransform: options.bindAnnotationsToImageTransform,
+                    textFlipBehavior: options.textAnnotationFlipBehavior,
+                }),
+            );
+            core.use(
+                fullFacadeStatePlugin({
+                    capture: () => this.captureFullFacadeMementoState(),
+                    restore: (state) => this.restoreFullFacadeMementoState(state),
+                    clearState: () => this.resetFullFacadeMementoState(),
+                }),
+            );
+
+            historyAdapter = new PluginHistoryAdapter(
+                core,
+                history,
+                options.maxHistorySize,
+                () => undefined,
+            );
+            this.historyFacade.attach(historyAdapter);
+            this.pluginCore = core;
+            this.pluginHistoryAdapter = historyAdapter;
+            this.transformPluginApi = transform;
+            this.maskPluginApi = masks;
+            this.runtime.transformController = Object.freeze({
+                scaleImage: async (factor: number) => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.scale(factor);
+                    this.synchronizeRuntimeTransformState();
+                },
+                rotateImage: async (degrees: number) => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.rotate(degrees);
+                    this.synchronizeRuntimeTransformState();
+                },
+                flipHorizontal: async () => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.flipHorizontal();
+                    this.synchronizeRuntimeTransformState();
+                },
+                flipVertical: async () => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.flipVertical();
+                    this.synchronizeRuntimeTransformState();
+                },
+                resetImageTransform: async () => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.resetImageTransform();
+                    this.synchronizeRuntimeTransformState();
+                },
+            });
+        } catch (error) {
+            if (historyAdapter) {
+                this.historyFacade.detach(historyAdapter);
+                historyAdapter.dispose();
+            }
+            core.dispose();
+            throw error;
+        }
+    }
+
+    private async synchronizePluginCoreImage(): Promise<void> {
+        if (!this.pluginCore || !this.runtime.canvas || this.runtime.isDisposed) return;
+        this.transformPluginApi?.synchronizeCompatibilityState({
+            scale: this.runtime.currentScale,
+            rotationDegrees: this.runtime.currentRotation,
+            flipX: this.runtime.originalImage?.flipX === true,
+            flipY: this.runtime.originalImage?.flipY === true,
+        });
+        await this.pluginCore.synchronizeCompatibilityImage({
+            baseImage: this.runtime.originalImage,
+            baseImageScale: this.runtime.baseImageScale,
+            imageMimeType: this.runtime.currentImageMimeType,
+            lifecycle: 'none',
+        });
+    }
+
+    private synchronizeRuntimeTransformState(): void {
+        const state = this.transformPluginApi?.getState();
+        if (!state) return;
+        this.runtime.currentScale = state.scale;
+        this.runtime.currentRotation = state.rotationDegrees;
+    }
+
+    private captureFullFacadeMementoState(): FullFacadeMementoState {
+        const transformState = this.transformPluginApi?.getState();
+        const selectedAnnotationIds = getCanvasActiveObjects(this.runtime.canvas)
+            .filter(isAnnotationObject)
+            .map((annotation) => annotation.annotationId);
+        return Object.freeze({
+            currentScale: transformState?.scale ?? this.runtime.currentScale,
+            currentRotation: transformState?.rotationDegrees ?? this.runtime.currentRotation,
+            baseImageScale: this.runtime.baseImageScale,
+            imageMimeType: this.runtime.currentImageMimeType,
+            annotationCounter: this.runtime.annotationCounter,
+            imageFilterConfig: cloneResolvedImageFilterConfig(
+                this.runtime.currentImageFilterConfig,
+            ),
+            lastCommittedImageFilterConfig: cloneResolvedImageFilterConfig(
+                this.runtime.lastCommittedImageFilterConfig,
+            ),
+            selectedAnnotationIds: Object.freeze(selectedAnnotationIds),
+        });
+    }
+
+    private restoreFullFacadeMementoState(state: FullFacadeMementoState): void {
+        const canvas = this.runtime.canvas;
+        if (!canvas || this.runtime.isDisposed) return;
+        const annotations = canvas.getObjects().filter(isAnnotationObject);
+        const originalImage = canvas.getObjects().find(isBaseImageObject) ?? null;
+
+        this.runtime.originalImage = originalImage;
+        this.runtime.isImageLoadedToCanvas = originalImage !== null;
+        this.runtime.currentScale = state.currentScale;
+        this.runtime.currentRotation = state.currentRotation;
+        this.runtime.baseImageScale = state.baseImageScale;
+        this.runtime.currentImageMimeType = state.imageMimeType;
+        this.runtime.annotationCounter = Math.max(
+            state.annotationCounter,
+            ...annotations.map((annotation) => annotation.annotationId),
+        );
+        this.runtime.maskCounter = this.getMasks().reduce(
+            (maximum, mask) => Math.max(maximum, mask.maskId),
+            0,
+        );
+        this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(
+            state.imageFilterConfig,
+        );
+        this.runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(
+            state.lastCommittedImageFilterConfig,
+        );
+        this.transformPluginApi?.synchronizeCompatibilityState({
+            scale: state.currentScale,
+            rotationDegrees: state.currentRotation,
+            flipX: originalImage?.flipX === true,
+            flipY: originalImage?.flipY === true,
+        });
+
+        syncAnnotationRuntimeStates(annotations);
+        attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), annotations);
+        const selectedAnnotations = annotations.filter((annotation) =>
+            state.selectedAnnotationIds.includes(annotation.annotationId),
+        );
+        if (selectedAnnotations.length === 1) canvas.setActiveObject(selectedAnnotations[0]!);
+
+        try {
+            this.runtime.lastSnapshot = this.captureSnapshotInternal();
+        } catch (error) {
+            reportWarning(this.runtime.options, error, 'Compatibility snapshot refresh failed.');
+        }
+        canvas.requestRenderAll();
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateAnnotationList();
+        this.updateUi();
+        this.updatePlaceholderStatus();
+        const operation = this.runtime.activeStateRestoreOperation ?? 'loadFromState';
+        const context = this.buildCallbackContext(operation, true);
+        this.handleSelectionChanged(getCanvasActiveObjects(canvas));
+        this.emitMasksChanged(context);
+        this.emitAnnotationsChanged(context);
+        this.emitImageChanged(context);
+    }
+
+    private resetFullFacadeMementoState(): void {
+        this.restoreFullFacadeMementoState({
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: 1,
+            imageMimeType: null,
+            annotationCounter: 0,
+            imageFilterConfig: cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG),
+            lastCommittedImageFilterConfig: cloneResolvedImageFilterConfig(
+                DEFAULT_IMAGE_FILTER_CONFIG,
+            ),
+            selectedAnnotationIds: Object.freeze([]),
+        });
     }
 
     private createRuntimeWiring(): EditorRuntimeWiring {
@@ -608,13 +860,13 @@ export class ImageEditor {
 
         this.runtime.elements = resolveElementTargets(elementMap);
 
+        this.initializePluginRuntime();
         this.initCanvas();
         // Bindings are anchored to the canvas owner document.
         this.runtime.domBindings = new DomBindings(
             (key) => this.resolveElement(key),
             () => this.runtime.isDisposed,
         );
-        this.runtime.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
         this.updateMaskList();
@@ -678,6 +930,27 @@ export class ImageEditor {
             selection: this.runtime.options.groupSelection,
             preserveObjectStacking: true,
         });
+
+        this.pluginCore?.attachExistingCanvas(this.runtime.canvas, {
+            canvasElement,
+            containerElement: this.runtime.containerElement,
+            placeholderElement: this.runtime.placeholderElement,
+            onHostStateChange: (state) => {
+                this.runtime.originalImage = state.baseImage as NonNullable<
+                    typeof this.runtime.originalImage
+                > | null;
+                this.runtime.baseImageScale = state.baseImageScale;
+                this.runtime.currentImageMimeType = state.imageMimeType;
+                this.runtime.isImageLoadedToCanvas = state.baseImage !== null;
+            },
+            finalizeBaseImageGeometry: () => {
+                const image = this.runtime.originalImage;
+                if (!image) return;
+                this.updateCanvasSizeToImageBounds();
+                this.alignObjectBoundingBoxToCanvasTopLeft(image);
+            },
+        });
+        this.pluginHistoryAdapter?.resetBaseline();
 
         this.runtime.canvas.on('selection:created', (e) => {
             this.handleSelectionChanged((e as { selected: FabricNS.FabricObject[] }).selected);
@@ -1046,6 +1319,16 @@ export class ImageEditor {
             this.hideAllMaskLabels();
 
             await loadImageImpl(loadImageContext, base64, options);
+            const isInternalLoad =
+                options[TRUSTED_STATE_RESTORE] === true ||
+                options[INTERNAL_OPERATION_TOKEN] !== undefined;
+            await this.pluginCore?.synchronizeCompatibilityImage({
+                baseImage: this.runtime.originalImage,
+                baseImageScale: this.runtime.baseImageScale,
+                imageMimeType: this.runtime.currentImageMimeType,
+                lifecycle: isInternalLoad ? 'none' : 'loaded',
+            });
+            if (!isInternalLoad) this.pluginHistoryAdapter?.resetBaseline();
         } finally {
             this.runtime.operationGuard.endLoading();
             this.emitBusyChangeIfChanged(callbackContext);
@@ -1494,8 +1777,7 @@ export class ImageEditor {
      * editor history, metadata synchronization, and lifecycle callbacks.
      */
     getMasks(): MaskObject[] {
-        if (!this.runtime.canvas) return [];
-        return this.runtime.canvas.getObjects().filter(isMaskObject).slice();
+        return this.maskPluginApi ? [...this.maskPluginApi.getAll()] : [];
     }
 
     /**
@@ -2023,15 +2305,6 @@ export class ImageEditor {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // PRIVATE — transform controller wiring
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /** Builds the transform controller context from the shared runtime state. */
-    private buildTransformContext(): TransformContext {
-        return this.contextFactory.buildTransformContext();
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
     // PUBLIC — scale / rotate / reset
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -2099,6 +2372,13 @@ export class ImageEditor {
             jsonString,
             options,
         );
+        await this.pluginCore?.synchronizeCompatibilityImage({
+            baseImage: this.runtime.originalImage,
+            baseImageScale: this.runtime.baseImageScale,
+            imageMimeType: this.runtime.currentImageMimeType,
+            lifecycle: 'none',
+        });
+        this.pluginHistoryAdapter?.resetBaseline();
     }
 
     /**
@@ -2182,17 +2462,64 @@ export class ImageEditor {
 
     /** Creates and adds a mask shape, returning `null` when the operation cannot run. */
     createMask(config: MaskConfig = {}): MaskObject | null {
-        return createMaskAction(this.actionAccessFactory.buildMaskActionAccess(), config);
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.maskPluginApi) return null;
+        if (!this.canRunIdleOperation('createMask')) return null;
+        const context = this.buildCallbackContext('createMask', false);
+        let mask: MaskObject;
+        try {
+            void this.synchronizePluginCoreImage();
+            mask = this.withSelectionChangeContext(context, () =>
+                this.maskPluginApi!.create(config),
+            );
+        } catch (error) {
+            reportWarning(this.runtime.options, error, 'Mask creation failed.');
+            return null;
+        }
+        this.runtime.lastMask = mask;
+        this.runtime.maskCounter = Math.max(this.runtime.maskCounter, mask.maskId);
+        this.updateMaskList();
+        this.updateUi();
+        this.emitMasksChanged(context);
+        this.emitImageChanged(context);
+        return mask;
     }
 
     /** Removes the currently selected mask and its label. */
     removeSelectedMask(): void {
-        removeSelectedMaskAction(this.actionAccessFactory.buildMaskActionAccess());
+        if (!this.runtime.canvas || !this.maskPluginApi) return;
+        if (!this.canRunIdleOperation('removeSelectedMask')) return;
+        const active = this.runtime.canvas.getActiveObject();
+        if (!active || !isMaskObject(active)) return;
+        const before = this.getMasks().length;
+        const context = this.buildCallbackContext('removeSelectedMask', false);
+        this.withSelectionChangeContext(context, () => this.maskPluginApi!.remove(active.maskUid));
+        const remainingMasks = this.getMasks();
+        this.runtime.lastMask = remainingMasks[remainingMasks.length - 1] ?? null;
+        this.updateMaskList();
+        this.updateUi();
+        if (this.getMasks().length !== before) {
+            this.emitMasksChanged(context);
+            this.emitImageChanged(context);
+        }
     }
 
     /** Removes all masks and labels, or no-ops while guarded operations are active. */
     removeAllMasks(options: RemoveAllMasksOptions = {}): void {
-        removeAllMasksActionImpl(this.actionAccessFactory.buildMaskActionAccess(), options);
+        if (!this.runtime.canvas || !this.maskPluginApi) return;
+        if (!this.canRunIdleOperation('removeAllMasks', options)) return;
+        const before = this.getMasks().length;
+        const context = this.buildCallbackContext('removeAllMasks', false);
+        this.withSelectionChangeContext(context, () =>
+            this.maskPluginApi!.removeAll({ saveHistory: options.saveHistory }),
+        );
+        this.runtime.lastMask = null;
+        this.runtime.maskCounter = 0;
+        this.updateMaskList();
+        this.updateUi();
+        if (before > 0) {
+            this.emitMasksChanged(context);
+            this.emitImageChanged(context);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2633,7 +2960,19 @@ export class ImageEditor {
      * Resolves without mutation while an animation or incompatible tool mode is active.
      */
     async mergeMasks(): Promise<void> {
-        await mergeMasksAction(this.actionAccessFactory.buildExportActionAccess());
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.maskPluginApi) return;
+        if (!this.canRunIdleOperation('mergeMasks')) return;
+        const before = this.getMasks().length;
+        if (before === 0) return;
+        const context = this.buildCallbackContext('mergeMasks', false);
+        await this.maskPluginApi.flatten();
+        this.runtime.lastMask = null;
+        this.runtime.maskCounter = 0;
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateUi();
+        this.emitMasksChanged(context);
+        this.emitImageChanged(context);
     }
 
     /** Triggers a browser download, or no-ops while guarded operations are active. */
@@ -2919,9 +3258,40 @@ export class ImageEditor {
             },
         );
 
-        const canvasDispose = this.runtime.canvas
-            ? safelyDisposeCanvas(this.runtime.canvas)
-            : Promise.resolve();
+        const canvas = this.runtime.canvas;
+        const pluginCore = this.pluginCore;
+        const historyAdapter = this.pluginHistoryAdapter;
+        if (historyAdapter) {
+            this.historyFacade.detach(historyAdapter);
+            historyAdapter.dispose();
+        }
+        this.pluginCore = null;
+        this.pluginHistoryAdapter = null;
+        this.transformPluginApi = null;
+        this.maskPluginApi = null;
+
+        const disposeCanvas = (): Promise<void> =>
+            canvas ? safelyDisposeCanvas(canvas) : Promise.resolve();
+        let canvasDispose: Promise<void>;
+        if (pluginCore?.hasActiveCompatibilityMutation()) {
+            canvasDispose = pluginCore
+                .disposeAsync()
+                .catch((error: unknown) => {
+                    reportWarning(
+                        this.runtime.options,
+                        error,
+                        'Plugin cleanup failed during dispose.',
+                    );
+                })
+                .then(disposeCanvas);
+        } else {
+            try {
+                pluginCore?.dispose();
+            } catch (error) {
+                reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
+            }
+            canvasDispose = disposeCanvas();
+        }
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
@@ -2930,6 +3300,9 @@ export class ImageEditor {
         this.emitBusyChangeIfChanged(context);
         this.emitOptionCallback('onEditorDisposed', [context]);
         if (waitForCanvasDispose) return canvasDispose;
+        void canvasDispose.catch((error: unknown) => {
+            reportWarning(this.runtime.options, error, 'Canvas cleanup failed during dispose.');
+        });
         return undefined;
     }
 }

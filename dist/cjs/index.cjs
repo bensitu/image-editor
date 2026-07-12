@@ -2,260 +2,1425 @@
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
-function reportWarning(options, error, message) {
-    const warningCallback = options.onWarning;
-    if (typeof warningCallback !== 'function')
-        return;
-    try {
-        warningCallback(error, message);
+var internalCapabilities = require('./chunks/internal-capabilities-DIerpWRs.cjs');
+var plugins_mask_index = require('./chunks/index-C01oMxk8.cjs');
+var plugins_transform_index = require('./chunks/index-CboFlSRG.cjs');
+var foundations_overlay_index = require('./chunks/index-Cs4bNsWm.cjs');
+var core_index = require('./chunks/index-DTL2QdkR.cjs');
+var plugins_history_index = require('./plugins/history/index.cjs');
+require('./chunks/errors-CQdnZvQh.cjs');
+require('./chunks/disposable-Sj4tt6Lk.cjs');
+
+const FULL_FACADE_STATE_ID = '@bensitu/full-facade';
+const COMPATIBILITY_OBJECT_PROPERTIES = Object.freeze([
+    'sessionObjectType',
+    'isCropRect',
+    'maskLabel',
+    'originalAlpha',
+    'originalStroke',
+    'originalStrokeWidth',
+    'hasControls',
+    'selectable',
+    'strokeUniform',
+    'lockRotation',
+    'transparentCorners',
+    'borderColor',
+    'cornerColor',
+    'cornerSize',
+    'flipX',
+    'flipY',
+    'isMosaicPreview',
+    'annotationId',
+    'annotationType',
+    'shapeAnnotationKind',
+    'annotationName',
+    'annotationHidden',
+    'annotationLocked',
+    'annotationSelectable',
+    'annotationEvented',
+    'annotationHasControls',
+    'annotationEditable',
+    'overlayPersistentId',
+    'overlayMetadata',
+]);
+function isRecord$1(value) {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function isFiniteNumber$1(value) {
+    return typeof value === 'number' && Number.isFinite(value);
+}
+function isImageMimeType$1(value) {
+    return (value === null || value === 'image/jpeg' || value === 'image/png' || value === 'image/webp');
+}
+function validateState(value) {
+    if (!isRecord$1(value))
+        return false;
+    return (isFiniteNumber$1(value.currentScale) &&
+        value.currentScale > 0 &&
+        isFiniteNumber$1(value.currentRotation) &&
+        isFiniteNumber$1(value.baseImageScale) &&
+        value.baseImageScale > 0 &&
+        isImageMimeType$1(value.imageMimeType) &&
+        Number.isSafeInteger(value.annotationCounter) &&
+        Number(value.annotationCounter) >= 0 &&
+        isRecord$1(value.imageFilterConfig) &&
+        isRecord$1(value.lastCommittedImageFilterConfig) &&
+        Array.isArray(value.selectedAnnotationIds) &&
+        value.selectedAnnotationIds.every((id) => Number.isSafeInteger(id) && Number(id) > 0));
+}
+const fullFacadeStatePluginRef = internalCapabilities.definePluginRef(FULL_FACADE_STATE_ID, '1.0.0');
+function fullFacadeStatePlugin(access) {
+    return Object.freeze({
+        ref: fullFacadeStatePluginRef,
+        version: '1.0.0',
+        setupMode: 'sync',
+        requires: [{ token: internalCapabilities.CORE_STATE_CAPABILITY, range: '^1.0.0' }],
+        setup(context) {
+            const state = context.capabilities.require(internalCapabilities.CORE_STATE_CAPABILITY);
+            context.addDisposable(state.objectProperties.register({
+                owner: FULL_FACADE_STATE_ID,
+                keys: COMPATIBILITY_OBJECT_PROPERTIES,
+            }));
+            context.addDisposable(state.transientObjects.register(FULL_FACADE_STATE_ID, (object) => {
+                const candidate = object;
+                return (candidate.isCropRect === true ||
+                    candidate.maskLabel === true ||
+                    candidate.isMosaicPreview === true ||
+                    typeof candidate.sessionObjectType === 'string');
+            }));
+            context.addDisposable(state.slices.register({
+                id: FULL_FACADE_STATE_ID,
+                version: 1,
+                capture: () => access.capture(),
+                validate: (value) => validateState(value)
+                    ? { valid: true, value }
+                    : {
+                        valid: false,
+                        message: 'Full facade compatibility state is malformed.',
+                    },
+                restore: (value) => access.restore(value),
+                clearState: () => access.clearState(),
+            }));
+            return Object.freeze({});
+        },
+    });
+}
+
+function isAnnotationLocked(annotation) {
+    return annotation.annotationLocked === true;
+}
+function isAnnotationUnlocked(annotation) {
+    return !isAnnotationLocked(annotation);
+}
+
+function setObjectProps(object, props) {
+    object.set(props);
+}
+function readBoolean$1(value, fallback) {
+    return typeof value === 'boolean' ? value : fallback;
+}
+function getBaseSelectable(annotation) {
+    return readBoolean$1(annotation.annotationSelectable, readBoolean$1(annotation.selectable, true));
+}
+function getBaseEvented(annotation) {
+    return readBoolean$1(annotation.annotationEvented, readBoolean$1(annotation.evented, true));
+}
+function getBaseHasControls(annotation) {
+    return readBoolean$1(annotation.annotationHasControls, readBoolean$1(annotation.hasControls, true));
+}
+function getBaseEditable(annotation) {
+    return readBoolean$1(annotation.annotationEditable, readBoolean$1(annotation.editable, true));
+}
+function syncTextEditability(annotation, editable) {
+    const textObject = annotation;
+    textObject.editable = editable;
+}
+function ensureBaseInteractivityMetadata(annotation) {
+    if (typeof annotation.annotationSelectable !== 'boolean') {
+        annotation.annotationSelectable = readBoolean$1(annotation.selectable, true);
     }
-    catch (callbackError) {
-        console.warn('[ImageEditor] onWarning callback threw', callbackError);
+    if (typeof annotation.annotationEvented !== 'boolean') {
+        annotation.annotationEvented = readBoolean$1(annotation.evented, true);
+    }
+    if (typeof annotation.annotationHasControls !== 'boolean') {
+        annotation.annotationHasControls = readBoolean$1(annotation.hasControls, true);
+    }
+    if (plugins_mask_index.isTextAnnotationObject(annotation) && typeof annotation.annotationEditable !== 'boolean') {
+        annotation.annotationEditable = getBaseEditable(annotation);
     }
 }
-function reportError(options, error, message) {
-    const errorCallback = options.onError;
-    if (typeof errorCallback !== 'function')
+function syncAnnotationRuntimeState(annotation) {
+    var _a, _b;
+    const hidden = annotation.annotationHidden === true;
+    const locked = isAnnotationLocked(annotation);
+    if (locked) {
+        ensureBaseInteractivityMetadata(annotation);
+        setObjectProps(annotation, {
+            visible: !hidden,
+            selectable: false,
+            evented: false,
+            hasControls: false,
+            lockMovementX: true,
+            lockMovementY: true,
+            lockScalingX: true,
+            lockScalingY: true,
+            lockRotation: true,
+        });
+        if (plugins_mask_index.isTextAnnotationObject(annotation)) {
+            syncTextEditability(annotation, false);
+        }
+        (_a = annotation.setCoords) === null || _a === void 0 ? void 0 : _a.call(annotation);
+        return;
+    }
+    setObjectProps(annotation, {
+        visible: !hidden,
+        selectable: getBaseSelectable(annotation),
+        evented: getBaseEvented(annotation),
+        hasControls: getBaseHasControls(annotation),
+        lockMovementX: false,
+        lockMovementY: false,
+        lockScalingX: false,
+        lockScalingY: false,
+        lockRotation: false,
+    });
+    if (plugins_mask_index.isTextAnnotationObject(annotation)) {
+        syncTextEditability(annotation, getBaseEditable(annotation));
+    }
+    (_b = annotation.setCoords) === null || _b === void 0 ? void 0 : _b.call(annotation);
+}
+function syncAnnotationRuntimeStates(annotations) {
+    annotations.forEach(syncAnnotationRuntimeState);
+}
+
+const DEFAULT_IMAGE_FILTER_CONFIG = Object.freeze({
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    blur: 0,
+    sharpen: 0,
+    grayscale: false,
+    sepia: false,
+    vintage: false,
+});
+function isConfigObject$1(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function hasOwn$1(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
+}
+function normalizeNumberField(raw, key, fallback, min, max, warnings) {
+    if (!hasOwn$1(raw, key))
+        return fallback;
+    const value = raw[key];
+    if (value === undefined || value === null)
+        return 0;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        warnings.push(key);
+        return fallback;
+    }
+    if (value < min || value > max) {
+        warnings.push(key);
+        return Math.max(min, Math.min(max, value));
+    }
+    return value;
+}
+function normalizeBooleanField(raw, key, fallback, warnings) {
+    if (!hasOwn$1(raw, key))
+        return fallback;
+    const value = raw[key];
+    if (value === undefined || value === null)
+        return false;
+    if (typeof value !== 'boolean') {
+        warnings.push(key);
+        return fallback;
+    }
+    return value;
+}
+function cloneResolvedImageFilterConfig(config) {
+    return { ...config };
+}
+function mergeImageFilterConfigPatch(current, patch) {
+    const raw = isConfigObject$1(patch) ? patch : {};
+    const warnings = [];
+    const config = {
+        brightness: normalizeNumberField(raw, 'brightness', current.brightness, -1, 1, warnings),
+        contrast: normalizeNumberField(raw, 'contrast', current.contrast, -1, 1, warnings),
+        saturation: normalizeNumberField(raw, 'saturation', current.saturation, -1, 1, warnings),
+        blur: normalizeNumberField(raw, 'blur', current.blur, 0, 1, warnings),
+        sharpen: normalizeNumberField(raw, 'sharpen', current.sharpen, 0, 1, warnings),
+        grayscale: normalizeBooleanField(raw, 'grayscale', current.grayscale, warnings),
+        sepia: normalizeBooleanField(raw, 'sepia', current.sepia, warnings),
+        vintage: normalizeBooleanField(raw, 'vintage', current.vintage, warnings),
+    };
+    return { config, warnings };
+}
+function normalizeImageFilterConfigSnapshot(value) {
+    if (!isConfigObject$1(value))
+        return cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
+    return mergeImageFilterConfigPatch(cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG), value).config;
+}
+function areResolvedImageFilterConfigsEqual(left, right) {
+    return (left.brightness === right.brightness &&
+        left.contrast === right.contrast &&
+        left.saturation === right.saturation &&
+        left.blur === right.blur &&
+        left.sharpen === right.sharpen &&
+        left.grayscale === right.grayscale &&
+        left.sepia === right.sepia &&
+        left.vintage === right.vintage);
+}
+function hasActiveImageFilters(config) {
+    return (config.brightness !== 0 ||
+        config.contrast !== 0 ||
+        config.saturation !== 0 ||
+        config.blur !== 0 ||
+        config.sharpen !== 0 ||
+        config.grayscale ||
+        config.sepia ||
+        config.vintage);
+}
+
+const SUPPORTED_IMAGE_EXTENSIONS = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+};
+const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
+function isSupportedImageDataUrl(value) {
+    if (typeof value !== 'string')
+        return false;
+    if (!value.toLowerCase().startsWith('data:image/'))
+        return false;
+    const match = /^data:(image\/[^;,]+)(?:[;,])/i.exec(value);
+    if (!match)
+        return false;
+    return SUPPORTED_IMAGE_MIME_TYPES.has(match[1].toLowerCase());
+}
+function inferImageMimeType(file) {
+    var _a, _b;
+    if (file.type && SUPPORTED_IMAGE_MIME_TYPES.has(file.type))
+        return file.type;
+    if (file.type)
+        return null;
+    const match = /\.([a-z0-9]+)$/i.exec(file.name);
+    const ext = (_a = match === null || match === void 0 ? void 0 : match[1]) === null || _a === void 0 ? void 0 : _a.toLowerCase();
+    if (!ext)
+        return null;
+    return (_b = SUPPORTED_IMAGE_EXTENSIONS[ext]) !== null && _b !== void 0 ? _b : null;
+}
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const fileReaderResult = reader.result;
+            if (typeof fileReaderResult === 'string') {
+                resolve(fileReaderResult);
+            }
+            else {
+                reject(new Error('FileReader returned a non-string result'));
+            }
+        };
+        reader.onerror = () => {
+            var _a;
+            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function readFileAsArrayBuffer(file) {
+    if (typeof file.arrayBuffer === 'function') {
+        return file.arrayBuffer();
+    }
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            if (result instanceof ArrayBuffer) {
+                resolve(result);
+            }
+            else {
+                reject(new Error('FileReader returned a non-ArrayBuffer result'));
+            }
+        };
+        reader.onerror = () => {
+            var _a;
+            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
+        };
+        reader.onabort = () => {
+            reject(new Error('FileReader read aborted'));
+        };
+        reader.readAsArrayBuffer(file);
+    });
+}
+function resetFileInput(input) {
+    if (!input)
         return;
     try {
-        errorCallback(error, message);
+        input.value = '';
     }
-    catch (callbackError) {
-        console.error('[ImageEditor] onError callback threw', callbackError);
+    catch {
     }
 }
 
-function fixPrototype(self, ctor) {
-    Object.setPrototypeOf(self, ctor.prototype);
+function withTimeout(promise, ms, label, onTimeout) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const timeoutId = setTimeout(() => {
+            try {
+                onTimeout === null || onTimeout === void 0 ? void 0 : onTimeout();
+            }
+            catch {
+            }
+            reject(new plugins_transform_index.ImageLoadTimeoutError(label, Date.now() - start));
+        }, ms);
+        promise.then((value) => {
+            clearTimeout(timeoutId);
+            resolve(value);
+        }, (err) => {
+            clearTimeout(timeoutId);
+            reject(err);
+        });
+    });
 }
-class ImageDecodeError extends Error {
-    constructor(message = 'Failed to decode image data URL.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageDecodeError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, ImageDecodeError);
+
+const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
+const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
+const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
+const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
+const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
+const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
+const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
+const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
+const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
+const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
+    'circle',
+    'ellipse',
+    'image',
+    'line',
+    'path',
+    'polygon',
+    'polyline',
+    'rect',
+    'text',
+    'textbox',
+]);
+const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
+    'editorObjectKind',
+    'sessionObjectType',
+    'maskId',
+    'maskUid',
+    'maskName',
+    'isCropRect',
+    'maskLabel',
+    'originalAlpha',
+    'originalStroke',
+    'originalStrokeWidth',
+    'hasControls',
+    'selectable',
+    'strokeUniform',
+    'lockRotation',
+    'transparentCorners',
+    'borderColor',
+    'cornerColor',
+    'cornerSize',
+    'flipX',
+    'flipY',
+    'isMosaicPreview',
+    'annotationId',
+    'annotationType',
+    'shapeAnnotationKind',
+    'annotationName',
+    'annotationHidden',
+    'annotationLocked',
+    'annotationSelectable',
+    'annotationEvented',
+    'annotationHasControls',
+    'annotationEditable',
+    'overlayPersistentId',
+    'overlayMetadata',
+]);
+function readFiniteNumber(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+function serializedTypeMatches(liveObject, jsonObject) {
+    const jsonType = typeof jsonObject.type === 'string' ? jsonObject.type.toLowerCase() : '';
+    const liveType = typeof liveObject.type === 'string' ? liveObject.type.toLowerCase() : '';
+    return !jsonType || liveType === jsonType;
+}
+function serializedPositionMatches(liveObject, jsonObject) {
+    var _a, _b;
+    const jsonLeft = readFiniteNumber(jsonObject.left);
+    const jsonTop = readFiniteNumber(jsonObject.top);
+    if (jsonLeft === null || jsonTop === null)
+        return true;
+    return (Math.abs(((_a = liveObject.left) !== null && _a !== void 0 ? _a : 0) - jsonLeft) < 0.5 &&
+        Math.abs(((_b = liveObject.top) !== null && _b !== void 0 ? _b : 0) - jsonTop) < 0.5);
+}
+function serializedNumberMatches(liveValue, jsonValue, fallback, tolerance) {
+    var _a;
+    const jsonNumber = readFiniteNumber(jsonValue);
+    if (jsonNumber === null)
+        return true;
+    const liveNumber = (_a = readFiniteNumber(liveValue)) !== null && _a !== void 0 ? _a : fallback;
+    return Math.abs(liveNumber - jsonNumber) < tolerance;
+}
+function serializedTransformMatches(liveObject, jsonObject) {
+    return (serializedNumberMatches(liveObject.angle, jsonObject.angle, 0, 0.5) &&
+        serializedNumberMatches(liveObject.scaleX, jsonObject.scaleX, 1, 0.0001) &&
+        serializedNumberMatches(liveObject.scaleY, jsonObject.scaleY, 1, 0.0001));
+}
+function serializedObjectMatches(liveObject, jsonObject) {
+    const live = liveObject;
+    if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
+        return live.maskUid === jsonObject.maskUid;
+    }
+    if (typeof jsonObject.maskId === 'number' && typeof live.maskId === 'number') {
+        return live.maskId === jsonObject.maskId;
+    }
+    if (typeof jsonObject.annotationId === 'number' && typeof live.annotationId === 'number') {
+        return live.annotationId === jsonObject.annotationId;
+    }
+    if (typeof jsonObject.sessionObjectType === 'string' &&
+        typeof live.sessionObjectType === 'string') {
+        return live.sessionObjectType === jsonObject.sessionObjectType;
+    }
+    if (typeof jsonObject.editorObjectKind === 'string' &&
+        typeof live.editorObjectKind === 'string' &&
+        live.editorObjectKind !== jsonObject.editorObjectKind) {
+        return false;
+    }
+    return (serializedTypeMatches(liveObject, jsonObject) &&
+        serializedPositionMatches(liveObject, jsonObject) &&
+        serializedTransformMatches(liveObject, jsonObject));
+}
+function findCanvasObjectForJson(canvasObjects, jsonObject, preferredIndex, consumedIndexes) {
+    const preferred = canvasObjects[preferredIndex];
+    if (preferred &&
+        !consumedIndexes.has(preferredIndex) &&
+        serializedObjectMatches(preferred, jsonObject)) {
+        consumedIndexes.add(preferredIndex);
+        return { object: preferred, index: preferredIndex };
+    }
+    const matchedIndex = canvasObjects.findIndex((candidate, index) => !consumedIndexes.has(index) && serializedObjectMatches(candidate, jsonObject));
+    if (matchedIndex < 0)
+        return null;
+    consumedIndexes.add(matchedIndex);
+    return { object: canvasObjects[matchedIndex], index: matchedIndex };
+}
+function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
+    if (!Array.isArray(jsonObjects))
+        return;
+    const consumedIndexes = new Set();
+    for (let index = 0; index < jsonObjects.length; index += 1) {
+        const jsonObject = jsonObjects[index];
+        if (!jsonObject)
+            continue;
+        const match = findCanvasObjectForJson(canvasObjects, jsonObject, index, consumedIndexes);
+        if (!match)
+            continue;
+        const liveObject = match.object;
+        if (typeof liveObject.editorObjectKind === 'string') {
+            jsonObject.editorObjectKind = liveObject.editorObjectKind;
+        }
+        if (typeof liveObject.sessionObjectType === 'string') {
+            jsonObject.sessionObjectType = liveObject.sessionObjectType;
+        }
+        if (typeof liveObject.maskId === 'number')
+            jsonObject.maskId = liveObject.maskId;
+        if (typeof liveObject.maskUid === 'string')
+            jsonObject.maskUid = liveObject.maskUid;
+        if (typeof liveObject.maskName === 'string')
+            jsonObject.maskName = liveObject.maskName;
+        if (typeof liveObject.originalAlpha === 'number') {
+            jsonObject.originalAlpha = liveObject.originalAlpha;
+        }
+        if (liveObject.originalStroke !== undefined) {
+            jsonObject.originalStroke = liveObject.originalStroke;
+        }
+        if (typeof liveObject.originalStrokeWidth === 'number') {
+            jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
+        }
+        if (typeof liveObject.hasControls === 'boolean') {
+            jsonObject.hasControls = liveObject.hasControls;
+        }
+        if (typeof liveObject.selectable === 'boolean') {
+            jsonObject.selectable = liveObject.selectable;
+        }
+        if (typeof liveObject.strokeUniform === 'boolean') {
+            jsonObject.strokeUniform = liveObject.strokeUniform;
+        }
+        if (typeof liveObject.lockRotation === 'boolean') {
+            jsonObject.lockRotation = liveObject.lockRotation;
+        }
+        if (typeof liveObject.transparentCorners === 'boolean') {
+            jsonObject.transparentCorners = liveObject.transparentCorners;
+        }
+        if (typeof liveObject.borderColor === 'string') {
+            jsonObject.borderColor = liveObject.borderColor;
+        }
+        if (typeof liveObject.cornerColor === 'string') {
+            jsonObject.cornerColor = liveObject.cornerColor;
+        }
+        if (typeof liveObject.cornerSize === 'number') {
+            jsonObject.cornerSize = liveObject.cornerSize;
+        }
+        if (typeof liveObject.flipX === 'boolean') {
+            jsonObject.flipX = liveObject.flipX;
+        }
+        if (typeof liveObject.flipY === 'boolean') {
+            jsonObject.flipY = liveObject.flipY;
+        }
+        if (liveObject.isCropRect === true)
+            jsonObject.isCropRect = true;
+        if (liveObject.maskLabel === true)
+            jsonObject.maskLabel = true;
+        if (liveObject.isMosaicPreview === true)
+            jsonObject.isMosaicPreview = true;
+        if (typeof liveObject.annotationId === 'number') {
+            jsonObject.annotationId = liveObject.annotationId;
+        }
+        if (typeof liveObject.annotationType === 'string') {
+            jsonObject.annotationType = liveObject.annotationType;
+        }
+        if (typeof liveObject.shapeAnnotationKind === 'string') {
+            jsonObject.shapeAnnotationKind = liveObject.shapeAnnotationKind;
+        }
+        if (typeof liveObject.annotationName === 'string') {
+            jsonObject.annotationName = liveObject.annotationName;
+        }
+        if (typeof liveObject.annotationHidden === 'boolean') {
+            jsonObject.annotationHidden = liveObject.annotationHidden;
+        }
+        if (typeof liveObject.annotationLocked === 'boolean') {
+            jsonObject.annotationLocked = liveObject.annotationLocked;
+        }
+        if (typeof liveObject.annotationSelectable === 'boolean') {
+            jsonObject.annotationSelectable = liveObject.annotationSelectable;
+        }
+        if (typeof liveObject.annotationEvented === 'boolean') {
+            jsonObject.annotationEvented = liveObject.annotationEvented;
+        }
+        if (typeof liveObject.annotationHasControls === 'boolean') {
+            jsonObject.annotationHasControls = liveObject.annotationHasControls;
+        }
+        if (typeof liveObject.annotationEditable === 'boolean') {
+            jsonObject.annotationEditable = liveObject.annotationEditable;
+        }
+        if (typeof liveObject.overlayPersistentId === 'string') {
+            jsonObject.overlayPersistentId = liveObject.overlayPersistentId;
+        }
+        if (liveObject.overlayMetadata !== undefined) {
+            jsonObject.overlayMetadata = liveObject.overlayMetadata;
+        }
     }
 }
-class ImageLoadTimeoutError extends Error {
-    constructor(label, elapsedMs) {
-        super(`Image load timed out after ${elapsedMs}ms during ${label}`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageLoadTimeoutError'
+function isActiveSelectionObject$2(object) {
+    if (!object)
+        return false;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type === 'activeselection')
+        return true;
+    const isType = object.isType;
+    return (typeof isType === 'function' &&
+        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
+}
+function saveState(input) {
+    var _a, _b, _c, _d;
+    const { canvas, currentScale, currentRotation, baseImageScale } = input;
+    const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
+    const activeMaskId = activeObject && plugins_mask_index.isMaskObject(activeObject)
+        ? activeObject.maskId
+        : typeof input.activeMaskId === 'number'
+            ? input.activeMaskId
+            : null;
+    const activeAnnotationId = activeObject && plugins_mask_index.isAnnotationObject(activeObject)
+        ? activeObject.annotationId
+        : typeof input.activeAnnotationId === 'number'
+            ? input.activeAnnotationId
+            : null;
+    if (isActiveSelectionObject$2(activeObject)) {
+        canvas.discardActiveObject();
+    }
+    const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
+    copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
+    if (Array.isArray(jsonObj.objects)) {
+        jsonObj.objects = jsonObj.objects.filter((o) => o.editorObjectKind !== 'session' &&
+            o.isCropRect !== true &&
+            o.maskLabel !== true &&
+            o.isMosaicPreview !== true);
+    }
+    jsonObj._editorState = {
+        currentScale,
+        currentRotation,
+        baseImageScale,
+        currentImageMimeType: (_c = input.currentImageMimeType) !== null && _c !== void 0 ? _c : null,
+        activeObjectKind: activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
+    };
+    const imageFilterConfig = cloneResolvedImageFilterConfig((_d = input.imageFilterConfig) !== null && _d !== void 0 ? _d : DEFAULT_IMAGE_FILTER_CONFIG);
+    if (hasActiveImageFilters(imageFilterConfig)) {
+        jsonObj._editorState.imageFilterConfig = imageFilterConfig;
+    }
+    if (activeMaskId !== null)
+        jsonObj._editorState.activeMaskId = activeMaskId;
+    if (activeAnnotationId !== null) {
+        jsonObj._editorState.activeAnnotationId = activeAnnotationId;
+    }
+    return JSON.stringify(jsonObj);
+}
+async function loadFromState(input) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
+    const restoreTrustLevel = (_a = input.restoreTrustLevel) !== null && _a !== void 0 ? _a : 'public';
+    const isPublicRestore = restoreTrustLevel === 'public';
+    let jsonString;
+    try {
+        jsonString =
+            typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
+    }
+    catch (error) {
+        throw new plugins_transform_index.StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
+    }
+    if (isPublicRestore) {
+        assertSnapshotByteSizeAllowed(jsonString, (_b = input.maxSnapshotBytes) !== null && _b !== void 0 ? _b : DEFAULT_MAX_SNAPSHOT_BYTES);
+    }
+    let json;
+    try {
+        json = JSON.parse(jsonString);
+    }
+    catch (error) {
+        throw new plugins_transform_index.StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
+    }
+    if (isPublicRestore) {
+        validatePublicSnapshot(json, {
+            maxSnapshotObjects: (_c = input.maxSnapshotObjects) !== null && _c !== void 0 ? _c : DEFAULT_MAX_SNAPSHOT_OBJECTS,
         });
-        Object.defineProperty(this, "label", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "elapsedMs", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.label = label;
-        this.elapsedMs = elapsedMs;
-        fixPrototype(this, ImageLoadTimeoutError);
+    }
+    if (typeof json.width === 'number' &&
+        json.width > 0 &&
+        typeof json.height === 'number' &&
+        json.height > 0) {
+        assertRestoredCanvasSizeAllowed(json.width, json.height, (_d = input.maxCanvasPixels) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
+            ? ((_e = input.maxRestoreCanvasDimension) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
+            : null);
+        setCanvasSize(json.width, json.height);
+    }
+    const loadFromJsonPromise = canvas.loadFromJSON(json);
+    try {
+        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON');
+    }
+    catch (error) {
+        if (error instanceof plugins_transform_index.ImageLoadTimeoutError) {
+            throw new plugins_transform_index.StateRestoreError('loadFromState: canvas.loadFromJSON timed out while restoring editor state.', error);
+        }
+        throw error;
+    }
+    const objects = canvas.getObjects();
+    restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
+    const editorState = json._editorState && typeof json._editorState === 'object'
+        ? {
+            currentScale: typeof json._editorState.currentScale === 'number'
+                ? json._editorState.currentScale
+                : 1,
+            currentRotation: typeof json._editorState.currentRotation === 'number'
+                ? json._editorState.currentRotation
+                : 0,
+            baseImageScale: typeof json._editorState.baseImageScale === 'number'
+                ? json._editorState.baseImageScale
+                : 1,
+        }
+        : null;
+    if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
+        editorState.activeMaskId = json._editorState.activeMaskId;
+    }
+    if (editorState &&
+        json._editorState &&
+        typeof json._editorState.activeAnnotationId === 'number') {
+        editorState.activeAnnotationId = json._editorState.activeAnnotationId;
+    }
+    if (editorState && json._editorState && 'activeObjectKind' in json._editorState) {
+        const kind = json._editorState.activeObjectKind;
+        editorState.activeObjectKind =
+            kind === 'mask' || kind === 'annotation' || kind === null ? kind : null;
+    }
+    if (editorState && json._editorState && 'currentImageMimeType' in json._editorState) {
+        const mimeType = json._editorState.currentImageMimeType;
+        editorState.currentImageMimeType =
+            mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
+                ? mimeType
+                : null;
+    }
+    if (editorState && json._editorState && 'imageFilterConfig' in json._editorState) {
+        editorState.imageFilterConfig = normalizeImageFilterConfigSnapshot(json._editorState.imageFilterConfig);
+    }
+    const maxMaskId = objects
+        .filter(plugins_mask_index.isMaskObject)
+        .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
+    const maxAnnotationId = objects
+        .filter(plugins_mask_index.isAnnotationObject)
+        .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
+    const masks = objects.filter(plugins_mask_index.isMaskObject);
+    const annotations = objects.filter(plugins_mask_index.isAnnotationObject);
+    const originalImage = (_g = objects.find(plugins_mask_index.isBaseImageObject)) !== null && _g !== void 0 ? _g : null;
+    return {
+        editorState,
+        maxMaskId,
+        maxAnnotationId,
+        originalImage,
+        objects,
+        masks,
+        annotations,
+        jsonString,
+    };
+}
+function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels, maxCanvasDimension) {
+    const safeMaxCanvasPixels = Number.isFinite(maxCanvasPixels) && maxCanvasPixels > 0
+        ? Math.floor(maxCanvasPixels)
+        : DEFAULT_MAX_RESTORE_CANVAS_PIXELS;
+    const safeMaxCanvasDimension = maxCanvasDimension !== null && Number.isFinite(maxCanvasDimension) && maxCanvasDimension > 0
+        ? Math.floor(maxCanvasDimension)
+        : null;
+    if (safeMaxCanvasDimension !== null &&
+        (width > safeMaxCanvasDimension || height > safeMaxCanvasDimension)) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxRestoreCanvasDimension (${safeMaxCanvasDimension}).`);
+    }
+    const pixelCount = width * height;
+    if (!Number.isFinite(pixelCount) || pixelCount > safeMaxCanvasPixels) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`);
     }
 }
-class ImageLoadBudgetExhaustedError extends Error {
-    constructor(label, remainingMs, minimumMs) {
-        super(`Image load budget exhausted before ${label}: ${remainingMs}ms remaining, minimum ${minimumMs}ms required.`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ImageLoadBudgetExhaustedError'
-        });
-        Object.defineProperty(this, "label", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "remainingMs", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "minimumMs", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.label = label;
-        this.remainingMs = remainingMs;
-        this.minimumMs = minimumMs;
-        fixPrototype(this, ImageLoadBudgetExhaustedError);
+function getUtf8ByteLength$1(value) {
+    if (typeof TextEncoder === 'function') {
+        return new TextEncoder().encode(value).byteLength;
+    }
+    return value.length;
+}
+function toPositiveIntegerLimit(value, fallback) {
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
+    const safeMaxSnapshotBytes = toPositiveIntegerLimit(maxSnapshotBytes, DEFAULT_MAX_SNAPSHOT_BYTES);
+    if (jsonString.length > safeMaxSnapshotBytes) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot JSON size exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
+    }
+    const worstCaseUtf8Bytes = jsonString.length * 3;
+    if (worstCaseUtf8Bytes <= safeMaxSnapshotBytes)
+        return;
+    const byteLength = getUtf8ByteLength$1(jsonString);
+    if (byteLength > safeMaxSnapshotBytes) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot JSON size ${byteLength} bytes exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
     }
 }
-class DownsampleError extends Error {
-    constructor(message = 'Failed to obtain a 2D context for downsampling.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'DownsampleError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, DownsampleError);
+function validatePublicSnapshot(json, options) {
+    var _a;
+    if (json.objects !== undefined && !Array.isArray(json.objects)) {
+        throw new plugins_transform_index.StateRestoreError('loadFromState: snapshot objects must be an array.');
+    }
+    const objects = (_a = json.objects) !== null && _a !== void 0 ? _a : [];
+    const safeMaxSnapshotObjects = toPositiveIntegerLimit(options.maxSnapshotObjects, DEFAULT_MAX_SNAPSHOT_OBJECTS);
+    if (objects.length > safeMaxSnapshotObjects) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot contains ${objects.length} objects, exceeding maxSnapshotObjects (${safeMaxSnapshotObjects}).`);
+    }
+    const context = {
+        maxSnapshotObjects: safeMaxSnapshotObjects,
+        objectCount: 0,
+        seen: new WeakSet(),
+        countedFabricObjects: new WeakSet(),
+    };
+    objects.forEach((object, index) => validatePublicSnapshotValue(object, `objects[${index}]`, {
+        validateFabricObject: true,
+        allowEditorOwnedCustomMask: true,
+        arrayEntriesAreFabricObjects: false,
+    }, context, 0));
+    for (const [key, value] of Object.entries(json)) {
+        if (key === 'objects')
+            continue;
+        validatePublicSnapshotValue(value, key, {
+            validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
+            allowEditorOwnedCustomMask: false,
+            arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
+        }, context, 0);
     }
 }
-class MergeMasksError extends Error {
-    constructor(message = 'Failed to merge masks into the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'MergeMasksError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, MergeMasksError);
+function validatePublicSnapshotValue(value, path, options, context, depth) {
+    if (depth > DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot field "${path}" exceeds max nested object depth (${DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH}).`);
+    }
+    if (!value || typeof value !== 'object')
+        return;
+    const alreadySeen = context.seen.has(value);
+    if (!alreadySeen)
+        context.seen.add(value);
+    if (options.validateFabricObject) {
+        validatePublicSnapshotFabricObjectPayload(value, path, options.allowEditorOwnedCustomMask, context);
+    }
+    if (alreadySeen)
+        return;
+    if (Array.isArray(value)) {
+        value.forEach((entry, entryIndex) => validatePublicSnapshotValue(entry, `${path}[${entryIndex}]`, {
+            validateFabricObject: options.arrayEntriesAreFabricObjects,
+            allowEditorOwnedCustomMask: false,
+            arrayEntriesAreFabricObjects: false,
+        }, context, depth + 1));
+        return;
+    }
+    for (const [key, nestedValue] of Object.entries(value)) {
+        const nestedPath = path ? `${path}.${key}` : key;
+        if (typeof nestedValue === 'string' &&
+            nestedValue.trim() !== '' &&
+            isPublicRestoreImageSourceKey(key) &&
+            !isSupportedImageDataUrl(nestedValue)) {
+            throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`);
+        }
+        validatePublicSnapshotValue(nestedValue, nestedPath, {
+            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key, nestedValue),
+            allowEditorOwnedCustomMask: false,
+            arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
+        }, context, depth + 1);
     }
 }
-class MergeAnnotationsError extends Error {
-    constructor(message = 'Failed to merge annotations into the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
+function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwnedCustomMask, context) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot field "${path}" is invalid.`);
+    }
+    if (!context.countedFabricObjects.has(value)) {
+        context.countedFabricObjects.add(value);
+        context.objectCount += 1;
+        if (context.objectCount > context.maxSnapshotObjects) {
+            throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`);
+        }
+    }
+    const object = value;
+    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
+    if (type && ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES.has(type))
+        return;
+    if (allowEditorOwnedCustomMask && isPublicRestoreEditorOwnedCustomMaskPayload(object))
+        return;
+    const typePath = path ? `${path}.type` : 'type';
+    if (!type) {
+        throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot field "${typePath}" must be a supported Fabric type.`);
+    }
+    throw new plugins_transform_index.StateRestoreError(`loadFromState: snapshot field "${typePath}" has unsupported Fabric type "${String(object.type)}".`);
+}
+function shouldValidatePublicRestoreNestedFabricObject(key, value) {
+    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key))
+        return true;
+    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
+}
+function hasFabricObjectType(value) {
+    return (!!value && typeof value === 'object' && typeof value.type === 'string');
+}
+function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
+    if (!plugins_mask_index.isMaskObject(value))
+        return false;
+    const candidate = value;
+    const expectedMaskUid = typeof candidate.maskId === 'number' ? `mask-${candidate.maskId}` : null;
+    return (Number.isInteger(candidate.maskId) &&
+        typeof candidate.maskId === 'number' &&
+        candidate.maskId > 0 &&
+        typeof candidate.maskUid === 'string' &&
+        candidate.maskUid === expectedMaskUid &&
+        typeof candidate.maskName === 'string' &&
+        candidate.maskName.trim() !== '' &&
+        typeof candidate.originalAlpha === 'number' &&
+        Number.isFinite(candidate.originalAlpha));
+}
+function isPublicRestoreImageSourceKey(key) {
+    const normalized = key.toLowerCase();
+    return (PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
+        normalized.endsWith('src') ||
+        normalized.endsWith('source'));
+}
+function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
+    var _a, _b, _c, _d;
+    const consumedMetadataIndexes = new Set();
+    jsonObjs.forEach((jObj, index) => {
+        if (jObj.editorObjectKind !== 'baseImage' &&
+            jObj.editorObjectKind !== 'annotation' &&
+            jObj.editorObjectKind !== 'session') {
+            return;
+        }
+        const match = findCanvasObjectForJson(canvasObjs, jObj, index, consumedMetadataIndexes);
+        const canvasObj = match === null || match === void 0 ? void 0 : match.object;
+        if (!canvasObj)
+            return;
+        if (jObj.editorObjectKind === 'baseImage') {
+            plugins_mask_index.markBaseImageObject(canvasObj);
+            return;
+        }
+        if (jObj.editorObjectKind === 'annotation' &&
+            typeof jObj.annotationId === 'number' &&
+            typeof jObj.annotationType === 'string' &&
+            typeof jObj.annotationName === 'string') {
+            const annotationType = jObj.annotationType === 'draw'
+                ? 'draw'
+                : jObj.annotationType === 'shape'
+                    ? 'shape'
+                    : 'text';
+            const shapeAnnotationKind = jObj.shapeAnnotationKind === 'line' || jObj.shapeAnnotationKind === 'arrow'
+                ? jObj.shapeAnnotationKind
+                : 'rect';
+            plugins_mask_index.markAnnotationObject(canvasObj, {
+                annotationId: jObj.annotationId,
+                annotationType,
+                annotationName: jObj.annotationName,
+                annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
+                annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
+                annotationSelectable: typeof jObj.annotationSelectable === 'boolean'
+                    ? jObj.annotationSelectable
+                    : undefined,
+                annotationEvented: typeof jObj.annotationEvented === 'boolean'
+                    ? jObj.annotationEvented
+                    : undefined,
+                annotationHasControls: typeof jObj.annotationHasControls === 'boolean'
+                    ? jObj.annotationHasControls
+                    : undefined,
+                annotationEditable: typeof jObj.annotationEditable === 'boolean'
+                    ? jObj.annotationEditable
+                    : undefined,
+                shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
+            });
+            if (typeof jObj.overlayPersistentId === 'string') {
+                canvasObj.overlayPersistentId =
+                    jObj.overlayPersistentId;
+            }
+            if (jObj.overlayMetadata !== undefined) {
+                canvasObj.overlayMetadata = jObj.overlayMetadata;
+            }
+            return;
+        }
+        if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
+            canvasObj.editorObjectKind = 'session';
+            canvasObj.sessionObjectType = jObj.sessionObjectType;
+        }
+    });
+    const consumedCanvasIndexes = new Set();
+    const canvasIndexesByMaskUid = new Map();
+    canvasObjs.forEach((canvasObj, index) => {
+        const maskUid = canvasObj.maskUid;
+        if (typeof maskUid !== 'string')
+            return;
+        const indexes = canvasIndexesByMaskUid.get(maskUid);
+        if (indexes) {
+            indexes.push(index);
+        }
+        else {
+            canvasIndexesByMaskUid.set(maskUid, [index]);
+        }
+    });
+    const takeUnconsumedCanvasIndex = (indexes) => {
+        if (!indexes)
+            return -1;
+        while (indexes.length > 0) {
+            const index = indexes.shift();
+            if (!consumedCanvasIndexes.has(index))
+                return index;
+        }
+        return -1;
+    };
+    for (const jObj of jsonObjs) {
+        if (jObj.editorObjectKind !== 'mask' || typeof jObj.maskId !== 'number')
+            continue;
+        const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
+        const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
+        const jTop = Number((_c = jObj.top) !== null && _c !== void 0 ? _c : 0);
+        const jUid = typeof jObj.maskUid === 'string' ? jObj.maskUid : null;
+        let matchIndex = -1;
+        if (jUid) {
+            matchIndex = takeUnconsumedCanvasIndex(canvasIndexesByMaskUid.get(jUid));
+        }
+        if (matchIndex < 0) {
+            matchIndex = canvasObjs.findIndex((o, index) => {
+                var _a, _b;
+                if (consumedCanvasIndexes.has(index))
+                    return false;
+                if (jType && o.type !== jType)
+                    return false;
+                return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
+                    Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5 &&
+                    serializedTransformMatches(o, jObj));
+            });
+        }
+        if (matchIndex < 0)
+            continue;
+        consumedCanvasIndexes.add(matchIndex);
+        const match = canvasObjs[matchIndex];
+        const maskObject = match;
+        const originalStroke = 'originalStroke' in jObj
+            ? jObj.originalStroke
+            : undefined;
+        plugins_mask_index.markMaskObject(maskObject, {
+            maskId: jObj.maskId,
+            maskUid: typeof jObj.maskUid === 'string' ? jObj.maskUid : `mask-${jObj.maskId}`,
+            maskName: typeof jObj.maskName === 'string' ? jObj.maskName : '',
+            originalAlpha: typeof jObj.originalAlpha === 'number'
+                ? jObj.originalAlpha
+                : ((_d = maskObject.opacity) !== null && _d !== void 0 ? _d : 0.5),
+            originalStroke,
+            originalStrokeWidth: typeof jObj.originalStrokeWidth === 'number' ? jObj.originalStrokeWidth : undefined,
+        });
+        if ('originalStroke' in jObj) {
+            maskObject.originalStroke = jObj.originalStroke;
+        }
+        if (typeof jObj.originalStrokeWidth === 'number') {
+            maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
+        }
+        if (typeof jObj.hasControls === 'boolean') {
+            maskObject.hasControls = jObj.hasControls;
+        }
+        if (typeof jObj.selectable === 'boolean') {
+            maskObject.selectable = jObj.selectable;
+        }
+        if (typeof jObj.strokeUniform === 'boolean') {
+            maskObject.strokeUniform = jObj.strokeUniform;
+        }
+        if (typeof jObj.lockRotation === 'boolean') {
+            maskObject.lockRotation = jObj.lockRotation;
+        }
+        if (typeof jObj.transparentCorners === 'boolean') {
+            maskObject.transparentCorners = jObj.transparentCorners;
+        }
+        if (typeof jObj.borderColor === 'string') {
+            maskObject.borderColor = jObj.borderColor;
+        }
+        if (typeof jObj.cornerColor === 'string') {
+            maskObject.cornerColor = jObj.cornerColor;
+        }
+        if (typeof jObj.cornerSize === 'number') {
+            maskObject.cornerSize = jObj.cornerSize;
+        }
+        if (typeof jObj.overlayPersistentId === 'string') {
+            maskObject.overlayPersistentId = jObj.overlayPersistentId;
+        }
+        if (jObj.overlayMetadata !== undefined) {
+            maskObject.overlayMetadata = jObj.overlayMetadata;
+        }
+    }
+    jsonObjs.forEach((jObj, index) => {
+        if (jObj.maskLabel !== true)
+            return;
+        const canvasObj = canvasObjs[index];
+        if (canvasObj) {
+            canvasObj.maskLabel = true;
+        }
+    });
+}
+
+const ANNOTATION_BRIDGE_ID = '@bensitu/full-facade-annotation';
+function isSerializedAnnotationData(value) {
+    if (!value || typeof value !== 'object')
+        return false;
+    const candidate = value;
+    return (!!candidate.object &&
+        typeof candidate.object === 'object' &&
+        Number.isSafeInteger(candidate.annotationId) &&
+        Number(candidate.annotationId) > 0 &&
+        typeof candidate.annotationType === 'string' &&
+        candidate.annotationType.length > 0 &&
+        typeof candidate.annotationName === 'string');
+}
+function readPersistentId(object) {
+    if (!plugins_mask_index.isAnnotationObject(object))
+        return null;
+    const persistent = object
+        .overlayPersistentId;
+    return typeof persistent === 'string' && persistent.length > 0
+        ? persistent
+        : `annotation-${object.annotationId}`;
+}
+function serializeAnnotation(object) {
+    if (!plugins_mask_index.isAnnotationObject(object))
+        throw new Error('Expected an Annotation object.');
+    const annotation = object;
+    const serializedObject = annotation.toObject(SNAPSHOT_CUSTOM_KEYS);
+    for (const key of SNAPSHOT_CUSTOM_KEYS) {
+        const value = Reflect.get(annotation, key);
+        if (value !== undefined)
+            serializedObject[key] = value;
+    }
+    return Object.freeze({
+        object: serializedObject,
+        annotationId: annotation.annotationId,
+        annotationType: annotation.annotationType,
+        annotationName: annotation.annotationName,
+        shapeAnnotationKind: annotation.shapeAnnotationKind,
+        annotationSelectable: annotation.annotationSelectable,
+        annotationEvented: annotation.annotationEvented,
+        annotationHasControls: annotation.annotationHasControls,
+        annotationEditable: annotation.annotationEditable,
+        overlayPersistentId: annotation.overlayPersistentId,
+        overlayMetadata: annotation.overlayMetadata,
+    });
+}
+async function deserializeAnnotation(value, fabric) {
+    if (!isSerializedAnnotationData(value)) {
+        throw new Error('Serialized Annotation data is malformed.');
+    }
+    const objects = await fabric.util.enlivenObjects([value.object]);
+    const object = objects[0];
+    if (!object)
+        throw new Error('Fabric did not restore an Annotation object.');
+    const annotation = object;
+    annotation.editorObjectKind = 'annotation';
+    annotation.annotationId = value.annotationId;
+    annotation.annotationType = value.annotationType;
+    annotation.annotationName = value.annotationName;
+    annotation.shapeAnnotationKind = value.shapeAnnotationKind;
+    annotation.annotationSelectable = value.annotationSelectable;
+    annotation.annotationEvented = value.annotationEvented;
+    annotation.annotationHasControls = value.annotationHasControls;
+    annotation.annotationEditable = value.annotationEditable;
+    annotation.overlayPersistentId = value.overlayPersistentId;
+    annotation.overlayMetadata = value.overlayMetadata;
+    syncAnnotationRuntimeState(annotation);
+    return annotation;
+}
+const fullFacadeAnnotationPluginRef = internalCapabilities.definePluginRef(ANNOTATION_BRIDGE_ID, '1.0.0');
+function fullFacadeAnnotationPlugin(options) {
+    return Object.freeze({
+        ref: fullFacadeAnnotationPluginRef,
+        version: '1.0.0',
+        setupMode: 'sync',
+        requires: [
+            { token: internalCapabilities.CORE_HOST_CAPABILITY, range: '^1.0.0' },
+            { token: foundations_overlay_index.OVERLAY_CAPABILITY, range: '^1.0.0' },
+        ],
+        setup(context) {
+            const host = context.capabilities.require(internalCapabilities.CORE_HOST_CAPABILITY);
+            const overlay = context.capabilities.require(foundations_overlay_index.OVERLAY_CAPABILITY);
+            context.addDisposable(overlay.registerKind({
+                id: 'annotation',
+                ownerPluginId: ANNOTATION_BRIDGE_ID,
+                classify: plugins_mask_index.isAnnotationObject,
+                getPersistentId: readPersistentId,
+                setPersistentId: (object, id) => {
+                    if (plugins_mask_index.isAnnotationObject(object)) {
+                        object.overlayPersistentId = id;
+                    }
+                },
+                isHidden: (object) => plugins_mask_index.isAnnotationObject(object) && object.annotationHidden === true,
+                setHidden: (object, hidden) => {
+                    if (!plugins_mask_index.isAnnotationObject(object))
+                        return;
+                    object.annotationHidden = hidden;
+                    syncAnnotationRuntimeState(object);
+                },
+                isLocked: (object) => plugins_mask_index.isAnnotationObject(object) && object.annotationLocked === true,
+                setLocked: (object, locked) => {
+                    if (!plugins_mask_index.isAnnotationObject(object))
+                        return;
+                    object.annotationLocked = locked;
+                    syncAnnotationRuntimeState(object);
+                },
+            }));
+            context.addDisposable(overlay.registerGeometryPolicy({
+                id: `${ANNOTATION_BRIDGE_ID}:geometry`,
+                kind: 'annotation',
+                ownerPluginId: ANNOTATION_BRIDGE_ID,
+                supports: (mutation) => options.bindToImageTransform && mutation.kind === 'transform',
+                apply: (object, mutation) => {
+                    if (!mutation.affineDelta)
+                        return;
+                    foundations_overlay_index.applyDeltaToObject(object, [...mutation.affineDelta], {
+                        fabricUtil: {
+                            multiplyTransformMatrices: (left, right) => host.fabric.util.multiplyTransformMatrices(left, right),
+                            invertTransform: (matrix) => host.fabric.util.invertTransform(matrix),
+                            qrDecompose: (matrix) => host.fabric.util.qrDecompose(matrix),
+                            Point: host.fabric.Point,
+                        },
+                        preserveReadableText: options.textFlipBehavior === 'preserve-readable' &&
+                            plugins_mask_index.isAnnotationObject(object) &&
+                            object.annotationType === 'text',
+                    });
+                },
+            }));
+            context.addDisposable(overlay.registerSerializer({
+                id: `${ANNOTATION_BRIDGE_ID}:serializer`,
+                kind: 'annotation',
+                ownerPluginId: ANNOTATION_BRIDGE_ID,
+                serialize: serializeAnnotation,
+                validate: isSerializedAnnotationData,
+                deserialize: (value, serializerContext) => deserializeAnnotation(value, serializerContext.fabric),
+            }));
+            return Object.freeze({});
+        },
+    });
+}
+
+class DeferredHistoryPort {
+    constructor(maxSize) {
+        Object.defineProperty(this, "maxSize", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: 'MergeAnnotationsError'
+            value: maxSize
         });
-        Object.defineProperty(this, "originalError", {
+        Object.defineProperty(this, "delegate", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: void 0
+            value: null
         });
-        this.originalError = originalError;
-        fixPrototype(this, MergeAnnotationsError);
+    }
+    get history() {
+        var _a;
+        const candidate = this.delegate;
+        return Object.freeze(new Array((_a = candidate === null || candidate === void 0 ? void 0 : candidate.retainedCount) !== null && _a !== void 0 ? _a : 0).fill(undefined));
+    }
+    attach(delegate) {
+        if (this.delegate)
+            throw new Error('[ImageEditor] History plugin is already attached.');
+        this.delegate = delegate;
+    }
+    detach(delegate) {
+        if (this.delegate === delegate)
+            this.delegate = null;
+    }
+    execute(command) {
+        var _a, _b;
+        return (_b = (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.execute(command)) !== null && _b !== void 0 ? _b : Promise.resolve();
+    }
+    push(command) {
+        var _a;
+        (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.push(command);
+    }
+    clear() {
+        var _a;
+        (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.clear();
+    }
+    canUndo() {
+        var _a, _b;
+        return (_b = (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.canUndo()) !== null && _b !== void 0 ? _b : false;
+    }
+    canRedo() {
+        var _a, _b;
+        return (_b = (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.canRedo()) !== null && _b !== void 0 ? _b : false;
+    }
+    undo() {
+        var _a, _b;
+        return (_b = (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.undo()) !== null && _b !== void 0 ? _b : Promise.resolve();
+    }
+    redo() {
+        var _a, _b;
+        return (_b = (_a = this.delegate) === null || _a === void 0 ? void 0 : _a.redo()) !== null && _b !== void 0 ? _b : Promise.resolve();
     }
 }
-class CropApplyError extends Error {
-    constructor(message = 'Failed to apply crop to the image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
+class PluginHistoryAdapter {
+    constructor(core, history, maxSize, onChange) {
+        Object.defineProperty(this, "core", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: 'CropApplyError'
+            value: core
         });
-        Object.defineProperty(this, "originalError", {
+        Object.defineProperty(this, "history", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: history
+        });
+        Object.defineProperty(this, "maxSize", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: maxSize
+        });
+        Object.defineProperty(this, "baseline", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "unsubscribe", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        this.originalError = originalError;
-        fixPrototype(this, CropApplyError);
+        Object.defineProperty(this, "disposed", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: false
+        });
+        this.unsubscribe = history.onChange((state) => {
+            this.refreshBaseline();
+            onChange(state);
+        });
     }
-}
-class StateRestoreError extends Error {
-    constructor(message = 'Failed to restore editor state.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'StateRestoreError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, StateRestoreError);
+    get retainedCount() {
+        return this.history.getState().size;
     }
-}
-class IdleGuardError extends Error {
-    constructor(operation, reason) {
-        super(`[ImageEditor] Cannot run "${operation}" ${reason}.`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'IdleGuardError'
-        });
-        Object.defineProperty(this, "operation", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.operation = operation;
-        fixPrototype(this, IdleGuardError);
+    async execute(command) {
+        this.assertActive();
+        await command.execute();
+        this.push(command);
     }
-}
-class ExportNotReadyError extends Error {
-    constructor(operation = 'exportImageFile', reason = 'no image is loaded on the canvas') {
-        super(`Cannot ${operation}: ${reason}.`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ExportNotReadyError'
-        });
-        Object.defineProperty(this, "operation", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.operation = operation;
-        fixPrototype(this, ExportNotReadyError);
+    push(command) {
+        var _a;
+        this.assertActive();
+        const after = this.core.captureCompatibilityMemento();
+        const before = (_a = this.baseline) !== null && _a !== void 0 ? _a : after;
+        this.history.push(Object.freeze({
+            operationId: 'compatibility:state-change',
+            before,
+            after,
+            timestamp: Date.now(),
+            detail: Object.freeze({ source: 'full-facade' }),
+        }));
+        this.baseline = after;
     }
-}
-class ExportError extends Error {
-    constructor(message = 'Failed to export image.', originalError = null) {
-        super(message);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ExportError'
-        });
-        Object.defineProperty(this, "originalError", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.originalError = originalError;
-        fixPrototype(this, ExportError);
+    clear() {
+        if (this.disposed)
+            return;
+        this.history.clear();
+        this.refreshBaseline();
+    }
+    canUndo() {
+        return !this.disposed && this.history.canUndo();
+    }
+    canRedo() {
+        return !this.disposed && this.history.canRedo();
+    }
+    async undo() {
+        if (this.disposed)
+            return;
+        await this.history.undo();
+        this.refreshBaseline();
+    }
+    async redo() {
+        if (this.disposed)
+            return;
+        await this.history.redo();
+        this.refreshBaseline();
+    }
+    resetBaseline() {
+        if (this.disposed)
+            return;
+        this.refreshBaseline();
+    }
+    dispose() {
+        if (this.disposed)
+            return;
+        this.unsubscribe();
+        this.baseline = null;
+        this.disposed = true;
+    }
+    refreshBaseline() {
+        try {
+            this.baseline = this.core.captureCompatibilityMemento();
+        }
+        catch {
+            this.baseline = null;
+        }
+    }
+    assertActive() {
+        if (this.disposed)
+            throw new Error('[ImageEditor] History adapter is disposed.');
     }
 }
 
@@ -433,22 +1598,6 @@ function resolveExportFormat(options, downsampleQuality) {
     const rawQuality = (_a = providedOptions.quality) !== null && _a !== void 0 ? _a : downsampleQuality;
     const quality = clampQuality(rawQuality, downsampleQuality);
     return { format, mimeType, quality };
-}
-
-const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-function canCopySafeObjectKey(key) {
-    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
-}
-function copySafeOwnProperties(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value))
-        return {};
-    const output = Object.create(null);
-    for (const [key, nestedValue] of Object.entries(value)) {
-        if (!canCopySafeObjectKey(key))
-            continue;
-        output[key] = nestedValue;
-    }
-    return output;
 }
 
 const EMPTY_DEFAULT_MASK_CONFIG = Object.freeze({});
@@ -687,17 +1836,17 @@ function isLayoutMode(value) {
 function normalizeLayoutMode(value) {
     return isLayoutMode(value) ? value : DEFAULT_LAYOUT_MODE;
 }
-function isConfigObject$1(value) {
+function isConfigObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 function canCopyObjectConfigKey(key) {
-    return canCopySafeObjectKey(key);
+    return plugins_mask_index.canCopySafeObjectKey(key);
 }
 function copyDefaultMaskConfigValue(value) {
     if (Array.isArray(value)) {
         return Object.freeze(value.map((item) => copyDefaultMaskConfigValue(item)));
     }
-    if (!isConfigObject$1(value))
+    if (!isConfigObject(value))
         return value;
     const copy = Object.create(null);
     for (const [key, nestedValue] of Object.entries(value)) {
@@ -708,7 +1857,7 @@ function copyDefaultMaskConfigValue(value) {
     return Object.freeze(copy);
 }
 function normalizeDefaultMaskConfig(value) {
-    if (!isConfigObject$1(value))
+    if (!isConfigObject(value))
         return EMPTY_DEFAULT_MASK_CONFIG;
     const normalized = Object.create(null);
     for (const [key, optionValue] of Object.entries(value)) {
@@ -719,7 +1868,7 @@ function normalizeDefaultMaskConfig(value) {
         normalized[key] = copyDefaultMaskConfigValue(optionValue);
     }
     const styles = value.styles;
-    if (isConfigObject$1(styles)) {
+    if (isConfigObject(styles)) {
         const copiedStyles = Object.create(null);
         for (const [key, styleValue] of Object.entries(styles)) {
             if (!canCopyObjectConfigKey(key))
@@ -859,7 +2008,7 @@ function normalizeCropAspectRatioOption(value) {
         }
         return DEFAULT_CROP.aspectRatio;
     }
-    if (isConfigObject$1(value) && hasValidCropRatioParts(value.width, value.height)) {
+    if (isConfigObject(value) && hasValidCropRatioParts(value.width, value.height)) {
         return { width: value.width, height: value.height };
     }
     return DEFAULT_CROP.aspectRatio;
@@ -880,20 +2029,20 @@ function normalizeOptionalQuality(value) {
         return undefined;
     return Math.max(0, Math.min(1, numeric));
 }
-function hasOwn$1(object, key) {
+function hasOwn(object, key) {
     return Object.prototype.hasOwnProperty.call(object, key);
 }
-function isFiniteNumber$1(value) {
+function isFiniteNumber(value) {
     return typeof value === 'number' && Number.isFinite(value);
 }
 function normalizeMosaicPositiveNumber(value, fallback) {
-    return isFiniteNumber$1(value) && value > 0 ? value : fallback;
+    return isFiniteNumber(value) && value > 0 ? value : fallback;
 }
 function normalizeMosaicBlockSize(value, fallback) {
-    return isFiniteNumber$1(value) && value > 0 ? Math.max(1, Math.floor(value)) : fallback;
+    return isFiniteNumber(value) && value > 0 ? Math.max(1, Math.floor(value)) : fallback;
 }
 function normalizeMosaicNonNegativeNumber(value, fallback) {
-    return isFiniteNumber$1(value) && value >= 0 ? value : fallback;
+    return isFiniteNumber(value) && value >= 0 ? value : fallback;
 }
 function normalizeMosaicDashArray(value, fallback) {
     if (value === null)
@@ -915,7 +2064,7 @@ function normalizeMosaicOutputFileType(value, fallback) {
 function normalizeMosaicOutputQuality(value, fallback) {
     if (value === undefined || value === null)
         return undefined;
-    if (!isFiniteNumber$1(value))
+    if (!isFiniteNumber(value))
         return fallback;
     return Math.max(0, Math.min(1, value));
 }
@@ -928,62 +2077,62 @@ function cloneResolvedMosaicConfig(config) {
     };
 }
 function normalizeMosaicConfig(input, fallback) {
-    if (!isConfigObject$1(input))
+    if (!isConfigObject(input))
         return cloneResolvedMosaicConfig(fallback);
     return mergeMosaicConfigPatch(fallback, input);
 }
 function mergeMosaicConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject$1(patch) ? patch : {};
+    const raw = isConfigObject(patch) ? patch : {};
     const next = cloneResolvedMosaicConfig(current);
-    if (hasOwn$1(raw, 'brushSize')) {
+    if (hasOwn(raw, 'brushSize')) {
         next.brushSize = normalizeMosaicPositiveNumber(raw.brushSize, fallback.brushSize);
     }
-    if (hasOwn$1(raw, 'blockSize')) {
+    if (hasOwn(raw, 'blockSize')) {
         next.blockSize = normalizeMosaicBlockSize(raw.blockSize, fallback.blockSize);
     }
-    if (hasOwn$1(raw, 'previewStroke')) {
+    if (hasOwn(raw, 'previewStroke')) {
         next.previewStroke =
             typeof raw.previewStroke === 'string' ? raw.previewStroke : fallback.previewStroke;
     }
-    if (hasOwn$1(raw, 'previewStrokeWidth')) {
+    if (hasOwn(raw, 'previewStrokeWidth')) {
         next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
     }
-    if (hasOwn$1(raw, 'previewStrokeDashArray')) {
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
         next.previewStrokeDashArray = normalizeMosaicDashArray(raw.previewStrokeDashArray, fallback.previewStrokeDashArray);
     }
-    if (hasOwn$1(raw, 'previewFill')) {
+    if (hasOwn(raw, 'previewFill')) {
         next.previewFill =
             typeof raw.previewFill === 'string' ? raw.previewFill : fallback.previewFill;
     }
-    if (hasOwn$1(raw, 'outputFileType')) {
+    if (hasOwn(raw, 'outputFileType')) {
         next.outputFileType = normalizeMosaicOutputFileType(raw.outputFileType, fallback.outputFileType);
     }
-    if (hasOwn$1(raw, 'outputQuality')) {
+    if (hasOwn(raw, 'outputQuality')) {
         next.outputQuality = normalizeMosaicOutputQuality(raw.outputQuality, fallback.outputQuality);
     }
     return next;
 }
 function getInvalidMosaicConfigFields(input) {
-    const raw = isConfigObject$1(input) ? input : {};
+    const raw = isConfigObject(input) ? input : {};
     const invalid = [];
-    if (hasOwn$1(raw, 'brushSize') &&
+    if (hasOwn(raw, 'brushSize') &&
         !(typeof raw.brushSize === 'number' && Number.isFinite(raw.brushSize) && raw.brushSize > 0)) {
         invalid.push('brushSize');
     }
-    if (hasOwn$1(raw, 'blockSize') &&
+    if (hasOwn(raw, 'blockSize') &&
         !(typeof raw.blockSize === 'number' && Number.isFinite(raw.blockSize) && raw.blockSize > 0)) {
         invalid.push('blockSize');
     }
-    if (hasOwn$1(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
         invalid.push('previewStroke');
     }
-    if (hasOwn$1(raw, 'previewStrokeWidth') &&
+    if (hasOwn(raw, 'previewStrokeWidth') &&
         !(typeof raw.previewStrokeWidth === 'number' &&
             Number.isFinite(raw.previewStrokeWidth) &&
             raw.previewStrokeWidth >= 0)) {
         invalid.push('previewStrokeWidth');
     }
-    if (hasOwn$1(raw, 'previewStrokeDashArray')) {
+    if (hasOwn(raw, 'previewStrokeDashArray')) {
         const value = raw.previewStrokeDashArray;
         const valid = value === null ||
             (Array.isArray(value) &&
@@ -991,16 +2140,16 @@ function getInvalidMosaicConfigFields(input) {
         if (!valid)
             invalid.push('previewStrokeDashArray');
     }
-    if (hasOwn$1(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
         invalid.push('previewFill');
     }
-    if (hasOwn$1(raw, 'outputFileType')) {
+    if (hasOwn(raw, 'outputFileType')) {
         const value = raw.outputFileType;
         const valid = value === 'source' || (typeof value === 'string' && tryNormalizeImageFormat(value));
         if (!valid)
             invalid.push('outputFileType');
     }
-    if (hasOwn$1(raw, 'outputQuality') &&
+    if (hasOwn(raw, 'outputQuality') &&
         raw.outputQuality !== undefined &&
         raw.outputQuality !== null &&
         !(typeof raw.outputQuality === 'number' && Number.isFinite(raw.outputQuality))) {
@@ -1062,59 +2211,59 @@ function normalizeTextLeftTop(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 function normalizeTextboxStyles(value) {
-    return copySafeOwnProperties(value);
+    return plugins_mask_index.copySafeOwnProperties(value);
 }
 function normalizeFabricObjectStyles(value) {
-    return copySafeOwnProperties(value);
+    return plugins_mask_index.copySafeOwnProperties(value);
 }
 function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject$1(patch) ? patch : {};
+    const raw = isConfigObject(patch) ? patch : {};
     const next = cloneResolvedTextAnnotationConfig(current);
-    if (hasOwn$1(raw, 'text'))
+    if (hasOwn(raw, 'text'))
         next.text = normalizeString(raw.text, fallback.text);
-    if (hasOwn$1(raw, 'left'))
+    if (hasOwn(raw, 'left'))
         next.left = normalizeTextLeftTop(raw.left);
-    if (hasOwn$1(raw, 'top'))
+    if (hasOwn(raw, 'top'))
         next.top = normalizeTextLeftTop(raw.top);
-    if (hasOwn$1(raw, 'width'))
+    if (hasOwn(raw, 'width'))
         next.width = normalizePositiveNumber(raw.width, fallback.width);
-    if (hasOwn$1(raw, 'fontSize')) {
+    if (hasOwn(raw, 'fontSize')) {
         next.fontSize = normalizePositiveNumber(raw.fontSize, fallback.fontSize);
     }
-    if (hasOwn$1(raw, 'fontFamily')) {
+    if (hasOwn(raw, 'fontFamily')) {
         next.fontFamily = normalizeString(raw.fontFamily, fallback.fontFamily);
     }
-    if (hasOwn$1(raw, 'fontWeight')) {
+    if (hasOwn(raw, 'fontWeight')) {
         next.fontWeight =
             typeof raw.fontWeight === 'string' || typeof raw.fontWeight === 'number'
                 ? raw.fontWeight
                 : fallback.fontWeight;
     }
-    if (hasOwn$1(raw, 'fill'))
+    if (hasOwn(raw, 'fill'))
         next.fill = normalizeString(raw.fill, fallback.fill);
-    if (hasOwn$1(raw, 'backgroundColor')) {
+    if (hasOwn(raw, 'backgroundColor')) {
         next.backgroundColor = normalizeString(raw.backgroundColor, fallback.backgroundColor);
     }
-    if (hasOwn$1(raw, 'textAlign'))
+    if (hasOwn(raw, 'textAlign'))
         next.textAlign = normalizeTextAlign(raw.textAlign, fallback.textAlign);
-    if (hasOwn$1(raw, 'angle'))
+    if (hasOwn(raw, 'angle'))
         next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
-    if (hasOwn$1(raw, 'selectable'))
+    if (hasOwn(raw, 'selectable'))
         next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
-    if (hasOwn$1(raw, 'evented'))
+    if (hasOwn(raw, 'evented'))
         next.evented = normalizeBoolean(raw.evented, fallback.evented);
-    if (hasOwn$1(raw, 'editable'))
+    if (hasOwn(raw, 'editable'))
         next.editable = normalizeBoolean(raw.editable, fallback.editable);
-    if (hasOwn$1(raw, 'enterEditing')) {
+    if (hasOwn(raw, 'enterEditing')) {
         next.enterEditing = normalizeBoolean(raw.enterEditing, fallback.enterEditing);
     }
-    if (hasOwn$1(raw, 'annotationHidden')) {
+    if (hasOwn(raw, 'annotationHidden')) {
         next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
     }
-    if (hasOwn$1(raw, 'annotationLocked')) {
+    if (hasOwn(raw, 'annotationLocked')) {
         next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
     }
-    if (hasOwn$1(raw, 'styles')) {
+    if (hasOwn(raw, 'styles')) {
         next.styles = {
             ...next.styles,
             ...normalizeTextboxStyles(raw.styles),
@@ -1123,7 +2272,7 @@ function mergeTextAnnotationConfigPatch(current, patch, fallback = current) {
     return next;
 }
 function normalizeTextAnnotationConfig(input, fallback) {
-    if (!isConfigObject$1(input))
+    if (!isConfigObject(input))
         return cloneResolvedTextAnnotationConfig(fallback);
     return mergeTextAnnotationConfigPatch(fallback, input);
 }
@@ -1139,58 +2288,58 @@ function normalizeOpacity(value, fallback) {
     return Math.max(0, Math.min(1, value));
 }
 function mergeDrawConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject$1(patch) ? patch : {};
+    const raw = isConfigObject(patch) ? patch : {};
     const next = cloneResolvedDrawConfig(current);
-    if (hasOwn$1(raw, 'brushSize')) {
+    if (hasOwn(raw, 'brushSize')) {
         next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
     }
-    if (hasOwn$1(raw, 'color'))
+    if (hasOwn(raw, 'color'))
         next.color = normalizeString(raw.color, fallback.color);
-    if (hasOwn$1(raw, 'opacity'))
+    if (hasOwn(raw, 'opacity'))
         next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
-    if (hasOwn$1(raw, 'lineCap'))
+    if (hasOwn(raw, 'lineCap'))
         next.lineCap = normalizeLineCap(raw.lineCap, fallback.lineCap);
-    if (hasOwn$1(raw, 'lineJoin'))
+    if (hasOwn(raw, 'lineJoin'))
         next.lineJoin = normalizeLineJoin(raw.lineJoin, fallback.lineJoin);
-    if (hasOwn$1(raw, 'selectable'))
+    if (hasOwn(raw, 'selectable'))
         next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
-    if (hasOwn$1(raw, 'evented'))
+    if (hasOwn(raw, 'evented'))
         next.evented = normalizeBoolean(raw.evented, fallback.evented);
-    if (hasOwn$1(raw, 'annotationHidden')) {
+    if (hasOwn(raw, 'annotationHidden')) {
         next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
     }
-    if (hasOwn$1(raw, 'annotationLocked')) {
+    if (hasOwn(raw, 'annotationLocked')) {
         next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
     }
     return next;
 }
 function normalizeDrawConfig(input, fallback) {
-    if (!isConfigObject$1(input))
+    if (!isConfigObject(input))
         return cloneResolvedDrawConfig(fallback);
     return mergeDrawConfigPatch(fallback, input);
 }
 function mergeEraserConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject$1(patch) ? patch : {};
+    const raw = isConfigObject(patch) ? patch : {};
     const next = cloneResolvedEraserConfig(current);
-    if (hasOwn$1(raw, 'brushSize')) {
+    if (hasOwn(raw, 'brushSize')) {
         next.brushSize = normalizePositiveNumber(raw.brushSize, fallback.brushSize);
     }
-    if (hasOwn$1(raw, 'target')) {
+    if (hasOwn(raw, 'target')) {
         next.target = raw.target === 'drawAnnotations' ? 'drawAnnotations' : fallback.target;
     }
-    if (hasOwn$1(raw, 'previewStroke')) {
+    if (hasOwn(raw, 'previewStroke')) {
         next.previewStroke = normalizeString(raw.previewStroke, fallback.previewStroke);
     }
-    if (hasOwn$1(raw, 'previewStrokeWidth')) {
+    if (hasOwn(raw, 'previewStrokeWidth')) {
         next.previewStrokeWidth = normalizeMosaicNonNegativeNumber(raw.previewStrokeWidth, fallback.previewStrokeWidth);
     }
-    if (hasOwn$1(raw, 'previewFill')) {
+    if (hasOwn(raw, 'previewFill')) {
         next.previewFill = normalizeString(raw.previewFill, fallback.previewFill);
     }
     return next;
 }
 function normalizeEraserConfig(input, fallback) {
-    if (!isConfigObject$1(input))
+    if (!isConfigObject(input))
         return cloneResolvedEraserConfig(fallback);
     return mergeEraserConfigPatch(fallback, input);
 }
@@ -1207,55 +2356,55 @@ function normalizeNullableDashArray(value, fallback) {
     return fallback ? [...fallback] : null;
 }
 function mergeShapeAnnotationConfigPatch(current, patch, fallback = current) {
-    const raw = isConfigObject$1(patch) ? patch : {};
+    const raw = isConfigObject(patch) ? patch : {};
     const next = cloneResolvedShapeAnnotationConfig(current);
-    if (hasOwn$1(raw, 'shape'))
+    if (hasOwn(raw, 'shape'))
         next.shape = normalizeShapeKind(raw.shape, fallback.shape);
-    if (hasOwn$1(raw, 'left'))
+    if (hasOwn(raw, 'left'))
         next.left = normalizeTextLeftTop(raw.left);
-    if (hasOwn$1(raw, 'top'))
+    if (hasOwn(raw, 'top'))
         next.top = normalizeTextLeftTop(raw.top);
-    if (hasOwn$1(raw, 'width'))
+    if (hasOwn(raw, 'width'))
         next.width = normalizePositiveNumber(raw.width, fallback.width);
-    if (hasOwn$1(raw, 'height'))
+    if (hasOwn(raw, 'height'))
         next.height = normalizePositiveNumber(raw.height, fallback.height);
-    if (hasOwn$1(raw, 'x1'))
+    if (hasOwn(raw, 'x1'))
         next.x1 = normalizeTextLeftTop(raw.x1);
-    if (hasOwn$1(raw, 'y1'))
+    if (hasOwn(raw, 'y1'))
         next.y1 = normalizeTextLeftTop(raw.y1);
-    if (hasOwn$1(raw, 'x2'))
+    if (hasOwn(raw, 'x2'))
         next.x2 = normalizeTextLeftTop(raw.x2);
-    if (hasOwn$1(raw, 'y2'))
+    if (hasOwn(raw, 'y2'))
         next.y2 = normalizeTextLeftTop(raw.y2);
-    if (hasOwn$1(raw, 'stroke'))
+    if (hasOwn(raw, 'stroke'))
         next.stroke = normalizeString(raw.stroke, fallback.stroke);
-    if (hasOwn$1(raw, 'strokeWidth')) {
+    if (hasOwn(raw, 'strokeWidth')) {
         next.strokeWidth = normalizePositiveNumber(raw.strokeWidth, fallback.strokeWidth);
     }
-    if (hasOwn$1(raw, 'fill'))
+    if (hasOwn(raw, 'fill'))
         next.fill = normalizeString(raw.fill, fallback.fill);
-    if (hasOwn$1(raw, 'opacity'))
+    if (hasOwn(raw, 'opacity'))
         next.opacity = normalizeOpacity(raw.opacity, fallback.opacity);
-    if (hasOwn$1(raw, 'angle'))
+    if (hasOwn(raw, 'angle'))
         next.angle = normalizeFiniteNumber(raw.angle, fallback.angle);
-    if (hasOwn$1(raw, 'selectable')) {
+    if (hasOwn(raw, 'selectable')) {
         next.selectable = normalizeBoolean(raw.selectable, fallback.selectable);
     }
-    if (hasOwn$1(raw, 'evented'))
+    if (hasOwn(raw, 'evented'))
         next.evented = normalizeBoolean(raw.evented, fallback.evented);
-    if (hasOwn$1(raw, 'annotationHidden')) {
+    if (hasOwn(raw, 'annotationHidden')) {
         next.annotationHidden = normalizeBoolean(raw.annotationHidden, fallback.annotationHidden);
     }
-    if (hasOwn$1(raw, 'annotationLocked')) {
+    if (hasOwn(raw, 'annotationLocked')) {
         next.annotationLocked = normalizeBoolean(raw.annotationLocked, fallback.annotationLocked);
     }
-    if (hasOwn$1(raw, 'strokeDashArray')) {
+    if (hasOwn(raw, 'strokeDashArray')) {
         next.strokeDashArray = normalizeNullableDashArray(raw.strokeDashArray, fallback.strokeDashArray);
     }
-    if (hasOwn$1(raw, 'arrowHeadLength')) {
+    if (hasOwn(raw, 'arrowHeadLength')) {
         next.arrowHeadLength = normalizePositiveNumber(raw.arrowHeadLength, fallback.arrowHeadLength);
     }
-    if (hasOwn$1(raw, 'styles')) {
+    if (hasOwn(raw, 'styles')) {
         next.styles = {
             ...next.styles,
             ...normalizeFabricObjectStyles(raw.styles),
@@ -1264,7 +2413,7 @@ function mergeShapeAnnotationConfigPatch(current, patch, fallback = current) {
     return next;
 }
 function normalizeShapeAnnotationConfig(input, fallback) {
-    if (!isConfigObject$1(input))
+    if (!isConfigObject(input))
         return cloneResolvedShapeAnnotationConfig(fallback);
     return mergeShapeAnnotationConfigPatch(fallback, input);
 }
@@ -1317,7 +2466,7 @@ function areStyleValuesEqual(left, right, seen) {
     if (leftKeys.length !== rightKeys.length)
         return false;
     return leftKeys.every((key) => {
-        if (!hasOwn$1(rightRecord, key))
+        if (!hasOwn(rightRecord, key))
             return false;
         return areStyleValuesEqual(leftRecord[key], rightRecord[key], seen);
     });
@@ -1371,76 +2520,76 @@ function areResolvedShapeAnnotationConfigsEqual(left, right) {
         areStyleRecordsEqual(left.styles, right.styles));
 }
 function getInvalidTextAnnotationConfigFields(input) {
-    const raw = isConfigObject$1(input) ? input : {};
+    const raw = isConfigObject(input) ? input : {};
     const invalid = [];
-    if (hasOwn$1(raw, 'text') && typeof raw.text !== 'string')
+    if (hasOwn(raw, 'text') && typeof raw.text !== 'string')
         invalid.push('text');
-    if (hasOwn$1(raw, 'width') && !isFiniteNumber$1(raw.width))
+    if (hasOwn(raw, 'width') && !isFiniteNumber(raw.width))
         invalid.push('width');
-    if (hasOwn$1(raw, 'fontSize') && !isFiniteNumber$1(raw.fontSize))
+    if (hasOwn(raw, 'fontSize') && !isFiniteNumber(raw.fontSize))
         invalid.push('fontSize');
-    if (hasOwn$1(raw, 'fontFamily') && typeof raw.fontFamily !== 'string')
+    if (hasOwn(raw, 'fontFamily') && typeof raw.fontFamily !== 'string')
         invalid.push('fontFamily');
-    if (hasOwn$1(raw, 'fill') && typeof raw.fill !== 'string') {
+    if (hasOwn(raw, 'fill') && typeof raw.fill !== 'string') {
         invalid.push('fill');
     }
     return invalid;
 }
 function getInvalidDrawConfigFields(input) {
-    const raw = isConfigObject$1(input) ? input : {};
+    const raw = isConfigObject(input) ? input : {};
     const invalid = [];
-    if (hasOwn$1(raw, 'brushSize') && !isFiniteNumber$1(raw.brushSize))
+    if (hasOwn(raw, 'brushSize') && !isFiniteNumber(raw.brushSize))
         invalid.push('brushSize');
-    if (hasOwn$1(raw, 'color') && typeof raw.color !== 'string')
+    if (hasOwn(raw, 'color') && typeof raw.color !== 'string')
         invalid.push('color');
-    if (hasOwn$1(raw, 'opacity') && !isFiniteNumber$1(raw.opacity))
+    if (hasOwn(raw, 'opacity') && !isFiniteNumber(raw.opacity))
         invalid.push('opacity');
     return invalid;
 }
 function getInvalidEraserConfigFields(input) {
-    const raw = isConfigObject$1(input) ? input : {};
+    const raw = isConfigObject(input) ? input : {};
     const invalid = [];
-    if (hasOwn$1(raw, 'brushSize') && !isFiniteNumber$1(raw.brushSize))
+    if (hasOwn(raw, 'brushSize') && !isFiniteNumber(raw.brushSize))
         invalid.push('brushSize');
-    if (hasOwn$1(raw, 'target') && raw.target !== 'drawAnnotations')
+    if (hasOwn(raw, 'target') && raw.target !== 'drawAnnotations')
         invalid.push('target');
-    if (hasOwn$1(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
+    if (hasOwn(raw, 'previewStroke') && typeof raw.previewStroke !== 'string') {
         invalid.push('previewStroke');
     }
-    if (hasOwn$1(raw, 'previewStrokeWidth') && !isFiniteNumber$1(raw.previewStrokeWidth)) {
+    if (hasOwn(raw, 'previewStrokeWidth') && !isFiniteNumber(raw.previewStrokeWidth)) {
         invalid.push('previewStrokeWidth');
     }
-    if (hasOwn$1(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
+    if (hasOwn(raw, 'previewFill') && typeof raw.previewFill !== 'string') {
         invalid.push('previewFill');
     }
     return invalid;
 }
 function getInvalidShapeAnnotationConfigFields(input) {
-    const raw = isConfigObject$1(input) ? input : {};
+    const raw = isConfigObject(input) ? input : {};
     const invalid = [];
-    if (hasOwn$1(raw, 'shape') &&
+    if (hasOwn(raw, 'shape') &&
         raw.shape !== 'rect' &&
         raw.shape !== 'line' &&
         raw.shape !== 'arrow') {
         invalid.push('shape');
     }
-    if (hasOwn$1(raw, 'width') && !isFiniteNumber$1(raw.width))
+    if (hasOwn(raw, 'width') && !isFiniteNumber(raw.width))
         invalid.push('width');
-    if (hasOwn$1(raw, 'height') && !isFiniteNumber$1(raw.height))
+    if (hasOwn(raw, 'height') && !isFiniteNumber(raw.height))
         invalid.push('height');
-    if (hasOwn$1(raw, 'stroke') && typeof raw.stroke !== 'string')
+    if (hasOwn(raw, 'stroke') && typeof raw.stroke !== 'string')
         invalid.push('stroke');
-    if (hasOwn$1(raw, 'strokeWidth') && !isFiniteNumber$1(raw.strokeWidth)) {
+    if (hasOwn(raw, 'strokeWidth') && !isFiniteNumber(raw.strokeWidth)) {
         invalid.push('strokeWidth');
     }
-    if (hasOwn$1(raw, 'fill') && typeof raw.fill !== 'string')
+    if (hasOwn(raw, 'fill') && typeof raw.fill !== 'string')
         invalid.push('fill');
-    if (hasOwn$1(raw, 'opacity') && !isFiniteNumber$1(raw.opacity))
+    if (hasOwn(raw, 'opacity') && !isFiniteNumber(raw.opacity))
         invalid.push('opacity');
-    if (hasOwn$1(raw, 'arrowHeadLength') && !isFiniteNumber$1(raw.arrowHeadLength)) {
+    if (hasOwn(raw, 'arrowHeadLength') && !isFiniteNumber(raw.arrowHeadLength)) {
         invalid.push('arrowHeadLength');
     }
-    if (hasOwn$1(raw, 'strokeDashArray')) {
+    if (hasOwn(raw, 'strokeDashArray')) {
         const value = raw.strokeDashArray;
         const valid = value === null ||
             (Array.isArray(value) &&
@@ -1743,1348 +2892,6 @@ function resolveOptions(input) {
     });
 }
 
-const DEFAULT_IMAGE_FILTER_CONFIG = Object.freeze({
-    brightness: 0,
-    contrast: 0,
-    saturation: 0,
-    blur: 0,
-    sharpen: 0,
-    grayscale: false,
-    sepia: false,
-    vintage: false,
-});
-function isConfigObject(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-function hasOwn(object, key) {
-    return Object.prototype.hasOwnProperty.call(object, key);
-}
-function normalizeNumberField(raw, key, fallback, min, max, warnings) {
-    if (!hasOwn(raw, key))
-        return fallback;
-    const value = raw[key];
-    if (value === undefined || value === null)
-        return 0;
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-        warnings.push(key);
-        return fallback;
-    }
-    if (value < min || value > max) {
-        warnings.push(key);
-        return Math.max(min, Math.min(max, value));
-    }
-    return value;
-}
-function normalizeBooleanField(raw, key, fallback, warnings) {
-    if (!hasOwn(raw, key))
-        return fallback;
-    const value = raw[key];
-    if (value === undefined || value === null)
-        return false;
-    if (typeof value !== 'boolean') {
-        warnings.push(key);
-        return fallback;
-    }
-    return value;
-}
-function cloneResolvedImageFilterConfig(config) {
-    return { ...config };
-}
-function mergeImageFilterConfigPatch(current, patch) {
-    const raw = isConfigObject(patch) ? patch : {};
-    const warnings = [];
-    const config = {
-        brightness: normalizeNumberField(raw, 'brightness', current.brightness, -1, 1, warnings),
-        contrast: normalizeNumberField(raw, 'contrast', current.contrast, -1, 1, warnings),
-        saturation: normalizeNumberField(raw, 'saturation', current.saturation, -1, 1, warnings),
-        blur: normalizeNumberField(raw, 'blur', current.blur, 0, 1, warnings),
-        sharpen: normalizeNumberField(raw, 'sharpen', current.sharpen, 0, 1, warnings),
-        grayscale: normalizeBooleanField(raw, 'grayscale', current.grayscale, warnings),
-        sepia: normalizeBooleanField(raw, 'sepia', current.sepia, warnings),
-        vintage: normalizeBooleanField(raw, 'vintage', current.vintage, warnings),
-    };
-    return { config, warnings };
-}
-function normalizeImageFilterConfigSnapshot(value) {
-    if (!isConfigObject(value))
-        return cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
-    return mergeImageFilterConfigPatch(cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG), value).config;
-}
-function areResolvedImageFilterConfigsEqual(left, right) {
-    return (left.brightness === right.brightness &&
-        left.contrast === right.contrast &&
-        left.saturation === right.saturation &&
-        left.blur === right.blur &&
-        left.sharpen === right.sharpen &&
-        left.grayscale === right.grayscale &&
-        left.sepia === right.sepia &&
-        left.vintage === right.vintage);
-}
-function hasActiveImageFilters(config) {
-    return (config.brightness !== 0 ||
-        config.contrast !== 0 ||
-        config.saturation !== 0 ||
-        config.blur !== 0 ||
-        config.sharpen !== 0 ||
-        config.grayscale ||
-        config.sepia ||
-        config.vintage);
-}
-
-function isBaseImageObject(object) {
-    return (!!object &&
-        typeof object === 'object' &&
-        object.editorObjectKind === 'baseImage');
-}
-function isMaskObject(object) {
-    const candidate = object;
-    return (!!candidate &&
-        candidate.editorObjectKind === 'mask' &&
-        typeof candidate.maskId === 'number' &&
-        typeof candidate.maskUid === 'string' &&
-        typeof candidate.maskName === 'string');
-}
-function isAnnotationObject(object) {
-    const candidate = object;
-    return (!!candidate &&
-        candidate.editorObjectKind === 'annotation' &&
-        typeof candidate.annotationId === 'number' &&
-        typeof candidate.annotationType === 'string' &&
-        typeof candidate.annotationName === 'string');
-}
-function isTextAnnotationObject(object) {
-    return isAnnotationObject(object) && object.annotationType === 'text';
-}
-function isDrawAnnotationObject(object) {
-    return isAnnotationObject(object) && object.annotationType === 'draw';
-}
-function isShapeAnnotationObject(object) {
-    const candidate = object;
-    return (isAnnotationObject(candidate) &&
-        candidate.annotationType === 'shape' &&
-        (candidate.shapeAnnotationKind === 'rect' ||
-            candidate.shapeAnnotationKind === 'line' ||
-            candidate.shapeAnnotationKind === 'arrow'));
-}
-function isSessionObject(object) {
-    const candidate = object;
-    return (!!candidate &&
-        candidate.editorObjectKind === 'session' &&
-        typeof candidate.sessionObjectType === 'string');
-}
-function isEditableOverlayObject(object) {
-    return isMaskObject(object) || isAnnotationObject(object);
-}
-
-function markBaseImageObject(image) {
-    const baseImage = image;
-    baseImage.editorObjectKind = 'baseImage';
-    return baseImage;
-}
-function markMaskObject(object, meta) {
-    const mask = object;
-    mask.editorObjectKind = 'mask';
-    mask.maskId = meta.maskId;
-    mask.maskUid = meta.maskUid;
-    mask.maskName = meta.maskName;
-    mask.originalAlpha = meta.originalAlpha;
-    if (meta.originalStroke !== undefined)
-        mask.originalStroke = meta.originalStroke;
-    if (typeof meta.originalStrokeWidth === 'number') {
-        mask.originalStrokeWidth = meta.originalStrokeWidth;
-    }
-    return mask;
-}
-function markAnnotationObject(object, meta) {
-    var _a, _b;
-    const annotation = object;
-    annotation.editorObjectKind = 'annotation';
-    annotation.annotationId = meta.annotationId;
-    annotation.annotationType = meta.annotationType;
-    annotation.annotationName = meta.annotationName;
-    annotation.annotationHidden = (_a = meta.annotationHidden) !== null && _a !== void 0 ? _a : false;
-    annotation.annotationLocked = (_b = meta.annotationLocked) !== null && _b !== void 0 ? _b : false;
-    if (typeof meta.annotationSelectable === 'boolean') {
-        annotation.annotationSelectable = meta.annotationSelectable;
-    }
-    if (typeof meta.annotationEvented === 'boolean') {
-        annotation.annotationEvented = meta.annotationEvented;
-    }
-    if (typeof meta.annotationHasControls === 'boolean') {
-        annotation.annotationHasControls = meta.annotationHasControls;
-    }
-    if (typeof meta.annotationEditable === 'boolean') {
-        annotation.annotationEditable = meta.annotationEditable;
-    }
-    if (meta.shapeAnnotationKind) {
-        annotation.shapeAnnotationKind = meta.shapeAnnotationKind;
-    }
-    return annotation;
-}
-function markSessionObject(object, sessionObjectType) {
-    const sessionObject = object;
-    sessionObject.editorObjectKind = 'session';
-    sessionObject.sessionObjectType = sessionObjectType;
-    return sessionObject;
-}
-
-const SUPPORTED_IMAGE_EXTENSIONS = {
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    webp: 'image/webp',
-};
-const SUPPORTED_IMAGE_MIME_TYPES = new Set(Object.values(SUPPORTED_IMAGE_EXTENSIONS));
-function isSupportedImageDataUrl(value) {
-    if (typeof value !== 'string')
-        return false;
-    if (!value.toLowerCase().startsWith('data:image/'))
-        return false;
-    const match = /^data:(image\/[^;,]+)(?:[;,])/i.exec(value);
-    if (!match)
-        return false;
-    return SUPPORTED_IMAGE_MIME_TYPES.has(match[1].toLowerCase());
-}
-function inferImageMimeType(file) {
-    var _a, _b;
-    if (file.type && SUPPORTED_IMAGE_MIME_TYPES.has(file.type))
-        return file.type;
-    if (file.type)
-        return null;
-    const match = /\.([a-z0-9]+)$/i.exec(file.name);
-    const ext = (_a = match === null || match === void 0 ? void 0 : match[1]) === null || _a === void 0 ? void 0 : _a.toLowerCase();
-    if (!ext)
-        return null;
-    return (_b = SUPPORTED_IMAGE_EXTENSIONS[ext]) !== null && _b !== void 0 ? _b : null;
-}
-function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const fileReaderResult = reader.result;
-            if (typeof fileReaderResult === 'string') {
-                resolve(fileReaderResult);
-            }
-            else {
-                reject(new Error('FileReader returned a non-string result'));
-            }
-        };
-        reader.onerror = () => {
-            var _a;
-            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
-        };
-        reader.onabort = () => {
-            reject(new Error('FileReader read aborted'));
-        };
-        reader.readAsDataURL(file);
-    });
-}
-function readFileAsArrayBuffer(file) {
-    if (typeof file.arrayBuffer === 'function') {
-        return file.arrayBuffer();
-    }
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            const result = reader.result;
-            if (result instanceof ArrayBuffer) {
-                resolve(result);
-            }
-            else {
-                reject(new Error('FileReader returned a non-ArrayBuffer result'));
-            }
-        };
-        reader.onerror = () => {
-            var _a;
-            reject((_a = reader.error) !== null && _a !== void 0 ? _a : new Error('FileReader error'));
-        };
-        reader.onabort = () => {
-            reject(new Error('FileReader read aborted'));
-        };
-        reader.readAsArrayBuffer(file);
-    });
-}
-function resetFileInput(input) {
-    if (!input)
-        return;
-    try {
-        input.value = '';
-    }
-    catch {
-    }
-}
-
-function withTimeout(promise, ms, label, onTimeout) {
-    return new Promise((resolve, reject) => {
-        const start = Date.now();
-        const timeoutId = setTimeout(() => {
-            try {
-                onTimeout === null || onTimeout === void 0 ? void 0 : onTimeout();
-            }
-            catch {
-            }
-            reject(new ImageLoadTimeoutError(label, Date.now() - start));
-        }, ms);
-        promise.then((value) => {
-            clearTimeout(timeoutId);
-            resolve(value);
-        }, (err) => {
-            clearTimeout(timeoutId);
-            reject(err);
-        });
-    });
-}
-
-const DEFAULT_MAX_RESTORE_CANVAS_PIXELS = 50000000;
-const DEFAULT_MAX_RESTORE_CANVAS_DIMENSION = 16384;
-const DEFAULT_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
-const DEFAULT_MAX_SNAPSHOT_OBJECTS = 5000;
-const DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH = 100;
-const DEFAULT_STATE_RESTORE_TIMEOUT_MS = 30000;
-const PUBLIC_RESTORE_IMAGE_SOURCE_KEYS = new Set(['src', 'source']);
-const PUBLIC_RESTORE_FABRIC_OBJECT_KEYS = new Set(['clipPath', 'backgroundImage', 'overlayImage']);
-const PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS = new Set(['objects']);
-const ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES = new Set([
-    'circle',
-    'ellipse',
-    'image',
-    'line',
-    'path',
-    'polygon',
-    'polyline',
-    'rect',
-    'text',
-    'textbox',
-]);
-const SNAPSHOT_CUSTOM_KEYS = Object.freeze([
-    'editorObjectKind',
-    'sessionObjectType',
-    'maskId',
-    'maskUid',
-    'maskName',
-    'isCropRect',
-    'maskLabel',
-    'originalAlpha',
-    'originalStroke',
-    'originalStrokeWidth',
-    'hasControls',
-    'selectable',
-    'strokeUniform',
-    'lockRotation',
-    'transparentCorners',
-    'borderColor',
-    'cornerColor',
-    'cornerSize',
-    'flipX',
-    'flipY',
-    'isMosaicPreview',
-    'annotationId',
-    'annotationType',
-    'shapeAnnotationKind',
-    'annotationName',
-    'annotationHidden',
-    'annotationLocked',
-    'annotationSelectable',
-    'annotationEvented',
-    'annotationHasControls',
-    'annotationEditable',
-    'overlayPersistentId',
-    'overlayMetadata',
-]);
-function readFiniteNumber(value) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : null;
-}
-function serializedTypeMatches(liveObject, jsonObject) {
-    const jsonType = typeof jsonObject.type === 'string' ? jsonObject.type.toLowerCase() : '';
-    const liveType = typeof liveObject.type === 'string' ? liveObject.type.toLowerCase() : '';
-    return !jsonType || liveType === jsonType;
-}
-function serializedPositionMatches(liveObject, jsonObject) {
-    var _a, _b;
-    const jsonLeft = readFiniteNumber(jsonObject.left);
-    const jsonTop = readFiniteNumber(jsonObject.top);
-    if (jsonLeft === null || jsonTop === null)
-        return true;
-    return (Math.abs(((_a = liveObject.left) !== null && _a !== void 0 ? _a : 0) - jsonLeft) < 0.5 &&
-        Math.abs(((_b = liveObject.top) !== null && _b !== void 0 ? _b : 0) - jsonTop) < 0.5);
-}
-function serializedNumberMatches(liveValue, jsonValue, fallback, tolerance) {
-    var _a;
-    const jsonNumber = readFiniteNumber(jsonValue);
-    if (jsonNumber === null)
-        return true;
-    const liveNumber = (_a = readFiniteNumber(liveValue)) !== null && _a !== void 0 ? _a : fallback;
-    return Math.abs(liveNumber - jsonNumber) < tolerance;
-}
-function serializedTransformMatches(liveObject, jsonObject) {
-    return (serializedNumberMatches(liveObject.angle, jsonObject.angle, 0, 0.5) &&
-        serializedNumberMatches(liveObject.scaleX, jsonObject.scaleX, 1, 0.0001) &&
-        serializedNumberMatches(liveObject.scaleY, jsonObject.scaleY, 1, 0.0001));
-}
-function serializedObjectMatches(liveObject, jsonObject) {
-    const live = liveObject;
-    if (typeof jsonObject.maskUid === 'string' && typeof live.maskUid === 'string') {
-        return live.maskUid === jsonObject.maskUid;
-    }
-    if (typeof jsonObject.maskId === 'number' && typeof live.maskId === 'number') {
-        return live.maskId === jsonObject.maskId;
-    }
-    if (typeof jsonObject.annotationId === 'number' && typeof live.annotationId === 'number') {
-        return live.annotationId === jsonObject.annotationId;
-    }
-    if (typeof jsonObject.sessionObjectType === 'string' &&
-        typeof live.sessionObjectType === 'string') {
-        return live.sessionObjectType === jsonObject.sessionObjectType;
-    }
-    if (typeof jsonObject.editorObjectKind === 'string' &&
-        typeof live.editorObjectKind === 'string' &&
-        live.editorObjectKind !== jsonObject.editorObjectKind) {
-        return false;
-    }
-    return (serializedTypeMatches(liveObject, jsonObject) &&
-        serializedPositionMatches(liveObject, jsonObject) &&
-        serializedTransformMatches(liveObject, jsonObject));
-}
-function findCanvasObjectForJson(canvasObjects, jsonObject, preferredIndex, consumedIndexes) {
-    const preferred = canvasObjects[preferredIndex];
-    if (preferred &&
-        !consumedIndexes.has(preferredIndex) &&
-        serializedObjectMatches(preferred, jsonObject)) {
-        consumedIndexes.add(preferredIndex);
-        return { object: preferred, index: preferredIndex };
-    }
-    const matchedIndex = canvasObjects.findIndex((candidate, index) => !consumedIndexes.has(index) && serializedObjectMatches(candidate, jsonObject));
-    if (matchedIndex < 0)
-        return null;
-    consumedIndexes.add(matchedIndex);
-    return { object: canvasObjects[matchedIndex], index: matchedIndex };
-}
-function copySnapshotCustomPropsFromCanvas(canvasObjects, jsonObjects) {
-    if (!Array.isArray(jsonObjects))
-        return;
-    const consumedIndexes = new Set();
-    for (let index = 0; index < jsonObjects.length; index += 1) {
-        const jsonObject = jsonObjects[index];
-        if (!jsonObject)
-            continue;
-        const match = findCanvasObjectForJson(canvasObjects, jsonObject, index, consumedIndexes);
-        if (!match)
-            continue;
-        const liveObject = match.object;
-        if (typeof liveObject.editorObjectKind === 'string') {
-            jsonObject.editorObjectKind = liveObject.editorObjectKind;
-        }
-        if (typeof liveObject.sessionObjectType === 'string') {
-            jsonObject.sessionObjectType = liveObject.sessionObjectType;
-        }
-        if (typeof liveObject.maskId === 'number')
-            jsonObject.maskId = liveObject.maskId;
-        if (typeof liveObject.maskUid === 'string')
-            jsonObject.maskUid = liveObject.maskUid;
-        if (typeof liveObject.maskName === 'string')
-            jsonObject.maskName = liveObject.maskName;
-        if (typeof liveObject.originalAlpha === 'number') {
-            jsonObject.originalAlpha = liveObject.originalAlpha;
-        }
-        if (liveObject.originalStroke !== undefined) {
-            jsonObject.originalStroke = liveObject.originalStroke;
-        }
-        if (typeof liveObject.originalStrokeWidth === 'number') {
-            jsonObject.originalStrokeWidth = liveObject.originalStrokeWidth;
-        }
-        if (typeof liveObject.hasControls === 'boolean') {
-            jsonObject.hasControls = liveObject.hasControls;
-        }
-        if (typeof liveObject.selectable === 'boolean') {
-            jsonObject.selectable = liveObject.selectable;
-        }
-        if (typeof liveObject.strokeUniform === 'boolean') {
-            jsonObject.strokeUniform = liveObject.strokeUniform;
-        }
-        if (typeof liveObject.lockRotation === 'boolean') {
-            jsonObject.lockRotation = liveObject.lockRotation;
-        }
-        if (typeof liveObject.transparentCorners === 'boolean') {
-            jsonObject.transparentCorners = liveObject.transparentCorners;
-        }
-        if (typeof liveObject.borderColor === 'string') {
-            jsonObject.borderColor = liveObject.borderColor;
-        }
-        if (typeof liveObject.cornerColor === 'string') {
-            jsonObject.cornerColor = liveObject.cornerColor;
-        }
-        if (typeof liveObject.cornerSize === 'number') {
-            jsonObject.cornerSize = liveObject.cornerSize;
-        }
-        if (typeof liveObject.flipX === 'boolean') {
-            jsonObject.flipX = liveObject.flipX;
-        }
-        if (typeof liveObject.flipY === 'boolean') {
-            jsonObject.flipY = liveObject.flipY;
-        }
-        if (liveObject.isCropRect === true)
-            jsonObject.isCropRect = true;
-        if (liveObject.maskLabel === true)
-            jsonObject.maskLabel = true;
-        if (liveObject.isMosaicPreview === true)
-            jsonObject.isMosaicPreview = true;
-        if (typeof liveObject.annotationId === 'number') {
-            jsonObject.annotationId = liveObject.annotationId;
-        }
-        if (typeof liveObject.annotationType === 'string') {
-            jsonObject.annotationType = liveObject.annotationType;
-        }
-        if (typeof liveObject.shapeAnnotationKind === 'string') {
-            jsonObject.shapeAnnotationKind = liveObject.shapeAnnotationKind;
-        }
-        if (typeof liveObject.annotationName === 'string') {
-            jsonObject.annotationName = liveObject.annotationName;
-        }
-        if (typeof liveObject.annotationHidden === 'boolean') {
-            jsonObject.annotationHidden = liveObject.annotationHidden;
-        }
-        if (typeof liveObject.annotationLocked === 'boolean') {
-            jsonObject.annotationLocked = liveObject.annotationLocked;
-        }
-        if (typeof liveObject.annotationSelectable === 'boolean') {
-            jsonObject.annotationSelectable = liveObject.annotationSelectable;
-        }
-        if (typeof liveObject.annotationEvented === 'boolean') {
-            jsonObject.annotationEvented = liveObject.annotationEvented;
-        }
-        if (typeof liveObject.annotationHasControls === 'boolean') {
-            jsonObject.annotationHasControls = liveObject.annotationHasControls;
-        }
-        if (typeof liveObject.annotationEditable === 'boolean') {
-            jsonObject.annotationEditable = liveObject.annotationEditable;
-        }
-        if (typeof liveObject.overlayPersistentId === 'string') {
-            jsonObject.overlayPersistentId = liveObject.overlayPersistentId;
-        }
-        if (liveObject.overlayMetadata !== undefined) {
-            jsonObject.overlayMetadata = liveObject.overlayMetadata;
-        }
-    }
-}
-function isActiveSelectionObject$3(object) {
-    if (!object)
-        return false;
-    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
-    if (type === 'activeselection')
-        return true;
-    const isType = object.isType;
-    return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
-}
-function saveState(input) {
-    var _a, _b, _c, _d;
-    const { canvas, currentScale, currentRotation, baseImageScale } = input;
-    const activeObject = (_b = (_a = canvas).getActiveObject) === null || _b === void 0 ? void 0 : _b.call(_a);
-    const activeMaskId = activeObject && isMaskObject(activeObject)
-        ? activeObject.maskId
-        : typeof input.activeMaskId === 'number'
-            ? input.activeMaskId
-            : null;
-    const activeAnnotationId = activeObject && isAnnotationObject(activeObject)
-        ? activeObject.annotationId
-        : typeof input.activeAnnotationId === 'number'
-            ? input.activeAnnotationId
-            : null;
-    if (isActiveSelectionObject$3(activeObject)) {
-        canvas.discardActiveObject();
-    }
-    const jsonObj = canvas.toJSON(SNAPSHOT_CUSTOM_KEYS);
-    copySnapshotCustomPropsFromCanvas(canvas.getObjects(), jsonObj.objects);
-    if (Array.isArray(jsonObj.objects)) {
-        jsonObj.objects = jsonObj.objects.filter((o) => o.editorObjectKind !== 'session' &&
-            o.isCropRect !== true &&
-            o.maskLabel !== true &&
-            o.isMosaicPreview !== true);
-    }
-    jsonObj._editorState = {
-        currentScale,
-        currentRotation,
-        baseImageScale,
-        currentImageMimeType: (_c = input.currentImageMimeType) !== null && _c !== void 0 ? _c : null,
-        activeObjectKind: activeMaskId !== null ? 'mask' : activeAnnotationId !== null ? 'annotation' : null,
-    };
-    const imageFilterConfig = cloneResolvedImageFilterConfig((_d = input.imageFilterConfig) !== null && _d !== void 0 ? _d : DEFAULT_IMAGE_FILTER_CONFIG);
-    if (hasActiveImageFilters(imageFilterConfig)) {
-        jsonObj._editorState.imageFilterConfig = imageFilterConfig;
-    }
-    if (activeMaskId !== null)
-        jsonObj._editorState.activeMaskId = activeMaskId;
-    if (activeAnnotationId !== null) {
-        jsonObj._editorState.activeAnnotationId = activeAnnotationId;
-    }
-    return JSON.stringify(jsonObj);
-}
-async function loadFromState(input) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const { canvas, jsonString: snapshotInput, setCanvasSize } = input;
-    const restoreTrustLevel = (_a = input.restoreTrustLevel) !== null && _a !== void 0 ? _a : 'public';
-    const isPublicRestore = restoreTrustLevel === 'public';
-    let jsonString;
-    try {
-        jsonString =
-            typeof snapshotInput === 'string' ? snapshotInput : JSON.stringify(snapshotInput);
-    }
-    catch (error) {
-        throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
-    }
-    if (isPublicRestore) {
-        assertSnapshotByteSizeAllowed(jsonString, (_b = input.maxSnapshotBytes) !== null && _b !== void 0 ? _b : DEFAULT_MAX_SNAPSHOT_BYTES);
-    }
-    let json;
-    try {
-        json = JSON.parse(jsonString);
-    }
-    catch (error) {
-        throw new StateRestoreError('loadFromState: snapshot JSON is malformed.', error);
-    }
-    if (isPublicRestore) {
-        validatePublicSnapshot(json, {
-            maxSnapshotObjects: (_c = input.maxSnapshotObjects) !== null && _c !== void 0 ? _c : DEFAULT_MAX_SNAPSHOT_OBJECTS,
-        });
-    }
-    if (typeof json.width === 'number' &&
-        json.width > 0 &&
-        typeof json.height === 'number' &&
-        json.height > 0) {
-        assertRestoredCanvasSizeAllowed(json.width, json.height, (_d = input.maxCanvasPixels) !== null && _d !== void 0 ? _d : DEFAULT_MAX_RESTORE_CANVAS_PIXELS, isPublicRestore
-            ? ((_e = input.maxRestoreCanvasDimension) !== null && _e !== void 0 ? _e : DEFAULT_MAX_RESTORE_CANVAS_DIMENSION)
-            : null);
-        setCanvasSize(json.width, json.height);
-    }
-    const loadFromJsonPromise = canvas.loadFromJSON(json);
-    try {
-        await withTimeout(loadFromJsonPromise, DEFAULT_STATE_RESTORE_TIMEOUT_MS, 'canvas.loadFromJSON');
-    }
-    catch (error) {
-        if (error instanceof ImageLoadTimeoutError) {
-            throw new StateRestoreError('loadFromState: canvas.loadFromJSON timed out while restoring editor state.', error);
-        }
-        throw error;
-    }
-    const objects = canvas.getObjects();
-    restoreEditorObjectPropsFromJson(objects, (_f = json.objects) !== null && _f !== void 0 ? _f : []);
-    const editorState = json._editorState && typeof json._editorState === 'object'
-        ? {
-            currentScale: typeof json._editorState.currentScale === 'number'
-                ? json._editorState.currentScale
-                : 1,
-            currentRotation: typeof json._editorState.currentRotation === 'number'
-                ? json._editorState.currentRotation
-                : 0,
-            baseImageScale: typeof json._editorState.baseImageScale === 'number'
-                ? json._editorState.baseImageScale
-                : 1,
-        }
-        : null;
-    if (editorState && json._editorState && typeof json._editorState.activeMaskId === 'number') {
-        editorState.activeMaskId = json._editorState.activeMaskId;
-    }
-    if (editorState &&
-        json._editorState &&
-        typeof json._editorState.activeAnnotationId === 'number') {
-        editorState.activeAnnotationId = json._editorState.activeAnnotationId;
-    }
-    if (editorState && json._editorState && 'activeObjectKind' in json._editorState) {
-        const kind = json._editorState.activeObjectKind;
-        editorState.activeObjectKind =
-            kind === 'mask' || kind === 'annotation' || kind === null ? kind : null;
-    }
-    if (editorState && json._editorState && 'currentImageMimeType' in json._editorState) {
-        const mimeType = json._editorState.currentImageMimeType;
-        editorState.currentImageMimeType =
-            mimeType === 'image/jpeg' || mimeType === 'image/png' || mimeType === 'image/webp'
-                ? mimeType
-                : null;
-    }
-    if (editorState && json._editorState && 'imageFilterConfig' in json._editorState) {
-        editorState.imageFilterConfig = normalizeImageFilterConfigSnapshot(json._editorState.imageFilterConfig);
-    }
-    const maxMaskId = objects
-        .filter(isMaskObject)
-        .reduce((max, maskObject) => Math.max(max, maskObject.maskId), 0);
-    const maxAnnotationId = objects
-        .filter(isAnnotationObject)
-        .reduce((max, annotationObject) => Math.max(max, annotationObject.annotationId), 0);
-    const masks = objects.filter(isMaskObject);
-    const annotations = objects.filter(isAnnotationObject);
-    const originalImage = (_g = objects.find(isBaseImageObject)) !== null && _g !== void 0 ? _g : null;
-    return {
-        editorState,
-        maxMaskId,
-        maxAnnotationId,
-        originalImage,
-        objects,
-        masks,
-        annotations,
-        jsonString,
-    };
-}
-function assertRestoredCanvasSizeAllowed(width, height, maxCanvasPixels, maxCanvasDimension) {
-    const safeMaxCanvasPixels = Number.isFinite(maxCanvasPixels) && maxCanvasPixels > 0
-        ? Math.floor(maxCanvasPixels)
-        : DEFAULT_MAX_RESTORE_CANVAS_PIXELS;
-    const safeMaxCanvasDimension = maxCanvasDimension !== null && Number.isFinite(maxCanvasDimension) && maxCanvasDimension > 0
-        ? Math.floor(maxCanvasDimension)
-        : null;
-    if (safeMaxCanvasDimension !== null &&
-        (width > safeMaxCanvasDimension || height > safeMaxCanvasDimension)) {
-        throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxRestoreCanvasDimension (${safeMaxCanvasDimension}).`);
-    }
-    const pixelCount = width * height;
-    if (!Number.isFinite(pixelCount) || pixelCount > safeMaxCanvasPixels) {
-        throw new StateRestoreError(`loadFromState: snapshot canvas size ${width}x${height} exceeds maxCanvasPixels (${safeMaxCanvasPixels}).`);
-    }
-}
-function getUtf8ByteLength$1(value) {
-    if (typeof TextEncoder === 'function') {
-        return new TextEncoder().encode(value).byteLength;
-    }
-    return value.length;
-}
-function toPositiveIntegerLimit(value, fallback) {
-    return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
-}
-function assertSnapshotByteSizeAllowed(jsonString, maxSnapshotBytes) {
-    const safeMaxSnapshotBytes = toPositiveIntegerLimit(maxSnapshotBytes, DEFAULT_MAX_SNAPSHOT_BYTES);
-    if (jsonString.length > safeMaxSnapshotBytes) {
-        throw new StateRestoreError(`loadFromState: snapshot JSON size exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
-    }
-    const worstCaseUtf8Bytes = jsonString.length * 3;
-    if (worstCaseUtf8Bytes <= safeMaxSnapshotBytes)
-        return;
-    const byteLength = getUtf8ByteLength$1(jsonString);
-    if (byteLength > safeMaxSnapshotBytes) {
-        throw new StateRestoreError(`loadFromState: snapshot JSON size ${byteLength} bytes exceeds maxSnapshotBytes (${safeMaxSnapshotBytes}).`);
-    }
-}
-function validatePublicSnapshot(json, options) {
-    var _a;
-    if (json.objects !== undefined && !Array.isArray(json.objects)) {
-        throw new StateRestoreError('loadFromState: snapshot objects must be an array.');
-    }
-    const objects = (_a = json.objects) !== null && _a !== void 0 ? _a : [];
-    const safeMaxSnapshotObjects = toPositiveIntegerLimit(options.maxSnapshotObjects, DEFAULT_MAX_SNAPSHOT_OBJECTS);
-    if (objects.length > safeMaxSnapshotObjects) {
-        throw new StateRestoreError(`loadFromState: snapshot contains ${objects.length} objects, exceeding maxSnapshotObjects (${safeMaxSnapshotObjects}).`);
-    }
-    const context = {
-        maxSnapshotObjects: safeMaxSnapshotObjects,
-        objectCount: 0,
-        seen: new WeakSet(),
-        countedFabricObjects: new WeakSet(),
-    };
-    objects.forEach((object, index) => validatePublicSnapshotValue(object, `objects[${index}]`, {
-        validateFabricObject: true,
-        allowEditorOwnedCustomMask: true,
-        arrayEntriesAreFabricObjects: false,
-    }, context, 0));
-    for (const [key, value] of Object.entries(json)) {
-        if (key === 'objects')
-            continue;
-        validatePublicSnapshotValue(value, key, {
-            validateFabricObject: PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key),
-            allowEditorOwnedCustomMask: false,
-            arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
-        }, context, 0);
-    }
-}
-function validatePublicSnapshotValue(value, path, options, context, depth) {
-    if (depth > DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH) {
-        throw new StateRestoreError(`loadFromState: snapshot field "${path}" exceeds max nested object depth (${DEFAULT_MAX_PUBLIC_RESTORE_NESTING_DEPTH}).`);
-    }
-    if (!value || typeof value !== 'object')
-        return;
-    const alreadySeen = context.seen.has(value);
-    if (!alreadySeen)
-        context.seen.add(value);
-    if (options.validateFabricObject) {
-        validatePublicSnapshotFabricObjectPayload(value, path, options.allowEditorOwnedCustomMask, context);
-    }
-    if (alreadySeen)
-        return;
-    if (Array.isArray(value)) {
-        value.forEach((entry, entryIndex) => validatePublicSnapshotValue(entry, `${path}[${entryIndex}]`, {
-            validateFabricObject: options.arrayEntriesAreFabricObjects,
-            allowEditorOwnedCustomMask: false,
-            arrayEntriesAreFabricObjects: false,
-        }, context, depth + 1));
-        return;
-    }
-    for (const [key, nestedValue] of Object.entries(value)) {
-        const nestedPath = path ? `${path}.${key}` : key;
-        if (typeof nestedValue === 'string' &&
-            nestedValue.trim() !== '' &&
-            isPublicRestoreImageSourceKey(key) &&
-            !isSupportedImageDataUrl(nestedValue)) {
-            throw new StateRestoreError(`loadFromState: snapshot field "${nestedPath}" must use a supported data URL source.`);
-        }
-        validatePublicSnapshotValue(nestedValue, nestedPath, {
-            validateFabricObject: shouldValidatePublicRestoreNestedFabricObject(key, nestedValue),
-            allowEditorOwnedCustomMask: false,
-            arrayEntriesAreFabricObjects: PUBLIC_RESTORE_FABRIC_OBJECT_ARRAY_KEYS.has(key),
-        }, context, depth + 1);
-    }
-}
-function validatePublicSnapshotFabricObjectPayload(value, path, allowEditorOwnedCustomMask, context) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        throw new StateRestoreError(`loadFromState: snapshot field "${path}" is invalid.`);
-    }
-    if (!context.countedFabricObjects.has(value)) {
-        context.countedFabricObjects.add(value);
-        context.objectCount += 1;
-        if (context.objectCount > context.maxSnapshotObjects) {
-            throw new StateRestoreError(`loadFromState: snapshot contains more than ${context.maxSnapshotObjects} Fabric objects.`);
-        }
-    }
-    const object = value;
-    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
-    if (type && ALLOWED_PUBLIC_RESTORE_OBJECT_TYPES.has(type))
-        return;
-    if (allowEditorOwnedCustomMask && isPublicRestoreEditorOwnedCustomMaskPayload(object))
-        return;
-    const typePath = path ? `${path}.type` : 'type';
-    if (!type) {
-        throw new StateRestoreError(`loadFromState: snapshot field "${typePath}" must be a supported Fabric type.`);
-    }
-    throw new StateRestoreError(`loadFromState: snapshot field "${typePath}" has unsupported Fabric type "${String(object.type)}".`);
-}
-function shouldValidatePublicRestoreNestedFabricObject(key, value) {
-    if (PUBLIC_RESTORE_FABRIC_OBJECT_KEYS.has(key))
-        return true;
-    return isPublicRestoreImageSourceKey(key) && hasFabricObjectType(value);
-}
-function hasFabricObjectType(value) {
-    return (!!value && typeof value === 'object' && typeof value.type === 'string');
-}
-function isPublicRestoreEditorOwnedCustomMaskPayload(value) {
-    if (!isMaskObject(value))
-        return false;
-    const candidate = value;
-    const expectedMaskUid = typeof candidate.maskId === 'number' ? `mask-${candidate.maskId}` : null;
-    return (Number.isInteger(candidate.maskId) &&
-        typeof candidate.maskId === 'number' &&
-        candidate.maskId > 0 &&
-        typeof candidate.maskUid === 'string' &&
-        candidate.maskUid === expectedMaskUid &&
-        typeof candidate.maskName === 'string' &&
-        candidate.maskName.trim() !== '' &&
-        typeof candidate.originalAlpha === 'number' &&
-        Number.isFinite(candidate.originalAlpha));
-}
-function isPublicRestoreImageSourceKey(key) {
-    const normalized = key.toLowerCase();
-    return (PUBLIC_RESTORE_IMAGE_SOURCE_KEYS.has(normalized) ||
-        normalized.endsWith('src') ||
-        normalized.endsWith('source'));
-}
-function restoreEditorObjectPropsFromJson(canvasObjs, jsonObjs) {
-    var _a, _b, _c, _d;
-    const consumedMetadataIndexes = new Set();
-    jsonObjs.forEach((jObj, index) => {
-        if (jObj.editorObjectKind !== 'baseImage' &&
-            jObj.editorObjectKind !== 'annotation' &&
-            jObj.editorObjectKind !== 'session') {
-            return;
-        }
-        const match = findCanvasObjectForJson(canvasObjs, jObj, index, consumedMetadataIndexes);
-        const canvasObj = match === null || match === void 0 ? void 0 : match.object;
-        if (!canvasObj)
-            return;
-        if (jObj.editorObjectKind === 'baseImage') {
-            markBaseImageObject(canvasObj);
-            return;
-        }
-        if (jObj.editorObjectKind === 'annotation' &&
-            typeof jObj.annotationId === 'number' &&
-            typeof jObj.annotationType === 'string' &&
-            typeof jObj.annotationName === 'string') {
-            const annotationType = jObj.annotationType === 'draw'
-                ? 'draw'
-                : jObj.annotationType === 'shape'
-                    ? 'shape'
-                    : 'text';
-            const shapeAnnotationKind = jObj.shapeAnnotationKind === 'line' || jObj.shapeAnnotationKind === 'arrow'
-                ? jObj.shapeAnnotationKind
-                : 'rect';
-            markAnnotationObject(canvasObj, {
-                annotationId: jObj.annotationId,
-                annotationType,
-                annotationName: jObj.annotationName,
-                annotationHidden: typeof jObj.annotationHidden === 'boolean' ? jObj.annotationHidden : false,
-                annotationLocked: typeof jObj.annotationLocked === 'boolean' ? jObj.annotationLocked : false,
-                annotationSelectable: typeof jObj.annotationSelectable === 'boolean'
-                    ? jObj.annotationSelectable
-                    : undefined,
-                annotationEvented: typeof jObj.annotationEvented === 'boolean'
-                    ? jObj.annotationEvented
-                    : undefined,
-                annotationHasControls: typeof jObj.annotationHasControls === 'boolean'
-                    ? jObj.annotationHasControls
-                    : undefined,
-                annotationEditable: typeof jObj.annotationEditable === 'boolean'
-                    ? jObj.annotationEditable
-                    : undefined,
-                shapeAnnotationKind: annotationType === 'shape' ? shapeAnnotationKind : undefined,
-            });
-            if (typeof jObj.overlayPersistentId === 'string') {
-                canvasObj.overlayPersistentId =
-                    jObj.overlayPersistentId;
-            }
-            if (jObj.overlayMetadata !== undefined) {
-                canvasObj.overlayMetadata = jObj.overlayMetadata;
-            }
-            return;
-        }
-        if (jObj.editorObjectKind === 'session' && typeof jObj.sessionObjectType === 'string') {
-            canvasObj.editorObjectKind = 'session';
-            canvasObj.sessionObjectType = jObj.sessionObjectType;
-        }
-    });
-    const consumedCanvasIndexes = new Set();
-    const canvasIndexesByMaskUid = new Map();
-    canvasObjs.forEach((canvasObj, index) => {
-        const maskUid = canvasObj.maskUid;
-        if (typeof maskUid !== 'string')
-            return;
-        const indexes = canvasIndexesByMaskUid.get(maskUid);
-        if (indexes) {
-            indexes.push(index);
-        }
-        else {
-            canvasIndexesByMaskUid.set(maskUid, [index]);
-        }
-    });
-    const takeUnconsumedCanvasIndex = (indexes) => {
-        if (!indexes)
-            return -1;
-        while (indexes.length > 0) {
-            const index = indexes.shift();
-            if (!consumedCanvasIndexes.has(index))
-                return index;
-        }
-        return -1;
-    };
-    for (const jObj of jsonObjs) {
-        if (jObj.editorObjectKind !== 'mask' || typeof jObj.maskId !== 'number')
-            continue;
-        const jType = String((_a = jObj.type) !== null && _a !== void 0 ? _a : '');
-        const jLeft = Number((_b = jObj.left) !== null && _b !== void 0 ? _b : 0);
-        const jTop = Number((_c = jObj.top) !== null && _c !== void 0 ? _c : 0);
-        const jUid = typeof jObj.maskUid === 'string' ? jObj.maskUid : null;
-        let matchIndex = -1;
-        if (jUid) {
-            matchIndex = takeUnconsumedCanvasIndex(canvasIndexesByMaskUid.get(jUid));
-        }
-        if (matchIndex < 0) {
-            matchIndex = canvasObjs.findIndex((o, index) => {
-                var _a, _b;
-                if (consumedCanvasIndexes.has(index))
-                    return false;
-                if (jType && o.type !== jType)
-                    return false;
-                return (Math.abs(((_a = o.left) !== null && _a !== void 0 ? _a : 0) - jLeft) < 0.5 &&
-                    Math.abs(((_b = o.top) !== null && _b !== void 0 ? _b : 0) - jTop) < 0.5 &&
-                    serializedTransformMatches(o, jObj));
-            });
-        }
-        if (matchIndex < 0)
-            continue;
-        consumedCanvasIndexes.add(matchIndex);
-        const match = canvasObjs[matchIndex];
-        const maskObject = match;
-        const originalStroke = 'originalStroke' in jObj
-            ? jObj.originalStroke
-            : undefined;
-        markMaskObject(maskObject, {
-            maskId: jObj.maskId,
-            maskUid: typeof jObj.maskUid === 'string' ? jObj.maskUid : `mask-${jObj.maskId}`,
-            maskName: typeof jObj.maskName === 'string' ? jObj.maskName : '',
-            originalAlpha: typeof jObj.originalAlpha === 'number'
-                ? jObj.originalAlpha
-                : ((_d = maskObject.opacity) !== null && _d !== void 0 ? _d : 0.5),
-            originalStroke,
-            originalStrokeWidth: typeof jObj.originalStrokeWidth === 'number' ? jObj.originalStrokeWidth : undefined,
-        });
-        if ('originalStroke' in jObj) {
-            maskObject.originalStroke = jObj.originalStroke;
-        }
-        if (typeof jObj.originalStrokeWidth === 'number') {
-            maskObject.originalStrokeWidth = jObj.originalStrokeWidth;
-        }
-        if (typeof jObj.hasControls === 'boolean') {
-            maskObject.hasControls = jObj.hasControls;
-        }
-        if (typeof jObj.selectable === 'boolean') {
-            maskObject.selectable = jObj.selectable;
-        }
-        if (typeof jObj.strokeUniform === 'boolean') {
-            maskObject.strokeUniform = jObj.strokeUniform;
-        }
-        if (typeof jObj.lockRotation === 'boolean') {
-            maskObject.lockRotation = jObj.lockRotation;
-        }
-        if (typeof jObj.transparentCorners === 'boolean') {
-            maskObject.transparentCorners = jObj.transparentCorners;
-        }
-        if (typeof jObj.borderColor === 'string') {
-            maskObject.borderColor = jObj.borderColor;
-        }
-        if (typeof jObj.cornerColor === 'string') {
-            maskObject.cornerColor = jObj.cornerColor;
-        }
-        if (typeof jObj.cornerSize === 'number') {
-            maskObject.cornerSize = jObj.cornerSize;
-        }
-        if (typeof jObj.overlayPersistentId === 'string') {
-            maskObject.overlayPersistentId = jObj.overlayPersistentId;
-        }
-        if (jObj.overlayMetadata !== undefined) {
-            maskObject.overlayMetadata = jObj.overlayMetadata;
-        }
-    }
-    jsonObjs.forEach((jObj, index) => {
-        if (jObj.maskLabel !== true)
-            return;
-        const canvasObj = canvasObjs[index];
-        if (canvasObj) {
-            canvasObj.maskLabel = true;
-        }
-    });
-}
-
-const SELECTED_STROKE = '#ff0000';
-const SELECTED_STROKE_WIDTH = 1;
-const HOVER_STROKE = '#ff5500';
-const HOVER_STROKE_WIDTH = 2;
-const HOVER_OPACITY_BUMP = 0.2;
-const DEFAULT_STROKE_FALLBACK = '#ccc';
-const DEFAULT_STROKE_WIDTH_FALLBACK = 1;
-const DEFAULT_ALPHA_FALLBACK = 0.5;
-function getMaskNormalStyle(mask) {
-    var _a;
-    const strokeWidth = Number(mask.originalStrokeWidth);
-    const opacity = Number(mask.originalAlpha);
-    return {
-        stroke: (_a = mask.originalStroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK,
-        strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : DEFAULT_STROKE_WIDTH_FALLBACK,
-        opacity: Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK,
-    };
-}
-function getMaskHoverStyle(mask) {
-    const opacity = Number(mask.originalAlpha);
-    const baseAlpha = Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK;
-    return {
-        stroke: HOVER_STROKE,
-        strokeWidth: HOVER_STROKE_WIDTH,
-        opacity: Math.min(baseAlpha + HOVER_OPACITY_BUMP, 1),
-    };
-}
-function applyMaskSelectedStyle(mask) {
-    mask.set({ stroke: SELECTED_STROKE, strokeWidth: SELECTED_STROKE_WIDTH });
-}
-function applyMaskUnselectedStyle(mask) {
-    var _a;
-    const strokeWidth = Number(mask.originalStrokeWidth);
-    mask.set({
-        stroke: (_a = mask.originalStroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK,
-        strokeWidth: Number.isFinite(strokeWidth) ? strokeWidth : DEFAULT_STROKE_WIDTH_FALLBACK,
-    });
-}
-function attachMaskHoverHandlers(mask) {
-    const tagged = mask;
-    const mouseover = () => {
-        var _a;
-        tagged.set(getMaskHoverStyle(tagged));
-        (_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
-    };
-    const mouseout = () => {
-        var _a;
-        tagged.set(getMaskNormalStyle(tagged));
-        (_a = tagged.canvas) === null || _a === void 0 ? void 0 : _a.requestRenderAll();
-    };
-    tagged.on('mouseover', mouseover);
-    tagged.on('mouseout', mouseout);
-    tagged.imageEditorMaskHandlers = { mouseover, mouseout };
-}
-function reattachMaskHoverHandlers(mask) {
-    var _a;
-    const tagged = mask;
-    if (tagged.imageEditorMaskHandlers) {
-        try {
-            tagged.off('mouseover', tagged.imageEditorMaskHandlers.mouseover);
-            tagged.off('mouseout', tagged.imageEditorMaskHandlers.mouseout);
-        }
-        catch {
-        }
-        delete tagged.imageEditorMaskHandlers;
-    }
-    const patch = {};
-    if (!Number.isFinite(Number(tagged.originalAlpha))) {
-        const opacity = Number(tagged.opacity);
-        patch.originalAlpha = Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK;
-    }
-    if (tagged.originalStroke == null) {
-        patch.originalStroke = (_a = tagged.stroke) !== null && _a !== void 0 ? _a : DEFAULT_STROKE_FALLBACK;
-    }
-    if (!Number.isFinite(Number(tagged.originalStrokeWidth))) {
-        const sw = Number(tagged.strokeWidth);
-        patch.originalStrokeWidth = Number.isFinite(sw) ? sw : DEFAULT_STROKE_WIDTH_FALLBACK;
-    }
-    if (Object.keys(patch).length > 0)
-        tagged.set(patch);
-    attachMaskHoverHandlers(tagged);
-}
-function detachMaskHoverHandlers(mask) {
-    const tagged = mask;
-    if (!tagged.imageEditorMaskHandlers)
-        return;
-    try {
-        tagged.off('mouseover', tagged.imageEditorMaskHandlers.mouseover);
-        tagged.off('mouseout', tagged.imageEditorMaskHandlers.mouseout);
-    }
-    catch {
-    }
-    delete tagged.imageEditorMaskHandlers;
-}
-function captureMaskStyleBackup(mask) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    return {
-        object: mask,
-        opacity: (_a = mask.opacity) !== null && _a !== void 0 ? _a : 1,
-        fill: ((_b = mask.fill) !== null && _b !== void 0 ? _b : null),
-        strokeWidth: (_c = mask.strokeWidth) !== null && _c !== void 0 ? _c : 0,
-        stroke: ((_d = mask.stroke) !== null && _d !== void 0 ? _d : null),
-        selectable: (_e = mask.selectable) !== null && _e !== void 0 ? _e : true,
-        evented: (_f = mask.evented) !== null && _f !== void 0 ? _f : true,
-        lockRotation: (_g = mask.lockRotation) !== null && _g !== void 0 ? _g : false,
-    };
-}
-function restoreMaskStyleBackup(backup) {
-    try {
-        backup.object.set({
-            opacity: backup.opacity,
-            fill: backup.fill,
-            strokeWidth: backup.strokeWidth,
-            stroke: backup.stroke,
-            selectable: backup.selectable,
-            evented: backup.evented,
-            lockRotation: backup.lockRotation,
-        });
-        if (typeof backup.object.setCoords === 'function') {
-            backup.object.setCoords();
-        }
-    }
-    catch {
-    }
-}
-async function withMaskStyleBackup(context, mutator, callback) {
-    if (!context.canvas)
-        return await callback();
-    const masks = context.canvas.getObjects().filter(isMaskObject);
-    const backups = masks.map(captureMaskStyleBackup);
-    try {
-        masks.forEach((mask, index) => mutator(mask, index));
-        return await callback();
-    }
-    finally {
-        for (const backup of backups)
-            restoreMaskStyleBackup(backup);
-    }
-}
-function applyCropHideMaskStyle(mask) {
-    try {
-        mask.set({ opacity: 0, evented: false, selectable: false });
-    }
-    catch {
-    }
-}
-
-function isAnnotationLocked(annotation) {
-    return annotation.annotationLocked === true;
-}
-function isAnnotationUnlocked(annotation) {
-    return !isAnnotationLocked(annotation);
-}
-
-function setObjectProps(object, props) {
-    object.set(props);
-}
-function readBoolean$1(value, fallback) {
-    return typeof value === 'boolean' ? value : fallback;
-}
-function getBaseSelectable(annotation) {
-    return readBoolean$1(annotation.annotationSelectable, readBoolean$1(annotation.selectable, true));
-}
-function getBaseEvented(annotation) {
-    return readBoolean$1(annotation.annotationEvented, readBoolean$1(annotation.evented, true));
-}
-function getBaseHasControls(annotation) {
-    return readBoolean$1(annotation.annotationHasControls, readBoolean$1(annotation.hasControls, true));
-}
-function getBaseEditable(annotation) {
-    return readBoolean$1(annotation.annotationEditable, readBoolean$1(annotation.editable, true));
-}
-function syncTextEditability(annotation, editable) {
-    const textObject = annotation;
-    textObject.editable = editable;
-}
-function ensureBaseInteractivityMetadata(annotation) {
-    if (typeof annotation.annotationSelectable !== 'boolean') {
-        annotation.annotationSelectable = readBoolean$1(annotation.selectable, true);
-    }
-    if (typeof annotation.annotationEvented !== 'boolean') {
-        annotation.annotationEvented = readBoolean$1(annotation.evented, true);
-    }
-    if (typeof annotation.annotationHasControls !== 'boolean') {
-        annotation.annotationHasControls = readBoolean$1(annotation.hasControls, true);
-    }
-    if (isTextAnnotationObject(annotation) && typeof annotation.annotationEditable !== 'boolean') {
-        annotation.annotationEditable = getBaseEditable(annotation);
-    }
-}
-function syncAnnotationRuntimeState(annotation) {
-    var _a, _b;
-    const hidden = annotation.annotationHidden === true;
-    const locked = isAnnotationLocked(annotation);
-    if (locked) {
-        ensureBaseInteractivityMetadata(annotation);
-        setObjectProps(annotation, {
-            visible: !hidden,
-            selectable: false,
-            evented: false,
-            hasControls: false,
-            lockMovementX: true,
-            lockMovementY: true,
-            lockScalingX: true,
-            lockScalingY: true,
-            lockRotation: true,
-        });
-        if (isTextAnnotationObject(annotation)) {
-            syncTextEditability(annotation, false);
-        }
-        (_a = annotation.setCoords) === null || _a === void 0 ? void 0 : _a.call(annotation);
-        return;
-    }
-    setObjectProps(annotation, {
-        visible: !hidden,
-        selectable: getBaseSelectable(annotation),
-        evented: getBaseEvented(annotation),
-        hasControls: getBaseHasControls(annotation),
-        lockMovementX: false,
-        lockMovementY: false,
-        lockScalingX: false,
-        lockScalingY: false,
-        lockRotation: false,
-    });
-    if (isTextAnnotationObject(annotation)) {
-        syncTextEditability(annotation, getBaseEditable(annotation));
-    }
-    (_b = annotation.setCoords) === null || _b === void 0 ? void 0 : _b.call(annotation);
-}
-function syncAnnotationRuntimeStates(annotations) {
-    annotations.forEach(syncAnnotationRuntimeState);
-}
-
-function isLegacySessionObject(object) {
-    const candidate = object;
-    return (candidate.isCropRect === true ||
-        candidate.maskLabel === true ||
-        candidate.isMosaicPreview === true);
-}
-function moveObjectTo(canvas, object, index) {
-    const canvasWithLayerApi = canvas;
-    if (typeof canvasWithLayerApi.moveObjectTo === 'function') {
-        canvasWithLayerApi.moveObjectTo(object, index);
-        return;
-    }
-    try {
-        canvas.remove(object);
-        canvas.insertAt(index, object);
-    }
-    catch {
-        canvas.add(object);
-    }
-}
-function ensureOnCanvas(canvas, object) {
-    if (!canvas.getObjects().includes(object)) {
-        canvas.add(object);
-    }
-}
-function withoutObject(canvas, object) {
-    return canvas.getObjects().filter((candidate) => candidate !== object);
-}
-function findFirstSessionIndex(objects) {
-    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
-}
-function getOrderedGroups(canvas) {
-    const baseImages = [];
-    const overlays = [];
-    const sessions = [];
-    const others = [];
-    for (const object of canvas.getObjects()) {
-        if (isBaseImageObject(object)) {
-            baseImages.push(object);
-        }
-        else if (isEditableOverlayObject(object)) {
-            overlays.push(object);
-        }
-        else if (isSessionObject(object) || isLegacySessionObject(object)) {
-            sessions.push(object);
-        }
-        else {
-            others.push(object);
-        }
-    }
-    return { baseImages, overlays, sessions, others };
-}
-function normalizeLayerOrder(canvas) {
-    const groups = getOrderedGroups(canvas);
-    const ordered = [
-        ...groups.baseImages,
-        ...groups.others,
-        ...groups.overlays,
-        ...groups.sessions,
-    ];
-    ordered.forEach((object, index) => {
-        moveObjectTo(canvas, object, index);
-    });
-}
-function placeMaskObject(canvas, mask) {
-    ensureOnCanvas(canvas, mask);
-    const objects = withoutObject(canvas, mask);
-    const firstSessionIndex = findFirstSessionIndex(objects);
-    moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
-}
-function placeAnnotationObject(canvas, annotation) {
-    ensureOnCanvas(canvas, annotation);
-    const objects = withoutObject(canvas, annotation);
-    const firstSessionIndex = findFirstSessionIndex(objects);
-    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
-}
-function placeSessionObject(canvas, sessionObject) {
-    ensureOnCanvas(canvas, sessionObject);
-    moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
-}
-function getEditableOverlayRange(canvas) {
-    const objects = canvas.getObjects();
-    const overlayIndexes = objects
-        .map((object, index) => ({ object, index }))
-        .filter(({ object }) => isEditableOverlayObject(object));
-    if (overlayIndexes.length === 0)
-        return { start: -1, end: -1, overlays: [] };
-    return {
-        start: overlayIndexes[0].index,
-        end: overlayIndexes[overlayIndexes.length - 1].index,
-        overlays: overlayIndexes.map(({ object }) => object),
-    };
-}
-
 function hasMeaningfulCanvasRegion(rect, canvasWidth, canvasHeight) {
     const left = Number(rect.left);
     const top = Number(rect.top);
@@ -3173,30 +2980,6 @@ function getObjectBBox(object) {
     };
 }
 
-function resolveNumeric(val, axis, fallback, canvas, options) {
-    if (typeof val === 'number') {
-        return val;
-    }
-    if (typeof val === 'function') {
-        return val(canvas, options);
-    }
-    if (typeof val === 'string' && val.endsWith('%')) {
-        const pct = parseFloat(val);
-        if (!Number.isFinite(pct)) {
-            return fallback;
-        }
-        const dim = axis === 'x' ? canvas.getWidth() : canvas.getHeight();
-        return Math.floor(dim * (pct / 100));
-    }
-    return fallback;
-}
-function coercePoint(pt) {
-    if (Array.isArray(pt)) {
-        return { x: Number(pt[0]), y: Number(pt[1]) };
-    }
-    return { x: Number(pt.x), y: Number(pt.y) };
-}
-
 function isFinitePoint(value) {
     const point = value;
     return (!!point &&
@@ -3241,8 +3024,8 @@ function resolveTextCreationConfig(context, config) {
     const topInput = (_b = config.top) !== null && _b !== void 0 ? _b : base.top;
     return {
         ...base,
-        left: resolveNumeric(leftInput, 'x', fallback.left, context.canvas, context.options),
-        top: resolveNumeric(topInput, 'y', fallback.top, context.canvas, context.options),
+        left: plugins_mask_index.resolveNumeric(leftInput, 'x', fallback.left, context.canvas, context.options),
+        top: plugins_mask_index.resolveNumeric(topInput, 'y', fallback.top, context.canvas, context.options),
     };
 }
 function nextAnnotationMeta(context, config) {
@@ -3343,7 +3126,7 @@ function createTextAnnotation(context, config = {}) {
         ...resolved.styles,
     });
     const meta = nextAnnotationMeta(context, resolved);
-    const annotation = markAnnotationObject(textbox, {
+    const annotation = plugins_mask_index.markAnnotationObject(textbox, {
         annotationId: meta.annotationId,
         annotationType: 'text',
         annotationName: meta.annotationName,
@@ -3356,7 +3139,7 @@ function createTextAnnotation(context, config = {}) {
     });
     syncAnnotationRuntimeState(annotation);
     attachTextEditingHandlers(context, annotation);
-    placeAnnotationObject(context.canvas, annotation);
+    plugins_mask_index.placeAnnotationObject(context.canvas, annotation);
     if (resolved.selectable !== false && isAnnotationUnlocked(annotation)) {
         context.canvas.setActiveObject(annotation);
     }
@@ -3376,7 +3159,7 @@ function handleTextModePointer(context, event) {
     var _a, _b;
     const fabricEvent = event;
     const target = fabricEvent.target;
-    if (target && isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
+    if (target && plugins_mask_index.isTextAnnotationObject(target) && isAnnotationUnlocked(target)) {
         context.canvas.setActiveObject(target);
         (_b = (_a = target).enterEditing) === null || _b === void 0 ? void 0 : _b.call(_a);
         return;
@@ -3432,7 +3215,7 @@ function exitTextMode(context) {
 function finalizeActiveTextEditing(context, options) {
     var _a;
     const active = context.canvas.getActiveObject();
-    if (!active || !isTextAnnotationObject(active))
+    if (!active || !plugins_mask_index.isTextAnnotationObject(active))
         return;
     const textObject = active;
     if (textObject.isEditing !== true)
@@ -3442,7 +3225,7 @@ function finalizeActiveTextEditing(context, options) {
     context.canvas.requestRenderAll();
 }
 function attachTextEditingHandlersToAnnotations(context, annotations) {
-    annotations.filter(isTextAnnotationObject).forEach((annotation) => {
+    annotations.filter(plugins_mask_index.isTextAnnotationObject).forEach((annotation) => {
         attachTextEditingHandlers(context, annotation);
     });
 }
@@ -3453,146 +3236,14 @@ class Command {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: void 0
+            value: execute
         });
         Object.defineProperty(this, "undo", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: void 0
+            value: undo
         });
-        this.execute = execute;
-        this.undo = undo;
-    }
-}
-class HistoryManager {
-    constructor(maxSize = 50) {
-        Object.defineProperty(this, "history", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: []
-        });
-        Object.defineProperty(this, "currentIndex", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: -1
-        });
-        Object.defineProperty(this, "isProcessing", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "queuedExecuteCount", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 0
-        });
-        Object.defineProperty(this, "executeTail", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: Promise.resolve()
-        });
-        Object.defineProperty(this, "maxSize", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        const normalizedMaxSize = Number.isFinite(maxSize) ? Math.floor(maxSize) : 50;
-        this.maxSize = Math.max(1, normalizedMaxSize);
-    }
-    async execute(command) {
-        this.queuedExecuteCount += 1;
-        const execution = this.executeTail.then(async () => {
-            try {
-                if (this.isProcessing) {
-                    throw new Error('Cannot push to history while undo/redo is in flight.');
-                }
-                this.isProcessing = true;
-                try {
-                    await command.execute();
-                    this.pushAndTrim(command, { skipProcessingCheck: true });
-                }
-                finally {
-                    this.isProcessing = false;
-                }
-            }
-            finally {
-                this.queuedExecuteCount -= 1;
-            }
-        });
-        this.executeTail = execution.catch(() => { });
-        return execution;
-    }
-    push(command) {
-        this.pushAndTrim(command);
-    }
-    clear() {
-        this.history = [];
-        this.currentIndex = -1;
-        this.isProcessing = false;
-        this.queuedExecuteCount = 0;
-        this.executeTail = Promise.resolve();
-    }
-    canUndo() {
-        return this.currentIndex >= 0;
-    }
-    canRedo() {
-        return this.currentIndex < this.history.length - 1;
-    }
-    async undo() {
-        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canUndo())
-            return;
-        this.isProcessing = true;
-        try {
-            const cmd = this.history[this.currentIndex];
-            if (!cmd)
-                return;
-            await cmd.undo();
-            this.currentIndex--;
-        }
-        finally {
-            this.isProcessing = false;
-        }
-    }
-    async redo() {
-        if (this.isProcessing || this.queuedExecuteCount > 0 || !this.canRedo())
-            return;
-        this.isProcessing = true;
-        try {
-            const cmd = this.history[this.currentIndex + 1];
-            if (!cmd)
-                return;
-            await cmd.execute();
-            this.currentIndex++;
-        }
-        finally {
-            this.isProcessing = false;
-        }
-    }
-    assertCanPush() {
-        if (!this.isProcessing && this.queuedExecuteCount === 0)
-            return;
-        throw new Error('Cannot push to history while undo/redo is in flight.');
-    }
-    pushAndTrim(command, options) {
-        if (!(options === null || options === void 0 ? void 0 : options.skipProcessingCheck))
-            this.assertCanPush();
-        if (this.currentIndex < this.history.length - 1) {
-            this.history = this.history.slice(0, this.currentIndex + 1);
-        }
-        this.history.push(command);
-        if (this.history.length > this.maxSize) {
-            this.history.shift();
-        }
-        else {
-            this.currentIndex++;
-        }
     }
 }
 
@@ -3664,8 +3315,8 @@ async function loadFromStateAction(access, jsonString, options) {
         const restoredMasks = restoredState.masks;
         access.setLastMask(restoredMasks.reduce((lastMask, maskObject) => !lastMask || maskObject.maskId > lastMask.maskId ? maskObject : lastMask, null));
         restoredMasks.forEach((maskObject) => {
-            applyMaskUnselectedStyle(maskObject);
-            reattachMaskHoverHandlers(maskObject);
+            plugins_mask_index.applyMaskUnselectedStyle(maskObject);
+            plugins_mask_index.reattachMaskHoverHandlers(maskObject);
         });
         syncAnnotationRuntimeStates(restoredState.annotations);
         attachTextEditingHandlersToAnnotations(access.buildTextControllerContext(), restoredState.annotations);
@@ -3688,7 +3339,7 @@ async function loadFromStateAction(access, jsonString, options) {
         restoreActiveSelection(access, restoredState, editorState, context);
     }
     catch (error) {
-        reportError(access.getOptions(), error, 'Failed to restore canvas state.');
+        plugins_mask_index.reportError(access.getOptions(), error, 'Failed to restore canvas state.');
         throw error;
     }
 }
@@ -3729,7 +3380,7 @@ function saveStateAction(access, options) {
         access.setLastSnapshot(after);
     }
     catch (error) {
-        reportWarning(access.getOptions(), error, 'Failed to capture canvas snapshot.');
+        plugins_mask_index.reportWarning(access.getOptions(), error, 'Failed to capture canvas snapshot.');
     }
     finally {
         restoreActiveObjectAfterSnapshot(access, activeObj, activeMask, activeAnnotation);
@@ -3782,18 +3433,18 @@ function restoreActiveSelection(access, restoredState, editorState, context) {
 }
 function getActiveMaskForSnapshot(canvas) {
     const activeObject = canvas.getActiveObject();
-    return activeObject && isMaskObject(activeObject) ? activeObject : null;
+    return activeObject && plugins_mask_index.isMaskObject(activeObject) ? activeObject : null;
 }
 function getActiveAnnotationForSnapshot(canvas) {
     const activeObject = canvas.getActiveObject();
-    return activeObject && isAnnotationObject(activeObject) ? activeObject : null;
+    return activeObject && plugins_mask_index.isAnnotationObject(activeObject) ? activeObject : null;
 }
 function restoreActiveObjectAfterSnapshot(access, activeObj, activeMask, activeAnnotation) {
     const canvas = access.getCanvas();
     if (!canvas)
         return;
-    const maskToRestore = activeObj && isMaskObject(activeObj) ? activeObj : activeMask;
-    const annotationToRestore = activeObj && isAnnotationObject(activeObj) ? activeObj : activeAnnotation;
+    const maskToRestore = activeObj && plugins_mask_index.isMaskObject(activeObj) ? activeObj : activeMask;
+    const annotationToRestore = activeObj && plugins_mask_index.isAnnotationObject(activeObj) ? activeObj : activeAnnotation;
     if (maskToRestore && canvas.getObjects().includes(maskToRestore)) {
         canvas.setActiveObject(maskToRestore);
         access.showLabelForMask(maskToRestore);
@@ -3843,7 +3494,7 @@ function detectFabric(fabricOrOptions, maybeOptions, globalScope = globalThis) {
     };
 }
 
-function isActiveSelectionObject$2(object) {
+function isActiveSelectionObject$1(object) {
     if (!object)
         return false;
     const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
@@ -3857,20 +3508,20 @@ function getActiveSelectionObjects(canvas) {
     const active = canvas.getActiveObject();
     if (!active)
         return [];
-    if (!isActiveSelectionObject$2(active))
+    if (!isActiveSelectionObject$1(active))
         return [active];
     const getObjects = active.getObjects;
     return typeof getObjects === 'function' ? getObjects.call(active) : [];
 }
 function getAnnotations(canvas) {
-    return canvas.getObjects().filter(isAnnotationObject).slice();
+    return canvas.getObjects().filter(plugins_mask_index.isAnnotationObject).slice();
 }
 function orderAnnotationsForList(annotations, order) {
     const ordered = annotations.slice();
     return order === 'back-to-front' ? ordered : ordered.reverse();
 }
 function getSelectedAnnotations(canvas) {
-    return getActiveSelectionObjects(canvas).filter(isAnnotationObject);
+    return getActiveSelectionObjects(canvas).filter(plugins_mask_index.isAnnotationObject);
 }
 function snapshotAnnotation(annotation) {
     return JSON.stringify({
@@ -3889,7 +3540,7 @@ function snapshotAnnotation(annotation) {
         selectable: annotation.selectable,
         evented: annotation.evented,
         hasControls: annotation.hasControls,
-        editable: isTextAnnotationObject(annotation)
+        editable: plugins_mask_index.isTextAnnotationObject(annotation)
             ? annotation.editable
             : undefined,
         annotationHidden: annotation.annotationHidden,
@@ -3990,15 +3641,15 @@ function updateAnnotationObject(annotation, config) {
         if (typeof raw.hasControls === 'boolean') {
             annotation.annotationHasControls = raw.hasControls;
         }
-        if (isTextAnnotationObject(annotation)) {
+        if (plugins_mask_index.isTextAnnotationObject(annotation)) {
             if (typeof raw.editable === 'boolean') {
                 annotation.annotationEditable = raw.editable;
             }
             updateTextAnnotation(annotation, config);
         }
-        if (isDrawAnnotationObject(annotation))
+        if (plugins_mask_index.isDrawAnnotationObject(annotation))
             updateDrawAnnotation(annotation, config);
-        if (isShapeAnnotationObject(annotation))
+        if (plugins_mask_index.isShapeAnnotationObject(annotation))
             updateShapeAnnotation(annotation, config);
     }
     syncAnnotationRuntimeState(annotation);
@@ -4279,7 +3930,7 @@ function createEraserPreview(context) {
         objectCaching: false,
         visible: false,
     });
-    return markSessionObject(circle, 'eraserPreview');
+    return plugins_mask_index.markSessionObject(circle, 'eraserPreview');
 }
 function ensureEraserPreview(context, session) {
     var _a;
@@ -4295,7 +3946,7 @@ function ensureEraserPreview(context, session) {
     if (!context.canvas.getObjects().includes(preview)) {
         context.canvas.add(preview);
     }
-    placeSessionObject(context.canvas, preview);
+    plugins_mask_index.placeSessionObject(context.canvas, preview);
     return preview;
 }
 function hideEraserPreview(context, session) {
@@ -4405,7 +4056,7 @@ function getIntersectedDrawAnnotations(context, points) {
     const radius = Math.max(1, context.getEraserConfig().brushSize / 2);
     return context.canvas
         .getObjects()
-        .filter(isDrawAnnotationObject)
+        .filter(plugins_mask_index.isDrawAnnotationObject)
         .filter((annotation) => annotationIntersectsEraserPath(annotation, points, radius));
 }
 function commitEraserStroke(context, session) {
@@ -4473,7 +4124,7 @@ function markPathAsDrawAnnotation(context, path) {
         stroke: config.color,
         strokeWidth: config.brushSize,
     });
-    const annotation = markAnnotationObject(path, {
+    const annotation = plugins_mask_index.markAnnotationObject(path, {
         annotationId,
         annotationType: 'draw',
         annotationName: `${context.options.drawAnnotationName}${annotationId}`,
@@ -4491,7 +4142,7 @@ function handlePathCreated(context, event) {
     if (!path)
         return;
     const annotation = markPathAsDrawAnnotation(context, path);
-    placeAnnotationObject(context.canvas, annotation);
+    plugins_mask_index.placeAnnotationObject(context.canvas, annotation);
     context.canvas.setActiveObject(annotation);
     context.canvas.renderAll();
     context.updateAnnotationList();
@@ -4633,18 +4284,18 @@ function resolveShapeCreationConfig(context, config) {
     const y1Input = (_f = (_e = config.y1) !== null && _e !== void 0 ? _e : base.y1) !== null && _f !== void 0 ? _f : topInput;
     const x2Input = (_g = config.x2) !== null && _g !== void 0 ? _g : base.x2;
     const y2Input = (_h = config.y2) !== null && _h !== void 0 ? _h : base.y2;
-    const left = resolveNumeric(leftInput, 'x', fallback.left, context.canvas, context.options);
-    const top = resolveNumeric(topInput, 'y', fallback.top, context.canvas, context.options);
-    const x1 = resolveNumeric(x1Input, 'x', left, context.canvas, context.options);
-    const y1 = resolveNumeric(y1Input, 'y', top, context.canvas, context.options);
+    const left = plugins_mask_index.resolveNumeric(leftInput, 'x', fallback.left, context.canvas, context.options);
+    const top = plugins_mask_index.resolveNumeric(topInput, 'y', fallback.top, context.canvas, context.options);
+    const x1 = plugins_mask_index.resolveNumeric(x1Input, 'x', left, context.canvas, context.options);
+    const y1 = plugins_mask_index.resolveNumeric(y1Input, 'y', top, context.canvas, context.options);
     return {
         ...base,
         left,
         top,
         x1,
         y1,
-        x2: resolveNumeric(x2Input, 'x', x1 + base.width, context.canvas, context.options),
-        y2: resolveNumeric(y2Input, 'y', y1 + base.height, context.canvas, context.options),
+        x2: plugins_mask_index.resolveNumeric(x2Input, 'x', x1 + base.width, context.canvas, context.options),
+        y2: plugins_mask_index.resolveNumeric(y2Input, 'y', y1 + base.height, context.canvas, context.options),
     };
 }
 function geometryFromResolved(config) {
@@ -4733,7 +4384,7 @@ function nextShapeAnnotationMeta(context, config) {
 }
 function markShapeAnnotation(context, object, config) {
     const meta = nextShapeAnnotationMeta(context, config);
-    const annotation = markAnnotationObject(object, {
+    const annotation = plugins_mask_index.markAnnotationObject(object, {
         annotationId: meta.annotationId,
         annotationType: 'shape',
         annotationName: meta.annotationName,
@@ -4754,7 +4405,7 @@ function createShapeAnnotation(context, config = {}) {
     const geometry = geometryFromResolved(resolved);
     const object = createShapeFabricObject(context, resolved.shape, geometry, resolved);
     const annotation = markShapeAnnotation(context, object, resolved);
-    placeAnnotationObject(context.canvas, annotation);
+    plugins_mask_index.placeAnnotationObject(context.canvas, annotation);
     if (resolved.selectable !== false && isAnnotationUnlocked(annotation)) {
         context.canvas.setActiveObject(annotation);
     }
@@ -4783,7 +4434,7 @@ function createPreviewObject(context, shape, geometry) {
         excludeFromExport: true,
         objectCaching: false,
     });
-    markSessionObject(preview, 'shapePreview');
+    plugins_mask_index.markSessionObject(preview, 'shapePreview');
     return preview;
 }
 function removePreview(context, session) {
@@ -4817,7 +4468,7 @@ function updatePreview(context, session, pointer) {
     }
     const preview = createPreviewObject(context, session.shape, geometry);
     session.previewObject = preview;
-    placeSessionObject(context.canvas, preview);
+    plugins_mask_index.placeSessionObject(context.canvas, preview);
     context.canvas.requestRenderAll();
 }
 function completeInteractiveShape(context, session, pointer) {
@@ -5023,7 +4674,7 @@ function applyTextColorInputAction(access, color) {
         return;
     }
     const selected = (_a = access.getCanvas()) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-    if (selected && isTextAnnotationObject(selected)) {
+    if (selected && plugins_mask_index.isTextAnnotationObject(selected)) {
         access.updateSelectedAnnotation({ fill: color });
         return;
     }
@@ -5036,7 +4687,7 @@ function applyTextFontSizeInputAction(access, size) {
         return;
     }
     const selected = (_a = access.getCanvas()) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-    if (selected && isTextAnnotationObject(selected)) {
+    if (selected && plugins_mask_index.isTextAnnotationObject(selected)) {
         access.updateSelectedAnnotation({ fontSize: size });
         return;
     }
@@ -5049,7 +4700,7 @@ function applyDrawColorInputAction(access, color) {
         return;
     }
     const selected = (_a = access.getCanvas()) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-    if (selected && isDrawAnnotationObject(selected)) {
+    if (selected && plugins_mask_index.isDrawAnnotationObject(selected)) {
         access.updateSelectedAnnotation({ stroke: color });
         return;
     }
@@ -5062,7 +4713,7 @@ function applyDrawBrushSizeInputAction(access, size) {
         return;
     }
     const selected = (_a = access.getCanvas()) === null || _a === void 0 ? void 0 : _a.getActiveObject();
-    if (selected && isDrawAnnotationObject(selected)) {
+    if (selected && plugins_mask_index.isDrawAnnotationObject(selected)) {
         access.updateSelectedAnnotation({ strokeWidth: size });
         return;
     }
@@ -5159,7 +4810,7 @@ function restoreCropObjectState(session) {
 }
 function restoreCropMaskBackups(session) {
     for (const backup of session.maskBackups) {
-        restoreMaskStyleBackup(backup);
+        plugins_mask_index.restoreMaskStyleBackup(backup);
     }
     session.maskBackups = [];
 }
@@ -5204,13 +4855,13 @@ function capturePreservedMasks(canvas, cropRegion, maskBackups = []) {
     const styleBackupByMask = maskBackups.length > 0
         ? new Map(maskBackups.map((backup) => [backup.object, backup]))
         : null;
-    const masks = canvas.getObjects().filter(isMaskObject);
+    const masks = canvas.getObjects().filter(plugins_mask_index.isMaskObject);
     for (const mask of masks) {
         try {
             mask.setCoords();
             const intersects = maskIntersectsRegion(mask, cropRegion);
             if (intersects) {
-                const styleBackup = (_a = styleBackupByMask === null || styleBackupByMask === void 0 ? void 0 : styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : captureMaskStyleBackup(mask);
+                const styleBackup = (_a = styleBackupByMask === null || styleBackupByMask === void 0 ? void 0 : styleBackupByMask.get(mask)) !== null && _a !== void 0 ? _a : plugins_mask_index.captureMaskStyleBackup(mask);
                 records.push({
                     mask,
                     left: finiteNumberOrFallback(mask.left, 0),
@@ -5237,7 +4888,7 @@ function reapplyPreservedMasks(context, cropRegion, records) {
     let maxRestoredId = 0;
     for (const record of records) {
         try {
-            restoreMaskStyleBackup(record.styleBackup);
+            plugins_mask_index.restoreMaskStyleBackup(record.styleBackup);
             record.mask.set({
                 left: placement.left + (record.left - cropRegion.left) * placement.scaleX,
                 top: placement.top + (record.top - cropRegion.top) * placement.scaleY,
@@ -5249,7 +4900,7 @@ function reapplyPreservedMasks(context, cropRegion, records) {
             record.mask.setCoords();
             canvas.add(record.mask);
             canvas.bringObjectToFront(record.mask);
-            reattachMaskHoverHandlers(record.mask);
+            plugins_mask_index.reattachMaskHoverHandlers(record.mask);
             const id = Number(record.mask.maskId);
             if (Number.isFinite(id) && id > maxRestoredId)
                 maxRestoredId = id;
@@ -5502,7 +5153,7 @@ function enterCropMode(context, cropModeOptions = {}) {
     });
     updateCropRectControlVisibility(cropRect, aspectRatio, allowRotation);
     canvas.add(cropRect);
-    markSessionObject(cropRect, 'cropRect');
+    plugins_mask_index.markSessionObject(cropRect, 'cropRect');
     cropRect.isCropRect = true;
     canvas.bringObjectToFront(cropRect);
     canvas.setActiveObject(cropRect);
@@ -5512,9 +5163,9 @@ function enterCropMode(context, cropModeOptions = {}) {
         canvas.getObjects().forEach((object) => {
             if (object === cropRect)
                 return;
-            if (!isMaskObject(object))
+            if (!plugins_mask_index.isMaskObject(object))
                 return;
-            maskBackups.push(captureMaskStyleBackup(object));
+            maskBackups.push(plugins_mask_index.captureMaskStyleBackup(object));
         });
     }
     const prevEvented = [];
@@ -5535,7 +5186,7 @@ function enterCropMode(context, cropModeOptions = {}) {
     });
     if (hideMasks) {
         for (const backup of maskBackups) {
-            applyCropHideMaskStyle(backup.object);
+            plugins_mask_index.applyCropHideMaskStyle(backup.object);
         }
     }
     const handleCropRectModified = () => {
@@ -5638,11 +5289,11 @@ async function applyCrop(context) {
         cropRect.setCoords();
         const cropAngle = Number(cropRect.angle) || 0;
         if (!context.options.crop.allowRotationOfCropRect && Math.abs(cropAngle % 360) > 0.01) {
-            throw new CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
+            throw new plugins_transform_index.CropApplyError('applyCrop failed: rotated crop rectangles are disabled.');
         }
         const rectBounds = getCropRectContentBounds(cropRect);
         if (!hasMeaningfulCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight())) {
-            throw new CropApplyError('applyCrop failed: crop region is empty or outside the canvas.');
+            throw new plugins_transform_index.CropApplyError('applyCrop failed: crop region is empty or outside the canvas.');
         }
         const cropRegion = getClampedCanvasRegion(rectBounds, canvas.getWidth(), canvas.getHeight(), { includePartialPixels: false });
         const preservedRecords = preserveMasks
@@ -5687,12 +5338,12 @@ async function applyCrop(context) {
             await context.loadFromState(beforeJson);
         }
         catch (rollbackError) {
-            reportWarning(context.options, rollbackError, 'applyCrop rollback failed.');
+            plugins_mask_index.reportWarning(context.options, rollbackError, 'applyCrop rollback failed.');
         }
-        if (error instanceof CropApplyError)
+        if (error instanceof plugins_transform_index.CropApplyError)
             throw error;
         const message = error instanceof Error ? `applyCrop failed: ${error.message}` : 'applyCrop failed';
-        throw new CropApplyError(message, error);
+        throw new plugins_transform_index.CropApplyError(message, error);
     }
 }
 
@@ -5895,14 +5546,14 @@ function resampleImage(imageElement, maxWidth, maxHeight, sourceMime, preserveSo
     const mimeType = selectDownsampleMimeType(sourceMime, preserveSourceFormat, downsampleMimeType);
     const documentForCanvas = (_a = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : imageElement.ownerDocument) !== null && _a !== void 0 ? _a : null;
     if (!documentForCanvas) {
-        throw new DownsampleError('Failed to obtain an owner document for downsampling.');
+        throw new plugins_transform_index.DownsampleError('Failed to obtain an owner document for downsampling.');
     }
     const offscreenCanvas = documentForCanvas.createElement('canvas');
     offscreenCanvas.width = width;
     offscreenCanvas.height = height;
     const context = offscreenCanvas.getContext('2d');
     if (!context) {
-        throw new DownsampleError('Failed to obtain a 2D context for downsampling.');
+        throw new plugins_transform_index.DownsampleError('Failed to obtain a 2D context for downsampling.');
     }
     context.drawImage(imageElement, 0, 0, imageElement.naturalWidth, imageElement.naturalHeight, 0, 0, width, height);
     const dataUrl = mimeType === 'image/png'
@@ -6112,7 +5763,7 @@ function createPreviewCircle(context) {
         objectCaching: false,
         visible: false,
     });
-    markSessionObject(circle, 'mosaicPreviewCircle');
+    plugins_mask_index.markSessionObject(circle, 'mosaicPreviewCircle');
     circle.isMosaicPreview = true;
     return circle;
 }
@@ -6155,7 +5806,7 @@ function createPreviewImage(context, sourceImage, rasterCache) {
         objectCaching: false,
         visible: true,
     });
-    markSessionObject(image, 'mosaicPreviewImage');
+    plugins_mask_index.markSessionObject(image, 'mosaicPreviewImage');
     image.isMosaicPreview = true;
     return image;
 }
@@ -6406,7 +6057,7 @@ function replaceBaseImage(context, oldImage, newImage, mimeType) {
         canvas.add(newImage);
         newAdded = true;
         canvas.sendObjectToBack(newImage);
-        context.setOriginalImage(markBaseImageObject(newImage));
+        context.setOriginalImage(plugins_mask_index.markBaseImageObject(newImage));
         context.setCurrentImageMimeType(mimeType);
         canvas.renderAll();
     }
@@ -6450,7 +6101,7 @@ async function getOrCreateRasterCache(context, session, source) {
     offscreenCanvas.height = decoded.height;
     const renderingContext = offscreenCanvas.getContext('2d');
     if (!renderingContext) {
-        reportError(context.options, new Error('Mosaic could not obtain a 2D canvas context.'), 'Mosaic apply failed.');
+        plugins_mask_index.reportError(context.options, new Error('Mosaic could not obtain a 2D canvas context.'), 'Mosaic apply failed.');
         return null;
     }
     renderingContext.drawImage(decoded.element, 0, 0, decoded.width, decoded.height);
@@ -6459,7 +6110,7 @@ async function getOrCreateRasterCache(context, session, source) {
         imageData = renderingContext.getImageData(0, 0, decoded.width, decoded.height);
     }
     catch (error) {
-        reportError(context.options, error, 'Mosaic apply failed because the source image pixels could not be read.');
+        plugins_mask_index.reportError(context.options, error, 'Mosaic apply failed because the source image pixels could not be read.');
         return null;
     }
     const rasterCache = {
@@ -6567,7 +6218,7 @@ async function applyMosaicPointToCache(context, expectedSession, canvasPoint) {
     }
     const source = getMosaicImageSource(context, originalImage);
     if (!source) {
-        reportWarning(context.options, new Error('Mosaic cannot read the current image source.'), 'Mosaic skipped because the image source is unavailable.');
+        plugins_mask_index.reportWarning(context.options, new Error('Mosaic cannot read the current image source.'), 'Mosaic skipped because the image source is unavailable.');
         return;
     }
     const rasterCache = await getOrCreateRasterCache(context, session, source);
@@ -6604,7 +6255,7 @@ async function commitMosaicChanges(context, session, callbackContext) {
         }
         catch (error) {
             releaseMosaicRasterCache(session);
-            reportWarning(context.options, error, 'Mosaic cache refresh failed after commit; the next stroke will rebuild it.');
+            plugins_mask_index.reportWarning(context.options, error, 'Mosaic cache refresh failed after commit; the next stroke will rebuild it.');
         }
         session.hasUncommittedChanges = false;
     }
@@ -6645,7 +6296,7 @@ async function drainMosaicQueue(context, expectedSession) {
         if (context.getMosaicSession() === session &&
             (session.pendingCanvasPoints.length > 0 || session.commitRequested)) {
             void drainMosaicQueue(context, session).catch((error) => {
-                reportError(context.options, error, 'Mosaic apply failed.');
+                plugins_mask_index.reportError(context.options, error, 'Mosaic apply failed.');
             });
         }
     }
@@ -6659,13 +6310,13 @@ function enqueueMosaicPoint(context, canvasPoint) {
         session.pendingCanvasPoints.splice(0, session.pendingCanvasPoints.length - MAX_PENDING_MOSAIC_POINTS);
     }
     void drainMosaicQueue(context, session).catch((error) => {
-        reportError(context.options, error, 'Mosaic apply failed.');
+        plugins_mask_index.reportError(context.options, error, 'Mosaic apply failed.');
     });
 }
 function requestMosaicCommit(context, session) {
     session.commitRequested = true;
     void drainMosaicQueue(context, session).catch((error) => {
-        reportError(context.options, error, 'Mosaic apply failed.');
+        plugins_mask_index.reportError(context.options, error, 'Mosaic apply failed.');
     });
 }
 function installMosaicHandlers(context, session) {
@@ -6833,12 +6484,12 @@ function applyMosaicConfigPatchAction(access, config, operation) {
     if (access.isDisposed())
         return;
     if (config === null || typeof config !== 'object' || Array.isArray(config)) {
-        reportWarning(access.getOptions(), new TypeError('[ImageEditor] Invalid Mosaic config object.'), 'Ignored invalid Mosaic config.');
+        plugins_mask_index.reportWarning(access.getOptions(), new TypeError('[ImageEditor] Invalid Mosaic config object.'), 'Ignored invalid Mosaic config.');
         return;
     }
     const invalidFields = getInvalidMosaicConfigFields(config);
     if (invalidFields.length > 0) {
-        reportWarning(access.getOptions(), new TypeError(`[ImageEditor] Ignored invalid Mosaic config field(s): ` +
+        plugins_mask_index.reportWarning(access.getOptions(), new TypeError(`[ImageEditor] Ignored invalid Mosaic config field(s): ` +
             `${invalidFields.join(', ')}.`), 'Ignored invalid Mosaic config fields.');
     }
     const nextConfig = mergeMosaicConfigPatch(access.getMosaicConfig(), config);
@@ -6913,17 +6564,17 @@ function startImageElementLoad(dataUrl, options) {
 
 function createMergeError(operation, error) {
     if (operation === 'mergeAnnotations') {
-        if (error instanceof MergeAnnotationsError)
+        if (error instanceof plugins_transform_index.MergeAnnotationsError)
             return error;
         const message = error instanceof Error
             ? `mergeAnnotations failed: ${error.message}`
             : 'mergeAnnotations failed';
-        return new MergeAnnotationsError(message, error);
+        return new plugins_transform_index.MergeAnnotationsError(message, error);
     }
-    if (error instanceof MergeMasksError)
+    if (error instanceof plugins_transform_index.MergeMasksError)
         return error;
     const message = error instanceof Error ? `mergeMasks failed: ${error.message}` : 'mergeMasks failed';
-    return new MergeMasksError(message, error);
+    return new plugins_transform_index.MergeMasksError(message, error);
 }
 function detachObjects(canvas, objects) {
     for (const object of objects) {
@@ -6960,7 +6611,7 @@ async function flattenOverlayGroupToBaseImage(context, options) {
         options.removeTargetsNoHistory();
         await context.loadImage(exportedDataUrl, { preserveScroll: true });
         await options.restorePreservedObjects(preservedObjects);
-        normalizeLayerOrder(context.canvas);
+        plugins_mask_index.normalizeLayerOrder(context.canvas);
         context.canvas.renderAll();
         context.updateInputs();
         context.updateUi();
@@ -6972,7 +6623,7 @@ async function flattenOverlayGroupToBaseImage(context, options) {
                     context.containerElement.scrollLeft = preScrollLeft;
             }
             catch (scrollError) {
-                reportWarning(context.options, scrollError, `${options.operation}: scroll restore failed.`);
+                plugins_mask_index.reportWarning(context.options, scrollError, `${options.operation}: scroll restore failed.`);
             }
         }
         const afterSnapshot = context.captureSnapshot();
@@ -6985,7 +6636,7 @@ async function flattenOverlayGroupToBaseImage(context, options) {
             await context.loadFromState(beforeSnapshot);
         }
         catch (rollbackError) {
-            reportWarning(context.options, rollbackError, `${options.operation}: rollback failed.`);
+            plugins_mask_index.reportWarning(context.options, rollbackError, `${options.operation}: rollback failed.`);
         }
         throw createMergeError(options.operation, error);
     }
@@ -7053,7 +6704,7 @@ function computeExportRegion(context, exportArea) {
     const canvasWidth = typeof canvasLike.getWidth === 'function' ? canvasLike.getWidth() : canvasLike.width;
     const canvasHeight = typeof canvasLike.getHeight === 'function' ? canvasLike.getHeight() : canvasLike.height;
     if (!hasMeaningfulCanvasRegion(bounds, canvasWidth, canvasHeight)) {
-        throw new ExportError('exportImageBase64 failed: image export region is empty.');
+        throw new plugins_transform_index.ExportError('exportImageBase64 failed: image export region is empty.');
     }
     return {
         region: getClampedCanvasRegion(bounds, canvasWidth, canvasHeight, {
@@ -7064,9 +6715,9 @@ function computeExportRegion(context, exportArea) {
 }
 async function withMaskExportState(context, mergeMasks, callback) {
     if (!mergeMasks) {
-        return withObjectsHidden(context.canvas, isMaskObject, callback);
+        return withObjectsHidden(context.canvas, plugins_mask_index.isMaskObject, callback);
     }
-    return withMaskStyleBackup({ canvas: context.canvas, options: context.options }, applyExportBakeInStyle, callback);
+    return plugins_mask_index.withMaskStyleBackup({ canvas: context.canvas, options: context.options }, applyExportBakeInStyle, callback);
 }
 async function withObjectsHidden(canvas, predicate, callback) {
     const backups = getCanvasObjects(canvas)
@@ -7110,16 +6761,16 @@ async function withObjectsHidden(canvas, predicate, callback) {
     }
 }
 async function withSessionObjectsHidden(context, callback) {
-    return withObjectsHidden(context.canvas, (object) => isSessionObject(object) ||
+    return withObjectsHidden(context.canvas, (object) => plugins_mask_index.isSessionObject(object) ||
         object.isCropRect === true ||
         object.maskLabel === true ||
         object.isMosaicPreview === true, callback);
 }
 async function withAnnotationsExportState(context, mergeAnnotations, callback) {
     if (!mergeAnnotations) {
-        return withObjectsHidden(context.canvas, isAnnotationObject, callback);
+        return withObjectsHidden(context.canvas, plugins_mask_index.isAnnotationObject, callback);
     }
-    return withObjectsHidden(context.canvas, (object) => isAnnotationObject(object) && object.annotationHidden === true, callback);
+    return withObjectsHidden(context.canvas, (object) => plugins_mask_index.isAnnotationObject(object) && object.annotationHidden === true, callback);
 }
 function getCanvasObjects(canvas) {
     try {
@@ -7136,7 +6787,7 @@ function captureMaskLabelBackups(canvas) {
     var _a;
     const backups = [];
     for (const object of getCanvasObjects(canvas)) {
-        if (!isMaskObject(object))
+        if (!plugins_mask_index.isMaskObject(object))
             continue;
         const label = object.labelObject;
         if (!label)
@@ -7370,7 +7021,7 @@ function detectDataUrlMimeType(dataUrl) {
 function assertDataUrlMimeType(dataUrl, target, operation) {
     const actualMimeType = detectDataUrlMimeType(dataUrl);
     if (actualMimeType !== target.mimeType) {
-        throw new ExportError(`${operation} failed: browser encoded ${actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : 'unknown MIME'} instead of requested ${target.mimeType}.`);
+        throw new plugins_transform_index.ExportError(`${operation} failed: browser encoded ${actualMimeType !== null && actualMimeType !== void 0 ? actualMimeType : 'unknown MIME'} instead of requested ${target.mimeType}.`);
     }
 }
 function encodeCanvasAsDataUrl(canvas, target, operation) {
@@ -7489,7 +7140,7 @@ async function reencodeDataUrlAs(sourceDataUrl, target, backgroundColor, canvas)
     return encodeCanvasAsDataUrl(offscreenCanvas, target, 'exportImageFile');
 }
 function warnNoImageLoaded(options, operation) {
-    reportWarning(options, null, `${operation} skipped: no image is loaded on the canvas.`);
+    plugins_mask_index.reportWarning(options, null, `${operation} skipped: no image is loaded on the canvas.`);
 }
 function extensionForFormat(format) {
     return format === 'jpeg' ? 'jpg' : format;
@@ -7563,7 +7214,7 @@ async function renderExportDataUrl(context, resolved, validateMimeType = true) {
 async function exportImageBase64(context, options) {
     if (!context.isImageLoaded()) {
         warnNoImageLoaded(context.options, 'exportImageBase64');
-        throw new ExportNotReadyError('exportImageBase64');
+        throw new plugins_transform_index.ExportNotReadyError('exportImageBase64');
     }
     const resolved = resolveExportOptions(context, options);
     return renderExportDataUrl(context, resolved);
@@ -7572,7 +7223,7 @@ async function exportImageFile(context, options) {
     var _a;
     if (!context.isImageLoaded()) {
         warnNoImageLoaded(context.options, 'exportImageFile');
-        throw new ExportNotReadyError('exportImageFile');
+        throw new plugins_transform_index.ExportNotReadyError('exportImageFile');
     }
     const providedOptions = options !== null && options !== void 0 ? options : {};
     const resolved = resolveExportOptions(context, providedOptions);
@@ -7583,7 +7234,7 @@ async function exportImageFile(context, options) {
         bytes = dataUrlToBytes(finalDataUrl);
     }
     catch (error) {
-        throw new ExportError('exportImageFile failed to decode rendered data URL.', error);
+        throw new plugins_transform_index.ExportError('exportImageFile failed to decode rendered data URL.', error);
     }
     const fileName = resolveFileName((_a = providedOptions.fileName) !== null && _a !== void 0 ? _a : context.options.defaultDownloadFileName, resolved.format);
     return new File([bytes], fileName, { type: resolved.format.mimeType });
@@ -7637,24 +7288,6 @@ function safeRevokeObjectUrl(objectUrl) {
     catch {
     }
 }
-async function mergeMasks(context) {
-    await flattenOverlayGroupToBaseImage(context, {
-        operation: 'mergeMasks',
-        exportOptions: {
-            exportArea: 'image',
-            mergeMasks: true,
-            mergeAnnotations: false,
-            multiplier: context.options.exportMultiplier,
-            fileType: 'png',
-        },
-        getTargets: () => context.canvas.getObjects().filter(isMaskObject),
-        getPreservedObjects: () => context.getAnnotations(),
-        removeTargetsNoHistory: () => {
-            context.removeAllMasksNoHistory();
-        },
-        restorePreservedObjects: (objects) => context.restoreAnnotations(objects),
-    });
-}
 async function mergeAnnotations(context) {
     await flattenOverlayGroupToBaseImage(context, {
         operation: 'mergeAnnotations',
@@ -7665,7 +7298,7 @@ async function mergeAnnotations(context) {
             multiplier: context.options.exportMultiplier,
             fileType: 'png',
         },
-        getTargets: () => context.canvas.getObjects().filter(isAnnotationObject),
+        getTargets: () => context.canvas.getObjects().filter(plugins_mask_index.isAnnotationObject),
         getPreservedObjects: () => context.getMasks(),
         removeTargetsNoHistory: () => {
             context.removeAllAnnotationsNoHistory();
@@ -7674,28 +7307,6 @@ async function mergeAnnotations(context) {
     });
 }
 
-async function mergeMasksAction(access) {
-    const canvas = access.getCanvas();
-    if (!canvas)
-        return;
-    if (!access.canRunIdleOperation('mergeMasks'))
-        return;
-    access.finalizeActiveTextEditingIfNeeded();
-    const hasMasks = canvas.getObjects().some(isMaskObject);
-    if (!hasMasks)
-        return;
-    await runBusyOperation(access.buildBusyOperationAccess(), 'mergeMasks', async (callbackContext, operationToken) => {
-        await mergeMasks(access.buildMergeMasksContext(operationToken));
-        access.updateInputs();
-        access.updateMaskList();
-        access.updateAnnotationList();
-        access.emitMasksChanged(callbackContext);
-        if (access.getAnnotations().length > 0) {
-            access.emitAnnotationsChanged(callbackContext);
-        }
-        access.emitImageChanged(callbackContext);
-    });
-}
 async function mergeAnnotationsAction(access) {
     const canvas = access.getCanvas();
     if (!canvas)
@@ -7703,7 +7314,7 @@ async function mergeAnnotationsAction(access) {
     if (!access.canRunIdleOperation('mergeAnnotations'))
         return;
     access.finalizeActiveTextEditingIfNeeded();
-    const hasAnnotations = canvas.getObjects().some(isAnnotationObject);
+    const hasAnnotations = canvas.getObjects().some(plugins_mask_index.isAnnotationObject);
     if (!hasAnnotations)
         return;
     await runBusyOperation(access.buildBusyOperationAccess(), 'mergeAnnotations', async (callbackContext, operationToken) => {
@@ -7729,7 +7340,7 @@ async function downloadImageAction(access, options) {
 }
 async function exportImageBase64Action(access, options) {
     if (!access.getCanvas()) {
-        throw new ExportNotReadyError('exportImageBase64', 'editor is not initialized');
+        throw new plugins_transform_index.ExportNotReadyError('exportImageBase64', 'editor is not initialized');
     }
     access.assertIdleForOperation('exportImageBase64', options);
     access.finalizeActiveTextEditingIfNeeded();
@@ -7737,222 +7348,11 @@ async function exportImageBase64Action(access, options) {
 }
 async function exportImageFileAction(access, options) {
     if (!access.getCanvas()) {
-        throw new ExportNotReadyError('exportImageFile', 'editor is not initialized');
+        throw new plugins_transform_index.ExportNotReadyError('exportImageFile', 'editor is not initialized');
     }
     access.assertIdleForOperation('exportImageFile', options);
     access.finalizeActiveTextEditingIfNeeded();
     return runBusyOperationWithoutUi(access.buildBusyOperationAccess(), 'exportImageFile', () => exportImageFile(access.buildExportServiceContext(), options));
-}
-
-function forceReflow(element) {
-    if (!element)
-        return;
-    void element.offsetWidth;
-}
-
-function selectLayoutStrategy(mode) {
-    return mode;
-}
-class ViewportCache {
-    constructor() {
-        Object.defineProperty(this, "lastVisible", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-    }
-    measure(container, fallback, scrollbarSize) {
-        var _a;
-        if (!container)
-            return fallback;
-        const containerWidth = Math.floor(container.clientWidth);
-        const containerHeight = Math.floor(container.clientHeight);
-        if (containerWidth > 0 && containerHeight > 0) {
-            this.lastVisible = measureContainerViewport(container, fallback, scrollbarSize);
-            return this.lastVisible;
-        }
-        return (_a = this.lastVisible) !== null && _a !== void 0 ? _a : fallback;
-    }
-    peek() {
-        return this.lastVisible;
-    }
-    clear() {
-        this.lastVisible = null;
-    }
-}
-const OVERFLOW_EPSILON = 0.5;
-function normalizeOverflowValue(value) {
-    return String(value !== null && value !== void 0 ? value : '')
-        .trim()
-        .toLowerCase();
-}
-function getContainerOverflowValues(container) {
-    var _a, _b;
-    const style = container.style;
-    let computedOverflow = '';
-    let computedOverflowX = '';
-    let computedOverflowY = '';
-    const view = (_b = (_a = container.ownerDocument) === null || _a === void 0 ? void 0 : _a.defaultView) !== null && _b !== void 0 ? _b : (typeof window === 'undefined' ? null : window);
-    if (typeof (view === null || view === void 0 ? void 0 : view.getComputedStyle) === 'function') {
-        const computed = view.getComputedStyle(container);
-        computedOverflow = computed.overflow;
-        computedOverflowX = computed.overflowX;
-        computedOverflowY = computed.overflowY;
-    }
-    const x = [
-        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflow),
-        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflowX),
-        normalizeOverflowValue(computedOverflow),
-        normalizeOverflowValue(computedOverflowX),
-    ];
-    const y = [
-        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflow),
-        normalizeOverflowValue(style === null || style === void 0 ? void 0 : style.overflowY),
-        normalizeOverflowValue(computedOverflow),
-        normalizeOverflowValue(computedOverflowY),
-    ];
-    return { x, y, all: [...x, ...y] };
-}
-function isAutoScrollableOverflow(value) {
-    return value === 'auto' || value === 'overlay';
-}
-function measureScrollbarSize(ownerDocument) {
-    const doc = ownerDocument !== null && ownerDocument !== void 0 ? ownerDocument : (typeof document === 'undefined' ? null : document);
-    if (!(doc === null || doc === void 0 ? void 0 : doc.body))
-        return { width: 0, height: 0 };
-    const probe = doc.createElement('div');
-    probe.style.position = 'absolute';
-    probe.style.left = '-9999px';
-    probe.style.top = '-9999px';
-    probe.style.width = '100px';
-    probe.style.height = '100px';
-    probe.style.overflow = 'scroll';
-    probe.style.visibility = 'hidden';
-    probe.style.pointerEvents = 'none';
-    doc.body.appendChild(probe);
-    const width = Math.max(0, probe.offsetWidth - probe.clientWidth);
-    const height = Math.max(0, probe.offsetHeight - probe.clientHeight);
-    probe.remove();
-    return { width, height };
-}
-function normalizeScrollbarSize(scrollbarSize) {
-    return {
-        width: Math.max(0, Number(scrollbarSize === null || scrollbarSize === void 0 ? void 0 : scrollbarSize.width) || 0),
-        height: Math.max(0, Number(scrollbarSize === null || scrollbarSize === void 0 ? void 0 : scrollbarSize.height) || 0),
-    };
-}
-function measureContainerViewport(container, fallback, scrollbarSize) {
-    if (!container)
-        return fallback;
-    const clientWidth = Math.floor(container.clientWidth || 0);
-    const clientHeight = Math.floor(container.clientHeight || 0);
-    if (clientWidth <= 0 || clientHeight <= 0)
-        return fallback;
-    const overflow = getContainerOverflowValues(container);
-    if (overflow.all.includes('scroll')) {
-        return { width: clientWidth, height: clientHeight };
-    }
-    const scrollbar = normalizeScrollbarSize(scrollbarSize);
-    const canAutoScrollX = overflow.x.some(isAutoScrollableOverflow);
-    const canAutoScrollY = overflow.y.some(isAutoScrollableOverflow);
-    const scrollWidth = Math.ceil(container.scrollWidth || 0);
-    const scrollHeight = Math.ceil(container.scrollHeight || 0);
-    const hasHorizontalScrollbar = canAutoScrollX && scrollWidth > clientWidth + OVERFLOW_EPSILON;
-    const hasVerticalScrollbar = canAutoScrollY && scrollHeight > clientHeight + OVERFLOW_EPSILON;
-    return {
-        width: clientWidth + (hasVerticalScrollbar ? scrollbar.width : 0),
-        height: clientHeight + (hasHorizontalScrollbar ? scrollbar.height : 0),
-    };
-}
-function computeScrollableCanvasSize(contentWidth, contentHeight, viewport, scrollbarSize) {
-    const viewportW = Math.max(1, viewport.width || 1);
-    const viewportH = Math.max(1, viewport.height || 1);
-    const scrollbar = normalizeScrollbarSize(scrollbarSize);
-    let hasHorizontal = false;
-    let hasVertical = false;
-    for (let i = 0; i < 4; i += 1) {
-        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
-        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
-        const nextHorizontal = contentWidth > effectiveW + OVERFLOW_EPSILON;
-        const nextVertical = contentHeight > effectiveH + OVERFLOW_EPSILON;
-        if (nextHorizontal === hasHorizontal && nextVertical === hasVertical)
-            break;
-        hasHorizontal = nextHorizontal;
-        hasVertical = nextVertical;
-    }
-    const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
-    const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
-    return {
-        width: hasHorizontal ? Math.ceil(contentWidth) : effectiveW,
-        height: hasVertical ? Math.ceil(contentHeight) : effectiveH,
-    };
-}
-function computeFitLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize) {
-    const canvasWidth = Math.max(1, (containerSize.width || optionsCanvasWidth) - 1);
-    const canvasHeight = Math.max(1, (containerSize.height || optionsCanvasHeight) - 1);
-    const fitScale = Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight, 1);
-    return {
-        canvasWidth,
-        canvasHeight,
-        imageScale: fitScale,
-        imageLeft: 0,
-        imageTop: 0,
-        baseImageScale: fitScale,
-    };
-}
-function computeCoverLayout(imageWidth, imageHeight, optionsCanvasWidth, optionsCanvasHeight, containerSize, scrollbarSize) {
-    const viewportW = containerSize.width || optionsCanvasWidth;
-    const viewportH = containerSize.height || optionsCanvasHeight;
-    const scrollbar = normalizeScrollbarSize(scrollbarSize);
-    let hasHorizontal = false;
-    let hasVertical = false;
-    let coverScale = 1;
-    let scaledW = imageWidth;
-    let scaledH = imageHeight;
-    for (let i = 0; i < 4; i += 1) {
-        const effectiveW = Math.max(1, viewportW - (hasVertical ? scrollbar.width : 0));
-        const effectiveH = Math.max(1, viewportH - (hasHorizontal ? scrollbar.height : 0));
-        coverScale = Math.min(1, Math.max(effectiveW / imageWidth, effectiveH / imageHeight));
-        scaledW = imageWidth * coverScale;
-        scaledH = imageHeight * coverScale;
-        const nextHasHorizontal = scaledW > effectiveW + OVERFLOW_EPSILON;
-        const nextHasVertical = scaledH > effectiveH + OVERFLOW_EPSILON;
-        if (nextHasHorizontal === hasHorizontal && nextHasVertical === hasVertical)
-            break;
-        hasHorizontal = nextHasHorizontal;
-        hasVertical = nextHasVertical;
-    }
-    const canvasSize = computeScrollableCanvasSize(scaledW, scaledH, {
-        width: viewportW,
-        height: viewportH,
-    }, scrollbar);
-    return {
-        canvasWidth: canvasSize.width,
-        canvasHeight: canvasSize.height,
-        imageScale: coverScale,
-        imageLeft: 0,
-        imageTop: 0,
-        baseImageScale: coverScale,
-    };
-}
-function computeExpandLayout(imageWidth, imageHeight, containerSize) {
-    const canvasWidth = Math.max(containerSize.width, Math.floor(imageWidth));
-    const canvasHeight = Math.max(containerSize.height, Math.floor(imageHeight));
-    return {
-        canvasWidth,
-        canvasHeight,
-        imageScale: 1,
-        imageLeft: 0,
-        imageTop: 0,
-        baseImageScale: 1,
-    };
-}
-function applyCanvasDimensions(canvas, width, height, containerElement) {
-    const integerWidth = Math.max(1, Math.round(Number(width) || 1));
-    const integerHeight = Math.max(1, Math.round(Number(height) || 1));
-    canvas.setDimensions({ width: integerWidth, height: integerHeight });
-    forceReflow(containerElement);
 }
 
 const HEADER_PROBE_BYTES = 256 * 1024;
@@ -8166,7 +7566,7 @@ function assertInputByteBudget(bytes, maxInputBytes) {
     if (bytes === null)
         return;
     if (bytes > maxInputBytes) {
-        throw new ImageDecodeError(`Image input byte length ${bytes} exceeds maxInputBytes (${maxInputBytes}).`);
+        throw new plugins_transform_index.ImageDecodeError(`Image input byte length ${bytes} exceeds maxInputBytes (${maxInputBytes}).`);
     }
 }
 function assertInputPixelBudget(dimensions, maxInputPixels) {
@@ -8174,7 +7574,7 @@ function assertInputPixelBudget(dimensions, maxInputPixels) {
         return;
     const pixels = dimensions.width * dimensions.height;
     if (pixels > maxInputPixels) {
-        throw new ImageDecodeError(`Image input dimensions ${dimensions.width}x${dimensions.height} exceed maxInputPixels (${maxInputPixels}).`);
+        throw new plugins_transform_index.ImageDecodeError(`Image input dimensions ${dimensions.width}x${dimensions.height} exceed maxInputPixels (${maxInputPixels}).`);
     }
 }
 function assertImageDataUrlInputBudget(dataUrl, options) {
@@ -8198,7 +7598,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
     }
     catch (error) {
         const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
-        reportError(context.options, error, errorMessage);
+        plugins_mask_index.reportError(context.options, error, errorMessage);
         throw error;
     }
     const placeholderHidden = context.placeholderElement
@@ -8249,7 +7649,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
         context.canvas.discardActiveObject();
         context.canvas.clear();
         context.canvas.backgroundColor = context.options.backgroundColor;
-        const baseImage = markBaseImageObject(fabricImage);
+        const baseImage = plugins_mask_index.markBaseImageObject(fabricImage);
         baseImage.set({
             originX: 'left',
             originY: 'top',
@@ -8257,7 +7657,7 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
             evented: false,
         });
         const layout = computeLayout(context, baseImage);
-        applyCanvasDimensions(context.canvas, layout.canvasWidth, layout.canvasHeight, context.containerElement);
+        core_index.applyCanvasDimensions(context.canvas, layout.canvasWidth, layout.canvasHeight, context.containerElement);
         baseImage.set({
             left: layout.imageLeft,
             top: layout.imageTop,
@@ -8294,14 +7694,14 @@ async function loadImage(context, imageBase64, loadOptions = {}) {
                 }
             }
             catch (error) {
-                reportWarning(context.options, error, 'preserveScroll restore failed.');
+                plugins_mask_index.reportWarning(context.options, error, 'preserveScroll restore failed.');
             }
         }
     }
     catch (error) {
         await replayRollback(context, bundle);
         const errorMessage = error instanceof Error ? `loadImage failed: ${error.message}` : 'loadImage failed';
-        reportError(context.options, error, errorMessage);
+        plugins_mask_index.reportError(context.options, error, errorMessage);
         throw error;
     }
 }
@@ -8309,8 +7709,8 @@ function startImageDecode(dataUrl) {
     return startImageElementLoad(dataUrl, {
         validate: (imageElement) => hasNaturalImageDimensions(imageElement)
             ? null
-            : new ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null),
-        createError: (event) => new ImageDecodeError('Failed to decode image data URL.', event),
+            : new plugins_transform_index.ImageDecodeError('Failed to decode image data URL: image has no natural dimensions.', null),
+        createError: (event) => new plugins_transform_index.ImageDecodeError('Failed to decode image data URL.', event),
     });
 }
 function hasNaturalImageDimensions(imageElement) {
@@ -8334,7 +7734,7 @@ function maybeDownsample(imageElement, originalDataUrl, options, ownerDocument) 
     }
     if (!isPositiveFinite(options.downsampleMaxWidth) ||
         !isPositiveFinite(options.downsampleMaxHeight)) {
-        reportWarning(options, null, 'loadImage skipped downsampling because downsample bounds are invalid.');
+        plugins_mask_index.reportWarning(options, null, 'loadImage skipped downsampling because downsample bounds are invalid.');
         return { dataUrl: originalDataUrl, mimeType: originalMimeType };
     }
     const downsampleDimensions = computeDownsampleDimensions(imageElement.naturalWidth, imageElement.naturalHeight, options.downsampleMaxWidth, options.downsampleMaxHeight);
@@ -8358,19 +7758,19 @@ function computeLayout(context, fabricImage) {
     var _a, _b, _c, _d;
     const imageWidth = (_a = fabricImage.width) !== null && _a !== void 0 ? _a : 0;
     const imageHeight = (_b = fabricImage.height) !== null && _b !== void 0 ? _b : 0;
-    const scrollbarSize = measureScrollbarSize((_d = (_c = context.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
+    const scrollbarSize = core_index.measureScrollbarSize((_d = (_c = context.containerElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
     const viewport = context.viewportCache.measure(context.containerElement, {
         width: context.options.canvasWidth,
         height: context.options.canvasHeight,
     }, scrollbarSize);
-    const strategy = selectLayoutStrategy(context.options.layoutMode);
+    const strategy = core_index.selectLayoutStrategy(context.options.layoutMode);
     if (strategy === 'fit') {
-        return computeFitLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
+        return core_index.computeFitLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport);
     }
     if (strategy === 'cover') {
-        return computeCoverLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport, scrollbarSize);
+        return core_index.computeCoverLayout(imageWidth, imageHeight, context.options.canvasWidth, context.options.canvasHeight, viewport, scrollbarSize);
     }
-    return computeExpandLayout(imageWidth, imageHeight, viewport);
+    return core_index.computeExpandLayout(imageWidth, imageHeight, viewport);
 }
 function captureRollbackState(context) {
     return saveState({
@@ -8388,7 +7788,7 @@ function getRemainingLoadTimeout(deadline) {
 function assertMinimumLoadBudget(label, remainingMs, minimumMs) {
     if (remainingMs >= minimumMs)
         return;
-    throw new ImageLoadBudgetExhaustedError(label, remainingMs, minimumMs);
+    throw new plugins_transform_index.ImageLoadBudgetExhaustedError(label, remainingMs, minimumMs);
 }
 function createAbortController() {
     return typeof AbortController === 'function' ? new AbortController() : null;
@@ -8419,7 +7819,7 @@ async function replayRollback(context, bundle) {
         context.canvas.renderAll();
     }
     catch (rollbackError) {
-        reportWarning(context.options, rollbackError, 'loadImage rollback failed while restoring the previous canvas state; editor state was cleared.');
+        plugins_mask_index.reportWarning(context.options, rollbackError, 'loadImage rollback failed while restoring the previous canvas state; editor state was cleared.');
         context.resetAfterRollbackFailure();
     }
     if (context.containerElement) {
@@ -8432,7 +7832,7 @@ async function replayRollback(context, bundle) {
             }
         }
         catch (rollbackError) {
-            reportWarning(context.options, rollbackError, 'loadImage rollback scroll restore failed.');
+            plugins_mask_index.reportWarning(context.options, rollbackError, 'loadImage rollback scroll restore failed.');
         }
     }
     if (bundle.placeholderHidden !== null) {
@@ -8672,7 +8072,7 @@ async function loadImageFile(context, file) {
     const inputElement = context.getInputElement();
     const mime = inferImageMimeType(file);
     if (!mime) {
-        reportWarning(context.options, null, `Unsupported image file type: ${file.type || file.name || 'unknown'}.`);
+        plugins_mask_index.reportWarning(context.options, null, `Unsupported image file type: ${file.type || file.name || 'unknown'}.`);
         resetFileInput(inputElement);
         return;
     }
@@ -8680,7 +8080,7 @@ async function loadImageFile(context, file) {
         await assertImageFileInputBudget(file, context.options);
     }
     catch (error) {
-        reportWarning(context.options, error, error instanceof Error ? error.message : 'Image file exceeds configured input limits.');
+        plugins_mask_index.reportWarning(context.options, error, error instanceof Error ? error.message : 'Image file exceeds configured input limits.');
         resetFileInput(inputElement);
         return;
     }
@@ -8689,7 +8089,7 @@ async function loadImageFile(context, file) {
         dataUrl = await readFileAsDataUrl(file);
     }
     catch (error) {
-        reportError(context.options, error, 'Failed to read selected image file.');
+        plugins_mask_index.reportError(context.options, error, 'Failed to read selected image file.');
         resetFileInput(inputElement);
         return;
     }
@@ -8699,7 +8099,7 @@ async function loadImageFile(context, file) {
                 (_a = (await normalizeJpegOrientationIfNeeded(file, dataUrl, context.options, inputElement === null || inputElement === void 0 ? void 0 : inputElement.ownerDocument))) !== null && _a !== void 0 ? _a : dataUrl;
         }
         catch (error) {
-            reportWarning(context.options, error, 'JPEG EXIF orientation normalization failed; loading the original file data.');
+            plugins_mask_index.reportWarning(context.options, error, 'JPEG EXIF orientation normalization failed; loading the original file data.');
         }
         await context.loadImage(dataUrl);
     }
@@ -8729,7 +8129,7 @@ function updateCanvasSizeToImageBounds(context, options = {}) {
         return;
     originalImage.setCoords();
     const boundingRect = originalImage.getBoundingRect();
-    const scrollbarSize = measureScrollbarSize((_b = (_a = context.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
+    const scrollbarSize = core_index.measureScrollbarSize((_b = (_a = context.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
     const viewport = measureLayoutViewport(context, scrollbarSize);
     const shouldStabilizeContainedViewport = options.stabilizeContainedViewport !== false;
     const imageFitsViewport = boundingRect.width <= viewport.width + LAYOUT_EPSILON &&
@@ -8742,7 +8142,7 @@ function updateCanvasSizeToImageBounds(context, options = {}) {
             context.setCanvasSize(canvasSize.width, canvasSize.height);
             return;
         }
-        const canvasSize = computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
+        const canvasSize = core_index.computeScrollableCanvasSize(boundingRect.width, boundingRect.height, viewport, scrollbarSize);
         context.setCanvasSize(canvasSize.width, canvasSize.height);
         return;
     }
@@ -8762,7 +8162,7 @@ function shouldNormalizeCanvasSizeAfterStateRestore(context) {
         return false;
     originalImage.setCoords();
     const boundingRect = originalImage.getBoundingRect();
-    const viewport = measureLayoutViewport(context, measureScrollbarSize((_b = (_a = context.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
+    const viewport = measureLayoutViewport(context, core_index.measureScrollbarSize((_b = (_a = context.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null));
     const canvasW = Math.ceil(context.canvas.getWidth());
     const canvasH = Math.ceil(context.canvas.getHeight());
     const clipsImage = boundingRect.width > canvasW + LAYOUT_EPSILON ||
@@ -8850,338 +8250,6 @@ function restoreMergedImageDisplayGeometry(context, geometry) {
     context.setBaseImageScale(scale);
     context.setLastSnapshot(context.captureSnapshot());
     context.canvas.renderAll();
-}
-
-const ANIMATION_SETTLE_GRACE_MS = 1000;
-function animateProps(object, props, options, guard) {
-    return new Promise((resolve, reject) => {
-        const propCount = Object.keys(props).length;
-        if (propCount === 0 || guard.isDisposed()) {
-            resolve();
-            return;
-        }
-        let completed = 0;
-        let settled = false;
-        let aborters = [];
-        let timeoutId = null;
-        let unregisterAborter = null;
-        const cleanup = () => {
-            if (timeoutId !== null) {
-                clearTimeout(timeoutId);
-                timeoutId = null;
-            }
-            unregisterAborter === null || unregisterAborter === void 0 ? void 0 : unregisterAborter();
-            unregisterAborter = null;
-        };
-        const settle = () => {
-            if (settled)
-                return;
-            settled = true;
-            cleanup();
-            resolve();
-        };
-        const fail = (error) => {
-            if (settled)
-                return;
-            settled = true;
-            cleanup();
-            reject(error);
-        };
-        const abortAndSettle = () => {
-            for (const abort of aborters) {
-                try {
-                    abort();
-                }
-                catch {
-                }
-            }
-            settle();
-        };
-        const duration = Number.isFinite(options.duration) ? Math.max(0, options.duration) : 0;
-        timeoutId = setTimeout(abortAndSettle, duration + ANIMATION_SETTLE_GRACE_MS);
-        unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
-        try {
-            const animationResult = object.animate(props, {
-                duration,
-                onChange: () => {
-                    var _a;
-                    if (guard.isDisposed())
-                        return;
-                    (_a = options.onChange) === null || _a === void 0 ? void 0 : _a.call(options);
-                },
-                onComplete: () => {
-                    if (++completed >= propCount)
-                        settle();
-                },
-            });
-            aborters = collectAnimationAborters(animationResult);
-        }
-        catch (error) {
-            fail(error);
-        }
-    });
-}
-function collectAnimationAborters(animationResult) {
-    const handles = Array.isArray(animationResult)
-        ? animationResult
-        : animationResult && typeof animationResult === 'object'
-            ? Object.values(animationResult)
-            : [animationResult];
-    return handles.flatMap((handle) => {
-        const abort = handle === null || handle === void 0 ? void 0 : handle.abort;
-        return typeof abort === 'function' ? [() => abort.call(handle)] : [];
-    });
-}
-function restoreOrigin(object, originX, originY) {
-    try {
-        object.set({ originX, originY });
-        object.setCoords();
-    }
-    catch {
-    }
-}
-
-class TransformController {
-    constructor(context) {
-        Object.defineProperty(this, "context", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.context = context;
-    }
-    async scaleImage(factor) {
-        if (!Number.isFinite(factor))
-            return;
-        const imageObject = this.context.getOriginalImage();
-        if (!imageObject)
-            return;
-        if (this.context.guard.isAnimating())
-            return;
-        if (this.context.guard.isDisposed())
-            return;
-        imageObject.setCoords();
-        const beforeMatrix = imageObject.calcTransformMatrix();
-        const previousScale = this.context.getCurrentScale();
-        const previousScaleX = imageObject.scaleX;
-        const previousScaleY = imageObject.scaleY;
-        const clamped = Math.max(this.context.options.minScale, Math.min(this.context.options.maxScale, factor));
-        this.context.setCurrentScale(clamped);
-        const targetAbs = this.context.getBaseImageScale() * clamped;
-        try {
-            const topLeft = computeTopLeftPoint$1(imageObject);
-            imageObject.set({ originX: 'left', originY: 'top' });
-            imageObject.setPositionByOrigin(topLeft, 'left', 'top');
-            imageObject.setCoords();
-        }
-        catch (error) {
-            reportWarning(this.context.options, error, 'scaleImage origin pre-anchor failed.');
-        }
-        try {
-            await this.context.guard.runAnimation(() => animateProps(imageObject, { scaleX: targetAbs, scaleY: targetAbs }, {
-                duration: this.context.options.animationDuration,
-                onChange: () => this.context.canvas.requestRenderAll(),
-            }, this.context.guard));
-        }
-        catch (error) {
-            this.context.setCurrentScale(previousScale);
-            if (!this.context.guard.isDisposed()) {
-                imageObject.set({ scaleX: previousScaleX, scaleY: previousScaleY });
-                imageObject.setCoords();
-                this.completeImageTransform(beforeMatrix);
-            }
-            reportWarning(this.context.options, error, 'scaleImage animation failed.');
-            return;
-        }
-        if (this.context.guard.isDisposed())
-            return;
-        imageObject.set({ scaleX: targetAbs, scaleY: targetAbs });
-        imageObject.setCoords();
-        try {
-            this.completeImageTransform(beforeMatrix);
-        }
-        finally {
-            this.context.saveCanvasState();
-        }
-    }
-    async rotateImage(degrees) {
-        if (!Number.isFinite(degrees))
-            return;
-        const imageObject = this.context.getOriginalImage();
-        if (!imageObject)
-            return;
-        if (this.context.guard.isAnimating())
-            return;
-        if (this.context.guard.isDisposed())
-            return;
-        imageObject.setCoords();
-        const beforeMatrix = imageObject.calcTransformMatrix();
-        const previousRotation = this.context.getCurrentRotation();
-        const previousAngle = imageObject.angle;
-        this.context.setCurrentRotation(degrees);
-        try {
-            const centre = imageObject.getCenterPoint();
-            imageObject.set({ originX: 'center', originY: 'center' });
-            imageObject.setPositionByOrigin(centre, 'center', 'center');
-            imageObject.setCoords();
-        }
-        catch (error) {
-            reportWarning(this.context.options, error, 'rotateImage origin pre-anchor failed.');
-        }
-        let animationFailed = false;
-        try {
-            await this.context.guard.runAnimation(() => animateProps(imageObject, { angle: degrees }, {
-                duration: this.context.options.animationDuration,
-                onChange: () => this.context.canvas.requestRenderAll(),
-            }, this.context.guard));
-        }
-        catch (error) {
-            animationFailed = true;
-            this.context.setCurrentRotation(previousRotation);
-            if (!this.context.guard.isDisposed()) {
-                imageObject.set('angle', previousAngle !== null && previousAngle !== void 0 ? previousAngle : previousRotation);
-                imageObject.setCoords();
-                restoreOrigin(imageObject, 'left', 'top');
-                this.completeImageTransform(beforeMatrix);
-            }
-            reportWarning(this.context.options, error, 'rotateImage animation failed.');
-        }
-        finally {
-            if (this.context.guard.isDisposed()) {
-                restoreOrigin(imageObject, 'left', 'top');
-            }
-        }
-        if (animationFailed)
-            return;
-        if (this.context.guard.isDisposed())
-            return;
-        imageObject.set('angle', degrees);
-        imageObject.setCoords();
-        try {
-            const newTopLeft = computeTopLeftPoint$1(imageObject);
-            imageObject.set({ originX: 'left', originY: 'top' });
-            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
-            imageObject.setCoords();
-        }
-        catch (error) {
-            reportWarning(this.context.options, error, 'rotateImage origin post-restore failed.');
-        }
-        try {
-            this.completeImageTransform(beforeMatrix);
-        }
-        finally {
-            this.context.saveCanvasState();
-        }
-    }
-    async flipHorizontal() {
-        await this.flipImage('flipX');
-    }
-    async flipVertical() {
-        await this.flipImage('flipY');
-    }
-    async flipImage(property) {
-        var _a, _b;
-        const imageObject = this.context.getOriginalImage();
-        if (!imageObject)
-            return;
-        if (this.context.guard.isAnimating())
-            return;
-        if (this.context.guard.isDisposed())
-            return;
-        imageObject.setCoords();
-        const beforeMatrix = imageObject.calcTransformMatrix();
-        const previousFlipX = imageObject.flipX;
-        const previousFlipY = imageObject.flipY;
-        const previousOriginX = (_a = imageObject.originX) !== null && _a !== void 0 ? _a : 'left';
-        const previousOriginY = (_b = imageObject.originY) !== null && _b !== void 0 ? _b : 'top';
-        const operationName = property === 'flipX' ? 'flipHorizontal' : 'flipVertical';
-        let centre = null;
-        try {
-            centre = imageObject.getCenterPoint();
-            imageObject.set({ originX: 'center', originY: 'center' });
-            imageObject.setPositionByOrigin(centre, 'center', 'center');
-            imageObject.set({ [property]: !imageObject[property] });
-            imageObject.setCoords();
-            const newTopLeft = computeTopLeftPoint$1(imageObject);
-            imageObject.set({ originX: 'left', originY: 'top' });
-            imageObject.setPositionByOrigin(newTopLeft, 'left', 'top');
-            imageObject.setCoords();
-        }
-        catch (error) {
-            if (!this.context.guard.isDisposed()) {
-                try {
-                    imageObject.set({
-                        flipX: previousFlipX,
-                        flipY: previousFlipY,
-                        originX: previousOriginX,
-                        originY: previousOriginY,
-                    });
-                    if (centre) {
-                        imageObject.setPositionByOrigin(centre, 'center', 'center');
-                    }
-                    imageObject.setCoords();
-                    this.completeImageTransform(beforeMatrix);
-                }
-                catch (rollbackError) {
-                    reportWarning(this.context.options, rollbackError, `${operationName} rollback failed.`);
-                }
-            }
-            reportWarning(this.context.options, error, `${operationName} failed.`);
-            return;
-        }
-        if (this.context.guard.isDisposed())
-            return;
-        this.completeImageTransform(beforeMatrix);
-        this.context.saveCanvasState();
-    }
-    async resetImageTransform() {
-        const initialImage = this.context.getOriginalImage();
-        if (!initialImage)
-            return;
-        initialImage.setCoords();
-        const beforeMatrix = initialImage.calcTransformMatrix();
-        const previousOverlaySyncSuppressed = this.context.isOverlaySyncSuppressed();
-        this.context.setSuppressSaveState(true);
-        this.context.setSuppressOverlaySync(true);
-        try {
-            await this.scaleImage(1);
-            await this.rotateImage(0);
-            const imageObject = this.context.getOriginalImage();
-            if (imageObject && !this.context.guard.isDisposed()) {
-                imageObject.set({ flipX: false, flipY: false });
-                imageObject.setCoords();
-                this.context.finalizeImageTransformSnap();
-            }
-        }
-        finally {
-            this.context.setSuppressOverlaySync(previousOverlaySyncSuppressed);
-            this.context.setSuppressSaveState(false);
-        }
-        if (this.context.guard.isDisposed())
-            return;
-        if (!this.context.isOverlaySyncSuppressed()) {
-            this.context.applyOverlayTransformDelta(beforeMatrix);
-        }
-        this.context.syncOverlayAfterTransform();
-        this.context.saveCanvasState();
-    }
-    completeImageTransform(beforeMatrix) {
-        this.context.finalizeImageTransformSnap();
-        if (this.context.isOverlaySyncSuppressed())
-            return;
-        this.context.applyOverlayTransformDelta(beforeMatrix);
-        this.context.syncOverlayAfterTransform();
-    }
-}
-function computeTopLeftPoint$1(object) {
-    object.setCoords();
-    const coords = object.getCoords();
-    const first = coords[0];
-    if (first)
-        return first;
-    const boundingRect = object.getBoundingRect();
-    return { x: boundingRect.left, y: boundingRect.top };
 }
 
 function scaleImageAction(access, factor) {
@@ -9721,553 +8789,6 @@ function setPlaceholderVisible(placeholderElement, containerElement, show) {
     }
 }
 
-function isFiniteTransformMatrix(matrix) {
-    return (Array.isArray(matrix) &&
-        matrix.length === 6 &&
-        matrix.every((value) => Number.isFinite(value)));
-}
-function isApproximatelyIdentityTransform(matrix, epsilon = 1e-10) {
-    const identity = [1, 0, 0, 1, 0, 0];
-    return (matrix.length === identity.length &&
-        matrix.every((value, index) => Math.abs(value - identity[index]) <= epsilon));
-}
-function computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil) {
-    if (!isFiniteTransformMatrix(beforeMatrix) || !isFiniteTransformMatrix(afterMatrix)) {
-        return [];
-    }
-    return fabricUtil.multiplyTransformMatrices(afterMatrix, fabricUtil.invertTransform(beforeMatrix));
-}
-function deltaHasReflection(delta) {
-    if (!isFiniteTransformMatrix(delta))
-        return false;
-    const [a, b, c, d] = delta;
-    return a * d - b * c < 0;
-}
-function transformPointByMatrix(point, matrix, fabricUtil) {
-    const [a, b, c, d, e, f] = matrix;
-    return new fabricUtil.Point(a * point.x + c * point.y + e, b * point.x + d * point.y + f);
-}
-function stripReflectionFromDelta(delta, fabricUtil) {
-    if (!deltaHasReflection(delta))
-        return delta;
-    const flipXMatrix = [-1, 0, 0, 1, 0, 0];
-    const flipYMatrix = [1, 0, 0, -1, 0, 0];
-    const flipXCandidate = fabricUtil.multiplyTransformMatrices(delta, flipXMatrix);
-    const flipYCandidate = fabricUtil.multiplyTransformMatrices(delta, flipYMatrix);
-    const normalizedAngleMagnitude = (matrix) => {
-        try {
-            const angle = fabricUtil.qrDecompose(matrix).angle;
-            if (!Number.isFinite(angle))
-                return Number.POSITIVE_INFINITY;
-            return Math.abs((((angle % 360) + 540) % 360) - 180);
-        }
-        catch {
-            return Number.POSITIVE_INFINITY;
-        }
-    };
-    return normalizedAngleMagnitude(flipYCandidate) < normalizedAngleMagnitude(flipXCandidate)
-        ? flipYCandidate
-        : flipXCandidate;
-}
-function applyDeltaToObject(object, fullDelta, context) {
-    var _a, _b, _c;
-    if (!isFiniteTransformMatrix(fullDelta))
-        return;
-    if (isApproximatelyIdentityTransform(fullDelta))
-        return;
-    const { fabricUtil } = context;
-    object.setCoords();
-    const previousOriginX = (_a = object.originX) !== null && _a !== void 0 ? _a : 'left';
-    const previousOriginY = (_b = object.originY) !== null && _b !== void 0 ? _b : 'top';
-    const originalCenter = object.getCenterPoint();
-    const targetCenter = transformPointByMatrix(originalCenter, fullDelta, fabricUtil);
-    const orientationDelta = context.preserveReadableText
-        ? stripReflectionFromDelta(fullDelta, fabricUtil)
-        : fullDelta;
-    let restoreCenter = originalCenter;
-    try {
-        object.set({
-            originX: 'center',
-            originY: 'center',
-        });
-        object.setPositionByOrigin(originalCenter, 'center', 'center');
-        object.setCoords();
-        const currentObjectMatrix = object.calcTransformMatrix();
-        const nextMatrix = fabricUtil.multiplyTransformMatrices(orientationDelta, currentObjectMatrix);
-        if (!isFiniteTransformMatrix(nextMatrix))
-            return;
-        const decomposed = fabricUtil.qrDecompose(nextMatrix);
-        object.set({
-            flipX: false,
-            flipY: false,
-        });
-        object.set({
-            angle: decomposed.angle,
-            scaleX: decomposed.scaleX,
-            scaleY: decomposed.scaleY,
-            skewX: decomposed.skewX,
-            skewY: (_c = decomposed.skewY) !== null && _c !== void 0 ? _c : 0,
-        });
-        if (typeof decomposed.flipX === 'boolean' || typeof decomposed.flipY === 'boolean') {
-            object.set({
-                ...(typeof decomposed.flipX === 'boolean' ? { flipX: decomposed.flipX } : {}),
-                ...(typeof decomposed.flipY === 'boolean' ? { flipY: decomposed.flipY } : {}),
-            });
-        }
-        restoreCenter = targetCenter;
-    }
-    finally {
-        object.set({
-            originX: previousOriginX,
-            originY: previousOriginY,
-        });
-        object.setPositionByOrigin(restoreCenter, 'center', 'center');
-        object.setCoords();
-    }
-}
-
-const POLYGON_AREA_EPSILON = 1e-6;
-const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
-function createMaskUid(maskId) {
-    return `mask-${maskId}`;
-}
-function isFabricObjectLike(value) {
-    if (!value || typeof value !== 'object')
-        return false;
-    const candidate = value;
-    return typeof candidate.set === 'function' && typeof candidate.on === 'function';
-}
-function isStyleObject(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-function mergeMaskConfig(defaultMaskConfig, config) {
-    const safeDefaultConfig = copySafeOwnProperties(defaultMaskConfig);
-    const defaultStyles = safeDefaultConfig.styles;
-    delete safeDefaultConfig.onCreate;
-    delete safeDefaultConfig.fabricGenerator;
-    delete safeDefaultConfig.styles;
-    const safeConfig = copySafeOwnProperties(config);
-    const configStyles = copySafeOwnProperties(config.styles);
-    const safeDefaultStyles = copySafeOwnProperties(isStyleObject(defaultStyles) ? defaultStyles : {});
-    return {
-        ...safeDefaultConfig,
-        ...safeConfig,
-        styles: {
-            ...safeDefaultStyles,
-            ...configStyles,
-        },
-    };
-}
-function warnInvalidMask(options, reason) {
-    reportWarning(options, null, `createMask skipped: ${reason}.`);
-}
-function isBuiltInMaskShape(value) {
-    return typeof value === 'string' && BUILT_IN_MASK_SHAPES.has(value);
-}
-function resolveMaskShape(options, shape) {
-    if (isBuiltInMaskShape(shape))
-        return shape;
-    reportWarning(options, null, `createMask received unsupported shape "${String(shape)}"; using "rect" instead.`);
-    return 'rect';
-}
-function isResolvableNumericInput(value) {
-    if (value === undefined)
-        return true;
-    if (typeof value === 'number')
-        return Number.isFinite(value);
-    if (typeof value === 'function')
-        return true;
-    if (typeof value === 'string' && value.endsWith('%')) {
-        return Number.isFinite(Number.parseFloat(value));
-    }
-    return false;
-}
-function isFiniteNumber(value) {
-    return typeof value === 'number' && Number.isFinite(value);
-}
-function validateFiniteField(options, fieldName, value) {
-    if (isFiniteNumber(value))
-        return true;
-    warnInvalidMask(options, `${fieldName} must resolve to a finite number`);
-    return false;
-}
-function validatePositiveField(options, fieldName, value) {
-    if (isFiniteNumber(value) && value > 0)
-        return true;
-    warnInvalidMask(options, `${fieldName} must resolve to a positive number`);
-    return false;
-}
-function validateNonNegativeField(options, fieldName, value) {
-    if (isFiniteNumber(value) && value >= 0)
-        return true;
-    warnInvalidMask(options, `${fieldName} must resolve to a non-negative number`);
-    return false;
-}
-function validateNumericInputs(options, config) {
-    const fields = [
-        ['width', config.width],
-        ['height', config.height],
-        ['rx', config.rx],
-        ['ry', config.ry],
-        ['radius', config.radius],
-        ['left', config.left],
-        ['top', config.top],
-    ];
-    for (const [fieldName, value] of fields) {
-        if (!isResolvableNumericInput(value)) {
-            warnInvalidMask(options, `${fieldName} is not a supported numeric value`);
-            return false;
-        }
-    }
-    return true;
-}
-function resolveMaskNumericField(options, fieldName, value, axis, fallback, canvas) {
-    try {
-        return resolveNumeric(value, axis, fallback, canvas, options);
-    }
-    catch (error) {
-        reportWarning(options, error, `createMask skipped: ${fieldName} resolver threw.`);
-        return null;
-    }
-}
-function resolvePolygonPoints(options, points) {
-    if (!Array.isArray(points) || points.length < 3) {
-        warnInvalidMask(options, 'polygon masks require at least three points');
-        return null;
-    }
-    const resolvedPoints = points.map(coercePoint);
-    const allFinite = resolvedPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
-    if (!allFinite) {
-        warnInvalidMask(options, 'polygon points must contain finite x/y values');
-        return null;
-    }
-    if (polygonArea(resolvedPoints) <= POLYGON_AREA_EPSILON) {
-        warnInvalidMask(options, 'polygon points must describe a non-zero area');
-        return null;
-    }
-    return resolvedPoints;
-}
-function resizeMaskCanvas(context, width, height) {
-    if (context.expandCanvasIfNeeded) {
-        context.expandCanvasIfNeeded(width, height);
-    }
-    else {
-        context.canvas.setDimensions({ width, height });
-    }
-}
-function polygonArea(points) {
-    let area = 0;
-    for (let index = 0; index < points.length; index += 1) {
-        const current = points[index];
-        const next = points[(index + 1) % points.length];
-        area += current.x * next.y - next.x * current.y;
-    }
-    return Math.abs(area) / 2;
-}
-function createMask(context, config = {}) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
-    const { canvas, options, fabric: fabricModule } = context;
-    if (!canvas)
-        return null;
-    const mergedConfig = mergeMaskConfig(options.defaultMaskConfig, config);
-    const requestedShapeType = (_a = mergedConfig.shape) !== null && _a !== void 0 ? _a : 'rect';
-    if (!validateNumericInputs(options, mergedConfig))
-        return null;
-    const shapeType = typeof config.fabricGenerator === 'function'
-        ? requestedShapeType
-        : resolveMaskShape(options, requestedShapeType);
-    const resolvedConfig = {
-        width: options.defaultMaskWidth,
-        height: options.defaultMaskHeight,
-        color: 'rgba(0,0,0,0.5)',
-        alpha: 0.5,
-        gap: 5,
-        left: undefined,
-        top: undefined,
-        angle: 0,
-        selectable: true,
-        ...mergedConfig,
-        shape: shapeType,
-    };
-    const firstOffset = 10;
-    let left;
-    let top;
-    const previousMask = context.getLastMask();
-    if (mergedConfig.left === undefined && previousMask) {
-        const previousRight = ((_b = previousMask.left) !== null && _b !== void 0 ? _b : 0) +
-            (typeof previousMask.getScaledWidth === 'function'
-                ? previousMask.getScaledWidth()
-                : ((_c = previousMask.width) !== null && _c !== void 0 ? _c : 0) * ((_d = previousMask.scaleX) !== null && _d !== void 0 ? _d : 1));
-        left = Math.round(previousRight + ((_e = resolvedConfig.gap) !== null && _e !== void 0 ? _e : 5));
-        top = (_f = previousMask.top) !== null && _f !== void 0 ? _f : firstOffset;
-    }
-    else {
-        const resolvedLeft = resolveMaskNumericField(options, 'left', mergedConfig.left, 'x', firstOffset, canvas);
-        const resolvedTop = resolveMaskNumericField(options, 'top', mergedConfig.top, 'y', firstOffset, canvas);
-        if (resolvedLeft === null || resolvedTop === null)
-            return null;
-        left = resolvedLeft;
-        top = resolvedTop;
-    }
-    const resolvedWidth = resolveMaskNumericField(options, 'width', mergedConfig.width, 'x', options.defaultMaskWidth, canvas);
-    const resolvedHeight = resolveMaskNumericField(options, 'height', mergedConfig.height, 'y', options.defaultMaskHeight, canvas);
-    if (resolvedWidth === null || resolvedHeight === null)
-        return null;
-    resolvedConfig.width = resolvedWidth;
-    resolvedConfig.height = resolvedHeight;
-    let rx;
-    if (mergedConfig.rx !== undefined) {
-        const resolvedRx = resolveMaskNumericField(options, 'rx', mergedConfig.rx, 'x', 0, canvas);
-        if (resolvedRx === null)
-            return null;
-        rx = resolvedRx;
-    }
-    let ry;
-    if (mergedConfig.ry !== undefined) {
-        const resolvedRy = resolveMaskNumericField(options, 'ry', mergedConfig.ry, 'y', 0, canvas);
-        if (resolvedRy === null)
-            return null;
-        ry = resolvedRy;
-    }
-    let radius;
-    if (shapeType === 'circle') {
-        const resolvedRadius = resolveMaskNumericField(options, 'radius', mergedConfig.radius, 'x', Math.min(resolvedConfig.width, resolvedConfig.height) / 2, canvas);
-        if (resolvedRadius === null)
-            return null;
-        radius = resolvedRadius;
-    }
-    const polygonPoints = shapeType === 'polygon' ? resolvePolygonPoints(options, mergedConfig.points) : null;
-    if (!validateFiniteField(options, 'left', left) ||
-        !validateFiniteField(options, 'top', top) ||
-        !validatePositiveField(options, 'width', resolvedConfig.width) ||
-        !validatePositiveField(options, 'height', resolvedConfig.height) ||
-        !validateFiniteField(options, 'gap', resolvedConfig.gap) ||
-        !validateFiniteField(options, 'angle', resolvedConfig.angle) ||
-        !validateFiniteField(options, 'alpha', resolvedConfig.alpha)) {
-        return null;
-    }
-    if ((rx !== undefined && !validateNonNegativeField(options, 'rx', rx)) ||
-        (ry !== undefined && !validateNonNegativeField(options, 'ry', ry)) ||
-        (radius !== undefined && !validatePositiveField(options, 'radius', radius)) ||
-        (shapeType === 'polygon' && polygonPoints === null)) {
-        return null;
-    }
-    let preExpandCanvasSize = null;
-    if (options.layoutMode === 'expand') {
-        const requiredWidth = Math.ceil(left + resolvedConfig.width + 10);
-        const requiredHeight = Math.ceil(top + resolvedConfig.height + 10);
-        const nextWidth = Math.max(canvas.getWidth(), requiredWidth);
-        const nextHeight = Math.max(canvas.getHeight(), requiredHeight);
-        if (nextWidth !== canvas.getWidth() || nextHeight !== canvas.getHeight()) {
-            preExpandCanvasSize = { width: canvas.getWidth(), height: canvas.getHeight() };
-            resizeMaskCanvas(context, nextWidth, nextHeight);
-        }
-    }
-    const rollbackCanvasExpansion = () => {
-        if (!preExpandCanvasSize)
-            return;
-        try {
-            resizeMaskCanvas(context, preExpandCanvasSize.width, preExpandCanvasSize.height);
-        }
-        catch (error) {
-            reportWarning(options, error, 'createMask rollback canvas size failed.');
-        }
-    };
-    let mask;
-    if (typeof config.fabricGenerator === 'function') {
-        let generated;
-        try {
-            generated = config.fabricGenerator(resolvedConfig, canvas, options);
-        }
-        catch (error) {
-            rollbackCanvasExpansion();
-            reportWarning(options, error, 'createMask skipped: fabricGenerator threw.');
-            return null;
-        }
-        if (!isFabricObjectLike(generated)) {
-            rollbackCanvasExpansion();
-            reportWarning(options, generated, 'createMask skipped: fabricGenerator did not return a Fabric object.');
-            return null;
-        }
-        mask = generated;
-    }
-    else {
-        const originProps = {
-            originX: 'left',
-            originY: 'top',
-        };
-        switch (shapeType) {
-            case 'circle':
-                mask = new fabricModule.Circle({
-                    left,
-                    top,
-                    ...originProps,
-                    radius,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: (_g = resolvedConfig.angle) !== null && _g !== void 0 ? _g : 0,
-                    ...resolvedConfig.styles,
-                });
-                break;
-            case 'ellipse':
-                mask = new fabricModule.Ellipse({
-                    left,
-                    top,
-                    ...originProps,
-                    rx: rx !== null && rx !== void 0 ? rx : resolvedConfig.width / 2,
-                    ry: ry !== null && ry !== void 0 ? ry : resolvedConfig.height / 2,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: (_h = resolvedConfig.angle) !== null && _h !== void 0 ? _h : 0,
-                    ...resolvedConfig.styles,
-                });
-                break;
-            case 'polygon': {
-                const polygon = new fabricModule.Polygon(polygonPoints, {
-                    ...originProps,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: (_j = resolvedConfig.angle) !== null && _j !== void 0 ? _j : 0,
-                    ...resolvedConfig.styles,
-                });
-                polygon.setCoords();
-                const boundingRect = polygon.getBoundingRect();
-                const deltaX = left - boundingRect.left;
-                const deltaY = top - boundingRect.top;
-                polygon.set({
-                    left: ((_k = polygon.left) !== null && _k !== void 0 ? _k : 0) + deltaX,
-                    top: ((_l = polygon.top) !== null && _l !== void 0 ? _l : 0) + deltaY,
-                });
-                polygon.setCoords();
-                mask = polygon;
-                break;
-            }
-            case 'rect':
-            default:
-                mask = new fabricModule.Rect({
-                    left,
-                    top,
-                    ...originProps,
-                    width: resolvedConfig.width,
-                    height: resolvedConfig.height,
-                    fill: resolvedConfig.color,
-                    opacity: resolvedConfig.alpha,
-                    angle: (_m = resolvedConfig.angle) !== null && _m !== void 0 ? _m : 0,
-                    ...(rx !== undefined ? { rx } : {}),
-                    ...(ry !== undefined ? { ry } : {}),
-                    ...resolvedConfig.styles,
-                });
-        }
-    }
-    const maskObject = mask;
-    maskObject.selectable = 'selectable' in mergedConfig ? !!mergedConfig.selectable : true;
-    maskObject.evented = 'evented' in mergedConfig ? !!mergedConfig.evented : true;
-    maskObject.hasControls = 'hasControls' in mergedConfig ? !!mergedConfig.hasControls : true;
-    maskObject.transparentCorners =
-        'transparentCorners' in mergedConfig ? !!mergedConfig.transparentCorners : false;
-    maskObject.strokeUniform =
-        'strokeUniform' in mergedConfig ? !!mergedConfig.strokeUniform : true;
-    maskObject.lockRotation = !options.maskRotatable;
-    maskObject.borderColor = (_o = mergedConfig.borderColor) !== null && _o !== void 0 ? _o : 'red';
-    maskObject.cornerColor = (_p = mergedConfig.cornerColor) !== null && _p !== void 0 ? _p : 'black';
-    maskObject.cornerSize = (_q = mergedConfig.cornerSize) !== null && _q !== void 0 ? _q : 8;
-    const styles = ((_r = resolvedConfig.styles) !== null && _r !== void 0 ? _r : {});
-    if ('stroke' in styles) {
-        maskObject.stroke = styles.stroke;
-    }
-    else {
-        maskObject.stroke = '#ccc';
-    }
-    if ('strokeWidth' in styles) {
-        maskObject.strokeWidth = styles.strokeWidth;
-    }
-    else {
-        maskObject.strokeWidth = 1;
-    }
-    if ('strokeDashArray' in styles) {
-        maskObject.strokeDashArray = styles.strokeDashArray;
-    }
-    const nextId = context.getMaskCounter() + 1;
-    context.setMaskCounter(nextId);
-    markMaskObject(maskObject, {
-        maskId: nextId,
-        maskUid: createMaskUid(nextId),
-        maskName: `${options.maskName}${nextId}`,
-        originalAlpha: resolvedConfig.alpha,
-        originalStroke: maskObject.stroke,
-        originalStrokeWidth: maskObject.strokeWidth,
-    });
-    attachMaskHoverHandlers(maskObject);
-    context.setLastMask(maskObject);
-    placeMaskObject(canvas, maskObject);
-    context.updateMaskList();
-    if (resolvedConfig.selectable !== false) {
-        canvas.setActiveObject(maskObject);
-    }
-    canvas.renderAll();
-    context.saveCanvasState();
-    if (typeof config.onCreate === 'function') {
-        try {
-            config.onCreate(maskObject, canvas);
-        }
-        catch (error) {
-            reportWarning(options, error, 'createMask onCreate callback threw.');
-        }
-    }
-    return maskObject;
-}
-function isActiveSelectionObject$1(object) {
-    if (!object)
-        return false;
-    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
-    if (type === 'activeselection')
-        return true;
-    const isType = object.isType;
-    return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
-}
-function getSelectedMaskObjects(canvas) {
-    const active = canvas.getActiveObject();
-    if (!active)
-        return [];
-    if (!isActiveSelectionObject$1(active))
-        return isMaskObject(active) ? [active] : [];
-    const getObjects = active.getObjects;
-    const objects = typeof getObjects === 'function' ? getObjects.call(active) : [];
-    return objects.filter(isMaskObject);
-}
-function removeSelectedMask(context) {
-    const selectedMasks = getSelectedMaskObjects(context.canvas);
-    if (selectedMasks.length === 0)
-        return;
-    for (const mask of selectedMasks) {
-        context.removeLabelForMask(mask);
-        detachMaskHoverHandlers(mask);
-        context.canvas.remove(mask);
-    }
-    context.canvas.discardActiveObject();
-    context.updateMaskList();
-    context.canvas.renderAll();
-    context.saveCanvasState();
-}
-function removeAllMasks(context, options = {}) {
-    const masks = context.canvas.getObjects().filter(isMaskObject);
-    if (masks.length === 0)
-        return;
-    for (const maskObject of masks) {
-        context.removeLabelForMask(maskObject);
-        detachMaskHoverHandlers(maskObject);
-        context.canvas.remove(maskObject);
-    }
-    context.canvas.discardActiveObject();
-    context.setLastMask(null);
-    context.updateMaskList();
-    context.canvas.renderAll();
-    if (options.saveHistory !== false) {
-        context.saveCanvasState();
-    }
-}
-
 function asFabricTransformMatrix(matrix) {
     return matrix;
 }
@@ -10389,8 +8910,8 @@ class EditorContextFactory {
                     ? maskObject
                     : lastMask, null));
                 restoredMasks.forEach((maskObject) => {
-                    applyMaskUnselectedStyle(maskObject);
-                    reattachMaskHoverHandlers(maskObject);
+                    plugins_mask_index.applyMaskUnselectedStyle(maskObject);
+                    plugins_mask_index.reattachMaskHoverHandlers(maskObject);
                 });
                 syncAnnotationRuntimeStates(restoredState.annotations);
                 attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), restoredState.annotations);
@@ -10443,17 +8964,17 @@ class EditorContextFactory {
             if (kind === 'masks') {
                 if (!options.bindMasksToImageTransform)
                     return [];
-                return canvas.getObjects().filter(isMaskObject);
+                return canvas.getObjects().filter(plugins_mask_index.isMaskObject);
             }
             if (!options.bindAnnotationsToImageTransform)
                 return [];
-            return canvas.getObjects().filter(isAnnotationObject);
+            return canvas.getObjects().filter(plugins_mask_index.isAnnotationObject);
         };
         const shouldPreserveReadableForAnnotation = (object) => {
             const options = access.getOptions();
             return (options.bindAnnotationsToImageTransform &&
                 options.textAnnotationFlipBehavior === 'preserve-readable' &&
-                isAnnotationObject(object) &&
+                plugins_mask_index.isAnnotationObject(object) &&
                 object.annotationType === 'text');
         };
         return {
@@ -10502,8 +9023,8 @@ class EditorContextFactory {
                     return;
                 originalImage.setCoords();
                 const afterMatrix = originalImage.calcTransformMatrix();
-                const delta = computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil);
-                if (!isFiniteTransformMatrix(delta) || isApproximatelyIdentityTransform(delta)) {
+                const delta = foundations_overlay_index.computeImageTransformDelta(beforeMatrix, afterMatrix, fabricUtil);
+                if (!foundations_overlay_index.isFiniteTransformMatrix(delta) || foundations_overlay_index.isApproximatelyIdentityTransform(delta)) {
                     return;
                 }
                 if (isActiveSelectionObject(canvas.getActiveObject())) {
@@ -10511,13 +9032,13 @@ class EditorContextFactory {
                 }
                 for (const object of targets) {
                     try {
-                        applyDeltaToObject(object, delta, {
+                        foundations_overlay_index.applyDeltaToObject(object, delta, {
                             fabricUtil,
                             preserveReadableText: shouldPreserveReadableForAnnotation(object),
                         });
                     }
                     catch (error) {
-                        reportWarning(access.getOptions(), error, 'Overlay transform skipped an object after its Fabric transform failed.');
+                        plugins_mask_index.reportWarning(access.getOptions(), error, 'Overlay transform skipped an object after its Fabric transform failed.');
                     }
                 }
                 canvas.requestRenderAll();
@@ -10528,7 +9049,7 @@ class EditorContextFactory {
                     return;
                 canvas
                     .getObjects()
-                    .filter(isMaskObject)
+                    .filter(plugins_mask_index.isMaskObject)
                     .forEach((maskObject) => {
                     access.syncMaskLabel(maskObject);
                 });
@@ -10782,7 +9303,7 @@ class EditorContextFactory {
             updateUi: () => access.updateUi(),
             updateInputs: () => access.updateInputs(),
             removeAllMasksNoHistory: () => {
-                removeAllMasks(this.buildRemoveMaskContext(), { saveHistory: false });
+                plugins_mask_index.removeAllMasks(this.buildRemoveMaskContext(), { saveHistory: false });
             },
             getAnnotations: () => access.getAnnotations(),
             restoreAnnotations: (objects) => {
@@ -10820,7 +9341,7 @@ class EditorContextFactory {
                 const canvas = access.getLiveCanvas('restoreMasks');
                 objects.forEach((mask) => {
                     canvas.add(mask);
-                    reattachMaskHoverHandlers(mask);
+                    plugins_mask_index.reattachMaskHoverHandlers(mask);
                 });
                 access.setLastMask(objects.reduce((lastMask, mask) => !lastMask || mask.maskId > lastMask.maskId ? mask : lastMask, null));
                 access.setMaskCounter(Math.max(access.getMaskCounter(), ...objects.map((mask) => mask.maskId), 0));
@@ -11184,241 +9705,8 @@ function createActionCallbacks(hooks) {
     };
 }
 
-class AnimationQueue {
-    constructor() {
-        Object.defineProperty(this, "queue", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: []
-        });
-        Object.defineProperty(this, "running", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-    }
-    add(animationFn) {
-        return new Promise((resolve, reject) => {
-            this.queue.push({ run: animationFn, resolve, reject });
-            if (!this.running) {
-                void this.drainQueue();
-            }
-        });
-    }
-    clear(reason) {
-        const pending = this.queue;
-        this.queue = [];
-        if (reason !== undefined) {
-            for (const entry of pending) {
-                entry.reject(reason);
-            }
-        }
-        else {
-            for (const entry of pending) {
-                entry.resolve();
-            }
-        }
-    }
-    isRunning() {
-        return this.running;
-    }
-    isBusy() {
-        return this.running || this.queue.length > 0;
-    }
-    waitForIdle() {
-        if (!this.running && this.queue.length === 0) {
-            return Promise.resolve();
-        }
-        return this.add(() => Promise.resolve()).then(() => undefined, () => undefined);
-    }
-    async drainQueue() {
-        if (this.running)
-            return;
-        this.running = true;
-        try {
-            while (this.queue.length > 0) {
-                const entry = this.queue.shift();
-                try {
-                    await entry.run();
-                    entry.resolve();
-                }
-                catch (error) {
-                    entry.reject(error);
-                }
-            }
-        }
-        finally {
-            this.running = false;
-            if (this.queue.length > 0) {
-                void this.drainQueue();
-            }
-        }
-    }
-}
-
-class OperationGuard {
-    constructor() {
-        Object.defineProperty(this, "isAnimationActive", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "isDisposedFlag", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "isLoadingActive", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "currentOperationName", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "currentOperationToken", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "animationAborters", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: new Set()
-        });
-    }
-    isAnimating() {
-        return this.isAnimationActive;
-    }
-    isDisposed() {
-        return this.isDisposedFlag;
-    }
-    isLoading() {
-        return this.isLoadingActive;
-    }
-    activeOperationName() {
-        return this.currentOperationName;
-    }
-    isBusy() {
-        return (this.isAnimationActive || this.isLoadingActive || this.currentOperationToken !== null);
-    }
-    beginAnimation() {
-        this.isAnimationActive = true;
-    }
-    endAnimation() {
-        this.isAnimationActive = false;
-    }
-    markDisposed() {
-        this.isDisposedFlag = true;
-        this.isAnimationActive = false;
-        this.isLoadingActive = false;
-        this.currentOperationName = null;
-        this.currentOperationToken = null;
-        for (const abort of this.animationAborters) {
-            try {
-                abort();
-            }
-            catch {
-            }
-        }
-        this.animationAborters.clear();
-    }
-    registerAnimationAborter(abort) {
-        if (this.isDisposedFlag) {
-            try {
-                abort();
-            }
-            catch {
-            }
-            return () => undefined;
-        }
-        this.animationAborters.add(abort);
-        return () => {
-            this.animationAborters.delete(abort);
-        };
-    }
-    beginLoading() {
-        this.isLoadingActive = true;
-    }
-    endLoading() {
-        this.isLoadingActive = false;
-    }
-    beginBusyOperation(operationName) {
-        var _a;
-        if (this.currentOperationToken !== null) {
-            throw new IdleGuardError(operationName, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
-        }
-        const token = Symbol(operationName);
-        this.currentOperationName = operationName;
-        this.currentOperationToken = token;
-        return token;
-    }
-    endBusyOperation(token) {
-        if (token && token === this.currentOperationToken) {
-            this.currentOperationName = null;
-            this.currentOperationToken = null;
-        }
-    }
-    isOwnOperation(token) {
-        return !!token && token === this.currentOperationToken;
-    }
-    async runAnimation(animationTask) {
-        this.beginAnimation();
-        try {
-            return await animationTask();
-        }
-        finally {
-            this.endAnimation();
-        }
-    }
-    assertNotAnimating(operationLabel) {
-        if (this.isAnimationActive) {
-            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
-        }
-    }
-    assertIdleForOperation(operationLabel, token) {
-        var _a;
-        if (this.isDisposedFlag) {
-            throw new IdleGuardError(operationLabel, 'after dispose');
-        }
-        const ownOperation = this.isOwnOperation(token);
-        if (this.isAnimationActive) {
-            throw new IdleGuardError(operationLabel, 'while an animation is in progress');
-        }
-        if (this.isLoadingActive && !ownOperation) {
-            throw new IdleGuardError(operationLabel, 'while an image is loading');
-        }
-        if (this.currentOperationToken && !ownOperation) {
-            throw new IdleGuardError(operationLabel, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
-        }
-    }
-    assertCanQueueAnimation(operationLabel, token) {
-        var _a;
-        if (this.isDisposedFlag) {
-            throw new IdleGuardError(operationLabel, 'after dispose');
-        }
-        const ownOperation = this.isOwnOperation(token);
-        if (this.isLoadingActive && !ownOperation) {
-            throw new IdleGuardError(operationLabel, 'while an image is loading');
-        }
-        if (this.currentOperationToken && !ownOperation) {
-            throw new IdleGuardError(operationLabel, `while ${(_a = this.currentOperationName) !== null && _a !== void 0 ? _a : 'another operation'} is running`);
-        }
-    }
-}
-
 class EditorRuntime {
-    constructor(fabricModule, isFabricLoaded, options) {
+    constructor(fabricModule, isFabricLoaded, options, historyManager = new DeferredHistoryPort(options.maxHistorySize)) {
         Object.defineProperty(this, "fabricModule", {
             enumerable: true,
             configurable: true,
@@ -11633,13 +9921,13 @@ class EditorRuntime {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new OperationGuard()
+            value: new plugins_transform_index.OperationGuard()
         });
         Object.defineProperty(this, "animQueue", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new AnimationQueue()
+            value: new plugins_transform_index.AnimationQueue()
         });
         Object.defineProperty(this, "transformController", {
             enumerable: true,
@@ -11651,7 +9939,7 @@ class EditorRuntime {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: new ViewportCache()
+            value: new core_index.ViewportCache()
         });
         Object.defineProperty(this, "cropSession", {
             enumerable: true,
@@ -11765,7 +10053,7 @@ class EditorRuntime {
         this.currentShapeConfig = cloneResolvedShapeAnnotationConfig(this.defaultShapeConfig);
         this.currentImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
         this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG);
-        this.historyManager = new HistoryManager(options.maxHistorySize);
+        this.historyManager = historyManager;
         this.lastEmittedHistoryState = {
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),
@@ -11787,7 +10075,7 @@ class EditorRuntime {
     }
     isImageLoaded() {
         return !!(this.originalImage &&
-            isBaseImageObject(this.originalImage) &&
+            plugins_mask_index.isBaseImageObject(this.originalImage) &&
             Number(this.originalImage.width) > 0 &&
             Number(this.originalImage.height) > 0);
     }
@@ -11846,18 +10134,18 @@ function handleSelectionChanged(access, selected) {
     const canvas = access.getCanvas();
     if (!canvas)
         return;
-    const selectedMask = (_a = selected.find(isMaskObject)) !== null && _a !== void 0 ? _a : null;
-    const selectedAnnotation = (_b = selected.find(isAnnotationObject)) !== null && _b !== void 0 ? _b : null;
-    const masks = canvas.getObjects().filter(isMaskObject);
+    const selectedMask = (_a = selected.find(plugins_mask_index.isMaskObject)) !== null && _a !== void 0 ? _a : null;
+    const selectedAnnotation = (_b = selected.find(plugins_mask_index.isAnnotationObject)) !== null && _b !== void 0 ? _b : null;
+    const masks = canvas.getObjects().filter(plugins_mask_index.isMaskObject);
     masks.forEach((maskObject) => {
         if (maskObject !== selectedMask) {
             if (maskObject.labelObject) {
                 access.removeLabelForMask(maskObject);
             }
-            applyMaskUnselectedStyle(maskObject);
+            plugins_mask_index.applyMaskUnselectedStyle(maskObject);
         }
         else {
-            applyMaskSelectedStyle(maskObject);
+            plugins_mask_index.applyMaskSelectedStyle(maskObject);
         }
     });
     if (selectedMask)
@@ -11873,12 +10161,12 @@ function handleSelectionChanged(access, selected) {
     access.emitSelectionChange(access.buildSelection(selected), context);
 }
 function handleObjectMovingScalingRotating(access, target) {
-    if (isMaskObject(target)) {
+    if (plugins_mask_index.isMaskObject(target)) {
         access.syncMaskLabel(target);
     }
 }
 function handleObjectModified(access, target) {
-    if (isMaskObject(target)) {
+    if (plugins_mask_index.isMaskObject(target)) {
         access.syncMaskLabel(target);
         const context = access.buildCallbackContext('saveState', false);
         access.saveState();
@@ -11886,10 +10174,10 @@ function handleObjectModified(access, target) {
         access.emitImageChanged(context);
         return;
     }
-    if (isAnnotationObject(target)) {
+    if (plugins_mask_index.isAnnotationObject(target)) {
         if (isAnnotationLocked(target))
             return;
-        if (isTextAnnotationObject(target)) {
+        if (plugins_mask_index.isTextAnnotationObject(target)) {
             const textTarget = target;
             if (textTarget.imageEditorTextEditingHandledChange === true) {
                 delete textTarget.imageEditorTextEditingHandledChange;
@@ -11961,8 +10249,8 @@ function deleteSelectedEditableObjects(access, context) {
     if (!canvas)
         return;
     const selectedObjects = getSelectedCanvasObjects(canvas);
-    const selectedMasks = selectedObjects.filter(isMaskObject);
-    const selectedAnnotations = selectedObjects.filter((object) => isAnnotationObject(object) && isAnnotationUnlocked(object));
+    const selectedMasks = selectedObjects.filter(plugins_mask_index.isMaskObject);
+    const selectedAnnotations = selectedObjects.filter((object) => plugins_mask_index.isAnnotationObject(object) && isAnnotationUnlocked(object));
     if (selectedMasks.length === 0 && selectedAnnotations.length === 0)
         return;
     const liveCanvas = access.getLiveCanvas('deleteSelectedObject');
@@ -11992,7 +10280,7 @@ function moveSelectedEditableObject(access, operation) {
     const canvas = access.getCanvas();
     if (!canvas)
         return;
-    const selected = getSelectedCanvasObjects(canvas).filter(isEditableOverlayObject);
+    const selected = getSelectedCanvasObjects(canvas).filter(plugins_mask_index.isEditableOverlayObject);
     if (selected.length !== 1) {
         if (selected.length > 1) {
             access.reportWarning(`${operation} skipped: ActiveSelection layer moves are not supported.`);
@@ -12000,7 +10288,7 @@ function moveSelectedEditableObject(access, operation) {
         return;
     }
     const object = selected[0];
-    const range = getEditableOverlayRange(canvas);
+    const range = plugins_mask_index.getEditableOverlayRange(canvas);
     const overlays = range.overlays;
     const currentOverlayIndex = overlays.indexOf(object);
     if (currentOverlayIndex < 0)
@@ -12027,23 +10315,23 @@ function moveSelectedEditableObject(access, operation) {
         var _a, _b;
         (_b = (_a = canvas).moveObjectTo) === null || _b === void 0 ? void 0 : _b.call(_a, overlay, range.start + index);
     });
-    normalizeLayerOrder(canvas);
+    plugins_mask_index.normalizeLayerOrder(canvas);
     canvas.setActiveObject(object);
     canvas.renderAll();
     access.saveState();
     access.updateMaskList();
     access.updateAnnotationList();
-    if (isMaskObject(object)) {
+    if (plugins_mask_index.isMaskObject(object)) {
         access.updateMaskListSelection(object);
     }
-    else if (isAnnotationObject(object)) {
+    else if (plugins_mask_index.isAnnotationObject(object)) {
         access.updateAnnotationListSelection(object);
     }
     access.updateUi();
     const context = access.buildCallbackContext(operation, false);
-    if (isMaskObject(object))
+    if (plugins_mask_index.isMaskObject(object))
         access.emitMasksChanged(context);
-    if (isAnnotationObject(object))
+    if (plugins_mask_index.isAnnotationObject(object))
         access.emitAnnotationsChanged(context);
     access.emitImageChanged(context);
 }
@@ -12380,7 +10668,7 @@ function getPersistentId(object) {
     const persistent = object.overlayPersistentId;
     if (typeof persistent === 'string' && persistent.trim() !== '')
         return persistent;
-    if (isMaskObject(object))
+    if (plugins_mask_index.isMaskObject(object))
         return object.maskUid || `mask-${object.maskId}`;
     return `annotation-${object.annotationId}`;
 }
@@ -12393,12 +10681,12 @@ function getPersistentMetadata(object, includeMetadata) {
     return cloneOverlayMetadata(metadata);
 }
 function isHidden(object) {
-    if (isAnnotationObject(object) && object.annotationHidden === true)
+    if (plugins_mask_index.isAnnotationObject(object) && object.annotationHidden === true)
         return true;
     return object.visible === false;
 }
 function isLocked(object) {
-    return isAnnotationObject(object) && object.annotationLocked === true;
+    return plugins_mask_index.isAnnotationObject(object) && object.annotationLocked === true;
 }
 function overlayBase(object, options) {
     const hidden = isHidden(object);
@@ -12688,13 +10976,13 @@ function exportDrawAnnotation(annotation, geometry, options) {
     };
 }
 function exportAnnotation(annotation, geometry, options) {
-    if (isTextAnnotationObject(annotation)) {
+    if (plugins_mask_index.isTextAnnotationObject(annotation)) {
         return exportTextAnnotation(annotation, geometry, options);
     }
-    if (isShapeAnnotationObject(annotation)) {
+    if (plugins_mask_index.isShapeAnnotationObject(annotation)) {
         return exportShapeAnnotation(annotation, geometry, options);
     }
-    if (isDrawAnnotationObject(annotation)) {
+    if (plugins_mask_index.isDrawAnnotationObject(annotation)) {
         return exportDrawAnnotation(annotation, geometry, options);
     }
     return null;
@@ -12714,13 +11002,13 @@ function exportOverlayState(context, options = {}) {
     const geometry = createCurrentImageGeometry(image, context.currentRotation);
     const overlays = canvas
         .getObjects()
-        .filter(isEditableOverlayObject)
+        .filter(plugins_mask_index.isEditableOverlayObject)
         .filter((object) => resolvedOptions.includeHidden || !isHidden(object))
         .filter((object) => resolvedOptions.includeLocked || !isLocked(object))
         .map((object) => {
-        if (isMaskObject(object))
+        if (plugins_mask_index.isMaskObject(object))
             return exportMask(object, geometry, resolvedOptions);
-        if (isAnnotationObject(object))
+        if (plugins_mask_index.isAnnotationObject(object))
             return exportAnnotation(object, geometry, resolvedOptions);
         return null;
     })
@@ -12891,7 +11179,7 @@ function createMaskObject(context, state, overlay, geometry) {
         });
     }
     const maskId = nextMaskId(context);
-    const mask = markMaskObject(object, {
+    const mask = plugins_mask_index.markMaskObject(object, {
         maskId,
         maskUid: `mask-${maskId}`,
         maskName: `${context.options.maskName}${maskId}`,
@@ -12904,7 +11192,7 @@ function createMaskObject(context, state, overlay, geometry) {
     mask.hasControls = (_j = overlay.style.hasControls) !== null && _j !== void 0 ? _j : true;
     mask.transparentCorners = false;
     mask.strokeUniform = true;
-    attachMaskHoverHandlers(mask);
+    plugins_mask_index.attachMaskHoverHandlers(mask);
     return mask;
 }
 function annotationBaseProps(locked) {
@@ -12953,7 +11241,7 @@ function createTextObject(context, state, overlay, geometry, warnings) {
         editable: true,
     });
     const annotationId = nextAnnotationId(context);
-    const annotation = markAnnotationObject(textbox, {
+    const annotation = plugins_mask_index.markAnnotationObject(textbox, {
         annotationId,
         annotationType: 'text',
         annotationName: `${context.options.textAnnotationName}${annotationId}`,
@@ -13023,7 +11311,7 @@ function createShapeObject(context, state, overlay, geometry) {
         });
     }
     const annotationId = nextAnnotationId(context);
-    const annotation = markAnnotationObject(object, {
+    const annotation = plugins_mask_index.markAnnotationObject(object, {
         annotationId,
         annotationType: 'shape',
         annotationName: `${context.options.shapeAnnotationName}${annotationId}`,
@@ -13062,7 +11350,7 @@ function createDrawObject(context, state, overlay, geometry) {
         objectCaching: false,
     });
     const annotationId = nextAnnotationId(context);
-    const annotation = markAnnotationObject(object, {
+    const annotation = plugins_mask_index.markAnnotationObject(object, {
         annotationId,
         annotationType: 'draw',
         annotationName: `${context.options.drawAnnotationName}${annotationId}`,
@@ -13077,12 +11365,12 @@ function createDrawObject(context, state, overlay, geometry) {
 function removeExistingOverlays(context) {
     const objects = [...context.canvas.getObjects()];
     for (const object of objects) {
-        if (isMaskObject(object)) {
+        if (plugins_mask_index.isMaskObject(object)) {
             context.removeLabelForMask(object);
-            detachMaskHoverHandlers(object);
+            plugins_mask_index.detachMaskHoverHandlers(object);
             context.canvas.remove(object);
         }
-        else if (isAnnotationObject(object)) {
+        else if (plugins_mask_index.isAnnotationObject(object)) {
             context.canvas.remove(object);
         }
     }
@@ -13165,7 +11453,7 @@ async function importOverlayStateIntoEditor(context, state, options = {}) {
             const mask = createMaskObject(context, state, overlay, geometry);
             const persistentId = newPersistentId(overlay, 'mask', mask.maskId, options, existingPersistentIds, result);
             assignPersistentFields(mask, overlay, persistentId);
-            placeMaskObject(context.canvas, mask);
+            plugins_mask_index.placeMaskObject(context.canvas, mask);
             context.setLastMask(mask);
             result.importedOverlays += 1;
             result.importedMasks += 1;
@@ -13183,14 +11471,14 @@ async function importOverlayStateIntoEditor(context, state, options = {}) {
         }
         const persistentId = newPersistentId(overlay, 'annotation', annotation.annotationId, options, existingPersistentIds, result);
         assignPersistentFields(annotation, overlay, persistentId);
-        placeAnnotationObject(context.canvas, annotation);
+        plugins_mask_index.placeAnnotationObject(context.canvas, annotation);
         if (annotation.selectable !== false && isAnnotationUnlocked(annotation)) {
             context.canvas.setActiveObject(annotation);
         }
         result.importedOverlays += 1;
         result.importedAnnotations += 1;
     }
-    normalizeLayerOrder(context.canvas);
+    plugins_mask_index.normalizeLayerOrder(context.canvas);
     if (options.preserveSelection !== true) {
         context.canvas.discardActiveObject();
     }
@@ -13954,167 +12242,6 @@ function validateOverlayState(input, options = {}) {
     return { valid: true, state, errors: [], warnings: context.warnings };
 }
 
-function createMaskAction(access, config = {}) {
-    if (!access.getCanvas())
-        return null;
-    if (!access.canRunIdleOperation('createMask'))
-        return null;
-    const callbackContext = access.buildCallbackContext('createMask', false);
-    const mask = access.withSelectionChangeContext(callbackContext, () => createMask(access.buildCreateMaskContext(), config));
-    if (mask) {
-        access.emitMasksChanged(callbackContext);
-        access.emitImageChanged(callbackContext);
-    }
-    return mask;
-}
-function removeSelectedMaskAction(access) {
-    if (!access.getCanvas())
-        return;
-    if (!access.canRunIdleOperation('removeSelectedMask'))
-        return;
-    const before = access.getMasks().length;
-    const callbackContext = access.buildCallbackContext('removeSelectedMask', false);
-    access.withSelectionChangeContext(callbackContext, () => removeSelectedMask(access.buildRemoveMaskContext()));
-    access.updateUi();
-    if (access.getMasks().length !== before) {
-        access.emitMasksChanged(callbackContext);
-        access.emitImageChanged(callbackContext);
-    }
-}
-function removeAllMasksAction(access, options = {}) {
-    if (!access.getCanvas())
-        return;
-    if (!access.canRunIdleOperation('removeAllMasks', options))
-        return;
-    const before = access.getMasks().length;
-    const callbackContext = access.buildCallbackContext('removeAllMasks', false);
-    access.withSelectionChangeContext(callbackContext, () => removeAllMasks(access.buildRemoveMaskContext(), options));
-    access.updateUi();
-    if (access.getMasks().length !== before) {
-        access.emitMasksChanged(callbackContext);
-        access.emitImageChanged(callbackContext);
-    }
-}
-
-function removeLabelForMask(context, mask) {
-    if (!context.canvas || !mask.labelObject)
-        return;
-    try {
-        if (context.canvas.getObjects().includes(mask.labelObject)) {
-            context.canvas.remove(mask.labelObject);
-        }
-    }
-    catch {
-    }
-    try {
-        delete mask.labelObject;
-    }
-    catch {
-    }
-}
-function createLabelForMask(context, mask) {
-    var _a;
-    const { canvas, options, fabric: fabricModule } = context;
-    if (!canvas || !options.maskLabelOnSelect)
-        return;
-    removeLabelForMask(context, mask);
-    let labelTextObject = null;
-    if (typeof options.label.create === 'function') {
-        try {
-            labelTextObject = options.label.create(mask, fabricModule);
-        }
-        catch (error) {
-            reportWarning(options, error, 'label.create callback threw.');
-            labelTextObject = null;
-        }
-    }
-    if (!labelTextObject) {
-        const indexForGetText = Math.max(0, mask.maskId - 1);
-        let labelText = mask.maskName;
-        if (typeof options.label.getText === 'function') {
-            try {
-                labelText = options.label.getText(mask, indexForGetText);
-            }
-            catch (error) {
-                reportWarning(options, error, 'label.getText callback threw.');
-                labelText = mask.maskName;
-            }
-        }
-        const textOptions = {
-            left: 0,
-            top: 0,
-            ...((_a = options.label.textOptions) !== null && _a !== void 0 ? _a : {}),
-            originX: 'left',
-            originY: 'top',
-        };
-        labelTextObject = new fabricModule.FabricText(labelText, textOptions);
-    }
-    markSessionObject(labelTextObject, 'maskLabel');
-    labelTextObject.maskLabel = true;
-    mask.labelObject = labelTextObject;
-    canvas.add(labelTextObject);
-    canvas.bringObjectToFront(labelTextObject);
-    syncMaskLabel(context, mask);
-}
-function syncMaskLabel(context, mask) {
-    var _a, _b, _c;
-    const { canvas, options } = context;
-    if (!canvas || !options.maskLabelOnSelect || !mask.labelObject)
-        return;
-    const coords = (_a = mask.getCoords) === null || _a === void 0 ? void 0 : _a.call(mask);
-    if (!(coords === null || coords === void 0 ? void 0 : coords.length))
-        return;
-    const tl = coords[0];
-    if (!tl)
-        return;
-    const center = mask.getCenterPoint();
-    const vx = center.x - tl.x;
-    const vy = center.y - tl.y;
-    const dist = Math.sqrt(vx * vx + vy * vy) || 1;
-    const offset = Math.max(0, (_b = options.maskLabelOffset) !== null && _b !== void 0 ? _b : 3);
-    mask.labelObject.set({
-        left: Math.round(tl.x + (vx / dist) * offset),
-        top: Math.round(tl.y + (vy / dist) * offset),
-        angle: (_c = mask.angle) !== null && _c !== void 0 ? _c : 0,
-        originX: 'left',
-        originY: 'top',
-        visible: true,
-    });
-    mask.labelObject.setCoords();
-    canvas.renderAll();
-}
-function showLabelForMask(context, mask) {
-    if (!context.options.maskLabelOnSelect)
-        return;
-    if (!mask.labelObject) {
-        createLabelForMask(context, mask);
-    }
-    if (mask.labelObject) {
-        mask.labelObject.visible = true;
-        syncMaskLabel(context, mask);
-    }
-}
-function hideAllMaskLabels(context) {
-    const { canvas } = context;
-    if (!canvas)
-        return;
-    const objs = canvas.getObjects();
-    objs.filter((o) => o.maskLabel).forEach((l) => {
-        try {
-            canvas.remove(l);
-        }
-        catch {
-        }
-    });
-    objs.filter(isMaskObject).forEach((o) => {
-        try {
-            delete o.labelObject;
-        }
-        catch {
-        }
-    });
-}
-
 function getCurrentMaskListCanvas(context) {
     var _a, _b;
     return (_b = (_a = context.getCanvas) === null || _a === void 0 ? void 0 : _a.call(context)) !== null && _b !== void 0 ? _b : context.canvas;
@@ -14130,7 +12257,7 @@ function renderMaskList(context) {
         return;
     const ownerDocument = listEl.ownerDocument;
     listEl.innerHTML = '';
-    orderMasksForList(canvas.getObjects().filter(isMaskObject), context.listOrder).forEach((mask) => {
+    orderMasksForList(canvas.getObjects().filter(plugins_mask_index.isMaskObject), context.listOrder).forEach((mask) => {
         const listItemElement = ownerDocument.createElement('li');
         listItemElement.className = 'list-group-item mask-item';
         listItemElement.textContent = mask.maskName;
@@ -14144,7 +12271,7 @@ function renderMaskList(context) {
                 return;
             const target = liveCanvas
                 .getObjects()
-                .find((o) => isMaskObject(o) && o.maskId === id);
+                .find((o) => plugins_mask_index.isMaskObject(o) && o.maskId === id);
             if (!target)
                 return;
             liveCanvas.setActiveObject(target);
@@ -14520,16 +12647,16 @@ function buildEditorControlSnapshot(runtime) {
     if (!runtime.canvas)
         return null;
     const hasImage = !!runtime.originalImage;
-    const masks = hasImage ? runtime.canvas.getObjects().filter(isMaskObject) : [];
-    const annotations = hasImage ? runtime.canvas.getObjects().filter(isAnnotationObject) : [];
+    const masks = hasImage ? runtime.canvas.getObjects().filter(plugins_mask_index.isMaskObject) : [];
+    const annotations = hasImage ? runtime.canvas.getObjects().filter(plugins_mask_index.isAnnotationObject) : [];
     const activeObject = runtime.canvas.getActiveObject();
     return {
         hasImage,
         hasMasks: masks.length > 0,
         hasAnnotations: annotations.length > 0,
-        hasSelectedMask: !!(activeObject && isMaskObject(activeObject)),
-        hasSelectedAnnotation: !!(activeObject && isAnnotationObject(activeObject)),
-        hasSelectedEditableObject: !!activeObject && isEditableOverlayObject(activeObject),
+        hasSelectedMask: !!(activeObject && plugins_mask_index.isMaskObject(activeObject)),
+        hasSelectedAnnotation: !!(activeObject && plugins_mask_index.isAnnotationObject(activeObject)),
+        hasSelectedEditableObject: !!activeObject && plugins_mask_index.isEditableOverlayObject(activeObject),
         isDefaultTransform: runtime.currentScale === 1 &&
             runtime.currentRotation === 0 &&
             !((_a = runtime.originalImage) === null || _a === void 0 ? void 0 : _a.flipX) &&
@@ -15208,7 +13335,7 @@ function isNativeTextInputActive(keyboardDocument, event) {
 function isFabricTextEditingActive(canvas) {
     const activeObject = canvas === null || canvas === void 0 ? void 0 : canvas.getActiveObject();
     return !!(activeObject &&
-        isTextAnnotationObject(activeObject) &&
+        plugins_mask_index.isTextAnnotationObject(activeObject) &&
         activeObject.isEditing === true);
 }
 function handleEditorKeyboardEvent(access, event) {
@@ -15425,11 +13552,21 @@ function restoreContainerScroll(container, scroll, options) {
         container.scrollTop = scroll.top;
     }
     catch (error) {
-        reportWarning(options, error, 'Scroll restore failed.');
+        plugins_mask_index.reportWarning(options, error, 'Scroll restore failed.');
     }
 }
 function isPositiveFiniteDimension(value) {
     return Number.isFinite(value) && value > 0;
+}
+function getCanvasActiveObjects(canvas) {
+    var _a;
+    if (!canvas)
+        return [];
+    const candidate = canvas;
+    if (typeof candidate.getActiveObjects === 'function')
+        return candidate.getActiveObjects();
+    const active = (_a = candidate.getActiveObject) === null || _a === void 0 ? void 0 : _a.call(candidate);
+    return active ? [active] : [];
 }
 class ImageEditor {
     constructor(fabricModuleOrOptions = {}, options = {}) {
@@ -15452,13 +13589,44 @@ class ImageEditor {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "historyFacade", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
+        Object.defineProperty(this, "pluginCore", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "pluginHistoryAdapter", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "transformPluginApi", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
+        Object.defineProperty(this, "maskPluginApi", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         const detected = detectFabric(fabricModuleOrOptions, options);
         const resolvedOptions = resolveOptions(detected.options);
-        this.runtime = new EditorRuntime((_a = detected.fabric) !== null && _a !== void 0 ? _a : {}, detected.isFabricLoaded, resolvedOptions);
+        this.historyFacade = new DeferredHistoryPort(resolvedOptions.maxHistorySize);
+        this.runtime = new EditorRuntime((_a = detected.fabric) !== null && _a !== void 0 ? _a : {}, detected.isFabricLoaded, resolvedOptions, this.historyFacade);
         const rawDefaultLayoutMode = detected.options
             .defaultLayoutMode;
         if (rawDefaultLayoutMode !== undefined && !isLayoutMode(rawDefaultLayoutMode)) {
-            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported defaultLayoutMode ` +
                 `${JSON.stringify(rawDefaultLayoutMode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Invalid defaultLayoutMode fell back to "expand".');
         }
@@ -15468,11 +13636,205 @@ class ImageEditor {
             typeof rawDefaultMaskConfig === 'object' &&
             !Array.isArray(rawDefaultMaskConfig) &&
             ('onCreate' in rawDefaultMaskConfig || 'fabricGenerator' in rawDefaultMaskConfig)) {
-            reportWarning(this.runtime.options, new TypeError('[ImageEditor] defaultMaskConfig does not support onCreate or fabricGenerator. Pass those fields to createMask() instead.'), 'Ignored unsupported defaultMaskConfig lifecycle/factory fields.');
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError('[ImageEditor] defaultMaskConfig does not support onCreate or fabricGenerator. Pass those fields to createMask() instead.'), 'Ignored unsupported defaultMaskConfig lifecycle/factory fields.');
         }
         const wiring = this.createRuntimeWiring();
         this.contextFactory = wiring.contextFactory;
         this.actionAccessFactory = wiring.actionAccessFactory;
+    }
+    initializePluginRuntime() {
+        var _a, _b;
+        if (this.pluginCore)
+            return;
+        const options = this.runtime.options;
+        const core = new core_index.ImageEditorCore(this.runtime.fabricModule, {
+            canvasWidth: options.canvasWidth,
+            canvasHeight: options.canvasHeight,
+            backgroundColor: options.backgroundColor,
+            defaultLayoutMode: this.runtime.currentLayoutMode,
+            groupSelection: options.groupSelection,
+            maxInputBytes: options.maxInputBytes,
+            maxInputPixels: options.maxInputPixels,
+            imageLoadTimeoutMs: options.imageLoadTimeoutMs,
+            maxExportPixels: options.maxExportPixels,
+            maxExportDimension: options.maxExportDimension,
+            exportMultiplier: options.exportMultiplier,
+            onError: (_a = options.onError) !== null && _a !== void 0 ? _a : undefined,
+            onWarning: (_b = options.onWarning) !== null && _b !== void 0 ? _b : undefined,
+        });
+        let historyAdapter = null;
+        try {
+            const history = core.use(plugins_history_index.historyPlugin({ maxSize: options.maxHistorySize }));
+            core.use(foundations_overlay_index.overlayFoundationPlugin());
+            const transform = core.use(plugins_transform_index.transformPlugin({
+                animationDuration: options.animationDuration,
+                minScale: options.minScale,
+                maxScale: options.maxScale,
+                rotationStep: options.rotationStep,
+            }));
+            const masks = core.use(plugins_mask_index.maskPlugin({
+                defaultWidth: options.defaultMaskWidth,
+                defaultHeight: options.defaultMaskHeight,
+                defaultConfig: options.defaultMaskConfig,
+                rotatable: options.maskRotatable,
+                label: options.maskLabelOnSelect ? options.label : false,
+                labelOffset: options.maskLabelOffset,
+                listOrder: options.maskListOrder,
+                bindToImageTransform: options.bindMasksToImageTransform,
+                namePrefix: options.maskName,
+            }));
+            core.use(fullFacadeAnnotationPlugin({
+                bindToImageTransform: options.bindAnnotationsToImageTransform,
+                textFlipBehavior: options.textAnnotationFlipBehavior,
+            }));
+            core.use(fullFacadeStatePlugin({
+                capture: () => this.captureFullFacadeMementoState(),
+                restore: (state) => this.restoreFullFacadeMementoState(state),
+                clearState: () => this.resetFullFacadeMementoState(),
+            }));
+            historyAdapter = new PluginHistoryAdapter(core, history, options.maxHistorySize, () => undefined);
+            this.historyFacade.attach(historyAdapter);
+            this.pluginCore = core;
+            this.pluginHistoryAdapter = historyAdapter;
+            this.transformPluginApi = transform;
+            this.maskPluginApi = masks;
+            this.runtime.transformController = Object.freeze({
+                scaleImage: async (factor) => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.scale(factor);
+                    this.synchronizeRuntimeTransformState();
+                },
+                rotateImage: async (degrees) => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.rotate(degrees);
+                    this.synchronizeRuntimeTransformState();
+                },
+                flipHorizontal: async () => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.flipHorizontal();
+                    this.synchronizeRuntimeTransformState();
+                },
+                flipVertical: async () => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.flipVertical();
+                    this.synchronizeRuntimeTransformState();
+                },
+                resetImageTransform: async () => {
+                    await this.synchronizePluginCoreImage();
+                    await transform.resetImageTransform();
+                    this.synchronizeRuntimeTransformState();
+                },
+            });
+        }
+        catch (error) {
+            if (historyAdapter) {
+                this.historyFacade.detach(historyAdapter);
+                historyAdapter.dispose();
+            }
+            core.dispose();
+            throw error;
+        }
+    }
+    async synchronizePluginCoreImage() {
+        var _a, _b, _c;
+        if (!this.pluginCore || !this.runtime.canvas || this.runtime.isDisposed)
+            return;
+        (_a = this.transformPluginApi) === null || _a === void 0 ? void 0 : _a.synchronizeCompatibilityState({
+            scale: this.runtime.currentScale,
+            rotationDegrees: this.runtime.currentRotation,
+            flipX: ((_b = this.runtime.originalImage) === null || _b === void 0 ? void 0 : _b.flipX) === true,
+            flipY: ((_c = this.runtime.originalImage) === null || _c === void 0 ? void 0 : _c.flipY) === true,
+        });
+        await this.pluginCore.synchronizeCompatibilityImage({
+            baseImage: this.runtime.originalImage,
+            baseImageScale: this.runtime.baseImageScale,
+            imageMimeType: this.runtime.currentImageMimeType,
+            lifecycle: 'none',
+        });
+    }
+    synchronizeRuntimeTransformState() {
+        var _a;
+        const state = (_a = this.transformPluginApi) === null || _a === void 0 ? void 0 : _a.getState();
+        if (!state)
+            return;
+        this.runtime.currentScale = state.scale;
+        this.runtime.currentRotation = state.rotationDegrees;
+    }
+    captureFullFacadeMementoState() {
+        var _a, _b, _c;
+        const transformState = (_a = this.transformPluginApi) === null || _a === void 0 ? void 0 : _a.getState();
+        const selectedAnnotationIds = getCanvasActiveObjects(this.runtime.canvas)
+            .filter(plugins_mask_index.isAnnotationObject)
+            .map((annotation) => annotation.annotationId);
+        return Object.freeze({
+            currentScale: (_b = transformState === null || transformState === void 0 ? void 0 : transformState.scale) !== null && _b !== void 0 ? _b : this.runtime.currentScale,
+            currentRotation: (_c = transformState === null || transformState === void 0 ? void 0 : transformState.rotationDegrees) !== null && _c !== void 0 ? _c : this.runtime.currentRotation,
+            baseImageScale: this.runtime.baseImageScale,
+            imageMimeType: this.runtime.currentImageMimeType,
+            annotationCounter: this.runtime.annotationCounter,
+            imageFilterConfig: cloneResolvedImageFilterConfig(this.runtime.currentImageFilterConfig),
+            lastCommittedImageFilterConfig: cloneResolvedImageFilterConfig(this.runtime.lastCommittedImageFilterConfig),
+            selectedAnnotationIds: Object.freeze(selectedAnnotationIds),
+        });
+    }
+    restoreFullFacadeMementoState(state) {
+        var _a, _b, _c;
+        const canvas = this.runtime.canvas;
+        if (!canvas || this.runtime.isDisposed)
+            return;
+        const annotations = canvas.getObjects().filter(plugins_mask_index.isAnnotationObject);
+        const originalImage = (_a = canvas.getObjects().find(plugins_mask_index.isBaseImageObject)) !== null && _a !== void 0 ? _a : null;
+        this.runtime.originalImage = originalImage;
+        this.runtime.isImageLoadedToCanvas = originalImage !== null;
+        this.runtime.currentScale = state.currentScale;
+        this.runtime.currentRotation = state.currentRotation;
+        this.runtime.baseImageScale = state.baseImageScale;
+        this.runtime.currentImageMimeType = state.imageMimeType;
+        this.runtime.annotationCounter = Math.max(state.annotationCounter, ...annotations.map((annotation) => annotation.annotationId));
+        this.runtime.maskCounter = this.getMasks().reduce((maximum, mask) => Math.max(maximum, mask.maskId), 0);
+        this.runtime.currentImageFilterConfig = cloneResolvedImageFilterConfig(state.imageFilterConfig);
+        this.runtime.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(state.lastCommittedImageFilterConfig);
+        (_b = this.transformPluginApi) === null || _b === void 0 ? void 0 : _b.synchronizeCompatibilityState({
+            scale: state.currentScale,
+            rotationDegrees: state.currentRotation,
+            flipX: (originalImage === null || originalImage === void 0 ? void 0 : originalImage.flipX) === true,
+            flipY: (originalImage === null || originalImage === void 0 ? void 0 : originalImage.flipY) === true,
+        });
+        syncAnnotationRuntimeStates(annotations);
+        attachTextEditingHandlersToAnnotations(this.buildTextControllerContext(), annotations);
+        const selectedAnnotations = annotations.filter((annotation) => state.selectedAnnotationIds.includes(annotation.annotationId));
+        if (selectedAnnotations.length === 1)
+            canvas.setActiveObject(selectedAnnotations[0]);
+        try {
+            this.runtime.lastSnapshot = this.captureSnapshotInternal();
+        }
+        catch (error) {
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'Compatibility snapshot refresh failed.');
+        }
+        canvas.requestRenderAll();
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateAnnotationList();
+        this.updateUi();
+        this.updatePlaceholderStatus();
+        const operation = (_c = this.runtime.activeStateRestoreOperation) !== null && _c !== void 0 ? _c : 'loadFromState';
+        const context = this.buildCallbackContext(operation, true);
+        this.handleSelectionChanged(getCanvasActiveObjects(canvas));
+        this.emitMasksChanged(context);
+        this.emitAnnotationsChanged(context);
+        this.emitImageChanged(context);
+    }
+    resetFullFacadeMementoState() {
+        this.restoreFullFacadeMementoState({
+            currentScale: 1,
+            currentRotation: 0,
+            baseImageScale: 1,
+            imageMimeType: null,
+            annotationCounter: 0,
+            imageFilterConfig: cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG),
+            lastCommittedImageFilterConfig: cloneResolvedImageFilterConfig(DEFAULT_IMAGE_FILTER_CONFIG),
+            selectedAnnotationIds: Object.freeze([]),
+        });
     }
     createRuntimeWiring() {
         return createEditorRuntimeWiring(this.runtime, {
@@ -15602,7 +13964,7 @@ class ImageEditor {
                     this.emitBusyChangeIfChanged(context);
                 },
                 reportWarning: (error, message) => {
-                    reportWarning(this.runtime.options, error, message);
+                    plugins_mask_index.reportWarning(this.runtime.options, error, message);
                 },
             },
         });
@@ -15612,7 +13974,7 @@ class ImageEditor {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
                 typeof globalFabric.Canvas !== 'function') {
-                reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: fabric.js is not loaded. Pass a Fabric module or load Fabric before init().');
+                plugins_mask_index.reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: fabric.js is not loaded. Pass a Fabric module or load Fabric before init().');
                 return;
             }
             this.runtime.fabricModule = globalFabric;
@@ -15621,13 +13983,13 @@ class ImageEditor {
         if (this.runtime.isDisposed)
             return;
         if (this.runtime.canvas || this.runtime.domBindings || this.runtime.keyboardHandler) {
-            reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: editor is already initialized. Call dispose() before reinitializing.');
+            plugins_mask_index.reportWarning(this.runtime.options, null, '[ImageEditor] init() skipped: editor is already initialized. Call dispose() before reinitializing.');
             return;
         }
         this.runtime.elements = resolveElementTargets(elementMap);
+        this.initializePluginRuntime();
         this.initCanvas();
         this.runtime.domBindings = new DomBindings((key) => this.resolveElement(key), () => this.runtime.isDisposed);
-        this.runtime.transformController = new TransformController(this.buildTransformContext());
         this.bindDomEvents();
         this.updateInputs();
         this.updateMaskList();
@@ -15642,7 +14004,7 @@ class ImageEditor {
         }
     }
     initCanvas() {
-        var _a;
+        var _a, _b, _c;
         const canvasTarget = this.runtime.elements.canvas;
         const canvasCandidate = resolveDomElement(canvasTarget, getRuntimeDocument(null), isCanvasElement);
         if (!canvasCandidate) {
@@ -15671,6 +14033,25 @@ class ImageEditor {
             selection: this.runtime.options.groupSelection,
             preserveObjectStacking: true,
         });
+        (_b = this.pluginCore) === null || _b === void 0 ? void 0 : _b.attachExistingCanvas(this.runtime.canvas, {
+            canvasElement,
+            containerElement: this.runtime.containerElement,
+            placeholderElement: this.runtime.placeholderElement,
+            onHostStateChange: (state) => {
+                this.runtime.originalImage = state.baseImage;
+                this.runtime.baseImageScale = state.baseImageScale;
+                this.runtime.currentImageMimeType = state.imageMimeType;
+                this.runtime.isImageLoadedToCanvas = state.baseImage !== null;
+            },
+            finalizeBaseImageGeometry: () => {
+                const image = this.runtime.originalImage;
+                if (!image)
+                    return;
+                this.updateCanvasSizeToImageBounds();
+                this.alignObjectBoundingBoxToCanvasTopLeft(image);
+            },
+        });
+        (_c = this.pluginHistoryAdapter) === null || _c === void 0 ? void 0 : _c.resetBaseline();
         this.runtime.canvas.on('selection:created', (e) => {
             this.handleSelectionChanged(e.selected);
         });
@@ -15710,7 +14091,7 @@ class ImageEditor {
             },
             actions: createEditorDomEventActions(this.runtime, ownerDocument, {
                 reportAsyncActionError: (operation, error) => {
-                    reportError(this.runtime.options, error, `${operation} failed.`);
+                    plugins_mask_index.reportError(this.runtime.options, error, `${operation} failed.`);
                 },
                 loadImageFile: (file) => this.loadImageFile(file),
                 scaleImage: (scale) => this.scaleImage(scale),
@@ -15794,7 +14175,7 @@ class ImageEditor {
                 },
                 applyCrop: () => this.applyCrop(),
                 reportCropApplyError: (error) => {
-                    reportError(this.runtime.options, error, 'Crop apply failed.');
+                    plugins_mask_index.reportError(this.runtime.options, error, 'Crop apply failed.');
                 },
                 cancelCrop: () => {
                     this.cancelCrop();
@@ -15898,16 +14279,17 @@ class ImageEditor {
         return this.loadImageInternal(base64, options);
     }
     async loadImageInternal(base64, options = {}) {
+        var _a, _b;
         if (!this.runtime.isFabricLoaded || !this.runtime.canvas) {
-            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is not initialized.');
+            plugins_mask_index.reportWarning(this.runtime.options, null, 'loadImage skipped: editor is not initialized.');
             return;
         }
         if (this.runtime.isDisposed) {
-            reportWarning(this.runtime.options, null, 'loadImage skipped: editor is disposed.');
+            plugins_mask_index.reportWarning(this.runtime.options, null, 'loadImage skipped: editor is disposed.');
             return;
         }
         if (!isSupportedImageDataUrl(base64)) {
-            reportWarning(this.runtime.options, new TypeError('[ImageEditor] Unsupported image Data URL.'), 'loadImage skipped: input is not a supported PNG, JPEG, or WebP Data URL.');
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError('[ImageEditor] Unsupported image Data URL.'), 'loadImage skipped: input is not a supported PNG, JPEG, or WebP Data URL.');
             return;
         }
         try {
@@ -15915,7 +14297,7 @@ class ImageEditor {
         }
         catch (error) {
             if (this.isExpectedIdleGuardError(error, 'loadImage')) {
-                reportWarning(this.runtime.options, error, error.message);
+                plugins_mask_index.reportWarning(this.runtime.options, error, error.message);
                 return;
             }
             throw error;
@@ -15938,11 +14320,21 @@ class ImageEditor {
                 const errorMessage = error instanceof Error
                     ? `loadImage failed: ${error.message}`
                     : 'loadImage failed';
-                reportError(this.runtime.options, error, errorMessage);
+                plugins_mask_index.reportError(this.runtime.options, error, errorMessage);
                 throw error;
             }
             this.hideAllMaskLabels();
             await loadImage(loadImageContext, base64, options);
+            const isInternalLoad = options[TRUSTED_STATE_RESTORE] === true ||
+                options[INTERNAL_OPERATION_TOKEN] !== undefined;
+            await ((_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.synchronizeCompatibilityImage({
+                baseImage: this.runtime.originalImage,
+                baseImageScale: this.runtime.baseImageScale,
+                imageMimeType: this.runtime.currentImageMimeType,
+                lifecycle: isInternalLoad ? 'none' : 'loaded',
+            }));
+            if (!isInternalLoad)
+                (_b = this.pluginHistoryAdapter) === null || _b === void 0 ? void 0 : _b.resetBaseline();
         }
         finally {
             this.runtime.operationGuard.endLoading();
@@ -15998,10 +14390,10 @@ class ImageEditor {
         if (activeToolMode &&
             !this.runtime.operationGuard.isOwnOperation(token) &&
             !canRunOperationInToolMode(activeToolMode, operationName)) {
-            throw new IdleGuardError(operationName, `while ${activeToolMode} mode is active`);
+            throw new plugins_transform_index.IdleGuardError(operationName, `while ${activeToolMode} mode is active`);
         }
         if (this.runtime.animQueue.isBusy() && !this.canRunDuringAnimationQueue(options)) {
-            throw new IdleGuardError(operationName, 'while an animation is queued');
+            throw new plugins_transform_index.IdleGuardError(operationName, 'while an animation is queued');
         }
     }
     canRunIdleOperation(operationName, options) {
@@ -16017,7 +14409,7 @@ class ImageEditor {
         }
     }
     isExpectedIdleGuardError(error, operationName) {
-        return error instanceof IdleGuardError && error.operation === operationName;
+        return error instanceof plugins_transform_index.IdleGuardError && error.operation === operationName;
     }
     assertCanQueueAnimation(operationName, options) {
         const token = this.getInternalOperationToken(options);
@@ -16032,7 +14424,7 @@ class ImageEditor {
     isImageLoaded() {
         const image = this.runtime.originalImage;
         return !!(image &&
-            isBaseImageObject(image) &&
+            plugins_mask_index.isBaseImageObject(image) &&
             Number(image.width) > 0 &&
             Number(image.height) > 0);
     }
@@ -16051,7 +14443,7 @@ class ImageEditor {
             return;
         const result = mergeImageFilterConfigPatch(this.runtime.currentImageFilterConfig, config);
         if (result.warnings.length > 0) {
-            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Invalid or out-of-range image filter field(s): ${result.warnings.join(', ')}.`), 'Image filter config was normalized.');
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Invalid or out-of-range image filter field(s): ${result.warnings.join(', ')}.`), 'Image filter config was normalized.');
         }
         if (areResolvedImageFilterConfigsEqual(this.runtime.currentImageFilterConfig, result.config)) {
             return;
@@ -16111,12 +14503,12 @@ class ImageEditor {
         if (!image)
             return;
         applyImageFilterConfigToImage(this.runtime.fabricModule, image, this.runtime.currentImageFilterConfig, (error, message) => {
-            reportWarning(this.runtime.options, error, message);
+            plugins_mask_index.reportWarning(this.runtime.options, error, message);
         });
     }
     setLayoutMode(mode) {
         if (!isLayoutMode(mode)) {
-            reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
@@ -16130,7 +14522,7 @@ class ImageEditor {
             return;
         const size = this.resolveContainerResizeSize(options);
         if (!size) {
-            reportWarning(this.runtime.options, new TypeError('[ImageEditor] Container dimensions are not available.'), 'resizeToContainer ignored because no valid container or fallback size was available.');
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError('[ImageEditor] Container dimensions are not available.'), 'resizeToContainer ignored because no valid container or fallback size was available.');
             return;
         }
         this.applyPublicCanvasSize(size.width, size.height, 'resizeToContainer', {
@@ -16144,7 +14536,7 @@ class ImageEditor {
             return;
         if (options.mode !== undefined) {
             if (!isLayoutMode(options.mode)) {
-                reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported relayout mode ${JSON.stringify(options.mode)}. ` +
+                plugins_mask_index.reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported relayout mode ${JSON.stringify(options.mode)}. ` +
                     'Expected "fit", "cover", or "expand".'), 'Ignored invalid relayout mode.');
                 return;
             }
@@ -16200,7 +14592,7 @@ class ImageEditor {
             displayHeight = Math.max(0, Number(bounds.height) || 0);
         }
         catch (error) {
-            reportWarning(this.runtime.options, error, 'getImageInfo used fallback dimensions because Fabric getBoundingRect failed.');
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'getImageInfo used fallback dimensions because Fabric getBoundingRect failed.');
             displayWidth = Math.max(0, (Number(this.runtime.originalImage.width) || 0) *
                 Math.abs(Number(this.runtime.originalImage.scaleX) || 1));
             displayHeight = Math.max(0, (Number(this.runtime.originalImage.height) || 0) *
@@ -16218,9 +14610,7 @@ class ImageEditor {
         };
     }
     getMasks() {
-        if (!this.runtime.canvas)
-            return [];
-        return this.runtime.canvas.getObjects().filter(isMaskObject).slice();
+        return this.maskPluginApi ? [...this.maskPluginApi.getAll()] : [];
     }
     getAnnotations() {
         if (!this.runtime.canvas)
@@ -16295,7 +14685,7 @@ class ImageEditor {
                 await this.loadFromStateInternal(beforeSnapshot, this.withInternalOperationOptions(token));
             }
             catch (rollbackError) {
-                reportWarning(this.runtime.options, rollbackError, 'importOverlayState rollback failed.');
+                plugins_mask_index.reportWarning(this.runtime.options, rollbackError, 'importOverlayState rollback failed.');
             }
             throw error;
         }
@@ -16432,8 +14822,8 @@ class ImageEditor {
     }
     buildSelection(selected) {
         var _a, _b;
-        const selectedMasks = selected.filter(isMaskObject);
-        const selectedAnnotations = selected.filter(isAnnotationObject);
+        const selectedMasks = selected.filter(plugins_mask_index.isMaskObject);
+        const selectedAnnotations = selected.filter(plugins_mask_index.isAnnotationObject);
         const selectedObjectKind = selectedMasks.length === 1 && selectedAnnotations.length === 0
             ? 'mask'
             : selectedAnnotations.length === 1 && selectedMasks.length === 0
@@ -16491,20 +14881,20 @@ class ImageEditor {
         const numericValue = Number(value);
         if (isPositiveFiniteDimension(numericValue))
             return Math.round(numericValue);
-        reportWarning(this.runtime.options, new TypeError(`[ImageEditor] ${operation} expected positive finite canvas dimensions.`), `${operation} ignored invalid canvas dimensions.`);
+        plugins_mask_index.reportWarning(this.runtime.options, new TypeError(`[ImageEditor] ${operation} expected positive finite canvas dimensions.`), `${operation} ignored invalid canvas dimensions.`);
         return null;
     }
     validatePublicCanvasSizeBudget(width, height, operation) {
         const { maxExportDimension, maxExportPixels } = this.runtime.options;
         if (width > maxExportDimension || height > maxExportDimension) {
             const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportDimension (${maxExportDimension}).`;
-            reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
+            plugins_mask_index.reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
             return false;
         }
         const pixelCount = width * height;
         if (pixelCount > maxExportPixels) {
             const message = `${operation} ignored because canvas size ${width}x${height} exceeds maxExportPixels (${maxExportPixels}).`;
-            reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
+            plugins_mask_index.reportWarning(this.runtime.options, new RangeError(`[ImageEditor] ${message}`), message);
             return false;
         }
         return true;
@@ -16554,7 +14944,7 @@ class ImageEditor {
     setCanvasSizePx(widthPx, heightPx) {
         if (!this.runtime.canvas)
             return;
-        applyCanvasDimensions(this.runtime.canvas, widthPx, heightPx, this.runtime.containerElement);
+        core_index.applyCanvasDimensions(this.runtime.canvas, widthPx, heightPx, this.runtime.containerElement);
     }
     alignObjectBoundingBoxToCanvasTopLeft(object) {
         var _a, _b, _c;
@@ -16611,9 +15001,6 @@ class ImageEditor {
     restoreMergedImageDisplayGeometry(geometry) {
         restoreMergedImageDisplayGeometry(this.buildDisplayGeometryContext(), geometry);
     }
-    buildTransformContext() {
-        return this.contextFactory.buildTransformContext();
-    }
     scaleImage(factor) {
         return scaleImageAction(this.actionAccessFactory.buildTransformActionAccess(), factor);
     }
@@ -16639,7 +15026,15 @@ class ImageEditor {
         return this.loadFromStateInternal(jsonString);
     }
     async loadFromStateInternal(jsonString, options) {
+        var _a, _b;
         await loadFromStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), jsonString, options);
+        await ((_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.synchronizeCompatibilityImage({
+            baseImage: this.runtime.originalImage,
+            baseImageScale: this.runtime.baseImageScale,
+            imageMimeType: this.runtime.currentImageMimeType,
+            lifecycle: 'none',
+        }));
+        (_b = this.pluginHistoryAdapter) === null || _b === void 0 ? void 0 : _b.resetBaseline();
     }
     saveState() {
         this.saveStateInternal();
@@ -16699,13 +15094,65 @@ class ImageEditor {
         });
     }
     createMask(config = {}) {
-        return createMaskAction(this.actionAccessFactory.buildMaskActionAccess(), config);
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.maskPluginApi)
+            return null;
+        if (!this.canRunIdleOperation('createMask'))
+            return null;
+        const context = this.buildCallbackContext('createMask', false);
+        let mask;
+        try {
+            void this.synchronizePluginCoreImage();
+            mask = this.withSelectionChangeContext(context, () => this.maskPluginApi.create(config));
+        }
+        catch (error) {
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'Mask creation failed.');
+            return null;
+        }
+        this.runtime.lastMask = mask;
+        this.runtime.maskCounter = Math.max(this.runtime.maskCounter, mask.maskId);
+        this.updateMaskList();
+        this.updateUi();
+        this.emitMasksChanged(context);
+        this.emitImageChanged(context);
+        return mask;
     }
     removeSelectedMask() {
-        removeSelectedMaskAction(this.actionAccessFactory.buildMaskActionAccess());
+        var _a;
+        if (!this.runtime.canvas || !this.maskPluginApi)
+            return;
+        if (!this.canRunIdleOperation('removeSelectedMask'))
+            return;
+        const active = this.runtime.canvas.getActiveObject();
+        if (!active || !plugins_mask_index.isMaskObject(active))
+            return;
+        const before = this.getMasks().length;
+        const context = this.buildCallbackContext('removeSelectedMask', false);
+        this.withSelectionChangeContext(context, () => this.maskPluginApi.remove(active.maskUid));
+        const remainingMasks = this.getMasks();
+        this.runtime.lastMask = (_a = remainingMasks[remainingMasks.length - 1]) !== null && _a !== void 0 ? _a : null;
+        this.updateMaskList();
+        this.updateUi();
+        if (this.getMasks().length !== before) {
+            this.emitMasksChanged(context);
+            this.emitImageChanged(context);
+        }
     }
     removeAllMasks(options = {}) {
-        removeAllMasksAction(this.actionAccessFactory.buildMaskActionAccess(), options);
+        if (!this.runtime.canvas || !this.maskPluginApi)
+            return;
+        if (!this.canRunIdleOperation('removeAllMasks', options))
+            return;
+        const before = this.getMasks().length;
+        const context = this.buildCallbackContext('removeAllMasks', false);
+        this.withSelectionChangeContext(context, () => this.maskPluginApi.removeAll({ saveHistory: options.saveHistory }));
+        this.runtime.lastMask = null;
+        this.runtime.maskCounter = 0;
+        this.updateMaskList();
+        this.updateUi();
+        if (before > 0) {
+            this.emitMasksChanged(context);
+            this.emitImageChanged(context);
+        }
     }
     buildMaskLabelContext() {
         return this.contextFactory.buildMaskLabelContext();
@@ -16714,25 +15161,25 @@ class ImageEditor {
         const context = this.buildMaskLabelContext();
         if (!context)
             return;
-        removeLabelForMask(context, mask);
+        plugins_mask_index.removeLabelForMask(context, mask);
     }
     hideAllMaskLabels() {
         const context = this.buildMaskLabelContext();
         if (!context)
             return;
-        hideAllMaskLabels(context);
+        plugins_mask_index.hideAllMaskLabels(context);
     }
     syncMaskLabel(mask) {
         const context = this.buildMaskLabelContext();
         if (!context)
             return;
-        syncMaskLabel(context, mask);
+        plugins_mask_index.syncMaskLabel(context, mask);
     }
     showLabelForMask(mask) {
         const context = this.buildMaskLabelContext();
         if (!context)
             return;
-        showLabelForMask(context, mask);
+        plugins_mask_index.showLabelForMask(context, mask);
     }
     handleObjectMovingScalingRotating(target) {
         handleObjectMovingScalingRotating(this.actionAccessFactory.buildSelectionControllerAccess(), target);
@@ -16809,7 +15256,7 @@ class ImageEditor {
         if (!this.canRunIdleOperation('setDrawSubMode'))
             return;
         if (mode !== 'brush' && mode !== 'erase') {
-            reportWarning(this.runtime.options, new TypeError('[ImageEditor] setDrawSubMode expected "brush" or "erase".'), 'Ignored invalid Draw sub-mode.');
+            plugins_mask_index.reportWarning(this.runtime.options, new TypeError('[ImageEditor] setDrawSubMode expected "brush" or "erase".'), 'Ignored invalid Draw sub-mode.');
             return;
         }
         setDrawSubMode(this.buildDrawControllerContext(), mode);
@@ -16952,7 +15399,7 @@ class ImageEditor {
             return;
         const invalidFields = getInvalidEraserConfigFields(config);
         if (invalidFields.length > 0) {
-            reportWarning(this.runtime.options, null, `${operation} ignored invalid Eraser config fields: ${invalidFields.join(', ')}.`);
+            plugins_mask_index.reportWarning(this.runtime.options, null, `${operation} ignored invalid Eraser config fields: ${invalidFields.join(', ')}.`);
         }
         const next = mergeEraserConfigPatch(this.runtime.currentEraserConfig, config, this.runtime.defaultEraserConfig);
         if (areResolvedEraserConfigsEqual(this.runtime.currentEraserConfig, next))
@@ -16970,7 +15417,7 @@ class ImageEditor {
             return;
         const invalidFields = getInvalidShapeAnnotationConfigFields(config);
         if (invalidFields.length > 0) {
-            reportWarning(this.runtime.options, null, `${operation} ignored invalid Shape config fields: ${invalidFields.join(', ')}.`);
+            plugins_mask_index.reportWarning(this.runtime.options, null, `${operation} ignored invalid Shape config fields: ${invalidFields.join(', ')}.`);
         }
         const next = mergeShapeAnnotationConfigPatch(this.runtime.currentShapeConfig, config, this.runtime.defaultShapeConfig);
         if (areResolvedShapeAnnotationConfigsEqual(this.runtime.currentShapeConfig, next))
@@ -17001,7 +15448,22 @@ class ImageEditor {
         moveSelectedEditableObject(this.actionAccessFactory.buildEditableObjectActionAccess(), operation);
     }
     async mergeMasks() {
-        await mergeMasksAction(this.actionAccessFactory.buildExportActionAccess());
+        if (!this.runtime.canvas || !this.runtime.originalImage || !this.maskPluginApi)
+            return;
+        if (!this.canRunIdleOperation('mergeMasks'))
+            return;
+        const before = this.getMasks().length;
+        if (before === 0)
+            return;
+        const context = this.buildCallbackContext('mergeMasks', false);
+        await this.maskPluginApi.flatten();
+        this.runtime.lastMask = null;
+        this.runtime.maskCounter = 0;
+        this.updateInputs();
+        this.updateMaskList();
+        this.updateUi();
+        this.emitMasksChanged(context);
+        this.emitImageChanged(context);
     }
     async downloadImage(options) {
         await downloadImageAction(this.actionAccessFactory.buildExportActionAccess(), options);
@@ -17137,9 +15599,36 @@ class ImageEditor {
         safelyExitActiveSession(this.runtime.shapeSession !== null, this.runtime.canvas, () => exitShapeMode(this.buildShapeControllerContext()), () => {
             this.runtime.shapeSession = null;
         });
-        const canvasDispose = this.runtime.canvas
-            ? safelyDisposeCanvas(this.runtime.canvas)
-            : Promise.resolve();
+        const canvas = this.runtime.canvas;
+        const pluginCore = this.pluginCore;
+        const historyAdapter = this.pluginHistoryAdapter;
+        if (historyAdapter) {
+            this.historyFacade.detach(historyAdapter);
+            historyAdapter.dispose();
+        }
+        this.pluginCore = null;
+        this.pluginHistoryAdapter = null;
+        this.transformPluginApi = null;
+        this.maskPluginApi = null;
+        const disposeCanvas = () => canvas ? safelyDisposeCanvas(canvas) : Promise.resolve();
+        let canvasDispose;
+        if (pluginCore === null || pluginCore === void 0 ? void 0 : pluginCore.hasActiveCompatibilityMutation()) {
+            canvasDispose = pluginCore
+                .disposeAsync()
+                .catch((error) => {
+                plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
+            })
+                .then(disposeCanvas);
+        }
+        else {
+            try {
+                pluginCore === null || pluginCore === void 0 ? void 0 : pluginCore.dispose();
+            }
+            catch (error) {
+                plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
+            }
+            canvasDispose = disposeCanvas();
+        }
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);
@@ -17149,18 +15638,21 @@ class ImageEditor {
         this.emitOptionCallback('onEditorDisposed', [context]);
         if (waitForCanvasDispose)
             return canvasDispose;
+        void canvasDispose.catch((error) => {
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'Canvas cleanup failed during dispose.');
+        });
         return undefined;
     }
 }
 
+exports.isAnnotationObject = plugins_mask_index.isAnnotationObject;
+exports.isBaseImageObject = plugins_mask_index.isBaseImageObject;
+exports.isDrawAnnotationObject = plugins_mask_index.isDrawAnnotationObject;
+exports.isEditableOverlayObject = plugins_mask_index.isEditableOverlayObject;
+exports.isMaskObject = plugins_mask_index.isMaskObject;
+exports.isSessionObject = plugins_mask_index.isSessionObject;
+exports.isShapeAnnotationObject = plugins_mask_index.isShapeAnnotationObject;
+exports.isTextAnnotationObject = plugins_mask_index.isTextAnnotationObject;
 exports.ImageEditor = ImageEditor;
 exports.default = ImageEditor;
-exports.isAnnotationObject = isAnnotationObject;
-exports.isBaseImageObject = isBaseImageObject;
-exports.isDrawAnnotationObject = isDrawAnnotationObject;
-exports.isEditableOverlayObject = isEditableOverlayObject;
-exports.isMaskObject = isMaskObject;
-exports.isSessionObject = isSessionObject;
-exports.isShapeAnnotationObject = isShapeAnnotationObject;
-exports.isTextAnnotationObject = isTextAnnotationObject;
 //# sourceMappingURL=index.cjs.map

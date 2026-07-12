@@ -23,6 +23,7 @@ export declare class ToolCoordinator implements Disposable {
     private disposed;
     constructor(options?: ToolCoordinatorOptions);
     register(definition: ToolDefinition, ownerPluginId: string): Disposable;
+    disposeSync(): void;
     enter(toolId: ToolId, requesterPluginId?: string): Promise<void>;
     exit(reason?: ToolExitReason): Promise<void>;
     getActiveToolId(): ToolId | null;

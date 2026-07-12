@@ -23,7 +23,7 @@ import type {
     ResolvedImageFilterConfig,
 } from '../core/public-types.js';
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
-import { Command, type HistoryManager } from '../history/history-manager.js';
+import { Command, type LegacyHistoryPort } from '../history/history-port.js';
 import { getFilteredBaseImageDataUrl } from '../image/image-filters.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
 import { getPointerFromFabricEvent } from '../utils/pointer.js';
@@ -70,7 +70,7 @@ export interface MosaicControllerContext {
     readonly fabric: FabricModule;
     readonly canvas: FabricNS.Canvas;
     readonly options: ResolvedOptions;
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
 
     getMosaicConfig(): ResolvedMosaicConfig;
     isImageLoaded(): boolean;

@@ -8,7 +8,7 @@ import type * as FabricNS from 'fabric';
 import { type CanvasJson } from '../core/state-serializer.js';
 import { type AnnotationObject, type BaseImageObject, type ImageEditorCallbackContext, type ImageEditorOperation, type ImageMimeType, type MaskObject, type ResolvedImageFilterConfig, type ResolvedOptions } from '../core/public-types.js';
 import { type TextControllerContext } from '../annotation/text-controller.js';
-import { type HistoryManager } from './history-manager.js';
+import { type LegacyHistoryPort } from './history-port.js';
 export declare const TRUSTED_STATE_RESTORE: unique symbol;
 export type TrustedStateRestoreOptions = {
     [TRUSTED_STATE_RESTORE]?: true;
@@ -62,7 +62,7 @@ export interface EditorStateActionAccess {
     getCurrentRotation(): number;
     getBaseImageScale(): number;
     getCurrentImageMimeType(): ImageMimeType | null;
-    getHistoryManager(): HistoryManager;
+    getHistoryManager(): LegacyHistoryPort;
     withAnimationQueueBypass(): object;
     showLabelForMask(mask: MaskObject): void;
     updateMaskListSelection(mask: MaskObject): void;

@@ -1,4 +1,9 @@
-import { createDisposable, type Disposable, type MaybePromise } from './disposable.js';
+import {
+    createDisposable,
+    isPromiseLike,
+    type Disposable,
+    type MaybePromise,
+} from './disposable.js';
 import { PluginKernelDisposedError, ToolRegistrationError, ToolTransitionError } from './errors.js';
 import { reportErrorSafely, type PluginErrorSink } from './reporting.js';
 
@@ -58,13 +63,44 @@ export class ToolCoordinator implements Disposable {
         };
         this.tools.set(definition.id, record);
 
-        return createDisposable(async () => {
-            try {
-                if (this.active === record) await this.exitCurrent('plugin-dispose');
-            } finally {
-                if (this.tools.get(definition.id) === record) this.tools.delete(definition.id);
+        return createDisposable(() => {
+            if (this.active === record) {
+                return this.exitCurrent('plugin-dispose').finally(() => {
+                    if (this.tools.get(definition.id) === record) this.tools.delete(definition.id);
+                });
             }
+            if (this.tools.get(definition.id) === record) this.tools.delete(definition.id);
+            return undefined;
         });
+    }
+
+    disposeSync(): void {
+        if (this.disposed) return;
+        let exitError: unknown;
+        try {
+            const current = this.active;
+            this.active = null;
+            if (current) {
+                const result = current.definition.exit('host-dispose', current.context);
+                if (isPromiseLike(result)) {
+                    void Promise.resolve(result).catch((error: unknown) => {
+                        reportErrorSafely(this.options.errorSink, error);
+                    });
+                    throw new ToolTransitionError(
+                        current.definition.id,
+                        'returned a Promise during synchronous host disposal',
+                        current.ownerPluginId,
+                    );
+                }
+            }
+        } catch (error) {
+            exitError = error;
+        } finally {
+            this.active = null;
+            this.tools.clear();
+            this.disposed = true;
+        }
+        if (exitError) throw exitError;
     }
 
     async enter(toolId: ToolId, requesterPluginId?: string): Promise<void> {

@@ -1,7 +1,7 @@
 import { assertCapabilityRequirement, } from './capability-token.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import { CommittedEventBus, } from './committed-event-bus.js';
-import { createDisposable } from './disposable.js';
+import { createDisposable, isPromiseLike } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginAggregateError, PluginAlreadyInstalledError, PluginCapabilityError, PluginKernelDisposedError, PluginKernelStateError, PluginLifecycleError, PluginNotInstalledError, PluginSetupError, PluginVersionMismatchError, } from './errors.js';
 import { OperationRegistry } from './operation-registry.js';
 import { isPluginRef } from './plugin-ref.js';
@@ -15,6 +15,7 @@ function isPluginApi(value) {
 }
 export class PluginManager {
     constructor(options = {}) {
+        var _a;
         Object.defineProperty(this, "options", {
             enumerable: true,
             configurable: true,
@@ -84,6 +85,9 @@ export class PluginManager {
         this.capabilityRegistry = new CapabilityRegistry(options);
         this.toolCoordinator = new ToolCoordinator({ errorSink: options.errorSink });
         this.eventBus = new CommittedEventBus(options);
+        for (const provider of (_a = options.hostCapabilities) !== null && _a !== void 0 ? _a : []) {
+            this.capabilityRegistry.provideHost(provider.token, provider.implementation, provider.providerId);
+        }
     }
     get state() {
         return this.hostState;
@@ -96,6 +100,20 @@ export class PluginManager {
         this.topLevelInstallActive = true;
         try {
             const outcome = await this.performInstall(plugin, 'strict', []);
+            return outcome.api;
+        }
+        finally {
+            this.topLevelInstallActive = false;
+        }
+    }
+    installSync(plugin) {
+        this.assertCanInstall();
+        if (this.topLevelInstallActive) {
+            throw new PluginKernelStateError('start a concurrent plugin installation', this.hostState);
+        }
+        this.topLevelInstallActive = true;
+        try {
+            const outcome = this.performInstallSync(plugin, 'strict', []);
             return outcome.api;
         }
         finally {
@@ -127,6 +145,22 @@ export class PluginManager {
         const record = this.installed.get(refOrId.id);
         return (record === null || record === void 0 ? void 0 : record.refObject) === refOrId;
     }
+    hasOperation(operationId) {
+        return this.operationRegistry.has(operationId);
+    }
+    registerHostOperation(definition) {
+        this.assertCanInstall();
+        return this.operationRegistry.register(definition, '@bensitu/core');
+    }
+    beginOperationForHost(operationId) {
+        if (!this.toolCoordinator.canRunOperation(operationId)) {
+            throw new PluginKernelStateError(`run operation "${operationId}" while the active tool rejects it`, this.hostState);
+        }
+        return this.operationRegistry.beginForHost(operationId);
+    }
+    emitCommitted(eventName, payload) {
+        return this.eventBus.emitCommitted(eventName, payload);
+    }
     async initialize() {
         var _a;
         this.assertUsable('initialize the Plugin Kernel');
@@ -151,6 +185,35 @@ export class PluginManager {
         catch (error) {
             this.hostState = 'disposing';
             const cleanupErrors = await this.cleanupAll();
+            this.hostState = 'disposed';
+            const lifecycleError = error instanceof PluginLifecycleError
+                ? error
+                : new PluginLifecycleError('plugin-kernel', 'init', error);
+            throw new PluginLifecycleError((_a = lifecycleError.pluginId) !== null && _a !== void 0 ? _a : 'plugin-kernel', 'init', lifecycleError.cause, cleanupErrors);
+        }
+    }
+    initializeSync() {
+        var _a;
+        this.assertUsable('initialize the Plugin Kernel');
+        if (this.hostState !== 'created' || this.topLevelInstallActive) {
+            throw new PluginKernelStateError('initialize the Plugin Kernel', this.hostState);
+        }
+        this.hostState = 'initializing';
+        try {
+            for (const pluginId of this.installationOrder) {
+                const record = this.installed.get(pluginId);
+                if (!(record === null || record === void 0 ? void 0 : record.plugin.onInit))
+                    continue;
+                const result = record.plugin.onInit(record.lifecycleContext);
+                if (isPromiseLike(result)) {
+                    throw new PluginLifecycleError(pluginId, 'init', new Error('Synchronous plugin onInit returned a Promise.'));
+                }
+            }
+            this.hostState = 'initialized';
+        }
+        catch (error) {
+            this.hostState = 'disposing';
+            const cleanupErrors = this.cleanupAllSync();
             this.hostState = 'disposed';
             const lifecycleError = error instanceof PluginLifecycleError
                 ? error
@@ -199,6 +262,19 @@ export class PluginManager {
         this.disposePromise = this.performDispose();
         return this.disposePromise;
     }
+    disposeSync() {
+        if (this.hostState === 'disposed')
+            return;
+        if (this.hostState === 'disposing' || this.hostState === 'initializing') {
+            throw new PluginKernelStateError('dispose the Plugin Kernel synchronously', this.hostState);
+        }
+        this.hostState = 'disposing';
+        const errors = this.cleanupAllSync();
+        this.hostState = 'disposed';
+        if (errors.length > 0) {
+            throw new PluginAggregateError('[ImageEditor] Plugin Kernel synchronous disposal completed with cleanup errors.', errors);
+        }
+    }
     async performInstall(plugin, mode, parentStack) {
         this.validatePluginDefinition(plugin);
         const pluginId = plugin.ref.id;
@@ -240,6 +316,57 @@ export class PluginManager {
         }
         catch (error) {
             const cleanupErrors = await scope.rollback();
+            throw new PluginSetupError(pluginId, error, cleanupErrors);
+        }
+    }
+    performInstallSync(plugin, mode, parentStack) {
+        this.validatePluginDefinition(plugin);
+        if (plugin.setupMode !== 'sync') {
+            throw new InvalidPluginDefinitionError(`Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`, plugin.ref.id);
+        }
+        const pluginId = plugin.ref.id;
+        if (parentStack.includes(pluginId)) {
+            throw new InvalidPluginDefinitionError(`Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`, pluginId);
+        }
+        const existing = this.installed.get(pluginId);
+        if (existing) {
+            if (mode === 'strict')
+                throw new PluginAlreadyInstalledError(pluginId);
+            const compatible = existing.plugin.version === plugin.version &&
+                existing.plugin.ref.apiVersion === plugin.ref.apiVersion &&
+                existing.refObject === plugin.ref;
+            if (!compatible) {
+                throw new PluginVersionMismatchError(pluginId, existing.plugin.version, plugin.version, existing.plugin.ref.apiVersion, plugin.ref.apiVersion);
+            }
+            return { api: existing.api };
+        }
+        const { required, optional } = this.resolveCapabilities(plugin);
+        const scope = new RegistrationScope(pluginId, this.options);
+        try {
+            const contexts = this.createContexts(pluginId, scope, required, optional, [
+                ...parentStack,
+                pluginId,
+            ]);
+            const api = plugin.setup(contexts.setup);
+            if (isPromiseLike(api)) {
+                throw new InvalidPluginDefinitionError(`Plugin "${pluginId}" returned a Promise from synchronous setup.`, pluginId);
+            }
+            if (!isPluginApi(api)) {
+                throw new InvalidPluginDefinitionError(`Plugin "${pluginId}" setup must return a non-null object or function API.`, pluginId);
+            }
+            scope.commit();
+            this.installed.set(pluginId, {
+                plugin,
+                refObject: plugin.ref,
+                api,
+                scope,
+                lifecycleContext: contexts.lifecycle,
+            });
+            this.installationOrder.push(pluginId);
+            return { api };
+        }
+        catch (error) {
+            const cleanupErrors = scope.rollbackSync();
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -485,6 +612,61 @@ export class PluginManager {
             }
         }
         return errors;
+    }
+    cleanupAllSync() {
+        const errors = [];
+        const records = [...this.installationOrder]
+            .reverse()
+            .map((pluginId) => this.installed.get(pluginId))
+            .filter((record) => record !== undefined);
+        for (const record of records) {
+            if (!record.plugin.onDispose)
+                continue;
+            try {
+                const result = record.plugin.onDispose(record.lifecycleContext);
+                if (isPromiseLike(result)) {
+                    void Promise.resolve(result).catch((error) => {
+                        reportErrorSafely(this.options.errorSink, error);
+                    });
+                    throw new PluginLifecycleError(record.plugin.ref.id, 'dispose', new Error('Synchronous plugin onDispose returned a Promise.'));
+                }
+            }
+            catch (error) {
+                const lifecycleError = error instanceof PluginLifecycleError
+                    ? error
+                    : new PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
+                errors.push(lifecycleError);
+                reportErrorSafely(this.options.errorSink, lifecycleError);
+            }
+        }
+        for (const record of records) {
+            try {
+                record.scope.disposeSync();
+            }
+            catch (error) {
+                errors.push(error);
+                reportErrorSafely(this.options.errorSink, error);
+            }
+        }
+        this.installed.clear();
+        this.installationOrder.length = 0;
+        const cleanup = [
+            () => this.toolCoordinator.disposeSync(),
+            () => this.operationRegistry.dispose(),
+            () => this.eventBus.dispose(),
+            () => this.capabilityRegistry.dispose(),
+            () => this.stateStore.dispose(),
+        ];
+        for (const dispose of cleanup) {
+            try {
+                dispose();
+            }
+            catch (error) {
+                errors.push(error);
+                reportErrorSafely(this.options.errorSink, error);
+            }
+        }
+        return Object.freeze(errors);
     }
     assertCanInstall() {
         this.assertUsable('install a plugin');

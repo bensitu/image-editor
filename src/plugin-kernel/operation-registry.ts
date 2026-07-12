@@ -105,6 +105,24 @@ export class OperationRegistry implements Disposable {
         return this.activeToken;
     }
 
+    /** @internal Acquires a registered operation on behalf of the Core coordinator. */
+    beginForHost(operationId: OperationId): OperationToken {
+        this.assertActive('begin an operation');
+        const registered = this.operations.get(operationId);
+        if (!registered) {
+            throw new OperationConflictError(
+                `Operation "${operationId}" is not registered.`,
+                '@bensitu/core',
+            );
+        }
+        return this.begin(operationId, registered.ownerPluginId);
+    }
+
+    has(operationId: OperationId): boolean {
+        this.assertActive('inspect an operation');
+        return this.operations.has(operationId);
+    }
+
     get(operationId: OperationId): OperationDefinition | null {
         this.assertActive('inspect an operation');
         return this.operations.get(operationId)?.definition ?? null;

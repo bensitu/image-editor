@@ -8,12 +8,12 @@
  */
 import type * as FabricNS from 'fabric';
 import type { AnnotationObject, ImageExportOptions, LoadImageOptions, MaskObject, ResolvedOptions } from '../core/public-types.js';
-import { type HistoryManager } from '../history/history-manager.js';
+import { type LegacyHistoryPort } from '../history/history-port.js';
 export type OverlayMergeOperation = 'mergeMasks' | 'mergeAnnotations';
 export interface OverlayMergeTransactionContext {
     readonly canvas: FabricNS.Canvas;
     readonly options: ResolvedOptions;
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     readonly containerElement: HTMLElement | null;
     isImageLoaded(): boolean;
     captureSnapshot(): string;

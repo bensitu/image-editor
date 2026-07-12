@@ -42,45 +42,16 @@
  * @module
  */
 
-/**
- * Encapsulates a reversible canvas operation as a paired
- * `execute` / `undo` async closure.
- *
- * Both functions return `Promise<void>` so async Fabric.js operations
- * (`loadFromJSON`, `FabricImage.fromURL`, …) complete before the history
- * manager marks the step as finished and advances its pointer.
- *
- * @example
- * ```ts
- * const cmd = new Command(
- *   async () => {
- *     await canvas.loadFromJSON(afterJson);
- *   },
- *   async () => {
- *     await canvas.loadFromJSON(beforeJson);
- *   },
- * );
- * await historyManager.execute(cmd);
- * ```
- */
-export class Command {
-    /** Performs (or re-performs) the action. */
-    readonly execute: () => Promise<void>;
-    /** Reverts the action. */
-    readonly undo: () => Promise<void>;
+import type { HistoryCommand, LegacyHistoryPort } from './history-port.js';
 
-    constructor(execute: () => Promise<void>, undo: () => Promise<void>) {
-        this.execute = execute;
-        this.undo = undo;
-    }
-}
+export { Command } from './history-port.js';
 
 /**
  * Manages a bounded LIFO stack of {@link Command} objects supporting
  * unlimited undo and redo within the configured history size.
  */
-export class HistoryManager {
-    private history: Command[] = [];
+export class HistoryManager implements LegacyHistoryPort {
+    private history: HistoryCommand[] = [];
     private currentIndex = -1;
     private isProcessing = false;
     private queuedExecuteCount = 0;
@@ -105,7 +76,7 @@ export class HistoryManager {
      * Use {@link push} when the operation has already been performed and
      * should become undoable synchronously.
      */
-    async execute(command: Command): Promise<void> {
+    async execute(command: HistoryCommand): Promise<void> {
         this.queuedExecuteCount += 1;
         const execution = this.executeTail.then(async () => {
             try {
@@ -134,7 +105,7 @@ export class HistoryManager {
      *
      * Throws when an `undo` / `redo` operation is already in flight.
      */
-    push(command: Command): void {
+    push(command: HistoryCommand): void {
         this.pushAndTrim(command);
     }
 
@@ -216,7 +187,10 @@ export class HistoryManager {
      * (overflow past `maxSize`).
      *
      */
-    private pushAndTrim(command: Command, options?: { skipProcessingCheck?: boolean }): void {
+    private pushAndTrim(
+        command: HistoryCommand,
+        options?: { skipProcessingCheck?: boolean },
+    ): void {
         if (!options?.skipProcessingCheck) this.assertCanPush();
 
         // Discard redo history on a new branch.

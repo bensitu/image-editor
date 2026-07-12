@@ -6,11 +6,18 @@
  */
 
 import type { ImageEditorCallbackContext, ImageEditorOperation } from '../core/public-types.js';
-import type { TransformController } from './transform-controller.js';
+
+export interface TransformControllerPort {
+    scaleImage(factor: number): Promise<void>;
+    rotateImage(degrees: number): Promise<void>;
+    flipHorizontal(): Promise<void>;
+    flipVertical(): Promise<void>;
+    resetImageTransform(): Promise<void>;
+}
 
 export interface TransformActionAccess {
     isDisposed(): boolean;
-    getTransformController(): TransformController | null;
+    getTransformController(): TransformControllerPort | null;
     assertCanQueueAnimation(operation: ImageEditorOperation): void;
     buildCallbackContext(
         operation: ImageEditorOperation,
@@ -24,7 +31,7 @@ export interface TransformActionAccess {
     emitBusyChangeIfChanged(context: ImageEditorCallbackContext): void;
 }
 
-type TransformControllerAction = (controller: TransformController) => Promise<void>;
+type TransformControllerAction = (controller: TransformControllerPort) => Promise<void>;
 
 export function scaleImageAction(access: TransformActionAccess, factor: number): Promise<void> {
     if (!Number.isFinite(factor)) return Promise.resolve();

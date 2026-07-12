@@ -93,6 +93,20 @@ export class CapabilityRegistry implements Disposable {
         return registration;
     }
 
+    /** @internal Registers a capability owned by the host rather than an installed plugin. */
+    provideHost(
+        token: CapabilityIdentity,
+        implementation: unknown,
+        providerPluginId = '@bensitu/core',
+    ): Disposable {
+        if (!isCapabilityToken(token)) {
+            throw new InvalidPluginDefinitionError(
+                'Host capability must use createCapabilityToken().',
+            );
+        }
+        return this.provide(token, implementation, providerPluginId);
+    }
+
     /** @internal Used by RegistrationScope to hide provisional providers. */
     providePending<TPort>(
         token: CapabilityToken<TPort>,

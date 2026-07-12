@@ -39,8 +39,9 @@ import type {
     ResolvedTextAnnotationConfig,
 } from '../core/public-types.js';
 import { isBaseImageObject } from '../core/public-types.js';
-import { HistoryManager } from '../history/history-manager.js';
-import type { TransformController } from '../image/transform-controller.js';
+import type { LegacyHistoryPort } from '../history/history-port.js';
+import { DeferredHistoryPort } from '../compatibility/plugin-history-adapter.js';
+import type { TransformControllerPort } from '../image/transform-actions.js';
 import { ViewportCache } from '../image/layout-manager.js';
 import type { CropSession } from '../crop/crop-controller.js';
 import type { MosaicSession } from '../mosaic/mosaic-controller.js';
@@ -89,10 +90,10 @@ export class EditorRuntime {
     annotationCounter = 0;
 
     lastSnapshot: string | null = null;
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     readonly operationGuard = new OperationGuard();
     readonly animQueue = new AnimationQueue();
-    transformController: TransformController | null = null;
+    transformController: TransformControllerPort | null = null;
     readonly viewportCache = new ViewportCache();
 
     cropSession: CropSession | null = null;
@@ -113,7 +114,12 @@ export class EditorRuntime {
     activeStateRestoreOperation: ImageEditorOperation | null = null;
     nextSelectionChangeContext: ImageEditorCallbackContext | null = null;
 
-    constructor(fabricModule: FabricModule, isFabricLoaded: boolean, options: ResolvedOptions) {
+    constructor(
+        fabricModule: FabricModule,
+        isFabricLoaded: boolean,
+        options: ResolvedOptions,
+        historyManager: LegacyHistoryPort = new DeferredHistoryPort(options.maxHistorySize),
+    ) {
         this.fabricModule = fabricModule;
         this.isFabricLoaded = isFabricLoaded;
         this.options = options;
@@ -132,7 +138,7 @@ export class EditorRuntime {
         this.lastCommittedImageFilterConfig = cloneResolvedImageFilterConfig(
             DEFAULT_IMAGE_FILTER_CONFIG,
         );
-        this.historyManager = new HistoryManager(options.maxHistorySize);
+        this.historyManager = historyManager;
         this.lastEmittedHistoryState = {
             canUndo: this.historyManager.canUndo(),
             canRedo: this.historyManager.canRedo(),

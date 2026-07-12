@@ -135,7 +135,7 @@ import type {
     ResolvedOptions,
 } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
-import { Command, type HistoryManager } from '../history/history-manager.js';
+import { Command, type LegacyHistoryPort } from '../history/history-port.js';
 import {
     applyCropHideMaskStyle,
     captureMaskStyleBackup,
@@ -224,7 +224,7 @@ export interface CropControllerContext {
      *  `downsampleQuality` (used as the lossy crop export fallback quality). */
     readonly options: ResolvedOptions;
     /** History manager that records the single crop command on success. */
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
 
     /**
      * Predicate matching `ImageEditor.isImageLoaded`. Returns `true`

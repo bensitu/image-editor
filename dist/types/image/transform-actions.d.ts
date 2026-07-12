@@ -5,10 +5,16 @@
  * busy-state callbacks before calling the transform controller.
  */
 import type { ImageEditorCallbackContext, ImageEditorOperation } from '../core/public-types.js';
-import type { TransformController } from './transform-controller.js';
+export interface TransformControllerPort {
+    scaleImage(factor: number): Promise<void>;
+    rotateImage(degrees: number): Promise<void>;
+    flipHorizontal(): Promise<void>;
+    flipVertical(): Promise<void>;
+    resetImageTransform(): Promise<void>;
+}
 export interface TransformActionAccess {
     isDisposed(): boolean;
-    getTransformController(): TransformController | null;
+    getTransformController(): TransformControllerPort | null;
     assertCanQueueAnimation(operation: ImageEditorOperation): void;
     buildCallbackContext(operation: ImageEditorOperation, isInternalOperation: boolean): ImageEditorCallbackContext;
     enqueueAnimation(body: () => Promise<void>): Promise<void>;

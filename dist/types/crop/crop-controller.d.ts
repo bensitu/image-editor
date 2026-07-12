@@ -117,7 +117,7 @@
  */
 import type * as FabricNS from 'fabric';
 import type { CropAspectRatio, CropHandler, CropModeOptions, CropPrevEvented, FabricModule, ImageMimeType, LoadImageOptions, MaskBackup, ResolvedOptions } from '../core/public-types.js';
-import { type HistoryManager } from '../history/history-manager.js';
+import { type LegacyHistoryPort } from '../history/history-port.js';
 /**
  * Internal state of an open crop session. Built by {@link enterCropMode},
  * consumed and discarded by {@link applyCrop} / {@link cancelCrop}.
@@ -184,7 +184,7 @@ export interface CropControllerContext {
      *  `downsampleQuality` (used as the lossy crop export fallback quality). */
     readonly options: ResolvedOptions;
     /** History manager that records the single crop command on success. */
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     /**
      * Predicate matching `ImageEditor.isImageLoaded`. Returns `true`
      * only when an `originalImage` has been committed and has positive

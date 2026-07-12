@@ -57,6 +57,46 @@ test('PluginManager installs async plugins and provides typed-ref runtime querie
     await manager.dispose();
 });
 
+test('PluginManager synchronous path supports host capabilities and sync lifecycle boundaries', () => {
+    const token = createCapabilityToken('core.example', '1.0.0');
+    const calls = [];
+    const manager = new PluginManager({
+        hostCapabilities: [{ token, implementation: { answer: 42 } }],
+    });
+    const ref = definePluginRef('example.test/sync', '1.0.0');
+    const plugin = {
+        ref,
+        version: '1.0.0',
+        setupMode: 'sync',
+        requires: [{ token, range: '^1.0.0' }],
+        setup: (context) => {
+            calls.push('setup');
+            return { answer: context.capabilities.require(token).answer };
+        },
+        onInit: () => calls.push('init'),
+        onDispose: () => calls.push('dispose'),
+    };
+
+    const api = manager.installSync(plugin);
+    assert.deepEqual(api, { answer: 42 });
+    manager.initializeSync();
+    manager.disposeSync();
+    assert.deepEqual(calls, ['setup', 'init', 'dispose']);
+});
+
+test('synchronous install rejects a Promise setup and rolls registrations back', () => {
+    const manager = new PluginManager();
+    const plugin = {
+        ref: definePluginRef('example.test/invalid-sync', '1.0.0'),
+        version: '1.0.0',
+        setupMode: 'sync',
+        setup: () => Promise.resolve({ invalid: true }),
+    };
+    assert.throws(() => manager.installSync(plugin), PluginSetupError);
+    assert.equal(manager.get(plugin.ref), null);
+    manager.disposeSync();
+});
+
 test('direct duplicate installation is strict and install after initialization is rejected', async () => {
     const manager = new PluginManager();
     const plugin = pluginDefinition('example.test/duplicate');

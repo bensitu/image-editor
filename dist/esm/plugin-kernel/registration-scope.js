@@ -1,4 +1,4 @@
-import { createDisposable, disposeInReverse, } from './disposable.js';
+import { createDisposable, disposeInReverse, disposeInReverseSync, } from './disposable.js';
 import { PluginAggregateError, PluginKernelStateError } from './errors.js';
 export class RegistrationScope {
     constructor(pluginId, options = {}) {
@@ -95,6 +95,21 @@ export class RegistrationScope {
         this.state = 'disposed';
         return errors;
     }
+    rollbackSync() {
+        if (this.state === 'disposed')
+            return Object.freeze([]);
+        const errors = [
+            ...disposeInReverseSync(this.entries.map((entry) => entry.disposable), { pluginId: this.pluginId, ...this.options }),
+            ...disposeInReverseSync(this.finalizers, {
+                pluginId: this.pluginId,
+                ...this.options,
+            }),
+        ];
+        this.entries.length = 0;
+        this.finalizers.length = 0;
+        this.state = 'disposed';
+        return Object.freeze(errors);
+    }
     async dispose() {
         if (this.state === 'disposed')
             return;
@@ -110,6 +125,14 @@ export class RegistrationScope {
         this.state = 'disposed';
         if (errors.length > 0) {
             throw new PluginAggregateError(`[ImageEditor] Plugin "${this.pluginId}" cleanup failed.`, errors, { pluginId: this.pluginId });
+        }
+    }
+    disposeSync() {
+        if (this.state === 'disposed')
+            return;
+        const errors = this.rollbackSync();
+        if (errors.length > 0) {
+            throw new PluginAggregateError(`[ImageEditor] Plugin "${this.pluginId}" synchronous cleanup failed.`, errors, { pluginId: this.pluginId });
         }
     }
 }

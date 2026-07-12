@@ -1,4 +1,6 @@
-import { satisfies, valid, validRange } from 'semver';
+import satisfies from 'semver/functions/satisfies.js';
+import valid from 'semver/functions/valid.js';
+import validRange from 'semver/ranges/valid.js';
 
 export function isValidSemVer(version: string): boolean {
     return version.trim() === version && valid(version, { loose: false }) !== null;

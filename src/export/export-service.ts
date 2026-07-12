@@ -108,7 +108,7 @@ import type {
 } from '../core/public-types.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { ExportError, ExportNotReadyError } from '../core/errors.js';
-import type { HistoryManager } from '../history/history-manager.js';
+import type { LegacyHistoryPort } from '../history/history-port.js';
 import { withMaskStyleBackup } from '../mask/mask-style.js';
 import {
     getClampedCanvasRegion,
@@ -1274,7 +1274,7 @@ function safeRevokeObjectUrl(objectUrl: string): void {
  */
 export interface MergeMasksContext extends ExportServiceContext, OverlayMergeTransactionContext {
     /** History manager that records the single merge command. */
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     /**
      * Scrollable container wrapping the canvas, or `null`. Read at the
      * head of `mergeMasks` so the success path can restore the captured
@@ -1311,7 +1311,7 @@ export interface MergeMasksContext extends ExportServiceContext, OverlayMergeTra
 
 export interface MergeAnnotationsContext
     extends ExportServiceContext, OverlayMergeTransactionContext {
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     readonly containerElement: HTMLElement | null;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     captureSnapshot(): string;

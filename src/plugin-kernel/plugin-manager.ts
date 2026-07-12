@@ -1,5 +1,6 @@
 import {
     assertCapabilityRequirement,
+    type CapabilityIdentity,
     type CapabilityRequirementIdentity,
     type CapabilityToken,
 } from './capability-token.js';
@@ -9,7 +10,7 @@ import {
     type CommittedEventListener,
     type PluginEventMap,
 } from './committed-event-bus.js';
-import { createDisposable, type Disposable } from './disposable.js';
+import { createDisposable, isPromiseLike, type Disposable } from './disposable.js';
 import {
     InvalidPluginDefinitionError,
     PluginAggregateError,
@@ -37,6 +38,7 @@ import type {
     PluginSetupContext,
     PluginToolAccess,
     PluginToolSetupAccess,
+    SynchronousEditorPlugin,
 } from './plugin-types.js';
 import { RegistrationScope } from './registration-scope.js';
 import { reportErrorSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
@@ -48,6 +50,13 @@ export type PluginHostState = 'created' | 'initializing' | 'initialized' | 'disp
 export interface PluginManagerOptions {
     readonly warningSink?: PluginWarningSink;
     readonly errorSink?: PluginErrorSink;
+    readonly hostCapabilities?: readonly PluginHostCapabilityProvider[];
+}
+
+export interface PluginHostCapabilityProvider {
+    readonly token: CapabilityIdentity;
+    readonly implementation: unknown;
+    readonly providerId?: string;
 }
 
 interface InstalledPluginRecord<TEvents extends object> {
@@ -87,6 +96,13 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         this.capabilityRegistry = new CapabilityRegistry(options);
         this.toolCoordinator = new ToolCoordinator({ errorSink: options.errorSink });
         this.eventBus = new CommittedEventBus<TEvents>(options);
+        for (const provider of options.hostCapabilities ?? []) {
+            this.capabilityRegistry.provideHost(
+                provider.token,
+                provider.implementation,
+                provider.providerId,
+            );
+        }
     }
 
     get state(): PluginHostState {
@@ -105,6 +121,23 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         try {
             const outcome = await this.performInstall(plugin, 'strict', []);
             // The installed API was produced by the same typed plugin argument.
+            return outcome.api as TApi;
+        } finally {
+            this.topLevelInstallActive = false;
+        }
+    }
+
+    installSync<TApi>(plugin: SynchronousEditorPlugin<TApi, TEvents>): TApi {
+        this.assertCanInstall();
+        if (this.topLevelInstallActive) {
+            throw new PluginKernelStateError(
+                'start a concurrent plugin installation',
+                this.hostState,
+            );
+        }
+        this.topLevelInstallActive = true;
+        try {
+            const outcome = this.performInstallSync(plugin, 'strict', []);
             return outcome.api as TApi;
         } finally {
             this.topLevelInstallActive = false;
@@ -137,6 +170,33 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         return record?.refObject === refOrId;
     }
 
+    /** @internal Used by Core coordinators after a Feature registered its operation. */
+    hasOperation(operationId: string): boolean {
+        return this.operationRegistry.has(operationId);
+    }
+
+    /** @internal Registers host-owned Core operations before initialization. */
+    registerHostOperation(definition: OperationDefinition): Disposable {
+        this.assertCanInstall();
+        return this.operationRegistry.register(definition, '@bensitu/core');
+    }
+
+    /** @internal Used by Core coordinators to acquire a Feature-owned operation. */
+    beginOperationForHost(operationId: string) {
+        if (!this.toolCoordinator.canRunOperation(operationId)) {
+            throw new PluginKernelStateError(
+                `run operation "${operationId}" while the active tool rejects it`,
+                this.hostState,
+            );
+        }
+        return this.operationRegistry.beginForHost(operationId);
+    }
+
+    /** @internal Used by Core services for committed observation. */
+    emitCommitted<TKey extends keyof TEvents & string>(eventName: TKey, payload: TEvents[TKey]) {
+        return this.eventBus.emitCommitted(eventName, payload);
+    }
+
     async initialize(): Promise<void> {
         this.assertUsable('initialize the Plugin Kernel');
         if (this.hostState !== 'created' || this.topLevelInstallActive) {
@@ -157,6 +217,43 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         } catch (error) {
             this.hostState = 'disposing';
             const cleanupErrors = await this.cleanupAll();
+            this.hostState = 'disposed';
+            const lifecycleError =
+                error instanceof PluginLifecycleError
+                    ? error
+                    : new PluginLifecycleError('plugin-kernel', 'init', error);
+            throw new PluginLifecycleError(
+                lifecycleError.pluginId ?? 'plugin-kernel',
+                'init',
+                lifecycleError.cause,
+                cleanupErrors,
+            );
+        }
+    }
+
+    initializeSync(): void {
+        this.assertUsable('initialize the Plugin Kernel');
+        if (this.hostState !== 'created' || this.topLevelInstallActive) {
+            throw new PluginKernelStateError('initialize the Plugin Kernel', this.hostState);
+        }
+        this.hostState = 'initializing';
+        try {
+            for (const pluginId of this.installationOrder) {
+                const record = this.installed.get(pluginId);
+                if (!record?.plugin.onInit) continue;
+                const result = record.plugin.onInit(record.lifecycleContext);
+                if (isPromiseLike(result)) {
+                    throw new PluginLifecycleError(
+                        pluginId,
+                        'init',
+                        new Error('Synchronous plugin onInit returned a Promise.'),
+                    );
+                }
+            }
+            this.hostState = 'initialized';
+        } catch (error) {
+            this.hostState = 'disposing';
+            const cleanupErrors = this.cleanupAllSync();
             this.hostState = 'disposed';
             const lifecycleError =
                 error instanceof PluginLifecycleError
@@ -208,6 +305,25 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         this.hostState = 'disposing';
         this.disposePromise = this.performDispose();
         return this.disposePromise;
+    }
+
+    disposeSync(): void {
+        if (this.hostState === 'disposed') return;
+        if (this.hostState === 'disposing' || this.hostState === 'initializing') {
+            throw new PluginKernelStateError(
+                'dispose the Plugin Kernel synchronously',
+                this.hostState,
+            );
+        }
+        this.hostState = 'disposing';
+        const errors = this.cleanupAllSync();
+        this.hostState = 'disposed';
+        if (errors.length > 0) {
+            throw new PluginAggregateError(
+                '[ImageEditor] Plugin Kernel synchronous disposal completed with cleanup errors.',
+                errors,
+            );
+        }
     }
 
     private async performInstall(
@@ -269,6 +385,79 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             return { api };
         } catch (error) {
             const cleanupErrors = await scope.rollback();
+            throw new PluginSetupError(pluginId, error, cleanupErrors);
+        }
+    }
+
+    private performInstallSync<TApi>(
+        plugin: SynchronousEditorPlugin<TApi, TEvents>,
+        mode: 'strict' | 'ensure',
+        parentStack: readonly string[],
+    ): InstallOutcome {
+        this.validatePluginDefinition(plugin);
+        if (plugin.setupMode !== 'sync') {
+            throw new InvalidPluginDefinitionError(
+                `Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`,
+                plugin.ref.id,
+            );
+        }
+        const pluginId = plugin.ref.id;
+        if (parentStack.includes(pluginId)) {
+            throw new InvalidPluginDefinitionError(
+                `Plugin dependency cycle detected: ${[...parentStack, pluginId].join(' -> ')}.`,
+                pluginId,
+            );
+        }
+        const existing = this.installed.get(pluginId);
+        if (existing) {
+            if (mode === 'strict') throw new PluginAlreadyInstalledError(pluginId);
+            const compatible =
+                existing.plugin.version === plugin.version &&
+                existing.plugin.ref.apiVersion === plugin.ref.apiVersion &&
+                existing.refObject === plugin.ref;
+            if (!compatible) {
+                throw new PluginVersionMismatchError(
+                    pluginId,
+                    existing.plugin.version,
+                    plugin.version,
+                    existing.plugin.ref.apiVersion,
+                    plugin.ref.apiVersion,
+                );
+            }
+            return { api: existing.api };
+        }
+        const { required, optional } = this.resolveCapabilities(plugin);
+        const scope = new RegistrationScope(pluginId, this.options);
+        try {
+            const contexts = this.createContexts(pluginId, scope, required, optional, [
+                ...parentStack,
+                pluginId,
+            ]);
+            const api = plugin.setup(contexts.setup);
+            if (isPromiseLike(api)) {
+                throw new InvalidPluginDefinitionError(
+                    `Plugin "${pluginId}" returned a Promise from synchronous setup.`,
+                    pluginId,
+                );
+            }
+            if (!isPluginApi(api)) {
+                throw new InvalidPluginDefinitionError(
+                    `Plugin "${pluginId}" setup must return a non-null object or function API.`,
+                    pluginId,
+                );
+            }
+            scope.commit();
+            this.installed.set(pluginId, {
+                plugin,
+                refObject: plugin.ref,
+                api,
+                scope,
+                lifecycleContext: contexts.lifecycle,
+            });
+            this.installationOrder.push(pluginId);
+            return { api };
+        } catch (error) {
+            const cleanupErrors = scope.rollbackSync();
             throw new PluginSetupError(pluginId, error, cleanupErrors);
         }
     }
@@ -583,6 +772,64 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             }
         }
         return errors;
+    }
+
+    private cleanupAllSync(): readonly unknown[] {
+        const errors: unknown[] = [];
+        const records = [...this.installationOrder]
+            .reverse()
+            .map((pluginId) => this.installed.get(pluginId))
+            .filter((record): record is InstalledPluginRecord<TEvents> => record !== undefined);
+
+        for (const record of records) {
+            if (!record.plugin.onDispose) continue;
+            try {
+                const result = record.plugin.onDispose(record.lifecycleContext);
+                if (isPromiseLike(result)) {
+                    void Promise.resolve(result).catch((error: unknown) => {
+                        reportErrorSafely(this.options.errorSink, error);
+                    });
+                    throw new PluginLifecycleError(
+                        record.plugin.ref.id,
+                        'dispose',
+                        new Error('Synchronous plugin onDispose returned a Promise.'),
+                    );
+                }
+            } catch (error) {
+                const lifecycleError =
+                    error instanceof PluginLifecycleError
+                        ? error
+                        : new PluginLifecycleError(record.plugin.ref.id, 'dispose', error);
+                errors.push(lifecycleError);
+                reportErrorSafely(this.options.errorSink, lifecycleError);
+            }
+        }
+        for (const record of records) {
+            try {
+                record.scope.disposeSync();
+            } catch (error) {
+                errors.push(error);
+                reportErrorSafely(this.options.errorSink, error);
+            }
+        }
+        this.installed.clear();
+        this.installationOrder.length = 0;
+        const cleanup = [
+            () => this.toolCoordinator.disposeSync(),
+            () => this.operationRegistry.dispose(),
+            () => this.eventBus.dispose(),
+            () => this.capabilityRegistry.dispose(),
+            () => this.stateStore.dispose(),
+        ];
+        for (const dispose of cleanup) {
+            try {
+                dispose();
+            } catch (error) {
+                errors.push(error);
+                reportErrorSafely(this.options.errorSink, error);
+            }
+        }
+        return Object.freeze(errors);
     }
 
     private assertCanInstall(): void {

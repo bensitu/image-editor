@@ -31,6 +31,8 @@ export {
     createDisposable,
     createNoopDisposable,
     disposeInReverse,
+    disposeInReverseSync,
+    isPromiseLike,
     type CommitAwareDisposable,
     type Disposable,
     type DisposeInReverseOptions,
@@ -67,6 +69,7 @@ export {
 export {
     PluginManager,
     type PluginHostState,
+    type PluginHostCapabilityProvider,
     type PluginManagerOptions,
 } from './plugin-manager.js';
 export { definePluginRef, isPluginRef, type PluginIdentity, type PluginRef } from './plugin-ref.js';
@@ -84,6 +87,7 @@ export type {
     PluginSetupContext,
     PluginToolAccess,
     PluginToolSetupAccess,
+    SynchronousEditorPlugin,
 } from './plugin-types.js';
 export { RegistrationScope, type RegistrationScopeOptions } from './registration-scope.js';
 export type { PluginErrorSink, PluginKernelWarning, PluginWarningSink } from './reporting.js';

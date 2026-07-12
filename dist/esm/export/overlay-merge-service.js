@@ -1,7 +1,7 @@
 import { MergeAnnotationsError, MergeMasksError } from '../core/errors.js';
 import { normalizeLayerOrder } from '../core/layer-order.js';
 import { reportWarning } from '../core/callback-reporter.js';
-import { Command } from '../history/history-manager.js';
+import { Command } from '../history/history-port.js';
 function createMergeError(operation, error) {
     if (operation === 'mergeAnnotations') {
         if (error instanceof MergeAnnotationsError)

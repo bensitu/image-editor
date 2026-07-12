@@ -4,7 +4,7 @@ import { isAnnotationObject, isMaskObject, } from '../core/public-types.js';
 import { applyMaskUnselectedStyle, reattachMaskHoverHandlers } from '../mask/mask-style.js';
 import { syncAnnotationRuntimeStates } from '../annotation/annotation-style.js';
 import { attachTextEditingHandlersToAnnotations, } from '../annotation/text-controller.js';
-import { Command } from './history-manager.js';
+import { Command } from './history-port.js';
 export const TRUSTED_STATE_RESTORE = Symbol('ImageEditorTrustedStateRestore');
 export async function loadFromStateAction(access, jsonString, options) {
     var _a, _b, _c, _d;

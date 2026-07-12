@@ -1,7 +1,7 @@
 import { reportError, reportWarning } from '../core/callback-reporter.js';
 import { markBaseImageObject, markSessionObject } from '../core/editor-object-kind.js';
 import { mimeTypeFor, tryNormalizeImageFormat } from '../export/export-format.js';
-import { Command } from '../history/history-manager.js';
+import { Command } from '../history/history-port.js';
 import { getFilteredBaseImageDataUrl } from '../image/image-filters.js';
 import { detectSourceMimeType } from '../image/image-resampler.js';
 import { getPointerFromFabricEvent } from '../utils/pointer.js';

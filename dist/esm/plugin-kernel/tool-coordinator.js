@@ -1,4 +1,4 @@
-import { createDisposable } from './disposable.js';
+import { createDisposable, isPromiseLike, } from './disposable.js';
 import { PluginKernelDisposedError, ToolRegistrationError, ToolTransitionError } from './errors.js';
 import { reportErrorSafely } from './reporting.js';
 export class ToolCoordinator {
@@ -49,16 +49,45 @@ export class ToolCoordinator {
             context: Object.freeze({ toolId: definition.id, ownerPluginId }),
         };
         this.tools.set(definition.id, record);
-        return createDisposable(async () => {
-            try {
-                if (this.active === record)
-                    await this.exitCurrent('plugin-dispose');
+        return createDisposable(() => {
+            if (this.active === record) {
+                return this.exitCurrent('plugin-dispose').finally(() => {
+                    if (this.tools.get(definition.id) === record)
+                        this.tools.delete(definition.id);
+                });
             }
-            finally {
-                if (this.tools.get(definition.id) === record)
-                    this.tools.delete(definition.id);
-            }
+            if (this.tools.get(definition.id) === record)
+                this.tools.delete(definition.id);
+            return undefined;
         });
+    }
+    disposeSync() {
+        if (this.disposed)
+            return;
+        let exitError;
+        try {
+            const current = this.active;
+            this.active = null;
+            if (current) {
+                const result = current.definition.exit('host-dispose', current.context);
+                if (isPromiseLike(result)) {
+                    void Promise.resolve(result).catch((error) => {
+                        reportErrorSafely(this.options.errorSink, error);
+                    });
+                    throw new ToolTransitionError(current.definition.id, 'returned a Promise during synchronous host disposal', current.ownerPluginId);
+                }
+            }
+        }
+        catch (error) {
+            exitError = error;
+        }
+        finally {
+            this.active = null;
+            this.tools.clear();
+            this.disposed = true;
+        }
+        if (exitError)
+            throw exitError;
     }
     async enter(toolId, requesterPluginId) {
         this.assertActive('enter a tool');

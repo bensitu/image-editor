@@ -184,6 +184,11 @@ test('mixed overlay order round-trips and import is undoable as one step', async
         assert.equal(target.getMasks().length, 2);
         assert.equal(target.getAnnotations().length, 2);
         assert.deepEqual(overlayPersistentIds(target), expectedOrder);
+
+        const previousMaxMaskId = Math.max(...target.getMasks().map((mask) => mask.maskId));
+        const maskAfterImport = target.createMask({ shape: 'rect', width: 8, height: 8 });
+        assert.equal(maskAfterImport.maskId, previousMaxMaskId + 1);
+        assert.equal(target.getMasks().length, 3);
     } finally {
         disposeEditor(source);
         disposeEditor(target);

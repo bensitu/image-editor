@@ -4,5 +4,9 @@
         "noEmit": true,
         "rootDir": "../.."
     },
-    "include": ["plugin-kernel.test.ts", "../../src/plugin-kernel/**/*.ts"]
+    "include": [
+        "plugin-kernel.test.ts",
+        "core-plugin-api.test.ts",
+        "../../src/plugin-kernel/**/*.ts"
+    ]
 }

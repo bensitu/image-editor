@@ -6,6 +6,8 @@ export interface Disposable {
 export interface CommitAwareDisposable extends Disposable {
     commit(): void;
 }
+export declare function isPromiseLike(value: unknown): value is PromiseLike<void>;
+export declare function disposeInReverseSync(disposables: readonly Disposable[], options?: DisposeInReverseOptions): readonly unknown[];
 export declare function createDisposable(cleanup: () => MaybePromise<void>): Disposable;
 export declare function createNoopDisposable(): Disposable;
 export interface DisposeInReverseOptions {

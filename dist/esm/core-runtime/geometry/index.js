@@ -1,0 +1,3 @@
+export { AFFINE_EPSILON, IDENTITY_AFFINE_MATRIX, affineDeterminant, applyAffineToPoint, approximatelyEqualAffine, assertAffineMatrix, computeAffineDelta, hasAffineReflection, invertAffine, isFiniteAffineMatrix, multiplyAffine, sanitizeAffineMatrix, transformRectBounds, } from './affine-matrix.js';
+export { GeometryMutationCoordinator, } from './geometry-mutation-coordinator.js';
+//# sourceMappingURL=index.js.map

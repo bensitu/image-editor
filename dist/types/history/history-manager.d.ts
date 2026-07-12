@@ -41,39 +41,13 @@
  *
  * @module
  */
-/**
- * Encapsulates a reversible canvas operation as a paired
- * `execute` / `undo` async closure.
- *
- * Both functions return `Promise<void>` so async Fabric.js operations
- * (`loadFromJSON`, `FabricImage.fromURL`, …) complete before the history
- * manager marks the step as finished and advances its pointer.
- *
- * @example
- * ```ts
- * const cmd = new Command(
- *   async () => {
- *     await canvas.loadFromJSON(afterJson);
- *   },
- *   async () => {
- *     await canvas.loadFromJSON(beforeJson);
- *   },
- * );
- * await historyManager.execute(cmd);
- * ```
- */
-export declare class Command {
-    /** Performs (or re-performs) the action. */
-    readonly execute: () => Promise<void>;
-    /** Reverts the action. */
-    readonly undo: () => Promise<void>;
-    constructor(execute: () => Promise<void>, undo: () => Promise<void>);
-}
+import type { HistoryCommand, LegacyHistoryPort } from './history-port.js';
+export { Command } from './history-port.js';
 /**
  * Manages a bounded LIFO stack of {@link Command} objects supporting
  * unlimited undo and redo within the configured history size.
  */
-export declare class HistoryManager {
+export declare class HistoryManager implements LegacyHistoryPort {
     private history;
     private currentIndex;
     private isProcessing;
@@ -93,7 +67,7 @@ export declare class HistoryManager {
      * Use {@link push} when the operation has already been performed and
      * should become undoable synchronously.
      */
-    execute(command: Command): Promise<void>;
+    execute(command: HistoryCommand): Promise<void>;
     /**
      * Pushes a command onto the history stack **without** calling
      * `execute`. Use this when the operation has already been performed
@@ -101,7 +75,7 @@ export declare class HistoryManager {
      *
      * Throws when an `undo` / `redo` operation is already in flight.
      */
-    push(command: Command): void;
+    push(command: HistoryCommand): void;
     /** Drops all retained commands and resets undo/redo availability. */
     clear(): void;
     /** Returns `true` if there is at least one action to undo. */

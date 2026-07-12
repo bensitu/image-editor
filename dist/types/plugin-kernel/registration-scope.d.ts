@@ -20,5 +20,7 @@ export declare class RegistrationScope implements Disposable {
     addCleanup(cleanup: () => void | Promise<void>): Disposable;
     commit(): void;
     rollback(): Promise<readonly unknown[]>;
+    rollbackSync(): readonly unknown[];
     dispose(): Promise<void>;
+    disposeSync(): void;
 }

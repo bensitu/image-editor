@@ -93,3 +93,14 @@ export interface EditorPlugin<
     readonly ref: PluginRef<TApi>;
     setup(context: PluginSetupContext<TEvents>): MaybePromise<TApi>;
 }
+
+/** A plugin whose setup/init/dispose hooks are safe for the compatibility facade's sync boundary. */
+export interface SynchronousEditorPlugin<
+    TApi = unknown,
+    TEvents extends object = PluginEventMap,
+> extends EditorPlugin<TApi, TEvents> {
+    readonly setupMode: 'sync';
+    setup(context: PluginSetupContext<TEvents>): TApi;
+    onInit?(context: PluginLifecycleContext<TEvents>): void;
+    onDispose?(context: PluginLifecycleContext<TEvents>): void;
+}

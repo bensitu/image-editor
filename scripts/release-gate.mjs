@@ -24,6 +24,18 @@ const requiredArtifacts = [
     'dist/types/index.d.cts',
     'dist/types/image-editor.d.ts',
     'dist/types/core/public-types.d.ts',
+    'dist/esm/core/index.js',
+    'dist/cjs/core/index.cjs',
+    'dist/types/core/index.d.ts',
+    'dist/types/core/index.d.cts',
+    'dist/esm/foundations/overlay/index.js',
+    'dist/cjs/foundations/overlay/index.cjs',
+    'dist/esm/plugins/transform/index.js',
+    'dist/cjs/plugins/transform/index.cjs',
+    'dist/esm/plugins/mask/index.js',
+    'dist/cjs/plugins/mask/index.cjs',
+    'dist/esm/plugins/history/index.js',
+    'dist/cjs/plugins/history/index.cjs',
 ];
 
 const expectedDeclarationSymbols = [
@@ -145,8 +157,6 @@ async function checkPackageMetadata() {
         addFailure(`package.json: unable to parse JSON (${error.message}).`);
         return;
     }
-    const rootExport = packageJson.exports?.['.'];
-
     await assertPackagePathExists('main', packageJson.main);
     await assertPackagePathExists('module', packageJson.module);
     await assertPackagePathExists('types', packageJson.types);
@@ -157,20 +167,24 @@ async function checkPackageMetadata() {
         await assertPackagePathExists('jsdelivr', packageJson.jsdelivr);
     }
 
-    if (rootExport?.import?.default !== undefined) {
-        await assertPackagePathExists('exports["."].import.default', rootExport.import.default);
-    }
-    if (rootExport?.import?.types !== undefined) {
-        await assertPackagePathExists('exports["."].import.types', rootExport.import.types);
-    }
-    if (rootExport?.require?.default !== undefined) {
-        await assertPackagePathExists('exports["."].require.default', rootExport.require.default);
-    }
-    if (rootExport?.require?.types !== undefined) {
-        await assertPackagePathExists('exports["."].require.types', rootExport.require.types);
-    }
-    if (rootExport?.default !== undefined) {
-        await assertPackagePathExists('exports["."].default', rootExport.default);
+    for (const [subpath, definition] of Object.entries(packageJson.exports ?? {})) {
+        for (const condition of ['import', 'require']) {
+            if (definition?.[condition]?.default !== undefined) {
+                await assertPackagePathExists(
+                    `exports["${subpath}"].${condition}.default`,
+                    definition[condition].default,
+                );
+            }
+            if (definition?.[condition]?.types !== undefined) {
+                await assertPackagePathExists(
+                    `exports["${subpath}"].${condition}.types`,
+                    definition[condition].types,
+                );
+            }
+        }
+        if (definition?.default !== undefined) {
+            await assertPackagePathExists(`exports["${subpath}"].default`, definition.default);
+        }
     }
 }
 

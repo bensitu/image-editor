@@ -17,6 +17,7 @@ export declare class OperationRegistry implements Disposable {
     private disposed;
     register(definition: OperationDefinition, ownerPluginId: string): Disposable;
     begin(operationId: OperationId, ownerPluginId: string): OperationToken;
+    has(operationId: OperationId): boolean;
     get(operationId: OperationId): OperationDefinition | null;
     isActive(operationId?: OperationId): boolean;
     dispose(): void;

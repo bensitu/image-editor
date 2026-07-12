@@ -9,7 +9,7 @@
  */
 import type * as FabricNS from 'fabric';
 import type { BaseImageObject, FabricModule, ImageEditorCallbackContext, ImageEditorOperation, ImageMimeType, ResolvedMosaicConfig, ResolvedOptions, ResolvedImageFilterConfig } from '../core/public-types.js';
-import { type HistoryManager } from '../history/history-manager.js';
+import { type LegacyHistoryPort } from '../history/history-port.js';
 import { type MosaicImagePoint } from './mosaic-geometry.js';
 interface MosaicPreviewCircle extends FabricNS.Circle {
     isMosaicPreview?: boolean;
@@ -46,7 +46,7 @@ export interface MosaicControllerContext {
     readonly fabric: FabricModule;
     readonly canvas: FabricNS.Canvas;
     readonly options: ResolvedOptions;
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     getMosaicConfig(): ResolvedMosaicConfig;
     isImageLoaded(): boolean;
     getOriginalImage(): BaseImageObject | null;

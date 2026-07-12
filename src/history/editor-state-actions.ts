@@ -31,7 +31,7 @@ import {
     attachTextEditingHandlersToAnnotations,
     type TextControllerContext,
 } from '../annotation/text-controller.js';
-import { Command, type HistoryManager } from './history-manager.js';
+import { Command, type LegacyHistoryPort } from './history-port.js';
 
 export const TRUSTED_STATE_RESTORE = Symbol('ImageEditorTrustedStateRestore');
 
@@ -94,7 +94,7 @@ export interface EditorStateActionAccess {
     getCurrentRotation(): number;
     getBaseImageScale(): number;
     getCurrentImageMimeType(): ImageMimeType | null;
-    getHistoryManager(): HistoryManager;
+    getHistoryManager(): LegacyHistoryPort;
     withAnimationQueueBypass(): object;
     showLabelForMask(mask: MaskObject): void;
     updateMaskListSelection(mask: MaskObject): void;

@@ -94,7 +94,7 @@
  */
 import type * as FabricNS from 'fabric';
 import type { FabricModule, ImageExportOptions, LoadImageOptions, AnnotationObject, MaskObject, ResolvedOptions } from '../core/public-types.js';
-import type { HistoryManager } from '../history/history-manager.js';
+import type { LegacyHistoryPort } from '../history/history-port.js';
 import { type OverlayMergeTransactionContext } from './overlay-merge-service.js';
 /**
  * Dependency bundle passed by the `ImageEditor` facade into every export
@@ -235,7 +235,7 @@ export declare function downloadImage(context: ExportServiceContext, options?: I
  */
 export interface MergeMasksContext extends ExportServiceContext, OverlayMergeTransactionContext {
     /** History manager that records the single merge command. */
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     /**
      * Scrollable container wrapping the canvas, or `null`. Read at the
      * head of `mergeMasks` so the success path can restore the captured
@@ -267,7 +267,7 @@ export interface MergeMasksContext extends ExportServiceContext, OverlayMergeTra
     restoreAnnotations(objects: AnnotationObject[]): void | Promise<void>;
 }
 export interface MergeAnnotationsContext extends ExportServiceContext, OverlayMergeTransactionContext {
-    readonly historyManager: HistoryManager;
+    readonly historyManager: LegacyHistoryPort;
     readonly containerElement: HTMLElement | null;
     loadImage(imageBase64: string, options?: LoadImageOptions): Promise<void>;
     captureSnapshot(): string;
