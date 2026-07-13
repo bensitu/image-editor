@@ -1,0 +1,3341 @@
+{
+    "schemaVersion": 1,
+    "metadata": {
+        "reviewedAtCommit": "b68f9035aaa927bbdfc3851bbe8226140bdce203",
+        "sourceFingerprint": "3eaac044907efb0180524eb30fb4654d92164f64be22adc56552216bba04247c",
+        "bundleArtifactFingerprint": "a0cf7a1cb311281591fa7da7f8e0d61bc8927d1771d77475993b86470bbf5351",
+        "measuredModuleCount": 151,
+        "completedMigrationStages": [],
+        "note": "rootReachableAfter is a target assertion for the current module. Replacement adapter modules are not included in the gross-removal count."
+    },
+    "entries": [
+        {
+            "id": "bundle-module:1:01113f1f1c",
+            "module": "dist/esm/ui/visibility-state.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/visibility-state.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/visibility-state.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports setPlaceholderVisible as setPlaceholderVisibleImpl from ./ui/visibility-state.js."
+            ],
+            "sourceBytes": 4555
+        },
+        {
+            "id": "bundle-module:1:0aaba25b6b",
+            "module": "dist/esm/export/overlay-merge-service.js",
+            "occurrence": 1,
+            "sourceFile": "src/export/overlay-merge-service.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_EXPORT_WORKSPACE_INTO_CORE",
+            "deletionStage": "R5A",
+            "rationale": "Core must own export readiness and workspace composition without a parallel facade export service.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/export/export-actions.ts",
+                "src/export/export-service.ts",
+                "src/export/overlay-merge-service.ts"
+            ],
+            "symbolUsage": [
+                "src/export/export-service.ts imports flattenOverlayGroupToBaseImage, OverlayMergeTransactionContext from ./overlay-merge-service.js."
+            ],
+            "sourceBytes": 5960
+        },
+        {
+            "id": "bundle-module:1:0acf0f4c7e",
+            "module": "dist/esm/selection/editor-selection-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/selection/editor-selection-controller.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_THIN_FACADE",
+            "deletionStage": "R5G",
+            "rationale": "The current module exists to coordinate EditorRuntime and is removed after composition convergence.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/selection/editor-selection-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports handleObjectModified as handleObjectModifiedImpl, handleObjectMovingScalingRotating as handleObjectMovingScalingRotatingImpl, handleSelectionChanged as handleSelectionChangedImpl from ./selection/editor-selection-controller.js."
+            ],
+            "sourceBytes": 4661
+        },
+        {
+            "id": "bundle-module:1:0b7b204c0a",
+            "module": "dist/esm/annotation/annotation-mode-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/annotation-mode-actions.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/annotation-mode-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports createTextAnnotationAction, enterDrawModeAction, enterTextModeAction, exitDrawModeAction, exitTextModeAction from ./annotation/annotation-mode-actions.js."
+            ],
+            "sourceBytes": 3895
+        },
+        {
+            "id": "bundle-module:1:0c57c58d0a",
+            "module": "dist/esm/core-runtime/geometry/geometry-mutation-coordinator.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/geometry/geometry-mutation-coordinator.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/core-runtime/internal-capabilities.ts",
+                "src/core-runtime/geometry/index.ts",
+                "src/core-runtime/geometry/geometry-mutation-coordinator.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/geometry/index.ts imports GeometryMutationCoordinator, GeometryMutationCoordinatorOptions from ./geometry-mutation-coordinator.js."
+            ],
+            "sourceBytes": 17507
+        },
+        {
+            "id": "bundle-module:1:0e4ac188ac",
+            "module": "dist/esm/core/state-serializer.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/state-serializer.ts",
+            "classification": "DUPLICATE_QUEUE_GUARD_HISTORY_STATE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_NARROW_COMPATIBILITY_ADAPTER",
+            "deletionStage": "R2",
+            "rationale": "The current broad legacy helper is replaced by an authoritative Core service or a narrow facade adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/state-serializer.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports CanvasJson from ./core/state-serializer.js."
+            ],
+            "sourceBytes": 59896
+        },
+        {
+            "id": "bundle-module:1:160134811a",
+            "module": "dist/esm/image/image-input-budget.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/image-input-budget.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-input-budget.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports assertImageDataUrlInputBudget from ./image/image-input-budget.js."
+            ],
+            "sourceBytes": 10457
+        },
+        {
+            "id": "bundle-module:1:1610a1ef83",
+            "module": "dist/esm/overlay/overlay-color.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-color.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_OVERLAY_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve feature-neutral overlay value and coordinate algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-exporter.ts",
+                "src/overlay/overlay-color.ts"
+            ],
+            "symbolUsage": [
+                "src/overlay/overlay-state-exporter.ts imports normalizeOverlayColor from ./overlay-color.js."
+            ],
+            "sourceBytes": 3121
+        },
+        {
+            "id": "bundle-module:1:17dc0a62ab",
+            "module": "dist/esm/core-runtime/errors.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/errors.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/image-editor-core.ts",
+                "src/core-runtime/errors.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/image-editor-core.ts imports CoreRuntimeError, SnapshotValidationError from ./errors.js."
+            ],
+            "sourceBytes": 3551
+        },
+        {
+            "id": "bundle-module:1:189b586cb5",
+            "module": "dist/esm/image/transform-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/transform-actions.ts",
+            "classification": "DUPLICATE_QUEUE_GUARD_HISTORY_STATE",
+            "rootReachableAfter": false,
+            "targetAction": "ROUTE_TO_TRANSFORM_PLUGIN",
+            "deletionStage": "R3",
+            "rationale": "The Transform Plugin replaces the legacy Transform action port.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/transform-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports flipHorizontalAction, flipVerticalAction, resetImageTransformAction, rotateImageAction, scaleImageAction from ./image/transform-actions.js."
+            ],
+            "sourceBytes": 3731
+        },
+        {
+            "id": "bundle-module:1:19dd93b47b",
+            "module": "dist/esm/history/history-port.js",
+            "occurrence": 1,
+            "sourceFile": "src/history/history-port.ts",
+            "classification": "DUPLICATE_QUEUE_GUARD_HISTORY_STATE",
+            "rootReachableAfter": false,
+            "targetAction": "ROUTE_DIRECTLY_TO_HISTORY_PLUGIN",
+            "deletionStage": "R4",
+            "rationale": "Legacy history ports and state actions disappear after the History Plugin becomes the only stack owner.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/history/history-port.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/plugin-history-adapter.ts imports HistoryCommand, LegacyHistoryPort from ../history/history-port.js."
+            ],
+            "sourceBytes": 937
+        },
+        {
+            "id": "bundle-module:1:1aa595c739",
+            "module": "dist/esm/plugins/history/index.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugins/history/index.ts",
+            "classification": "REQUIRED_HISTORY",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_CANONICAL_PLUGIN_PATH",
+            "deletionStage": "RETAIN",
+            "rationale": "The History Plugin owns the single undo/redo stack.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/plugins/history/index.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/plugin-history-adapter.ts imports HistoryAvailability, HistoryPort from ../plugins/history/index.js."
+            ],
+            "sourceBytes": 2669
+        },
+        {
+            "id": "bundle-module:1:1fd538f800",
+            "module": "dist/esm/runtime/editor-operation-runner.js",
+            "occurrence": 1,
+            "sourceFile": "src/runtime/editor-operation-runner.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "REMOVE_AFTER_COMPOSITION_PORTS_REPLACE_RUNTIME",
+            "deletionStage": "R2",
+            "rationale": "EditorRuntime and broad context/action factories duplicate Core and keep legacy infrastructure root-reachable.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/crop/crop-actions.ts",
+                "src/runtime/editor-operation-runner.ts"
+            ],
+            "symbolUsage": [
+                "src/crop/crop-actions.ts imports BusyOperationAccess from ../runtime/editor-operation-runner.js."
+            ],
+            "sourceBytes": 1968
+        },
+        {
+            "id": "bundle-module:1:21ac63794b",
+            "module": "node_modules/semver/functions/parse.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/parse.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:26746ed54d",
+            "module": "dist/esm/plugins/transform/index.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugins/transform/index.ts",
+            "classification": "REQUIRED_TRANSFORM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_CANONICAL_PLUGIN_PATH",
+            "deletionStage": "RETAIN",
+            "rationale": "The Transform Plugin owns the single animation queue and transform operations.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/plugins/transform/index.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports TransformPluginApi from ./plugins/transform/index.js."
+            ],
+            "sourceBytes": 5587
+        },
+        {
+            "id": "bundle-module:1:28698ad9d6",
+            "module": "dist/esm/annotation/annotation-config-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/annotation-config-actions.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/annotation-config-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyDrawBrushSizeInputAction, applyDrawColorInputAction, applyDrawConfigPatchAction, applyTextColorInputAction, applyTextConfigPatchAction, applyTextFontSizeInputAction from ./annotation/annotation-config-actions.js."
+            ],
+            "sourceBytes": 5876
+        },
+        {
+            "id": "bundle-module:1:2894ed333e",
+            "module": "dist/esm/core/safe-object-copy.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/safe-object-copy.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/default-options.ts",
+                "src/core/safe-object-copy.ts"
+            ],
+            "symbolUsage": [
+                "src/core/default-options.ts imports canCopySafeObjectKey, copySafeOwnProperties from ./safe-object-copy.js."
+            ],
+            "sourceBytes": 728
+        },
+        {
+            "id": "bundle-module:1:28ef29c732",
+            "module": "dist/esm/utils/image-element-loader.js",
+            "occurrence": 1,
+            "sourceFile": "src/utils/image-element-loader.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-loader.ts",
+                "src/utils/image-element-loader.ts"
+            ],
+            "symbolUsage": [
+                "src/image/image-loader.ts imports startImageElementLoad from ../utils/image-element-loader.js."
+            ],
+            "sourceBytes": 2552
+        },
+        {
+            "id": "bundle-module:1:29c9428149",
+            "module": "dist/esm/plugin-kernel/registration-scope.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/registration-scope.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/registration-scope.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports RegistrationScope, RegistrationScopeOptions from ./registration-scope.js."
+            ],
+            "sourceBytes": 4879
+        },
+        {
+            "id": "bundle-module:1:2ab4d5bb4c",
+            "module": "node_modules/semver/internal/lrucache.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/lrucache.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:2bda5cbdb3",
+            "module": "node_modules/semver/ranges/valid.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/ranges/valid.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:2c0c415ddb",
+            "module": "dist/esm/core/callback-reporter.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/callback-reporter.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_NARROW_COMPATIBILITY_ADAPTER",
+            "deletionStage": "R2",
+            "rationale": "The current broad legacy helper is replaced by an authoritative Core service or a narrow facade adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/callback-reporter.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports reportError, reportWarning from ./core/callback-reporter.js."
+            ],
+            "sourceBytes": 6642
+        },
+        {
+            "id": "bundle-module:1:2c2e852de1",
+            "module": "dist/esm/mask/mask-list.js",
+            "occurrence": 1,
+            "sourceFile": "src/mask/mask-list.ts",
+            "classification": "REQUIRED_MASK",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MASK_PLUGIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Mask behavior remains reachable only through the Mask Plugin API.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/mask/mask-list.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports renderMaskList, updateMaskListSelection, MaskListContext from ./mask/mask-list.js."
+            ],
+            "sourceBytes": 9939
+        },
+        {
+            "id": "bundle-module:1:2c52ba856c",
+            "module": "node_modules/semver/functions/neq.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/neq.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:2d66916626",
+            "module": "dist/esm/plugin-kernel/plugin-state-store.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/plugin-state-store.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/plugin-state-store.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports PluginStateStore, ScopedPluginStateStore from ./plugin-state-store.js."
+            ],
+            "sourceBytes": 4142
+        },
+        {
+            "id": "bundle-module:1:2ded0a6e39",
+            "module": "dist/esm/overlay/editable-object-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/editable-object-actions.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OVERLAY_STATE_ADAPTER",
+            "deletionStage": "R5F",
+            "rationale": "Replace facade-oriented overlay actions and aggregate state modules with the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/editable-object-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports deleteSelectedEditableObjects, moveSelectedEditableObject as moveSelectedEditableObjectImpl, removeAllAnnotationsAction, removeSelectedAnnotationAction, updateAnnotationAction, updateSelectedAnnotationAction from ./overlay/editable-object-actions.js."
+            ],
+            "sourceBytes": 8884
+        },
+        {
+            "id": "bundle-module:1:3007b0e380",
+            "module": "node_modules/semver/internal/identifiers.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/identifiers.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:325835d312",
+            "module": "dist/esm/core/layer-order.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/layer-order.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/text-controller.ts",
+                "src/core/layer-order.ts"
+            ],
+            "symbolUsage": [
+                "src/annotation/text-controller.ts imports placeAnnotationObject from ../core/layer-order.js."
+            ],
+            "sourceBytes": 5192
+        },
+        {
+            "id": "bundle-module:1:350f4e2b89",
+            "module": "dist/esm/mosaic/mosaic-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/mosaic/mosaic-actions.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_MOSAIC_ADAPTER",
+            "deletionStage": "R5D",
+            "rationale": "Consolidate facade-oriented Mosaic action/session ownership into the adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/mosaic/mosaic-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyMosaicConfigPatchAction, enterMosaicModeAction, exitMosaicModeAction, resetMosaicConfigAction from ./mosaic/mosaic-actions.js."
+            ],
+            "sourceBytes": 4944
+        },
+        {
+            "id": "bundle-module:1:3795fa0156",
+            "module": "dist/esm/compatibility/full-composition.js",
+            "occurrence": 1,
+            "sourceFile": "src/compatibility/full-composition.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OWNER_SPECIFIC_ADAPTERS",
+            "deletionStage": "R5F",
+            "rationale": "The aggregate compatibility bridge is temporary and must disappear after owner-specific state and APIs are wired.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-composition.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports createFullCompatibilityComposition, FullCompatibilityComposition from ./compatibility/full-composition.js."
+            ],
+            "sourceBytes": 3684
+        },
+        {
+            "id": "bundle-module:1:3cd17c2541",
+            "module": "dist/esm/plugin-kernel/committed-event-bus.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/committed-event-bus.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/committed-event-bus.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports CommittedEventBus, CommittedEventBusOptions, CommittedEventListener, PluginEventMap from ./committed-event-bus.js."
+            ],
+            "sourceBytes": 3136
+        },
+        {
+            "id": "bundle-module:1:3d37bd2266",
+            "module": "dist/esm/foundations/overlay/overlay-transform-delta.js",
+            "occurrence": 1,
+            "sourceFile": "src/foundations/overlay/overlay-transform-delta.ts",
+            "classification": "REQUIRED_OVERLAY",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Overlay Foundation supplies feature-neutral object kind, serializer, and geometry policies.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-annotation-plugin.ts",
+                "src/foundations/overlay/overlay-transform-delta.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/full-facade-annotation-plugin.ts imports applyDeltaToObject from ../foundations/overlay/overlay-transform-delta.js."
+            ],
+            "sourceBytes": 4854
+        },
+        {
+            "id": "bundle-module:1:408537b792",
+            "module": "dist/esm/image/image-resampler.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/image-resampler.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-resampler.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports detectSourceMimeType from ./image/image-resampler.js."
+            ],
+            "sourceBytes": 10781
+        },
+        {
+            "id": "bundle-module:1:4696fbf3c0",
+            "module": "dist/esm/plugins/mask/index.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugins/mask/index.ts",
+            "classification": "REQUIRED_MASK",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MASK_PLUGIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Mask behavior remains reachable only through the Mask Plugin API.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/plugins/mask/index.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports MaskPluginApi from ./plugins/mask/index.js."
+            ],
+            "sourceBytes": 3104
+        },
+        {
+            "id": "bundle-module:1:46a994242f",
+            "module": "dist/esm/utils/timeout.js",
+            "occurrence": 1,
+            "sourceFile": "src/utils/timeout.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/state-serializer.ts",
+                "src/utils/timeout.ts"
+            ],
+            "symbolUsage": [
+                "src/core/state-serializer.ts imports withTimeout from ../utils/timeout.js."
+            ],
+            "sourceBytes": 4519
+        },
+        {
+            "id": "bundle-module:1:48828a20e4",
+            "module": "dist/esm/compatibility/full-facade-annotation-plugin.js",
+            "occurrence": 1,
+            "sourceFile": "src/compatibility/full-facade-annotation-plugin.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OWNER_SPECIFIC_ADAPTERS",
+            "deletionStage": "R5F",
+            "rationale": "The aggregate compatibility bridge is temporary and must disappear after owner-specific state and APIs are wired.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-annotation-plugin.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports fullFacadeAnnotationPlugin from ./compatibility/full-facade-annotation-plugin.js."
+            ],
+            "sourceBytes": 9669
+        },
+        {
+            "id": "bundle-module:1:4acbd405fe",
+            "module": "dist/esm/core/errors.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/errors.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/errors.ts"
+            ],
+            "symbolUsage": ["src/image-editor.ts imports IdleGuardError from ./core/errors.js."],
+            "sourceBytes": 11599
+        },
+        {
+            "id": "bundle-module:1:4b17fccd74",
+            "module": "dist/esm/core/default-options.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/default-options.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_NARROW_COMPATIBILITY_ADAPTER",
+            "deletionStage": "R2",
+            "rationale": "The current broad legacy helper is replaced by an authoritative Core service or a narrow facade adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/default-options.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports cloneResolvedMosaicConfig, cloneResolvedDrawConfig, cloneResolvedEraserConfig, cloneResolvedShapeAnnotationConfig, areResolvedEraserConfigsEqual, cloneResolvedTextAnnotationConfig, areResolvedShapeAnnotationConfigsEqual, getInvalidEraserConfigFields, getInvalidShapeAnnotationConfigFields, isLayoutMode, mergeEraserConfigPatch, mergeShapeAnnotationConfigPatch, resolveOptions from ./core/default-options.js."
+            ],
+            "sourceBytes": 65153
+        },
+        {
+            "id": "bundle-module:1:4b1da92ed4",
+            "module": "dist/esm/mosaic/mosaic-geometry.js",
+            "occurrence": 1,
+            "sourceFile": "src/mosaic/mosaic-geometry.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MOSAIC_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve deterministic Mosaic pixel and geometry algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/mosaic/mosaic-controller.ts",
+                "src/mosaic/mosaic-geometry.ts"
+            ],
+            "symbolUsage": [
+                "src/mosaic/mosaic-controller.ts imports getMosaicImagePoint, MosaicImagePoint from ./mosaic-geometry.js."
+            ],
+            "sourceBytes": 4195
+        },
+        {
+            "id": "bundle-module:1:4c8d307d08",
+            "module": "dist/esm/core/operation-guard.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/operation-guard.ts",
+            "classification": "DUPLICATE_QUEUE_GUARD_HISTORY_STATE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_NARROW_COMPATIBILITY_ADAPTER",
+            "deletionStage": "R2",
+            "rationale": "The current broad legacy helper is replaced by an authoritative Core service or a narrow facade adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/operation-guard.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports OperationToken from ./core/operation-guard.js."
+            ],
+            "sourceBytes": 11989
+        },
+        {
+            "id": "bundle-module:1:500d60fb99",
+            "module": "dist/esm/overlay/overlay-state-validator.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-state-validator.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OVERLAY_STATE_ADAPTER",
+            "deletionStage": "R5F",
+            "rationale": "Replace facade-oriented overlay actions and aggregate state modules with the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-validator.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports validateOverlayState as validateOverlayStateImpl from ./overlay/overlay-state-validator.js."
+            ],
+            "sourceBytes": 41417
+        },
+        {
+            "id": "bundle-module:1:5169781da3",
+            "module": "dist/esm/mask/mask-factory.js",
+            "occurrence": 1,
+            "sourceFile": "src/mask/mask-factory.ts",
+            "classification": "REQUIRED_MASK",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MASK_PLUGIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Mask behavior remains reachable only through the Mask Plugin API.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-contexts.ts",
+                "src/mask/mask-factory.ts"
+            ],
+            "symbolUsage": [
+                "src/runtime/editor-contexts.ts imports removeAllMasks as removeAllMasksImpl, CreateMaskContext, RemoveMaskContext from ../mask/mask-factory.js."
+            ],
+            "sourceBytes": 36269
+        },
+        {
+            "id": "bundle-module:1:5502561227",
+            "module": "dist/esm/export/export-format.js",
+            "occurrence": 1,
+            "sourceFile": "src/export/export-format.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_EXPORT_WORKSPACE_INTO_CORE",
+            "deletionStage": "R5A",
+            "rationale": "Core must own export readiness and workspace composition without a parallel facade export service.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/default-options.ts",
+                "src/export/export-format.ts"
+            ],
+            "symbolUsage": [
+                "src/core/default-options.ts imports tryNormalizeImageFormat from ../export/export-format.js."
+            ],
+            "sourceBytes": 7505
+        },
+        {
+            "id": "bundle-module:1:5590d969c3",
+            "module": "dist/esm/core-runtime/state/clone-state-value.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/state/clone-state-value.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/state/index.ts",
+                "src/core-runtime/state/clone-state-value.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/state/index.ts imports cloneStateValue, isDangerousStateKey from ./clone-state-value.js."
+            ],
+            "sourceBytes": 3804
+        },
+        {
+            "id": "bundle-module:1:5710a967cd",
+            "module": "dist/esm/tool-mode/tool-mode-policy.js",
+            "occurrence": 1,
+            "sourceFile": "src/tool-mode/tool-mode-policy.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_THIN_FACADE",
+            "deletionStage": "R5G",
+            "rationale": "The current module exists to coordinate EditorRuntime and is removed after composition convergence.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/tool-mode/tool-mode-policy.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports canRunOperationInToolMode, getActiveToolMode as getActiveToolModeFromSnapshot, isImageEditorOperation, isToolModeActive as isToolModeActiveFromSnapshot, EditorToolModeSnapshot from ./tool-mode/tool-mode-policy.js."
+            ],
+            "sourceBytes": 4728
+        },
+        {
+            "id": "bundle-module:1:5a8f2c246c",
+            "module": "node_modules/semver/classes/semver.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/classes/semver.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:5bc4e36af0",
+            "module": "dist/esm/core-runtime/history-commit-router.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/history-commit-router.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/core-runtime/internal-capabilities.ts",
+                "src/core-runtime/history-commit-router.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/internal-capabilities.ts imports CoreHistoryCommitPort, CoreHistoryRecord from ./history-commit-router.js."
+            ],
+            "sourceBytes": 2168
+        },
+        {
+            "id": "bundle-module:1:5c0b8d3dde",
+            "module": "dist/esm/mask/mask-label-manager.js",
+            "occurrence": 1,
+            "sourceFile": "src/mask/mask-label-manager.ts",
+            "classification": "REQUIRED_MASK",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MASK_PLUGIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Mask behavior remains reachable only through the Mask Plugin API.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/mask/mask-label-manager.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, MaskLabelManagerContext from ./mask/mask-label-manager.js."
+            ],
+            "sourceBytes": 13743
+        },
+        {
+            "id": "bundle-module:1:5c2eea5a2c",
+            "module": "dist/esm/plugin-kernel/plugin-ref.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/plugin-ref.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/plugin-ref.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports definePluginRef, isPluginRef, PluginIdentity, PluginRef from ./plugin-ref.js."
+            ],
+            "sourceBytes": 1427
+        },
+        {
+            "id": "bundle-module:1:6169875902",
+            "module": "node_modules/semver/classes/range.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/classes/range.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:65a2b3a1d0",
+            "module": "dist/esm/core-runtime/core-state-adapter.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/core-state-adapter.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/image-editor-core.ts",
+                "src/core-runtime/core-state-adapter.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/image-editor-core.ts imports CanvasCoreStateAdapter from ./core-state-adapter.js."
+            ],
+            "sourceBytes": 9257
+        },
+        {
+            "id": "bundle-module:1:65e261eea8",
+            "module": "tests/bundle/fixtures/full-root/index.mjs",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_MEASUREMENT_FIXTURE_ONLY",
+            "deletionStage": "RETAIN",
+            "rationale": "This is the measurement entry wrapper, not shipped library implementation.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "tests/bundle/fixtures/full-root/index.mjs"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:694657b905",
+            "module": "dist/esm/ui/editor-control-elements.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-control-elements.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-control-elements.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports restoreEditorControlOriginalStates, setEditorControlEnabled, EditorControlElementContext from ./ui/editor-control-elements.js."
+            ],
+            "sourceBytes": 3601
+        },
+        {
+            "id": "bundle-module:1:69ea24c2d1",
+            "module": "dist/esm/utils/pointer.js",
+            "occurrence": 1,
+            "sourceFile": "src/utils/pointer.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/text-controller.ts",
+                "src/utils/pointer.ts"
+            ],
+            "symbolUsage": [
+                "src/annotation/text-controller.ts imports getPointerFromFabricEvent from ../utils/pointer.js."
+            ],
+            "sourceBytes": 1715
+        },
+        {
+            "id": "bundle-module:1:6a78316931",
+            "module": "dist/esm/core-runtime/geometry/affine-matrix.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/geometry/affine-matrix.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/core-runtime/internal-capabilities.ts",
+                "src/core-runtime/geometry/index.ts",
+                "src/core-runtime/geometry/affine-matrix.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/geometry/index.ts imports AFFINE_EPSILON, IDENTITY_AFFINE_MATRIX, affineDeterminant, applyAffineToPoint, approximatelyEqualAffine, assertAffineMatrix, computeAffineDelta, hasAffineReflection, invertAffine, isFiniteAffineMatrix, multiplyAffine, sanitizeAffineMatrix, transformRectBounds, AffineMatrix, Point, Rect from ./affine-matrix.js."
+            ],
+            "sourceBytes": 4037
+        },
+        {
+            "id": "bundle-module:1:6b705af06b",
+            "module": "dist/esm/compatibility/plugin-history-adapter.js",
+            "occurrence": 1,
+            "sourceFile": "src/compatibility/plugin-history-adapter.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OWNER_SPECIFIC_ADAPTERS",
+            "deletionStage": "R4",
+            "rationale": "The aggregate compatibility bridge is temporary and must disappear after owner-specific state and APIs are wired.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports DeferredHistoryPort, PluginHistoryAdapter from ./compatibility/plugin-history-adapter.js."
+            ],
+            "sourceBytes": 4439
+        },
+        {
+            "id": "bundle-module:1:6bd3d57b37",
+            "module": "node_modules/semver/functions/compare.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/compare.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:6c2401a447",
+            "module": "dist/esm/core-runtime/export-contributor-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/export-contributor-registry.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/core-runtime/internal-capabilities.ts",
+                "src/core-runtime/export-contributor-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/internal-capabilities.ts imports CoreExportContributor, ExportContributorRegistry from ./export-contributor-registry.js."
+            ],
+            "sourceBytes": 3956
+        },
+        {
+            "id": "bundle-module:1:6fa33c367b",
+            "module": "dist/esm/crop/crop-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/crop/crop-controller.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CROP_ADAPTER",
+            "deletionStage": "R5C",
+            "rationale": "Preserve Crop behavior while replacing the current facade-oriented action/session modules with one adapter boundary.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/crop/crop-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports cancelCrop as cancelCropImpl, CropControllerContext from ./crop/crop-controller.js."
+            ],
+            "sourceBytes": 67656
+        },
+        {
+            "id": "bundle-module:1:7053221e2b",
+            "module": "dist/esm/mosaic/mosaic-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/mosaic/mosaic-controller.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_MOSAIC_ADAPTER",
+            "deletionStage": "R5D",
+            "rationale": "Consolidate facade-oriented Mosaic action/session ownership into the adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/mosaic/mosaic-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports exitMosaicMode as exitMosaicModeImpl, MosaicControllerContext from ./mosaic/mosaic-controller.js."
+            ],
+            "sourceBytes": 34391
+        },
+        {
+            "id": "bundle-module:1:7125dc4a97",
+            "module": "dist/esm/runtime/editor-runtime.js",
+            "occurrence": 1,
+            "sourceFile": "src/runtime/editor-runtime.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "REMOVE_AFTER_COMPOSITION_PORTS_REPLACE_RUNTIME",
+            "deletionStage": "R2",
+            "rationale": "EditorRuntime and broad context/action factories duplicate Core and keep legacy infrastructure root-reachable.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-runtime.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports EditorRuntime from ./runtime/editor-runtime.js."
+            ],
+            "sourceBytes": 9585
+        },
+        {
+            "id": "bundle-module:1:7378b298b9",
+            "module": "dist/esm/core-runtime/state/memento-service.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/state/memento-service.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/state/index.ts",
+                "src/core-runtime/state/memento-service.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/state/index.ts imports MementoService, MementoRestoreOptions from ./memento-service.js."
+            ],
+            "sourceBytes": 6650
+        },
+        {
+            "id": "bundle-module:1:74df5bde32",
+            "module": "dist/esm/utils/canvas-region.js",
+            "occurrence": 1,
+            "sourceFile": "src/utils/canvas-region.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/text-controller.ts",
+                "src/utils/canvas-region.ts"
+            ],
+            "symbolUsage": [
+                "src/annotation/text-controller.ts imports getObjectBBox from ../utils/canvas-region.js."
+            ],
+            "sourceBytes": 11307
+        },
+        {
+            "id": "bundle-module:1:75a720422f",
+            "module": "dist/esm/annotation/text-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/text-controller.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/text-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports exitTextMode as exitTextModeImpl, finalizeActiveTextEditing, attachTextEditingHandlersToAnnotations, TextControllerContext from ./annotation/text-controller.js."
+            ],
+            "sourceBytes": 12649
+        },
+        {
+            "id": "bundle-module:1:75c9c3f89c",
+            "module": "dist/esm/annotation/annotation-manager.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/annotation-manager.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/annotation-manager.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports getActiveSelectionObjects, getAnnotations as getAnnotationsImpl, renderAnnotationList, updateAnnotationListSelection, AnnotationListContext from ./annotation/annotation-manager.js."
+            ],
+            "sourceBytes": 13019
+        },
+        {
+            "id": "bundle-module:1:75db8e3cfc",
+            "module": "dist/esm/annotation/annotation-lock.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/annotation-lock.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/annotation-manager.ts",
+                "src/annotation/annotation-lock.ts"
+            ],
+            "symbolUsage": [
+                "src/annotation/annotation-manager.ts imports isAnnotationLocked, isAnnotationUnlocked from ./annotation-lock.js."
+            ],
+            "sourceBytes": 646
+        },
+        {
+            "id": "bundle-module:1:779159f502",
+            "module": "dist/esm/ui/dom-bindings.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/dom-bindings.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/dom-bindings.ts"
+            ],
+            "symbolUsage": ["src/image-editor.ts imports DomBindings from ./ui/dom-bindings.js."],
+            "sourceBytes": 5290
+        },
+        {
+            "id": "bundle-module:1:7b87dbce77",
+            "module": "dist/esm/mask/mask-style.js",
+            "occurrence": 1,
+            "sourceFile": "src/mask/mask-style.ts",
+            "classification": "REQUIRED_MASK",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MASK_PLUGIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Mask behavior remains reachable only through the Mask Plugin API.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/history/editor-state-actions.ts",
+                "src/mask/mask-style.ts"
+            ],
+            "symbolUsage": [
+                "src/history/editor-state-actions.ts imports applyMaskUnselectedStyle, reattachMaskHoverHandlers from ../mask/mask-style.js."
+            ],
+            "sourceBytes": 25361
+        },
+        {
+            "id": "bundle-module:1:7bd265f8be",
+            "module": "dist/esm/plugin-kernel/disposable.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/disposable.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/disposable.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports createCompositeDisposable, createDisposable, createNoopDisposable, disposeInReverse, disposeInReverseSync, isPromiseLike, CommitAwareDisposable, Disposable, DisposeInReverseOptions, MaybePromise from ./disposable.js."
+            ],
+            "sourceBytes": 4602
+        },
+        {
+            "id": "bundle-module:1:7ef3408369",
+            "module": "dist/esm/overlay/overlay-state-migration.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-state-migration.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OVERLAY_STATE_ADAPTER",
+            "deletionStage": "R5F",
+            "rationale": "Replace facade-oriented overlay actions and aggregate state modules with the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-validator.ts",
+                "src/overlay/overlay-state-migration.ts"
+            ],
+            "symbolUsage": [
+                "src/overlay/overlay-state-validator.ts imports migrateOverlayState from ./overlay-state-migration.js."
+            ],
+            "sourceBytes": 2340
+        },
+        {
+            "id": "bundle-module:1:827cb26b89",
+            "module": "node_modules/semver/functions/valid.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/valid.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:83956492cc",
+            "module": "dist/esm/image/exif-orientation.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/exif-orientation.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-file-loader.ts",
+                "src/image/exif-orientation.ts"
+            ],
+            "symbolUsage": [
+                "src/image/image-file-loader.ts imports normalizeJpegOrientationIfNeeded from ./exif-orientation.js."
+            ],
+            "sourceBytes": 10343
+        },
+        {
+            "id": "bundle-module:1:83afc24f6c",
+            "module": "dist/esm/image/display-geometry.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/display-geometry.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/display-geometry.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports captureImageDisplayGeometry as captureImageDisplayGeometryImpl, measureLayoutViewport as measureLayoutViewportImpl, restoreMergedImageDisplayGeometry as restoreMergedImageDisplayGeometryImpl, settleFitCoverScrollbarsAfterStateRestore as settleFitCoverScrollbarsAfterStateRestoreImpl, shouldNormalizeCanvasSizeAfterStateRestore as shouldNormalizeCanvasSizeAfterStateRestoreImpl, updateCanvasSizeToImageBounds as updateCanvasSizeToImageBoundsImpl, DisplayGeometryContext, ImageDisplayGeometry from ./image/display-geometry.js."
+            ],
+            "sourceBytes": 8922
+        },
+        {
+            "id": "bundle-module:1:8622fcb8a8",
+            "module": "dist/esm/overlay/overlay-state-importer.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-state-importer.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OVERLAY_STATE_ADAPTER",
+            "deletionStage": "R5F",
+            "rationale": "Replace facade-oriented overlay actions and aggregate state modules with the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-importer.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports importOverlayStateIntoEditor, OverlayStateImportRuntimeContext from ./overlay/overlay-state-importer.js."
+            ],
+            "sourceBytes": 25938
+        },
+        {
+            "id": "bundle-module:1:87c972335b",
+            "module": "dist/esm/ui/editor-control-state.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-control-state.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-control-state.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyEditorControlState from ./ui/editor-control-state.js."
+            ],
+            "sourceBytes": 12985
+        },
+        {
+            "id": "bundle-module:1:8e4f5038c0",
+            "module": "dist/esm/core-runtime/state/object-property-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/state/object-property-registry.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/state/index.ts",
+                "src/core-runtime/state/object-property-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/state/index.ts imports ObjectPropertyRegistry, ObjectPropertyRegistration from ./object-property-registry.js."
+            ],
+            "sourceBytes": 2926
+        },
+        {
+            "id": "bundle-module:1:8eab745110",
+            "module": "dist/esm/utils/number.js",
+            "occurrence": 1,
+            "sourceFile": "src/utils/number.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/text-controller.ts",
+                "src/utils/number.ts"
+            ],
+            "symbolUsage": [
+                "src/annotation/text-controller.ts imports resolveNumeric from ../utils/number.js."
+            ],
+            "sourceBytes": 6014
+        },
+        {
+            "id": "bundle-module:1:9088a4f048",
+            "module": "node_modules/semver/functions/lte.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/lte.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:917314ded7",
+            "module": "dist/esm/overlay/overlay-coordinate-transform.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-coordinate-transform.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_OVERLAY_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve feature-neutral overlay value and coordinate algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-exporter.ts",
+                "src/overlay/overlay-coordinate-transform.ts"
+            ],
+            "symbolUsage": [
+                "src/overlay/overlay-state-exporter.ts imports canvasToSourcePixel, normalizeRotationDegrees, sourcePixelToImageNormalized, CurrentImageGeometry, OverlayPoint from ./overlay-coordinate-transform.js."
+            ],
+            "sourceBytes": 5167
+        },
+        {
+            "id": "bundle-module:1:943db13a3b",
+            "module": "dist/esm/core-runtime/state/snapshot-service.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/state/snapshot-service.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/state/index.ts",
+                "src/core-runtime/state/snapshot-service.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/state/index.ts imports DEFAULT_SNAPSHOT_LIMITS, SnapshotService, migrateV2SnapshotToV3, SnapshotLimits, SnapshotLoadOptions, SnapshotMigrationResult from ./snapshot-service.js."
+            ],
+            "sourceBytes": 14738
+        },
+        {
+            "id": "bundle-module:1:95686692ac",
+            "module": "dist/esm/plugin-kernel/reporting.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/reporting.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/reporting.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports PluginErrorSink, PluginKernelWarning, PluginWarningSink from ./reporting.js."
+            ],
+            "sourceBytes": 1027
+        },
+        {
+            "id": "bundle-module:1:9650d26918",
+            "module": "dist/esm/plugin-kernel/capability-token.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/capability-token.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/capability-token.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports assertCapabilityRequirement, createCapabilityToken, isCapabilityToken, CapabilityIdentity, CapabilityRequirement, CapabilityRequirementIdentity, CapabilityToken from ./capability-token.js."
+            ],
+            "sourceBytes": 2221
+        },
+        {
+            "id": "bundle-module:1:97b7de49c6",
+            "module": "dist/esm/plugin-kernel/tool-coordinator.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/tool-coordinator.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/tool-coordinator.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports ToolCoordinator, ToolContext, ToolCoordinatorOptions, ToolDefinition, ToolExitReason, ToolId from ./tool-coordinator.js."
+            ],
+            "sourceBytes": 7590
+        },
+        {
+            "id": "bundle-module:1:98dce4e952",
+            "module": "dist/esm/lifecycle/editor-dispose.js",
+            "occurrence": 1,
+            "sourceFile": "src/lifecycle/editor-dispose.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_THIN_FACADE",
+            "deletionStage": "R6",
+            "rationale": "The current module exists to coordinate EditorRuntime and is removed after composition convergence.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/lifecycle/editor-dispose.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports safelyExitActiveSession, safelyRemoveKeyboardListener from ./lifecycle/editor-dispose.js."
+            ],
+            "sourceBytes": 1304
+        },
+        {
+            "id": "bundle-module:1:98e92142bc",
+            "module": "dist/esm/plugin-kernel/semver.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/semver.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/capability-registry.ts",
+                "src/plugin-kernel/semver.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/capability-registry.ts imports isValidSemVer, satisfiesSemVer from ./semver.js."
+            ],
+            "sourceBytes": 756
+        },
+        {
+            "id": "bundle-module:1:992d4480c6",
+            "module": "dist/esm/core/public-types.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/public-types.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/core/public-types.ts"
+            ],
+            "symbolUsage": [
+                "src/index.ts imports isAnnotationObject, isBaseImageObject, isDrawAnnotationObject, isEditableOverlayObject, isMaskObject, isSessionObject, isShapeAnnotationObject, isTextAnnotationObject from ./core/public-types.js."
+            ],
+            "sourceBytes": 60254
+        },
+        {
+            "id": "bundle-module:1:9947ed91d0",
+            "module": "dist/esm/annotation/annotation-style.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/annotation-style.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_ANNOTATION_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve the tested Annotation algorithm behind the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/annotation-style.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports syncAnnotationRuntimeStates from ./annotation/annotation-style.js."
+            ],
+            "sourceBytes": 4115
+        },
+        {
+            "id": "bundle-module:1:9a29b8a2a6",
+            "module": "node_modules/semver/internal/parse-options.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/parse-options.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:9bf41bb7ef",
+            "module": "dist/esm/ui/editor-dom-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-dom-actions.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-dom-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports createEditorDomEventActions from ./ui/editor-dom-actions.js."
+            ],
+            "sourceBytes": 8208
+        },
+        {
+            "id": "bundle-module:1:9fb46965f5",
+            "module": "dist/esm/runtime/editor-contexts.js",
+            "occurrence": 1,
+            "sourceFile": "src/runtime/editor-contexts.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "REMOVE_AFTER_COMPOSITION_PORTS_REPLACE_RUNTIME",
+            "deletionStage": "R5G",
+            "rationale": "EditorRuntime and broad context/action factories duplicate Core and keep legacy infrastructure root-reachable.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-contexts.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports EditorContextFactory from ./runtime/editor-contexts.js."
+            ],
+            "sourceBytes": 33961
+        },
+        {
+            "id": "bundle-module:1:a21b8fc226",
+            "module": "dist/esm/image/image-filters.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/image-filters.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_FILTERS_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve the tested image-filter algorithm behind the Filters adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-filters.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyImageFilterConfigToImage from ./image/image-filters.js."
+            ],
+            "sourceBytes": 4173
+        },
+        {
+            "id": "bundle-module:1:a30c248d1d",
+            "module": "node_modules/semver/functions/gt.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/gt.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:a59090302f",
+            "module": "dist/esm/ui/editor-control-snapshot.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-control-snapshot.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-control-snapshot.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports buildEditorControlSnapshot from ./ui/editor-control-snapshot.js."
+            ],
+            "sourceBytes": 2174
+        },
+        {
+            "id": "bundle-module:1:a61248ac77",
+            "module": "node_modules/semver/internal/re.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/re.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:a80c9dc572",
+            "module": "dist/esm/core-runtime/internal-capabilities.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/internal-capabilities.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/core-runtime/internal-capabilities.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/full-facade-state-plugin.ts imports CORE_STATE_CAPABILITY from ../core-runtime/internal-capabilities.js."
+            ],
+            "sourceBytes": 2894
+        },
+        {
+            "id": "bundle-module:1:a9600c5962",
+            "module": "dist/esm/ui/editor-dom-events.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-dom-events.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-dom-events.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports bindEditorDomEvents from ./ui/editor-dom-events.js."
+            ],
+            "sourceBytes": 17632
+        },
+        {
+            "id": "bundle-module:1:aa42f81255",
+            "module": "dist/esm/core/editor-elements.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/editor-elements.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CORE_OR_NARROW_COMPATIBILITY_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "The current broad legacy helper is replaced by an authoritative Core service or a narrow facade adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/editor-elements.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports isCanvasElement, isInputElement, isInputOrSelectElement, resolveDomElement, resolveElementTargets, DomElementGuard, ElementKey from ./core/editor-elements.js."
+            ],
+            "sourceBytes": 6753
+        },
+        {
+            "id": "bundle-module:1:abdde1f1c4",
+            "module": "dist/esm/annotation/draw-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/draw-controller.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/draw-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports exitDrawMode as exitDrawModeImpl, setDrawSubMode as setDrawSubModeImpl, updateEraserPreview, DrawControllerContext from ./annotation/draw-controller.js."
+            ],
+            "sourceBytes": 20045
+        },
+        {
+            "id": "bundle-module:1:ac74e24bf8",
+            "module": "dist/esm/annotation/path-segments.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/path-segments.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_ANNOTATION_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve the tested Annotation algorithm behind the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/draw-controller.ts",
+                "src/annotation/path-segments.ts"
+            ],
+            "symbolUsage": [
+                "src/annotation/draw-controller.ts imports getPathSegments, PathPoint as Point, PathSegment as Segment from ./path-segments.js."
+            ],
+            "sourceBytes": 8022
+        },
+        {
+            "id": "bundle-module:1:ad5d2d34bc",
+            "module": "dist/esm/image-editor.js",
+            "occurrence": 1,
+            "sourceFile": "src/image-editor.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": true,
+            "targetAction": "REWRITE_AS_THIN_FACADE",
+            "deletionStage": "RETAIN",
+            "rationale": "The package root and public ImageEditor class remain, but implementation ownership moves behind composition ports.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts"
+            ],
+            "symbolUsage": [
+                "src/index.ts imports ImageEditor, ImageEditor as default from ./image-editor.js."
+            ],
+            "sourceBytes": 139990
+        },
+        {
+            "id": "bundle-module:1:adbb063830",
+            "module": "dist/esm/ui/editor-keyboard-events.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-keyboard-events.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-keyboard-events.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports bindEditorKeyboardEvents, handleEditorKeyboardEvent, isFabricTextEditingActive from ./ui/editor-keyboard-events.js."
+            ],
+            "sourceBytes": 4569
+        },
+        {
+            "id": "bundle-module:1:adecd6776d",
+            "module": "dist/esm/plugins/transform/transform-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugins/transform/transform-controller.ts",
+            "classification": "REQUIRED_TRANSFORM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_CANONICAL_PLUGIN_PATH",
+            "deletionStage": "RETAIN",
+            "rationale": "The Transform Plugin owns the single animation queue and transform operations.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/plugins/transform/index.ts",
+                "src/plugins/transform/transform-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/plugins/transform/index.ts imports TransformPluginController, resolveTransformOptions, TransformPluginOptions, TransformPluginState from ./transform-controller.js."
+            ],
+            "sourceBytes": 12700
+        },
+        {
+            "id": "bundle-module:1:ae22092c65",
+            "module": "dist/esm/compatibility/legacy-options-adapter.js",
+            "occurrence": 1,
+            "sourceFile": "src/compatibility/legacy-options-adapter.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OWNER_SPECIFIC_ADAPTERS",
+            "deletionStage": "R5F",
+            "rationale": "The aggregate compatibility bridge is temporary and must disappear after owner-specific state and APIs are wired.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-composition.ts",
+                "src/compatibility/legacy-options-adapter.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/full-composition.ts imports adaptLegacyOptions from ./legacy-options-adapter.js."
+            ],
+            "sourceBytes": 2307
+        },
+        {
+            "id": "bundle-module:1:b133799dd3",
+            "module": "dist/esm/foundations/overlay/overlay-foundation-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/foundations/overlay/overlay-foundation-controller.ts",
+            "classification": "REQUIRED_OVERLAY",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Overlay Foundation supplies feature-neutral object kind, serializer, and geometry policies.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-annotation-plugin.ts",
+                "src/foundations/overlay/index.ts",
+                "src/foundations/overlay/overlay-foundation-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/foundations/overlay/index.ts imports OverlayFoundationController from ./overlay-foundation-controller.js."
+            ],
+            "sourceBytes": 39483
+        },
+        {
+            "id": "bundle-module:1:b2b82b51b0",
+            "module": "dist/esm/fabric/fabric-animation.js",
+            "occurrence": 1,
+            "sourceFile": "src/fabric/fabric-animation.ts",
+            "classification": "REQUIRED_TRANSFORM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_CANONICAL_PLUGIN_PATH",
+            "deletionStage": "RETAIN",
+            "rationale": "The Transform Plugin owns the single animation queue and transform operations.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-contexts.ts",
+                "src/image/transform-controller.ts",
+                "src/fabric/fabric-animation.ts"
+            ],
+            "symbolUsage": [
+                "src/image/transform-controller.ts imports animateProps, restoreOrigin from ../fabric/fabric-animation.js."
+            ],
+            "sourceBytes": 11161
+        },
+        {
+            "id": "bundle-module:1:b509ae0d24",
+            "module": "dist/esm/runtime/editor-facade-wiring.js",
+            "occurrence": 1,
+            "sourceFile": "src/runtime/editor-facade-wiring.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "REMOVE_AFTER_COMPOSITION_PORTS_REPLACE_RUNTIME",
+            "deletionStage": "R5G",
+            "rationale": "EditorRuntime and broad context/action factories duplicate Core and keep legacy infrastructure root-reachable.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-facade-wiring.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports createEditorRuntimeWiring, EditorRuntimeWiring from ./runtime/editor-facade-wiring.js."
+            ],
+            "sourceBytes": 14001
+        },
+        {
+            "id": "bundle-module:1:b6019353d4",
+            "module": "node_modules/semver/classes/comparator.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/classes/comparator.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:b6831896b0",
+            "module": "dist/esm/history/editor-state-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/history/editor-state-actions.ts",
+            "classification": "DUPLICATE_QUEUE_GUARD_HISTORY_STATE",
+            "rootReachableAfter": false,
+            "targetAction": "ROUTE_DIRECTLY_TO_HISTORY_PLUGIN",
+            "deletionStage": "R4",
+            "rationale": "Legacy history ports and state actions disappear after the History Plugin becomes the only stack owner.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/history/editor-state-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports captureSnapshotAction, loadFromStateAction, saveStateAction, TRUSTED_STATE_RESTORE, TrustedStateRestoreOptions from ./history/editor-state-actions.js."
+            ],
+            "sourceBytes": 14871
+        },
+        {
+            "id": "bundle-module:1:b938065d28",
+            "module": "dist/esm/compatibility/legacy-feature-runtime.js",
+            "occurrence": 1,
+            "sourceFile": "src/compatibility/legacy-feature-runtime.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OWNER_SPECIFIC_ADAPTERS",
+            "deletionStage": "R5F",
+            "rationale": "The aggregate compatibility bridge is temporary and must disappear after owner-specific state and APIs are wired.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/legacy-feature-runtime.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports createLegacyFeatureCompatibilityPort from ./compatibility/legacy-feature-runtime.js."
+            ],
+            "sourceBytes": 624
+        },
+        {
+            "id": "bundle-module:1:ba2763ea26",
+            "module": "dist/esm/image/image-file-loader.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/image-file-loader.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-file-loader.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports loadImageFile as loadImageFileImpl from ./image/image-file-loader.js."
+            ],
+            "sourceBytes": 2870
+        },
+        {
+            "id": "bundle-module:1:bbb8d560e0",
+            "module": "dist/esm/core/editor-object-kind.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/editor-object-kind.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/state-serializer.ts",
+                "src/core/editor-object-kind.ts"
+            ],
+            "symbolUsage": [
+                "src/core/state-serializer.ts imports markAnnotationObject, markBaseImageObject, markMaskObject from ./editor-object-kind.js."
+            ],
+            "sourceBytes": 3506
+        },
+        {
+            "id": "bundle-module:1:bc2b2a3c81",
+            "module": "node_modules/semver/functions/satisfies.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/satisfies.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:be404f65f4",
+            "module": "dist/esm/plugin-kernel/plugin-manager.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/plugin-manager.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/plugin-manager.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports PluginManager, PluginHostState, PluginHostCapabilityProvider, PluginManagerOptions from ./plugin-manager.js."
+            ],
+            "sourceBytes": 33555
+        },
+        {
+            "id": "bundle-module:1:be8f57009e",
+            "module": "node_modules/semver/functions/gte.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/gte.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:c06cf025a6",
+            "module": "dist/esm/plugin-kernel/capability-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/capability-registry.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/capability-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports CapabilityRegistry, CapabilityProviderInfo, CapabilityRegistryOptions from ./capability-registry.js."
+            ],
+            "sourceBytes": 10169
+        },
+        {
+            "id": "bundle-module:1:c0ab05b0d2",
+            "module": "node_modules/semver/functions/eq.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/eq.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:c65f94acac",
+            "module": "dist/esm/core/image-filter-config.js",
+            "occurrence": 1,
+            "sourceFile": "src/core/image-filter-config.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/core/image-filter-config.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports areResolvedImageFilterConfigsEqual, cloneResolvedImageFilterConfig, DEFAULT_IMAGE_FILTER_CONFIG, mergeImageFilterConfigPatch from ./core/image-filter-config.js."
+            ],
+            "sourceBytes": 4556
+        },
+        {
+            "id": "bundle-module:1:c7228fc876",
+            "module": "dist/esm/crop/crop-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/crop/crop-actions.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_CROP_ADAPTER",
+            "deletionStage": "R5C",
+            "rationale": "Preserve Crop behavior while replacing the current facade-oriented action/session modules with one adapter boundary.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/crop/crop-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyCropAction, cancelCropAction, enterCropModeAction, setCropAspectRatioAction from ./crop/crop-actions.js."
+            ],
+            "sourceBytes": 4308
+        },
+        {
+            "id": "bundle-module:1:c926daea59",
+            "module": "dist/esm/core-runtime/image-editor-core.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/image-editor-core.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/image-editor-core.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/plugin-history-adapter.ts imports ImageEditorCore from ../core-runtime/image-editor-core.js."
+            ],
+            "sourceBytes": 40759
+        },
+        {
+            "id": "bundle-module:1:cc350c285e",
+            "module": "dist/esm/plugin-kernel/errors.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/errors.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/errors.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports CapabilityConflictError, InvalidCapabilityVersionError, InvalidPluginDefinitionError, OperationConflictError, OperationRegistrationError, PluginAggregateError, PluginAlreadyInstalledError, PluginCapabilityError, PluginError, PluginKernelDisposedError, PluginKernelStateError, PluginLifecycleError, PluginNotInstalledError, PluginSetupError, PluginVersionMismatchError, ToolRegistrationError, ToolTransitionError, PluginCapabilityFailureReason, PluginLifecyclePhase from ./errors.js."
+            ],
+            "sourceBytes": 10372
+        },
+        {
+            "id": "bundle-module:1:ce55631356",
+            "module": "dist/esm/overlay/overlay-metadata.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-metadata.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_OVERLAY_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve feature-neutral overlay value and coordinate algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-exporter.ts",
+                "src/overlay/overlay-metadata.ts"
+            ],
+            "symbolUsage": [
+                "src/overlay/overlay-state-exporter.ts imports cloneOverlayMetadata from ./overlay-metadata.js."
+            ],
+            "sourceBytes": 5783
+        },
+        {
+            "id": "bundle-module:1:ceccca6692",
+            "module": "dist/esm/core-runtime/state/transient-object-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/state/transient-object-registry.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/state/index.ts",
+                "src/core-runtime/state/transient-object-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/state/index.ts imports TransientObjectRegistry, TransientObjectPredicate from ./transient-object-registry.js."
+            ],
+            "sourceBytes": 2329
+        },
+        {
+            "id": "bundle-module:1:d4a2a74277",
+            "module": "commonjsHelpers.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "commonjsHelpers.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:d67fee2ed7",
+            "module": "dist/esm/foundations/overlay/index.js",
+            "occurrence": 1,
+            "sourceFile": "src/foundations/overlay/index.ts",
+            "classification": "REQUIRED_OVERLAY",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Overlay Foundation supplies feature-neutral object kind, serializer, and geometry policies.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-annotation-plugin.ts",
+                "src/foundations/overlay/index.ts"
+            ],
+            "symbolUsage": [
+                "src/compatibility/full-facade-annotation-plugin.ts imports OVERLAY_CAPABILITY from ../foundations/overlay/index.js."
+            ],
+            "sourceBytes": 2597
+        },
+        {
+            "id": "bundle-module:1:d7064bd2f7",
+            "module": "dist/esm/fabric/fabric-adapter.js",
+            "occurrence": 1,
+            "sourceFile": "src/fabric/fabric-adapter.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/fabric/fabric-adapter.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports detectFabric from ./fabric/fabric-adapter.js."
+            ],
+            "sourceBytes": 6606
+        },
+        {
+            "id": "bundle-module:1:db632c1bbc",
+            "module": "dist/esm/overlay/overlay-state-exporter.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-state-exporter.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OVERLAY_STATE_ADAPTER",
+            "deletionStage": "R5F",
+            "rationale": "Replace facade-oriented overlay actions and aggregate state modules with the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-exporter.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports exportOverlayState as exportOverlayStateImpl, OverlayStateExportRuntimeContext from ./overlay/overlay-state-exporter.js."
+            ],
+            "sourceBytes": 22873
+        },
+        {
+            "id": "bundle-module:1:dd6a78b98b",
+            "module": "dist/esm/core-runtime/state/state-slice-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/core-runtime/state/state-slice-registry.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Core owns the authoritative Canvas, image lifecycle, state, geometry, export registry, and Mementos.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/core-runtime/state/index.ts",
+                "src/core-runtime/state/state-slice-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/core-runtime/state/index.ts imports StateSliceRegistry from ./state-slice-registry.js."
+            ],
+            "sourceBytes": 2609
+        },
+        {
+            "id": "bundle-module:1:de954391e9",
+            "module": "dist/esm/export/export-actions.js",
+            "occurrence": 1,
+            "sourceFile": "src/export/export-actions.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_EXPORT_WORKSPACE_INTO_CORE",
+            "deletionStage": "R5A",
+            "rationale": "Core must own export readiness and workspace composition without a parallel facade export service.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/export/export-actions.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports downloadImageAction, exportImageBase64Action, exportImageFileAction, mergeAnnotationsAction from ./export/export-actions.js."
+            ],
+            "sourceBytes": 5720
+        },
+        {
+            "id": "bundle-module:1:e01a00f629",
+            "module": "node_modules/semver/functions/lt.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/lt.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:e160eaed2b",
+            "module": "dist/esm/image/image-loader.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/image-loader.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/image-loader.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports loadImage as loadImageImpl from ./image/image-loader.js."
+            ],
+            "sourceBytes": 34984
+        },
+        {
+            "id": "bundle-module:1:e16b4e221b",
+            "module": "dist/esm/utils/file.js",
+            "occurrence": 1,
+            "sourceFile": "src/utils/file.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_AS_SHARED_PRIMITIVE",
+            "deletionStage": "RETAIN",
+            "rationale": "The module supplies a shared type, guard, value operation, or utility without owning duplicate runtime state.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/utils/file.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports isSupportedImageDataUrl from ./utils/file.js."
+            ],
+            "sourceBytes": 6655
+        },
+        {
+            "id": "bundle-module:1:e2db69ce11",
+            "module": "dist/esm/plugin-kernel/operation-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugin-kernel/operation-registry.ts",
+            "classification": "REQUIRED_PLUGIN_KERNEL",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN",
+            "deletionStage": "RETAIN",
+            "rationale": "ImageEditorCore and official plugins require the instance-local Plugin Kernel.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts",
+                "src/plugin-kernel/index.ts",
+                "src/plugin-kernel/operation-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/plugin-kernel/index.ts imports OperationRegistry, OperationDefinition, OperationId, OperationMode, OperationToken from ./operation-registry.js."
+            ],
+            "sourceBytes": 5326
+        },
+        {
+            "id": "bundle-module:1:e2dc904b0d",
+            "module": "dist/esm/overlay/overlay-custom-registry.js",
+            "occurrence": 1,
+            "sourceFile": "src/overlay/overlay-custom-registry.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OVERLAY_STATE_ADAPTER",
+            "deletionStage": "R5F",
+            "rationale": "Replace facade-oriented overlay actions and aggregate state modules with the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/overlay/overlay-state-importer.ts",
+                "src/overlay/overlay-custom-registry.ts"
+            ],
+            "symbolUsage": [
+                "src/overlay/overlay-state-importer.ts imports getOverlaySerializer from ./overlay-custom-registry.js."
+            ],
+            "sourceBytes": 804
+        },
+        {
+            "id": "bundle-module:1:e4362dbee7",
+            "module": "node_modules/semver/functions/cmp.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/cmp.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:e442c626a0",
+            "module": "dist/esm/runtime/editor-context-factory-access.js",
+            "occurrence": 1,
+            "sourceFile": "src/runtime/editor-context-factory-access.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "REMOVE_AFTER_COMPOSITION_PORTS_REPLACE_RUNTIME",
+            "deletionStage": "R2",
+            "rationale": "EditorRuntime and broad context/action factories duplicate Core and keep legacy infrastructure root-reachable.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-facade-wiring.ts",
+                "src/runtime/editor-context-factory-access.ts"
+            ],
+            "symbolUsage": [
+                "src/runtime/editor-facade-wiring.ts imports createEditorContextFactory from ./editor-context-factory-access.js."
+            ],
+            "sourceBytes": 11991
+        },
+        {
+            "id": "bundle-module:1:e5d2041e13",
+            "module": "dist/esm/compatibility/full-facade-state-plugin.js",
+            "occurrence": 1,
+            "sourceFile": "src/compatibility/full-facade-state-plugin.ts",
+            "classification": "COMPATIBILITY_ONLY",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_OWNER_SPECIFIC_ADAPTERS",
+            "deletionStage": "R5F",
+            "rationale": "The aggregate compatibility bridge is temporary and must disappear after owner-specific state and APIs are wired.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/full-facade-state-plugin.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports fullFacadeStatePlugin, FullFacadeMementoState from ./compatibility/full-facade-state-plugin.js."
+            ],
+            "sourceBytes": 5139
+        },
+        {
+            "id": "bundle-module:1:e7e4fe25fd",
+            "module": "dist/esm/mosaic/mosaic-pixelate.js",
+            "occurrence": 1,
+            "sourceFile": "src/mosaic/mosaic-pixelate.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MOSAIC_ADAPTER",
+            "deletionStage": "RETAIN",
+            "rationale": "Preserve deterministic Mosaic pixel and geometry algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/mosaic/mosaic-controller.ts",
+                "src/mosaic/mosaic-pixelate.ts"
+            ],
+            "symbolUsage": [
+                "src/mosaic/mosaic-controller.ts imports applyCircularMosaicToImageData, getCircularMosaicBounds, MosaicPixelBounds from ./mosaic-pixelate.js."
+            ],
+            "sourceBytes": 4559
+        },
+        {
+            "id": "bundle-module:1:e7e70daff9",
+            "module": "dist/esm/ui/editor-input-state.js",
+            "occurrence": 1,
+            "sourceFile": "src/ui/editor-input-state.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "CONSOLIDATE_INTO_LEGACY_DOM_ADAPTER",
+            "deletionStage": "R5G",
+            "rationale": "Preserve DOM behavior while collapsing broad runtime-facing UI modules behind one adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/ui/editor-input-state.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyEditorInputState from ./ui/editor-input-state.js."
+            ],
+            "sourceBytes": 5831
+        },
+        {
+            "id": "bundle-module:1:ea349897a8",
+            "module": "node_modules/semver/internal/constants.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/constants.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:ec3a9f55a6",
+            "module": "dist/esm/image/layout-manager.js",
+            "occurrence": 1,
+            "sourceFile": "src/image/layout-manager.ts",
+            "classification": "REQUIRED_CORE",
+            "rootReachableAfter": true,
+            "targetAction": "REUSE_FROM_CORE",
+            "deletionStage": "RETAIN",
+            "rationale": "Core reuses the existing tested image input, layout, loading, and resampling algorithms.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/image/layout-manager.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports applyCanvasDimensions, ViewportSize from ./image/layout-manager.js."
+            ],
+            "sourceBytes": 18745
+        },
+        {
+            "id": "bundle-module:1:ef2d0b5b65",
+            "module": "node_modules/semver/internal/debug.js",
+            "occurrence": 1,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/debug.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 1."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:1:f1307202b7",
+            "module": "dist/esm/animation/animation-queue.js",
+            "occurrence": 1,
+            "sourceFile": "src/animation/animation-queue.ts",
+            "classification": "REQUIRED_TRANSFORM",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_CANONICAL_PLUGIN_PATH",
+            "deletionStage": "RETAIN",
+            "rationale": "The Transform Plugin owns the single animation queue and transform operations.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-runtime.ts",
+                "src/animation/animation-queue.ts"
+            ],
+            "symbolUsage": [
+                "src/runtime/editor-runtime.ts imports AnimationQueue from ../animation/animation-queue.js."
+            ],
+            "sourceBytes": 7177
+        },
+        {
+            "id": "bundle-module:1:f1611dbee9",
+            "module": "dist/esm/export/export-service.js",
+            "occurrence": 1,
+            "sourceFile": "src/export/export-service.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_EXPORT_WORKSPACE_INTO_CORE",
+            "deletionStage": "R5A",
+            "rationale": "Core must own export readiness and workspace composition without a parallel facade export service.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/export/export-actions.ts",
+                "src/export/export-service.ts"
+            ],
+            "symbolUsage": [
+                "src/export/export-actions.ts imports downloadImage as downloadImageImpl, exportImageBase64 as exportImageBase64Impl, exportImageFile as exportImageFileImpl, mergeAnnotations as mergeAnnotationsImpl, mergeMasks as mergeMasksImpl, ExportServiceContext, MergeAnnotationsContext, MergeMasksContext from ./export-service.js."
+            ],
+            "sourceBytes": 57938
+        },
+        {
+            "id": "bundle-module:1:f30f8bcf80",
+            "module": "dist/esm/plugins/history/history-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugins/history/history-controller.ts",
+            "classification": "REQUIRED_HISTORY",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_CANONICAL_PLUGIN_PATH",
+            "deletionStage": "RETAIN",
+            "rationale": "The History Plugin owns the single undo/redo stack.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/compatibility/plugin-history-adapter.ts",
+                "src/plugins/history/index.ts",
+                "src/plugins/history/history-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/plugins/history/index.ts imports HistoryPluginController, HistoryPluginOptions, HistoryPort from ./history-controller.js."
+            ],
+            "sourceBytes": 6553
+        },
+        {
+            "id": "bundle-module:1:f4d0bbfcbb",
+            "module": "dist/esm/plugins/mask/mask-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/plugins/mask/mask-controller.ts",
+            "classification": "REQUIRED_MASK",
+            "rootReachableAfter": true,
+            "targetAction": "RETAIN_BEHIND_MASK_PLUGIN",
+            "deletionStage": "RETAIN",
+            "rationale": "Mask behavior remains reachable only through the Mask Plugin API.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/plugins/mask/index.ts",
+                "src/plugins/mask/mask-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/plugins/mask/index.ts imports MaskPluginController, resolveMaskPluginOptions, MaskPluginApi, MaskPluginOptions from ./mask-controller.js."
+            ],
+            "sourceBytes": 23037
+        },
+        {
+            "id": "bundle-module:1:f6577c8ffd",
+            "module": "dist/esm/annotation/shape-controller.js",
+            "occurrence": 1,
+            "sourceFile": "src/annotation/shape-controller.ts",
+            "classification": "REQUIRED_LEGACY_FEATURE_ALGORITHM",
+            "rootReachableAfter": false,
+            "targetAction": "ABSORB_INTO_ANNOTATION_ADAPTER",
+            "deletionStage": "R5E",
+            "rationale": "Consolidate facade-oriented Annotation controllers and actions into the narrow adapter.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/annotation/shape-controller.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports createShapeAnnotation as createShapeAnnotationImpl, enterShapeMode as enterShapeModeImpl, exitShapeMode as exitShapeModeImpl, syncShapeModeConfig, ShapeControllerContext from ./annotation/shape-controller.js."
+            ],
+            "sourceBytes": 16182
+        },
+        {
+            "id": "bundle-module:1:fac085ecd8",
+            "module": "dist/esm/runtime/editor-action-access.js",
+            "occurrence": 1,
+            "sourceFile": "src/runtime/editor-action-access.ts",
+            "classification": "DUPLICATE_CORE_RUNTIME_INFRASTRUCTURE",
+            "rootReachableAfter": false,
+            "targetAction": "REMOVE_AFTER_COMPOSITION_PORTS_REPLACE_RUNTIME",
+            "deletionStage": "R2",
+            "rationale": "EditorRuntime and broad context/action factories duplicate Core and keep legacy infrastructure root-reachable.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/index.ts",
+                "src/image-editor.ts",
+                "src/runtime/editor-action-access.ts"
+            ],
+            "symbolUsage": [
+                "src/image-editor.ts imports EditorActionAccessFactory from ./runtime/editor-action-access.js."
+            ],
+            "sourceBytes": 27011
+        },
+        {
+            "id": "bundle-module:2:0ee3828853",
+            "module": "node_modules/semver/functions/valid.js",
+            "occurrence": 2,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/valid.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 2."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:2:12c219792c",
+            "module": "node_modules/semver/internal/re.js",
+            "occurrence": 2,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/internal/re.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 2."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:2:32573563c5",
+            "module": "node_modules/semver/ranges/valid.js",
+            "occurrence": 2,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/ranges/valid.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 2."],
+            "sourceBytes": null
+        },
+        {
+            "id": "bundle-module:2:55724406a5",
+            "module": "node_modules/semver/functions/satisfies.js",
+            "occurrence": 2,
+            "sourceFile": null,
+            "classification": "DEAD_UNNECESSARY_ROOT_DEPENDENCY",
+            "rootReachableAfter": false,
+            "targetAction": "REPLACE_CJS_GRAPH_WITH_BUNDLE_NEUTRAL_SEMVER_VALIDATION",
+            "deletionStage": "R7",
+            "rationale": "Full SemVer behavior remains required, but the current node-semver CommonJS module graph and wrapper are not required owners. Replace them without externalization and retain conformance tests.",
+            "actualImportChain": [
+                "tests/bundle/fixtures/full-root/index.mjs",
+                "dist/esm/index.js",
+                "src/plugin-kernel/semver.ts",
+                "node_modules/semver/functions/satisfies.js"
+            ],
+            "symbolUsage": ["Rollup full-root module occurrence 2."],
+            "sourceBytes": null
+        }
+    ]
+}

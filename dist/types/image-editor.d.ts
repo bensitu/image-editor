@@ -35,6 +35,7 @@ export declare class ImageEditor {
     private readonly contextFactory;
     private readonly actionAccessFactory;
     private readonly historyFacade;
+    private pluginComposition;
     private pluginCore;
     private pluginHistoryAdapter;
     private transformPluginApi;
@@ -48,7 +49,7 @@ export declare class ImageEditor {
      */
     constructor(fabricModuleOrOptions?: FabricModule | ImageEditorOptions, options?: ImageEditorOptions);
     private initializePluginRuntime;
-    private synchronizePluginCoreImage;
+    private preparePluginOwnedImageState;
     private synchronizeRuntimeTransformState;
     private captureFullFacadeMementoState;
     private restoreFullFacadeMementoState;
@@ -57,6 +58,7 @@ export declare class ImageEditor {
     /** Initializes DOM bindings, canvas state, and the optional initial image. */
     init(elementMap?: ElementMap): void;
     private initCanvas;
+    private rollbackPluginRuntimeAfterInitFailure;
     private resolveElement;
     private bindDomEvents;
     private bindKeyboardEvents;

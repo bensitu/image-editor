@@ -1,6 +1,6 @@
 import type * as FabricNS from 'fabric';
 import { type EditorPlugin, type PluginRef, type SynchronousEditorPlugin } from '../plugin-kernel/index.js';
-import type { CoreElementMap, CoreEventMap, CoreExportOptions, CoreImageInfo, FabricModule, ImageEditorCoreOptions, LoadImageOptions, ResolvedImageEditorCoreOptions } from './public-types.js';
+import type { CoreElementMap, CoreEventMap, CoreExportOptions, CoreImageInfo, FabricModule, ImageEditorCoreOptions, LayoutMode, LoadImageOptions, ResolvedImageEditorCoreOptions } from './public-types.js';
 import { type MissingPluginPolicy } from './state/index.js';
 export interface LoadStateOptions {
     readonly missingPluginPolicy?: MissingPluginPolicy;
@@ -26,11 +26,9 @@ export declare class ImageEditorCore {
     private baseImage;
     private imageMimeType;
     private baseImageScale;
+    private layoutMode;
     private geometryRevision;
     private initialized;
-    private ownsCanvas;
-    private compatibilityHostStateListener;
-    private compatibilityGeometryFinalizer;
     private disposing;
     private disposed;
     private disposePromise;
@@ -50,6 +48,7 @@ export declare class ImageEditorCore {
     isImageLoaded(): boolean;
     getImageInfo(): CoreImageInfo | null;
     getCanvas(): FabricNS.Canvas | null;
+    setLayoutMode(mode: LayoutMode): void;
     dispose(): void;
     disposeAsync(): Promise<void>;
     private createHostPort;
@@ -63,7 +62,6 @@ export declare class ImageEditorCore {
     private requireCanvas;
     private requestRender;
     private updatePlaceholder;
-    private notifyCompatibilityHostState;
     private reportWarning;
     private reportError;
     private assertReady;

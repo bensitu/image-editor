@@ -1,6 +1,6 @@
 'use strict';
 
-var core_index = require('../chunks/index-DTL2QdkR.cjs');
+var core_index = require('../chunks/index-CeRMDho6.cjs');
 var internalCapabilities = require('../chunks/internal-capabilities-DIerpWRs.cjs');
 require('../chunks/errors-CQdnZvQh.cjs');
 require('../chunks/disposable-Sj4tt6Lk.cjs');

@@ -11,6 +11,7 @@ import {
     computeCoverLayout,
     computeExpandLayout,
     computeFitLayout,
+    computeScrollableCanvasSize,
     measureScrollbarSize,
     selectLayoutStrategy,
     ViewportCache,
@@ -42,6 +43,7 @@ import type {
     FabricModule,
     ImageEditorCoreOptions,
     ImageMimeType,
+    LayoutMode,
     LoadImageOptions,
     ResolvedImageEditorCoreOptions,
 } from './public-types.js';
@@ -227,19 +229,9 @@ export class ImageEditorCore {
     private baseImage: FabricNS.FabricImage | null = null;
     private imageMimeType: ImageMimeType | null = null;
     private baseImageScale = 1;
+    private layoutMode: LayoutMode;
     private geometryRevision = 0;
     private initialized = false;
-    private ownsCanvas = false;
-    private compatibilityHostStateListener:
-        | ((
-              state: Readonly<{
-                  baseImage: FabricNS.FabricImage | null;
-                  baseImageScale: number;
-                  imageMimeType: ImageMimeType | null;
-              }>,
-          ) => void)
-        | null = null;
-    private compatibilityGeometryFinalizer: (() => void) | null = null;
     private disposing = false;
     private disposed = false;
     private disposePromise: Promise<void> | null = null;
@@ -258,6 +250,7 @@ export class ImageEditorCore {
             );
         }
         this.options = resolveOptions(options);
+        this.layoutMode = this.options.layoutMode;
         this.transientObjects = new TransientObjectRegistry((warning) => {
             this.reportWarning(warning.details?.cause, warning.message);
         });
@@ -388,14 +381,14 @@ export class ImageEditorCore {
         this.placeholderElement = resolveElement(elements.imagePlaceholder, ownerDocument);
         const containerWidth = Math.floor(this.containerElement?.clientWidth ?? 0);
         const containerHeight = Math.floor(this.containerElement?.clientHeight ?? 0);
+        const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
         this.canvas = new this.fabric.Canvas(canvasElement, {
-            width: containerWidth > 0 ? containerWidth : this.options.canvasWidth,
-            height: containerHeight > 0 ? containerHeight : this.options.canvasHeight,
+            width: hasVisibleContainer ? containerWidth : this.options.canvasWidth,
+            height: hasVisibleContainer ? containerHeight : this.options.canvasHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
         });
-        this.ownsCanvas = true;
         this.initialized = true;
         try {
             this.plugins.initializeSync();
@@ -602,46 +595,14 @@ export class ImageEditorCore {
         return this.canvas;
     }
 
-    /** @internal Used only by the v2 compatibility facade. */
-    attachExistingCanvas(
-        canvas: FabricNS.Canvas,
-        elements: Readonly<{
-            canvasElement: HTMLCanvasElement;
-            containerElement?: HTMLElement | null;
-            placeholderElement?: HTMLElement | null;
-            onHostStateChange?: (
-                state: Readonly<{
-                    baseImage: FabricNS.FabricImage | null;
-                    baseImageScale: number;
-                    imageMimeType: ImageMimeType | null;
-                }>,
-            ) => void;
-            finalizeBaseImageGeometry?: () => void;
-        }>,
-    ): void {
-        this.assertNotDisposed('attach an existing Canvas');
-        if (this.initialized) {
-            throw new CoreRuntimeError('[ImageEditor] Core is already initialized.');
-        }
-        this.canvas = canvas;
-        this.canvasElement = elements.canvasElement;
-        this.containerElement = elements.containerElement ?? canvas.lowerCanvasEl.parentElement;
-        this.placeholderElement = elements.placeholderElement ?? null;
-        this.compatibilityHostStateListener = elements.onHostStateChange ?? null;
-        this.compatibilityGeometryFinalizer = elements.finalizeBaseImageGeometry ?? null;
-        this.ownsCanvas = false;
-        this.initialized = true;
-        try {
-            this.plugins.initializeSync();
-            this.updatePlaceholder();
-        } catch (error) {
-            this.clearRuntimeReferences();
-            throw error;
-        }
+    setLayoutMode(mode: LayoutMode): void {
+        this.assertNotDisposed('set layout mode');
+        this.layoutMode = mode;
+        this.viewportCache.clear();
     }
 
-    /** @internal Used only by the v2 compatibility facade. */
-    async synchronizeCompatibilityImage(
+    /** @internal Temporary R2-R3 endpoint for the legacy raster pipeline. */
+    async adoptLegacyImageState(
         state: Readonly<{
             baseImage: FabricNS.FabricImage | null;
             baseImageScale: number;
@@ -649,14 +610,21 @@ export class ImageEditorCore {
             lifecycle?: 'loaded' | 'cleared' | 'none';
         }>,
     ): Promise<void> {
-        this.assertReady('synchronize compatibility state');
+        this.assertReady('adopt legacy image state');
+        const canvas = this.requireCanvas('adopt legacy image state');
         const previousImage = this.baseImage;
-        if (state.baseImage) markBaseImage(state.baseImage);
+        if (state.baseImage) {
+            if (!canvas.getObjects().includes(state.baseImage)) {
+                throw new CoreRuntimeError(
+                    '[ImageEditor] Cannot adopt a base image that is not on the Core Canvas.',
+                );
+            }
+            markBaseImage(state.baseImage);
+        }
         this.baseImage = state.baseImage;
         this.baseImageScale = positiveFinite(state.baseImageScale, 1);
         this.imageMimeType = state.imageMimeType;
         this.geometryRevision += 1;
-        this.notifyCompatibilityHostState();
         const lifecycle = state.lifecycle ?? 'none';
         if (lifecycle === 'cleared') {
             await this.plugins.notifyImageCleared();
@@ -673,11 +641,6 @@ export class ImageEditorCore {
     /** @internal Used only by the v2 compatibility facade. */
     captureCompatibilityMemento(): CoreMemento {
         return this.mementos.capture();
-    }
-
-    /** @internal Used only by the v2 compatibility facade. */
-    hasActiveCompatibilityMutation(): boolean {
-        return this.geometry.isRunning;
     }
 
     dispose(): void {
@@ -707,9 +670,14 @@ export class ImageEditorCore {
         }
         this.disposed = true;
         this.disposing = false;
-        const canvas = this.ownsCanvas ? this.canvas : null;
+        const canvas = this.canvas;
         this.clearRuntimeReferences();
-        if (canvas) void canvas.dispose();
+        if (canvas) {
+            const canvasDispose = canvas.dispose();
+            if (canvasDispose && typeof canvasDispose.then === 'function') {
+                this.disposePromise = Promise.resolve(canvasDispose).then(() => undefined);
+            }
+        }
         if (errors.length > 0) {
             throw new CoreRuntimeError(
                 `[ImageEditor] Core disposal completed with ${errors.length} cleanup error(s).`,
@@ -749,7 +717,6 @@ export class ImageEditorCore {
                 this.baseImageScale = positiveFinite(replacementOptions?.baseScale, 1);
                 this.imageMimeType = replacementOptions?.mimeType ?? this.imageMimeType;
                 this.geometryRevision += 1;
-                this.notifyCompatibilityHostState();
                 this.updatePlaceholder();
             },
             getBaseImageScale: () => this.baseImageScale,
@@ -807,7 +774,7 @@ export class ImageEditorCore {
             { width: this.options.canvasWidth, height: this.options.canvasHeight },
             scrollbarSize,
         );
-        const strategy = selectLayoutStrategy(this.options.layoutMode);
+        const strategy = selectLayoutStrategy(this.layoutMode);
         const width = Number(image.width) || 0;
         const height = Number(image.height) || 0;
         if (strategy === 'fit') {
@@ -864,24 +831,34 @@ export class ImageEditorCore {
         const image = this.baseImage;
         const canvas = this.canvas;
         if (!image || !canvas) return;
-        if (this.compatibilityGeometryFinalizer) {
-            this.compatibilityGeometryFinalizer();
-            return;
-        }
         image.setCoords();
         const bounds = image.getBoundingRect();
-        const viewportWidth = Math.max(
-            1,
-            Math.floor(this.containerElement?.clientWidth || this.options.canvasWidth),
+        const scrollbarSize = measureScrollbarSize(
+            this.containerElement?.ownerDocument ?? this.canvasElement?.ownerDocument ?? null,
         );
-        const viewportHeight = Math.max(
-            1,
-            Math.floor(this.containerElement?.clientHeight || this.options.canvasHeight),
+        const viewport = this.viewportCache.measure(
+            this.containerElement,
+            { width: this.options.canvasWidth, height: this.options.canvasHeight },
+            scrollbarSize,
         );
-        this.setCanvasSize(
-            Math.max(viewportWidth, Math.ceil(bounds.width)),
-            Math.max(viewportHeight, Math.ceil(bounds.height)),
-        );
+        const imageFitsViewport =
+            bounds.width <= viewport.width + 0.5 && bounds.height <= viewport.height + 0.5;
+        if (imageFitsViewport) {
+            this.setCanvasSize(Math.max(1, viewport.width - 1), Math.max(1, viewport.height - 1));
+        } else if (this.layoutMode === 'fit' || this.layoutMode === 'cover') {
+            const size = computeScrollableCanvasSize(
+                bounds.width,
+                bounds.height,
+                viewport,
+                scrollbarSize,
+            );
+            this.setCanvasSize(size.width, size.height);
+        } else {
+            this.setCanvasSize(
+                Math.max(viewport.width, Math.ceil(bounds.width)),
+                Math.max(viewport.height, Math.ceil(bounds.height)),
+            );
+        }
         image.set({ left: (image.left ?? 0) - bounds.left, top: (image.top ?? 0) - bounds.top });
         image.setCoords();
         canvas.sendObjectToBack(image);
@@ -982,16 +959,6 @@ export class ImageEditorCore {
         if (this.placeholderElement) this.placeholderElement.hidden = this.baseImage !== null;
     }
 
-    private notifyCompatibilityHostState(): void {
-        this.compatibilityHostStateListener?.(
-            Object.freeze({
-                baseImage: this.baseImage,
-                baseImageScale: this.baseImageScale,
-                imageMimeType: this.imageMimeType,
-            }),
-        );
-    }
-
     private reportWarning(error: unknown, message: string): void {
         reportSafely(this.options.onWarning, error, message, console.warn);
     }
@@ -1021,9 +988,6 @@ export class ImageEditorCore {
         this.imageMimeType = null;
         this.baseImageScale = 1;
         this.initialized = false;
-        this.ownsCanvas = false;
-        this.compatibilityHostStateListener = null;
-        this.compatibilityGeometryFinalizer = null;
         this.viewportCache.clear();
     }
 
@@ -1045,7 +1009,7 @@ export class ImageEditorCore {
         this.externalObjects.dispose();
         this.objectProperties.dispose();
         this.slices.dispose();
-        const canvas = this.ownsCanvas ? this.canvas : null;
+        const canvas = this.canvas;
         this.clearRuntimeReferences();
         if (canvas) {
             try {

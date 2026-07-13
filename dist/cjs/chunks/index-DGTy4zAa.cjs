@@ -101,6 +101,100 @@ function markSessionObject(object, sessionObjectType) {
     return sessionObject;
 }
 
+function isLegacySessionObject(object) {
+    const candidate = object;
+    return (candidate.isCropRect === true ||
+        candidate.maskLabel === true ||
+        candidate.isMosaicPreview === true);
+}
+function moveObjectTo(canvas, object, index) {
+    const canvasWithLayerApi = canvas;
+    if (typeof canvasWithLayerApi.moveObjectTo === 'function') {
+        canvasWithLayerApi.moveObjectTo(object, index);
+        return;
+    }
+    try {
+        canvas.remove(object);
+        canvas.insertAt(index, object);
+    }
+    catch {
+        canvas.add(object);
+    }
+}
+function ensureOnCanvas(canvas, object) {
+    if (!canvas.getObjects().includes(object)) {
+        canvas.add(object);
+    }
+}
+function withoutObject(canvas, object) {
+    return canvas.getObjects().filter((candidate) => candidate !== object);
+}
+function findFirstSessionIndex(objects) {
+    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
+}
+function getOrderedGroups(canvas) {
+    const baseImages = [];
+    const overlays = [];
+    const sessions = [];
+    const others = [];
+    for (const object of canvas.getObjects()) {
+        if (isBaseImageObject(object)) {
+            baseImages.push(object);
+        }
+        else if (isEditableOverlayObject(object)) {
+            overlays.push(object);
+        }
+        else if (isSessionObject(object) || isLegacySessionObject(object)) {
+            sessions.push(object);
+        }
+        else {
+            others.push(object);
+        }
+    }
+    return { baseImages, overlays, sessions, others };
+}
+function normalizeLayerOrder(canvas) {
+    const groups = getOrderedGroups(canvas);
+    const ordered = [
+        ...groups.baseImages,
+        ...groups.others,
+        ...groups.overlays,
+        ...groups.sessions,
+    ];
+    ordered.forEach((object, index) => {
+        moveObjectTo(canvas, object, index);
+    });
+}
+function placeMaskObject(canvas, mask) {
+    ensureOnCanvas(canvas, mask);
+    const objects = withoutObject(canvas, mask);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
+}
+function placeAnnotationObject(canvas, annotation) {
+    ensureOnCanvas(canvas, annotation);
+    const objects = withoutObject(canvas, annotation);
+    const firstSessionIndex = findFirstSessionIndex(objects);
+    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
+}
+function placeSessionObject(canvas, sessionObject) {
+    ensureOnCanvas(canvas, sessionObject);
+    moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
+}
+function getEditableOverlayRange(canvas) {
+    const objects = canvas.getObjects();
+    const overlayIndexes = objects
+        .map((object, index) => ({ object, index }))
+        .filter(({ object }) => isEditableOverlayObject(object));
+    if (overlayIndexes.length === 0)
+        return { start: -1, end: -1, overlays: [] };
+    return {
+        start: overlayIndexes[0].index,
+        end: overlayIndexes[overlayIndexes.length - 1].index,
+        overlays: overlayIndexes.map(({ object }) => object),
+    };
+}
+
 function reportWarning(options, error, message) {
     const warningCallback = options.onWarning;
     if (typeof warningCallback !== 'function')
@@ -285,100 +379,6 @@ function applyCropHideMaskStyle(mask) {
     }
     catch {
     }
-}
-
-function isLegacySessionObject(object) {
-    const candidate = object;
-    return (candidate.isCropRect === true ||
-        candidate.maskLabel === true ||
-        candidate.isMosaicPreview === true);
-}
-function moveObjectTo(canvas, object, index) {
-    const canvasWithLayerApi = canvas;
-    if (typeof canvasWithLayerApi.moveObjectTo === 'function') {
-        canvasWithLayerApi.moveObjectTo(object, index);
-        return;
-    }
-    try {
-        canvas.remove(object);
-        canvas.insertAt(index, object);
-    }
-    catch {
-        canvas.add(object);
-    }
-}
-function ensureOnCanvas(canvas, object) {
-    if (!canvas.getObjects().includes(object)) {
-        canvas.add(object);
-    }
-}
-function withoutObject(canvas, object) {
-    return canvas.getObjects().filter((candidate) => candidate !== object);
-}
-function findFirstSessionIndex(objects) {
-    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
-}
-function getOrderedGroups(canvas) {
-    const baseImages = [];
-    const overlays = [];
-    const sessions = [];
-    const others = [];
-    for (const object of canvas.getObjects()) {
-        if (isBaseImageObject(object)) {
-            baseImages.push(object);
-        }
-        else if (isEditableOverlayObject(object)) {
-            overlays.push(object);
-        }
-        else if (isSessionObject(object) || isLegacySessionObject(object)) {
-            sessions.push(object);
-        }
-        else {
-            others.push(object);
-        }
-    }
-    return { baseImages, overlays, sessions, others };
-}
-function normalizeLayerOrder(canvas) {
-    const groups = getOrderedGroups(canvas);
-    const ordered = [
-        ...groups.baseImages,
-        ...groups.others,
-        ...groups.overlays,
-        ...groups.sessions,
-    ];
-    ordered.forEach((object, index) => {
-        moveObjectTo(canvas, object, index);
-    });
-}
-function placeMaskObject(canvas, mask) {
-    ensureOnCanvas(canvas, mask);
-    const objects = withoutObject(canvas, mask);
-    const firstSessionIndex = findFirstSessionIndex(objects);
-    moveObjectTo(canvas, mask, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
-}
-function placeAnnotationObject(canvas, annotation) {
-    ensureOnCanvas(canvas, annotation);
-    const objects = withoutObject(canvas, annotation);
-    const firstSessionIndex = findFirstSessionIndex(objects);
-    moveObjectTo(canvas, annotation, firstSessionIndex === -1 ? objects.length : firstSessionIndex);
-}
-function placeSessionObject(canvas, sessionObject) {
-    ensureOnCanvas(canvas, sessionObject);
-    moveObjectTo(canvas, sessionObject, withoutObject(canvas, sessionObject).length);
-}
-function getEditableOverlayRange(canvas) {
-    const objects = canvas.getObjects();
-    const overlayIndexes = objects
-        .map((object, index) => ({ object, index }))
-        .filter(({ object }) => isEditableOverlayObject(object));
-    if (overlayIndexes.length === 0)
-        return { start: -1, end: -1, overlays: [] };
-    return {
-        start: overlayIndexes[0].index,
-        end: overlayIndexes[overlayIndexes.length - 1].index,
-        overlays: overlayIndexes.map(({ object }) => object),
-    };
 }
 
 function resolveNumeric(val, axis, fallback, canvas, options) {
@@ -1560,4 +1560,4 @@ exports.restoreMaskStyleBackup = restoreMaskStyleBackup;
 exports.showLabelForMask = showLabelForMask;
 exports.syncMaskLabel = syncMaskLabel;
 exports.withMaskStyleBackup = withMaskStyleBackup;
-//# sourceMappingURL=index-C01oMxk8.cjs.map
+//# sourceMappingURL=index-DGTy4zAa.cjs.map

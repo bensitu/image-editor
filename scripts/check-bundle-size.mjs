@@ -18,12 +18,26 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { rollup, VERSION as rollupVersion } from 'rollup';
 
+import {
+    BUNDLE_MEASUREMENT_CONFIG,
+    BUNDLE_MEASUREMENT_CONFIG_HASH,
+    fingerprintMeasurementInputs,
+    hashFile,
+    latestMeasurementInputMtime,
+} from './bundle-measurement-config.mjs';
+import {
+    compareMeasurements,
+    createExpectedProvenance,
+    validateBundleProvenance,
+} from './check-bundle-provenance.mjs';
+
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
 const fixturesRoot = path.join(repoRoot, 'tests', 'bundle', 'fixtures');
 const baselinesRoot = path.join(repoRoot, 'tests', 'bundle', 'baselines');
 const budgetsPath = path.join(repoRoot, 'tests', 'bundle', 'budgets.json');
+const immutableBaselinePath = path.join(baselinesRoot, 'v2.9.0.json');
 const packageName = '@bensitu/image-editor';
 const kernelTestSpecifier = '@bensitu/image-editor/plugin-kernel-internal';
 const packageSubpathEntries = Object.freeze({
@@ -100,6 +114,8 @@ function parseArguments(argv) {
         packageRoot: repoRoot,
         fixtureNames: null,
         updateName: null,
+        archiveStaleCurrent: false,
+        verifyCurrentHead: false,
     };
 
     for (let index = 0; index < argv.length; index += 1) {
@@ -116,6 +132,10 @@ function parseArguments(argv) {
         } else if (argument === '--update') {
             options.updateName = argv[index + 1] ?? '';
             index += 1;
+        } else if (argument === '--archive-stale-current') {
+            options.archiveStaleCurrent = true;
+        } else if (argument === '--verify-current-head') {
+            options.verifyCurrentHead = true;
         } else {
             throw new Error(`Unknown argument: ${argument}`);
         }
@@ -123,6 +143,12 @@ function parseArguments(argv) {
 
     if (options.updateName && !/^[a-z0-9][a-z0-9.-]*$/i.test(options.updateName)) {
         throw new Error(`Invalid baseline name: ${options.updateName}`);
+    }
+    if (options.updateName && options.verifyCurrentHead) {
+        throw new Error('--update and --verify-current-head cannot be combined.');
+    }
+    if (options.archiveStaleCurrent && options.updateName !== 'current') {
+        throw new Error('--archive-stale-current requires --update current.');
     }
     return options;
 }
@@ -229,8 +255,7 @@ async function measureFixture(fixture, packageRoot) {
             commonjs(),
         ],
         treeshake: {
-            moduleSideEffects: false,
-            propertyReadSideEffects: false,
+            ...BUNDLE_MEASUREMENT_CONFIG.rollup.treeshake,
         },
         onwarn(warning, warn) {
             if (warning.code === 'CIRCULAR_DEPENDENCY') return;
@@ -241,7 +266,7 @@ async function measureFixture(fixture, packageRoot) {
         format: 'es',
         exports: 'named',
         inlineDynamicImports: true,
-        sourcemap: false,
+        sourcemap: BUNDLE_MEASUREMENT_CONFIG.rollup.sourcemap,
     };
     const bundle = await rollup(inputOptions);
 
@@ -252,9 +277,11 @@ async function measureFixture(fixture, packageRoot) {
                 ...outputOptions,
                 plugins: [
                     terser({
-                        compress: { passes: 2 },
-                        format: { comments: false },
-                        mangle: true,
+                        compress: {
+                            passes: BUNDLE_MEASUREMENT_CONFIG.terser.compressPasses,
+                        },
+                        format: { comments: BUNDLE_MEASUREMENT_CONFIG.terser.comments },
+                        mangle: BUNDLE_MEASUREMENT_CONFIG.terser.mangle,
                     }),
                 ],
             }),
@@ -284,10 +311,12 @@ async function measureFixture(fixture, packageRoot) {
             entryPath: toRepoPath(fixture.entryPath, repoRoot),
             rawBytes: rawBuffer.byteLength,
             minifiedBytes: minifiedBuffer.byteLength,
-            gzipBytes: gzipSync(minifiedBuffer, { level: 9 }).byteLength,
+            gzipBytes: gzipSync(minifiedBuffer, {
+                level: BUNDLE_MEASUREMENT_CONFIG.gzip.level,
+            }).byteLength,
             brotliBytes: brotliCompressSync(minifiedBuffer, {
                 params: {
-                    [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
+                    [zlibConstants.BROTLI_PARAM_QUALITY]: BUNDLE_MEASUREMENT_CONFIG.brotli.quality,
                     [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
                 },
             }).byteLength,
@@ -326,6 +355,12 @@ async function createMeasurement(packageRoot, fixtures) {
             gitCommit: await getGitCommit(packageRoot),
             nodeVersion: process.version,
             measuredAt: new Date().toISOString(),
+            measurementConfigVersion: BUNDLE_MEASUREMENT_CONFIG.schemaVersion,
+            measurementConfigHash: BUNDLE_MEASUREMENT_CONFIG_HASH,
+            artifactFingerprint: await fingerprintMeasurementInputs(packageRoot, fixturesRoot),
+            artifactLatestMtimeMs: await latestMeasurementInputMtime(packageRoot, fixturesRoot),
+            lockedBudgetsSha256: await hashFile(budgetsPath),
+            immutableBaselineSha256: await hashFile(immutableBaselinePath),
             bundler: {
                 name: 'rollup',
                 version: rollupVersion,
@@ -418,12 +453,58 @@ async function updateBaseline(name, measurement) {
     printMeasurement(measurement);
 }
 
+async function archiveStaleCurrent(measurement) {
+    const currentPath = path.join(baselinesRoot, 'current.json');
+    let current;
+    try {
+        current = await readJson(currentPath);
+    } catch (error) {
+        if (error?.code === 'ENOENT') return;
+        throw error;
+    }
+    const currentCommit = current.metadata?.gitCommit ?? 'unknown';
+    const currentFingerprint = current.metadata?.artifactFingerprint ?? 'missing';
+    if (
+        currentCommit === measurement.metadata.gitCommit &&
+        currentFingerprint === measurement.metadata.artifactFingerprint
+    ) {
+        return;
+    }
+    const suffix = /^[0-9a-f]{7,40}$/i.test(currentCommit) ? currentCommit.slice(0, 7) : 'unknown';
+    const archivePath = path.join(baselinesRoot, `pre-phase-5a-r-stale-${suffix}.json`);
+    try {
+        await stat(archivePath);
+    } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+        await writeFile(archivePath, `${JSON.stringify(current, null, 4)}\n`, 'utf8');
+        console.warn(`Archived stale current baseline: ${toRepoPath(archivePath, repoRoot)}`);
+    }
+}
+
+async function verifyCurrentHead(measurement) {
+    const baseline = await readJson(path.join(baselinesRoot, 'current.json'));
+    const errors = [
+        ...validateBundleProvenance(baseline, await createExpectedProvenance()),
+        ...compareMeasurements(baseline, measurement),
+    ];
+    if (errors.length > 0) {
+        console.error('Current-head bundle verification failed:');
+        for (const error of errors) console.error(`- ${error}`);
+        process.exitCode = 1;
+        return false;
+    }
+    console.log('Current-head bundle provenance and live measurement match.');
+    return true;
+}
+
 const options = parseArguments(process.argv.slice(2));
 const fixtures = await discoverFixtures(options.fixtureNames, options.packageRoot);
 const measurement = await createMeasurement(options.packageRoot, fixtures);
 
 if (options.updateName) {
+    if (options.archiveStaleCurrent) await archiveStaleCurrent(measurement);
     await updateBaseline(options.updateName, measurement);
 } else {
-    await checkBudgets(measurement);
+    const verified = options.verifyCurrentHead ? await verifyCurrentHead(measurement) : true;
+    if (verified) await checkBudgets(measurement);
 }

@@ -1,0 +1,294 @@
+{
+    "schemaVersion": 1,
+    "metadata": {
+        "reviewedAtCommit": "b68f9035aaa927bbdfc3851bbe8226140bdce203",
+        "forbiddenAggregateInterfaces": ["LegacyCoreAccess"]
+    },
+    "ports": [
+        {
+            "id": "port:LegacyBaseImageReadPort",
+            "name": "LegacyBaseImageReadPort",
+            "members": [
+                { "name": "getBaseImage", "signature": "getBaseImage(): BaseImageObject | null;" },
+                { "name": "getImageInfo", "signature": "getImageInfo(): CoreImageInfo | null;" },
+                { "name": "isImageLoaded", "signature": "isImageLoaded(): boolean;" }
+            ],
+            "purpose": "Read Core-owned base-image identity and metadata."
+        },
+        {
+            "id": "port:LegacyCallbackPort",
+            "name": "LegacyCallbackPort",
+            "members": [
+                {
+                    "name": "emitImageChanged",
+                    "signature": "emitImageChanged(state: ImageEditorState, context: ImageEditorCallbackContext): void;"
+                },
+                {
+                    "name": "emitMasksChanged",
+                    "signature": "emitMasksChanged(masks: readonly MaskObject[], context: ImageEditorCallbackContext): void;"
+                },
+                {
+                    "name": "emitAnnotationsChanged",
+                    "signature": "emitAnnotationsChanged( annotations: readonly AnnotationObject[], context: ImageEditorCallbackContext, ): void;"
+                },
+                {
+                    "name": "reportError",
+                    "signature": "reportError(error: unknown, message: string): void;"
+                },
+                {
+                    "name": "reportWarning",
+                    "signature": "reportWarning(error: unknown, message: string): void;"
+                }
+            ],
+            "purpose": "Emit public callbacks through the compatibility callback boundary."
+        },
+        {
+            "id": "port:LegacyCanvasReadPort",
+            "name": "LegacyCanvasReadPort",
+            "members": [
+                { "name": "getCanvas", "signature": "getCanvas(): FabricNS.Canvas | null;" },
+                {
+                    "name": "requireCanvas",
+                    "signature": "requireCanvas(operationId: string): FabricNS.Canvas;"
+                }
+            ],
+            "purpose": "Read or require the Core-owned live Canvas."
+        },
+        {
+            "id": "port:LegacyDisposer",
+            "name": "LegacyDisposer",
+            "members": [{ "name": "dispose", "signature": "dispose(): void | Promise<void>;" }],
+            "purpose": "Dispose a registration without exposing its registry."
+        },
+        {
+            "id": "port:LegacyDomReadModelPort",
+            "name": "LegacyDomReadModelPort",
+            "members": [
+                {
+                    "name": "getElement",
+                    "signature": "getElement<TKey extends ElementKey>(key: TKey): HTMLElement | null;"
+                },
+                {
+                    "name": "setControlEnabled",
+                    "signature": "setControlEnabled(key: ElementKey, enabled: boolean): void;"
+                },
+                { "name": "synchronize", "signature": "synchronize(): void;" }
+            ],
+            "purpose": "Resolve and synchronize documented DOM controls."
+        },
+        {
+            "id": "port:LegacyExportContributorPort",
+            "name": "LegacyExportContributorPort",
+            "members": [
+                {
+                    "name": "register",
+                    "signature": "register( id: string, render: (workspace: FabricNS.StaticCanvas) => void | Promise<void>, ): LegacyDisposer;"
+                }
+            ],
+            "purpose": "Register feature rendering on an isolated export workspace."
+        },
+        {
+            "id": "port:LegacyHistoryRecorderPort",
+            "name": "LegacyHistoryRecorderPort",
+            "members": [
+                {
+                    "name": "recordCommitted",
+                    "signature": "recordCommitted(operationId: string, detail?: Readonly<Record<string, unknown>>): void;"
+                },
+                { "name": "clear", "signature": "clear(): void;" }
+            ],
+            "purpose": "Record or clear committed history without exposing the stack."
+        },
+        {
+            "id": "port:LegacyOperationPort",
+            "name": "LegacyOperationPort",
+            "members": [
+                { "name": "isBusy", "signature": "isBusy(): boolean;" },
+                {
+                    "name": "runSync",
+                    "signature": "runSync<TResult>(operationId: ImageEditorOperation, body: () => TResult): TResult;"
+                },
+                {
+                    "name": "run",
+                    "signature": "run<TResult>( operationId: ImageEditorOperation, body: () => TResult | Promise<TResult>, ): Promise<TResult>;"
+                }
+            ],
+            "purpose": "Run sync or async work under a named operation guard."
+        },
+        {
+            "id": "port:LegacyOverlayPort",
+            "name": "LegacyOverlayPort",
+            "members": [
+                { "name": "getMasks", "signature": "getMasks(): readonly MaskObject[];" },
+                {
+                    "name": "getAnnotations",
+                    "signature": "getAnnotations(): readonly AnnotationObject[];"
+                },
+                { "name": "getSelection", "signature": "getSelection(): ImageEditorSelection;" },
+                { "name": "requestRender", "signature": "requestRender(): void;" }
+            ],
+            "purpose": "Read overlay collections, selection, and request rendering."
+        },
+        {
+            "id": "port:LegacyRasterCommitPort",
+            "name": "LegacyRasterCommitPort",
+            "members": [
+                {
+                    "name": "commitRaster",
+                    "signature": "commitRaster(operationId: string, mutation: () => void | Promise<void>): Promise<void>;"
+                }
+            ],
+            "purpose": "Commit one raster mutation through the Core transaction boundary."
+        },
+        {
+            "id": "port:LegacyStateSliceDefinition",
+            "name": "LegacyStateSliceDefinition",
+            "members": [
+                { "name": "id", "signature": "readonly id: string;" },
+                { "name": "version", "signature": "readonly version: number;" },
+                { "name": "capture", "signature": "capture(): TState;" },
+                { "name": "validate", "signature": "validate(value: unknown): value is TState;" },
+                { "name": "restore", "signature": "restore(value: TState): void | Promise<void>;" },
+                { "name": "clear", "signature": "clear(): void | Promise<void>;" }
+            ],
+            "purpose": "Describe one owner-specific compatibility state slice."
+        },
+        {
+            "id": "port:LegacyStateSlicePort",
+            "name": "LegacyStateSlicePort",
+            "members": [
+                {
+                    "name": "register",
+                    "signature": "register<TState>(definition: LegacyStateSliceDefinition<TState>): LegacyDisposer;"
+                }
+            ],
+            "purpose": "Register one owner-specific state slice."
+        },
+        {
+            "id": "port:LegacyToolSessionPort",
+            "name": "LegacyToolSessionPort",
+            "members": [
+                {
+                    "name": "getActiveToolMode",
+                    "signature": "getActiveToolMode(): EditorToolMode | null;"
+                },
+                { "name": "begin", "signature": "begin(mode: EditorToolMode): void;" },
+                { "name": "end", "signature": "end(mode: EditorToolMode): void;" }
+            ],
+            "purpose": "Coordinate one active legacy tool session."
+        }
+    ],
+    "adapters": [
+        {
+            "adapter": "LEGACY_FILTERS_ADAPTER",
+            "family": "FILTERS",
+            "migrationStage": "R5B",
+            "allowedPorts": [
+                "LegacyBaseImageReadPort",
+                "LegacyRasterCommitPort",
+                "LegacyOperationPort",
+                "LegacyHistoryRecorderPort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "LEGACY_CROP_ADAPTER",
+            "family": "CROP",
+            "migrationStage": "R5C",
+            "allowedPorts": [
+                "LegacyCanvasReadPort",
+                "LegacyBaseImageReadPort",
+                "LegacyRasterCommitPort",
+                "LegacyOperationPort",
+                "LegacyHistoryRecorderPort",
+                "LegacyOverlayPort",
+                "LegacyToolSessionPort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "LEGACY_MOSAIC_ADAPTER",
+            "family": "MOSAIC",
+            "migrationStage": "R5D",
+            "allowedPorts": [
+                "LegacyCanvasReadPort",
+                "LegacyBaseImageReadPort",
+                "LegacyRasterCommitPort",
+                "LegacyOperationPort",
+                "LegacyHistoryRecorderPort",
+                "LegacyToolSessionPort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "LEGACY_ANNOTATION_ADAPTER",
+            "family": "ANNOTATION",
+            "migrationStage": "R5E",
+            "allowedPorts": [
+                "LegacyCanvasReadPort",
+                "LegacyBaseImageReadPort",
+                "LegacyOperationPort",
+                "LegacyHistoryRecorderPort",
+                "LegacyExportContributorPort",
+                "LegacyStateSlicePort",
+                "LegacyOverlayPort",
+                "LegacyToolSessionPort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "LEGACY_OVERLAY_STATE_ADAPTER",
+            "family": "OVERLAY_STATE",
+            "migrationStage": "R5F",
+            "allowedPorts": [
+                "LegacyBaseImageReadPort",
+                "LegacyOperationPort",
+                "LegacyStateSlicePort",
+                "LegacyOverlayPort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "LEGACY_DOM_ADAPTER",
+            "family": "UI",
+            "migrationStage": "R5G",
+            "allowedPorts": [
+                "LegacyCanvasReadPort",
+                "LegacyToolSessionPort",
+                "LegacyCallbackPort",
+                "LegacyDomReadModelPort"
+            ]
+        },
+        {
+            "adapter": "MASK_PLUGIN",
+            "family": "MASK",
+            "migrationStage": "R4",
+            "allowedPorts": [
+                "LegacyCanvasReadPort",
+                "LegacyOperationPort",
+                "LegacyHistoryRecorderPort",
+                "LegacyExportContributorPort",
+                "LegacyStateSlicePort",
+                "LegacyOverlayPort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "HISTORY_PLUGIN",
+            "family": "HISTORY",
+            "migrationStage": "R3",
+            "allowedPorts": [
+                "LegacyOperationPort",
+                "LegacyHistoryRecorderPort",
+                "LegacyStateSlicePort",
+                "LegacyCallbackPort"
+            ]
+        },
+        {
+            "adapter": "THIN_FACADE",
+            "family": "RUNTIME",
+            "migrationStage": "R2",
+            "allowedPorts": ["LegacyOperationPort", "LegacyCallbackPort", "LegacyDomReadModelPort"]
+        }
+    ]
+}

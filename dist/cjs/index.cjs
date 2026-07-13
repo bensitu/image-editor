@@ -3,10 +3,10 @@
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var internalCapabilities = require('./chunks/internal-capabilities-DIerpWRs.cjs');
-var plugins_mask_index = require('./chunks/index-C01oMxk8.cjs');
+var plugins_mask_index = require('./chunks/index-DGTy4zAa.cjs');
 var plugins_transform_index = require('./chunks/index-CboFlSRG.cjs');
 var foundations_overlay_index = require('./chunks/index-Cs4bNsWm.cjs');
-var core_index = require('./chunks/index-DTL2QdkR.cjs');
+var core_index = require('./chunks/index-CeRMDho6.cjs');
 var plugins_history_index = require('./plugins/history/index.cjs');
 require('./chunks/errors-CQdnZvQh.cjs');
 require('./chunks/disposable-Sj4tt6Lk.cjs');
@@ -1422,6 +1422,128 @@ class PluginHistoryAdapter {
         if (this.disposed)
             throw new Error('[ImageEditor] History adapter is disposed.');
     }
+}
+
+function adaptLegacyOptions(options) {
+    var _a, _b;
+    return Object.freeze({
+        core: Object.freeze({
+            canvasWidth: options.canvasWidth,
+            canvasHeight: options.canvasHeight,
+            backgroundColor: options.backgroundColor,
+            defaultLayoutMode: options.layoutMode,
+            groupSelection: options.groupSelection,
+            maxInputBytes: options.maxInputBytes,
+            maxInputPixels: options.maxInputPixels,
+            imageLoadTimeoutMs: options.imageLoadTimeoutMs,
+            maxExportPixels: options.maxExportPixels,
+            maxExportDimension: options.maxExportDimension,
+            exportMultiplier: options.exportMultiplier,
+            onError: (_a = options.onError) !== null && _a !== void 0 ? _a : undefined,
+            onWarning: (_b = options.onWarning) !== null && _b !== void 0 ? _b : undefined,
+        }),
+        history: Object.freeze({ maxSize: options.maxHistorySize }),
+        transform: Object.freeze({
+            animationDuration: options.animationDuration,
+            minScale: options.minScale,
+            maxScale: options.maxScale,
+            scaleStep: options.scaleStep,
+            rotationStep: options.rotationStep,
+        }),
+        mask: Object.freeze({
+            defaultWidth: options.defaultMaskWidth,
+            defaultHeight: options.defaultMaskHeight,
+            defaultConfig: options.defaultMaskConfig,
+            rotatable: options.maskRotatable,
+            label: options.maskLabelOnSelect ? options.label : false,
+            labelOffset: options.maskLabelOffset,
+            listOrder: options.maskListOrder,
+            bindToImageTransform: options.bindMasksToImageTransform,
+            namePrefix: options.maskName,
+        }),
+    });
+}
+
+function createFullCompatibilityComposition(fabric, options, legacyFeatures) {
+    const mapped = adaptLegacyOptions(options);
+    const core = new core_index.ImageEditorCore(fabric, mapped.core);
+    try {
+        const history = core.use(plugins_history_index.historyPlugin(mapped.history));
+        core.use(foundations_overlay_index.overlayFoundationPlugin());
+        const transform = core.use(plugins_transform_index.transformPlugin(mapped.transform));
+        const masks = core.use(plugins_mask_index.maskPlugin(mapped.mask));
+        let disposePromise = null;
+        let disposeStarted = false;
+        const disposeCore = () => {
+            core.dispose();
+            return core.disposeAsync();
+        };
+        const beginAsyncDispose = () => {
+            if (disposePromise)
+                return disposePromise;
+            if (disposeStarted)
+                return core.disposeAsync();
+            disposeStarted = true;
+            try {
+                const legacyDispose = legacyFeatures.dispose();
+                disposePromise =
+                    legacyDispose && typeof legacyDispose.then === 'function'
+                        ? Promise.resolve(legacyDispose).then(disposeCore)
+                        : disposeCore();
+            }
+            catch (error) {
+                disposePromise = core.disposeAsync().then(() => Promise.reject(error));
+            }
+            return disposePromise;
+        };
+        return Object.freeze({
+            core,
+            history,
+            transform,
+            masks,
+            legacyFeatures,
+            dispose() {
+                if (disposeStarted)
+                    return disposePromise !== null && disposePromise !== void 0 ? disposePromise : undefined;
+                disposeStarted = true;
+                try {
+                    const legacyDispose = legacyFeatures.dispose();
+                    if (legacyDispose && typeof legacyDispose.then === 'function') {
+                        disposePromise = Promise.resolve(legacyDispose).then(() => core.disposeAsync());
+                        return disposePromise;
+                    }
+                    disposePromise = disposeCore();
+                    return disposePromise;
+                }
+                catch (error) {
+                    disposePromise = core.disposeAsync().then(() => Promise.reject(error));
+                    return disposePromise;
+                }
+            },
+            disposeAsync() {
+                return beginAsyncDispose();
+            },
+        });
+    }
+    catch (error) {
+        core.dispose();
+        throw error;
+    }
+}
+
+function createLegacyFeatureCompatibilityPort() {
+    let attached = false;
+    return Object.freeze({
+        get attached() {
+            return attached;
+        },
+        attach() {
+            attached = true;
+        },
+        dispose() {
+            attached = false;
+        },
+    });
 }
 
 const DEFAULT_ELEMENT_TARGETS = Object.freeze({
@@ -12300,19 +12422,6 @@ function safelyRemoveKeyboardListener(keyboardDocument, keyboardHandler) {
     catch {
     }
 }
-function safelyDisposeCanvas(canvas) {
-    if (!canvas)
-        return Promise.resolve();
-    try {
-        return Promise.resolve(canvas.dispose())
-            .then(() => undefined)
-            .catch(() => {
-        });
-    }
-    catch {
-        return Promise.resolve();
-    }
-}
 function safelyExitActiveSession(hasSession, canvas, exitSession, clearSession) {
     if (!hasSession || !canvas)
         return;
@@ -13595,6 +13704,12 @@ class ImageEditor {
             writable: true,
             value: void 0
         });
+        Object.defineProperty(this, "pluginComposition", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "pluginCore", {
             enumerable: true,
             configurable: true,
@@ -13643,46 +13758,16 @@ class ImageEditor {
         this.actionAccessFactory = wiring.actionAccessFactory;
     }
     initializePluginRuntime() {
-        var _a, _b;
-        if (this.pluginCore)
+        if (this.pluginComposition)
             return;
         const options = this.runtime.options;
-        const core = new core_index.ImageEditorCore(this.runtime.fabricModule, {
-            canvasWidth: options.canvasWidth,
-            canvasHeight: options.canvasHeight,
-            backgroundColor: options.backgroundColor,
-            defaultLayoutMode: this.runtime.currentLayoutMode,
-            groupSelection: options.groupSelection,
-            maxInputBytes: options.maxInputBytes,
-            maxInputPixels: options.maxInputPixels,
-            imageLoadTimeoutMs: options.imageLoadTimeoutMs,
-            maxExportPixels: options.maxExportPixels,
-            maxExportDimension: options.maxExportDimension,
-            exportMultiplier: options.exportMultiplier,
-            onError: (_a = options.onError) !== null && _a !== void 0 ? _a : undefined,
-            onWarning: (_b = options.onWarning) !== null && _b !== void 0 ? _b : undefined,
-        });
+        const composition = createFullCompatibilityComposition(this.runtime.fabricModule, Object.freeze({
+            ...options,
+            layoutMode: this.runtime.currentLayoutMode,
+        }), createLegacyFeatureCompatibilityPort());
+        const { core, history, transform, masks } = composition;
         let historyAdapter = null;
         try {
-            const history = core.use(plugins_history_index.historyPlugin({ maxSize: options.maxHistorySize }));
-            core.use(foundations_overlay_index.overlayFoundationPlugin());
-            const transform = core.use(plugins_transform_index.transformPlugin({
-                animationDuration: options.animationDuration,
-                minScale: options.minScale,
-                maxScale: options.maxScale,
-                rotationStep: options.rotationStep,
-            }));
-            const masks = core.use(plugins_mask_index.maskPlugin({
-                defaultWidth: options.defaultMaskWidth,
-                defaultHeight: options.defaultMaskHeight,
-                defaultConfig: options.defaultMaskConfig,
-                rotatable: options.maskRotatable,
-                label: options.maskLabelOnSelect ? options.label : false,
-                labelOffset: options.maskLabelOffset,
-                listOrder: options.maskListOrder,
-                bindToImageTransform: options.bindMasksToImageTransform,
-                namePrefix: options.maskName,
-            }));
             core.use(fullFacadeAnnotationPlugin({
                 bindToImageTransform: options.bindAnnotationsToImageTransform,
                 textFlipBehavior: options.textAnnotationFlipBehavior,
@@ -13694,33 +13779,34 @@ class ImageEditor {
             }));
             historyAdapter = new PluginHistoryAdapter(core, history, options.maxHistorySize, () => undefined);
             this.historyFacade.attach(historyAdapter);
+            this.pluginComposition = composition;
             this.pluginCore = core;
             this.pluginHistoryAdapter = historyAdapter;
             this.transformPluginApi = transform;
             this.maskPluginApi = masks;
             this.runtime.transformController = Object.freeze({
                 scaleImage: async (factor) => {
-                    await this.synchronizePluginCoreImage();
+                    await this.preparePluginOwnedImageState();
                     await transform.scale(factor);
                     this.synchronizeRuntimeTransformState();
                 },
                 rotateImage: async (degrees) => {
-                    await this.synchronizePluginCoreImage();
+                    await this.preparePluginOwnedImageState();
                     await transform.rotate(degrees);
                     this.synchronizeRuntimeTransformState();
                 },
                 flipHorizontal: async () => {
-                    await this.synchronizePluginCoreImage();
+                    await this.preparePluginOwnedImageState();
                     await transform.flipHorizontal();
                     this.synchronizeRuntimeTransformState();
                 },
                 flipVertical: async () => {
-                    await this.synchronizePluginCoreImage();
+                    await this.preparePluginOwnedImageState();
                     await transform.flipVertical();
                     this.synchronizeRuntimeTransformState();
                 },
                 resetImageTransform: async () => {
-                    await this.synchronizePluginCoreImage();
+                    await this.preparePluginOwnedImageState();
                     await transform.resetImageTransform();
                     this.synchronizeRuntimeTransformState();
                 },
@@ -13731,11 +13817,17 @@ class ImageEditor {
                 this.historyFacade.detach(historyAdapter);
                 historyAdapter.dispose();
             }
-            core.dispose();
+            try {
+                composition.legacyFeatures.dispose();
+                core.dispose();
+            }
+            catch (disposeError) {
+                plugins_mask_index.reportWarning(this.runtime.options, disposeError, 'Plugin cleanup failed during initialization rollback.');
+            }
             throw error;
         }
     }
-    async synchronizePluginCoreImage() {
+    async preparePluginOwnedImageState() {
         var _a, _b, _c;
         if (!this.pluginCore || !this.runtime.canvas || this.runtime.isDisposed)
             return;
@@ -13745,7 +13837,7 @@ class ImageEditor {
             flipX: ((_b = this.runtime.originalImage) === null || _b === void 0 ? void 0 : _b.flipX) === true,
             flipY: ((_c = this.runtime.originalImage) === null || _c === void 0 ? void 0 : _c.flipY) === true,
         });
-        await this.pluginCore.synchronizeCompatibilityImage({
+        await this.pluginCore.adoptLegacyImageState({
             baseImage: this.runtime.originalImage,
             baseImageScale: this.runtime.baseImageScale,
             imageMimeType: this.runtime.currentImageMimeType,
@@ -13970,6 +14062,7 @@ class ImageEditor {
         });
     }
     init(elementMap = {}) {
+        var _a;
         if (!this.runtime.isFabricLoaded) {
             const globalFabric = globalThis.fabric;
             if (!globalFabric ||
@@ -13988,13 +14081,21 @@ class ImageEditor {
         }
         this.runtime.elements = resolveElementTargets(elementMap);
         this.initializePluginRuntime();
-        this.initCanvas();
-        this.runtime.domBindings = new DomBindings((key) => this.resolveElement(key), () => this.runtime.isDisposed);
-        this.bindDomEvents();
-        this.updateInputs();
-        this.updateMaskList();
-        this.updateAnnotationList();
-        this.updateUi();
+        try {
+            this.initCanvas();
+            this.runtime.domBindings = new DomBindings((key) => this.resolveElement(key), () => this.runtime.isDisposed);
+            this.bindDomEvents();
+            this.updateInputs();
+            this.updateMaskList();
+            this.updateAnnotationList();
+            this.updateUi();
+        }
+        catch (error) {
+            (_a = this.runtime.domBindings) === null || _a === void 0 ? void 0 : _a.removeAll();
+            safelyRemoveKeyboardListener(this.runtime.keyboardDocument, this.runtime.keyboardHandler);
+            this.rollbackPluginRuntimeAfterInitFailure();
+            throw error;
+        }
         if (this.runtime.options.initialImageBase64) {
             void this.loadImage(this.runtime.options.initialImageBase64).catch(() => {
             });
@@ -14016,49 +14117,27 @@ class ImageEditor {
         this.runtime.containerElement =
             (_a = resolveDomElement(this.runtime.elements.canvasContainer, ownerDocument)) !== null && _a !== void 0 ? _a : canvasElement.parentElement;
         this.runtime.placeholderElement = resolveDomElement(this.runtime.elements.imagePlaceholder, ownerDocument);
-        let initialWidth = this.runtime.options.canvasWidth;
-        let initialHeight = this.runtime.options.canvasHeight;
-        if (this.runtime.containerElement) {
-            const containerWidth = Math.floor(this.runtime.containerElement.clientWidth);
-            const containerHeight = Math.floor(this.runtime.containerElement.clientHeight);
-            if (containerWidth > 0 && containerHeight > 0) {
-                initialWidth = containerWidth;
-                initialHeight = containerHeight;
-            }
-        }
-        this.runtime.canvas = new this.runtime.fabricModule.Canvas(canvasElement, {
-            width: initialWidth,
-            height: initialHeight,
-            backgroundColor: this.runtime.options.backgroundColor,
-            selection: this.runtime.options.groupSelection,
-            preserveObjectStacking: true,
+        const core = this.pluginCore;
+        if (!core)
+            throw new Error('[ImageEditor] Full composition is unavailable.');
+        core.init({
+            canvas: canvasElement,
+            canvasContainer: this.runtime.containerElement,
+            imagePlaceholder: this.runtime.placeholderElement,
         });
-        (_b = this.pluginCore) === null || _b === void 0 ? void 0 : _b.attachExistingCanvas(this.runtime.canvas, {
-            canvasElement,
-            containerElement: this.runtime.containerElement,
-            placeholderElement: this.runtime.placeholderElement,
-            onHostStateChange: (state) => {
-                this.runtime.originalImage = state.baseImage;
-                this.runtime.baseImageScale = state.baseImageScale;
-                this.runtime.currentImageMimeType = state.imageMimeType;
-                this.runtime.isImageLoadedToCanvas = state.baseImage !== null;
-            },
-            finalizeBaseImageGeometry: () => {
-                const image = this.runtime.originalImage;
-                if (!image)
-                    return;
-                this.updateCanvasSizeToImageBounds();
-                this.alignObjectBoundingBoxToCanvasTopLeft(image);
-            },
-        });
+        const canvas = core.getCanvas();
+        if (!canvas)
+            throw new Error('[ImageEditor] Core did not initialize a Canvas.');
+        this.runtime.canvas = canvas;
+        (_b = this.pluginComposition) === null || _b === void 0 ? void 0 : _b.legacyFeatures.attach();
         (_c = this.pluginHistoryAdapter) === null || _c === void 0 ? void 0 : _c.resetBaseline();
-        this.runtime.canvas.on('selection:created', (e) => {
+        canvas.on('selection:created', (e) => {
             this.handleSelectionChanged(e.selected);
         });
-        this.runtime.canvas.on('selection:updated', (e) => {
+        canvas.on('selection:updated', (e) => {
             this.handleSelectionChanged(e.selected);
         });
-        this.runtime.canvas.on('selection:cleared', () => this.handleSelectionChanged([]));
+        canvas.on('selection:cleared', () => this.handleSelectionChanged([]));
         const onObjectEvent = (e) => {
             if (e.target)
                 this.handleObjectMovingScalingRotating(e.target);
@@ -14067,10 +14146,27 @@ class ImageEditor {
             if (e.target)
                 this.handleObjectModified(e.target);
         };
-        this.runtime.canvas.on('object:moving', onObjectEvent);
-        this.runtime.canvas.on('object:scaling', onObjectEvent);
-        this.runtime.canvas.on('object:rotating', onObjectEvent);
-        this.runtime.canvas.on('object:modified', onObjectModified);
+        canvas.on('object:moving', onObjectEvent);
+        canvas.on('object:scaling', onObjectEvent);
+        canvas.on('object:rotating', onObjectEvent);
+        canvas.on('object:modified', onObjectModified);
+    }
+    rollbackPluginRuntimeAfterInitFailure() {
+        const composition = this.pluginComposition;
+        const historyAdapter = this.pluginHistoryAdapter;
+        if (historyAdapter) {
+            this.historyFacade.detach(historyAdapter);
+            historyAdapter.dispose();
+        }
+        this.pluginComposition = null;
+        this.pluginCore = null;
+        this.pluginHistoryAdapter = null;
+        this.transformPluginApi = null;
+        this.maskPluginApi = null;
+        this.runtime.resetAfterDispose();
+        void Promise.resolve(composition === null || composition === void 0 ? void 0 : composition.dispose()).catch((error) => {
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during initialization rollback.');
+        });
     }
     resolveElement(key, ownerDocument = getRuntimeDocument(this.runtime.canvasElement), guard) {
         return resolveDomElement(this.runtime.elements[key], ownerDocument, guard);
@@ -14327,7 +14423,7 @@ class ImageEditor {
             await loadImage(loadImageContext, base64, options);
             const isInternalLoad = options[TRUSTED_STATE_RESTORE] === true ||
                 options[INTERNAL_OPERATION_TOKEN] !== undefined;
-            await ((_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.synchronizeCompatibilityImage({
+            await ((_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.adoptLegacyImageState({
                 baseImage: this.runtime.originalImage,
                 baseImageScale: this.runtime.baseImageScale,
                 imageMimeType: this.runtime.currentImageMimeType,
@@ -14507,12 +14603,14 @@ class ImageEditor {
         });
     }
     setLayoutMode(mode) {
+        var _a;
         if (!isLayoutMode(mode)) {
             plugins_mask_index.reportWarning(this.runtime.options, new TypeError(`[ImageEditor] Unsupported layout mode ${JSON.stringify(mode)}. ` +
                 'Expected "fit", "cover", or "expand".'), 'Ignored invalid layout mode.');
             return;
         }
         this.runtime.currentLayoutMode = mode;
+        (_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.setLayoutMode(mode);
     }
     setCanvasSize(widthPx, heightPx) {
         this.applyPublicCanvasSize(widthPx, heightPx, 'setCanvasSize');
@@ -15028,7 +15126,7 @@ class ImageEditor {
     async loadFromStateInternal(jsonString, options) {
         var _a, _b;
         await loadFromStateAction(this.actionAccessFactory.buildEditorStateActionAccess(), jsonString, options);
-        await ((_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.synchronizeCompatibilityImage({
+        await ((_a = this.pluginCore) === null || _a === void 0 ? void 0 : _a.adoptLegacyImageState({
             baseImage: this.runtime.originalImage,
             baseImageScale: this.runtime.baseImageScale,
             imageMimeType: this.runtime.currentImageMimeType,
@@ -15101,7 +15199,7 @@ class ImageEditor {
         const context = this.buildCallbackContext('createMask', false);
         let mask;
         try {
-            void this.synchronizePluginCoreImage();
+            void this.preparePluginOwnedImageState();
             mask = this.withSelectionChangeContext(context, () => this.maskPluginApi.create(config));
         }
         catch (error) {
@@ -15570,7 +15668,7 @@ class ImageEditor {
         await this.disposeInternal(true);
     }
     disposeInternal(waitForCanvasDispose) {
-        var _a;
+        var _a, _b, _c;
         if (this.runtime.isDisposed) {
             return waitForCanvasDispose ? Promise.resolve() : undefined;
         }
@@ -15599,36 +15697,32 @@ class ImageEditor {
         safelyExitActiveSession(this.runtime.shapeSession !== null, this.runtime.canvas, () => exitShapeMode(this.buildShapeControllerContext()), () => {
             this.runtime.shapeSession = null;
         });
-        const canvas = this.runtime.canvas;
+        const composition = this.pluginComposition;
         const pluginCore = this.pluginCore;
         const historyAdapter = this.pluginHistoryAdapter;
         if (historyAdapter) {
             this.historyFacade.detach(historyAdapter);
             historyAdapter.dispose();
         }
+        this.pluginComposition = null;
         this.pluginCore = null;
         this.pluginHistoryAdapter = null;
         this.transformPluginApi = null;
         this.maskPluginApi = null;
-        const disposeCanvas = () => canvas ? safelyDisposeCanvas(canvas) : Promise.resolve();
         let canvasDispose;
-        if (pluginCore === null || pluginCore === void 0 ? void 0 : pluginCore.hasActiveCompatibilityMutation()) {
-            canvasDispose = pluginCore
-                .disposeAsync()
-                .catch((error) => {
-                plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
-            })
-                .then(disposeCanvas);
+        try {
+            const disposal = waitForCanvasDispose
+                ? ((_b = composition === null || composition === void 0 ? void 0 : composition.disposeAsync()) !== null && _b !== void 0 ? _b : pluginCore === null || pluginCore === void 0 ? void 0 : pluginCore.disposeAsync())
+                : ((_c = composition === null || composition === void 0 ? void 0 : composition.dispose()) !== null && _c !== void 0 ? _c : pluginCore === null || pluginCore === void 0 ? void 0 : pluginCore.dispose());
+            canvasDispose = Promise.resolve(disposal);
         }
-        else {
-            try {
-                pluginCore === null || pluginCore === void 0 ? void 0 : pluginCore.dispose();
-            }
-            catch (error) {
-                plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
-            }
-            canvasDispose = disposeCanvas();
+        catch (error) {
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
+            canvasDispose = Promise.resolve();
         }
+        canvasDispose = canvasDispose.catch((error) => {
+            plugins_mask_index.reportWarning(this.runtime.options, error, 'Plugin cleanup failed during dispose.');
+        });
         this.runtime.resetAfterDispose();
         if (previousImage) {
             this.emitOptionCallback('onImageCleared', [previousImage, context]);

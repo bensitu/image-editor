@@ -3548,6 +3548,12 @@ class ImageEditorCore {
             writable: true,
             value: 1
         });
+        Object.defineProperty(this, "layoutMode", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: void 0
+        });
         Object.defineProperty(this, "geometryRevision", {
             enumerable: true,
             configurable: true,
@@ -3559,24 +3565,6 @@ class ImageEditorCore {
             configurable: true,
             writable: true,
             value: false
-        });
-        Object.defineProperty(this, "ownsCanvas", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: false
-        });
-        Object.defineProperty(this, "compatibilityHostStateListener", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
-        });
-        Object.defineProperty(this, "compatibilityGeometryFinalizer", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: null
         });
         Object.defineProperty(this, "disposing", {
             enumerable: true,
@@ -3602,6 +3590,7 @@ class ImageEditorCore {
             throw new errors.CoreRuntimeError('[ImageEditor] ImageEditorCore requires a Fabric.js v7 module.');
         }
         this.options = resolveOptions(options);
+        this.layoutMode = this.options.layoutMode;
         this.transientObjects = new TransientObjectRegistry((warning) => {
             var _a;
             this.reportWarning((_a = warning.details) === null || _a === void 0 ? void 0 : _a.cause, warning.message);
@@ -3723,14 +3712,14 @@ class ImageEditorCore {
         this.placeholderElement = resolveElement(elements.imagePlaceholder, ownerDocument);
         const containerWidth = Math.floor((_d = (_c = this.containerElement) === null || _c === void 0 ? void 0 : _c.clientWidth) !== null && _d !== void 0 ? _d : 0);
         const containerHeight = Math.floor((_f = (_e = this.containerElement) === null || _e === void 0 ? void 0 : _e.clientHeight) !== null && _f !== void 0 ? _f : 0);
+        const hasVisibleContainer = containerWidth > 0 && containerHeight > 0;
         this.canvas = new this.fabric.Canvas(canvasElement, {
-            width: containerWidth > 0 ? containerWidth : this.options.canvasWidth,
-            height: containerHeight > 0 ? containerHeight : this.options.canvasHeight,
+            width: hasVisibleContainer ? containerWidth : this.options.canvasWidth,
+            height: hasVisibleContainer ? containerHeight : this.options.canvasHeight,
             backgroundColor: this.options.backgroundColor,
             selection: this.options.groupSelection,
             preserveObjectStacking: true,
         });
-        this.ownsCanvas = true;
         this.initialized = true;
         try {
             this.plugins.initializeSync();
@@ -3921,40 +3910,26 @@ class ImageEditorCore {
     getCanvas() {
         return this.canvas;
     }
-    attachExistingCanvas(canvas, elements) {
-        var _a, _b, _c, _d;
-        this.assertNotDisposed('attach an existing Canvas');
-        if (this.initialized) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Core is already initialized.');
-        }
-        this.canvas = canvas;
-        this.canvasElement = elements.canvasElement;
-        this.containerElement = (_a = elements.containerElement) !== null && _a !== void 0 ? _a : canvas.lowerCanvasEl.parentElement;
-        this.placeholderElement = (_b = elements.placeholderElement) !== null && _b !== void 0 ? _b : null;
-        this.compatibilityHostStateListener = (_c = elements.onHostStateChange) !== null && _c !== void 0 ? _c : null;
-        this.compatibilityGeometryFinalizer = (_d = elements.finalizeBaseImageGeometry) !== null && _d !== void 0 ? _d : null;
-        this.ownsCanvas = false;
-        this.initialized = true;
-        try {
-            this.plugins.initializeSync();
-            this.updatePlaceholder();
-        }
-        catch (error) {
-            this.clearRuntimeReferences();
-            throw error;
-        }
+    setLayoutMode(mode) {
+        this.assertNotDisposed('set layout mode');
+        this.layoutMode = mode;
+        this.viewportCache.clear();
     }
-    async synchronizeCompatibilityImage(state) {
+    async adoptLegacyImageState(state) {
         var _a;
-        this.assertReady('synchronize compatibility state');
+        this.assertReady('adopt legacy image state');
+        const canvas = this.requireCanvas('adopt legacy image state');
         const previousImage = this.baseImage;
-        if (state.baseImage)
+        if (state.baseImage) {
+            if (!canvas.getObjects().includes(state.baseImage)) {
+                throw new errors.CoreRuntimeError('[ImageEditor] Cannot adopt a base image that is not on the Core Canvas.');
+            }
             markBaseImage(state.baseImage);
+        }
         this.baseImage = state.baseImage;
         this.baseImageScale = positiveFinite(state.baseImageScale, 1);
         this.imageMimeType = state.imageMimeType;
         this.geometryRevision += 1;
-        this.notifyCompatibilityHostState();
         const lifecycle = (_a = state.lifecycle) !== null && _a !== void 0 ? _a : 'none';
         if (lifecycle === 'cleared') {
             await this.plugins.notifyImageCleared();
@@ -3971,9 +3946,6 @@ class ImageEditorCore {
     }
     captureCompatibilityMemento() {
         return this.mementos.capture();
-    }
-    hasActiveCompatibilityMutation() {
-        return this.geometry.isRunning;
     }
     dispose() {
         if (this.disposed || this.disposing)
@@ -4004,10 +3976,14 @@ class ImageEditorCore {
         }
         this.disposed = true;
         this.disposing = false;
-        const canvas = this.ownsCanvas ? this.canvas : null;
+        const canvas = this.canvas;
         this.clearRuntimeReferences();
-        if (canvas)
-            void canvas.dispose();
+        if (canvas) {
+            const canvasDispose = canvas.dispose();
+            if (canvasDispose && typeof canvasDispose.then === 'function') {
+                this.disposePromise = Promise.resolve(canvasDispose).then(() => undefined);
+            }
+        }
         if (errors$1.length > 0) {
             throw new errors.CoreRuntimeError(`[ImageEditor] Core disposal completed with ${errors$1.length} cleanup error(s).`, { code: 'CORE_DISPOSE_ERROR', cause: Object.freeze(errors$1) });
         }
@@ -4041,7 +4017,6 @@ class ImageEditorCore {
                 this.baseImageScale = positiveFinite(replacementOptions === null || replacementOptions === void 0 ? void 0 : replacementOptions.baseScale, 1);
                 this.imageMimeType = (_a = replacementOptions === null || replacementOptions === void 0 ? void 0 : replacementOptions.mimeType) !== null && _a !== void 0 ? _a : this.imageMimeType;
                 this.geometryRevision += 1;
-                this.notifyCompatibilityHostState();
                 this.updatePlaceholder();
             },
             getBaseImageScale: () => this.baseImageScale,
@@ -4088,7 +4063,7 @@ class ImageEditorCore {
         var _a, _b;
         const scrollbarSize = measureScrollbarSize((_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : null);
         const viewport = this.viewportCache.measure(this.containerElement, { width: this.options.canvasWidth, height: this.options.canvasHeight }, scrollbarSize);
-        const strategy = selectLayoutStrategy(this.options.layoutMode);
+        const strategy = selectLayoutStrategy(this.layoutMode);
         const width = Number(image.width) || 0;
         const height = Number(image.height) || 0;
         if (strategy === 'fit') {
@@ -4127,21 +4102,27 @@ class ImageEditorCore {
         });
     }
     finalizeBaseImageGeometry() {
-        var _a, _b, _c, _d;
+        var _a, _b, _c, _d, _e, _f;
         const image = this.baseImage;
         const canvas = this.canvas;
         if (!image || !canvas)
             return;
-        if (this.compatibilityGeometryFinalizer) {
-            this.compatibilityGeometryFinalizer();
-            return;
-        }
         image.setCoords();
         const bounds = image.getBoundingRect();
-        const viewportWidth = Math.max(1, Math.floor(((_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.clientWidth) || this.options.canvasWidth));
-        const viewportHeight = Math.max(1, Math.floor(((_b = this.containerElement) === null || _b === void 0 ? void 0 : _b.clientHeight) || this.options.canvasHeight));
-        this.setCanvasSize(Math.max(viewportWidth, Math.ceil(bounds.width)), Math.max(viewportHeight, Math.ceil(bounds.height)));
-        image.set({ left: ((_c = image.left) !== null && _c !== void 0 ? _c : 0) - bounds.left, top: ((_d = image.top) !== null && _d !== void 0 ? _d : 0) - bounds.top });
+        const scrollbarSize = measureScrollbarSize((_d = (_b = (_a = this.containerElement) === null || _a === void 0 ? void 0 : _a.ownerDocument) !== null && _b !== void 0 ? _b : (_c = this.canvasElement) === null || _c === void 0 ? void 0 : _c.ownerDocument) !== null && _d !== void 0 ? _d : null);
+        const viewport = this.viewportCache.measure(this.containerElement, { width: this.options.canvasWidth, height: this.options.canvasHeight }, scrollbarSize);
+        const imageFitsViewport = bounds.width <= viewport.width + 0.5 && bounds.height <= viewport.height + 0.5;
+        if (imageFitsViewport) {
+            this.setCanvasSize(Math.max(1, viewport.width - 1), Math.max(1, viewport.height - 1));
+        }
+        else if (this.layoutMode === 'fit' || this.layoutMode === 'cover') {
+            const size = computeScrollableCanvasSize(bounds.width, bounds.height, viewport, scrollbarSize);
+            this.setCanvasSize(size.width, size.height);
+        }
+        else {
+            this.setCanvasSize(Math.max(viewport.width, Math.ceil(bounds.width)), Math.max(viewport.height, Math.ceil(bounds.height)));
+        }
+        image.set({ left: ((_e = image.left) !== null && _e !== void 0 ? _e : 0) - bounds.left, top: ((_f = image.top) !== null && _f !== void 0 ? _f : 0) - bounds.top });
         image.setCoords();
         canvas.sendObjectToBack(image);
     }
@@ -4233,14 +4214,6 @@ class ImageEditorCore {
         if (this.placeholderElement)
             this.placeholderElement.hidden = this.baseImage !== null;
     }
-    notifyCompatibilityHostState() {
-        var _a;
-        (_a = this.compatibilityHostStateListener) === null || _a === void 0 ? void 0 : _a.call(this, Object.freeze({
-            baseImage: this.baseImage,
-            baseImageScale: this.baseImageScale,
-            imageMimeType: this.imageMimeType,
-        }));
-    }
     reportWarning(error, message) {
         reportSafely(this.options.onWarning, error, message, console.warn);
     }
@@ -4266,9 +4239,6 @@ class ImageEditorCore {
         this.imageMimeType = null;
         this.baseImageScale = 1;
         this.initialized = false;
-        this.ownsCanvas = false;
-        this.compatibilityHostStateListener = null;
-        this.compatibilityGeometryFinalizer = null;
         this.viewportCache.clear();
     }
     async performDisposeAsync() {
@@ -4290,7 +4260,7 @@ class ImageEditorCore {
         this.externalObjects.dispose();
         this.objectProperties.dispose();
         this.slices.dispose();
-        const canvas = this.ownsCanvas ? this.canvas : null;
+        const canvas = this.canvas;
         this.clearRuntimeReferences();
         if (canvas) {
             try {
@@ -4338,4 +4308,4 @@ exports.multiplyAffine = multiplyAffine;
 exports.sanitizeAffineMatrix = sanitizeAffineMatrix;
 exports.selectLayoutStrategy = selectLayoutStrategy;
 exports.transformRectBounds = transformRectBounds;
-//# sourceMappingURL=index-DTL2QdkR.cjs.map
+//# sourceMappingURL=index-CeRMDho6.cjs.map
