@@ -41,7 +41,7 @@
         "overlayDeltaGzipBytes": 9494,
         "path": "tests/bundle/baselines/platform-anchor.json",
         "platformAnchorGzipBytes": 50170,
-        "sha256": "cffffc89edfff3d526f2314b5a8e1bd88aba8141b0ecb10c009962bf148d352c"
+        "sha256": "6c6ce0f80e38906d089b16b5f41aceb06ca3b7786144501a4212e0d77e93589a"
     },
     "modulePolicy": {
         "allowedPrefixes": [
@@ -65,8 +65,8 @@
     },
     "schemaVersion": 1,
     "source": {
-        "commit": "8e875a14b98f19ace1ef2508ce93c27841956c44",
-        "tree": "5e2ef6d726ddee97e7d69f3a678400a8906451b3"
+        "commit": "c6e48899b7010be46b9e89c4179f4e901fd1bafb",
+        "tree": "471e475e4e28317f2f2253604c9478e6dd3a99d3"
     },
     "toolchain": {
         "bundler": {

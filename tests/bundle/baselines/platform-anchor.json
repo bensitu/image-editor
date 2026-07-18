@@ -2,13 +2,13 @@
     "schemaVersion": 1,
     "metadata": {
         "packageVersion": "3.0.0-rc.1",
-        "gitCommit": "8e875a14b98f19ace1ef2508ce93c27841956c44",
+        "gitCommit": "c6e48899b7010be46b9e89c4179f4e901fd1bafb",
         "nodeVersion": "v24.16.0",
-        "measuredAt": "2026-07-18T05:09:06.629Z",
+        "measuredAt": "2026-07-18T17:36:04.834Z",
         "measurementConfigVersion": 1,
         "measurementConfigHash": "a702acde06218d0ca103f15fa9a527c65e9c1f9e54e4410ff37eb7f32dc724f8",
-        "artifactFingerprint": "aa162076a45e7f4a75c68353df96e383d5e1834732b34a166e917dc206a713f5",
-        "artifactLatestMtimeMs": 1784351255253.6406,
+        "artifactFingerprint": "bcc678f9de8a1f9f5b4fc24dedcf512a116f201cfc52f82bf22cf0c32e95e981",
+        "artifactLatestMtimeMs": 1784396053563.6504,
         "lockedBudgetsSha256": "581697cec6ef46d062753597c4884920d80632c4217332be01b8f4fedd8e3d99",
         "immutableBaselineSha256": "824b91889a99b44c68cef34a4028f882d067bd64f8f4458c5adb1a5c0eb608bb",
         "bundler": {
