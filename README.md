@@ -20,7 +20,7 @@ and browser image operations still require a compatible Fabric/DOM environment.
 
 [![ImageEditor demo landing page showing selectable masks, filters, mosaic-style redaction, and annotations](https://raw.githubusercontent.com/bensitu/image-editor/main/docs/assets/demo-screenshot.jpg)](https://bensitu.github.io/image-editor/)
 
-Click the screenshot to open the live demo.
+Click the screenshot to open the [live demo](https://bensitu.github.io/image-editor/).
 
 ## Contents
 

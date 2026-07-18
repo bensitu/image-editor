@@ -147,3 +147,4 @@ examples/*/dist/
 /docs/refactor/
 /.internal/implementation/
 /.internal/release-candidate/
+/.internal/release-check-worktree/
