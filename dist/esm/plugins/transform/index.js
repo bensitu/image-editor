@@ -1,5 +1,4 @@
-import { CORE_HOST_CAPABILITY, CORE_STATE_CAPABILITY, GEOMETRY_CAPABILITY, } from '../../core-runtime/internal-capabilities.js';
-import { definePluginRef, } from '../../plugin-kernel/index.js';
+import { BASE_IMAGE_READ_CAPABILITY, CORE_STATUS_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { TransformPluginController, resolveTransformOptions, } from './transform-controller.js';
 export const transformPluginRef = definePluginRef('@bensitu/transform', '1.0.0');
 function isTransformState(value) {
@@ -17,34 +16,52 @@ function isTransformState(value) {
 export function transformPlugin(options = {}) {
     const resolved = resolveTransformOptions(options);
     let controller = null;
-    return Object.freeze({
+    return definePlugin({
         ref: transformPluginRef,
-        version: '1.0.0',
+        manifest: {
+            id: transformPluginRef.id,
+            version: '1.0.0',
+            apiVersion: transformPluginRef.apiVersion,
+            engine: '^3.0.0',
+            requires: [
+                { token: CORE_STATUS_CAPABILITY, range: '^1.0.0' },
+                { token: FABRIC_RUNTIME_CAPABILITY, range: '^1.0.0' },
+                { token: BASE_IMAGE_READ_CAPABILITY, range: '^1.0.0' },
+                { token: RENDER_REQUEST_CAPABILITY, range: '^1.0.0' },
+                { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
+                { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
+            ],
+            permissions: ['fabric:objects', 'core:geometry-participant'],
+        },
         setupMode: 'sync',
-        requires: [
-            { token: CORE_HOST_CAPABILITY, range: '^1.0.0' },
-            { token: CORE_STATE_CAPABILITY, range: '^1.0.0' },
-            { token: GEOMETRY_CAPABILITY, range: '^1.0.0' },
-        ],
         setup(context) {
-            const host = context.capabilities.require(CORE_HOST_CAPABILITY);
-            const state = context.capabilities.require(CORE_STATE_CAPABILITY);
-            const geometry = context.capabilities.require(GEOMETRY_CAPABILITY);
-            controller = new TransformPluginController(host, geometry, resolved);
-            for (const [id, mode] of [
-                ['transform:scale', 'animation'],
-                ['transform:zoom-in', 'animation'],
-                ['transform:zoom-out', 'animation'],
-                ['transform:rotate', 'animation'],
-                ['transform:flip-horizontal', 'busy'],
-                ['transform:flip-vertical', 'busy'],
-                ['transform:reset', 'animation'],
+            const status = context.capabilities.require(CORE_STATUS_CAPABILITY);
+            const fabricRuntime = context.capabilities.require(FABRIC_RUNTIME_CAPABILITY);
+            const baseImage = context.capabilities.require(BASE_IMAGE_READ_CAPABILITY);
+            const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
+            const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
+            const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
+            controller = new TransformPluginController(Object.freeze({ ...status, ...fabricRuntime }), baseImage, render, geometry, resolved);
+            for (const id of [
+                'transform:scale',
+                'transform:zoom-in',
+                'transform:zoom-out',
+                'transform:rotate',
+                'transform:flip-horizontal',
+                'transform:flip-vertical',
+                'transform:reset',
             ]) {
-                context.operations.register({ id, mode });
+                context.operations.register({
+                    id,
+                    mode: id.includes('flip') || id === 'transform:reset' ? 'mutation' : 'animation',
+                    conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                    reentrancy: 'queue',
+                });
             }
-            context.addDisposable(state.slices.register({
+            context.disposables.add(state.registerSlice({
                 id: transformPluginRef.id,
                 version: 1,
+                capturePolicy: 'always',
                 capture: () => {
                     var _a;
                     return (_a = controller === null || controller === void 0 ? void 0 : controller.getState()) !== null && _a !== void 0 ? _a : {
@@ -66,16 +83,14 @@ export function transformPlugin(options = {}) {
                 return controller;
             };
             return Object.freeze({
-                scale: (factor) => requireController().scale(factor),
-                zoomIn: () => requireController().zoomIn(),
-                zoomOut: () => requireController().zoomOut(),
-                rotate: (degrees) => requireController().rotate(degrees),
-                flipHorizontal: () => requireController().flipHorizontal(),
-                flipVertical: () => requireController().flipVertical(),
-                resetImageTransform: () => requireController().resetImageTransform(),
-                reset: () => requireController().resetImageTransform(),
+                scale: (factor, mutationOptions) => requireController().scale(factor, mutationOptions),
+                zoomIn: (mutationOptions) => requireController().zoomIn(mutationOptions),
+                zoomOut: (mutationOptions) => requireController().zoomOut(mutationOptions),
+                rotate: (degrees, mutationOptions) => requireController().rotate(degrees, mutationOptions),
+                flipHorizontal: (mutationOptions) => requireController().flipHorizontal(mutationOptions),
+                flipVertical: (mutationOptions) => requireController().flipVertical(mutationOptions),
+                resetImageTransform: (mutationOptions) => requireController().resetImageTransform(mutationOptions),
                 getState: () => requireController().getState(),
-                synchronizeCompatibilityState: (state) => requireController().restoreState(state),
             });
         },
         onImageLoaded() {

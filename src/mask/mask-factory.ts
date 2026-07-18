@@ -39,7 +39,7 @@
  *   so that an explicit `false` is preserved.
  * - When a polygon mask is built, its visible
  *   bounding-box top-left SHALL equal the resolved `(left, top)`. Fabric
- *   v7's `Polygon` constructor positions the object so the polygon's
+ *   Fabric's `Polygon` constructor positions the object so the polygon's
  *   `pathOffset` is centered on `(left, top)`, which means the bounding
  *   rect generally does NOT land at `(left, top)`. The factory therefore
  *   constructs the polygon without `left`/`top`, reads the resulting
@@ -116,7 +116,7 @@ function createMaskUid(maskId: number): string {
  * `lastMask`, history snapshots, and the mask list DOM stays on the editor.
  */
 export interface CreateMaskContext {
-    /** Injected Fabric.js v7 module used to construct the shape. */
+    /** Injected Fabric.js module used to construct the shape. */
     fabric: FabricModule;
     /** The live Fabric canvas the mask is added to. */
     canvas: FabricNS.Canvas;
@@ -327,7 +327,7 @@ function polygonArea(points: Array<{ x: number; y: number }>): number {
  *
  * Creation steps:
  *
- * 1. Resolve the config: apply built-in defaults, legacy mask size options,
+ * 1. Resolve the config: apply built-in defaults, host mask size options,
  *    `options.defaultMaskConfig`, and per-call overrides, then resolve
  *    placement (`left`/`top`) and dimensions
  *    (`width`/`height`/`rx`/`ry`/`radius`) via {@link resolveNumeric} so
@@ -533,7 +533,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
         }
         mask = generated;
     } else {
-        // v7: All new objects default to originX/Y 'center'/'center'.
+        // Fabric objects default to originX/Y 'center'/'center'.
         // Masks must declare 'left'/'top' so coordinates refer to the
         // top-left corner used by the placement logic above.
         const originProps = {
@@ -570,7 +570,7 @@ export function createMask(context: CreateMaskContext, config: MaskConfig = {}):
             case 'polygon': {
                 // Bounding-box realignment.
                 //
-                // Fabric.js v7's `Polygon` constructor centers the
+                // Fabric.js `Polygon` constructor centers the
                 // polygon's `pathOffset` on the supplied `(left, top)`,
                 // so passing `(left, top)` directly puts the bounding
                 // box somewhere offset from the requested coordinate

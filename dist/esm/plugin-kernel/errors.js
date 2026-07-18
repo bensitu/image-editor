@@ -1,37 +1,62 @@
-function fixPrototype(self, prototype) {
-    Object.setPrototypeOf(self, prototype);
+function derivePluginErrorName(code) {
+    const stem = code
+        .replace('PLUGIN_DEPENDENCY_MISSING', 'PLUGIN_DEPENDENCY')
+        .replace('PLUGIN_BATCH_INSTALL_FAILED', 'PLUGIN_BATCH_INSTALL')
+        .replace('PLUGIN_PERMISSION_REQUIRED', 'PLUGIN_PERMISSION')
+        .replace(/_ERROR$/u, '');
+    return `${stem.toLowerCase().replace(/(?:^|_)[a-z]/gu, (match) => match.slice(-1).toUpperCase())}Error`;
 }
 export class PluginError extends Error {
     constructor(code, message, options = {}) {
         super(message);
+        this.name = new.target === PluginError ? 'PluginError' : derivePluginErrorName(code);
+        this.code = code;
+        this.pluginId = options.pluginId;
+        this.cause = options.cause;
+    }
+}
+export class PluginManifestError extends PluginError {
+    constructor(message, options = {}) {
+        super('PLUGIN_MANIFEST_ERROR', `[ImageEditor] ${message}`, options);
+    }
+}
+export class PluginIdentityConflictError extends PluginManifestError {
+    constructor(referenceId, manifestId) {
+        super(`Plugin reference "${referenceId}" does not match manifest identity "${manifestId}".`, { pluginId: referenceId });
         Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: 'PluginError'
+            value: 'PluginIdentityConflictError'
         });
-        Object.defineProperty(this, "code", {
+        this.referenceId = referenceId;
+        this.manifestId = manifestId;
+    }
+}
+export class PluginEngineVersionError extends PluginManifestError {
+    constructor(pluginId, engineRange, coreApiVersion) {
+        super(`Plugin "${pluginId}" requires engine range "${engineRange}", which does not include Core API "${coreApiVersion}".`, { pluginId });
+        Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: void 0
+            value: 'PluginEngineVersionError'
         });
-        Object.defineProperty(this, "pluginId", {
+        this.engineRange = engineRange;
+        this.coreApiVersion = coreApiVersion;
+    }
+}
+export class PluginApiVersionError extends PluginManifestError {
+    constructor(pluginId, referenceApiVersion, manifestApiVersion) {
+        super(`Plugin "${pluginId}" reference API version "${referenceApiVersion}" does not match manifest API version "${manifestApiVersion}".`, { pluginId });
+        Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,
             writable: true,
-            value: void 0
+            value: 'PluginApiVersionError'
         });
-        Object.defineProperty(this, "cause", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.code = code;
-        this.pluginId = options.pluginId;
-        this.cause = options.cause;
-        fixPrototype(this, new.target.prototype);
+        this.referenceApiVersion = referenceApiVersion;
+        this.manifestApiVersion = manifestApiVersion;
     }
 }
 export class PluginAggregateError extends PluginError {
@@ -41,32 +66,12 @@ export class PluginAggregateError extends PluginError {
             ...options,
             cause: (_a = options.cause) !== null && _a !== void 0 ? _a : errors[0],
         });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginAggregateError'
-        });
-        Object.defineProperty(this, "errors", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         this.errors = Object.freeze([...errors]);
-        fixPrototype(this, PluginAggregateError.prototype);
     }
 }
 export class PluginAlreadyInstalledError extends PluginError {
     constructor(pluginId) {
         super('PLUGIN_ALREADY_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is already installed. Direct duplicate installation is not allowed.`, { pluginId });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginAlreadyInstalledError'
-        });
-        fixPrototype(this, PluginAlreadyInstalledError.prototype);
     }
 }
 export class PluginNotInstalledError extends PluginError {
@@ -74,13 +79,74 @@ export class PluginNotInstalledError extends PluginError {
         super('PLUGIN_NOT_INSTALLED', `[ImageEditor] Plugin "${pluginId}" is not installed.`, {
             pluginId,
         });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginNotInstalledError'
+    }
+}
+export class PluginDependencyError extends PluginError {
+    constructor(details) {
+        const packageHint = details.packageHint ? ` Package hint: ${details.packageHint}.` : '';
+        const available = details.availablePluginIds.length > 0 ? details.availablePluginIds.join(', ') : 'none';
+        super('PLUGIN_DEPENDENCY_MISSING', `[ImageEditor] Plugin "${details.consumerPluginId}" requires Plugin "${details.dependencyId}" API "${details.requiredApiVersion}", but it is not available. Available Plugins: ${available}.${packageHint} ${details.planHint}`, { pluginId: details.consumerPluginId });
+        this.consumerPluginId = details.consumerPluginId;
+        this.dependencyId = details.dependencyId;
+        this.requiredApiVersion = details.requiredApiVersion;
+        this.availablePluginIds = Object.freeze([...details.availablePluginIds]);
+        this.packageHint = details.packageHint;
+        this.planHint = details.planHint;
+    }
+}
+export class PluginDependencyCycleError extends PluginError {
+    constructor(cycle) {
+        super('PLUGIN_DEPENDENCY_CYCLE', `[ImageEditor] Plugin dependency cycle detected: ${cycle.join(' -> ')}.`, { pluginId: cycle[0] });
+        this.cycle = Object.freeze([...cycle]);
+    }
+}
+export class PluginDefinitionConflictError extends PluginError {
+    constructor(pluginId) {
+        super('PLUGIN_DEFINITION_CONFLICT', `[ImageEditor] Plugin "${pluginId}" has conflicting immutable installation definitions.`, { pluginId });
+    }
+}
+export class PluginBatchInstallError extends PluginError {
+    constructor(cause, cleanupErrors = []) {
+        super('PLUGIN_BATCH_INSTALL_FAILED', '[ImageEditor] Plugin batch installation failed and was rolled back.', { cause });
+        this.cleanupErrors = Object.freeze([...cleanupErrors]);
+    }
+}
+export class PluginPermissionError extends PluginError {
+    constructor(pluginId, permission, capabilityId, operation = 'access a privileged Capability') {
+        super('PLUGIN_PERMISSION_REQUIRED', `[ImageEditor] Plugin "${pluginId}" must declare permission "${permission}" to ${operation} "${capabilityId}".`, { pluginId });
+        this.permission = permission;
+        this.capabilityId = capabilityId;
+        this.operation = operation;
+    }
+}
+export class CapabilityMissingError extends PluginError {
+    constructor(details) {
+        const available = details.availableProviders.length > 0 ? details.availableProviders.join(', ') : 'none';
+        super('CAPABILITY_MISSING', `[ImageEditor] Plugin "${details.consumerPluginId}" requires Capability "${details.capabilityId}" range "${details.requestedRange}", but no provider is available. Available providers: ${available}. Include a declared provider in the Plugin Plan.`, { pluginId: details.consumerPluginId });
+        this.consumerPluginId = details.consumerPluginId;
+        this.capabilityId = details.capabilityId;
+        this.requestedRange = details.requestedRange;
+        this.availableProviders = Object.freeze([...details.availableProviders]);
+    }
+}
+export class CapabilityVersionError extends PluginError {
+    constructor(details, code = 'CAPABILITY_VERSION_ERROR', message) {
+        var _a, _b;
+        const provider = details.providerPluginId
+            ? ` from provider "${details.providerPluginId}"`
+            : '';
+        const consumer = details.consumerPluginId
+            ? ` for Plugin "${details.consumerPluginId}"`
+            : '';
+        super(code, message !== null && message !== void 0 ? message : `[ImageEditor] Capability "${details.capabilityId}" version "${(_a = details.actualVersion) !== null && _a !== void 0 ? _a : 'unavailable'}"${provider} does not satisfy "${details.expectedRange}"${consumer}.`, {
+            pluginId: (_b = details.consumerPluginId) !== null && _b !== void 0 ? _b : details.providerPluginId,
+            cause: details.cause,
         });
-        fixPrototype(this, PluginNotInstalledError.prototype);
+        this.capabilityId = details.capabilityId;
+        this.expectedRange = details.expectedRange;
+        this.actualVersion = details.actualVersion;
+        this.providerPluginId = details.providerPluginId;
+        this.consumerPluginId = details.consumerPluginId;
     }
 }
 export class PluginCapabilityError extends PluginError {
@@ -89,226 +155,75 @@ export class PluginCapabilityError extends PluginError {
         const installed = (_a = details.installedVersion) !== null && _a !== void 0 ? _a : 'not installed';
         const provider = (_b = details.providerPluginId) !== null && _b !== void 0 ? _b : 'none';
         super('PLUGIN_CAPABILITY_ERROR', `[ImageEditor] Plugin "${details.consumerPluginId}" requires capability "${details.capabilityId}" range "${details.requestedRange}", but installed version is "${installed}" from provider "${provider}" (${details.reason}).`, { pluginId: details.consumerPluginId, cause: details.cause });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginCapabilityError'
-        });
-        Object.defineProperty(this, "consumerPluginId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "capabilityId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "requestedRange", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "installedVersion", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "providerPluginId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "reason", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         this.consumerPluginId = details.consumerPluginId;
         this.capabilityId = details.capabilityId;
         this.requestedRange = details.requestedRange;
         this.installedVersion = details.installedVersion;
         this.providerPluginId = details.providerPluginId;
         this.reason = details.reason;
-        fixPrototype(this, PluginCapabilityError.prototype);
     }
 }
 export class CapabilityConflictError extends PluginError {
     constructor(capabilityId, installedProviderPluginId, conflictingProviderPluginId) {
         super('CAPABILITY_CONFLICT', `[ImageEditor] Capability "${capabilityId}" is already provided by "${installedProviderPluginId}" and cannot also be provided by "${conflictingProviderPluginId}".`, { pluginId: conflictingProviderPluginId });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'CapabilityConflictError'
-        });
-        Object.defineProperty(this, "capabilityId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "installedProviderPluginId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "conflictingProviderPluginId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         this.capabilityId = capabilityId;
         this.installedProviderPluginId = installedProviderPluginId;
         this.conflictingProviderPluginId = conflictingProviderPluginId;
-        fixPrototype(this, CapabilityConflictError.prototype);
     }
 }
 export class PluginLifecycleError extends PluginError {
     constructor(pluginId, phase, cause, cleanupErrors = []) {
         super('PLUGIN_LIFECYCLE_ERROR', `[ImageEditor] Plugin "${pluginId}" failed during lifecycle phase "${phase}".`, { pluginId, cause });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginLifecycleError'
-        });
-        Object.defineProperty(this, "phase", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "cleanupErrors", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         this.phase = phase;
         this.cleanupErrors = Object.freeze([...cleanupErrors]);
-        fixPrototype(this, PluginLifecycleError.prototype);
     }
 }
 export class PluginSetupError extends PluginError {
     constructor(pluginId, cause, cleanupErrors = []) {
         super('PLUGIN_SETUP_ERROR', `[ImageEditor] Plugin "${pluginId}" setup failed and its installation was rolled back.`, { pluginId, cause });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginSetupError'
-        });
-        Object.defineProperty(this, "cleanupErrors", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         this.cleanupErrors = Object.freeze([...cleanupErrors]);
-        fixPrototype(this, PluginSetupError.prototype);
     }
 }
-export class InvalidPluginDefinitionError extends PluginError {
+export class InvalidPluginDefinitionError extends PluginManifestError {
     constructor(message, pluginId, cause) {
-        super('INVALID_PLUGIN_DEFINITION', `[ImageEditor] ${message}`, { pluginId, cause });
+        super(message, { pluginId, cause });
         Object.defineProperty(this, "name", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: 'InvalidPluginDefinitionError'
         });
-        fixPrototype(this, InvalidPluginDefinitionError.prototype);
     }
 }
-export class InvalidCapabilityVersionError extends PluginError {
+export class InvalidCapabilityVersionError extends CapabilityVersionError {
     constructor(capabilityId, value, valueKind) {
-        super('INVALID_CAPABILITY_VERSION', `[ImageEditor] Capability "${capabilityId}" has invalid SemVer ${valueKind} "${value}".`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'InvalidCapabilityVersionError'
-        });
-        Object.defineProperty(this, "capabilityId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "value", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        Object.defineProperty(this, "valueKind", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
-        this.capabilityId = capabilityId;
+        super({
+            capabilityId,
+            expectedRange: `valid SemVer ${valueKind}`,
+            actualVersion: value,
+        }, 'INVALID_CAPABILITY_VERSION', `[ImageEditor] Capability "${capabilityId}" has invalid SemVer ${valueKind} "${value}".`);
         this.value = value;
         this.valueKind = valueKind;
-        fixPrototype(this, InvalidCapabilityVersionError.prototype);
     }
 }
 export class PluginVersionMismatchError extends PluginError {
     constructor(pluginId, installedVersion, requestedVersion, installedApiVersion, requestedApiVersion) {
         super('PLUGIN_VERSION_MISMATCH', `[ImageEditor] Plugin "${pluginId}" cannot be reused: installed implementation/API versions are "${installedVersion}"/"${installedApiVersion}", requested versions are "${requestedVersion}"/"${requestedApiVersion}".`, { pluginId });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginVersionMismatchError'
-        });
-        fixPrototype(this, PluginVersionMismatchError.prototype);
     }
 }
 export class OperationRegistrationError extends PluginError {
     constructor(message, pluginId) {
         super('OPERATION_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'OperationRegistrationError'
-        });
-        fixPrototype(this, OperationRegistrationError.prototype);
     }
 }
 export class OperationConflictError extends PluginError {
     constructor(message, pluginId) {
         super('OPERATION_CONFLICT', `[ImageEditor] ${message}`, { pluginId });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'OperationConflictError'
-        });
-        fixPrototype(this, OperationConflictError.prototype);
     }
 }
 export class ToolRegistrationError extends PluginError {
     constructor(message, pluginId) {
         super('TOOL_REGISTRATION_ERROR', `[ImageEditor] ${message}`, { pluginId });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ToolRegistrationError'
-        });
-        fixPrototype(this, ToolRegistrationError.prototype);
     }
 }
 export class ToolTransitionError extends PluginError {
@@ -317,44 +232,17 @@ export class ToolTransitionError extends PluginError {
             pluginId,
             cause,
         });
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'ToolTransitionError'
-        });
-        Object.defineProperty(this, "toolId", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
         this.toolId = toolId;
-        fixPrototype(this, ToolTransitionError.prototype);
     }
 }
 export class PluginKernelDisposedError extends PluginError {
     constructor(operation) {
         super('PLUGIN_KERNEL_DISPOSED', `[ImageEditor] Cannot ${operation} after the Plugin Kernel has been disposed.`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginKernelDisposedError'
-        });
-        fixPrototype(this, PluginKernelDisposedError.prototype);
     }
 }
 export class PluginKernelStateError extends PluginError {
     constructor(operation, state) {
         super('PLUGIN_KERNEL_STATE_ERROR', `[ImageEditor] Cannot ${operation} while the Plugin Kernel is in state "${state}".`);
-        Object.defineProperty(this, "name", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: 'PluginKernelStateError'
-        });
-        fixPrototype(this, PluginKernelStateError.prototype);
     }
 }
 //# sourceMappingURL=errors.js.map

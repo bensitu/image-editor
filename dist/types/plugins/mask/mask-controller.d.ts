@@ -1,7 +1,6 @@
-import type { CoreHostPort, CoreStatePort } from '../../core-runtime/internal-capabilities.js';
-import type { OverlayFoundationApi } from '../../foundations/overlay/index.js';
-import type { DefaultMaskConfig, LabelConfig, MaskConfig, MaskObject, OverlayListOrder } from '../../core/public-types.js';
-import type { Disposable } from '../../plugin-kernel/index.js';
+import { type DefaultMaskConfig, type LabelConfig, type MaskConfig, type MaskObject, type OverlayListOrder } from '../../core/index.js';
+import type { CanvasReadPort, CanvasResizePort, CoreDiagnosticsPort, CorePresentationPort, Disposable, FabricRuntimePort, RenderRequestPort, SnapshotRegistrationPort } from '../../sdk/index.js';
+import { type OverlayFoundationApi } from '../../foundations/overlay/index.js';
 export interface MaskPluginOptions {
     readonly defaultWidth?: number;
     readonly defaultHeight?: number;
@@ -30,38 +29,35 @@ export interface RemoveAllOptions {
     readonly saveHistory?: boolean;
 }
 export interface MaskPluginApi {
-    create(config?: MaskConfig): MaskObject;
+    create(config?: MaskConfig): Promise<MaskObject>;
     getAll(): readonly MaskObject[];
-    remove(id: string): void;
-    removeSelected(): void;
-    removeAll(options?: RemoveAllOptions): void;
+    remove(id: string): Promise<void>;
+    removeSelected(): Promise<void>;
+    removeAll(options?: RemoveAllOptions): Promise<void>;
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void>;
 }
-interface MaskOperationAccess {
-    run<TResult>(operationId: string, body: () => TResult): TResult;
-}
+type MaskCoreAccess = CoreDiagnosticsPort & CorePresentationPort & FabricRuntimePort & CanvasReadPort & RenderRequestPort & CanvasResizePort;
 export declare function resolveMaskPluginOptions(options?: MaskPluginOptions): ResolvedMaskPluginOptions;
 export declare class MaskPluginController implements MaskPluginApi, Disposable {
     private readonly host;
-    private readonly state;
     private readonly overlay;
-    private readonly operations;
     readonly options: ResolvedMaskPluginOptions;
     private counter;
     private lastMask;
     private attached;
     private disposed;
     private selectedMaskBeforeGeometry;
+    private mutationSequence;
+    private lastInteractionNotification;
     private readonly registrations;
-    private readonly legacyOptions;
-    private readonly onObjectTransform;
-    constructor(host: CoreHostPort, state: CoreStatePort, overlay: OverlayFoundationApi, operations: MaskOperationAccess, options: ResolvedMaskPluginOptions);
+    private readonly factoryOptions;
+    constructor(host: MaskCoreAccess, state: SnapshotRegistrationPort, overlay: OverlayFoundationApi, options: ResolvedMaskPluginOptions);
     attach(): void;
-    create(config?: MaskConfig): MaskObject;
+    create(config?: MaskConfig): Promise<MaskObject>;
     getAll(): readonly MaskObject[];
-    remove(id: string): void;
-    removeSelected(): void;
-    removeAll(options?: RemoveAllOptions): void;
+    remove(id: string): Promise<void>;
+    removeSelected(): Promise<void>;
+    removeAll(options?: RemoveAllOptions): Promise<void>;
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void>;
     resetForImage(): void;
     dispose(): void;
@@ -77,7 +73,6 @@ export declare class MaskPluginController implements MaskPluginApi, Disposable {
     private reattachRuntimeState;
     private synchronizeCounterFromCanvas;
     private removeMaskObject;
-    private commitHistory;
     private notifyChange;
     private assertActive;
 }

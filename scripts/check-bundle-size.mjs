@@ -12,6 +12,7 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -25,11 +26,7 @@ import {
     hashFile,
     latestMeasurementInputMtime,
 } from './bundle-measurement-config.mjs';
-import {
-    compareMeasurements,
-    createExpectedProvenance,
-    validateBundleProvenance,
-} from './check-bundle-provenance.mjs';
+import { compareMeasurements } from './check-bundle-provenance.mjs';
 
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
@@ -42,10 +39,26 @@ const packageName = '@bensitu/image-editor';
 const kernelTestSpecifier = '@bensitu/image-editor/plugin-kernel-internal';
 const packageSubpathEntries = Object.freeze({
     [`${packageName}/core`]: ['core', 'index.js'],
+    [`${packageName}/sdk`]: ['sdk', 'index.js'],
+    [`${packageName}/testing`]: ['testing', 'index.js'],
+    [`${packageName}/migrate-v2`]: ['migrate-v2', 'index.js'],
     [`${packageName}/plugins/overlay`]: ['foundations', 'overlay', 'index.js'],
+    [`${packageName}/plugins/annotation`]: ['foundations', 'annotation', 'index.js'],
     [`${packageName}/plugins/transform`]: ['plugins', 'transform', 'index.js'],
     [`${packageName}/plugins/mask`]: ['plugins', 'mask', 'index.js'],
     [`${packageName}/plugins/history`]: ['plugins', 'history', 'index.js'],
+    [`${packageName}/plugins/filters`]: ['plugins', 'filters', 'index.js'],
+    [`${packageName}/plugins/crop`]: ['plugins', 'crop', 'index.js'],
+    [`${packageName}/plugins/mosaic`]: ['plugins', 'mosaic', 'index.js'],
+    [`${packageName}/plugins/annotation-text`]: ['plugins', 'annotation-text', 'index.js'],
+    [`${packageName}/plugins/annotation-shape`]: ['plugins', 'annotation-shape', 'index.js'],
+    [`${packageName}/plugins/annotation-draw`]: ['plugins', 'annotation-draw', 'index.js'],
+    [`${packageName}/plugins/overlay-state`]: ['plugins', 'overlay-state', 'index.js'],
+    [`${packageName}/plugins/dom-controls`]: ['plugins', 'dom-controls', 'index.js'],
+    [`${packageName}/presets/minimal`]: ['presets', 'minimal', 'index.js'],
+    [`${packageName}/presets/redaction`]: ['presets', 'redaction', 'index.js'],
+    [`${packageName}/presets/annotation`]: ['presets', 'annotation', 'index.js'],
+    [`${packageName}/presets/full`]: ['presets', 'full', 'index.js'],
 });
 const forbiddenKernelSymbols = [
     'createMask',
@@ -106,16 +119,84 @@ const fixtureForbiddenSymbols = Object.freeze({
         'mosaicPreview',
         'Brightness',
     ],
+    'sdk/core-crop': [
+        'Brightness',
+        'Contrast',
+        'Saturation',
+        'Grayscale',
+        'Sepia',
+        'Vintage',
+        'Convolute',
+    ],
+    'sdk/core-mosaic': [
+        'Brightness',
+        'Contrast',
+        'Saturation',
+        'Grayscale',
+        'Sepia',
+        'Vintage',
+        'Convolute',
+    ],
+    'sdk/core-annotation': [
+        'TextAnnotationController',
+        'ShapeAnnotationController',
+        'DrawAnnotationController',
+        'MaskObject',
+    ],
+    'sdk/core-annotation-text': [
+        'ShapeAnnotationController',
+        'DrawAnnotationController',
+        'resolveEraserConfiguration',
+        'MaskObject',
+    ],
+    'sdk/core-annotation-shape': [
+        'TextAnnotationController',
+        'DrawAnnotationController',
+        'resolveEraserConfiguration',
+        'MaskObject',
+    ],
+    'sdk/core-annotation-draw': [
+        'TextAnnotationController',
+        'ShapeAnnotationController',
+        'MaskObject',
+    ],
+    'sdk/overlay-state-only': [
+        'MaskPluginController',
+        'FiltersPluginController',
+        'CropController',
+        'MosaicPluginController',
+        'AnnotationController',
+        'TextAnnotationController',
+        'ShapeAnnotationController',
+        'DrawAnnotationController',
+        'DOMControls',
+    ],
+    'sdk/dom-controls-only': [
+        'MaskPluginController',
+        'FiltersPluginController',
+        'CropController',
+        'MosaicPluginController',
+        'AnnotationController',
+        'TextAnnotationController',
+        'ShapeAnnotationController',
+        'DrawAnnotationController',
+        'OverlayStateController',
+    ],
 });
 const measuredFields = ['rawBytes', 'minifiedBytes', 'gzipBytes', 'brotliBytes', 'moduleCount'];
+
+function sha256(value) {
+    return createHash('sha256').update(value).digest('hex');
+}
 
 function parseArguments(argv) {
     const options = {
         packageRoot: repoRoot,
         fixtureNames: null,
         updateName: null,
-        archiveStaleCurrent: false,
-        verifyCurrentHead: false,
+        updateFreezeName: null,
+        verifyBaselineName: null,
+        measurementOnly: false,
     };
 
     for (let index = 0; index < argv.length; index += 1) {
@@ -132,10 +213,14 @@ function parseArguments(argv) {
         } else if (argument === '--update') {
             options.updateName = argv[index + 1] ?? '';
             index += 1;
-        } else if (argument === '--archive-stale-current') {
-            options.archiveStaleCurrent = true;
-        } else if (argument === '--verify-current-head') {
-            options.verifyCurrentHead = true;
+        } else if (argument === '--update-freeze') {
+            options.updateFreezeName = argv[index + 1] ?? '';
+            index += 1;
+        } else if (argument === '--verify-baseline') {
+            options.verifyBaselineName = argv[index + 1] ?? '';
+            index += 1;
+        } else if (argument === '--measurement-only') {
+            options.measurementOnly = true;
         } else {
             throw new Error(`Unknown argument: ${argument}`);
         }
@@ -144,11 +229,20 @@ function parseArguments(argv) {
     if (options.updateName && !/^[a-z0-9][a-z0-9.-]*$/i.test(options.updateName)) {
         throw new Error(`Invalid baseline name: ${options.updateName}`);
     }
-    if (options.updateName && options.verifyCurrentHead) {
-        throw new Error('--update and --verify-current-head cannot be combined.');
+    if (options.updateFreezeName && !/^[a-z0-9][a-z0-9.-]*$/i.test(options.updateFreezeName)) {
+        throw new Error(`Invalid freeze baseline name: ${options.updateFreezeName}`);
     }
-    if (options.archiveStaleCurrent && options.updateName !== 'current') {
-        throw new Error('--archive-stale-current requires --update current.');
+    if (options.verifyBaselineName && !/^[a-z0-9][a-z0-9.-]*$/i.test(options.verifyBaselineName)) {
+        throw new Error(`Invalid verification baseline name: ${options.verifyBaselineName}`);
+    }
+    if (
+        [options.updateName, options.updateFreezeName, options.verifyBaselineName].filter(Boolean)
+            .length > 1
+    ) {
+        throw new Error('Update and verification baseline modes cannot be combined.');
+    }
+    if (options.measurementOnly && !options.verifyBaselineName) {
+        throw new Error('--measurement-only requires --verify-baseline.');
     }
     return options;
 }
@@ -162,12 +256,19 @@ async function pathIsFile(filePath) {
 }
 
 async function discoverFixtures(requestedNames, packageRoot) {
-    const names =
-        requestedNames ??
-        (await readdir(fixturesRoot, { withFileTypes: true }))
-            .filter((entry) => entry.isDirectory())
-            .map((entry) => entry.name)
-            .sort();
+    async function discover(directory, prefix = '') {
+        const entries = await readdir(directory, { withFileTypes: true });
+        const names = [];
+        if (await pathIsFile(path.join(directory, 'index.mjs'))) names.push(prefix);
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const childPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+            names.push(...(await discover(path.join(directory, entry.name), childPrefix)));
+        }
+        return names;
+    }
+
+    const names = requestedNames ?? (await discover(fixturesRoot)).filter(Boolean).sort();
     const fixtures = [];
 
     for (const name of names) {
@@ -288,6 +389,15 @@ async function measureFixture(fixture, packageRoot) {
         );
         const rawBuffer = Buffer.from(rawChunk.code, 'utf8');
         const minifiedBuffer = Buffer.from(minifiedChunk.code, 'utf8');
+        const gzipBuffer = gzipSync(minifiedBuffer, {
+            level: BUNDLE_MEASUREMENT_CONFIG.gzip.level,
+        });
+        const brotliBuffer = brotliCompressSync(minifiedBuffer, {
+            params: {
+                [zlibConstants.BROTLI_PARAM_QUALITY]: BUNDLE_MEASUREMENT_CONFIG.brotli.quality,
+                [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
+            },
+        });
         const modules = Object.keys(rawChunk.modules)
             .map((moduleId) => normalizeModuleId(moduleId, packageRoot))
             .sort();
@@ -310,18 +420,16 @@ async function measureFixture(fixture, packageRoot) {
         return {
             entryPath: toRepoPath(fixture.entryPath, repoRoot),
             rawBytes: rawBuffer.byteLength,
+            rawSha256: sha256(rawBuffer),
             minifiedBytes: minifiedBuffer.byteLength,
-            gzipBytes: gzipSync(minifiedBuffer, {
-                level: BUNDLE_MEASUREMENT_CONFIG.gzip.level,
-            }).byteLength,
-            brotliBytes: brotliCompressSync(minifiedBuffer, {
-                params: {
-                    [zlibConstants.BROTLI_PARAM_QUALITY]: BUNDLE_MEASUREMENT_CONFIG.brotli.quality,
-                    [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
-                },
-            }).byteLength,
+            minifiedSha256: sha256(minifiedBuffer),
+            gzipBytes: gzipBuffer.byteLength,
+            gzipSha256: sha256(gzipBuffer),
+            brotliBytes: brotliBuffer.byteLength,
+            brotliSha256: sha256(brotliBuffer),
             moduleCount: modules.length,
             modules,
+            moduleListSha256: sha256(JSON.stringify(modules)),
             externalDependencies: [...externalDependencies].sort(),
         };
     } finally {
@@ -336,6 +444,20 @@ async function readJson(filePath) {
 async function getGitCommit(packageRoot) {
     try {
         const { stdout } = await execFileAsync('git', ['-C', packageRoot, 'rev-parse', 'HEAD']);
+        return stdout.trim();
+    } catch {
+        return 'unknown';
+    }
+}
+
+async function getGitTree(packageRoot) {
+    try {
+        const { stdout } = await execFileAsync('git', [
+            '-C',
+            packageRoot,
+            'rev-parse',
+            'HEAD^{tree}',
+        ]);
         return stdout.trim();
     } catch {
         return 'unknown';
@@ -453,47 +575,43 @@ async function updateBaseline(name, measurement) {
     printMeasurement(measurement);
 }
 
-async function archiveStaleCurrent(measurement) {
-    const currentPath = path.join(baselinesRoot, 'current.json');
-    let current;
-    try {
-        current = await readJson(currentPath);
-    } catch (error) {
-        if (error?.code === 'ENOENT') return;
-        throw error;
-    }
-    const currentCommit = current.metadata?.gitCommit ?? 'unknown';
-    const currentFingerprint = current.metadata?.artifactFingerprint ?? 'missing';
-    if (
-        currentCommit === measurement.metadata.gitCommit &&
-        currentFingerprint === measurement.metadata.artifactFingerprint
-    ) {
-        return;
-    }
-    const suffix = /^[0-9a-f]{7,40}$/i.test(currentCommit) ? currentCommit.slice(0, 7) : 'unknown';
-    const archivePath = path.join(baselinesRoot, `pre-phase-5a-r-stale-${suffix}.json`);
-    try {
-        await stat(archivePath);
-    } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-        await writeFile(archivePath, `${JSON.stringify(current, null, 4)}\n`, 'utf8');
-        console.warn(`Archived stale current baseline: ${toRepoPath(archivePath, repoRoot)}`);
-    }
+async function updateFreezeBaseline(name, measurement, packageRoot) {
+    const outputPath = path.join(baselinesRoot, `${name}.json`);
+    const deterministic = {
+        schemaVersion: 2,
+        kind: 'V2_FREEZE_BUNDLE_MEASUREMENT',
+        source: {
+            ref: 'legacy/v2.9-freeze',
+            head: await getGitCommit(packageRoot),
+            tree: await getGitTree(packageRoot),
+        },
+        toolchain: {
+            node: measurement.metadata.nodeVersion,
+            rollup: measurement.metadata.bundler.version,
+        },
+        inputs: {
+            measurementConfigHash: measurement.metadata.measurementConfigHash,
+        },
+        fixtures: measurement.fixtures,
+    };
+    await mkdir(baselinesRoot, { recursive: true });
+    await writeFile(outputPath, `${JSON.stringify(deterministic, null, 4)}\n`, 'utf8');
+    console.warn(
+        `Updated deterministic freeze bundle baseline: ${toRepoPath(outputPath, repoRoot)}`,
+    );
+    printMeasurement(deterministic);
 }
 
-async function verifyCurrentHead(measurement) {
-    const baseline = await readJson(path.join(baselinesRoot, 'current.json'));
-    const errors = [
-        ...validateBundleProvenance(baseline, await createExpectedProvenance()),
-        ...compareMeasurements(baseline, measurement),
-    ];
+async function verifyBaseline(name, measurement) {
+    const baseline = await readJson(path.join(baselinesRoot, `${name}.json`));
+    const errors = compareMeasurements(baseline, measurement);
     if (errors.length > 0) {
-        console.error('Current-head bundle verification failed:');
+        console.error(`${name}.json bundle verification failed:`);
         for (const error of errors) console.error(`- ${error}`);
         process.exitCode = 1;
         return false;
     }
-    console.log('Current-head bundle provenance and live measurement match.');
+    console.log(`Live bundle measurement matches ${name}.json.`);
     return true;
 }
 
@@ -502,9 +620,12 @@ const fixtures = await discoverFixtures(options.fixtureNames, options.packageRoo
 const measurement = await createMeasurement(options.packageRoot, fixtures);
 
 if (options.updateName) {
-    if (options.archiveStaleCurrent) await archiveStaleCurrent(measurement);
     await updateBaseline(options.updateName, measurement);
+} else if (options.updateFreezeName) {
+    await updateFreezeBaseline(options.updateFreezeName, measurement, options.packageRoot);
 } else {
-    const verified = options.verifyCurrentHead ? await verifyCurrentHead(measurement) : true;
-    if (verified) await checkBudgets(measurement);
+    const verified = options.verifyBaselineName
+        ? await verifyBaseline(options.verifyBaselineName, measurement)
+        : true;
+    if (verified && !options.measurementOnly) await checkBudgets(measurement);
 }

@@ -13,7 +13,9 @@ import {
     type Disposable,
 } from './disposable.js';
 import {
+    CapabilityMissingError,
     CapabilityConflictError,
+    CapabilityVersionError,
     InvalidCapabilityVersionError,
     InvalidPluginDefinitionError,
     PluginCapabilityError,
@@ -21,9 +23,13 @@ import {
 } from './errors.js';
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 import { isValidSemVer, satisfiesSemVer } from './semver.js';
+import { isPluginPermission } from './plugin-manifest.js';
+import type { PluginPermission } from './plugin-types.js';
 
 interface CapabilityProviderRecord {
     readonly token: CapabilityIdentity;
+    readonly version: string;
+    readonly requiredPermission: PluginPermission | undefined;
     readonly implementation: unknown;
     readonly providerPluginId: string;
     readonly transactionId: symbol;
@@ -39,6 +45,7 @@ export interface CapabilityProviderInfo {
     readonly capabilityId: string;
     readonly version: string;
     readonly providerPluginId: string;
+    readonly requiredPermission: PluginPermission | undefined;
     readonly complete: boolean;
 }
 
@@ -46,6 +53,8 @@ function validateProvider<TPort>(
     token: CapabilityToken<TPort>,
     implementation: TPort,
     providerPluginId: string,
+    providerVersion: string,
+    requiredPermission: PluginPermission | undefined,
 ): void {
     if (!isCapabilityToken(token) || !isValidSemVer(token.version)) {
         throw new InvalidCapabilityVersionError(
@@ -57,6 +66,23 @@ function validateProvider<TPort>(
     if (providerPluginId.trim().length === 0 || providerPluginId.trim() !== providerPluginId) {
         throw new InvalidPluginDefinitionError(
             `Capability provider id for "${token.id}" must be a non-empty trimmed string.`,
+            providerPluginId,
+        );
+    }
+    if (!isValidSemVer(providerVersion)) {
+        throw new InvalidCapabilityVersionError(token.id, providerVersion, 'version');
+    }
+    if (providerVersion !== token.version) {
+        throw new CapabilityVersionError({
+            capabilityId: token.id,
+            expectedRange: token.version,
+            actualVersion: providerVersion,
+            providerPluginId,
+        });
+    }
+    if (requiredPermission !== undefined && !isPluginPermission(requiredPermission)) {
+        throw new InvalidPluginDefinitionError(
+            `Capability "${token.id}" requires an unsupported Plugin permission.`,
             providerPluginId,
         );
     }
@@ -82,12 +108,15 @@ export class CapabilityRegistry implements Disposable {
         token: CapabilityToken<TPort>,
         implementation: TPort,
         providerPluginId: string,
+        requiredPermission?: PluginPermission,
     ): Disposable {
         const registration = this.providePending(
             token,
             implementation,
             providerPluginId,
             Symbol(`capability:${token.id}`),
+            token.version,
+            requiredPermission,
         );
         registration.commit();
         return registration;
@@ -98,13 +127,14 @@ export class CapabilityRegistry implements Disposable {
         token: CapabilityIdentity,
         implementation: unknown,
         providerPluginId = '@bensitu/core',
+        requiredPermission?: PluginPermission,
     ): Disposable {
         if (!isCapabilityToken(token)) {
             throw new InvalidPluginDefinitionError(
                 'Host capability must use createCapabilityToken().',
             );
         }
-        return this.provide(token, implementation, providerPluginId);
+        return this.provide(token, implementation, providerPluginId, requiredPermission);
     }
 
     /** @internal Used by RegistrationScope to hide provisional providers. */
@@ -113,16 +143,25 @@ export class CapabilityRegistry implements Disposable {
         implementation: TPort,
         providerPluginId: string,
         transactionId: symbol,
+        providerVersion = token.version,
+        requiredPermission?: PluginPermission,
     ): CommitAwareDisposable {
         this.assertActive('provide a capability');
-        validateProvider(token, implementation, providerPluginId);
+        validateProvider(
+            token,
+            implementation,
+            providerPluginId,
+            providerVersion,
+            requiredPermission,
+        );
         const existing = this.providers.get(token.id);
 
         if (existing) {
             const isSameTransaction =
                 existing.providerPluginId === providerPluginId &&
                 existing.transactionId === transactionId &&
-                existing.token.version === token.version &&
+                existing.version === providerVersion &&
+                existing.requiredPermission === requiredPermission &&
                 Object.is(existing.implementation, implementation);
             if (isSameTransaction) {
                 const noop = createNoopDisposable();
@@ -142,6 +181,8 @@ export class CapabilityRegistry implements Disposable {
 
         const record: CapabilityProviderRecord = {
             token,
+            version: providerVersion,
+            requiredPermission,
             implementation,
             providerPluginId,
             transactionId,
@@ -178,16 +219,18 @@ export class CapabilityRegistry implements Disposable {
     requireDefinition(
         requirement: CapabilityRequirementIdentity,
         consumerPluginId: string,
+        visibleTransactions?: ReadonlySet<symbol>,
     ): unknown {
-        return this.resolve(requirement, consumerPluginId, false);
+        return this.resolve(requirement, consumerPluginId, false, visibleTransactions);
     }
 
     /** @internal Resolves an erased optional declaration after PluginManager validation. */
     optionalDefinition(
         requirement: CapabilityRequirementIdentity,
         consumerPluginId: string,
+        visibleTransactions?: ReadonlySet<symbol>,
     ): unknown | null {
-        return this.resolve(requirement, consumerPluginId, true);
+        return this.resolve(requirement, consumerPluginId, true, visibleTransactions);
     }
 
     getProviderInfo<TPort>(
@@ -199,14 +242,27 @@ export class CapabilityRegistry implements Disposable {
         if (!record) return null;
         return Object.freeze({
             capabilityId: record.token.id,
-            version: record.token.version,
+            version: record.version,
             providerPluginId: record.providerPluginId,
+            requiredPermission: record.requiredPermission,
             complete: record.complete,
         });
     }
 
     has<TPort>(tokenOrId: CapabilityToken<TPort> | string): boolean {
         return this.getProviderInfo(tokenOrId) !== null;
+    }
+
+    /** @internal Reads the engineering boundary attached to a visible provider. */
+    getRequiredPermission(
+        capabilityId: string,
+        visibleTransactions?: ReadonlySet<symbol>,
+    ): PluginPermission | undefined {
+        this.assertActive('inspect a Capability permission');
+        const record = this.providers.get(capabilityId);
+        if (!record) return undefined;
+        if (!record.complete && !visibleTransactions?.has(record.transactionId)) return undefined;
+        return record.requiredPermission;
     }
 
     dispose(): void {
@@ -219,6 +275,7 @@ export class CapabilityRegistry implements Disposable {
         requirement: CapabilityRequirementIdentity,
         consumerPluginId: string,
         optional: boolean,
+        visibleTransactions?: ReadonlySet<symbol>,
     ): unknown | null {
         this.assertActive('resolve a capability');
         try {
@@ -236,45 +293,44 @@ export class CapabilityRegistry implements Disposable {
         const record = this.providers.get(requirement.token.id);
         if (!record) {
             if (optional) return null;
-            throw new PluginCapabilityError({
+            throw new CapabilityMissingError({
                 consumerPluginId,
                 capabilityId: requirement.token.id,
                 requestedRange: requirement.range,
-                reason: 'missing',
+                availableProviders: this.describeProviders(),
             });
         }
 
-        if (!record.complete) {
+        if (!record.complete && !visibleTransactions?.has(record.transactionId)) {
             if (optional) return null;
             throw new PluginCapabilityError({
                 consumerPluginId,
                 capabilityId: requirement.token.id,
                 requestedRange: requirement.range,
-                installedVersion: record.token.version,
+                installedVersion: record.version,
                 providerPluginId: record.providerPluginId,
                 reason: 'incomplete',
             });
         }
 
-        if (!satisfiesSemVer(record.token.version, requirement.range)) {
+        if (!satisfiesSemVer(record.version, requirement.range)) {
             if (!optional) {
-                throw new PluginCapabilityError({
-                    consumerPluginId,
+                throw new CapabilityVersionError({
                     capabilityId: requirement.token.id,
-                    requestedRange: requirement.range,
-                    installedVersion: record.token.version,
+                    expectedRange: requirement.range,
+                    actualVersion: record.version,
                     providerPluginId: record.providerPluginId,
-                    reason: 'incompatible',
+                    consumerPluginId,
                 });
             }
             reportWarningSafely(this.options.warningSink, this.options.errorSink, {
                 code: 'OPTIONAL_CAPABILITY_INCOMPATIBLE',
-                message: `Optional integration "${requirement.token.id}" was disabled for plugin "${consumerPluginId}" because installed version "${record.token.version}" does not satisfy "${requirement.range}".`,
+                message: `Optional integration "${requirement.token.id}" was disabled for plugin "${consumerPluginId}" because installed version "${record.version}" does not satisfy "${requirement.range}".`,
                 pluginId: consumerPluginId,
                 details: {
                     capabilityId: requirement.token.id,
                     requestedRange: requirement.range,
-                    installedVersion: record.token.version,
+                    installedVersion: record.version,
                     providerPluginId: record.providerPluginId,
                     optionalIntegrationDisabled: true,
                 },
@@ -282,6 +338,17 @@ export class CapabilityRegistry implements Disposable {
             return null;
         }
         return record.implementation;
+    }
+
+    private describeProviders(): readonly string[] {
+        return Object.freeze(
+            [...this.providers.values()]
+                .filter((record) => record.complete)
+                .map(
+                    (record) => `${record.token.id}@${record.version} (${record.providerPluginId})`,
+                )
+                .sort(),
+        );
     }
 
     private assertActive(operation: string): void {

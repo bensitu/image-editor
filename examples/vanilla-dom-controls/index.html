@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Image Editor DOM Controls example</title>
+        <script type="module" src="/src/main.ts"></script>
+    </head>
+    <body>
+        <main>
+            <h1>Optional DOM Controls</h1>
+            <div class="toolbar">
+                <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" />
+                <button id="zoom-in" type="button">Zoom in</button>
+                <button id="zoom-out" type="button">Zoom out</button>
+                <button id="rotate-right" type="button">Rotate</button>
+                <button id="undo" type="button">Undo</button>
+                <button id="redo" type="button">Redo</button>
+                <button id="export" type="button">Export PNG</button>
+            </div>
+            <p id="transform-status"></p>
+            <p id="history-status"></p>
+            <p id="message" role="status">Initializing…</p>
+            <div id="editor-container" class="editor-container">
+                <canvas id="editor-canvas"></canvas>
+            </div>
+        </main>
+    </body>
+</html>

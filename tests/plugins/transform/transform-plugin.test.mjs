@@ -3,14 +3,14 @@ import test from 'node:test';
 
 import { ImageEditorCore, definePluginRef } from '../../../src/core/index.js';
 import {
-    CORE_STATE_CAPABILITY,
-    GEOMETRY_CAPABILITY,
+    GEOMETRY_MUTATION_CAPABILITY,
+    MEMENTO_HISTORY_CAPABILITY,
 } from '../../../src/core-runtime/internal-capabilities.js';
 import { transformPlugin, transformPluginRef } from '../../../src/plugins/transform/index.js';
 import { resolveTransformOptions } from '../../../src/plugins/transform/transform-controller.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
-function createEditor(transformOptions = {}, coreOptions = {}) {
+async function createEditor(transformOptions = {}, coreOptions = {}) {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
     const editor = new ImageEditorCore(fabric, {
         canvasWidth: 320,
@@ -18,7 +18,7 @@ function createEditor(transformOptions = {}, coreOptions = {}) {
         ...coreOptions,
     });
     const transform = editor.use(transformPlugin(transformOptions));
-    editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     return { editor, transform };
 }
 
@@ -39,7 +39,7 @@ test('transform options normalize finite bounds without entering snapshot state'
         scaleStep: 0.05,
         rotationStep: 90,
     });
-    const { editor } = createEditor({
+    const { editor } = await createEditor({
         animationDuration: 0,
         minScale: 0.25,
         maxScale: 4,
@@ -52,7 +52,7 @@ test('transform options normalize finite bounds without entering snapshot state'
 });
 
 test('scale, zoom, arbitrary rotation, double flip, and mixed transforms remain coherent', async () => {
-    const { editor, transform } = createEditor({
+    const { editor, transform } = await createEditor({
         animationDuration: 0,
         minScale: 0.5,
         maxScale: 1.5,
@@ -79,7 +79,7 @@ test('scale, zoom, arbitrary rotation, double flip, and mixed transforms remain 
 });
 
 test('queued non-zero-duration transforms serialize through one operation slot', async () => {
-    const { editor, transform } = createEditor({ animationDuration: 15 });
+    const { editor, transform } = await createEditor({ animationDuration: 15 });
     await load(editor);
     const first = transform.scale(1.2);
     const second = transform.rotate(22);
@@ -112,7 +112,7 @@ test('active tool policy rejects a transform before any mutation', async () => {
         },
     });
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
-    editor.init({ canvas: ids.canvas });
+    await editor.init({ canvas: ids.canvas });
     await load(editor);
     await policy.enter();
     const before = transform.getState();
@@ -130,9 +130,10 @@ test('targeted rollback failure falls back to a trusted Core memento', async () 
         ref: failureRef,
         version: '1.0.0',
         setupMode: 'sync',
-        requires: [{ token: GEOMETRY_CAPABILITY, range: '^1.0.0' }],
+        requires: [{ token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' }],
+        permissions: ['core:geometry-participant'],
         setup(context) {
-            const geometry = context.capabilities.require(GEOMETRY_CAPABILITY);
+            const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
             context.addDisposable(
                 geometry.registerParticipant({
                     id: failureRef.id,
@@ -148,7 +149,7 @@ test('targeted rollback failure falls back to a trusted Core memento', async () 
         },
     });
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
-    editor.init({ canvas: ids.canvas });
+    await editor.init({ canvas: ids.canvas });
     await load(editor);
     const image = editor.getCanvas().getObjects()[0];
     const originalSetCoords = image.setCoords.bind(image);
@@ -181,10 +182,10 @@ test('failed transforms never reach the registered history provider', async () =
         ref: historyRef,
         version: '1.0.0',
         setupMode: 'sync',
-        requires: [{ token: CORE_STATE_CAPABILITY, range: '^1.0.0' }],
+        requires: [{ token: MEMENTO_HISTORY_CAPABILITY, range: '^1.0.0' }],
         setup(context) {
             const records = [];
-            const state = context.capabilities.require(CORE_STATE_CAPABILITY);
+            const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
             context.addDisposable(
                 state.registerHistoryProvider(historyRef.id, {
                     isAvailable: () => true,
@@ -195,7 +196,7 @@ test('failed transforms never reach the registered history provider', async () =
         },
     });
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
-    editor.init({ canvas: ids.canvas });
+    await editor.init({ canvas: ids.canvas });
     await load(editor);
     history.records.length = 0;
     const image = editor.getCanvas().getObjects()[0];
@@ -216,7 +217,7 @@ test('failed transforms never reach the registered history provider', async () =
 });
 
 test('invalid transform snapshot state is rejected transactionally', async () => {
-    const { editor, transform } = createEditor({ animationDuration: 0 });
+    const { editor, transform } = await createEditor({ animationDuration: 0 });
     await load(editor);
     await transform.scale(1.3);
     const before = transform.getState();
@@ -228,7 +229,7 @@ test('invalid transform snapshot state is rejected transactionally', async () =>
 });
 
 test('dispose during animation aborts promptly, restores state, and releases the Canvas', async () => {
-    const { editor, transform } = createEditor({ animationDuration: 500 });
+    const { editor, transform } = await createEditor({ animationDuration: 500 });
     await load(editor);
     const before = transform.getState();
     const operation = transform.scale(1.5);

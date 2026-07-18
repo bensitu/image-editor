@@ -1,7 +1,9 @@
 'use strict';
 
-var internalCapabilities = require('../../chunks/internal-capabilities-DIerpWRs.cjs');
-var errors = require('../../chunks/errors-CQdnZvQh.cjs');
+var errors = require('../../chunks/errors-DeAfrgDC.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
 
 function resolveMaxSize(value) {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;
@@ -38,6 +40,12 @@ class HistoryPluginController {
             writable: true,
             value: 0
         });
+        Object.defineProperty(this, "baseline", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "listeners", {
             enumerable: true,
             configurable: true,
@@ -50,31 +58,43 @@ class HistoryPluginController {
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "maxSize", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
+        this.enabled = options.enabled !== false;
         this.maxSize = resolveMaxSize(options.maxSize);
         if (options.onChange)
             this.listeners.add(options.onChange);
+    }
+    get isEnabled() {
+        return !this.disposed && this.enabled;
+    }
+    get length() {
+        return this.records.length;
     }
     isAvailable() {
         return !this.disposed;
     }
     commit(record) {
-        if (record.operationId === 'core:load-image' || record.operationId === 'core:load-state') {
-            this.clear();
+        if (!this.isEnabled)
+            return;
+        if (record.operationId === 'core:load-image' ||
+            record.operationId === 'core:commit-load-image' ||
+            record.operationId === 'core:load-state') {
+            const changed = this.resetTimeline();
+            this.baseline = record.after;
+            if (changed)
+                this.emitChange();
             return;
         }
         this.push(record);
     }
     push(record) {
+        var _a;
         this.assertActive('push History');
+        if (!this.enabled)
+            return;
         if (!record || typeof record.operationId !== 'string' || record.operationId.length === 0) {
             throw new errors.CoreRuntimeError('[ImageEditor] History record operationId is invalid.');
         }
+        (_a = this.baseline) !== null && _a !== void 0 ? _a : (this.baseline = record.before);
         if (this.position < this.records.length) {
             this.records = this.records.slice(0, this.position);
         }
@@ -91,6 +111,43 @@ class HistoryPluginController {
         }
         this.position = this.records.length;
         this.emitChange();
+    }
+    enable(options) {
+        this.assertActive('enable History');
+        if ((options === null || options === void 0 ? void 0 : options.baseline) !== 'current') {
+            throw new errors.CoreRuntimeError('[ImageEditor] History can enable only from the current baseline.', {
+                code: 'HISTORY_BASELINE_UNSUPPORTED',
+            });
+        }
+        return this.operations.run('history:enable', async () => {
+            if (this.enabled)
+                return;
+            const baseline = this.state.captureMemento();
+            this.records = [];
+            this.position = 0;
+            this.baseline = baseline;
+            this.enabled = true;
+            this.emitChange();
+        });
+    }
+    disable(options = {}) {
+        var _a;
+        this.assertActive('disable History');
+        if (options.clear !== undefined && typeof options.clear !== 'boolean') {
+            throw new errors.CoreRuntimeError('[ImageEditor] History disable clear must be a boolean.', {
+                code: 'HISTORY_DISABLE_OPTION_INVALID',
+            });
+        }
+        const shouldClear = (_a = options.clear) !== null && _a !== void 0 ? _a : true;
+        return this.operations.run('history:disable', async () => {
+            const wasEnabled = this.enabled;
+            const hadRecords = this.records.length > 0 || this.position !== 0;
+            this.enabled = false;
+            if (shouldClear)
+                this.resetTimeline();
+            if (wasEnabled || (shouldClear && hadRecords))
+                this.emitChange();
+        });
     }
     undo() {
         this.assertActive('undo');
@@ -119,18 +176,15 @@ class HistoryPluginController {
         });
     }
     canUndo() {
-        return !this.disposed && this.position > 0;
+        return this.isEnabled && this.position > 0;
     }
     canRedo() {
-        return !this.disposed && this.position < this.records.length;
+        return this.isEnabled && this.position < this.records.length;
     }
     clear() {
         if (this.disposed)
             return;
-        const changed = this.records.length > 0 || this.position !== 0;
-        this.records = [];
-        this.position = 0;
-        if (changed)
+        if (this.resetTimeline())
             this.emitChange();
     }
     onChange(handler) {
@@ -142,8 +196,10 @@ class HistoryPluginController {
     }
     getState() {
         return Object.freeze({
+            isEnabled: this.isEnabled,
             canUndo: this.canUndo(),
             canRedo: this.canRedo(),
+            length: this.records.length,
             size: this.records.length,
             position: this.position,
         });
@@ -153,23 +209,35 @@ class HistoryPluginController {
             return;
         this.records = [];
         this.position = 0;
+        this.baseline = null;
+        this.enabled = false;
         this.listeners.clear();
         this.disposed = true;
     }
+    resetTimeline() {
+        const changed = this.records.length > 0 || this.position !== 0;
+        this.records = [];
+        this.position = 0;
+        this.baseline = null;
+        return changed;
+    }
     async restoreTransactionally(target, operation) {
-        const rollback = this.state.mementos.capture();
+        const rollback = this.state.captureMemento();
         try {
-            await this.state.mementos.restore(target);
+            await this.state.restoreMemento(target);
         }
         catch (error) {
             try {
-                await this.state.mementos.restore(rollback);
+                await this.state.restoreMemento(rollback);
             }
             catch (rollbackError) {
-                throw new errors.CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {
+                const failure = new errors.CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {
                     code: 'HISTORY_UNRECOVERABLE_ERROR',
                     cause: Object.freeze([error, rollbackError]),
+                    behavior: 'fatal-rollback',
                 });
+                this.state.reportFatal(failure);
+                throw failure;
             }
             throw new errors.CoreRuntimeError(`[ImageEditor] History ${operation} failed.`, {
                 code: 'HISTORY_RESTORE_ERROR',
@@ -195,40 +263,78 @@ class HistoryPluginController {
     }
 }
 
-const HISTORY_CAPABILITY = internalCapabilities.createCapabilityToken('plugin.history', '1.0.0');
-const historyPluginRef = internalCapabilities.definePluginRef('@bensitu/history', '1.0.0');
+const HISTORY_CAPABILITY = pluginManifest.createCapabilityToken('plugin.history', '1.0.0');
+const historyPluginRef = pluginManifest.definePluginRef('@bensitu/history', '1.0.0');
 function historyPlugin(options = {}) {
     let controller = null;
-    return Object.freeze({
+    return pluginDefinition.definePlugin({
         ref: historyPluginRef,
-        version: '1.0.0',
-        setupMode: 'sync',
-        requires: [
-            { token: internalCapabilities.CORE_HOST_CAPABILITY, range: '^1.0.0' },
-            { token: internalCapabilities.CORE_STATE_CAPABILITY, range: '^1.0.0' },
-        ],
-        setup(context) {
-            const host = context.capabilities.require(internalCapabilities.CORE_HOST_CAPABILITY);
-            const state = context.capabilities.require(internalCapabilities.CORE_STATE_CAPABILITY);
-            context.operations.register({ id: 'history:undo', mode: 'busy' });
-            context.operations.register({ id: 'history:redo', mode: 'busy' });
-            controller = new HistoryPluginController(state, {
-                run: async (operationId, body) => {
-                    const token = context.operations.begin(operationId);
-                    try {
-                        await body();
-                    }
-                    finally {
-                        await token.dispose();
-                    }
-                },
-            }, options, (error, message) => host.reportWarning(error, message));
-            context.addDisposable(state.registerHistoryProvider(historyPluginRef.id, controller));
-            context.capabilities.provide(HISTORY_CAPABILITY, controller);
-            return controller;
+        manifest: {
+            id: historyPluginRef.id,
+            version: '1.0.0',
+            apiVersion: historyPluginRef.apiVersion,
+            engine: '^3.0.0',
+            requires: [
+                { token: coreCapabilities.CORE_DIAGNOSTICS_CAPABILITY, range: '^1.0.0' },
+                { token: coreCapabilities.MEMENTO_HISTORY_CAPABILITY, range: '^1.0.0' },
+            ],
         },
-        onImageLoaded() {
-            controller === null || controller === void 0 ? void 0 : controller.clear();
+        setupMode: 'sync',
+        setup(context) {
+            const diagnostics = context.capabilities.require(coreCapabilities.CORE_DIAGNOSTICS_CAPABILITY);
+            const state = context.capabilities.require(coreCapabilities.MEMENTO_HISTORY_CAPABILITY);
+            context.operations.register({
+                id: 'history:undo',
+                mode: 'mutation',
+                conflictDomains: [
+                    'document',
+                    'base-image',
+                    'geometry',
+                    'raster',
+                    'overlay',
+                    'state',
+                ],
+                reentrancy: 'queue',
+            });
+            context.operations.register({
+                id: 'history:redo',
+                mode: 'mutation',
+                conflictDomains: [
+                    'document',
+                    'base-image',
+                    'geometry',
+                    'raster',
+                    'overlay',
+                    'state',
+                ],
+                reentrancy: 'queue',
+            });
+            for (const operationId of ['history:enable', 'history:disable']) {
+                context.operations.register({
+                    id: operationId,
+                    mode: 'mutation',
+                    conflictDomains: [
+                        'document',
+                        'base-image',
+                        'geometry',
+                        'raster',
+                        'overlay',
+                        'state',
+                    ],
+                    reentrancy: 'queue',
+                });
+            }
+            controller = new HistoryPluginController(state, {
+                run: (operationId, body) => context.operations.run(operationId, null, () => body()),
+            }, options, (error, message) => diagnostics.reportWarning(error, message));
+            context.disposables.add(state.registerHistoryProvider(historyPluginRef.id, {
+                isAvailable: () => { var _a; return (_a = controller === null || controller === void 0 ? void 0 : controller.isEnabled) !== null && _a !== void 0 ? _a : false; },
+                commit: (record) => controller === null || controller === void 0 ? void 0 : controller.commit(record),
+            }));
+            context.capabilities.provide(HISTORY_CAPABILITY, controller, {
+                version: HISTORY_CAPABILITY.version,
+            });
+            return controller;
         },
         onDispose() {
             controller === null || controller === void 0 ? void 0 : controller.dispose();

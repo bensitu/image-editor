@@ -1,10 +1,17 @@
 import type * as FabricNS from 'fabric';
 
-import { AnimationQueue } from '../../animation/animation-queue.js';
-import { OperationGuard } from '../../core/operation-guard.js';
-import { animateProps, restoreOrigin } from '../../fabric/fabric-animation.js';
-import type { GeometryMutationCoordinator } from '../../core-runtime/geometry/index.js';
-import type { CoreHostPort } from '../../core-runtime/internal-capabilities.js';
+import {
+    animateProps,
+    restoreOrigin,
+    type AnimationControl,
+} from '../../fabric/fabric-animation.js';
+import type { DocumentMutationContext, GeometryMutationPort } from '../../core/index.js';
+import type {
+    BaseImageReadPort,
+    CoreStatusPort,
+    FabricRuntimePort,
+    RenderRequestPort,
+} from '../../sdk/index.js';
 
 export interface TransformPluginOptions {
     readonly animationDuration?: number;
@@ -29,6 +36,10 @@ export interface TransformPluginState {
     readonly flipY: boolean;
 }
 
+export interface TransformMutationOptions {
+    readonly parent?: DocumentMutationContext;
+}
+
 interface MutableTransformState {
     scale: number;
     rotationDegrees: number;
@@ -38,8 +49,6 @@ interface MutableTransformState {
 
 interface TargetedRollbackState {
     readonly transform: TransformPluginState;
-    readonly geometryRevision: number;
-    readonly canvasSize: Readonly<{ width: number; height: number }>;
     readonly image: Readonly<{
         left: number;
         top: number;
@@ -90,9 +99,42 @@ function cloneState(state: MutableTransformState): TransformPluginState {
     return Object.freeze({ ...state });
 }
 
+class PluginAnimationControl implements AnimationControl {
+    private disposed = false;
+    private readonly aborters = new Set<() => void>();
+
+    isDisposed(): boolean {
+        return this.disposed;
+    }
+
+    registerAnimationAborter(abort: () => void): () => void {
+        if (this.disposed) {
+            abort();
+            return () => undefined;
+        }
+        this.aborters.add(abort);
+        return () => this.aborters.delete(abort);
+    }
+
+    cancelAnimations(): void {
+        for (const abort of [...this.aborters]) {
+            try {
+                abort();
+            } catch {
+                // Cancellation must continue across independent Fabric handles.
+            }
+        }
+        this.aborters.clear();
+    }
+
+    dispose(): void {
+        this.disposed = true;
+        this.cancelAnimations();
+    }
+}
+
 export class TransformPluginController {
-    private readonly guard = new OperationGuard();
-    private readonly queue = new AnimationQueue();
+    private readonly animations = new PluginAnimationControl();
     private readonly state: MutableTransformState = {
         scale: 1,
         rotationDegrees: 0,
@@ -102,74 +144,86 @@ export class TransformPluginController {
     private mutationSequence = 0;
 
     constructor(
-        private readonly host: CoreHostPort,
-        private readonly geometry: GeometryMutationCoordinator,
+        private readonly environment: CoreStatusPort & FabricRuntimePort,
+        private readonly baseImage: BaseImageReadPort,
+        private readonly render: RenderRequestPort,
+        private readonly geometry: GeometryMutationPort,
         readonly options: ResolvedTransformPluginOptions,
     ) {}
 
-    scale(factor: number): Promise<void> {
-        return this.scaleWithOperation(factor, 'transform:scale');
+    scale(factor: number, options: TransformMutationOptions = {}): Promise<void> {
+        return this.scaleWithOperation(factor, 'transform:scale', options);
     }
 
-    private scaleWithOperation(factor: number, operationId: string): Promise<void> {
+    private scaleWithOperation(
+        factor: number,
+        operationId: string,
+        options: TransformMutationOptions = {},
+    ): Promise<void> {
         if (!Number.isFinite(factor)) return Promise.resolve();
-        return this.enqueue(operationId, async (signal) => {
-            const image = this.host.getBaseImage();
-            if (!image) return;
-            await this.applyScale(image, factor, signal);
-            this.host.finalizeBaseImageGeometry();
-        });
+        return this.enqueue(
+            operationId,
+            async (signal) => {
+                const image = this.baseImage.getBaseImage();
+                if (!image) return;
+                await this.applyScale(image, factor, signal);
+            },
+            options,
+        );
     }
 
-    zoomIn(): Promise<void> {
+    zoomIn(options: TransformMutationOptions = {}): Promise<void> {
         return this.scaleWithOperation(
             this.state.scale + this.options.scaleStep,
             'transform:zoom-in',
+            options,
         );
     }
 
-    zoomOut(): Promise<void> {
+    zoomOut(options: TransformMutationOptions = {}): Promise<void> {
         return this.scaleWithOperation(
             this.state.scale - this.options.scaleStep,
             'transform:zoom-out',
+            options,
         );
     }
 
-    rotate(degrees: number): Promise<void> {
+    rotate(degrees: number, options: TransformMutationOptions = {}): Promise<void> {
         if (!Number.isFinite(degrees)) return Promise.resolve();
-        return this.enqueue('transform:rotate', async (signal) => {
-            const image = this.host.getBaseImage();
-            if (!image) return;
-            await this.applyRotation(image, degrees, signal);
-            this.host.finalizeBaseImageGeometry();
-        });
+        return this.enqueue(
+            'transform:rotate',
+            async (signal) => {
+                const image = this.baseImage.getBaseImage();
+                if (!image) return;
+                await this.applyRotation(image, degrees, signal);
+            },
+            options,
+        );
     }
 
-    flipHorizontal(): Promise<void> {
-        return this.flip('flipX', 'transform:flip-horizontal');
+    flipHorizontal(options: TransformMutationOptions = {}): Promise<void> {
+        return this.flip('flipX', 'transform:flip-horizontal', options);
     }
 
-    flipVertical(): Promise<void> {
-        return this.flip('flipY', 'transform:flip-vertical');
+    flipVertical(options: TransformMutationOptions = {}): Promise<void> {
+        return this.flip('flipY', 'transform:flip-vertical', options);
     }
 
-    resetImageTransform(): Promise<void> {
-        return this.enqueue('transform:reset', async (signal) => {
-            const image = this.host.getBaseImage();
-            if (!image) return;
-            await this.applyScale(image, 1, signal);
-            await this.applyRotation(image, 0, signal);
-            image.set({ flipX: false, flipY: false });
-            image.setCoords();
-            this.state.flipX = false;
-            this.state.flipY = false;
-            this.host.finalizeBaseImageGeometry();
-        });
-    }
-
-    /** @internal Runtime alias retained for source-level compatibility tests. */
-    reset(): Promise<void> {
-        return this.resetImageTransform();
+    resetImageTransform(options: TransformMutationOptions = {}): Promise<void> {
+        return this.enqueue(
+            'transform:reset',
+            async (signal) => {
+                const image = this.baseImage.getBaseImage();
+                if (!image) return;
+                await this.applyScale(image, 1, signal);
+                await this.applyRotation(image, 0, signal);
+                image.set({ flipX: false, flipY: false });
+                image.setCoords();
+                this.state.flipX = false;
+                this.state.flipY = false;
+            },
+            options,
+        );
     }
 
     getState(): TransformPluginState {
@@ -184,7 +238,7 @@ export class TransformPluginController {
     }
 
     resetStateFromImage(): void {
-        const image = this.host.getBaseImage();
+        const image = this.baseImage.getBaseImage();
         this.state.scale = 1;
         this.state.rotationDegrees = Number(image?.angle) || 0;
         this.state.flipX = image?.flipX === true;
@@ -192,55 +246,57 @@ export class TransformPluginController {
     }
 
     dispose(): void {
-        this.guard.markDisposed();
-        this.queue.clear();
+        this.animations.dispose();
     }
 
-    private flip(property: 'flipX' | 'flipY', operationId: string): Promise<void> {
-        return this.enqueue(operationId, async () => {
-            const image = this.host.getBaseImage();
-            if (!image) return;
-            const center = image.getCenterPoint();
-            image.set({ originX: 'center', originY: 'center' });
-            image.setPositionByOrigin(center, 'center', 'center');
-            image.set({ [property]: !image[property] });
-            image.setCoords();
-            const topLeft = this.computeTopLeftPoint(image);
-            image.set({ originX: 'left', originY: 'top' });
-            image.setPositionByOrigin(topLeft, 'left', 'top');
-            image.setCoords();
-            this.state[property] = image[property] === true;
-            this.host.finalizeBaseImageGeometry();
-        });
+    private flip(
+        property: 'flipX' | 'flipY',
+        operationId: string,
+        options: TransformMutationOptions,
+    ): Promise<void> {
+        return this.enqueue(
+            operationId,
+            async () => {
+                const image = this.baseImage.getBaseImage();
+                if (!image) return;
+                const center = image.getCenterPoint();
+                image.set({ originX: 'center', originY: 'center' });
+                image.setPositionByOrigin(center, 'center', 'center');
+                image.set({ [property]: !image[property] });
+                image.setCoords();
+                const topLeft = this.computeTopLeftPoint(image);
+                image.set({ originX: 'left', originY: 'top' });
+                image.setPositionByOrigin(topLeft, 'left', 'top');
+                image.setCoords();
+                this.state[property] = image[property] === true;
+            },
+            options,
+        );
     }
 
     private enqueue(
         operationId: string,
         mutate: (signal: AbortSignal) => Promise<void>,
+        options: TransformMutationOptions,
     ): Promise<void> {
-        if (this.guard.isDisposed()) return Promise.resolve();
-        return this.queue.add(async () => {
-            const image = this.host.getBaseImage();
-            if (!image || this.guard.isDisposed()) return;
-            const rollback = this.captureRollback(image);
-            const mutationId = `${operationId}:${++this.mutationSequence}`;
-            await this.geometry.run({
+        if (this.animations.isDisposed()) return Promise.resolve();
+        const image = this.baseImage.getBaseImage();
+        if (!image) return Promise.resolve();
+        const rollback = this.captureRollback(image);
+        const mutationId = `${operationId}:${++this.mutationSequence}`;
+        return this.geometry
+            .run({
                 id: mutationId,
                 kind: 'transform',
                 operationId,
+                parent: options.parent,
                 mutateBase: async ({ signal }) => {
-                    const abort = (): void => this.guard.markDisposed();
-                    signal.addEventListener('abort', abort, { once: true });
-                    try {
-                        await mutate(signal);
-                    } finally {
-                        signal.removeEventListener('abort', abort);
-                    }
+                    await mutate(signal);
                 },
                 rollbackBase: () => this.restoreRollback(image, rollback),
                 metadata: Object.freeze({ pluginId: '@bensitu/transform' }),
-            });
-        });
+            })
+            .then(() => undefined);
     }
 
     private async applyScale(
@@ -254,16 +310,16 @@ export class TransformPluginController {
         image.set({ originX: 'left', originY: 'top' });
         image.setPositionByOrigin(topLeft, 'left', 'top');
         image.setCoords();
-        const target = this.host.getBaseImageScale() * scale;
-        await this.guard.runAnimation(() =>
+        const target = this.baseImage.getBaseImageScale() * scale;
+        await this.runAnimation(signal, () =>
             animateProps(
                 image,
                 { scaleX: target, scaleY: target },
                 {
                     duration: this.options.animationDuration,
-                    onChange: () => this.host.requestRender(),
+                    onChange: () => this.render.requestRender(),
                 },
-                this.guard,
+                this.animations,
             ),
         );
         this.throwIfAborted(signal);
@@ -283,15 +339,15 @@ export class TransformPluginController {
         image.setPositionByOrigin(center, 'center', 'center');
         image.setCoords();
         try {
-            await this.guard.runAnimation(() =>
+            await this.runAnimation(signal, () =>
                 animateProps(
                     image,
                     { angle: degrees },
                     {
                         duration: this.options.animationDuration,
-                        onChange: () => this.host.requestRender(),
+                        onChange: () => this.render.requestRender(),
                     },
-                    this.guard,
+                    this.animations,
                 ),
             );
             this.throwIfAborted(signal);
@@ -303,15 +359,13 @@ export class TransformPluginController {
             image.setCoords();
             this.state.rotationDegrees = degrees;
         } finally {
-            if (this.guard.isDisposed()) restoreOrigin(image, 'left', 'top');
+            if (this.animations.isDisposed()) restoreOrigin(image, 'left', 'top');
         }
     }
 
     private captureRollback(image: FabricNS.FabricImage): TargetedRollbackState {
         return Object.freeze({
             transform: this.getState(),
-            geometryRevision: this.host.getGeometryRevision(),
-            canvasSize: this.host.getCanvasSize(),
             image: Object.freeze({
                 left: Number(image.left) || 0,
                 top: Number(image.top) || 0,
@@ -327,13 +381,11 @@ export class TransformPluginController {
     }
 
     private restoreRollback(image: FabricNS.FabricImage, rollback: TargetedRollbackState): void {
-        if (this.host.isDisposed()) return;
+        if (this.environment.isDisposed()) return;
         image.set(rollback.image);
         image.setCoords();
         this.restoreState(rollback.transform);
-        this.host.setCanvasSize(rollback.canvasSize.width, rollback.canvasSize.height);
-        this.host.setGeometryRevision(rollback.geometryRevision);
-        this.host.requestRender();
+        this.render.requestRender();
     }
 
     private computeTopLeftPoint(image: FabricNS.FabricImage): FabricNS.Point {
@@ -341,7 +393,7 @@ export class TransformPluginController {
         const first = image.getCoords()[0];
         if (first) return first;
         const bounds = image.getBoundingRect();
-        const PointConstructor = this.host.fabric.Point;
+        const PointConstructor = this.environment.fabric.Point;
         if (typeof PointConstructor === 'function') {
             return new PointConstructor(bounds.left, bounds.top);
         }
@@ -350,6 +402,17 @@ export class TransformPluginController {
 
     private throwIfAborted(signal: AbortSignal): void {
         if (signal.aborted) throw signal.reason ?? new Error('Transform operation aborted.');
-        if (this.guard.isDisposed()) throw new Error('Transform plugin is disposed.');
+        if (this.animations.isDisposed()) throw new Error('Transform plugin is disposed.');
+    }
+
+    private async runAnimation(signal: AbortSignal, animation: () => Promise<void>): Promise<void> {
+        const cancel = (): void => this.animations.cancelAnimations();
+        signal.addEventListener('abort', cancel, { once: true });
+        if (signal.aborted) cancel();
+        try {
+            await animation();
+        } finally {
+            signal.removeEventListener('abort', cancel);
+        }
     }
 }

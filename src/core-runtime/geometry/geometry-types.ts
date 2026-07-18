@@ -1,5 +1,5 @@
 import type { Disposable, MaybePromise } from '../../plugin-kernel/disposable.js';
-import type { CoreMemento } from '../state/state-types.js';
+import type { DocumentMutationContext } from '../mutation/mutation-types.js';
 import type { AffineMatrix, Rect } from './affine-matrix.js';
 
 export interface Size {
@@ -17,6 +17,7 @@ export interface BaseImageGeometrySnapshot {
 
 export interface GeometryMutationBaseContext {
     readonly signal: AbortSignal;
+    readonly transaction: DocumentMutationContext;
 }
 
 export interface GeometryMutationRollbackContext {
@@ -28,11 +29,17 @@ export interface GeometryMutationRequest {
     readonly id: string;
     readonly kind: 'transform' | 'crop' | 'raster-replace' | 'flatten' | (string & {});
     readonly operationId: string;
+    readonly parent?: DocumentMutationContext;
     mutateBase(context: GeometryMutationBaseContext): MaybePromise<void>;
     rollbackBase?(context: GeometryMutationRollbackContext): MaybePromise<void>;
     readonly metadata?: Readonly<Record<string, unknown>>;
     readonly sourceRect?: Rect;
     readonly targetSize?: Size;
+}
+
+export interface GeometryMutationPort {
+    run(request: GeometryMutationRequest): Promise<GeometryMutationDescriptor>;
+    registerParticipant<TPrepared>(participant: GeometryMutationParticipant<TPrepared>): Disposable;
 }
 
 export interface GeometryMutationDescriptor {
@@ -77,42 +84,12 @@ export interface GeometryMutationParticipant<TPrepared = unknown> {
     ): MaybePromise<void>;
 }
 
-export interface HistoryRecordDraft {
-    readonly operationId: string;
-    readonly before: CoreMemento;
-    readonly after: CoreMemento;
-    readonly timestamp: number;
-    readonly descriptor: GeometryMutationDescriptor;
-}
-
-export interface GeometryHistoryCommitPort {
-    isAvailable(): boolean;
-    commit(record: HistoryRecordDraft): MaybePromise<void>;
-}
-
-export interface GeometryMementoPort {
-    capture(): CoreMemento;
-    restore(memento: CoreMemento): Promise<void>;
-    matches?(memento: CoreMemento): MaybePromise<boolean>;
-}
-
-export interface GeometryOperationPort {
-    has(operationId: string): boolean;
-    acquire(operationId: string): Disposable;
-}
-
 export interface GeometryStatePort {
     captureGeometry(): BaseImageGeometrySnapshot;
     finalizeGeometry(): MaybePromise<void>;
+    restoreGeometry?(snapshot: BaseImageGeometrySnapshot): MaybePromise<void>;
     requestRender(): void;
     isDisposed(): boolean;
-}
-
-export interface GeometryCommittedEventPort {
-    emitCommitted(
-        eventName: 'geometry:committed',
-        descriptor: GeometryMutationDescriptor,
-    ): Promise<void>;
 }
 
 export interface GeometryWarning {

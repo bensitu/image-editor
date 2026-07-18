@@ -8,15 +8,17 @@ export interface MementoRestoreOptions {
 export declare class MementoService implements Disposable {
     private readonly coreAdapter;
     private readonly slices;
-    private readonly trustedMementos;
+    private trustedMementos;
     private revision;
     private restoring;
     private disposed;
     constructor(coreAdapter: CoreStateAdapter, slices: StateSliceRegistry);
     capture(): CoreMemento;
     isTrusted(value: unknown): value is CoreMemento;
+    matches(memento: CoreMemento): boolean;
     restore(memento: CoreMemento, options?: MementoRestoreOptions): Promise<void>;
     dispose(): void;
+    reset(): void;
     private captureInternal;
     private restoreInternal;
     private assertActive;

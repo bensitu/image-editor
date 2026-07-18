@@ -1,0 +1,35 @@
+{
+    "version": "7.4.0",
+    "width": 40,
+    "height": 32,
+    "objects": [
+        {
+            "type": "Image",
+            "version": "7.4.0",
+            "originX": "left",
+            "originY": "top",
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 1,
+            "scaleX": 40,
+            "scaleY": 32,
+            "angle": 0,
+            "flipX": false,
+            "flipY": false,
+            "opacity": 1,
+            "visible": true,
+            "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "crossOrigin": null,
+            "filters": [],
+            "editorObjectKind": "baseImage"
+        }
+    ],
+    "_editorState": {
+        "currentScale": 1,
+        "currentRotation": 0,
+        "baseImageScale": 1,
+        "currentImageMimeType": "image/png",
+        "activeObjectKind": null
+    }
+}

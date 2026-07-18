@@ -1,10 +1,10 @@
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import { MementoCaptureError, MementoRestoreError, StateRegistrationError } from '../errors.js';
-import { cloneStateValue } from './clone-state-value.js';
+import { assertSafeImmutableReference, cloneStateValue } from './clone-state-value.js';
 import type {
     CoreMemento,
     CoreStateAdapter,
-    PluginMementoEntry,
+    MementoPluginEntry,
     StateCaptureContext,
     StateRestoreContext,
 } from './state-types.js';
@@ -27,7 +27,7 @@ function throwIfAborted(signal: AbortSignal): void {
 }
 
 export class MementoService implements Disposable {
-    private readonly trustedMementos = new WeakSet<object>();
+    private trustedMementos = new WeakSet<object>();
     private revision = 0;
     private restoring = false;
     private disposed = false;
@@ -47,6 +47,16 @@ export class MementoService implements Disposable {
 
     isTrusted(value: unknown): value is CoreMemento {
         return typeof value === 'object' && value !== null && this.trustedMementos.has(value);
+    }
+
+    matches(memento: CoreMemento): boolean {
+        this.assertActive('compare a memento');
+        if (!this.isTrusted(memento)) return false;
+        const current = this.captureInternal(false);
+        return (
+            JSON.stringify(current.core) === JSON.stringify(memento.core) &&
+            JSON.stringify(current.plugins) === JSON.stringify(memento.plugins)
+        );
     }
 
     async restore(memento: CoreMemento, options: MementoRestoreOptions = {}): Promise<void> {
@@ -70,7 +80,7 @@ export class MementoService implements Disposable {
         this.restoring = true;
         let rollback: CoreMemento | null = null;
         try {
-            if (options.rollbackOnFailure !== false) rollback = this.captureInternal();
+            if (options.rollbackOnFailure !== false) rollback = this.captureInternal(false);
             await this.restoreInternal(memento, 'trusted-memento', controller.signal);
         } catch (error) {
             if (!rollback) {
@@ -102,24 +112,61 @@ export class MementoService implements Disposable {
         this.disposed = true;
     }
 
-    private captureInternal(): CoreMemento {
+    reset(): void {
+        this.assertActive('reset MementoService');
+        if (this.restoring) {
+            throw new StateRegistrationError('Cannot reset MementoService during restoration.');
+        }
+        this.trustedMementos = new WeakSet<object>();
+        this.revision = 0;
+    }
+
+    private captureInternal(validateReferenceIdentity = true): CoreMemento {
         const capturedAt = Date.now();
         const context: StateCaptureContext = Object.freeze({ mode: 'memento', capturedAt });
         let core: Readonly<Record<string, unknown>>;
         try {
             core = cloneStateValue(this.coreAdapter.capture(context));
+            assertSafeImmutableReference(core);
         } catch (error) {
             throw new MementoCaptureError('core', error);
         }
-        const plugins: Record<string, PluginMementoEntry> = Object.create(null) as Record<
+        const plugins: Record<string, MementoPluginEntry> = Object.create(null) as Record<
             string,
-            PluginMementoEntry
+            MementoPluginEntry
         >;
         for (const slice of this.slices.list()) {
             try {
+                const captured = slice.capture(context);
+                let capturePolicy = slice.capturePolicy ?? 'always';
+                let data: unknown;
+                if (capturePolicy === 'reference') {
+                    if (validateReferenceIdentity) {
+                        const validation = slice.validate(captured, {
+                            sliceId: slice.id,
+                            version: slice.version,
+                        });
+                        if (!validation.valid || validation.value !== captured) {
+                            throw new Error(
+                                validation.valid
+                                    ? 'Reference validation must preserve the captured identity.'
+                                    : validation.message,
+                            );
+                        }
+                        assertSafeImmutableReference(captured);
+                        data = captured;
+                    } else {
+                        data = cloneStateValue(captured);
+                        capturePolicy = 'always';
+                    }
+                } else {
+                    data = cloneStateValue(captured);
+                }
+                assertSafeImmutableReference(data);
                 plugins[slice.id] = Object.freeze({
                     version: slice.version,
-                    data: cloneStateValue(slice.capture(context)),
+                    capturePolicy,
+                    data,
                 });
             } catch (error) {
                 throw new MementoCaptureError(slice.id, error);
@@ -164,7 +211,10 @@ export class MementoService implements Disposable {
                         `Captured version ${entry.version} does not match installed version ${slice.version}.`,
                     );
                 }
-                await slice.restore(cloneStateValue(entry.data), context);
+                await slice.restore(
+                    entry.capturePolicy === 'reference' ? entry.data : cloneStateValue(entry.data),
+                    context,
+                );
             } catch (error) {
                 throw new MementoRestoreError(
                     slice.id,

@@ -1,9 +1,4 @@
-import {
-    assertCapabilityRequirement,
-    type CapabilityIdentity,
-    type CapabilityRequirementIdentity,
-    type CapabilityToken,
-} from './capability-token.js';
+import { type CapabilityIdentity, type CapabilityToken } from './capability-token.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import {
     CommittedEventBus,
@@ -15,34 +10,50 @@ import {
     InvalidPluginDefinitionError,
     PluginAggregateError,
     PluginAlreadyInstalledError,
+    PluginBatchInstallError,
     PluginCapabilityError,
+    PluginDefinitionConflictError,
+    PluginDependencyCycleError,
+    PluginDependencyError,
     PluginKernelDisposedError,
     PluginKernelStateError,
     PluginLifecycleError,
     PluginNotInstalledError,
+    PluginPermissionError,
     PluginSetupError,
     PluginVersionMismatchError,
 } from './errors.js';
-import { OperationRegistry, type OperationDefinition } from './operation-registry.js';
-import { isPluginRef, type PluginRef } from './plugin-ref.js';
+import {
+    OperationRegistry,
+    type OperationDefinition,
+    type OperationExecutionContext,
+    type OperationRunOptions,
+} from './operation-registry.js';
+import { validatePluginManifest } from './plugin-manifest.js';
+import { isPluginRef, type PluginIdentity, type PluginRef } from './plugin-ref.js';
 import { PluginStateStore } from './plugin-state-store.js';
 import type {
+    CapabilityProviderOptions,
     EditorPlugin,
     EditorPluginDefinition,
+    DisposableScope,
+    PluginDefinitionInput,
+    PluginManifest,
     PluginCapabilityReader,
     PluginCommittedEventAccess,
     PluginCommittedEventSetupAccess,
     PluginLifecycleContext,
     PluginOperationAccess,
     PluginOperationSetupAccess,
+    OptionalCapabilityStatus,
     PluginSetupContext,
     PluginToolAccess,
     PluginToolSetupAccess,
+    PluginPermission,
     SynchronousEditorPlugin,
 } from './plugin-types.js';
 import { RegistrationScope } from './registration-scope.js';
 import { reportErrorSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
-import { isValidSemVer } from './semver.js';
 import { ToolCoordinator, type ToolDefinition, type ToolExitReason } from './tool-coordinator.js';
 
 export type PluginHostState = 'created' | 'initializing' | 'initialized' | 'disposing' | 'disposed';
@@ -57,34 +68,121 @@ export interface PluginHostCapabilityProvider {
     readonly token: CapabilityIdentity;
     readonly implementation: unknown;
     readonly providerId?: string;
+    readonly requiredPermission?: PluginPermission;
 }
 
 interface InstalledPluginRecord<TEvents extends object> {
-    readonly plugin: EditorPluginDefinition<TEvents>;
+    readonly plugin: NormalizedPluginDefinition<TEvents>;
     readonly refObject: object;
     readonly api: unknown;
     readonly scope: RegistrationScope;
     readonly lifecycleContext: PluginLifecycleContext<TEvents>;
 }
 
+interface NormalizedPluginDefinition<
+    TEvents extends object,
+> extends EditorPluginDefinition<TEvents> {
+    readonly ref: PluginRef<unknown>;
+    readonly manifest: PluginManifest;
+    readonly setupMode?: 'sync';
+}
+
 interface InstallOutcome {
     readonly api: unknown;
+}
+
+export interface PluginBatchInstallOutcome<TEvents extends object> {
+    readonly apisByPluginId: ReadonlyMap<string, unknown>;
+    readonly installedPlugins: readonly EditorPluginDefinition<TEvents>[];
+}
+
+interface PreparedBatchPlugin<TEvents extends object> {
+    readonly plugin: NormalizedPluginDefinition<TEvents>;
+}
+
+interface PreparedBatch<TEvents extends object> {
+    readonly ordered: readonly PreparedBatchPlugin<TEvents>[];
+    readonly apisByPluginId: Map<string, unknown>;
 }
 
 interface ResolvedCapability {
     readonly token: object;
     readonly value: unknown | null;
+    readonly status?: OptionalCapabilityStatus;
 }
 
 function isPluginApi(value: unknown): boolean {
     return (typeof value === 'object' && value !== null) || typeof value === 'function';
 }
 
+function sameArray<TValue>(
+    left: readonly TValue[] | undefined,
+    right: readonly TValue[] | undefined,
+    equal: (leftValue: TValue, rightValue: TValue) => boolean,
+): boolean {
+    if (left === undefined || right === undefined) return left === right;
+    return (
+        left.length === right.length &&
+        left.every((leftValue, index) => equal(leftValue, right[index]!))
+    );
+}
+
+function sameInstallationDefinition<TEvents extends object>(
+    left: NormalizedPluginDefinition<TEvents>,
+    right: NormalizedPluginDefinition<TEvents>,
+): boolean {
+    return (
+        left.ref === right.ref &&
+        left.manifest.id === right.manifest.id &&
+        left.manifest.version === right.manifest.version &&
+        left.manifest.apiVersion === right.manifest.apiVersion &&
+        left.manifest.engine === right.manifest.engine &&
+        sameArray(
+            left.manifest.requiresPlugins,
+            right.manifest.requiresPlugins,
+            (leftRef, rightRef) => leftRef === rightRef,
+        ) &&
+        sameArray(
+            left.manifest.requires,
+            right.manifest.requires,
+            (leftRequirement, rightRequirement) =>
+                leftRequirement.token === rightRequirement.token &&
+                leftRequirement.range === rightRequirement.range,
+        ) &&
+        sameArray(
+            left.manifest.optional,
+            right.manifest.optional,
+            (leftRequirement, rightRequirement) =>
+                leftRequirement.token === rightRequirement.token &&
+                leftRequirement.range === rightRequirement.range,
+        ) &&
+        sameArray(
+            left.manifest.permissions,
+            right.manifest.permissions,
+            (leftPermission, rightPermission) => leftPermission === rightPermission,
+        ) &&
+        left.setupMode === right.setupMode &&
+        left.setup === right.setup &&
+        left.onInit === right.onInit &&
+        left.onImageLoaded === right.onImageLoaded &&
+        left.onImageCleared === right.onImageCleared &&
+        left.onDispose === right.onDispose
+    );
+}
+
+const pluginPackageHints = new Map<string, string>([
+    ['foundation.overlay', '@bensitu/image-editor/plugins/overlay'],
+    ['@bensitu/transform', '@bensitu/image-editor/plugins/transform'],
+    ['@bensitu/mask', '@bensitu/image-editor/plugins/mask'],
+    ['@bensitu/history', '@bensitu/image-editor/plugins/history'],
+    ['@bensitu/filters', '@bensitu/image-editor/plugins/filters'],
+]);
+
 export class PluginManager<TEvents extends object = PluginEventMap> implements Disposable {
-    private readonly capabilityRegistry: CapabilityRegistry;
+    declare private readonly capabilityRegistry: CapabilityRegistry;
     private readonly operationRegistry = new OperationRegistry();
-    private readonly toolCoordinator: ToolCoordinator;
-    private readonly eventBus: CommittedEventBus<TEvents>;
+    declare private readonly toolCoordinator: ToolCoordinator;
+    declare private readonly eventBus: CommittedEventBus<TEvents>;
     private readonly stateStore = new PluginStateStore();
     private readonly installed = new Map<string, InstalledPluginRecord<TEvents>>();
     private readonly installationOrder: string[] = [];
@@ -101,6 +199,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 provider.token,
                 provider.implementation,
                 provider.providerId,
+                provider.requiredPermission,
             );
         }
     }
@@ -144,11 +243,58 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
+    /** @internal Core-facing atomic installation primitive for Plugin arrays and Plans. */
+    installBatchSync(
+        plugins: readonly PluginDefinitionInput<TEvents>[],
+    ): PluginBatchInstallOutcome<TEvents> {
+        this.assertCanInstall();
+        if (this.topLevelInstallActive) {
+            throw new PluginKernelStateError(
+                'start a concurrent plugin installation',
+                this.hostState,
+            );
+        }
+        this.topLevelInstallActive = true;
+        try {
+            const prepared = this.prepareBatch(plugins);
+            const visibleTransactions = new Set<symbol>();
+            const pendingRecords: InstalledPluginRecord<TEvents>[] = [];
+            try {
+                for (const entry of prepared.ordered) {
+                    const record = this.performPendingInstallSync(
+                        entry.plugin,
+                        visibleTransactions,
+                    );
+                    pendingRecords.push(record);
+                    prepared.apisByPluginId.set(entry.plugin.ref.id, record.api);
+                }
+                for (const record of pendingRecords) record.scope.commit();
+                for (const record of pendingRecords) {
+                    const pluginId = record.plugin.ref.id;
+                    this.installed.set(pluginId, record);
+                    this.installationOrder.push(pluginId);
+                }
+            } catch (cause) {
+                const cleanupErrors = [
+                    ...(cause instanceof PluginSetupError ? cause.cleanupErrors : []),
+                    ...this.rollbackPendingBatchSync(pendingRecords),
+                ];
+                throw new PluginBatchInstallError(cause, cleanupErrors);
+            }
+            return Object.freeze({
+                apisByPluginId: prepared.apisByPluginId,
+                installedPlugins: Object.freeze(pendingRecords.map((record) => record.plugin)),
+            });
+        } finally {
+            this.topLevelInstallActive = false;
+        }
+    }
+
     get<TApi>(ref: PluginRef<TApi>): TApi | null {
         this.assertUsable('query a plugin');
         const record = this.installed.get(ref.id);
         if (!record || record.refObject !== ref) return null;
-        // Ref identity and its invariant phantom type protect this boundary cast.
+        // Ref identity and its phantom API type protect this boundary cast.
         return record.api as TApi;
     }
 
@@ -175,6 +321,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         return this.operationRegistry.has(operationId);
     }
 
+    /** @internal Reads a registered operation definition for Core validation. */
+    getOperationForHost(operationId: string): OperationDefinition | null {
+        return this.operationRegistry.get(operationId);
+    }
+
     /** @internal Registers host-owned Core operations before initialization. */
     registerHostOperation(definition: OperationDefinition): Disposable {
         this.assertCanInstall();
@@ -190,6 +341,44 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
         }
         return this.operationRegistry.beginForHost(operationId);
+    }
+
+    /** @internal Runs a registered operation on behalf of a Core coordinator. */
+    runOperationForHost<TArgs, TResult>(
+        operationId: string,
+        args: TArgs,
+        task: (args: TArgs, context: OperationExecutionContext) => Promise<TResult> | TResult,
+        options: OperationRunOptions = {},
+    ): Promise<TResult> {
+        if (!this.toolCoordinator.canRunOperation(operationId)) {
+            return Promise.reject(
+                new PluginKernelStateError(
+                    `run operation "${operationId}" while the active tool rejects it`,
+                    this.hostState,
+                ),
+            );
+        }
+        return this.operationRegistry.runForHost(operationId, args, task, options);
+    }
+
+    /** @internal Resolves after active and pending operations have settled. */
+    waitForOperations(): Promise<void> {
+        return this.operationRegistry.waitForIdle();
+    }
+
+    /** @internal Aborts active and pending operations during Core fault recovery. */
+    abortOperationsForHost(reason: unknown): Promise<void> {
+        return this.operationRegistry.abortAll(reason);
+    }
+
+    /** @internal Prevents new operations after Core enters the faulted state. */
+    suspendOperationsForHost(reason: unknown): Promise<void> {
+        return this.operationRegistry.suspend(reason);
+    }
+
+    /** @internal Exits the active tool before Core tears down the Canvas. */
+    exitActiveToolForHost(): Promise<void> {
+        return this.toolCoordinator.exit('host-dispose');
     }
 
     /** @internal Used by Core services for committed observation. */
@@ -326,12 +515,208 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
+    private prepareBatch(
+        inputs: readonly PluginDefinitionInput<TEvents>[],
+    ): PreparedBatch<TEvents> {
+        if (!Array.isArray(inputs) || inputs.length === 0) {
+            throw new InvalidPluginDefinitionError(
+                'Plugin batch must contain at least one Plugin.',
+            );
+        }
+        const candidatesById = new Map<string, PreparedBatchPlugin<TEvents>>();
+        const apisByPluginId = new Map<string, unknown>();
+        for (const input of inputs) {
+            const plugin = this.normalizePluginDefinition(input);
+            const pluginId = plugin.ref.id;
+            const existing = this.installed.get(pluginId);
+            if (existing) {
+                if (!sameInstallationDefinition(existing.plugin, plugin)) {
+                    throw new PluginDefinitionConflictError(pluginId);
+                }
+                apisByPluginId.set(pluginId, existing.api);
+                continue;
+            }
+            const duplicate = candidatesById.get(pluginId);
+            if (duplicate) {
+                if (!sameInstallationDefinition(duplicate.plugin, plugin)) {
+                    throw new PluginDefinitionConflictError(pluginId);
+                }
+                continue;
+            }
+            candidatesById.set(pluginId, { plugin });
+        }
+
+        const candidates = [...candidatesById.values()];
+        const dependencies = new Map<string, Set<string>>();
+        for (const candidate of candidates) {
+            const pluginDependencies = new Set<string>();
+            for (const dependency of candidate.plugin.manifest.requiresPlugins ?? []) {
+                const installedDependency = this.installed.get(dependency.id);
+                if (installedDependency?.refObject === dependency) continue;
+                const batchDependency = candidatesById.get(dependency.id);
+                if (batchDependency?.plugin.ref === dependency) {
+                    pluginDependencies.add(dependency.id);
+                    continue;
+                }
+                throw this.createDependencyError(candidate.plugin.ref.id, dependency, [
+                    ...this.installed.keys(),
+                    ...candidatesById.keys(),
+                ]);
+            }
+            dependencies.set(candidate.plugin.ref.id, pluginDependencies);
+        }
+
+        const remaining = new Set(candidatesById.keys());
+        const ordered: PreparedBatchPlugin<TEvents>[] = [];
+        while (remaining.size > 0) {
+            const next = candidates.find(
+                (candidate) =>
+                    remaining.has(candidate.plugin.ref.id) &&
+                    [...(dependencies.get(candidate.plugin.ref.id) ?? [])].every(
+                        (dependencyId) => !remaining.has(dependencyId),
+                    ),
+            );
+            if (!next) {
+                throw new PluginDependencyCycleError(
+                    this.findDependencyCycle(remaining, dependencies),
+                );
+            }
+            remaining.delete(next.plugin.ref.id);
+            ordered.push(next);
+        }
+        return { ordered: Object.freeze(ordered), apisByPluginId };
+    }
+
+    private findDependencyCycle(
+        remaining: ReadonlySet<string>,
+        dependencies: ReadonlyMap<string, ReadonlySet<string>>,
+    ): readonly string[] {
+        const visited = new Set<string>();
+        const visiting = new Set<string>();
+        const stack: string[] = [];
+        const visit = (pluginId: string): readonly string[] | null => {
+            if (visiting.has(pluginId)) {
+                const start = stack.indexOf(pluginId);
+                return Object.freeze([...stack.slice(start), pluginId]);
+            }
+            if (visited.has(pluginId)) return null;
+            visiting.add(pluginId);
+            stack.push(pluginId);
+            for (const dependencyId of dependencies.get(pluginId) ?? []) {
+                if (!remaining.has(dependencyId)) continue;
+                const cycle = visit(dependencyId);
+                if (cycle) return cycle;
+            }
+            stack.pop();
+            visiting.delete(pluginId);
+            visited.add(pluginId);
+            return null;
+        };
+        for (const pluginId of remaining) {
+            const cycle = visit(pluginId);
+            if (cycle) return cycle;
+        }
+        return Object.freeze([...remaining, remaining.values().next().value as string]);
+    }
+
+    private performPendingInstallSync(
+        plugin: NormalizedPluginDefinition<TEvents>,
+        visibleTransactions: Set<symbol>,
+    ): InstalledPluginRecord<TEvents> {
+        if (plugin.setupMode !== 'sync') {
+            throw new InvalidPluginDefinitionError(
+                `Plugin "${plugin.ref.id}" must declare setupMode "sync" for install().`,
+                plugin.ref.id,
+            );
+        }
+        const { required, optional } = this.resolveCapabilities(plugin, visibleTransactions);
+        const scope = new RegistrationScope(plugin.ref.id, this.options);
+        visibleTransactions.add(scope.transactionId);
+        try {
+            const contexts = this.createContexts(plugin.ref, scope, required, optional, [
+                plugin.ref.id,
+            ]);
+            const api = plugin.setup(contexts.setup);
+            if (isPromiseLike(api)) {
+                throw new InvalidPluginDefinitionError(
+                    `Plugin "${plugin.ref.id}" returned a Promise from synchronous setup.`,
+                    plugin.ref.id,
+                );
+            }
+            if (!isPluginApi(api)) {
+                throw new InvalidPluginDefinitionError(
+                    `Plugin "${plugin.ref.id}" setup must return a non-null object or function API.`,
+                    plugin.ref.id,
+                );
+            }
+            return {
+                plugin,
+                refObject: plugin.ref,
+                api,
+                scope,
+                lifecycleContext: contexts.lifecycle,
+            };
+        } catch (error) {
+            visibleTransactions.delete(scope.transactionId);
+            const cleanupErrors = scope.rollbackSync();
+            throw new PluginSetupError(plugin.ref.id, error, cleanupErrors);
+        }
+    }
+
+    private rollbackPendingBatchSync(
+        pendingRecords: readonly InstalledPluginRecord<TEvents>[],
+    ): readonly unknown[] {
+        const cleanupErrors: unknown[] = [];
+        for (const record of [...pendingRecords].reverse()) {
+            if (record.plugin.onDispose) {
+                try {
+                    const result = record.plugin.onDispose(record.lifecycleContext);
+                    if (isPromiseLike(result)) {
+                        void Promise.resolve(result).catch((error: unknown) => {
+                            reportErrorSafely(this.options.errorSink, error);
+                        });
+                        throw new Error('Synchronous Plugin onDispose returned a Promise.');
+                    }
+                } catch (error) {
+                    cleanupErrors.push(
+                        new PluginLifecycleError(record.plugin.ref.id, 'dispose', error),
+                    );
+                }
+            }
+            cleanupErrors.push(...record.scope.rollbackSync());
+        }
+        return Object.freeze(cleanupErrors);
+    }
+
+    private createDependencyError(
+        consumerPluginId: string,
+        dependency: PluginRef<unknown>,
+        availablePluginIds: readonly string[],
+    ): PluginDependencyError {
+        return new PluginDependencyError({
+            consumerPluginId,
+            dependencyId: dependency.id,
+            requiredApiVersion: dependency.apiVersion,
+            availablePluginIds: Object.freeze([...new Set(availablePluginIds)].sort()),
+            packageHint: pluginPackageHints.get(dependency.id),
+            planHint: 'Pass the dependency to install([...]) or include it in composePlugins(...).',
+        });
+    }
+
+    private assertPluginDependenciesInstalled(plugin: NormalizedPluginDefinition<TEvents>): void {
+        for (const dependency of plugin.manifest.requiresPlugins ?? []) {
+            const installedDependency = this.installed.get(dependency.id);
+            if (installedDependency?.refObject === dependency) continue;
+            throw this.createDependencyError(plugin.ref.id, dependency, [...this.installed.keys()]);
+        }
+    }
+
     private async performInstall(
-        plugin: EditorPluginDefinition<TEvents>,
+        input: PluginDefinitionInput<TEvents>,
         mode: 'strict' | 'ensure',
         parentStack: readonly string[],
     ): Promise<InstallOutcome> {
-        this.validatePluginDefinition(plugin);
+        const plugin = this.normalizePluginDefinition(input);
         const pluginId = plugin.ref.id;
         if (parentStack.includes(pluginId)) {
             throw new InvalidPluginDefinitionError(
@@ -343,15 +728,12 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         const existing = this.installed.get(pluginId);
         if (existing) {
             if (mode === 'strict') throw new PluginAlreadyInstalledError(pluginId);
-            const compatible =
-                existing.plugin.version === plugin.version &&
-                existing.plugin.ref.apiVersion === plugin.ref.apiVersion &&
-                existing.refObject === plugin.ref;
+            const compatible = sameInstallationDefinition(existing.plugin, plugin);
             if (!compatible) {
                 throw new PluginVersionMismatchError(
                     pluginId,
-                    existing.plugin.version,
-                    plugin.version,
+                    existing.plugin.manifest.version,
+                    plugin.manifest.version,
                     existing.plugin.ref.apiVersion,
                     plugin.ref.apiVersion,
                 );
@@ -359,12 +741,13 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             return { api: existing.api };
         }
 
+        this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
         const scope = new RegistrationScope(pluginId, this.options);
         const stack = [...parentStack, pluginId];
 
         try {
-            const contexts = this.createContexts(pluginId, scope, required, optional, stack);
+            const contexts = this.createContexts(plugin.ref, scope, required, optional, stack);
             const api = await plugin.setup(contexts.setup);
             if (!isPluginApi(api)) {
                 throw new InvalidPluginDefinitionError(
@@ -390,11 +773,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
     }
 
     private performInstallSync<TApi>(
-        plugin: SynchronousEditorPlugin<TApi, TEvents>,
+        input: SynchronousEditorPlugin<TApi, TEvents>,
         mode: 'strict' | 'ensure',
         parentStack: readonly string[],
     ): InstallOutcome {
-        this.validatePluginDefinition(plugin);
+        const plugin = this.normalizePluginDefinition(input);
         if (plugin.setupMode !== 'sync') {
             throw new InvalidPluginDefinitionError(
                 `Plugin "${plugin.ref.id}" must declare setupMode "sync" for installSync().`,
@@ -411,25 +794,23 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         const existing = this.installed.get(pluginId);
         if (existing) {
             if (mode === 'strict') throw new PluginAlreadyInstalledError(pluginId);
-            const compatible =
-                existing.plugin.version === plugin.version &&
-                existing.plugin.ref.apiVersion === plugin.ref.apiVersion &&
-                existing.refObject === plugin.ref;
+            const compatible = sameInstallationDefinition(existing.plugin, plugin);
             if (!compatible) {
                 throw new PluginVersionMismatchError(
                     pluginId,
-                    existing.plugin.version,
-                    plugin.version,
+                    existing.plugin.manifest.version,
+                    plugin.manifest.version,
                     existing.plugin.ref.apiVersion,
                     plugin.ref.apiVersion,
                 );
             }
             return { api: existing.api };
         }
+        this.assertPluginDependenciesInstalled(plugin);
         const { required, optional } = this.resolveCapabilities(plugin);
         const scope = new RegistrationScope(pluginId, this.options);
         try {
-            const contexts = this.createContexts(pluginId, scope, required, optional, [
+            const contexts = this.createContexts(plugin.ref, scope, required, optional, [
                 ...parentStack,
                 pluginId,
             ]);
@@ -462,29 +843,62 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
-    private resolveCapabilities(plugin: EditorPluginDefinition<TEvents>): {
+    private resolveCapabilities(
+        plugin: NormalizedPluginDefinition<TEvents>,
+        visibleTransactions?: ReadonlySet<symbol>,
+    ): {
         readonly required: ReadonlyMap<string, ResolvedCapability>;
         readonly optional: ReadonlyMap<string, ResolvedCapability>;
     } {
         const required = new Map<string, ResolvedCapability>();
         const optional = new Map<string, ResolvedCapability>();
-        for (const requirement of plugin.requires ?? []) {
+        for (const requirement of plugin.manifest.requires ?? []) {
+            this.assertCapabilityPermission(plugin, requirement.token.id, visibleTransactions);
             required.set(requirement.token.id, {
                 token: requirement.token,
-                value: this.capabilityRegistry.requireDefinition(requirement, plugin.ref.id),
+                value: this.capabilityRegistry.requireDefinition(
+                    requirement,
+                    plugin.ref.id,
+                    visibleTransactions,
+                ),
             });
         }
-        for (const requirement of plugin.optional ?? []) {
+        for (const requirement of plugin.manifest.optional ?? []) {
+            this.assertCapabilityPermission(plugin, requirement.token.id, visibleTransactions);
+            const value = this.capabilityRegistry.optionalDefinition(
+                requirement,
+                plugin.ref.id,
+                visibleTransactions,
+            );
             optional.set(requirement.token.id, {
                 token: requirement.token,
-                value: this.capabilityRegistry.optionalDefinition(requirement, plugin.ref.id),
+                value,
+                status:
+                    value !== null
+                        ? 'available'
+                        : this.capabilityRegistry.getProviderInfo(requirement.token.id)
+                          ? 'incompatible'
+                          : 'missing',
             });
         }
         return { required, optional };
     }
 
+    private assertCapabilityPermission(
+        plugin: NormalizedPluginDefinition<TEvents>,
+        capabilityId: string,
+        visibleTransactions?: ReadonlySet<symbol>,
+    ): void {
+        const permission = this.capabilityRegistry.getRequiredPermission(
+            capabilityId,
+            visibleTransactions,
+        );
+        if (!permission || plugin.manifest.permissions?.includes(permission)) return;
+        throw new PluginPermissionError(plugin.ref.id, permission, capabilityId);
+    }
+
     private createContexts(
-        pluginId: string,
+        plugin: PluginIdentity,
         scope: RegistrationScope,
         required: ReadonlyMap<string, ResolvedCapability>,
         optional: ReadonlyMap<string, ResolvedCapability>,
@@ -493,6 +907,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         readonly setup: PluginSetupContext<TEvents>;
         readonly lifecycle: PluginLifecycleContext<TEvents>;
     } {
+        const pluginId = plugin.id;
         const state = this.stateStore.createScoped(
             pluginId,
             (disposable) => scope.add(disposable),
@@ -524,9 +939,30 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                 }
                 return resolved.value as TPort | null;
             },
+            getOptionalStatus: <TPort>(token: CapabilityToken<TPort>): OptionalCapabilityStatus => {
+                const resolved = optional.get(token.id);
+                if (!resolved || resolved.token !== token) {
+                    throw new PluginCapabilityError({
+                        consumerPluginId: pluginId,
+                        capabilityId: token.id,
+                        requestedRange: 'undeclared-optional-capability',
+                        reason: 'missing',
+                    });
+                }
+                return resolved.status as OptionalCapabilityStatus;
+            },
         });
         const operations: PluginOperationAccess = Object.freeze({
             begin: (operationId: string) => this.operationRegistry.begin(operationId, pluginId),
+            run: <TArgs, TResult>(
+                operationId: string,
+                args: TArgs,
+                task: (
+                    args: TArgs,
+                    context: OperationExecutionContext,
+                ) => Promise<TResult> | TResult,
+                options: OperationRunOptions = {},
+            ) => this.operationRegistry.run(operationId, pluginId, args, task, options),
             get: (operationId: string) => this.operationRegistry.get(operationId),
             isActive: (operationId?: string) => this.operationRegistry.isActive(operationId),
         });
@@ -544,6 +980,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             ) => this.eventBus.emitCommitted(eventName, payload),
         });
         const lifecycle: PluginLifecycleContext<TEvents> = Object.freeze({
+            plugin,
             pluginId,
             state,
             capabilities,
@@ -554,7 +991,11 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
 
         const setupCapabilities = Object.freeze({
             ...capabilities,
-            provide: <TPort>(token: CapabilityToken<TPort>, implementation: TPort): Disposable => {
+            provide: <TPort>(
+                token: CapabilityToken<TPort>,
+                implementation: TPort,
+                options?: CapabilityProviderOptions,
+            ): Disposable => {
                 scope.assertOpen();
                 return scope.add(
                     this.capabilityRegistry.providePending(
@@ -562,6 +1003,8 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
                         implementation,
                         pluginId,
                         scope.transactionId,
+                        options?.version ?? token.version,
+                        options?.requiredPermission,
                     ),
                 );
             },
@@ -592,7 +1035,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         });
 
         const ensurePluginNow = async (
-            dependency: EditorPluginDefinition<TEvents>,
+            dependency: PluginDefinitionInput<TEvents>,
         ): Promise<unknown> => {
             scope.assertOpen('ensure a composed plugin dependency');
             const before = new Set(this.installationOrder);
@@ -606,7 +1049,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             return outcome.api;
         };
         let ensureQueue: Promise<void> = Promise.resolve();
-        const ensurePlugin = (dependency: EditorPluginDefinition<TEvents>): Promise<unknown> => {
+        const ensurePlugin = (dependency: PluginDefinitionInput<TEvents>): Promise<unknown> => {
             const result = ensureQueue.then(() => ensurePluginNow(dependency));
             ensureQueue = result.then(
                 () => undefined,
@@ -614,13 +1057,24 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
             return result;
         };
+        const disposables: DisposableScope = Object.freeze({
+            get active(): boolean {
+                return scope.active;
+            },
+            add: <TDisposable extends Disposable>(disposable: TDisposable): TDisposable => {
+                scope.assertOpen();
+                return scope.add(disposable);
+            },
+        });
         const setup: PluginSetupContext<TEvents> = Object.freeze({
+            plugin,
             pluginId,
             state,
             capabilities: setupCapabilities,
             operations: setupOperations,
             tools: setupTools,
             events: setupEvents,
+            disposables,
             addDisposable: (disposable: Disposable): Disposable => {
                 scope.assertOpen();
                 return scope.add(disposable);
@@ -663,19 +1117,15 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
         }
     }
 
-    private validatePluginDefinition(plugin: EditorPluginDefinition<TEvents>): void {
+    private normalizePluginDefinition(
+        plugin: PluginDefinitionInput<TEvents>,
+    ): NormalizedPluginDefinition<TEvents> {
         if (typeof plugin !== 'object' || plugin === null) {
             throw new InvalidPluginDefinitionError('Plugin definition must be an object.');
         }
         if (!isPluginRef(plugin.ref)) {
             throw new InvalidPluginDefinitionError(
                 'Plugin definition must use a PluginRef created by definePluginRef().',
-            );
-        }
-        if (!isValidSemVer(plugin.version)) {
-            throw new InvalidPluginDefinitionError(
-                `Plugin "${plugin.ref.id}" has invalid implementation SemVer "${plugin.version}".`,
-                plugin.ref.id,
             );
         }
         if (typeof plugin.setup !== 'function') {
@@ -685,32 +1135,21 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
             );
         }
 
-        const capabilityIds = new Set<string>();
-        const validateRequirements = (
-            requirements: readonly CapabilityRequirementIdentity[] | undefined,
-            kind: 'required' | 'optional',
-        ): void => {
-            for (const requirement of requirements ?? []) {
-                try {
-                    assertCapabilityRequirement(requirement);
-                } catch (error) {
-                    throw new InvalidPluginDefinitionError(
-                        `Plugin "${plugin.ref.id}" has an invalid ${kind} capability requirement.`,
-                        plugin.ref.id,
-                        error,
-                    );
-                }
-                if (capabilityIds.has(requirement.token.id)) {
-                    throw new InvalidPluginDefinitionError(
-                        `Plugin "${plugin.ref.id}" declares capability "${requirement.token.id}" more than once.`,
-                        plugin.ref.id,
-                    );
-                }
-                capabilityIds.add(requirement.token.id);
-            }
-        };
-        validateRequirements(plugin.requires, 'required');
-        validateRequirements(plugin.optional, 'optional');
+        const manifest = validatePluginManifest(
+            plugin.ref,
+            'manifest' in plugin
+                ? plugin.manifest
+                : {
+                      id: plugin.ref.id,
+                      version: plugin.version,
+                      apiVersion: plugin.ref.apiVersion,
+                      engine: '*',
+                      requires: plugin.requires,
+                      optional: plugin.optional,
+                      permissions: plugin.permissions,
+                  },
+        );
+        return Object.freeze({ ...plugin, ref: plugin.ref, manifest });
     }
 
     private async performDispose(): Promise<void> {

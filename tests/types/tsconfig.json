@@ -7,6 +7,9 @@
     "include": [
         "plugin-kernel.test.ts",
         "core-plugin-api.test.ts",
+        "sdk/plugin-api.test.ts",
+        "sdk/testing-api.test.ts",
         "../../src/plugin-kernel/**/*.ts"
-    ]
+    ],
+    "exclude": []
 }

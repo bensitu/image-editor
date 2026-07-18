@@ -22,20 +22,16 @@ export {
 } from './geometry-mutation-coordinator.js';
 export type {
     BaseImageGeometrySnapshot,
-    GeometryCommittedEventPort,
     GeometryErrorSink,
-    GeometryHistoryCommitPort,
-    GeometryMementoPort,
     GeometryMutationBaseContext,
     GeometryMutationDescriptor,
     GeometryMutationParticipant,
+    GeometryMutationPort,
     GeometryMutationRequest,
     GeometryMutationRollbackContext,
-    GeometryOperationPort,
     GeometryParticipantContext,
     GeometryStatePort,
     GeometryWarning,
     GeometryWarningSink,
-    HistoryRecordDraft,
     Size,
 } from './geometry-types.js';

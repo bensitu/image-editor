@@ -1,0 +1,80 @@
+{
+    "budget": {
+        "hardLimitGzipBytes": 51200,
+        "lockedGzipBytes": 50176,
+        "maximumHeadroomRatio": 0.1,
+        "minimumHeadroomGzipBytes": 1024,
+        "targetGzipBytes": 50176
+    },
+    "fixtures": {
+        "core-only": {
+            "entry": "tests/bundle/fixtures/core-only/index.mjs",
+            "sha256": "c010e6ce14736328af291c4ed28add56fb28fcf52dd9a8955b25c7daff0f836f"
+        },
+        "core-platform": {
+            "entry": "tests/bundle/fixtures/core-platform/index.mjs",
+            "sha256": "14af6a93e9f1cb8be3dfb3618311be8a086b8976d7af644c42181fea912334d6"
+        },
+        "core-sdk": {
+            "entry": "tests/bundle/fixtures/core-sdk/index.mjs",
+            "sha256": "02842a52604cd6eb30d8c0a9c678423b2adbef1cacfd672317db99ac54b06a0c"
+        },
+        "overlay-foundation": {
+            "entry": "tests/bundle/fixtures/overlay-foundation/index.mjs",
+            "sha256": "b1b7e2e0c3336358cb22b8be3a9ab6d992dccf68f97d741478fb5db0b0f9780b"
+        },
+        "platform-anchor": {
+            "entry": "tests/bundle/fixtures/platform-anchor/index.mjs",
+            "sha256": "16e14ee3c297427ff06ec684296a68f1f5a93813bacf12b175e5d185c3ef5533"
+        },
+        "third-party-blur-region": {
+            "entry": "tests/bundle/fixtures/third-party-blur-region/index.mjs",
+            "sha256": "814d883f55379b245f82fb8cf97c5b8c54757108790b7c5817428e69d6080c1a"
+        },
+        "third-party-watermark": {
+            "entry": "tests/bundle/fixtures/third-party-watermark/index.mjs",
+            "sha256": "bbe5b5a530909dabc9d857ecb2de9e3918252d9eb2847205babb26cca7a9e223"
+        }
+    },
+    "measurement": {
+        "corePlatformGzipBytes": 40676,
+        "overlayDeltaGzipBytes": 9494,
+        "path": "tests/bundle/baselines/platform-anchor.json",
+        "platformAnchorGzipBytes": 50170,
+        "sha256": "cffffc89edfff3d526f2314b5a8e1bd88aba8141b0ecb10c009962bf148d352c"
+    },
+    "modulePolicy": {
+        "allowedPrefixes": [
+            "dist/esm/",
+            "tests/bundle/fixtures/platform-anchor/"
+        ],
+        "annotationDrawLeakageAllowed": 0,
+        "annotationFoundationLeakageAllowed": 0,
+        "annotationShapeLeakageAllowed": 0,
+        "annotationTextLeakageAllowed": 0,
+        "cropPluginLeakageAllowed": 0,
+        "domControlsPluginLeakageAllowed": 0,
+        "fabricExternal": true,
+        "filtersPluginLeakageAllowed": 0,
+        "mosaicPluginLeakageAllowed": 0,
+        "overlayStatePluginLeakageAllowed": 0,
+        "presetLeakageAllowed": 0,
+        "referencePluginLeakageAllowed": 0,
+        "testingLeakageAllowed": 0,
+        "unknownModulesAllowed": 0
+    },
+    "schemaVersion": 1,
+    "source": {
+        "commit": "8e875a14b98f19ace1ef2508ce93c27841956c44",
+        "tree": "5e2ef6d726ddee97e7d69f3a678400a8906451b3"
+    },
+    "toolchain": {
+        "bundler": {
+            "name": "rollup",
+            "version": "4.62.2"
+        },
+        "measurementConfigHash": "a702acde06218d0ca103f15fa9a527c65e9c1f9e54e4410ff37eb7f32dc724f8",
+        "measurementConfigVersion": 1,
+        "node": "v24.16.0"
+    }
+}

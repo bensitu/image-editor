@@ -32,7 +32,12 @@ for (const failurePoint of [1, 2, 3, 4, 5]) {
                 capturedState = context.state;
                 context.capabilities.provide(rollbackToken, { failurePoint });
                 failAt(1);
-                context.operations.register({ id: operationId, mode: 'busy' });
+                context.operations.register({
+                    id: operationId,
+                    mode: 'busy',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                });
                 failAt(2);
                 context.tools.register({
                     id: toolId,
@@ -59,7 +64,12 @@ for (const failurePoint of [1, 2, 3, 4, 5]) {
             version: '1.0.0',
             setup(context) {
                 context.capabilities.provide(rollbackToken, { replacement: failurePoint });
-                context.operations.register({ id: operationId, mode: 'busy' });
+                context.operations.register({
+                    id: operationId,
+                    mode: 'busy',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                });
                 context.tools.register({
                     id: toolId,
                     enter: () => undefined,
@@ -123,7 +133,12 @@ test('failed setup exits an active tool and clears an active operation token', a
         ref,
         version: '1.0.0',
         async setup(context) {
-            context.operations.register({ id: 'example.test/active-operation', mode: 'busy' });
+            context.operations.register({
+                id: 'example.test/active-operation',
+                mode: 'busy',
+                conflictDomains: ['document'],
+                reentrancy: 'reject',
+            });
             operationToken = context.operations.begin('example.test/active-operation');
             context.tools.register({
                 id: 'example.test/active-tool',
@@ -143,7 +158,12 @@ test('failed setup exits an active tool and clears an active operation token', a
         ref,
         version: '1.0.0',
         setup(context) {
-            context.operations.register({ id: 'example.test/active-operation', mode: 'busy' });
+            context.operations.register({
+                id: 'example.test/active-operation',
+                mode: 'busy',
+                conflictDomains: ['document'],
+                reentrancy: 'reject',
+            });
             context.tools.register({
                 id: 'example.test/active-tool',
                 enter: () => undefined,

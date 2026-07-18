@@ -9,6 +9,7 @@ import {
     GeometryMutationCoordinator,
     IDENTITY_AFFINE_MATRIX,
 } from '../../src/core-runtime/geometry/index.js';
+import { createDocumentMutationEnvironment } from '../helpers/document-mutation-environment.mjs';
 
 function createHarness({ historyAvailable = true, eventFailure = false } = {}) {
     const calls = [];
@@ -18,7 +19,7 @@ function createHarness({ historyAvailable = true, eventFailure = false } = {}) {
     const history = [];
     const events = [];
     const warnings = [];
-    const coordinator = new GeometryMutationCoordinator({
+    const options = {
         mementos: {
             capture: () => ({ value, revision }),
             restore: async (memento) => {
@@ -28,10 +29,6 @@ function createHarness({ historyAvailable = true, eventFailure = false } = {}) {
                 revision = memento.revision;
             },
             matches: (memento) => value === memento.value && revision === memento.revision,
-        },
-        operations: {
-            has: (id) => id === 'test:operation',
-            acquire: () => ({ dispose: () => calls.push('operation:release') }),
         },
         state: {
             captureGeometry: () => ({
@@ -56,6 +53,20 @@ function createHarness({ historyAvailable = true, eventFailure = false } = {}) {
             },
         },
         warningSink: (warning) => warnings.push(warning),
+    };
+    const { mutations } = createDocumentMutationEnvironment({
+        operationIds: ['test:operation'],
+        mementos: options.mementos,
+        state: options.state,
+        history: options.history,
+        events: options.events,
+        warningSink: options.warningSink,
+        onOperationEnd: () => calls.push('operation:release'),
+    });
+    const coordinator = new GeometryMutationCoordinator({
+        mutations,
+        state: options.state,
+        warningSink: options.warningSink,
     });
     return {
         coordinator,
@@ -238,31 +249,34 @@ test('no-history failure still restores state and produces zero event', async ()
 
 test('memento restore failure escalates to an explicit unrecoverable error', async () => {
     let revision = 1;
-    const coordinator = new GeometryMutationCoordinator({
-        mementos: {
-            capture: () => ({ revision }),
-            restore: async () => {
-                throw new Error('restore failed');
-            },
+    const mementos = {
+        capture: () => ({ revision }),
+        restore: async () => {
+            throw new Error('restore failed');
         },
-        operations: {
-            has: () => true,
-            acquire: () => ({ dispose: () => undefined }),
-        },
-        state: {
-            captureGeometry: () => ({
-                matrix: IDENTITY_AFFINE_MATRIX,
-                boundingBox: { left: 0, top: 0, width: 1, height: 1 },
-                canvasWidth: 1,
-                canvasHeight: 1,
-                revision,
-            }),
-            finalizeGeometry: () => undefined,
-            requestRender: () => undefined,
-            isDisposed: () => false,
-        },
+    };
+    const state = {
+        captureGeometry: () => ({
+            matrix: IDENTITY_AFFINE_MATRIX,
+            boundingBox: { left: 0, top: 0, width: 1, height: 1 },
+            canvasWidth: 1,
+            canvasHeight: 1,
+            revision,
+        }),
+        finalizeGeometry: () => undefined,
+        requestRender: () => undefined,
+        isDisposed: () => false,
+    };
+    const { mutations } = createDocumentMutationEnvironment({
+        operationIds: ['test:operation'],
+        mementos,
+        state,
         history: { isAvailable: () => false, commit: () => undefined },
         events: { emitCommitted: async () => undefined },
+    });
+    const coordinator = new GeometryMutationCoordinator({
+        mutations,
+        state,
     });
     await assert.rejects(
         coordinator.run({
@@ -280,31 +294,33 @@ test('memento restore failure escalates to an explicit unrecoverable error', asy
 
 test('operation token is released when initial memento capture fails', async () => {
     let releases = 0;
-    const coordinator = new GeometryMutationCoordinator({
-        mementos: {
-            capture: () => {
-                throw new Error('capture failed');
-            },
-            restore: async () => undefined,
+    const mementos = {
+        capture: () => {
+            throw new Error('capture failed');
         },
-        operations: {
-            has: () => true,
-            acquire: () => ({
-                dispose: () => {
-                    releases += 1;
-                },
-            }),
+        restore: async () => undefined,
+    };
+    const state = {
+        captureGeometry: () => {
+            throw new Error('should not run');
         },
-        state: {
-            captureGeometry: () => {
-                throw new Error('should not run');
-            },
-            finalizeGeometry: () => undefined,
-            requestRender: () => undefined,
-            isDisposed: () => false,
-        },
+        finalizeGeometry: () => undefined,
+        requestRender: () => undefined,
+        isDisposed: () => false,
+    };
+    const { mutations } = createDocumentMutationEnvironment({
+        operationIds: ['test:operation'],
+        mementos,
+        state,
         history: { isAvailable: () => false, commit: () => undefined },
         events: { emitCommitted: async () => undefined },
+        onOperationEnd: () => {
+            releases += 1;
+        },
+    });
+    const coordinator = new GeometryMutationCoordinator({
+        mutations,
+        state,
     });
     await assert.rejects(
         coordinator.run({

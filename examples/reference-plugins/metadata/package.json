@@ -1,0 +1,39 @@
+{
+    "name": "@bensitu/reference-metadata",
+    "version": "1.0.0",
+    "description": "Canvas-free metadata reference plugin for @bensitu/image-editor",
+    "type": "module",
+    "exports": {
+        ".": {
+            "types": "./dist/esm/index.d.ts",
+            "import": "./dist/esm/index.js",
+            "require": "./dist/cjs/index.cjs",
+            "default": "./dist/esm/index.js"
+        }
+    },
+    "types": "./dist/esm/index.d.ts",
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+        "build": "npm run clean && tsc -p tsconfig.json && rollup -c",
+        "test": "node --test tests/package.test.mjs"
+    },
+    "peerDependencies": {
+        "@bensitu/image-editor": "^3.0.0-0",
+        "fabric": ">=7.4.0 <8"
+    },
+    "devDependencies": {
+        "@bensitu/image-editor": "file:../../..",
+        "fabric": "7.4.0",
+        "rollup": "4.62.2",
+        "typescript": "5.9.3"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "sideEffects": false,
+    "license": "MIT"
+}

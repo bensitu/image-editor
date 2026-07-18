@@ -24,7 +24,7 @@ test('ImageEditorCore installs typed plugins before init and loads a core-only i
     const { editor, ids } = createCore();
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
     assert.equal(editor.getPlugin(transformPluginRef), transform);
-    editor.init({
+    await editor.init({
         canvas: ids.canvas,
         canvasContainer: ids.canvasContainer,
         imagePlaceholder: ids.imagePlaceholder,
@@ -63,7 +63,7 @@ test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mut
             scaleStep: 0.25,
         }),
     );
-    editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     await editor.loadImage(makeImageDataUrl());
 
     await transform.scale(10);
@@ -80,7 +80,7 @@ test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mut
         { flipX: true, flipY: true },
     );
     const beforeResetEvents = descriptors.length;
-    await transform.reset();
+    await transform.resetImageTransform();
     assert.deepEqual(transform.getState(), {
         scale: 1,
         rotationDegrees: 0,
@@ -92,17 +92,17 @@ test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mut
     disposeEditor(editor);
 });
 
-test('v3 public snapshot restores Core and Transform state without restoring plugin options', async () => {
+test('public Snapshot restores Core and Transform state without restoring Plugin options', async () => {
     const { editor, ids } = createCore();
     const transform = editor.use(transformPlugin({ animationDuration: 0, maxScale: 3 }));
-    editor.init({ canvas: ids.canvas });
+    await editor.init({ canvas: ids.canvas });
     await editor.loadImage(makeImageDataUrl());
     await transform.scale(1.5);
     await transform.rotate(25);
     const snapshot = editor.saveState();
     assert.equal(snapshot.includes('animationDuration'), false);
 
-    await transform.reset();
+    await transform.resetImageTransform();
     await editor.loadFromState(snapshot);
     assert.deepEqual(transform.getState(), {
         scale: 1.5,
@@ -127,7 +127,7 @@ test('Transform failure uses targeted rollback and emits no committed event', as
         },
     });
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
-    editor.init({ canvas: ids.canvas });
+    await editor.init({ canvas: ids.canvas });
     await editor.loadImage(makeImageDataUrl());
     const image = editor.getCanvas().getObjects()[0];
     const originalGetBoundingRect = image.getBoundingRect.bind(image);

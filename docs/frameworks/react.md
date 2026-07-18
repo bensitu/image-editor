@@ -1,120 +1,67 @@
 # React integration
 
-Install the editor and its Fabric peer dependency:
-
-```bash
-npm install @bensitu/image-editor fabric
-```
-
-The core package is framework-agnostic. In React, create the editor inside an effect, pass HTMLElement refs to `init()`, and dispose the instance in the cleanup function. This works with React StrictMode because each effect pass owns exactly one `ImageEditor` instance and never reuses a disposed instance.
-
-For Next.js, mount the editor from a client component (`"use client"`) or dynamically import the component with SSR disabled. Canvas and Fabric operations require browser DOM APIs.
-
-## Hook example
+Create one Preset or Core/Plugin composition inside an effect, store the editor
+and Plugin APIs in refs, and dispose the same editor from the cleanup function.
+React event handlers should call Plugin APIs directly; DOM Controls is not
+needed.
 
 ```tsx
 import { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
-import { ImageEditor } from '@bensitu/image-editor';
-import type { ImageEditorOptions, ImageEditorState } from '@bensitu/image-editor';
+import type { ImageEditorCore } from '@bensitu/image-editor';
+import type { HistoryPort, HistoryStatus } from '@bensitu/image-editor/plugins/history';
+import type { TransformPluginApi } from '@bensitu/image-editor/plugins/transform';
+import { createMinimalPreset } from '@bensitu/image-editor/presets/minimal';
 
-export function useImageEditor(options: ImageEditorOptions = {}) {
+export function EditorPanel() {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const editorRef = useRef<ImageEditor | null>(null);
-    const optionsRef = useRef(options);
-    const [state, setState] = useState<ImageEditorState | null>(null);
-    const [busy, setBusy] = useState(false);
-
-    useEffect(() => {
-        optionsRef.current = options;
-    }, [options]);
+    const editorRef = useRef<ImageEditorCore | null>(null);
+    const transformRef = useRef<TransformPluginApi | null>(null);
+    const historyRef = useRef<HistoryPort | null>(null);
+    const [history, setHistory] = useState<HistoryStatus | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const initialOptions = optionsRef.current;
-        const editor = new ImageEditor(fabric, {
-            ...initialOptions,
-            onImageChanged: (nextState, context) => {
-                setState(nextState);
-                optionsRef.current.onImageChanged?.(nextState, context);
-            },
-            onBusyChange: (isBusy, context) => {
-                setBusy(isBusy);
-                optionsRef.current.onBusyChange?.(isBusy, context);
-            },
+        const preset = createMinimalPreset(fabric, {
+            core: { defaultLayoutMode: 'fit' },
+            transform: { animationDuration: 0 },
+            history: { onChange: setHistory },
         });
-
-        editor.init({
-            canvas,
-            canvasContainer: containerRef.current,
-            zoomInButton: null,
-            zoomOutButton: null,
-            imageInput: null,
-            maskList: null,
-            annotationList: null,
-        });
-
-        editorRef.current = editor;
+        editorRef.current = preset.editor;
+        transformRef.current = preset.transform;
+        historyRef.current = preset.history;
+        void preset.editor.init({ canvas, canvasContainer: containerRef.current });
 
         return () => {
-            editor.dispose();
             editorRef.current = null;
+            transformRef.current = null;
+            historyRef.current = null;
+            void preset.editor.disposeAsync();
         };
     }, []);
-
-    return {
-        canvasRef,
-        containerRef,
-        editorRef,
-        state,
-        busy,
-    };
-}
-```
-
-Memoize the `options` object in callers when option identity matters. The hook keeps callback forwarding current through `optionsRef`, but it intentionally does not recreate the editor when options change.
-
-## Component example
-
-```tsx
-export function ImageEditorPanel() {
-    const { canvasRef, containerRef, editorRef, busy } = useImageEditor({
-        canvasWidth: 800,
-        canvasHeight: 600,
-        defaultLayoutMode: 'fit',
-    });
 
     return (
         <section>
             <div ref={containerRef} style={{ width: '100%', height: 600 }}>
                 <canvas ref={canvasRef} />
             </div>
-
-            <button disabled={busy} onClick={() => editorRef.current?.scaleImage(1.1)}>
-                Zoom In
-            </button>
-            <button disabled={busy} onClick={() => editorRef.current?.rotateImage(90)}>
-                Rotate
-            </button>
-            <button disabled={busy} onClick={() => editorRef.current?.resizeToContainer()}>
-                Fit Container
+            <button onClick={() => void transformRef.current?.zoomIn()}>Zoom in</button>
+            <button disabled={!history?.canUndo} onClick={() => void historyRef.current?.undo()}>
+                Undo
             </button>
         </section>
     );
 }
 ```
 
-## State guidance
+This ownership works with StrictMode: each effect pass creates and disposes one
+editor. Never reuse a disposed result during the next effect pass.
 
-Store `ImageEditorState` snapshots or your own serializable state in React. Do not store Fabric objects in React state; treat `ImageEditor` and Fabric objects as imperative objects owned by the component.
+Keep immutable status objects such as `HistoryStatus` in React state. Keep the
+editor, Plugin APIs, and Fabric objects in refs rather than React state. For
+multiple editors, give each component its own canvas and container refs.
 
-## Multiple instances
-
-Prefer HTMLElement refs over generated IDs for React components, especially when rendering multiple editors on the same page. Each instance should receive its own canvas and control refs.
-
-## Responsive layout
-
-Call `editorRef.current?.resizeToContainer()` after the container becomes visible or changes size. Use `editorRef.current?.relayout()` when you also want the editor to refresh layout bookkeeping for the current image without reloading it.
+The complete runnable example is in [examples/react-basic](../../examples/react-basic).

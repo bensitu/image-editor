@@ -113,6 +113,7 @@ out
 # vitepress build output
 **/.vitepress/dist
 examples/*/dist/
+/examples/reference-plugins/*/dist/
 
 # vitepress cache directory
 **/.vitepress/cache
@@ -142,5 +143,7 @@ examples/*/dist/
 .yarn/install-state.gz
 .pnp.*
 
-# refactor documentation
-docs/refactor/*
+# Internal engineering artifacts
+/docs/refactor/
+/.internal/implementation/
+/.internal/release-candidate/

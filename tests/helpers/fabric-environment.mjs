@@ -1,10 +1,6 @@
-import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as fabricModule from 'fabric';
-import { JSDOM } from 'jsdom';
 import { Image as CanvasImage } from 'canvas';
+import { JSDOM } from 'jsdom';
 
 export const fabric = {
     ...(fabricModule.fabric ||
@@ -14,19 +10,6 @@ export const fabric = {
 };
 
 let domCounter = 0;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '..', '..');
-const distRoot = path.join(repoRoot, 'dist');
-
-async function pathExists(filePath) {
-    try {
-        await fs.access(filePath);
-        return true;
-    } catch (error) {
-        if (error?.code === 'ENOENT') return false;
-        throw error;
-    }
-}
 
 function defineGlobal(name, value) {
     Object.defineProperty(globalThis, name, {
@@ -46,9 +29,7 @@ export function installFabricDom() {
     const createElement = document.createElement.bind(document);
     document.createElement = function patchedCreateElement(tagName, options) {
         const tag = String(tagName).toLowerCase();
-        if (tag === 'img' || tag === 'image') {
-            return new CanvasImage();
-        }
+        if (tag === 'img' || tag === 'image') return new CanvasImage();
         return createElement(tagName, options);
     };
     Object.defineProperty(window, 'Image', {
@@ -90,131 +71,19 @@ export function installFabricDom() {
     defineGlobal('fabric', fabric);
 }
 
-export async function loadImageEditorModule() {
-    installFabricDom();
-    if (!(await pathExists(distRoot))) {
-        return import('../../src/index.ts');
-    }
-    return import('../../dist/esm/index.js');
-}
-
 export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {}) {
     installFabricDom();
     domCounter += 1;
-
     const ids = {
         canvas: `canvas-${domCounter}`,
-        canvasContainer: `canvasContainer-${domCounter}`,
-        imagePlaceholder: `imagePlaceholder-${domCounter}`,
-        scalePercentageInput: `scalePercentageInput-${domCounter}`,
-        imageBrightnessInput: `imageBrightnessInput-${domCounter}`,
-        imageContrastInput: `imageContrastInput-${domCounter}`,
-        imageSaturationInput: `imageSaturationInput-${domCounter}`,
-        imageBlurInput: `imageBlurInput-${domCounter}`,
-        imageSharpenInput: `imageSharpenInput-${domCounter}`,
-        imageGrayscaleInput: `imageGrayscaleInput-${domCounter}`,
-        imageSepiaInput: `imageSepiaInput-${domCounter}`,
-        imageVintageInput: `imageVintageInput-${domCounter}`,
-        applyImageFiltersButton: `applyImageFiltersButton-${domCounter}`,
-        resetImageFiltersButton: `resetImageFiltersButton-${domCounter}`,
-        clearImageFiltersButton: `clearImageFiltersButton-${domCounter}`,
-        rotateLeftDegreesInput: `rotateLeftDegreesInput-${domCounter}`,
-        rotateRightDegreesInput: `rotateRightDegreesInput-${domCounter}`,
-        rotateLeftButton: `rotateLeftButton-${domCounter}`,
-        rotateRightButton: `rotateRightButton-${domCounter}`,
-        flipHorizontalButton: `flipHorizontalButton-${domCounter}`,
-        flipVerticalButton: `flipVerticalButton-${domCounter}`,
-        createMaskButton: `createMaskButton-${domCounter}`,
-        removeSelectedMaskButton: `removeSelectedMaskButton-${domCounter}`,
-        removeAllMasksButton: `removeAllMasksButton-${domCounter}`,
-        mergeMasksButton: `mergeMasksButton-${domCounter}`,
-        downloadImageButton: `downloadImageButton-${domCounter}`,
-        maskList: `maskList-${domCounter}`,
-        zoomInButton: `zoomInButton-${domCounter}`,
-        zoomOutButton: `zoomOutButton-${domCounter}`,
-        resetImageTransformButton: `resetImageTransformButton-${domCounter}`,
-        undoButton: `undoButton-${domCounter}`,
-        redoButton: `redoButton-${domCounter}`,
-        imageInput: `imageInput-${domCounter}`,
-        uploadArea: `uploadArea-${domCounter}`,
-        enterCropModeButton: `enterCropModeButton-${domCounter}`,
-        cropAspectRatioSelect: `cropAspectRatioSelect-${domCounter}`,
-        applyCropButton: `applyCropButton-${domCounter}`,
-        cancelCropButton: `cancelCropButton-${domCounter}`,
-        enterMosaicModeButton: `enterMosaicModeButton-${domCounter}`,
-        exitMosaicModeButton: `exitMosaicModeButton-${domCounter}`,
-        mosaicBrushSizeInput: `mosaicBrushSizeInput-${domCounter}`,
-        mosaicBlockSizeInput: `mosaicBlockSizeInput-${domCounter}`,
-        shapeKindSelect: `shapeKindSelect-${domCounter}`,
-        shapeStrokeInput: `shapeStrokeInput-${domCounter}`,
-        shapeStrokeWidthInput: `shapeStrokeWidthInput-${domCounter}`,
-        shapeFillInput: `shapeFillInput-${domCounter}`,
-        createShapeAnnotationButton: `createShapeAnnotationButton-${domCounter}`,
-        enterShapeModeButton: `enterShapeModeButton-${domCounter}`,
-        exitShapeModeButton: `exitShapeModeButton-${domCounter}`,
-        drawBrushSubModeButton: `drawBrushSubModeButton-${domCounter}`,
-        drawEraseSubModeButton: `drawEraseSubModeButton-${domCounter}`,
-        eraserBrushSizeInput: `eraserBrushSizeInput-${domCounter}`,
+        canvasContainer: `canvas-container-${domCounter}`,
+        imagePlaceholder: `image-placeholder-${domCounter}`,
     };
 
     document.body.innerHTML = `
-        <div id="${ids.imagePlaceholder}" class="d-flex"></div>
-        <div id="${ids.uploadArea}"></div>
+        <div id="${ids.imagePlaceholder}"></div>
         <div id="${ids.canvasContainer}"><canvas id="${ids.canvas}"></canvas></div>
-        <input id="${ids.scalePercentageInput}" value="100">
-        <input id="${ids.imageBrightnessInput}" type="range" value="0">
-        <input id="${ids.imageContrastInput}" type="range" value="0">
-        <input id="${ids.imageSaturationInput}" type="range" value="0">
-        <input id="${ids.imageBlurInput}" type="range" value="0">
-        <input id="${ids.imageSharpenInput}" type="range" value="0">
-        <input id="${ids.imageGrayscaleInput}" type="checkbox">
-        <input id="${ids.imageSepiaInput}" type="checkbox">
-        <input id="${ids.imageVintageInput}" type="checkbox">
-        <button id="${ids.applyImageFiltersButton}"></button>
-        <button id="${ids.resetImageFiltersButton}"></button>
-        <button id="${ids.clearImageFiltersButton}"></button>
-        <input id="${ids.rotateLeftDegreesInput}" value="90">
-        <input id="${ids.rotateRightDegreesInput}" value="90">
-        <button id="${ids.rotateLeftButton}"></button>
-        <button id="${ids.rotateRightButton}"></button>
-        <button id="${ids.flipHorizontalButton}"></button>
-        <button id="${ids.flipVerticalButton}"></button>
-        <button id="${ids.createMaskButton}"></button>
-        <button id="${ids.removeSelectedMaskButton}"></button>
-        <button id="${ids.removeAllMasksButton}"></button>
-        <button id="${ids.mergeMasksButton}"></button>
-        <button id="${ids.downloadImageButton}"></button>
-        <button id="${ids.zoomInButton}"></button>
-        <button id="${ids.zoomOutButton}"></button>
-        <button id="${ids.resetImageTransformButton}"></button>
-        <button id="${ids.undoButton}"></button>
-        <button id="${ids.redoButton}"></button>
-        <button id="${ids.enterCropModeButton}"></button>
-        <select id="${ids.cropAspectRatioSelect}"><option value="free">Free</option></select>
-        <button id="${ids.applyCropButton}"></button>
-        <button id="${ids.cancelCropButton}"></button>
-        <button id="${ids.enterMosaicModeButton}"></button>
-        <button id="${ids.exitMosaicModeButton}"></button>
-        <input id="${ids.mosaicBrushSizeInput}" type="range" value="48">
-        <input id="${ids.mosaicBlockSizeInput}" type="range" value="8">
-        <select id="${ids.shapeKindSelect}">
-            <option value="rect">Rectangle</option>
-            <option value="line">Line</option>
-            <option value="arrow">Arrow</option>
-        </select>
-        <input id="${ids.shapeStrokeInput}" type="color" value="#000000">
-        <input id="${ids.shapeStrokeWidthInput}" type="range" value="4">
-        <input id="${ids.shapeFillInput}" value="rgba(0,0,0,0)">
-        <button id="${ids.createShapeAnnotationButton}"></button>
-        <button id="${ids.enterShapeModeButton}"></button>
-        <button id="${ids.exitShapeModeButton}"></button>
-        <button id="${ids.drawBrushSubModeButton}"></button>
-        <button id="${ids.drawEraseSubModeButton}"></button>
-        <input id="${ids.eraserBrushSizeInput}" type="range" value="18">
-        <input id="${ids.imageInput}" type="file">
-        <ul id="${ids.maskList}"></ul>
     `;
-
     const container = document.getElementById(ids.canvasContainer);
     Object.defineProperty(container, 'clientWidth', {
         configurable: true,
@@ -224,23 +93,7 @@ export function resetEditorDom({ containerWidth = 0, containerHeight = 0 } = {})
         configurable: true,
         value: containerHeight,
     });
-
     return ids;
-}
-
-export async function createEditor(options = {}, domOptions = {}) {
-    const { default: ImageEditor } = await loadImageEditorModule();
-    const ids = resetEditorDom(domOptions);
-    const editor = new ImageEditor({
-        canvasWidth: 320,
-        canvasHeight: 240,
-        animationDuration: 0,
-        showPlaceholder: false,
-        ...options,
-    });
-
-    editor.init(ids);
-    return { editor, ids, ImageEditor };
 }
 
 export function disposeEditor(editor) {
@@ -248,7 +101,7 @@ export function disposeEditor(editor) {
         try {
             editor.dispose();
         } catch {
-            // Ignore cleanup failures in test teardown.
+            // Test teardown must tolerate an intentionally faulted editor.
         }
     }
     document.body.innerHTML = '';
@@ -263,38 +116,17 @@ export function makeImageDataUrl({
     const canvas = fabric.document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = fill;
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#2374ab';
-    ctx.fillRect(8, 8, Math.max(1, Math.floor(width / 2)), Math.max(1, Math.floor(height / 2)));
-    ctx.fillStyle = '#f2a541';
-    ctx.fillRect(
+    const context = canvas.getContext('2d');
+    context.fillStyle = fill;
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = '#2374ab';
+    context.fillRect(8, 8, Math.max(1, Math.floor(width / 2)), Math.max(1, Math.floor(height / 2)));
+    context.fillStyle = '#f2a541';
+    context.fillRect(
         Math.max(1, Math.floor(width / 2)),
         Math.max(1, Math.floor(height / 3)),
         Math.max(1, Math.floor(width / 3)),
         Math.max(1, Math.floor(height / 3)),
     );
     return canvas.toDataURL(format);
-}
-
-export async function loadFixtureImage(editor, options = {}) {
-    const loaded = await editor.loadImage(makeImageDataUrl(options));
-    assert.equal(loaded, undefined);
-    assert.equal(editor.isImageLoaded(), true);
-}
-
-export async function getImageDimensionsFromDataUrl(dataUrl) {
-    await installFabricDom();
-    return new Promise((resolve, reject) => {
-        const imageElement = new Image();
-        imageElement.onload = () =>
-            resolve({ width: imageElement.width, height: imageElement.height });
-        imageElement.onerror = reject;
-        imageElement.src = dataUrl;
-    });
-}
-
-export async function waitForCanvasCallbacks(ms = 50) {
-    await new Promise((resolve) => setTimeout(resolve, ms));
 }

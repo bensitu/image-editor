@@ -1,5 +1,5 @@
 import { type Disposable } from '../plugin-kernel/disposable.js';
-import type { GeometryHistoryCommitPort, HistoryRecordDraft } from './geometry/index.js';
+import type { DocumentMutationHistoryPort } from './mutation/index.js';
 import type { CoreMemento } from './state/index.js';
 export interface CoreHistoryRecord {
     readonly operationId: string;
@@ -12,10 +12,10 @@ export interface CoreHistoryCommitPort {
     isAvailable(): boolean;
     commit(record: CoreHistoryRecord): void | Promise<void>;
 }
-export declare class HistoryCommitRouter implements GeometryHistoryCommitPort {
+export declare class HistoryCommitRouter implements CoreHistoryCommitPort, DocumentMutationHistoryPort {
     private provider;
     private owner;
     register(owner: string, provider: CoreHistoryCommitPort): Disposable;
     isAvailable(): boolean;
-    commit(record: HistoryRecordDraft | CoreHistoryRecord): void | Promise<void>;
+    commit(record: CoreHistoryRecord): void | Promise<void>;
 }

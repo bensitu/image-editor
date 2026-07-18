@@ -1,0 +1,48 @@
+{
+    "name": "@bensitu/image-editor-codemod",
+    "version": "3.0.0-rc.1",
+    "description": "Conservative source migration tools for Image Editor applications",
+    "license": "MIT",
+    "author": "Ben Situ",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/bensitu/image-editor.git",
+        "directory": "packages/image-editor-codemod"
+    },
+    "homepage": "https://github.com/bensitu/image-editor#readme",
+    "bugs": {
+        "url": "https://github.com/bensitu/image-editor/issues"
+    },
+    "type": "module",
+    "bin": {
+        "image-editor-codemod": "./dist/cli.js"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "sideEffects": false,
+    "engines": {
+        "node": ">=20"
+    },
+    "dependencies": {
+        "typescript": "^5.4.0"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "prepack": "npm run build"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

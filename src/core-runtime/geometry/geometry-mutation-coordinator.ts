@@ -1,11 +1,18 @@
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
+import { DocumentMutationError, DocumentMutationUnrecoverableError } from '../errors.js';
+import type {
+    DocumentMutationContext,
+    DocumentMutationParticipant,
+    DocumentMutationPort,
+    DocumentMutationRollbackContext,
+} from '../mutation/index.js';
+import { cloneStateValue } from '../state/clone-state-value.js';
 import {
     GeometryMutationError,
     GeometryRecoverableObjectError,
     GeometryRegistrationError,
     GeometryUnrecoverableError,
 } from '../errors.js';
-import { cloneStateValue } from '../state/clone-state-value.js';
 import {
     IDENTITY_AFFINE_MATRIX,
     computeAffineDelta,
@@ -14,14 +21,11 @@ import {
 } from './affine-matrix.js';
 import type {
     BaseImageGeometrySnapshot,
-    GeometryCommittedEventPort,
     GeometryErrorSink,
-    GeometryHistoryCommitPort,
-    GeometryMementoPort,
     GeometryMutationDescriptor,
     GeometryMutationParticipant,
+    GeometryMutationPort,
     GeometryMutationRequest,
-    GeometryOperationPort,
     GeometryParticipantContext,
     GeometryStatePort,
     GeometryWarningSink,
@@ -37,12 +41,14 @@ interface PreparedParticipant {
     readonly prepared: unknown;
 }
 
+interface PreparedGeometryMutation {
+    readonly entries: readonly PreparedParticipant[];
+    readonly context: GeometryParticipantContext;
+}
+
 export interface GeometryMutationCoordinatorOptions {
-    readonly mementos: GeometryMementoPort;
-    readonly operations: GeometryOperationPort;
+    readonly mutations: DocumentMutationPort;
     readonly state: GeometryStatePort;
-    readonly history: GeometryHistoryCommitPort;
-    readonly events: GeometryCommittedEventPort;
     readonly warningSink?: GeometryWarningSink;
     readonly errorSink?: GeometryErrorSink;
     readonly maxMetadataBytes?: number;
@@ -100,18 +106,18 @@ function createDescriptor(
     });
 }
 
-export class GeometryMutationCoordinator implements Disposable {
+export class GeometryMutationCoordinator implements GeometryMutationPort, Disposable {
     private readonly participants = new Map<string, ParticipantRecord>();
     private readonly usedMutationIds = new Set<string>();
+    private readonly activeControllers = new Set<AbortController>();
+    private readonly activePromises = new Set<Promise<GeometryMutationDescriptor>>();
     private registrationCounter = 0;
-    private activeController: AbortController | null = null;
-    private activePromise: Promise<GeometryMutationDescriptor> | null = null;
     private disposed = false;
 
     constructor(private readonly options: GeometryMutationCoordinatorOptions) {}
 
     get isRunning(): boolean {
-        return this.activePromise !== null;
+        return this.activePromises.size > 0;
     }
 
     registerParticipant<TPrepared>(
@@ -145,42 +151,53 @@ export class GeometryMutationCoordinator implements Disposable {
 
     run(request: GeometryMutationRequest): Promise<GeometryMutationDescriptor> {
         this.assertActive('run a geometry mutation');
-        if (this.activePromise) {
-            return Promise.reject(
-                new GeometryMutationError(request.id, 'another geometry mutation is active.'),
-            );
-        }
         try {
             this.validateRequest(request);
         } catch (error) {
             return Promise.reject(error);
         }
         const controller = new AbortController();
-        this.activeController = controller;
+        this.activeControllers.add(controller);
         const operation = this.performRun(request, controller.signal);
-        this.activePromise = operation;
+        this.activePromises.add(operation);
         return operation.finally(() => {
-            if (this.activePromise === operation) this.activePromise = null;
-            if (this.activeController === controller) this.activeController = null;
+            this.activePromises.delete(operation);
+            this.activeControllers.delete(controller);
         });
     }
 
     async dispose(): Promise<void> {
         if (this.disposed) return;
         this.disposed = true;
-        this.activeController?.abort(new Error('Geometry coordinator was disposed.'));
-        try {
-            await this.activePromise;
-        } catch {
-            // The active caller receives the original abort/failure. Disposal only waits for cleanup.
+        for (const controller of this.activeControllers) {
+            controller.abort(new DOMException('Geometry coordinator was disposed.', 'AbortError'));
         }
+        await Promise.allSettled([...this.activePromises]);
         this.participants.clear();
         this.usedMutationIds.clear();
     }
 
+    async abortActive(reason: unknown): Promise<void> {
+        this.assertActive('abort geometry mutations');
+        for (const controller of this.activeControllers) controller.abort(reason);
+        await Promise.allSettled([...this.activePromises]);
+    }
+
+    reset(): void {
+        this.assertActive('reset geometry mutations');
+        if (this.activePromises.size > 0) {
+            throw new GeometryRegistrationError(
+                'Cannot reset while a geometry mutation is active.',
+            );
+        }
+        this.participants.clear();
+        this.usedMutationIds.clear();
+        this.registrationCounter = 0;
+    }
+
     disposeSync(): void {
         if (this.disposed) return;
-        if (this.activePromise) {
+        if (this.activePromises.size > 0) {
             throw new GeometryRegistrationError(
                 'Cannot synchronously dispose an active geometry mutation.',
             );
@@ -194,21 +211,9 @@ export class GeometryMutationCoordinator implements Disposable {
         request: GeometryMutationRequest,
         signal: AbortSignal,
     ): Promise<GeometryMutationDescriptor> {
-        const operationToken = this.options.operations.acquire(request.operationId);
-        try {
-            return await this.performTransaction(request, signal);
-        } finally {
-            await operationToken.dispose();
-        }
-    }
-
-    private async performTransaction(
-        request: GeometryMutationRequest,
-        signal: AbortSignal,
-    ): Promise<GeometryMutationDescriptor> {
-        const beforeMemento = this.options.mementos.capture();
-        const before = freezeGeometry(this.options.state.captureGeometry());
         const metadata = cloneStateValue(request.metadata ?? {});
+        let before: BaseImageGeometrySnapshot | null = null;
+        let provisional: GeometryMutationDescriptor | null = null;
         const participantSnapshot = Object.freeze(
             [...this.participants.values()].sort(
                 (left, right) =>
@@ -216,197 +221,207 @@ export class GeometryMutationCoordinator implements Disposable {
                     left.registrationOrder - right.registrationOrder,
             ),
         );
-        const provisional = createDescriptor(request, before, before, metadata, true);
-        const prepared: PreparedParticipant[] = [];
-        let finalDescriptor = provisional;
-        const participantContext: GeometryParticipantContext = Object.freeze({
+        const geometryParticipant: DocumentMutationParticipant<
+            GeometryMutationDescriptor,
+            PreparedGeometryMutation
+        > = Object.freeze({
+            id: 'core:geometry-participants',
+            order: 0,
+            prepare: async (context: DocumentMutationContext) => {
+                const capturedBefore = freezeGeometry(this.options.state.captureGeometry());
+                const provisionalDescriptor = createDescriptor(
+                    request,
+                    capturedBefore,
+                    capturedBefore,
+                    metadata,
+                    true,
+                );
+                before = capturedBefore;
+                provisional = provisionalDescriptor;
+                const participantContext = this.createParticipantContext(
+                    request.id,
+                    context.signal,
+                );
+                const entries: PreparedParticipant[] = [];
+                for (const record of participantSnapshot) {
+                    if (!record.participant.supports(provisionalDescriptor)) continue;
+                    const prepared = record.participant.prepare
+                        ? await record.participant.prepare(
+                              provisionalDescriptor,
+                              participantContext,
+                          )
+                        : undefined;
+                    entries.push({ record, prepared });
+                }
+                return Object.freeze({
+                    entries: Object.freeze(entries),
+                    context: participantContext,
+                });
+            },
+            apply: async (
+                descriptor: GeometryMutationDescriptor,
+                prepared: PreparedGeometryMutation,
+            ) => {
+                for (const entry of prepared.entries) {
+                    try {
+                        await entry.record.participant.apply(
+                            descriptor,
+                            entry.prepared,
+                            prepared.context,
+                        );
+                    } catch (error) {
+                        if (error instanceof GeometryRecoverableObjectError) {
+                            this.warnRecoverable(request.id, entry.record.participant.id, error);
+                            continue;
+                        }
+                        throw error;
+                    }
+                }
+            },
+            synchronize: async (
+                descriptor: GeometryMutationDescriptor,
+                prepared: PreparedGeometryMutation,
+            ) => {
+                for (const entry of prepared.entries) {
+                    try {
+                        await entry.record.participant.synchronize?.(descriptor, prepared.context);
+                    } catch (error) {
+                        if (error instanceof GeometryRecoverableObjectError) {
+                            this.warn({
+                                code: 'GEOMETRY_SYNCHRONIZE_WARNING',
+                                message: error.message,
+                                mutationId: request.id,
+                                participantId: entry.record.participant.id,
+                                objectIdentity: error.objectIdentity,
+                                objectKind: error.objectKind,
+                                cause: error.cause,
+                            });
+                            continue;
+                        }
+                        throw error;
+                    }
+                }
+            },
+            rollback: participantSnapshot.some(({ participant }) => participant.rollback)
+                ? async (
+                      prepared: PreparedGeometryMutation,
+                      rollbackContext: DocumentMutationRollbackContext<GeometryMutationDescriptor>,
+                  ) => {
+                      const descriptor = rollbackContext.result ?? provisional;
+                      if (!descriptor) return;
+                      for (let index = prepared.entries.length - 1; index >= 0; index -= 1) {
+                          const entry = prepared.entries[index];
+                          if (!entry) continue;
+                          await entry.record.participant.rollback?.(
+                              descriptor,
+                              entry.prepared,
+                              prepared.context,
+                          );
+                      }
+                  }
+                : undefined,
+        });
+
+        try {
+            return await this.options.mutations.run({
+                id: request.id,
+                kind: 'geometry',
+                operationId: request.operationId,
+                conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                signal,
+                parent: request.parent,
+                metadata,
+                participants: [geometryParticipant],
+                mutate: async (context) => {
+                    const capturedBefore = before;
+                    if (!capturedBefore) {
+                        throw new GeometryMutationError(
+                            request.id,
+                            'geometry preparation did not capture the before state.',
+                        );
+                    }
+                    await request.mutateBase(
+                        Object.freeze({ signal: context.signal, transaction: context }),
+                    );
+                    await this.options.state.finalizeGeometry();
+                    const after = freezeGeometry(this.options.state.captureGeometry());
+                    if (after.revision <= capturedBefore.revision) {
+                        throw new GeometryMutationError(
+                            request.id,
+                            `geometry revision must increase (${capturedBefore.revision} -> ${after.revision}).`,
+                        );
+                    }
+                    return createDescriptor(request, capturedBefore, after, metadata, false);
+                },
+                rollback: request.rollbackBase
+                    ? async (context) => {
+                          await request.rollbackBase?.(
+                              Object.freeze({ signal: context.signal, cause: context.cause }),
+                          );
+                          if (before) await this.options.state.restoreGeometry?.(before);
+                      }
+                    : undefined,
+            });
+        } catch (error) {
+            const failure = this.toGeometryFailure(request.id, error);
+            this.options.errorSink?.(failure);
+            throw failure;
+        }
+    }
+
+    private createParticipantContext(
+        mutationId: string,
+        signal: AbortSignal,
+    ): GeometryParticipantContext {
+        return Object.freeze({
             signal,
             warnRecoverable: (error: unknown, objectIdentity?: string, objectKind?: string) => {
                 this.warn({
                     code: 'GEOMETRY_OBJECT_SKIPPED',
                     message: 'An overlay transform skipped a malformed or unsupported object.',
-                    mutationId: request.id,
+                    mutationId,
                     objectIdentity,
                     objectKind,
                     cause: error,
                 });
             },
         });
-
-        try {
-            this.throwIfUnavailable(signal);
-            for (const record of participantSnapshot) {
-                if (!record.participant.supports(provisional)) continue;
-                const preparedValue = record.participant.prepare
-                    ? await record.participant.prepare(provisional, participantContext)
-                    : undefined;
-                prepared.push({ record, prepared: preparedValue });
-            }
-
-            this.throwIfUnavailable(signal);
-            await request.mutateBase(Object.freeze({ signal }));
-            this.throwIfUnavailable(signal);
-            await this.options.state.finalizeGeometry();
-            const after = freezeGeometry(this.options.state.captureGeometry());
-            if (after.revision <= before.revision) {
-                throw new GeometryMutationError(
-                    request.id,
-                    `geometry revision must increase (${before.revision} -> ${after.revision}).`,
-                );
-            }
-            finalDescriptor = createDescriptor(request, before, after, metadata, false);
-
-            for (const entry of prepared) {
-                this.throwIfUnavailable(signal);
-                try {
-                    await entry.record.participant.apply(
-                        finalDescriptor,
-                        entry.prepared,
-                        participantContext,
-                    );
-                } catch (error) {
-                    if (error instanceof GeometryRecoverableObjectError) {
-                        this.warn({
-                            code: 'GEOMETRY_OBJECT_SKIPPED',
-                            message: error.message,
-                            mutationId: request.id,
-                            participantId: entry.record.participant.id,
-                            objectIdentity: error.objectIdentity,
-                            objectKind: error.objectKind,
-                            cause: error.cause,
-                        });
-                        continue;
-                    }
-                    throw error;
-                }
-            }
-            for (const entry of prepared) {
-                this.throwIfUnavailable(signal);
-                try {
-                    await entry.record.participant.synchronize?.(
-                        finalDescriptor,
-                        participantContext,
-                    );
-                } catch (error) {
-                    if (error instanceof GeometryRecoverableObjectError) {
-                        this.warn({
-                            code: 'GEOMETRY_SYNCHRONIZE_WARNING',
-                            message: error.message,
-                            mutationId: request.id,
-                            participantId: entry.record.participant.id,
-                            objectIdentity: error.objectIdentity,
-                            objectKind: error.objectKind,
-                            cause: error.cause,
-                        });
-                        continue;
-                    }
-                    throw error;
-                }
-            }
-            this.throwIfUnavailable(signal);
-            this.options.state.requestRender();
-            const afterMemento = this.options.mementos.capture();
-            if (this.options.history.isAvailable()) {
-                await this.options.history.commit(
-                    Object.freeze({
-                        operationId: request.operationId,
-                        before: beforeMemento,
-                        after: afterMemento,
-                        timestamp: Date.now(),
-                        descriptor: finalDescriptor,
-                    }),
-                );
-            }
-            try {
-                await this.options.events.emitCommitted('geometry:committed', finalDescriptor);
-            } catch (error) {
-                this.warn({
-                    code: 'COMMITTED_EVENT_LISTENER_FAILED',
-                    message:
-                        'A committed geometry observer failed after the transaction committed.',
-                    mutationId: request.id,
-                    cause: error,
-                });
-            }
-            return finalDescriptor;
-        } catch (error) {
-            const rollbackErrors = await this.rollback(
-                request,
-                finalDescriptor,
-                prepared,
-                participantContext,
-                beforeMemento,
-                error,
-            );
-            const failure =
-                error instanceof GeometryMutationError
-                    ? error
-                    : new GeometryMutationError(
-                          request.id,
-                          error instanceof Error ? error.message : 'unknown failure.',
-                          error,
-                          rollbackErrors,
-                      );
-            this.options.errorSink?.(failure);
-            throw failure;
-        }
     }
 
-    private async rollback(
-        request: GeometryMutationRequest,
-        descriptor: GeometryMutationDescriptor,
-        prepared: readonly PreparedParticipant[],
-        participantContext: GeometryParticipantContext,
-        beforeMemento: ReturnType<GeometryMementoPort['capture']>,
-        cause: unknown,
-    ): Promise<readonly unknown[]> {
-        const errors: unknown[] = [];
-        for (let index = prepared.length - 1; index >= 0; index -= 1) {
-            const entry = prepared[index];
-            if (!entry) continue;
-            try {
-                await entry.record.participant.rollback?.(
-                    descriptor,
-                    entry.prepared,
-                    participantContext,
-                );
-            } catch (error) {
-                errors.push(error);
-            }
-        }
+    private warnRecoverable(
+        mutationId: string,
+        participantId: string,
+        error: GeometryRecoverableObjectError,
+    ): void {
+        this.warn({
+            code: 'GEOMETRY_OBJECT_SKIPPED',
+            message: error.message,
+            mutationId,
+            participantId,
+            objectIdentity: error.objectIdentity,
+            objectKind: error.objectKind,
+            cause: error.cause,
+        });
+    }
 
-        let targetedSucceeded = false;
-        if (request.rollbackBase) {
-            try {
-                await request.rollbackBase(
-                    Object.freeze({ signal: new AbortController().signal, cause }),
-                );
-                targetedSucceeded =
-                    errors.length === 0 &&
-                    (this.options.mementos.matches
-                        ? await this.options.mementos.matches(beforeMemento)
-                        : true);
-            } catch (error) {
-                errors.push(error);
-            }
+    private toGeometryFailure(mutationId: string, error: unknown): Error {
+        if (error instanceof DocumentMutationUnrecoverableError) {
+            return new GeometryUnrecoverableError(mutationId, error.cause, error.rollbackErrors);
         }
-
-        if (!targetedSucceeded) {
-            try {
-                await this.options.mementos.restore(beforeMemento);
-            } catch (restoreError) {
-                errors.push(restoreError);
-                throw new GeometryUnrecoverableError(request.id, cause, Object.freeze(errors));
-            }
+        if (error instanceof DocumentMutationError) {
+            return new GeometryMutationError(
+                mutationId,
+                error.cause instanceof Error ? error.cause.message : error.message,
+                error.cause,
+                error.rollbackErrors,
+            );
         }
-        if (!this.options.state.isDisposed()) {
-            try {
-                this.options.state.requestRender();
-            } catch (error) {
-                errors.push(error);
-            }
-        }
-        return Object.freeze(errors);
+        if (error instanceof GeometryMutationError) return error;
+        return new GeometryMutationError(
+            mutationId,
+            error instanceof Error ? error.message : 'unknown failure.',
+            error,
+        );
     }
 
     private validateRequest(request: GeometryMutationRequest): void {
@@ -415,12 +430,6 @@ export class GeometryMutationCoordinator implements Disposable {
         assertIdentifier(request.operationId, 'Operation id');
         if (this.usedMutationIds.has(request.id)) {
             throw new GeometryMutationError(request.id, 'mutation id has already been used.');
-        }
-        if (!this.options.operations.has(request.operationId)) {
-            throw new GeometryMutationError(
-                request.id,
-                `operation "${request.operationId}" is not registered.`,
-            );
         }
         if (typeof request.mutateBase !== 'function') {
             throw new GeometryMutationError(request.id, 'mutateBase must be a function.');
@@ -434,13 +443,6 @@ export class GeometryMutationCoordinator implements Disposable {
             );
         }
         this.usedMutationIds.add(request.id);
-    }
-
-    private throwIfUnavailable(signal: AbortSignal): void {
-        if (signal.aborted) throw signal.reason ?? new Error('Geometry mutation aborted.');
-        if (this.options.state.isDisposed()) {
-            throw new GeometryMutationError('disposed', 'core state is disposed.');
-        }
     }
 
     private warn(warning: Parameters<NonNullable<GeometryWarningSink>>[0]): void {

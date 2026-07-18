@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ImageEditorCore, definePluginRef } from '../../../src/core/index.js';
-import { CORE_STATE_CAPABILITY } from '../../../src/core-runtime/internal-capabilities.js';
+import { SNAPSHOT_REGISTRATION_CAPABILITY } from '../../../src/core-runtime/internal-capabilities.js';
 import { overlayFoundationPlugin } from '../../../src/foundations/overlay/index.js';
 import { historyPlugin, historyPluginRef } from '../../../src/plugins/history/index.js';
 import { maskPlugin } from '../../../src/plugins/mask/index.js';
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
-function createEditor({ historyOptions = {}, maskOptions = {}, stateFailure } = {}) {
+async function createEditor({ historyOptions = {}, maskOptions = {}, stateFailure } = {}) {
     const ids = resetEditorDom({ containerWidth: 340, containerHeight: 250 });
     const warnings = [];
     const editor = new ImageEditorCore(fabric, {
@@ -22,7 +22,7 @@ function createEditor({ historyOptions = {}, maskOptions = {}, stateFailure } = 
     const masks = editor.use(maskPlugin({ label: false, ...maskOptions }));
     const history = editor.use(historyPlugin(historyOptions));
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
-    editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     return { editor, history, masks, overlay, transform, warnings };
 }
 
@@ -37,15 +37,36 @@ async function dispose(editor) {
 
 test('History starts empty after image load and records one entry per transform/reset', async () => {
     const states = [];
-    const { editor, history, transform } = createEditor({
+    const { editor, history, transform } = await createEditor({
         historyOptions: { onChange: (state) => states.push(state) },
     });
     await load(editor);
-    assert.deepEqual(history.getState(), { canUndo: false, canRedo: false, size: 0, position: 0 });
+    assert.deepEqual(history.getState(), {
+        isEnabled: true,
+        canUndo: false,
+        canRedo: false,
+        length: 0,
+        size: 0,
+        position: 0,
+    });
     await transform.scale(1.4);
-    assert.deepEqual(history.getState(), { canUndo: true, canRedo: false, size: 1, position: 1 });
-    await transform.reset();
-    assert.deepEqual(history.getState(), { canUndo: true, canRedo: false, size: 2, position: 2 });
+    assert.deepEqual(history.getState(), {
+        isEnabled: true,
+        canUndo: true,
+        canRedo: false,
+        length: 1,
+        size: 1,
+        position: 1,
+    });
+    await transform.resetImageTransform();
+    assert.deepEqual(history.getState(), {
+        isEnabled: true,
+        canUndo: true,
+        canRedo: false,
+        length: 2,
+        size: 2,
+        position: 2,
+    });
     await history.undo();
     assert.equal(transform.getState().scale, 1.4);
     assert.equal(history.getState().size, 2);
@@ -58,12 +79,21 @@ test('History starts empty after image load and records one entry per transform/
 });
 
 test('max size, redo truncation, clear, and no-op boundaries are deterministic', async () => {
-    const { editor, history, transform } = createEditor({ historyOptions: { maxSize: 2 } });
+    const { editor, history, transform } = await createEditor({
+        historyOptions: { maxSize: 2 },
+    });
     await load(editor);
     await transform.rotate(10);
     await transform.rotate(20);
     await transform.rotate(30);
-    assert.deepEqual(history.getState(), { canUndo: true, canRedo: false, size: 2, position: 2 });
+    assert.deepEqual(history.getState(), {
+        isEnabled: true,
+        canUndo: true,
+        canRedo: false,
+        length: 2,
+        size: 2,
+        position: 2,
+    });
     await history.undo();
     await history.undo();
     assert.equal(history.canUndo(), false);
@@ -76,14 +106,21 @@ test('max size, redo truncation, clear, and no-op boundaries are deterministic',
     assert.equal(history.canRedo(), false);
     assert.equal(history.getState().position, history.getState().size);
     history.clear();
-    assert.deepEqual(history.getState(), { canUndo: false, canRedo: false, size: 0, position: 0 });
+    assert.deepEqual(history.getState(), {
+        isEnabled: true,
+        canUndo: false,
+        canRedo: false,
+        length: 0,
+        size: 0,
+        position: 0,
+    });
     await dispose(editor);
 });
 
 test('Mask create/remove restore Foundation index and counter through undo/redo', async () => {
-    const { editor, history, masks, overlay } = createEditor();
+    const { editor, history, masks, overlay } = await createEditor();
     await load(editor);
-    const created = masks.create({ left: 48, top: 36 });
+    const created = await masks.create({ left: 48, top: 36 });
     assert.equal(history.getState().size, 1);
     await history.undo();
     assert.equal(masks.getAll().length, 0);
@@ -94,9 +131,9 @@ test('Mask create/remove restore Foundation index and counter through undo/redo'
     assert.notEqual(restored, created);
     assert.equal(restored.left, 48);
     assert.equal(masks.getAll().length, 1);
-    const next = masks.create();
+    const next = await masks.create();
     assert.equal(next.maskId, 2);
-    masks.remove(next.maskUid);
+    await masks.remove(next.maskUid);
     assert.equal(masks.getAll().length, 1);
     await history.undo();
     assert.equal(masks.getAll().length, 2);
@@ -104,7 +141,7 @@ test('Mask create/remove restore Foundation index and counter through undo/redo'
 });
 
 test('failed transforms create zero records while successful recovery remains undoable', async () => {
-    const { editor, history, transform } = createEditor();
+    const { editor, history, transform } = await createEditor();
     await load(editor);
     const image = editor.getCanvas().getObjects()[0];
     const originalGetBoundingRect = image.getBoundingRect.bind(image);
@@ -134,11 +171,11 @@ test('undo and redo failures rollback the attempted restore and keep the pointer
                 ref: failureRef,
                 version: '1.0.0',
                 setupMode: 'sync',
-                requires: [{ token: CORE_STATE_CAPABILITY, range: '^1.0.0' }],
+                requires: [{ token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' }],
                 setup(context) {
-                    const state = context.capabilities.require(CORE_STATE_CAPABILITY);
+                    const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
                     context.addDisposable(
-                        state.slices.register({
+                        state.registerSlice({
                             id: failureRef.id,
                             version: 1,
                             capture: () => ({ stable: true }),
@@ -160,7 +197,7 @@ test('undo and redo failures rollback the attempted restore and keep the pointer
             });
         },
     };
-    const { editor, history, transform } = createEditor({ stateFailure });
+    const { editor, history, transform } = await createEditor({ stateFailure });
     await load(editor);
     await transform.rotate(25);
     failNextRestore = true;
@@ -178,7 +215,7 @@ test('undo and redo failures rollback the attempted restore and keep the pointer
 
 test('change listener failures are isolated and dispose releases History capability state', async () => {
     let calls = 0;
-    const { editor, history, transform, warnings } = createEditor();
+    const { editor, history, transform, warnings } = await createEditor();
     const unsubscribe = history.onChange(() => {
         calls += 1;
         throw new Error('listener failure');

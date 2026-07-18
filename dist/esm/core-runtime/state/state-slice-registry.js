@@ -13,6 +13,11 @@ function assertDefinition(definition) {
         typeof definition.restore !== 'function') {
         throw new StateRegistrationError(`State slice "${definition.id}" has an incomplete contract.`, definition.id);
     }
+    if (definition.capturePolicy !== undefined &&
+        definition.capturePolicy !== 'always' &&
+        definition.capturePolicy !== 'reference') {
+        throw new StateRegistrationError(`State slice "${definition.id}" capturePolicy must be "always" or "reference".`, definition.id);
+    }
 }
 export class StateSliceRegistry {
     constructor() {
@@ -30,12 +35,16 @@ export class StateSliceRegistry {
         });
     }
     register(definition) {
+        var _a;
         this.assertActive();
         assertDefinition(definition);
         if (this.definitions.has(definition.id)) {
             throw new StateRegistrationError(`State slice "${definition.id}" is already registered.`, definition.id);
         }
-        const stored = Object.freeze({ ...definition });
+        const stored = Object.freeze({
+            ...definition,
+            capturePolicy: (_a = definition.capturePolicy) !== null && _a !== void 0 ? _a : 'always',
+        });
         this.definitions.set(definition.id, stored);
         return createDisposable(() => {
             if (this.definitions.get(definition.id) === stored) {

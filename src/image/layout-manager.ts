@@ -79,9 +79,8 @@ export type OverflowAxis = 'horizontal' | 'vertical';
  * sizing decisions reflect the new viewport.
  *
  * Measurements compensate for pre-existing auto scrollbars by adding
- * the scrollbar gutter back to the visible client size. This mirrors
- * v1.4.2's viewport recovery while still preserving v2's rule that
- * layout code never mutates the container's `overflow` style.
+ * the scrollbar gutter back to the visible client size. Layout code never
+ * mutates the container's `overflow` style.
  *
  */
 export class ViewportCache {
@@ -240,10 +239,9 @@ function normalizeScrollbarSize(scrollbarSize?: Partial<ScrollbarSize> | null): 
  * Measure the full layout viewport represented by the canvas container.
  *
  * In `overflow: auto` containers, `clientWidth` / `clientHeight` can already
- * be reduced by scrollbars left over from the previous canvas size. v1.4.2
- * avoided using that reduced viewport by adding the gutter back before the
- * next Cover/Fit calculation. v2 keeps the same recovery rule without
- * mutating `style.overflow`.
+ * be reduced by scrollbars left over from the previous canvas size. Adding
+ * the gutter back before the next Cover/Fit calculation recovers the stable
+ * viewport without mutating `style.overflow`.
  */
 export function measureContainerViewport(
     container: HTMLElement | null,
@@ -444,7 +442,7 @@ export function computeExpandLayout(
  * Apply canvas pixel dimensions atomically and force a synchronous
  * reflow on the container.
  *
- * In Fabric.js v7 the canvas is a pair of `<canvas>` elements
+ * In Fabric.js the canvas is a pair of `<canvas>` elements
  * (`lowerCanvasEl` for rendering, `upperCanvasEl` for pointer events).
  * `Canvas.setDimensions` is the only API that updates both layers
  * atomically and keeps their CSS in sync. Manually mutating

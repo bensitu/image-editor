@@ -9,7 +9,12 @@ export function composePlugins(options) {
     const plugins = Object.freeze([...options.plugins]);
     return Object.freeze({
         ref: options.ref,
-        version: options.version,
+        manifest: Object.freeze({
+            id: options.ref.id,
+            version: options.version,
+            apiVersion: options.ref.apiVersion,
+            engine: '^3.0.0',
+        }),
         async setup(context) {
             const childApis = [];
             for (const plugin of plugins) {

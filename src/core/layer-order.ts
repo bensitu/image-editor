@@ -23,7 +23,7 @@ type CanvasWithLayerApi = FabricNS.Canvas & {
     moveObjectTo?: (object: FabricNS.FabricObject, index: number) => boolean;
 };
 
-function isLegacySessionObject(object: FabricNS.FabricObject): boolean {
+function isPropertyMarkedSessionObject(object: FabricNS.FabricObject): boolean {
     const candidate = object as {
         isCropRect?: unknown;
         maskLabel?: unknown;
@@ -65,7 +65,9 @@ function withoutObject(
 }
 
 function findFirstSessionIndex(objects: FabricNS.FabricObject[]): number {
-    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
+    return objects.findIndex(
+        (object) => isSessionObject(object) || isPropertyMarkedSessionObject(object),
+    );
 }
 
 function getOrderedGroups(canvas: FabricNS.Canvas): {
@@ -84,7 +86,7 @@ function getOrderedGroups(canvas: FabricNS.Canvas): {
             baseImages.push(object);
         } else if (isEditableOverlayObject(object)) {
             overlays.push(object);
-        } else if (isSessionObject(object) || isLegacySessionObject(object)) {
+        } else if (isSessionObject(object) || isPropertyMarkedSessionObject(object)) {
             sessions.push(object as SessionObject);
         } else {
             others.push(object);

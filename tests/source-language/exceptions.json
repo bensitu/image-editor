@@ -1,0 +1,269 @@
+{
+    "schemaVersion": 1,
+    "exceptions": [
+        {
+            "id": "migration-entry-production",
+            "path": "src/core-runtime/errors.ts",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "@bensitu/image-editor/migrate-v2",
+            "minimumHits": 2,
+            "maximumHits": 2,
+            "category": "MIGRATION_SCHEMA",
+            "reason": "The typed unsupported-snapshot error must point to the literal migration package entry."
+        },
+        {
+            "id": "migration-public-production-identities",
+            "path": "src/migrate-v2/index.ts",
+            "kind": "identifier",
+            "term": "v2",
+            "sourcePattern": "(?:loadV2Snapshot|migrateV2Snapshot|v2SnapshotMigration)",
+            "minimumHits": 5,
+            "maximumHits": 5,
+            "category": "MIGRATION_SCHEMA",
+            "reason": "The isolated migration product implements the exact required public function identities."
+        },
+        {
+            "id": "migration-entry-test-fixture",
+            "path": "tests/core/snapshot-hardening.test.mjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "@bensitu/image-editor/migrate-v2",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "MIGRATION_SCHEMA_FIXTURE",
+            "reason": "The migration fixture verifies the exact public package entry exposed by the typed error."
+        },
+        {
+            "id": "migration-bundle-entry-fixture",
+            "path": "tests/bundle/fixtures/sdk/migrate-v2/index.mjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "migrate-v2",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "MIGRATION_SCHEMA_FIXTURE",
+            "reason": "The bundle fixture verifies the required isolated migration entry and its public identities."
+        },
+        {
+            "id": "migration-bundle-public-identities",
+            "path": "tests/bundle/fixtures/sdk/migrate-v2/index.mjs",
+            "kind": "identifier",
+            "term": "v2",
+            "sourcePattern": "(?:loadV2Snapshot|migrateV2Snapshot|v2SnapshotMigration)",
+            "minimumHits": 3,
+            "maximumHits": 3,
+            "category": "MIGRATION_SCHEMA_FIXTURE",
+            "reason": "The bundle fixture retains all required public migration function identities."
+        },
+        {
+            "id": "migration-product-fixtures",
+            "path": "tests/migrate-v2/migrate-v2.test.mjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "migrate-v2",
+            "minimumHits": 2,
+            "maximumHits": 2,
+            "category": "MIGRATION_SCHEMA_FIXTURE",
+            "reason": "Permanent migration tests use the required public identities and isolated frozen-fixture path."
+        },
+        {
+            "id": "migration-product-public-identities",
+            "path": "tests/migrate-v2/migrate-v2.test.mjs",
+            "kind": "identifier",
+            "term": "v2",
+            "sourcePattern": "(?:loadV2Snapshot|migrateV2Snapshot|v2SnapshotMigration)",
+            "minimumHits": 26,
+            "maximumHits": 26,
+            "category": "MIGRATION_SCHEMA_FIXTURE",
+            "reason": "Permanent migration tests exercise all required public migration function identities."
+        },
+        {
+            "id": "codemod-cli-source-command",
+            "path": "packages/image-editor-codemod/src/cli.ts",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "v2-to-v3",
+            "minimumHits": 3,
+            "maximumHits": 3,
+            "category": "CODEMOD_PUBLIC_COMMAND",
+            "reason": "The CLI parser and usage text expose the required public transformation command."
+        },
+        {
+            "id": "codemod-cli-target-command",
+            "path": "packages/image-editor-codemod/src/cli.ts",
+            "kind": "literal",
+            "term": "v3",
+            "sourcePattern": "v2-to-v3",
+            "minimumHits": 3,
+            "maximumHits": 3,
+            "category": "CODEMOD_PUBLIC_COMMAND",
+            "reason": "The CLI parser and usage text expose the required public transformation command."
+        },
+        {
+            "id": "codemod-api-source-command",
+            "path": "packages/image-editor-codemod/src/index.ts",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "v2-to-v3",
+            "minimumHits": 2,
+            "maximumHits": 2,
+            "category": "CODEMOD_PUBLIC_COMMAND",
+            "reason": "The codemod report contract records the exact required command identity."
+        },
+        {
+            "id": "codemod-api-target-command",
+            "path": "packages/image-editor-codemod/src/index.ts",
+            "kind": "literal",
+            "term": "v3",
+            "sourcePattern": "v2-to-v3",
+            "minimumHits": 2,
+            "maximumHits": 2,
+            "category": "CODEMOD_PUBLIC_COMMAND",
+            "reason": "The codemod report contract records the exact required command identity."
+        },
+        {
+            "id": "codemod-generated-migration-entry",
+            "path": "packages/image-editor-codemod/src/index.ts",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "migrate-v2",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "MIGRATION_SCHEMA",
+            "reason": "The source transformer emits the exact isolated migration package entry."
+        },
+        {
+            "id": "codemod-cli-test-source-command",
+            "path": "tests/codemod/codemod.test.mjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "v2-to-v3",
+            "minimumHits": 3,
+            "maximumHits": 3,
+            "category": "CODEMOD_COMMAND_FIXTURE",
+            "reason": "CLI tests execute the exact required transformation command in every mode."
+        },
+        {
+            "id": "codemod-cli-test-target-command",
+            "path": "tests/codemod/codemod.test.mjs",
+            "kind": "literal",
+            "term": "v3",
+            "sourcePattern": "v2-to-v3",
+            "minimumHits": 3,
+            "maximumHits": 3,
+            "category": "CODEMOD_COMMAND_FIXTURE",
+            "reason": "CLI tests execute the exact required transformation command in every mode."
+        },
+        {
+            "id": "codemod-output-migration-identities",
+            "path": "tests/codemod/fixtures/common.output.ts",
+            "kind": "identifier",
+            "term": "v2",
+            "sourcePattern": "loadV2Snapshot",
+            "minimumHits": 2,
+            "maximumHits": 2,
+            "category": "CODEMOD_OUTPUT_FIXTURE",
+            "reason": "The expected output verifies that snapshot loads route through the required migration helper."
+        },
+        {
+            "id": "codemod-output-migration-entry",
+            "path": "tests/codemod/fixtures/common.output.ts",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "migrate-v2",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "CODEMOD_OUTPUT_FIXTURE",
+            "reason": "The expected output verifies the exact isolated migration package entry."
+        },
+        {
+            "id": "migration-esm-package-consumer",
+            "path": "tests/package/esm-consumer.mjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "migrate-v2",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "PACKAGE_CONSUMER_FIXTURE",
+            "reason": "The ESM consumer verifies the required migration subpath without root re-exports."
+        },
+        {
+            "id": "migration-esm-package-identities",
+            "path": "tests/package/esm-consumer.mjs",
+            "kind": "identifier",
+            "term": "v2",
+            "sourcePattern": "(?:loadV2Snapshot|migrateV2Snapshot|v2SnapshotMigration)",
+            "minimumHits": 6,
+            "maximumHits": 6,
+            "category": "PACKAGE_CONSUMER_FIXTURE",
+            "reason": "The ESM package consumer verifies all required public migration functions."
+        },
+        {
+            "id": "migration-cjs-package-consumer",
+            "path": "tests/package/cjs-consumer.cjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "migrate-v2",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "PACKAGE_CONSUMER_FIXTURE",
+            "reason": "The CommonJS consumer verifies the required migration subpath without root re-exports."
+        },
+        {
+            "id": "migration-cjs-package-identities",
+            "path": "tests/package/cjs-consumer.cjs",
+            "kind": "identifier",
+            "term": "v2",
+            "sourcePattern": "(?:loadV2Snapshot|migrateV2Snapshot|v2SnapshotMigration)",
+            "minimumHits": 6,
+            "maximumHits": 6,
+            "category": "PACKAGE_CONSUMER_FIXTURE",
+            "reason": "The CommonJS package consumer verifies all required public migration functions."
+        },
+        {
+            "id": "freeze-baseline-labels",
+            "path": "tests/bundle-provenance.test.mjs",
+            "kind": "literal",
+            "term": "v2.9",
+            "sourcePattern": "v2\\.9-freeze",
+            "minimumHits": 3,
+            "maximumHits": 3,
+            "category": "GOVERNANCE_FIXTURE",
+            "reason": "The provenance negative fixture must identify the immutable freeze baseline exactly."
+        },
+        {
+            "id": "freeze-branch-label",
+            "path": "tests/bundle-provenance.test.mjs",
+            "kind": "literal",
+            "term": "legacy",
+            "sourcePattern": "legacy/v2\\.9-freeze",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "GOVERNANCE_FIXTURE",
+            "reason": "The provenance negative fixture must identify the immutable freeze branch exactly."
+        },
+        {
+            "id": "provenance-schema-label",
+            "path": "tests/bundle-provenance.test.mjs",
+            "kind": "literal",
+            "term": "v2",
+            "sourcePattern": "schema-v2 provenance",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "GOVERNANCE_FIXTURE",
+            "reason": "The test title identifies the provenance record schema under test."
+        },
+        {
+            "id": "provenance-toolchain-version",
+            "path": "tests/bundle-provenance.test.mjs",
+            "kind": "literal",
+            "term": "v24.16.0",
+            "sourcePattern": "v24\\.16\\.0",
+            "minimumHits": 1,
+            "maximumHits": 1,
+            "category": "PACKAGE_METADATA_FIXTURE",
+            "reason": "The committed provenance fixture includes the Node.js toolchain version verbatim."
+        }
+    ]
+}

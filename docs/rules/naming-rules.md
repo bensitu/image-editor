@@ -1,278 +1,292 @@
 # Naming Rules
 
-Reusable naming conventions for a TypeScript codebase. The goal is to keep names predictable, readable, searchable, and consistent across source code, tests, examples, and documentation.
+Naming conventions for the TypeScript codebase.  
+Names should describe the current responsibility and domain meaning. Treat the codebase as a new product implementation.
 
-## 1. Core Principles
+## 1. Core principles
 
-- Use names that describe intent, behavior, and domain meaning.
+- Use clear, responsibility-based names.
 - Prefer full words over unclear abbreviations.
-- Avoid vague names such as `data`, `info`, `obj`, `temp`, `flag`, `handle`, `process`, `doSomething`, and `result` unless the scope is very small and obvious.
-- Treat acronyms as normal words: use `imageUrl`, `userId`, `HtmlParser`, `HttpClient`, `ApiResponse`.
+- Keep names consistent with nearby modules.
+- Avoid vague names such as `data`, `info`, `obj`, `temp`, `process`, `handle`, `manager`, `helper`, or `utils` when a more precise name exists.
+- Do not use version or history terms in active code names:
+    - `v2`
+    - `v2.9`
+    - `v3`
+    - `legacy`
+    - `compat`
+    - `compatibility`
+    - `old`
+    - `new`
 - Keep external naming styles only at external boundaries.
 
-## 2. Case Conventions
+## 2. Case conventions
 
-| Target                   | Convention                       | Example                |
-| ------------------------ | -------------------------------- | ---------------------- |
-| Variables                | `camelCase`                      | `selectedImage`        |
-| Local `const` values     | `camelCase`                      | `canvasWidth`          |
-| Functions and methods    | `camelCase`                      | `applyCrop()`          |
-| Object properties        | `camelCase`                      | `imageSource`          |
-| Classes                  | `PascalCase`                     | `ImageEditor`          |
-| Interfaces               | `PascalCase`                     | `ImageEditorOptions`   |
-| Type aliases             | `PascalCase`                     | `CropMode`             |
-| Enums                    | `PascalCase`                     | `ResizeMode`           |
-| TypeScript enum members  | `PascalCase`                     | `ResizeMode.Cover`     |
-| Generic type parameters  | `PascalCase`                     | `TInput`, `TOutput`    |
-| True global constants    | `UPPER_SNAKE_CASE`               | `DEFAULT_CANVAS_WIDTH` |
-| Constant maps            | `UPPER_SNAKE_CASE` variable name | `MIME_TYPES`           |
-| File and directory names | `kebab-case`                     | `image-editor.ts`      |
-| Test files               | `kebab-case` + test suffix       | `crop-mode.test.ts`    |
-
-## 3. TypeScript Declarations
-
-Use `PascalCase` for type-like declarations:
-
-```ts
-class ImageEditor {}
-interface ImageEditorOptions {}
-type CropMode = 'cover' | 'contain';
-enum ResizeMode {
-    Cover,
-    Contain,
-}
-```
+| Target                         | Convention                 | Example                   |
+| ------------------------------ | -------------------------- | ------------------------- |
+| Variables and properties       | `camelCase`                | `pluginManifest`          |
+| Functions and methods          | `camelCase`                | `installPluginPlan()`     |
+| Classes, interfaces, and types | `PascalCase`               | `PluginManifest`          |
+| Generic type parameters        | `PascalCase`               | `TApi`, `TOptions`        |
+| True global constants          | `UPPER_SNAKE_CASE`         | `MAX_PLUGIN_COUNT`        |
+| Files and directories          | `kebab-case`               | `plugin-manifest.ts`      |
+| Test files                     | `kebab-case` + test suffix | `plugin-manifest.test.ts` |
 
 Do not prefix interfaces with `I`.
 
 ```ts
-// Good
-interface ImageEditorOptions {}
-
-// Avoid
-interface IImageEditorOptions {}
+interface PluginManifest {}
 ```
 
-Do not add type-kind suffixes such as `Type`, `Interface`, or `Alias` unless the word is part of the domain meaning.
+Do not add redundant suffixes such as `Type`, `Interface`, or `Alias`.
+
+## 3. Domain object constants
+
+Use `UPPER_SNAKE_CASE` only for fixed global values, limits, and static maps.
 
 ```ts
-// Good
-type ImageSource = File | Blob | string;
-interface CropResult {}
-
-// Avoid
-type ImageSourceType = File | Blob | string;
-interface CropResultInterface {}
+const MAX_PLUGIN_COUNT = 128;
+const DEFAULT_SETUP_TIMEOUT_MS = 5_000;
+const SUPPORTED_PERMISSIONS = {} as const;
 ```
 
-Use meaningful role suffixes when they clarify purpose: `Options`, `Config`, `Payload`, `Result`, `State`, `Props`, `Params`, `Context`, `Event`, `Error`.
-
-Use `interface` for object-shaped contracts, options, payloads, and extension points. Use `type` for unions, intersections, tuples, primitive aliases, mapped types, conditional types, and utility types.
-
-## 4. Generic Type Parameters
-
-Use `T` for a simple generic value type. Use descriptive names when there are multiple type parameters or when meaning matters.
-
-| Generic    | Meaning              |
-| ---------- | -------------------- |
-| `T`        | Generic value type   |
-| `TInput`   | Input type           |
-| `TOutput`  | Output type          |
-| `TOptions` | Options type         |
-| `TEvent`   | Event type           |
-| `TKey`     | Key type             |
-| `TValue`   | Value type           |
-| `TItem`    | Collection item type |
-| `TState`   | State type           |
-
-Examples: `Nullable<T>`, `Record<TKey, TValue>`, `Transformer<TInput, TOutput>`.
-
-## 5. Private and Protected Members
-
-Do not use `_` as a private or protected member prefix.
+Use `camelCase` for immutable domain objects.
 
 ```ts
-// Good
-private canvas: fabric.Canvas;
-protected history: HistoryManager;
-
-// Avoid
-private _canvas: fabric.Canvas;
-protected _history: HistoryManager;
+const maskPluginRef = definePluginRef(...);
+const overlayCapability = createCapabilityToken(...);
+const historyPlugin = definePlugin(...);
 ```
 
-Use TypeScript `private` for normal project-level privacy. Use JavaScript `#private` only when runtime-enforced privacy is intentionally required and supported by the target environment.
+Do not uppercase every module-level `const`.
 
-## 6. Constants
+## 4. Boolean names
 
-Use `UPPER_SNAKE_CASE` only for true constants whose values are fixed and conceptually global.
+Boolean state should use a positive form.
 
 ```ts
-const DEFAULT_CANVAS_WIDTH = 800;
-const MAX_IMAGE_PIXELS = 12_000_000;
-
-const MIME_TYPES = {
-    PNG: 'image/png',
-    JPEG: 'image/jpeg',
-} as const;
+isInstalled;
+hasProvider;
+canInstall;
+shouldRollback;
+requiresPermission;
+supportsPersistence;
 ```
 
-Do not rename every `const` variable to uppercase. Local constants stay `camelCase`.
+Configuration objects may use concise positive names when the context is clear.
 
 ```ts
-const targetWidth = 800;
-const aspectRatio = image.width / image.height;
-```
-
-For fixed value sets, prefer string literal unions or `as const` objects when they are clearer than `enum`. When using TypeScript `enum`, use `PascalCase` for enum members.
-
-## 7. Boolean Names
-
-Boolean names should be positive and should use one of these prefixes:
-
-| Prefix     | Example            |
-| ---------- | ------------------ |
-| `is`       | `isReady`          |
-| `has`      | `hasSelection`     |
-| `can`      | `canUndo`          |
-| `should`   | `shouldRenderMask` |
-| `allow`    | `allowRotation`    |
-| `enable`   | `enableHistory`    |
-| `requires` | `requiresRedraw`   |
-| `supports` | `supportsWebp`     |
-
-Avoid negative or double-negative names such as `isNotReady`, `noSelection`, `disableHistory`, or `preventRender`. For options and feature flags, prefer positive `enableXxx` names consistently.
-
-## 8. Collections, Maps, Sets, and Records
-
-Use plural names for arrays and iterable collections: `masks`, `selectedImages`, `toolbarItems`.
-
-Use explicit suffixes for keyed collections:
-
-| Structure     | Pattern     | Example         |
-| ------------- | ----------- | --------------- |
-| Array/List    | plural noun | `masks`         |
-| Record by key | `xxxByYyy`  | `maskById`      |
-| `Map`         | `xxxMap`    | `imageMap`      |
-| `Set`         | `xxxSet`    | `selectedIdSet` |
-| Count         | `xxxCount`  | `maskCount`     |
-| Index         | `xxxIndex`  | `selectedIndex` |
-| Length        | `xxxLength` | `historyLength` |
-
-## 9. DOM, UI, and Canvas Names
-
-DOM element variables should use the `Element` suffix: `canvasElement`, `uploadInputElement`, `toolbarElement`, `saveButtonElement`.
-
-For non-DOM canvas or graphics objects, use domain names without `Element`: `canvas`, `activeObject`, `maskObject`.
-
-For component-based UI, use `PascalCase` for components, `useXxx` for hooks, `XxxProps` for props, and `XxxState` for state types.
-
-## 10. Function and Method Verbs
-
-Function and method names should start with verbs that describe behavior precisely.
-
-| Prefix           | Meaning                                  | Example                 |
-| ---------------- | ---------------------------------------- | ----------------------- |
-| `getXxx`         | Pure accessor without side effects       | `getActiveImage()`      |
-| `setXxx`         | Direct assignment or replacement         | `setZoomRatio()`        |
-| `updateXxx`      | Modify existing state or UI              | `updateToolbarState()`  |
-| `createXxx`      | Create a new object or value             | `createMaskObject()`    |
-| `buildXxx`       | Assemble a complex object                | `buildExportPayload()`  |
-| `applyXxx`       | Apply an operation                       | `applyCrop()`           |
-| `clearXxx`       | Remove content while keeping owner alive | `clearSelection()`      |
-| `resetXxx`       | Restore defaults or initial state        | `resetCanvas()`         |
-| `renderXxx`      | Render UI or canvas output               | `renderMaskList()`      |
-| `exportXxx`      | Produce external output                  | `exportImage()`         |
-| `serializeXxx`   | Convert to storable/string form          | `serializeState()`      |
-| `deserializeXxx` | Restore from stored/string form          | `deserializeState()`    |
-| `parseXxx`       | Parse raw or string input                | `parseCropMode()`       |
-| `normalizeXxx`   | Normalize input to internal form         | `normalizeOptions()`    |
-| `validateXxx`    | Validate input                           | `validateOptions()`     |
-| `resolveXxx`     | Resolve from sources or fallbacks        | `resolveImageSource()`  |
-| `computeXxx`     | Calculate a derived value                | `computeCropBounds()`   |
-| `toXxx`          | Convert to another representation        | `toCanvasPoint()`       |
-| `fromXxx`        | Create from another representation       | `fromSerializedState()` |
-| `loadXxx`        | Load local resource or file              | `loadImageFile()`       |
-| `fetchXxx`       | Fetch over network                       | `fetchImageMetadata()`  |
-| `saveXxx`        | Persist data                             | `saveState()`           |
-| `removeXxx`      | Remove a specific item                   | `removeMask()`          |
-| `deleteXxx`      | Delete persisted or external data        | `deleteSavedPreset()`   |
-| `disposeXxx`     | Release resources or listeners           | `disposeCanvas()`       |
-| `destroyXxx`     | Permanently tear down an instance        | `destroyEditor()`       |
-
-Avoid generic behavior names such as `processData()`, `handleData()`, `doUpdate()`, or `manageState()`.
-
-## 11. Events, Handlers, and Callbacks
-
-| Pattern             | Meaning                          | Example                           |
-| ------------------- | -------------------------------- | --------------------------------- |
-| `handleXxx`         | Internal event handler           | `handleUploadChange()`            |
-| `onXxx`             | Public callback option           | `onImageLoad`                     |
-| `emitXxx`           | Internal event/callback dispatch | `emitImageLoad()`                 |
-| `addXxxListener`    | Listener registration            | `addSelectionChangeListener()`    |
-| `removeXxxListener` | Listener removal                 | `removeSelectionChangeListener()` |
-
-## 12. Type Guards, Assertions, and Errors
-
-Use `isXxx` for type guards, `assertXxx` for assertion functions that throw, and `XxxError` for custom error classes.
-
-```ts
-function isFabricImage(value: unknown): value is fabric.Image {}
-function assertCanvasReady(canvas: unknown): asserts canvas is fabric.Canvas {}
-class ImageLoadError extends Error {}
-```
-
-## 13. Units and Measurements
-
-Include units when a number is ambiguous.
-
-| Suffix    | Meaning              | Example           |
-| --------- | -------------------- | ----------------- |
-| `Px`      | CSS or canvas pixels | `widthPx`         |
-| `Ms`      | milliseconds         | `timeoutMs`       |
-| `Seconds` | seconds              | `durationSeconds` |
-| `Ratio`   | proportional value   | `scaleRatio`      |
-| `Percent` | 0-100 percentage     | `progressPercent` |
-| `Degrees` | degrees              | `rotationDegrees` |
-| `Radians` | radians              | `angleRadians`    |
-| `Count`   | number of items      | `maskCount`       |
-| `Index`   | zero-based index     | `selectedIndex`   |
-| `Id`      | identifier           | `imageId`         |
-| `Url`     | URL string           | `imageUrl`        |
-
-## 14. Async Names
-
-Do not add `Async` to every Promise-returning function. Use `Async` only when both synchronous and asynchronous variants exist and the distinction matters.
-
-```ts
-function validateOptions(options: ImageEditorOptions): ValidationResult {}
-async function validateOptionsAsync(options: ImageEditorOptions): Promise<ValidationResult> {}
-```
-
-## 15. File, Module, and Export Names
-
-Use `kebab-case` for files and directories: `image-editor.ts`, `history-manager.ts`, `crop-controller.ts`, `test-utils/`.
-
-Prefer clear module names over vague ones. Avoid `utils.ts`, `helpers.ts`, `common.ts`, and `misc.ts` when a more specific name is possible, such as `canvas-utils.ts`, `image-load-utils.ts`, or `dom-event-utils.ts`.
-
-Test files should mirror the target module name: `image-editor.test.ts`, `history-manager.test.ts`, `crop-controller.test.ts`.
-
-## 16. External Boundary Names
-
-External systems may require different naming styles. Keep those names only at the boundary.
-
-Acceptable boundary exceptions include third-party API fields, generated code, backend JSON contracts, external CSS class names, DOM attributes such as `aria-*` and `data-*`, and framework-required method names.
-
-Convert external naming to internal naming as early as possible:
-
-```ts
-interface RawBackendPayload {
-    image_url: string;
-    created_at: string;
-}
-
-interface ImagePayload {
-    imageUrl: string;
-    createdAt: Date;
+{
+    enabled: true,
+    allowGlobalMutation: false,
 }
 ```
+
+Command methods may use explicit verbs.
+
+```ts
+enable();
+disable();
+cancel();
+abort();
+```
+
+Avoid double negatives such as `isNotReady` or `disableRollback`.
+
+## 5. Collections and keyed structures
+
+| Structure         | Pattern     | Example              |
+| ----------------- | ----------- | -------------------- |
+| Array or iterable | plural noun | `plugins`            |
+| Record by key     | `xxxByYyy`  | `pluginById`         |
+| `Map`             | `xxxMap`    | `capabilityMap`      |
+| `Set`             | `xxxSet`    | `installedPluginSet` |
+| Count             | `xxxCount`  | `pluginCount`        |
+| Index             | `xxxIndex`  | `topologicalIndex`   |
+
+## 6. Function and method verbs
+
+Use verbs that clearly describe behavior.
+
+| Prefix         | Meaning                                | Example                   |
+| -------------- | -------------------------------------- | ------------------------- |
+| `getXxx`       | Pure read                              | `getPlugin()`             |
+| `setXxx`       | Direct replacement                     | `setConfiguration()`      |
+| `updateXxx`    | Modify existing state                  | `updatePluginState()`     |
+| `createXxx`    | Create a value or object               | `createPluginHost()`      |
+| `defineXxx`    | Declare an immutable contract          | `definePlugin()`          |
+| `buildXxx`     | Assemble a complex value               | `buildDependencyGraph()`  |
+| `resolveXxx`   | Resolve from dependencies or fallbacks | `resolveCapability()`     |
+| `validateXxx`  | Validate input                         | `validateManifest()`      |
+| `registerXxx`  | Register and return cleanup ownership  | `registerCapability()`    |
+| `provideXxx`   | Provide an implementation              | `provideCapability()`     |
+| `requireXxx`   | Return a required value or throw       | `requirePlugin()`         |
+| `installXxx`   | Install and establish lifecycle        | `installPluginPlan()`     |
+| `configureXxx` | Apply validated configuration          | `configurePlugin()`       |
+| `composeXxx`   | Combine while preserving members       | `composePlugins()`        |
+| `flattenXxx`   | Flatten a nested structure             | `flattenPluginPlan()`     |
+| `beginXxx`     | Start a transaction or scope           | `beginSetupTransaction()` |
+| `commitXxx`    | Commit a transaction                   | `commitInstallation()`    |
+| `rollbackXxx`  | Roll back a transaction                | `rollbackInstallation()`  |
+| `disposeXxx`   | Release owned resources                | `disposePluginScope()`    |
+| `emitXxx`      | Dispatch an internal event             | `emitPluginInstalled()`   |
+| `publishXxx`   | Publish a committed event              | `publishCommittedEvent()` |
+
+Avoid vague names such as `processData()`, `handleData()`, or `manageState()`.
+
+## 7. Architecture role suffixes
+
+Use role suffixes only when they accurately describe the responsibility.
+
+| Suffix        | Responsibility                               |
+| ------------- | -------------------------------------------- |
+| `Registry`    | Registration, lookup, and conflict detection |
+| `Coordinator` | Multi-participant ordering and rollback      |
+| `Router`      | Dispatch by type or ownership                |
+| `Store`       | State storage and retrieval                  |
+| `Controller`  | Behavior boundary for one domain             |
+| `Adapter`     | Conversion between two explicit interfaces   |
+| `Codec`       | Serialize, validate, and deserialize         |
+| `Resolver`    | Resolve from multiple sources                |
+| `Validator`   | Centralized validation                       |
+| `Reporter`    | Structured diagnostics or errors             |
+| `Scope`       | Bounded resource ownership and disposal      |
+| `Plan`        | Declarative composition without execution    |
+| `Definition`  | Immutable declaration                        |
+| `Requirement` | Consumer dependency declaration              |
+
+Do not use `Manager`, `Service`, `Helper`, or `Utils` as generic fallback names.
+
+## 8. Events, callbacks, and errors
+
+```ts
+handleUploadChange(); // internal event handler
+onImageLoad; // public callback
+emitImageLoad(); // internal dispatch
+addSelectionChangeListener();
+removeSelectionChangeListener();
+```
+
+Use:
+
+- `isXxx` for type guards
+- `assertXxx` for throwing assertions
+- `XxxError` for custom errors
+
+```ts
+function isPluginManifest(value: unknown): value is PluginManifest {}
+function assertPluginInstalled(value: unknown): asserts value is InstalledPlugin {}
+class PluginSetupError extends Error {}
+```
+
+## 9. Units and measurements
+
+Include units when a number could be ambiguous.
+
+```ts
+timeoutMs;
+durationSeconds;
+widthPx;
+scaleRatio;
+rotationDegrees;
+pluginCount;
+dependencyIndex;
+sourceBytes;
+decodedPixelCount;
+```
+
+## 10. Runtime string identifiers
+
+Plugin, capability, permission, operation, event, and overlay identifiers should use:
+
+```text
+namespace:kebab-case
+```
+
+Examples:
+
+```text
+fabric:canvas-read
+core:raster-mutation
+editor:document-commit
+overlay:selection-change
+```
+
+Rules:
+
+- lowercase only;
+- use `:` between namespace and name;
+- use `kebab-case` inside the name;
+- do not include version labels;
+- keep API versions in separate fields.
+
+## 11. Files, modules, and tests
+
+Use `kebab-case` for files and directories.
+
+```text
+plugin-manifest.ts
+dependency-graph.ts
+capability-registry.ts
+plugin-installation/
+```
+
+Avoid vague module names:
+
+```text
+utils.ts
+helpers.ts
+common.ts
+misc.ts
+```
+
+Prefer responsibility-based names:
+
+```text
+manifest-validation.ts
+dependency-ordering.ts
+capability-versioning.ts
+```
+
+Supported test naming patterns:
+
+```text
+plugin-manifest.test.ts
+plugin-installation.test.mjs
+plugin-conformance.spec.ts
+plugin-api.test-d.ts
+```
+
+Test files should mirror the module or contract they verify.
+
+## 12. External boundaries
+
+External APIs, generated code, JSON contracts, CSS classes, and framework-required names may use external naming styles.
+
+Convert them to internal naming as early as possible.
+
+```ts
+interface RawPluginPayload {
+    plugin_id: string;
+    api_version: string;
+}
+
+interface PluginPayload {
+    pluginId: string;
+    apiVersion: string;
+}
+```
+
+## 13. Scope
+
+Apply these rules to:
+
+- new files and symbols;
+- materially changed files and symbols;
+- public APIs;
+- tests and examples;
+- generated contract identifiers.
+
+Do not perform unrelated repository-wide renaming.
+
+When an existing public name must be retained, document the exception and keep it narrow.

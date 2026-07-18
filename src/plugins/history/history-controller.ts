@@ -1,32 +1,45 @@
-import { CoreRuntimeError } from '../../core-runtime/errors.js';
-import type {
-    CoreHistoryCommitPort,
-    CoreHistoryRecord,
-} from '../../core-runtime/history-commit-router.js';
-import type { CoreStatePort } from '../../core-runtime/internal-capabilities.js';
+import { CoreRuntimeError, type CoreHistoryRecord } from '../../core/index.js';
+import type { MementoHistoryPort } from '../../sdk/index.js';
 
-export interface HistoryAvailability {
+export interface HistoryStatus {
+    readonly isEnabled: boolean;
     readonly canUndo: boolean;
     readonly canRedo: boolean;
+    readonly length: number;
     readonly size: number;
     readonly position: number;
 }
 
+export type HistoryAvailability = HistoryStatus;
+
+export interface HistoryEnableOptions {
+    readonly baseline: 'current';
+}
+
+export interface HistoryDisableOptions {
+    readonly clear?: boolean;
+}
+
 export interface HistoryPort {
+    readonly isEnabled: boolean;
+    readonly length: number;
     isAvailable(): boolean;
     push(record: CoreHistoryRecord): void;
+    enable(options: HistoryEnableOptions): Promise<void>;
+    disable(options?: HistoryDisableOptions): Promise<void>;
     undo(): Promise<void>;
     redo(): Promise<void>;
     canUndo(): boolean;
     canRedo(): boolean;
-    getState(): HistoryAvailability;
+    getState(): HistoryStatus;
     clear(): void;
-    onChange(handler: (state: HistoryAvailability) => void): () => void;
+    onChange(handler: (state: HistoryStatus) => void): () => void;
 }
 
 export interface HistoryPluginOptions {
+    readonly enabled?: boolean;
     readonly maxSize?: number;
-    readonly onChange?: (state: HistoryAvailability) => void;
+    readonly onChange?: (state: HistoryStatus) => void;
 }
 
 interface HistoryOperationAccess {
@@ -37,21 +50,32 @@ function resolveMaxSize(value: number | undefined): number {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;
 }
 
-export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPort {
+export class HistoryPluginController implements HistoryPort {
     private records: CoreHistoryRecord[] = [];
     private position = 0;
-    private readonly listeners = new Set<(state: HistoryAvailability) => void>();
+    private baseline: CoreHistoryRecord['before'] | null = null;
+    declare private enabled: boolean;
+    private readonly listeners = new Set<(state: HistoryStatus) => void>();
     private disposed = false;
-    readonly maxSize: number;
+    declare readonly maxSize: number;
 
     constructor(
-        private readonly state: CoreStatePort,
+        private readonly state: MementoHistoryPort,
         private readonly operations: HistoryOperationAccess,
         options: HistoryPluginOptions = {},
         private readonly reportWarning: (error: unknown, message: string) => void,
     ) {
+        this.enabled = options.enabled !== false;
         this.maxSize = resolveMaxSize(options.maxSize);
         if (options.onChange) this.listeners.add(options.onChange);
+    }
+
+    get isEnabled(): boolean {
+        return !this.disposed && this.enabled;
+    }
+
+    get length(): number {
+        return this.records.length;
     }
 
     isAvailable(): boolean {
@@ -59,8 +83,15 @@ export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPo
     }
 
     commit(record: CoreHistoryRecord): void {
-        if (record.operationId === 'core:load-image' || record.operationId === 'core:load-state') {
-            this.clear();
+        if (!this.isEnabled) return;
+        if (
+            record.operationId === 'core:load-image' ||
+            record.operationId === 'core:commit-load-image' ||
+            record.operationId === 'core:load-state'
+        ) {
+            const changed = this.resetTimeline();
+            this.baseline = record.after;
+            if (changed) this.emitChange();
             return;
         }
         this.push(record);
@@ -68,9 +99,11 @@ export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPo
 
     push(record: CoreHistoryRecord): void {
         this.assertActive('push History');
+        if (!this.enabled) return;
         if (!record || typeof record.operationId !== 'string' || record.operationId.length === 0) {
             throw new CoreRuntimeError('[ImageEditor] History record operationId is invalid.');
         }
+        this.baseline ??= record.before;
         if (this.position < this.records.length) {
             this.records = this.records.slice(0, this.position);
         }
@@ -89,6 +122,44 @@ export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPo
         }
         this.position = this.records.length;
         this.emitChange();
+    }
+
+    enable(options: HistoryEnableOptions): Promise<void> {
+        this.assertActive('enable History');
+        if (options?.baseline !== 'current') {
+            throw new CoreRuntimeError(
+                '[ImageEditor] History can enable only from the current baseline.',
+                {
+                    code: 'HISTORY_BASELINE_UNSUPPORTED',
+                },
+            );
+        }
+        return this.operations.run('history:enable', async () => {
+            if (this.enabled) return;
+            const baseline = this.state.captureMemento();
+            this.records = [];
+            this.position = 0;
+            this.baseline = baseline;
+            this.enabled = true;
+            this.emitChange();
+        });
+    }
+
+    disable(options: HistoryDisableOptions = {}): Promise<void> {
+        this.assertActive('disable History');
+        if (options.clear !== undefined && typeof options.clear !== 'boolean') {
+            throw new CoreRuntimeError('[ImageEditor] History disable clear must be a boolean.', {
+                code: 'HISTORY_DISABLE_OPTION_INVALID',
+            });
+        }
+        const shouldClear = options.clear ?? true;
+        return this.operations.run('history:disable', async () => {
+            const wasEnabled = this.enabled;
+            const hadRecords = this.records.length > 0 || this.position !== 0;
+            this.enabled = false;
+            if (shouldClear) this.resetTimeline();
+            if (wasEnabled || (shouldClear && hadRecords)) this.emitChange();
+        });
     }
 
     undo(): Promise<void> {
@@ -116,22 +187,19 @@ export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPo
     }
 
     canUndo(): boolean {
-        return !this.disposed && this.position > 0;
+        return this.isEnabled && this.position > 0;
     }
 
     canRedo(): boolean {
-        return !this.disposed && this.position < this.records.length;
+        return this.isEnabled && this.position < this.records.length;
     }
 
     clear(): void {
         if (this.disposed) return;
-        const changed = this.records.length > 0 || this.position !== 0;
-        this.records = [];
-        this.position = 0;
-        if (changed) this.emitChange();
+        if (this.resetTimeline()) this.emitChange();
     }
 
-    onChange(handler: (state: HistoryAvailability) => void): () => void {
+    onChange(handler: (state: HistoryStatus) => void): () => void {
         this.assertActive('subscribe to History');
         this.listeners.add(handler);
         return () => {
@@ -139,10 +207,12 @@ export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPo
         };
     }
 
-    getState(): HistoryAvailability {
+    getState(): HistoryStatus {
         return Object.freeze({
+            isEnabled: this.isEnabled,
             canUndo: this.canUndo(),
             canRedo: this.canRedo(),
+            length: this.records.length,
             size: this.records.length,
             position: this.position,
         });
@@ -152,28 +222,41 @@ export class HistoryPluginController implements HistoryPort, CoreHistoryCommitPo
         if (this.disposed) return;
         this.records = [];
         this.position = 0;
+        this.baseline = null;
+        this.enabled = false;
         this.listeners.clear();
         this.disposed = true;
+    }
+
+    private resetTimeline(): boolean {
+        const changed = this.records.length > 0 || this.position !== 0;
+        this.records = [];
+        this.position = 0;
+        this.baseline = null;
+        return changed;
     }
 
     private async restoreTransactionally(
         target: CoreHistoryRecord['before'],
         operation: 'undo' | 'redo',
     ): Promise<void> {
-        const rollback = this.state.mementos.capture();
+        const rollback = this.state.captureMemento();
         try {
-            await this.state.mementos.restore(target);
+            await this.state.restoreMemento(target);
         } catch (error) {
             try {
-                await this.state.mementos.restore(rollback);
+                await this.state.restoreMemento(rollback);
             } catch (rollbackError) {
-                throw new CoreRuntimeError(
+                const failure = new CoreRuntimeError(
                     `[ImageEditor] History ${operation} failed and rollback could not restore state.`,
                     {
                         code: 'HISTORY_UNRECOVERABLE_ERROR',
                         cause: Object.freeze([error, rollbackError]),
+                        behavior: 'fatal-rollback',
                     },
                 );
+                this.state.reportFatal(failure);
+                throw failure;
             }
             throw new CoreRuntimeError(`[ImageEditor] History ${operation} failed.`, {
                 code: 'HISTORY_RESTORE_ERROR',

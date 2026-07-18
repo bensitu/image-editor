@@ -1,7 +1,7 @@
 /**
- * Promise-shaped wrapper around Fabric.js v7's
+ * Promise-shaped wrapper around Fabric.js animation APIs.
  * {@link FabricNS.FabricObject.animate} for the current transform
- * pipeline. v7's `animate(props, providedOptions)` returns an
+ * pipeline. `animate(props, providedOptions)` returns an
  * `Animation[]`-like map of contexts (one per animated
  * property) and signals completion through the `onComplete`
  * callback rather than a Promise. To plug it into the
@@ -11,11 +11,11 @@
  *
  * ## Owned contracts
  *
- * - Wrap only Fabric v7-compatible APIs. v7's
+ * - Wrap only supported Fabric APIs. Fabric's
  *   `object.animate` returns `Animation[]` (a map of per-property contexts)
  *   and reports completion via `onComplete`; multi-property tweens fire
  *   the callback once per property. {@link animateProps} hides that shape
- *   behind a single Promise so callers do not encode v7-specific shapes.
+ *   behind a single Promise so callers do not encode library-specific shapes.
  * - `scaleImage(factor)` animates the original
  *   image over `options.animationDuration`. `scaleX` and `scaleY` are
  *   tweened together, so the resolution count is two — see
@@ -39,7 +39,7 @@
  * The wrapper does not call `saveState`, mark the queue, or set
  * `isAnimating` — those live in the orchestrator and {@link OperationGuard}.
  * This file is intentionally
- * tiny: it owns one Fabric v7 quirk (the `Animation[]` return shape) and
+ * tiny: it owns the per-property `Animation[]` return shape and
  * one dispose-safety detail (origin restore on interrupt). Per the
  * Module Responsibilities table, it is NOT re-exported from
  * `src/index.ts`.
@@ -48,13 +48,16 @@
  */
 
 import type * as FabricNS from 'fabric';
-import type { OperationGuard } from '../core/operation-guard.js';
-
 const ANIMATION_SETTLE_GRACE_MS = 1000;
 
 type AbortableAnimation = {
     abort?: () => void;
 };
+
+export interface AnimationControl {
+    isDisposed(): boolean;
+    registerAnimationAborter(abort: () => void): () => void;
+}
 
 /**
  * Options accepted by {@link animateProps}.
@@ -81,7 +84,7 @@ export interface AnimateOptions {
  * Animate one or more numeric properties on a Fabric object and resolve
  * a single Promise once **all** property animations have completed.
  *
- * In Fabric v7, `object.animate(props, providedOptions)` returns a per-property
+ * `object.animate(props, providedOptions)` returns a per-property
  * `Animation[]`-like map and signals completion via the `onComplete`
  * callback. For multi-property tweens (e.g. `scale` requires both
  * `scaleX` and `scaleY`), `onComplete` fires once per property — so we
@@ -120,7 +123,7 @@ export function animateProps<T extends FabricNS.FabricObject>(
     object: T,
     props: Record<string, number>,
     options: AnimateOptions,
-    guard: OperationGuard,
+    guard: AnimationControl,
 ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const propCount = Object.keys(props).length;
@@ -176,7 +179,7 @@ export function animateProps<T extends FabricNS.FabricObject>(
         unregisterAborter = guard.registerAnimationAborter(abortAndSettle);
 
         try {
-            // v7: `animate` returns `Record<string, TAnimation>` (one
+            // `animate` returns `Record<string, TAnimation>` (one
             // entry per property). Completion is signalled per-property
             // via `onComplete`, so we count callbacks before resolving.
             const animationResult = object.animate(props, {
@@ -223,8 +226,8 @@ function collectAnimationAborters(animationResult: unknown): Array<() => void> {
  *
  * `image/transform-controller.ts.rotateImage` temporarily sets the image
  * origin to `'center'/'center'` so Fabric tweens the angle around the
- * visual centroid (Fabric v7 defaults `originX`/`originY` to `'center'`,
- * but the compatibility path uses `'left'/'top'` for placement math). The
+ * visual centroid (Fabric defaults `originX`/`originY` to `'center'`,
+ * while placement math uses `'left'/'top'`). The
  * controller restores the original origin after the animation resolves.
  * If dispose runs between begin and the post-animation restore, the
  * controller's restore branch is skipped — leaving the image in the

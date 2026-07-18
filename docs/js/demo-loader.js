@@ -17,11 +17,13 @@
 
     window.__imageEditorDemoRuntime = {
         getImageEditorConstructor() {
-            const candidate =
-                window.ImageEditor?.ImageEditor ||
-                window.ImageEditor?.default ||
-                window.ImageEditor;
-            return typeof candidate === 'function' ? candidate : null;
+            const candidate = window.ImageEditorFull?.ImageEditorCore;
+            if (typeof candidate !== 'function') return null;
+            return class BrowserImageEditorCore extends candidate {
+                constructor(options) {
+                    super(window.fabric, options);
+                }
+            };
         },
         createCanvas(width, height) {
             const canvas = document.createElement('canvas');
@@ -49,8 +51,8 @@
         ? 'https://cdn.jsdelivr.net/npm/fabric@7.4.0/dist/index.min.js'
         : '../node_modules/fabric/dist/index.min.js';
     const imageEditorSrc = isGitHubPages
-        ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.umd.js'
-        : '../dist/umd/image-editor.umd.js';
+        ? 'https://cdn.jsdelivr.net/npm/@bensitu/image-editor@latest/dist/umd/image-editor.full.umd.min.js'
+        : '../dist/umd/image-editor.full.umd.min.js';
 
     try {
         await loadScript(fabricSrc);

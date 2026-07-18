@@ -1,5 +1,5 @@
 import { MementoCaptureError, MementoRestoreError, StateRegistrationError } from '../errors.js';
-import { cloneStateValue } from './clone-state-value.js';
+import { assertSafeImmutableReference, cloneStateValue } from './clone-state-value.js';
 function createAbortError(message) {
     if (typeof DOMException === 'function')
         return new DOMException(message, 'AbortError');
@@ -61,6 +61,14 @@ export class MementoService {
     isTrusted(value) {
         return typeof value === 'object' && value !== null && this.trustedMementos.has(value);
     }
+    matches(memento) {
+        this.assertActive('compare a memento');
+        if (!this.isTrusted(memento))
+            return false;
+        const current = this.captureInternal(false);
+        return (JSON.stringify(current.core) === JSON.stringify(memento.core) &&
+            JSON.stringify(current.plugins) === JSON.stringify(memento.plugins));
+    }
     async restore(memento, options = {}) {
         this.assertActive('restore a memento');
         if (!this.isTrusted(memento)) {
@@ -79,7 +87,7 @@ export class MementoService {
         let rollback = null;
         try {
             if (options.rollbackOnFailure !== false)
-                rollback = this.captureInternal();
+                rollback = this.captureInternal(false);
             await this.restoreInternal(memento, 'trusted-memento', controller.signal);
         }
         catch (error) {
@@ -108,12 +116,22 @@ export class MementoService {
     dispose() {
         this.disposed = true;
     }
-    captureInternal() {
+    reset() {
+        this.assertActive('reset MementoService');
+        if (this.restoring) {
+            throw new StateRegistrationError('Cannot reset MementoService during restoration.');
+        }
+        this.trustedMementos = new WeakSet();
+        this.revision = 0;
+    }
+    captureInternal(validateReferenceIdentity = true) {
+        var _a;
         const capturedAt = Date.now();
         const context = Object.freeze({ mode: 'memento', capturedAt });
         let core;
         try {
             core = cloneStateValue(this.coreAdapter.capture(context));
+            assertSafeImmutableReference(core);
         }
         catch (error) {
             throw new MementoCaptureError('core', error);
@@ -121,9 +139,36 @@ export class MementoService {
         const plugins = Object.create(null);
         for (const slice of this.slices.list()) {
             try {
+                const captured = slice.capture(context);
+                let capturePolicy = (_a = slice.capturePolicy) !== null && _a !== void 0 ? _a : 'always';
+                let data;
+                if (capturePolicy === 'reference') {
+                    if (validateReferenceIdentity) {
+                        const validation = slice.validate(captured, {
+                            sliceId: slice.id,
+                            version: slice.version,
+                        });
+                        if (!validation.valid || validation.value !== captured) {
+                            throw new Error(validation.valid
+                                ? 'Reference validation must preserve the captured identity.'
+                                : validation.message);
+                        }
+                        assertSafeImmutableReference(captured);
+                        data = captured;
+                    }
+                    else {
+                        data = cloneStateValue(captured);
+                        capturePolicy = 'always';
+                    }
+                }
+                else {
+                    data = cloneStateValue(captured);
+                }
+                assertSafeImmutableReference(data);
                 plugins[slice.id] = Object.freeze({
                     version: slice.version,
-                    data: cloneStateValue(slice.capture(context)),
+                    capturePolicy,
+                    data,
                 });
             }
             catch (error) {
@@ -160,7 +205,7 @@ export class MementoService {
                 if (entry.version !== slice.version) {
                     throw new Error(`Captured version ${entry.version} does not match installed version ${slice.version}.`);
                 }
-                await slice.restore(cloneStateValue(entry.data), context);
+                await slice.restore(entry.capturePolicy === 'reference' ? entry.data : cloneStateValue(entry.data), context);
             }
             catch (error) {
                 throw new MementoRestoreError(slice.id, mode === 'rollback' ? 'rollback' : 'restore', error);

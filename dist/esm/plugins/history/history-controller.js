@@ -1,4 +1,4 @@
-import { CoreRuntimeError } from '../../core-runtime/errors.js';
+import { CoreRuntimeError } from '../../core/index.js';
 function resolveMaxSize(value) {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;
 }
@@ -34,6 +34,12 @@ export class HistoryPluginController {
             writable: true,
             value: 0
         });
+        Object.defineProperty(this, "baseline", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "listeners", {
             enumerable: true,
             configurable: true,
@@ -46,31 +52,43 @@ export class HistoryPluginController {
             writable: true,
             value: false
         });
-        Object.defineProperty(this, "maxSize", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: void 0
-        });
+        this.enabled = options.enabled !== false;
         this.maxSize = resolveMaxSize(options.maxSize);
         if (options.onChange)
             this.listeners.add(options.onChange);
+    }
+    get isEnabled() {
+        return !this.disposed && this.enabled;
+    }
+    get length() {
+        return this.records.length;
     }
     isAvailable() {
         return !this.disposed;
     }
     commit(record) {
-        if (record.operationId === 'core:load-image' || record.operationId === 'core:load-state') {
-            this.clear();
+        if (!this.isEnabled)
+            return;
+        if (record.operationId === 'core:load-image' ||
+            record.operationId === 'core:commit-load-image' ||
+            record.operationId === 'core:load-state') {
+            const changed = this.resetTimeline();
+            this.baseline = record.after;
+            if (changed)
+                this.emitChange();
             return;
         }
         this.push(record);
     }
     push(record) {
+        var _a;
         this.assertActive('push History');
+        if (!this.enabled)
+            return;
         if (!record || typeof record.operationId !== 'string' || record.operationId.length === 0) {
             throw new CoreRuntimeError('[ImageEditor] History record operationId is invalid.');
         }
+        (_a = this.baseline) !== null && _a !== void 0 ? _a : (this.baseline = record.before);
         if (this.position < this.records.length) {
             this.records = this.records.slice(0, this.position);
         }
@@ -87,6 +105,43 @@ export class HistoryPluginController {
         }
         this.position = this.records.length;
         this.emitChange();
+    }
+    enable(options) {
+        this.assertActive('enable History');
+        if ((options === null || options === void 0 ? void 0 : options.baseline) !== 'current') {
+            throw new CoreRuntimeError('[ImageEditor] History can enable only from the current baseline.', {
+                code: 'HISTORY_BASELINE_UNSUPPORTED',
+            });
+        }
+        return this.operations.run('history:enable', async () => {
+            if (this.enabled)
+                return;
+            const baseline = this.state.captureMemento();
+            this.records = [];
+            this.position = 0;
+            this.baseline = baseline;
+            this.enabled = true;
+            this.emitChange();
+        });
+    }
+    disable(options = {}) {
+        var _a;
+        this.assertActive('disable History');
+        if (options.clear !== undefined && typeof options.clear !== 'boolean') {
+            throw new CoreRuntimeError('[ImageEditor] History disable clear must be a boolean.', {
+                code: 'HISTORY_DISABLE_OPTION_INVALID',
+            });
+        }
+        const shouldClear = (_a = options.clear) !== null && _a !== void 0 ? _a : true;
+        return this.operations.run('history:disable', async () => {
+            const wasEnabled = this.enabled;
+            const hadRecords = this.records.length > 0 || this.position !== 0;
+            this.enabled = false;
+            if (shouldClear)
+                this.resetTimeline();
+            if (wasEnabled || (shouldClear && hadRecords))
+                this.emitChange();
+        });
     }
     undo() {
         this.assertActive('undo');
@@ -115,18 +170,15 @@ export class HistoryPluginController {
         });
     }
     canUndo() {
-        return !this.disposed && this.position > 0;
+        return this.isEnabled && this.position > 0;
     }
     canRedo() {
-        return !this.disposed && this.position < this.records.length;
+        return this.isEnabled && this.position < this.records.length;
     }
     clear() {
         if (this.disposed)
             return;
-        const changed = this.records.length > 0 || this.position !== 0;
-        this.records = [];
-        this.position = 0;
-        if (changed)
+        if (this.resetTimeline())
             this.emitChange();
     }
     onChange(handler) {
@@ -138,8 +190,10 @@ export class HistoryPluginController {
     }
     getState() {
         return Object.freeze({
+            isEnabled: this.isEnabled,
             canUndo: this.canUndo(),
             canRedo: this.canRedo(),
+            length: this.records.length,
             size: this.records.length,
             position: this.position,
         });
@@ -149,23 +203,35 @@ export class HistoryPluginController {
             return;
         this.records = [];
         this.position = 0;
+        this.baseline = null;
+        this.enabled = false;
         this.listeners.clear();
         this.disposed = true;
     }
+    resetTimeline() {
+        const changed = this.records.length > 0 || this.position !== 0;
+        this.records = [];
+        this.position = 0;
+        this.baseline = null;
+        return changed;
+    }
     async restoreTransactionally(target, operation) {
-        const rollback = this.state.mementos.capture();
+        const rollback = this.state.captureMemento();
         try {
-            await this.state.mementos.restore(target);
+            await this.state.restoreMemento(target);
         }
         catch (error) {
             try {
-                await this.state.mementos.restore(rollback);
+                await this.state.restoreMemento(rollback);
             }
             catch (rollbackError) {
-                throw new CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {
+                const failure = new CoreRuntimeError(`[ImageEditor] History ${operation} failed and rollback could not restore state.`, {
                     code: 'HISTORY_UNRECOVERABLE_ERROR',
                     cause: Object.freeze([error, rollbackError]),
+                    behavior: 'fatal-rollback',
                 });
+                this.state.reportFatal(failure);
+                throw failure;
             }
             throw new CoreRuntimeError(`[ImageEditor] History ${operation} failed.`, {
                 code: 'HISTORY_RESTORE_ERROR',

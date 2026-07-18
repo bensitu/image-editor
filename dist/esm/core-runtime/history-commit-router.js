@@ -44,7 +44,7 @@ export class HistoryCommitRouter {
             before: record.before,
             after: record.after,
             timestamp: record.timestamp,
-            detail: 'descriptor' in record ? record.descriptor : record.detail,
+            detail: record.detail,
         });
         return this.provider.commit(coreRecord);
     }

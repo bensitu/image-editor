@@ -1,336 +1,305 @@
-# API Reference
+# Public API Reference
 
-`ImageEditor` is the only public class. The package root re-exports it as both
-the default export and a named export, alongside editor object guards and public
-types.
+The current package is a Core Framework with explicit Plugin composition. Core
+owns lifecycle, image/layout state, Snapshot transactions, and export. Feature
+methods live on the typed APIs returned when Plugins are installed. The package
+root and `/core` resolve to the same `ImageEditorCore` class; the root does not
+export Features, Presets, DOM Controls, or migration code.
+
+This reference describes the `3.0.0-rc.1` candidate API. It is a breaking major
+release and is not a stable published release.
+
+## Formal package entries
+
+Every main-package entry below provides ESM, CommonJS, ESM declarations,
+CommonJS declarations, and NodeNext resolution. Fabric stays external.
+
+| Import                                           | Responsibility                                   |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `@bensitu/image-editor`                          | Core Framework root                              |
+| `@bensitu/image-editor/core`                     | Core Framework class and contracts               |
+| `@bensitu/image-editor/sdk`                      | Plugin authoring and Capability contracts        |
+| `@bensitu/image-editor/testing`                  | Test host and Conformance Kit                    |
+| `@bensitu/image-editor/plugins/transform`        | Base-image transforms                            |
+| `@bensitu/image-editor/plugins/history`          | Bounded History provider                         |
+| `@bensitu/image-editor/plugins/overlay`          | Shared Overlay Foundation                        |
+| `@bensitu/image-editor/plugins/mask`             | Editable redaction masks                         |
+| `@bensitu/image-editor/plugins/filters`          | Previewed and committed image filters            |
+| `@bensitu/image-editor/plugins/crop`             | Transactional crop sessions                      |
+| `@bensitu/image-editor/plugins/mosaic`           | Transactional pixelation sessions                |
+| `@bensitu/image-editor/plugins/annotation`       | Shared Annotation Foundation                     |
+| `@bensitu/image-editor/plugins/annotation-text`  | Text creation/editing                            |
+| `@bensitu/image-editor/plugins/annotation-shape` | Rect, line, and arrow annotations                |
+| `@bensitu/image-editor/plugins/annotation-draw`  | Freehand Draw and whole-object Eraser            |
+| `@bensitu/image-editor/plugins/overlay-state`    | Portable Overlay document wire format            |
+| `@bensitu/image-editor/plugins/dom-controls`     | Optional imperative DOM adapter                  |
+| `@bensitu/image-editor/presets/minimal`          | Transform with optional History                  |
+| `@bensitu/image-editor/presets/redaction`        | Redaction-focused composition                    |
+| `@bensitu/image-editor/presets/annotation`       | Annotation-focused composition                   |
+| `@bensitu/image-editor/presets/full`             | Every official Feature and both Foundations      |
+| `@bensitu/image-editor/migrate-v2`               | Isolated older-Snapshot detection and conversion |
+
+Do not import source paths, `dist` files, controllers, coordinators, registries,
+or internal chunks. `@bensitu/image-editor-codemod` is a separate package, not a
+main-package subpath.
+
+## Core Framework
 
 ```ts
 import * as fabric from 'fabric';
-import { ImageEditor } from '@bensitu/image-editor';
-import type { ImageEditorOptions, MaskConfig } from '@bensitu/image-editor';
+import { ImageEditorCore } from '@bensitu/image-editor/core';
+
+const editor = new ImageEditorCore(fabric, {
+    defaultLayoutMode: 'fit',
+    maxInputBytes: 16 * 1024 * 1024,
+    maxInputPixels: 50_000_000,
+});
 ```
 
-Internal controllers, action modules, runtime state, history management, Fabric
-adapters, and UI binding utilities are implementation details and are not part
-of the public package surface.
+The constructor requires the supported Fabric module and optional
+`ImageEditorCoreOptions`. Construction and Plugin installation are
+DOM-independent. `init({ canvas, canvasContainer, imagePlaceholder? })` binds a
+Fabric canvas; all Plugins must be installed first.
 
-## Object Model
+Main methods:
 
-The editor owns all Fabric objects it creates. Base images, masks, annotations,
-and transient session objects are tagged with editor metadata so the runtime can
-separate persistent editing state from temporary UI state such as crop
-rectangles, mask labels, previews, selections, and transform handles.
+| Method                                     | Contract                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| `use(plugin)`                              | Atomically install one synchronous Plugin and infer its API      |
+| `install(pluginOrPlan)`                    | Atomically install a tuple/plan and preserve result inference    |
+| `getPlugin(ref)` / `requirePlugin(ref)`    | Resolve `TApi \| null` or require `TApi`                         |
+| `init(elements)`                           | Initialize one canvas and run Plugin lifecycle hooks             |
+| `loadImage(source, options?)`              | Transactionally load a PNG/JPEG/WebP data URL                    |
+| `loadImageFile(file, options?)`            | Validate/decode a browser file, including EXIF orientation       |
+| `saveState()`                              | Serialize the current schema `image-editor.state@3`              |
+| `loadFromState(value, options?)`           | Validate then atomically restore; migrations are explicit        |
+| `exportImageBase64(options?)`              | Render isolated PNG/JPEG/WebP output                             |
+| `exportImageFile(options?)`                | Return the same isolated output as a browser `File`              |
+| `getImageInfo()` / `isImageLoaded()`       | Read immutable committed image status                            |
+| `setLayoutMode(mode)`                      | Select `fit`, `cover`, or `expand` for future image loads        |
+| `getLifecycleState()` / `getDiagnostics()` | Read lifecycle and bounded diagnostics                           |
+| `emergencyReset()` / `forceDispose()`      | Explicit recovery for a faulted runtime                          |
+| `dispose()` / `disposeAsync()`             | Idempotently release Plugins, Fabric canvas, and owned resources |
 
-| Kind         | Meaning                                                                  |
-| ------------ | ------------------------------------------------------------------------ |
-| `baseImage`  | The committed image at the bottom of the stack.                          |
-| `mask`       | Editable mask overlay with required `maskId`, `maskUid`, and `maskName`. |
-| `annotation` | Editable Text, Shape, or Draw overlay. Masks are not annotations.        |
-| `session`    | Internal crop labels, mask labels, Mosaic previews, and tool previews.   |
+Core rejects operations in invalid lifecycle states. Failed image/State loads
+restore the prior document before their promises reject. Snapshot validation
+runs before mutation and enforces byte, depth, object-count, string, data-URL,
+pixel, dimension, Plugin-payload, metadata, URL, and dangerous-key limits.
 
-Session objects are never persisted, exported, or user-deletable. Strict type
-guards reject legacy mask-like objects that do not carry `editorObjectKind`.
+Core imports are SSR-safe. Canvas initialization, image decode, and export need
+a browser or an explicitly supplied compatible Fabric DOM environment.
 
-## Constructor
+## SDK and installation
 
-```ts
-new ImageEditor(fabric: FabricModule, options?: ImageEditorOptions)
-new ImageEditor(options?: ImageEditorOptions) // UMD: reads globalThis.fabric
-```
+`definePluginRef<TApi>(id, apiVersion)` creates a typed identity.
+`definePlugin()` validates a manifest and returns a Plugin definition.
+`composePlugins()` creates a dependency-aware plan without erasing tuple API
+types. Manifests declare implementation version, API version, Core engine range,
+required/optional Plugins, required/optional Capabilities, and privileged
+permissions.
 
-## Lifecycle
+Setup is transactional. The host resolves dependencies deterministically;
+failure disposes earlier registrations in reverse order. Plugin-owned resources
+belong in `context.disposables`. Operations coordinate conflict domains and
+reentrancy. Tools coordinate exclusive sessions. Committed events run only after
+a successful transaction.
 
-| Method              | Description                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `init(elementMap?)` | Bind the editor to DOM elements. Pass string IDs, HTMLElement refs, or `null` for unmanaged optional controls. |
-| `dispose()`         | Tear down the editor, drain DOM bindings, and dispose the Fabric canvas. Idempotent.                           |
-| `disposeAsync()`    | Same teardown as `dispose()`, resolving after Fabric canvas disposal settles. Idempotent.                      |
+See the [Plugin Author Guide](./plugin-author-guide.md) for lifecycle, State
+Slices, Overlays, History, geometry/raster authority, errors, and packaging.
 
-`dispose()` is synchronous and starts Fabric canvas teardown. If an integration
-must immediately create another editor on the same `<canvas>` element, wait for
-the next microtask or animation frame before reusing that element, or call
-`await disposeAsync()`.
+## Capabilities
 
-## Image Loading and Layout
+Capabilities are versioned, typed ports—not a service locator for private Core
+objects. A provider version must match its token version. Required range failures
+abort installation; optional access distinguishes missing from incompatible.
 
-| Method                         | Description                                                                                                                                                                             |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadImage(base64, options?)`  | Load a supported raster image data URL (`png`, `jpeg`, or `webp`). Returns `Promise<void>`. Transactional: any failure restores the prior canvas, scroll, overflow, and snapshot state. |
-| `isImageLoaded()`              | Returns `true` if a valid image is currently loaded on the canvas.                                                                                                                      |
-| `isBusy()`                     | Returns `true` while the editor is loading, animating, or in Crop, Mosaic, Text, Shape, or Draw mode.                                                                                   |
-| `isProcessing()`               | Returns `true` while an async load, export/merge transaction, or animation is active, excluding tool modes.                                                                             |
-| `setLayoutMode(mode)`          | Select the layout strategy for future image loads. `mode` is `'fit'`, `'cover'`, or `'expand'`.                                                                                         |
-| `setCanvasSize(width, height)` | Resize the Fabric canvas to explicit positive pixel dimensions. Invalid values warn and no-op.                                                                                          |
-| `resizeToContainer(options?)`  | Resize the canvas to `canvasContainer.clientWidth/clientHeight`, optionally using fallback dimensions for hidden containers.                                                            |
-| `relayout(options?)`           | Re-measure the host layout and refresh canvas geometry without reloading the current image or dropping overlays.                                                                        |
+| Token                              | Public authority                                  | Permission when privileged      |
+| ---------------------------------- | ------------------------------------------------- | ------------------------------- |
+| `CORE_STATUS_CAPABILITY`           | Disposal status                                   | none                            |
+| `CORE_DIAGNOSTICS_CAPABILITY`      | Report warnings/errors                            | none                            |
+| `CORE_PRESENTATION_CAPABILITY`     | Background and layout policy                      | none                            |
+| `FABRIC_RUNTIME_CAPABILITY`        | Supported Fabric module                           | `fabric:objects` where required |
+| `CANVAS_READ_CAPABILITY`           | Scoped live-canvas read                           | `fabric:canvas-read`            |
+| `BASE_IMAGE_READ_CAPABILITY`       | Read Base Image and immutable geometry info       | none                            |
+| `BASE_IMAGE_INFO_CAPABILITY`       | Immutable image/geometry information only         | none                            |
+| `IMAGE_RESOURCE_POLICY_CAPABILITY` | Current decode/export resource limits             | none                            |
+| `RENDER_REQUEST_CAPABILITY`        | Request render                                    | none                            |
+| `CANVAS_RESIZE_CAPABILITY`         | Coordinated canvas resize                         | none                            |
+| `RASTER_MUTATION_CAPABILITY`       | Replace Base Image inside a mutation              | `core:raster-mutation`          |
+| `SNAPSHOT_REGISTRATION_CAPABILITY` | State Slices and object classification            | none                            |
+| `MEMENTO_HISTORY_CAPABILITY`       | Trusted Memento/history-provider integration      | none                            |
+| `GEOMETRY_MUTATION_CAPABILITY`     | Geometry participants                             | `core:geometry-participant`     |
+| `DOCUMENT_MUTATION_CAPABILITY`     | Atomic document/raster transaction orchestration  | varies by concrete mutation     |
+| `EXPORT_CONTRIBUTION_CAPABILITY`   | Isolated export contributor                       | `core:export-contributor`       |
+| `VISIBLE_RASTER_BAKE_CAPABILITY`   | Optional visible-filter bake before raster commit | none                            |
 
-`LoadImageOptions` currently includes `preserveScroll?: boolean` for preserving
-the container's scroll position across both successful loads and rollback paths.
+The Overlay Foundation additionally provides `OVERLAY_CAPABILITY` and
+`OVERLAY_REGISTRATION_CAPABILITY`; the Annotation Foundation provides
+`ANNOTATION_CAPABILITY` and `ANNOTATION_AUTHORING_CAPABILITY`; History provides
+`HISTORY_CAPABILITY`.
 
-File-input loading normalizes supported JPEG EXIF orientation by default, so
-phone photos with sideways encoded pixels are displayed upright. Set
-`autoOrientImage: false` to preserve the raw encoded orientation. Non-identity
-orientations are normalized through a canvas and re-encoded as JPEG; set
-`autoOrientImageQuality` to control that JPEG quality independently, or leave it
-`null` to use `downsampleQuality`. This applies only to JPEG files loaded
-through the file-input path; PNG/WebP files and `loadImage(dataUrl)` use the
-existing path, and arbitrary EXIF metadata is not preserved.
+The permission model makes authority auditable but does not sandbox third-party
+JavaScript. Fabric global mutation must be declared with
+`fabric:global-mutation` and weakens the strong multi-instance boundary.
 
-Input size guards run before browser image decode. `maxInputBytes` limits the
-encoded file size or decoded base64 payload size, and `maxInputPixels` rejects
-PNG/JPEG/WebP files whose header dimensions exceed the configured source-pixel
-budget when those dimensions can be read cheaply.
+## Testing and Conformance
 
-## Read-only State
+`@bensitu/image-editor/testing` exports a deterministic Plugin test host,
+controlled decoder/Fabric fixtures, `CONFORMANCE_PROFILE`, and assertions for:
 
-| Method                | Description                                                                      |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `getEditorState()`    | Return a safe snapshot of image, transform, tool-mode, busy, and history state.  |
-| `getImageInfo()`      | Return committed image dimensions/display geometry, or `null` before image load. |
-| `getMasks()`          | Return a shallow array snapshot of current live mask objects in canvas order.    |
-| `getAnnotations()`    | Return a shallow array snapshot of current live annotation objects.              |
-| `getSelection()`      | Return the current selected masks/annotations in the `onSelectionChange` shape.  |
-| `getActiveToolMode()` | Return `'crop'`, `'mosaic'`, `'text'`, `'shape'`, `'draw'`, or `null`.           |
+- lifecycle order, setup rollback, and registration leaks;
+- required/optional Capabilities and permission declarations;
+- State round trips, Slice migration, and persistent-kind Codec coverage;
+- compound document and Overlay History transactions;
+- Base Image, package peer, bundle isolation, and multi-instance boundaries;
+- method-level type inference.
 
-```ts
-const state = editor.getEditorState();
-const imageInfo = editor.getImageInfo();
-const masks = editor.getMasks();
-const selection = editor.getSelection();
-const activeToolMode = editor.getActiveToolMode();
-```
+`runPluginConformance()` returns a stable report. Required responsibilities may
+not be replaced with `NOT_AVAILABLE`. Testing is a separate entry and is not
+reachable from normal runtime bundles.
 
-`getEditorState()` and `getImageInfo()` return defensive data snapshots.
-`getMasks()`, `getAnnotations()`, and object references inside `getSelection()`
-or lifecycle callbacks are different: they return new arrays or payload objects,
-but the mask and annotation elements are the live Fabric objects on the canvas.
-Treat those objects as read-only from integration code. Direct mutations such as
-`mask.set(...)` or `annotation.set(...)` bypass editor history, metadata
-synchronization, and change callbacks.
+## Official Features
 
-## Transforms
+Install dependencies before dependents. Presets encode these orders. Direct
+composition should use `editor.install()` with a tuple or `composePlugins()`.
 
-| Method                  | Description                                                                                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scaleImage(factor)`    | Scale to `factor` (clamped to `[minScale, maxScale]`). Non-finite values are no-ops. Animated. Enabled bound overlays snap to the final image transform. |
-| `rotateImage(degrees)`  | Rotate to `degrees`. Non-finite values resolve without changing canvas state. Animated. Enabled bound overlays snap to the final image transform.        |
-| `flipHorizontal()`      | Toggle horizontal flip on the base image. Enabled bound masks and annotations follow; session overlays are not mirrored. Returns `Promise<void>`.        |
-| `flipVertical()`        | Toggle vertical flip on the base image. Enabled bound masks and annotations follow; session overlays are not mirrored. Returns `Promise<void>`.          |
-| `resetImageTransform()` | Animate to scale 1, rotation 0, and an unflipped state. Records exactly one history entry and applies one final delta to enabled bound overlays.         |
+### Transform
 
-Overlay transform binding is disabled by default. See
-[Overlay Transform Binding](./overlay-transform-binding.md) for constructor
-options and Text reflection behavior.
+`TransformPluginApi` exposes `scale`, `zoomIn`, `zoomOut`, `rotate`,
+`flipHorizontal`, `flipVertical`, `resetImageTransform`, and `getState`.
+Mutations are geometry-coordinated and produce one History record when History
+is enabled. Configuration sets animation duration and scale/rotation steps.
 
-## Image Filters
+### History
 
-Image adjustments use Fabric's `FabricImage.filters` pipeline for live preview.
-The editor's normalized filter config is the canonical state; Fabric filter
-instances are the rendering projection and are not reverse-parsed by public
-APIs.
+`HistoryPort` exposes `enable({ baseline: 'current' })`, `disable`, `undo`,
+`redo`, `clear`, `canUndo`, `canRedo`, `getState`, and `onChange`. Recording is
+enabled by default and bounded by `maxSize`. Disabled recording remains
+installed; re-enabling captures a non-undoable current baseline. See
+[History](./history.md).
 
-| Method                         | Description                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `setImageFilterConfig(config)` | Patch the current preview filter config and update the visible base image without pushing history.    |
-| `getImageFilterConfig()`       | Return a defensive copy of the current resolved filter config.                                        |
-| `resetImageFilterConfig()`     | Restore the preview to the last committed filter config without pushing history.                      |
-| `clearImageFilters()`          | Set all filters to neutral values and commit that cleared state when it differs from committed state. |
-| `commitImageFilters()`         | Make the current preview filter config undoable with one history entry when it changed.               |
+### Overlay Foundation
 
-Numeric ranges are `brightness`, `contrast`, and `saturation` from `-1` to `1`;
-`blur` and `sharpen` from `0` to `1`. `grayscale`, `sepia`, and `vintage` are
-booleans. `vintage` uses Fabric's native Vintage filter when available.
-`sharpen` is implemented through a deterministic Fabric convolution kernel.
+The Foundation owns persistent/transient classification, IDs, selection,
+mutation, flattening, geometry/interaction policies, Codecs, and export
+renderers. Its runtime API lists immutable classifications but intentionally
+uses live Fabric objects inside privileged Plugin contracts. Persistent kinds
+must have a versioned Codec. See [Overlay transform binding](./overlay-transform-binding.md).
 
-## Masks
+### Mask
 
-| Method                     | Description                                                                   |
-| -------------------------- | ----------------------------------------------------------------------------- |
-| `createMask(config?)`      | The single mask-creation entry point. Returns the new `MaskObject` or `null`. |
-| `removeSelectedMask()`     | Remove the currently selected mask and push one history entry.                |
-| `removeAllMasks(options?)` | Remove every mask. `options.saveHistory` defaults to `true`.                  |
+`MaskPluginApi` exposes `create`, `getAll`, `remove`, `removeSelected`,
+`removeAll`, and `flatten`. Mask changes use Overlay transactions and History;
+labels and selection artifacts are transient. Configuration controls defaults,
+labels, rotation, list order, transform binding, and naming.
 
-`MaskConfig` supports rect, circle, ellipse, polygon, and custom
-`fabricGenerator` masks. Custom shape strings are passed through to
-`fabricGenerator`; unsupported shape strings without a generator warn and fall
-back to the historical rectangle behavior. Falsy values in `styles` (`0`,
-`false`, `null`, `''`, `NaN`) are applied verbatim. Every mask is marked as
-`editorObjectKind: 'mask'` and includes required `maskId`, `maskUid`, and
-`maskName` metadata.
+### Filters
 
-Use `defaultMaskConfig` to define constructor-level defaults for masks created
-through either `createMask()` or the built-in `createMaskButton`. Per-call
-`createMask(config)` values override `defaultMaskConfig`.
+`FiltersPluginApi` exposes `preview`, `commit`, `cancelPreview`, `clear`, `bake`,
+`configure`, `getConfiguration`, `getState`, and `subscribe`. Preview is
+transient; commit updates a validated State Slice; bake atomically replaces the
+Base Image. Supported definitions and ranges are in [Filters](./filters.md).
 
-## Crop
+### Crop
 
-| Method                      | Description                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| `enterCropMode(options?)`   | Add an interactive crop rectangle on top of the image.                               |
-| `setCropAspectRatio(ratio)` | Update the active crop rectangle ratio while crop mode is open.                      |
-| `applyCrop()`               | Apply the current crop region. Atomic: failure rolls back to the pre-crop snapshot.  |
-| `cancelCrop()`              | Cancel crop mode and restore the prior canvas state without pushing a history entry. |
+`CropPluginApi` exposes `enter`, `updateRect`, `setAspectRatio`, `apply`,
+`cancel`, `getSession`, and `subscribe`. Rectangles use natural image pixels.
+Preview is transient; apply is a rollback-safe raster/geometry commit. Overlay
+preserve/drop/clip policy and visible-filter bake are explicit. See [Crop](./crop.md).
 
-`enterCropMode({ aspectRatio })` locks the crop rectangle to a preset or custom
-ratio. Supported preset strings are `'free'`, `'1:1'`, `'3:4'`, `'4:3'`,
-`'3:2'`, `'2:3'`, `'16:9'`, and `'9:16'`. Custom ratios use
-`{ width, height }`. Per-call options override `crop.aspectRatio` from the
-constructor.
+### Mosaic
 
-When `cropAspectRatioSelect` is bound through `init(elementMap)`, the built-in
-Crop button uses the select's current value and changing the select while crop
-mode is open calls `setCropAspectRatio()` to resize the active crop rectangle.
+`MosaicPluginApi` exposes `enter`, stroke methods, `commit`, `cancel`,
+configuration, session status, and subscription. Points use natural image
+pixels. Point count and raster output are bounded. Preview is transient and
+commit is rollback-safe. See [Mosaic](./mosaic.md).
 
-## Mosaic Mode
+### Annotation Foundation
 
-| Method                     | Description                                                            |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `enterMosaicMode()`        | Enter circular-brush Mosaic mode and show the hover preview on canvas. |
-| `exitMosaicMode()`         | Leave Mosaic mode and remove preview/session handlers.                 |
-| `isMosaicMode()`           | Returns `true` while a Mosaic session is active.                       |
-| `getMosaicConfig()`        | Returns a defensive copy of the current runtime Mosaic config.         |
-| `setMosaicConfig(config)`  | Patch current Mosaic config without creating a history entry.          |
-| `resetMosaicConfig()`      | Restore current Mosaic config from constructor defaults.               |
-| `setMosaicBrushSize(size)` | Set brush diameter in canvas pixels.                                   |
-| `setMosaicBlockSize(size)` | Set source-pixel block size; values are floored to integers.           |
+The Foundation depends on Overlay and owns annotation descriptors, selection,
+metadata, hide/lock, ordering, remove, flatten, and subscriptions. Concrete Text,
+Shape, and Draw Plugins register Feature definitions and Codecs. See
+[Annotations](./annotations.md).
 
-`brushSize` is the circular brush diameter in canvas pixels. `blockSize` is the
-source-image pixel block size; larger values produce chunkier pixelation.
-Clicking outside the image is a no-op. Each successful Mosaic click bakes the
-pixelated region into the base image and creates exactly one undo step. Because
-Mosaic edits replace base image pixels rather than adding Fabric overlay
-objects, exported images include the Mosaic naturally while the preview circle
-is never exported or saved in history.
+### Text
 
-## Text, Shape, and Draw Annotations
+`TextAnnotationPluginApi` creates/updates text and owns begin/commit/cancel edit
+sessions, configuration, status, and subscriptions. Font fallback and transform
+reflection behavior are explicit. See [Text](./annotation-text.md).
 
-Tool modes are mutually exclusive: Crop, Mosaic, Text, Shape, and Draw cannot be
-active at the same time. `getEditorState()` reports `activeToolMode` plus
-`isCropMode`, `isMosaicMode`, `isTextMode`, `isShapeMode`, and `isDrawMode`.
+### Shape
 
-While Text, Shape, or Draw mode is active, unrelated image operations are
-blocked: export, merge, undo/redo, delete, transform, `loadImage`, and
-`loadFromState` no-op through the normal guard. Exit the active mode before
-running those operations.
+`ShapeAnnotationPluginApi` creates and updates rectangles, lines, and arrows, or
+runs a transient preview session with `enter`, `updatePreview`, `commit`, and
+`cancel`. See [Shape](./annotation-shape.md).
 
-| Method                               | Description                                                                                 |
-| ------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `getAnnotations()`                   | Return a shallow array snapshot of current live annotation objects. Masks are not included. |
-| `enterTextMode()` / `exitTextMode()` | Click empty canvas space to create editable text annotations.                               |
-| `isTextMode()`                       | Returns `true` while Text mode is active.                                                   |
-| `createTextAnnotation(config?)`      | Create a text annotation directly and return it.                                            |
-| `getTextConfig()`                    | Return a defensive copy of the current Text config.                                         |
-| `setTextConfig(config)`              | Patch current Text config without history.                                                  |
-| `resetTextConfig()`                  | Restore Text config from constructor defaults.                                              |
-| `setTextColor(color)`                | Convenience setter for text fill color.                                                     |
-| `setTextFontSize(size)`              | Convenience setter for text font size.                                                      |
-| `createShapeAnnotation(config?)`     | Create a rectangle, line, or arrow annotation directly and return it.                       |
-| `enterShapeMode(shape?)`             | Draw the selected shape interactively, or switch the active shape while Shape mode is open. |
-| `exitShapeMode()`                    | Leave Shape mode and remove the preview object.                                             |
-| `isShapeMode()`                      | Returns `true` while Shape mode is active.                                                  |
-| `getShapeConfig()`                   | Return a defensive copy of the current Shape config.                                        |
-| `setShapeConfig(config)`             | Patch current Shape config without history.                                                 |
-| `resetShapeConfig()`                 | Restore Shape config from constructor defaults.                                             |
-| `enterDrawMode()` / `exitDrawMode()` | Use Fabric free drawing; each stroke becomes a Draw annotation.                             |
-| `isDrawMode()`                       | Returns `true` while Draw mode is active.                                                   |
-| `getDrawConfig()`                    | Return a defensive copy of the current Draw config.                                         |
-| `setDrawConfig(config)`              | Patch current Draw config without history.                                                  |
-| `resetDrawConfig()`                  | Restore Draw config from constructor defaults.                                              |
-| `setDrawColor(color)`                | Convenience setter for brush color.                                                         |
-| `setDrawBrushSize(size)`             | Convenience setter for brush size.                                                          |
-| `setDrawSubMode(mode)`               | Switch active Draw mode between `'brush'` and `'erase'`.                                    |
-| `getDrawSubMode()`                   | Return `'brush'`, `'erase'`, or `null` when Draw mode is inactive.                          |
-| `getEraserConfig()`                  | Return a defensive copy of the current eraser config.                                       |
-| `setEraserConfig(config)`            | Patch eraser config without history.                                                        |
-| `resetEraserConfig()`                | Restore eraser config from constructor defaults.                                            |
-| `updateAnnotation(id, config)`       | Update an annotation by id.                                                                 |
-| `updateSelectedAnnotation(config)`   | Update selected annotation objects.                                                         |
-| `removeSelectedAnnotation()`         | Remove selected unlocked annotations.                                                       |
-| `removeAllAnnotations(options?)`     | Remove annotations only. Masks are preserved.                                               |
-| `deleteSelectedObject()`             | Convenience deletion for selected masks and unlocked annotations.                           |
+### Draw and Eraser
 
-Annotations carry `annotationHidden` and `annotationLocked` metadata. Hidden
-annotations remain in state and annotation lists, but are not visible or
-rendered during export until shown again. Locked annotations are non-interactive
-and are skipped by selected-annotation update/delete operations unless an API
-explicitly opts into forced removal.
+`DrawAnnotationPluginApi` owns brush/eraser sessions, point limits,
+configuration, and status. The current Eraser removes whole intersected Draw
+objects; it does not split paths. See [Draw/Eraser](./annotation-draw.md).
 
-Shape annotations are ordinary annotation overlays, not masks. They are included
-in `getAnnotations()`, selection payloads, export, merge, history, undo/redo,
-and `saveState()` / `loadFromState()`. Their `shapeAnnotationKind` metadata is
-one of `'rect'`, `'line'`, or `'arrow'`.
+### Overlay State
 
-The eraser is a Draw sub-mode, not a top-level editor mode. It targets Draw
-annotations only and removes intersected Draw strokes as whole annotation
-objects. It does not erase base-image pixels, masks, text annotations, shape
-annotations, or session previews.
+`OverlayStatePluginApi` exposes `validate`, `migrate`, `exportState`, and
+`importState`. Wire version 1 uses schema `image-editor.overlay-state` and
+image-normalized coordinates. Import validates resource limits and Codecs before
+an atomic replace/append transaction. It is portable overlay data, not a full
+editor Snapshot. See [Overlay State](./overlay-state.md).
 
-## Layer Operations
+### DOM Controls
 
-Editable overlays include masks and annotations. Layer operations keep the base
-image below overlays and session objects above overlays.
+DOM Controls is an optional adapter. Sections bind exact `PluginRef`/resolver
+pairs to selectors or elements; the Plugin owns listeners, guarded keyboard
+commands, status renderers, and async error routing. It adds no Feature logic and
+is absent from all Presets unless `domControls` is explicitly supplied. See
+[DOM Controls](./dom-controls.md).
 
-| Method                         | Description                                       |
-| ------------------------------ | ------------------------------------------------- |
-| `bringSelectedObjectForward()` | Move selected editable overlays one step up.      |
-| `sendSelectedObjectBackward()` | Move selected editable overlays one step down.    |
-| `bringSelectedObjectToFront()` | Move selected editable overlays to overlay front. |
-| `sendSelectedObjectToBack()`   | Move selected editable overlays to overlay back.  |
+## Presets
 
-## Merge and Export
+Preset factories create one Core, install a fixed Plugin plan, and return
+`{ editor, ...featureApis, domControls }`. They do not initialize the canvas or
+forward Feature methods. Minimal, Redaction, Annotation, and Full compositions
+are described in [Typed Presets](./presets.md). Optional DOM factories preserve
+nullability in the inferred result type.
 
-| Method                        | Description                                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------------------------- |
-| `mergeMasks()`                | Bake masks into the base image atomically. Returns `Promise<void>`.                               |
-| `mergeAnnotations()`          | Bake annotations into the base image atomically. Returns `Promise<void>`.                         |
-| `exportImageBase64(options?)` | Returns `Promise<string>` (data URL). Rejects when no image is loaded or the editor is not ready. |
-| `exportImageFile(options?)`   | Returns `Promise<File>`. Rejects when no image is loaded.                                         |
-| `downloadImage(options?)`     | Returns `Promise<void>` and triggers a browser download. No-op when no image is loaded.           |
+## Snapshot migration entry
 
-All export APIs use the same `ImageExportOptions` shape:
+Core accepts explicit generic `SnapshotMigration` handlers through
+`loadFromState(..., { migrations })`; it never guesses or automatically converts
+an unsupported schema. The isolated migration entry exports:
 
-| Option             | Default   | Description                                                                       |
-| ------------------ | --------- | --------------------------------------------------------------------------------- |
-| `mergeMasks`       | `true`    | Render masks into exported pixels. Mask labels are never exported.                |
-| `mergeAnnotations` | `true`    | Render non-hidden annotations into exported pixels.                               |
-| `exportArea`       | `'image'` | `'image'` clips to the image bounding box; `'canvas'` exports the canvas.         |
-| `fileType`         | `'jpeg'`  | `'png'`, `'jpeg'`, `'jpg'`, `'webp'`, or matching full MIME strings.              |
-| `format`           | `'jpeg'`  | Alias for `fileType` on all export APIs; `fileType` wins when both set.           |
-| `quality`          | `0.92`    | Lossy quality clamped to `[0, 1]`; ignored for PNG.                               |
-| `multiplier`       | `1`       | Output resolution multiplier.                                                     |
-| `fileName`         | option    | `exportImageFile()` and `downloadImage()`. Defaults to `defaultDownloadFileName`. |
+- `detectSnapshotVersion`;
+- `migrateV2Snapshot`;
+- `loadV2Snapshot`;
+- `v2SnapshotMigration`.
 
-Unknown runtime `fileType` / `format` values preserve the compatibility fallback
-to JPEG. If the browser cannot encode the resolved target MIME type and
-`canvas.toDataURL()` falls back to another MIME such as PNG, export rejects
-instead of returning mismatched Base64/File metadata.
+Strict conversion is the default. Unsupported persisted state rejects; lossy
+conversion requires `unsupportedFieldPolicy: 'warn-and-skip'` and emits each
+warning. Input size/depth/object limits and dangerous-key checks run before
+conversion, output is revalidated by Core, and failure leaves the editor
+unchanged. See [Migration from 2.x](./migration-from-v2.md).
 
-`mergeMasks` and `mergeAnnotations` in export options affect the rendered output
-only. They do not mutate editor state, remove objects, or push history entries.
-State-mutating merge APIs are `mergeMasks()` and `mergeAnnotations()`.
-`mergeMasks()` preserves annotations; `mergeAnnotations()` preserves masks.
+## Errors and recovery
 
-## State and History
+Core exposes lifecycle, fault, document-mutation, Snapshot validation, and
+unsupported-version errors. The SDK exposes manifest, identity, dependency,
+engine/API-version, Capability, permission, setup, and batch-install errors.
+Features export domain errors from their own entries.
 
-| Method                    | Description                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------------- |
-| `saveState()`             | Capture a snapshot of the canvas plus editor metadata into the history stack.         |
-| `loadFromState(snapshot)` | Restore canvas, masks, and editor metadata from a snapshot. Returns `Promise<void>`.  |
-| `undo()`                  | Undo the last state change. Routed through the animation queue. No-op while disposed. |
-| `redo()`                  | Redo the next state change. Routed through the animation queue. No-op while disposed. |
+Recoverable public-input errors reject the operation without partial mutation.
+An invariant or rollback failure can fault the editor; normal operations then
+reject until `emergencyReset`, `forceDispose`, or replacement. Host diagnostic
+callbacks are contained and cannot replace the operation result.
 
-`loadFromState()` is designed for snapshots produced by this editor's
-`saveState()`. If snapshots come from external storage or user-controlled input,
-validate or reject untrusted JSON before passing it to the editor.
+## Bundle and environment policy
 
-## Overlay Persistence
+The root remains Core-only and tree-shakeable. Migration, Testing, Features,
+Presets, DOM Controls, and Codemod code are absent unless their entry is
+selected. Fabric is a peer/global and is not bundled.
 
-Use `exportOverlayState()`, `validateOverlayState()`, and
-`importOverlayState()` when the application needs to store the original image
-and editable overlays separately. See [Overlay State](./overlay-state.md).
-
-## Public Types
-
-Public types are re-exported from the package root. Import the types you need
-directly from `@bensitu/image-editor`; the generated declaration file
-`dist/types/index.d.ts` is the full source of truth for the exported type names.
+Bundled applications should prefer ESM subpaths. Script-tag applications load
+Fabric and `dist/umd/image-editor.full.umd.min.js`, then call
+`ImageEditorFull.createFullPreset(fabric, options)`. The Full UMD exposes the
+public composition/factories, has no removed monolithic facade, and installs DOM
+Controls only through an explicit option.

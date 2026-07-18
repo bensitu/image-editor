@@ -98,6 +98,49 @@ export function cloneStateValue<T>(value: T): T {
     }
 }
 
+/** Verifies that a value is safe to retain by reference in a trusted Memento. */
+export function assertSafeImmutableReference(
+    value: unknown,
+    path = '$',
+    seen = new WeakSet<object>(),
+): void {
+    if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+        throw new StateCloneError(
+            `Reference state at ${path} contains an unsupported ${typeof value}.`,
+        );
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+        throw new StateCloneError(`Reference state at ${path} contains a non-finite number.`);
+    }
+    if (!isObject(value)) return;
+    if (seen.has(value)) {
+        throw new StateCloneError(`Reference state at ${path} contains a cyclic reference.`);
+    }
+    if (!Object.isFrozen(value)) {
+        throw new StateCloneError(`Reference state at ${path} must be frozen.`);
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
+        throw new StateCloneError(
+            `Reference state at ${path} contains unsupported object type "${prototype?.constructor?.name ?? 'unknown'}".`,
+        );
+    }
+    seen.add(value);
+    for (const key of Object.keys(value)) {
+        if (dangerousKeys.has(key)) {
+            throw new StateCloneError(
+                `Reference state at ${path} contains dangerous key "${key}".`,
+            );
+        }
+        assertSafeImmutableReference(
+            (value as Record<string, unknown>)[key],
+            Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`,
+            seen,
+        );
+    }
+    seen.delete(value);
+}
+
 export function isDangerousStateKey(key: string): boolean {
     return dangerousKeys.has(key);
 }

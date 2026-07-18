@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
     CapabilityConflictError,
+    CapabilityMissingError,
     CapabilityRegistry,
+    CapabilityVersionError,
     InvalidCapabilityVersionError,
     InvalidPluginDefinitionError,
     PluginCapabilityError,
@@ -37,11 +39,11 @@ test('required capability resolution distinguishes missing, incompatible, and co
     assert.throws(
         () => registry.require({ token, range: '^1.0.0' }, 'consumer.missing'),
         (error) => {
-            assert.ok(error instanceof PluginCapabilityError);
+            assert.ok(error instanceof CapabilityMissingError);
             assert.equal(error.consumerPluginId, 'consumer.missing');
             assert.equal(error.capabilityId, token.id);
             assert.equal(error.requestedRange, '^1.0.0');
-            assert.equal(error.reason, 'missing');
+            assert.deepEqual(error.availableProviders, []);
             assert.match(error.message, /consumer\.missing/);
             assert.match(error.message, /example\.test\/port/);
             return true;
@@ -54,10 +56,10 @@ test('required capability resolution distinguishes missing, incompatible, and co
     assert.throws(
         () => registry.require({ token, range: '^2.0.0' }, 'consumer.incompatible'),
         (error) => {
-            assert.ok(error instanceof PluginCapabilityError);
-            assert.equal(error.installedVersion, '1.4.0');
+            assert.ok(error instanceof CapabilityVersionError);
+            assert.equal(error.actualVersion, '1.4.0');
             assert.equal(error.providerPluginId, 'provider.one');
-            assert.equal(error.reason, 'incompatible');
+            assert.equal(error.expectedRange, '^2.0.0');
             assert.match(error.message, /\^2\.0\.0/);
             assert.match(error.message, /1\.4\.0/);
             assert.match(error.message, /provider\.one/);
@@ -156,7 +158,7 @@ test('prerelease providers only satisfy ranges that explicitly admit prereleases
 
     assert.throws(
         () => registry.require({ token, range: '^1.0.0' }, 'consumer.stable'),
-        PluginCapabilityError,
+        CapabilityVersionError,
     );
     assert.deepEqual(registry.require({ token, range: '^1.0.0-beta.1' }, 'consumer.prerelease'), {
         prerelease: true,

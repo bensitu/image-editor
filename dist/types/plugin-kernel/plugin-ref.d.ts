@@ -4,8 +4,8 @@ export interface PluginIdentity {
     readonly apiVersion: string;
 }
 export interface PluginRef<TApi> extends PluginIdentity {
-    /** Phantom invariant type. Runtime code never reads this field. */
-    readonly __apiType?: (api: TApi) => TApi;
+    /** Phantom API type. Runtime code never reads this field. */
+    readonly __apiType?: TApi;
     readonly [pluginRefBrand]: true;
 }
 export declare function definePluginRef<TApi>(id: string, apiVersion: string): PluginRef<TApi>;

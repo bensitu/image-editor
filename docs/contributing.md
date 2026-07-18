@@ -11,12 +11,16 @@ npm run build
 ```
 
 `npm run build` runs `clean -> build:esm -> build:cjs -> build:types ->
-build:umd` in order, emitting:
+build:umd -> build:prune` in order, emitting:
 
-- `dist/esm/index.js` and the rest of the decomposed source tree
+- the ESM graph reachable from formal package entries
 - `dist/cjs/index.cjs`
 - `dist/types/index.d.ts`
-- `dist/umd/image-editor.umd.js`
+- `dist/umd/image-editor.full.umd.js`
+- `dist/umd/image-editor.full.umd.min.js`
+
+The final pruning pass removes build-only and type-only artifacts that cannot
+be reached through a formal package contract.
 
 ## Node Tests
 
@@ -65,30 +69,20 @@ Chromium-only unless browser-specific snapshots are added.
 
 ## Release Checks
 
-For the full local release gate, run:
+For the full local candidate check, run:
 
 ```bash
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npm run package:check
-npm run release:gate
-npm pack --dry-run
-npm run release:check
-npm run test:e2e:all
-npm audit --audit-level=high
+npm run check:release
 ```
 
-`npm run release:gate` validates generated artifacts, bundle shape, declaration
-output, and package export metadata. Run it only after `npm run build`; the
-convenience command `npm run release:check` runs build, package linting, the
-release gate, and `npm pack --dry-run` in order.
+`check:release` requires a clean candidate commit on `develop`, `main`, or a
+`release/*` branch. It verifies candidate metadata, deterministic output, all
+formal package entries, public API and bundle policies, packed consumers,
+cross-browser and visual behavior, UMD, migration, Codemod, performance, and
+security. It only validates local readiness and does not change external release
+state. `release:gate` and `release:check` remain aliases for this command.
 
-`npm run ci` combines format, lint, typecheck, tests, and `release:check`.
-Playwright visual tests are kept outside the default CI command until they are
-stable across supported environments. The test suite also supports a clean
-checkout where `dist/` has not been built yet; integration helpers use source
-modules until build artifacts exist, while release-gate artifact checks run only
-after the build step.
+`npm run ci` uses the engineering subset through `check:release-readiness`; the
+workflow runs its browser matrix separately. A clean checkout does not need a
+pre-existing `dist/` because the checks build generated artifacts before package
+validation.

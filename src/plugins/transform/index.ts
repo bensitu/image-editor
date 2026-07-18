@@ -1,34 +1,33 @@
+import type { CoreEventMap } from '../../core/index.js';
 import {
-    CORE_HOST_CAPABILITY,
-    CORE_STATE_CAPABILITY,
-    GEOMETRY_CAPABILITY,
-} from '../../core-runtime/internal-capabilities.js';
-import type { CoreEventMap } from '../../core-runtime/public-types.js';
-import {
+    BASE_IMAGE_READ_CAPABILITY,
+    CORE_STATUS_CAPABILITY,
+    FABRIC_RUNTIME_CAPABILITY,
+    GEOMETRY_MUTATION_CAPABILITY,
+    RENDER_REQUEST_CAPABILITY,
+    SNAPSHOT_REGISTRATION_CAPABILITY,
+    definePlugin,
     definePluginRef,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
-} from '../../plugin-kernel/index.js';
+} from '../../sdk/index.js';
 import {
     TransformPluginController,
     resolveTransformOptions,
+    type TransformMutationOptions,
     type TransformPluginOptions,
     type TransformPluginState,
 } from './transform-controller.js';
 
 export interface TransformPluginApi {
-    scale(factor: number): Promise<void>;
-    zoomIn(): Promise<void>;
-    zoomOut(): Promise<void>;
-    rotate(degrees: number): Promise<void>;
-    flipHorizontal(): Promise<void>;
-    flipVertical(): Promise<void>;
-    resetImageTransform(): Promise<void>;
-    /** @internal Runtime alias retained for the source-level PoC tests. */
-    reset(): Promise<void>;
+    scale(factor: number, options?: TransformMutationOptions): Promise<void>;
+    zoomIn(options?: TransformMutationOptions): Promise<void>;
+    zoomOut(options?: TransformMutationOptions): Promise<void>;
+    rotate(degrees: number, options?: TransformMutationOptions): Promise<void>;
+    flipHorizontal(options?: TransformMutationOptions): Promise<void>;
+    flipVertical(options?: TransformMutationOptions): Promise<void>;
+    resetImageTransform(options?: TransformMutationOptions): Promise<void>;
     getState(): TransformPluginState;
-    /** @internal Used only by the v2 compatibility facade. */
-    synchronizeCompatibilityState(state: TransformPluginState): void;
 }
 
 export const transformPluginRef = definePluginRef<TransformPluginApi>(
@@ -55,35 +54,60 @@ export function transformPlugin(
 ): SynchronousEditorPlugin<TransformPluginApi, CoreEventMap> {
     const resolved = resolveTransformOptions(options);
     let controller: TransformPluginController | null = null;
-    return Object.freeze({
+    return definePlugin({
         ref: transformPluginRef,
-        version: '1.0.0',
+        manifest: {
+            id: transformPluginRef.id,
+            version: '1.0.0',
+            apiVersion: transformPluginRef.apiVersion,
+            engine: '^3.0.0',
+            requires: [
+                { token: CORE_STATUS_CAPABILITY, range: '^1.0.0' },
+                { token: FABRIC_RUNTIME_CAPABILITY, range: '^1.0.0' },
+                { token: BASE_IMAGE_READ_CAPABILITY, range: '^1.0.0' },
+                { token: RENDER_REQUEST_CAPABILITY, range: '^1.0.0' },
+                { token: SNAPSHOT_REGISTRATION_CAPABILITY, range: '^1.0.0' },
+                { token: GEOMETRY_MUTATION_CAPABILITY, range: '^1.0.0' },
+            ],
+            permissions: ['fabric:objects', 'core:geometry-participant'],
+        },
         setupMode: 'sync',
-        requires: [
-            { token: CORE_HOST_CAPABILITY, range: '^1.0.0' },
-            { token: CORE_STATE_CAPABILITY, range: '^1.0.0' },
-            { token: GEOMETRY_CAPABILITY, range: '^1.0.0' },
-        ],
         setup(context: PluginSetupContext<CoreEventMap>) {
-            const host = context.capabilities.require(CORE_HOST_CAPABILITY);
-            const state = context.capabilities.require(CORE_STATE_CAPABILITY);
-            const geometry = context.capabilities.require(GEOMETRY_CAPABILITY);
-            controller = new TransformPluginController(host, geometry, resolved);
-            for (const [id, mode] of [
-                ['transform:scale', 'animation'],
-                ['transform:zoom-in', 'animation'],
-                ['transform:zoom-out', 'animation'],
-                ['transform:rotate', 'animation'],
-                ['transform:flip-horizontal', 'busy'],
-                ['transform:flip-vertical', 'busy'],
-                ['transform:reset', 'animation'],
+            const status = context.capabilities.require(CORE_STATUS_CAPABILITY);
+            const fabricRuntime = context.capabilities.require(FABRIC_RUNTIME_CAPABILITY);
+            const baseImage = context.capabilities.require(BASE_IMAGE_READ_CAPABILITY);
+            const render = context.capabilities.require(RENDER_REQUEST_CAPABILITY);
+            const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
+            const geometry = context.capabilities.require(GEOMETRY_MUTATION_CAPABILITY);
+            controller = new TransformPluginController(
+                Object.freeze({ ...status, ...fabricRuntime }),
+                baseImage,
+                render,
+                geometry,
+                resolved,
+            );
+            for (const id of [
+                'transform:scale',
+                'transform:zoom-in',
+                'transform:zoom-out',
+                'transform:rotate',
+                'transform:flip-horizontal',
+                'transform:flip-vertical',
+                'transform:reset',
             ] as const) {
-                context.operations.register({ id, mode });
+                context.operations.register({
+                    id,
+                    mode:
+                        id.includes('flip') || id === 'transform:reset' ? 'mutation' : 'animation',
+                    conflictDomains: ['document', 'base-image', 'geometry', 'overlay', 'state'],
+                    reentrancy: 'queue',
+                });
             }
-            context.addDisposable(
-                state.slices.register({
+            context.disposables.add(
+                state.registerSlice({
                     id: transformPluginRef.id,
                     version: 1,
+                    capturePolicy: 'always',
                     capture: () =>
                         controller?.getState() ?? {
                             scale: 1,
@@ -104,17 +128,21 @@ export function transformPlugin(
                 return controller;
             };
             return Object.freeze({
-                scale: (factor: number) => requireController().scale(factor),
-                zoomIn: () => requireController().zoomIn(),
-                zoomOut: () => requireController().zoomOut(),
-                rotate: (degrees: number) => requireController().rotate(degrees),
-                flipHorizontal: () => requireController().flipHorizontal(),
-                flipVertical: () => requireController().flipVertical(),
-                resetImageTransform: () => requireController().resetImageTransform(),
-                reset: () => requireController().resetImageTransform(),
+                scale: (factor: number, mutationOptions?: TransformMutationOptions) =>
+                    requireController().scale(factor, mutationOptions),
+                zoomIn: (mutationOptions?: TransformMutationOptions) =>
+                    requireController().zoomIn(mutationOptions),
+                zoomOut: (mutationOptions?: TransformMutationOptions) =>
+                    requireController().zoomOut(mutationOptions),
+                rotate: (degrees: number, mutationOptions?: TransformMutationOptions) =>
+                    requireController().rotate(degrees, mutationOptions),
+                flipHorizontal: (mutationOptions?: TransformMutationOptions) =>
+                    requireController().flipHorizontal(mutationOptions),
+                flipVertical: (mutationOptions?: TransformMutationOptions) =>
+                    requireController().flipVertical(mutationOptions),
+                resetImageTransform: (mutationOptions?: TransformMutationOptions) =>
+                    requireController().resetImageTransform(mutationOptions),
                 getState: () => requireController().getState(),
-                synchronizeCompatibilityState: (state: TransformPluginState) =>
-                    requireController().restoreState(state),
             });
         },
         onImageLoaded() {
@@ -133,5 +161,6 @@ export function transformPlugin(
 export type {
     ResolvedTransformPluginOptions,
     TransformPluginOptions,
+    TransformMutationOptions,
     TransformPluginState,
 } from './transform-controller.js';

@@ -1,6 +1,6 @@
 {
     "name": "@bensitu/image-editor",
-    "version": "2.9.0",
+    "version": "3.0.0-rc.1",
     "description": "TypeScript-first Fabric.js v7 image editor with masks, annotations, crop, mosaic, history, and export APIs",
     "license": "MIT",
     "author": "Ben Situ",
@@ -13,11 +13,21 @@
         "url": "https://github.com/bensitu/image-editor/issues"
     },
     "type": "module",
+    "workspaces": [
+        "examples/fabric-vs-framework-redaction",
+        "examples/next-client-only",
+        "examples/react-basic",
+        "examples/reference-plugins/*",
+        "examples/vanilla-core",
+        "examples/vanilla-dom-controls",
+        "examples/vue-basic",
+        "packages/*"
+    ],
     "main": "./dist/cjs/index.cjs",
     "module": "./dist/esm/index.js",
     "types": "./dist/types/index.d.ts",
-    "unpkg": "./dist/umd/image-editor.umd.js",
-    "jsdelivr": "./dist/umd/image-editor.umd.js",
+    "unpkg": "./dist/umd/image-editor.full.umd.min.js",
+    "jsdelivr": "./dist/umd/image-editor.full.umd.min.js",
     "exports": {
         ".": {
             "import": {
@@ -40,6 +50,36 @@
                 "default": "./dist/cjs/core/index.cjs"
             }
         },
+        "./sdk": {
+            "import": {
+                "types": "./dist/types/sdk/index.d.ts",
+                "default": "./dist/esm/sdk/index.js"
+            },
+            "require": {
+                "types": "./dist/types/sdk/index.d.cts",
+                "default": "./dist/cjs/sdk/index.cjs"
+            }
+        },
+        "./testing": {
+            "import": {
+                "types": "./dist/types/testing/index.d.ts",
+                "default": "./dist/esm/testing/index.js"
+            },
+            "require": {
+                "types": "./dist/types/testing/index.d.cts",
+                "default": "./dist/cjs/testing/index.cjs"
+            }
+        },
+        "./migrate-v2": {
+            "import": {
+                "types": "./dist/types/migrate-v2/index.d.ts",
+                "default": "./dist/esm/migrate-v2/index.js"
+            },
+            "require": {
+                "types": "./dist/types/migrate-v2/index.d.cts",
+                "default": "./dist/cjs/migrate-v2/index.cjs"
+            }
+        },
         "./plugins/overlay": {
             "import": {
                 "types": "./dist/types/foundations/overlay/index.d.ts",
@@ -48,6 +88,16 @@
             "require": {
                 "types": "./dist/types/foundations/overlay/index.d.cts",
                 "default": "./dist/cjs/foundations/overlay/index.cjs"
+            }
+        },
+        "./plugins/annotation": {
+            "import": {
+                "types": "./dist/types/foundations/annotation/index.d.ts",
+                "default": "./dist/esm/foundations/annotation/index.js"
+            },
+            "require": {
+                "types": "./dist/types/foundations/annotation/index.d.cts",
+                "default": "./dist/cjs/foundations/annotation/index.cjs"
             }
         },
         "./plugins/transform": {
@@ -79,18 +129,144 @@
                 "types": "./dist/types/plugins/history/index.d.cts",
                 "default": "./dist/cjs/plugins/history/index.cjs"
             }
+        },
+        "./plugins/filters": {
+            "import": {
+                "types": "./dist/types/plugins/filters/index.d.ts",
+                "default": "./dist/esm/plugins/filters/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/filters/index.d.cts",
+                "default": "./dist/cjs/plugins/filters/index.cjs"
+            }
+        },
+        "./plugins/crop": {
+            "import": {
+                "types": "./dist/types/plugins/crop/index.d.ts",
+                "default": "./dist/esm/plugins/crop/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/crop/index.d.cts",
+                "default": "./dist/cjs/plugins/crop/index.cjs"
+            }
+        },
+        "./plugins/mosaic": {
+            "import": {
+                "types": "./dist/types/plugins/mosaic/index.d.ts",
+                "default": "./dist/esm/plugins/mosaic/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/mosaic/index.d.cts",
+                "default": "./dist/cjs/plugins/mosaic/index.cjs"
+            }
+        },
+        "./plugins/annotation-text": {
+            "import": {
+                "types": "./dist/types/plugins/annotation-text/index.d.ts",
+                "default": "./dist/esm/plugins/annotation-text/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/annotation-text/index.d.cts",
+                "default": "./dist/cjs/plugins/annotation-text/index.cjs"
+            }
+        },
+        "./plugins/annotation-shape": {
+            "import": {
+                "types": "./dist/types/plugins/annotation-shape/index.d.ts",
+                "default": "./dist/esm/plugins/annotation-shape/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/annotation-shape/index.d.cts",
+                "default": "./dist/cjs/plugins/annotation-shape/index.cjs"
+            }
+        },
+        "./plugins/annotation-draw": {
+            "import": {
+                "types": "./dist/types/plugins/annotation-draw/index.d.ts",
+                "default": "./dist/esm/plugins/annotation-draw/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/annotation-draw/index.d.cts",
+                "default": "./dist/cjs/plugins/annotation-draw/index.cjs"
+            }
+        },
+        "./plugins/overlay-state": {
+            "import": {
+                "types": "./dist/types/plugins/overlay-state/index.d.ts",
+                "default": "./dist/esm/plugins/overlay-state/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/overlay-state/index.d.cts",
+                "default": "./dist/cjs/plugins/overlay-state/index.cjs"
+            }
+        },
+        "./plugins/dom-controls": {
+            "import": {
+                "types": "./dist/types/plugins/dom-controls/index.d.ts",
+                "default": "./dist/esm/plugins/dom-controls/index.js"
+            },
+            "require": {
+                "types": "./dist/types/plugins/dom-controls/index.d.cts",
+                "default": "./dist/cjs/plugins/dom-controls/index.cjs"
+            }
+        },
+        "./presets/minimal": {
+            "import": {
+                "types": "./dist/types/presets/minimal/index.d.ts",
+                "default": "./dist/esm/presets/minimal/index.js"
+            },
+            "require": {
+                "types": "./dist/types/presets/minimal/index.d.cts",
+                "default": "./dist/cjs/presets/minimal/index.cjs"
+            }
+        },
+        "./presets/redaction": {
+            "import": {
+                "types": "./dist/types/presets/redaction/index.d.ts",
+                "default": "./dist/esm/presets/redaction/index.js"
+            },
+            "require": {
+                "types": "./dist/types/presets/redaction/index.d.cts",
+                "default": "./dist/cjs/presets/redaction/index.cjs"
+            }
+        },
+        "./presets/annotation": {
+            "import": {
+                "types": "./dist/types/presets/annotation/index.d.ts",
+                "default": "./dist/esm/presets/annotation/index.js"
+            },
+            "require": {
+                "types": "./dist/types/presets/annotation/index.d.cts",
+                "default": "./dist/cjs/presets/annotation/index.cjs"
+            }
+        },
+        "./presets/full": {
+            "import": {
+                "types": "./dist/types/presets/full/index.d.ts",
+                "default": "./dist/esm/presets/full/index.js"
+            },
+            "require": {
+                "types": "./dist/types/presets/full/index.d.cts",
+                "default": "./dist/cjs/presets/full/index.cjs"
+            }
         }
     },
     "files": [
-        "dist"
+        "dist",
+        "!dist/esm/umd",
+        "README.md",
+        "LICENSE",
+        "CHANGELOG.md"
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "build:esm": "tsc -p tsconfig.build.json",
+        "build:esm": "tsc -p tsconfig.build.json && node scripts/prune-distribution-output.mjs --esm",
         "build:cjs": "rollup -c --environment FORMAT:cjs",
         "build:types": "tsc -p tsconfig.types.json && node scripts/emit-cjs-types.mjs",
         "build:umd": "rollup -c --environment FORMAT:umd",
-        "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run build:umd",
+        "build:prune": "node scripts/prune-distribution-output.mjs",
+        "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:types && npm run build:umd && npm run build:prune",
+        "build:reference-plugins": "npm run build --workspace @bensitu/reference-watermark --workspace @bensitu/reference-metadata --workspace @bensitu/reference-grid-guide --workspace @bensitu/reference-blur-region",
         "dev": "tsc --watch",
         "format": "prettier . --write",
         "format:check": "prettier . --check",
@@ -99,14 +275,34 @@
         "package:check": "publint",
         "test": "node scripts/run-node-tests.mjs",
         "test:plugin-kernel": "node scripts/run-node-tests.mjs tests/plugin-kernel",
+        "test:sdk": "node scripts/run-node-tests.mjs tests/sdk",
+        "test:conformance": "node scripts/run-node-tests.mjs tests/conformance",
+        "test:plugin-lint": "node --test tests/sdk/plugin-lint.test.mjs",
         "test:core-contract": "node scripts/run-node-tests.mjs tests/core",
         "test:transform-plugin": "node scripts/run-node-tests.mjs tests/plugins/transform",
         "test:overlay-foundation": "node scripts/run-node-tests.mjs tests/foundations/overlay",
         "test:mask-plugin": "node scripts/run-node-tests.mjs tests/plugins/mask",
         "test:history-plugin": "node scripts/run-node-tests.mjs tests/plugins/history",
+        "test:filters-plugin": "node scripts/run-node-tests.mjs tests/plugins/filters",
+        "test:crop-plugin": "node scripts/run-node-tests.mjs tests/plugins/crop",
+        "test:mosaic-plugin": "node scripts/run-node-tests.mjs tests/plugins/mosaic",
+        "test:annotation-foundation": "node scripts/run-node-tests.mjs tests/foundations/annotation",
+        "test:annotation-text": "node scripts/run-node-tests.mjs tests/plugins/annotation-text",
+        "test:annotation-shape": "node scripts/run-node-tests.mjs tests/plugins/annotation-shape",
+        "test:annotation-draw": "node scripts/run-node-tests.mjs tests/plugins/annotation-draw",
+        "test:annotation-integration": "node scripts/run-node-tests.mjs tests/plugins/annotation",
+        "test:overlay-state": "node scripts/run-node-tests.mjs tests/plugins/overlay-state",
+        "test:dom-controls": "node scripts/run-node-tests.mjs tests/plugins/dom-controls",
+        "test:presets": "node scripts/run-node-tests.mjs tests/presets",
+        "test:migration": "node scripts/run-node-tests.mjs tests/migrate-v2",
+        "build:codemod": "npm run build --workspace @bensitu/image-editor-codemod",
+        "test:codemod": "npm run build:codemod && node --test tests/codemod/codemod.test.mjs && tsc -p tests/codemod/tsconfig.json --noEmit",
+        "test:codemod-package": "node scripts/check-codemod-package.mjs",
         "test:package-entries": "node tests/package/esm-consumer.mjs && node tests/package/cjs-consumer.cjs",
         "test:packed-entries": "node scripts/check-packed-entries.mjs",
+        "test:package-isolation": "node scripts/check-package-isolation.mjs --check",
         "test:package-types": "tsc -p tests/package/tsconfig.json --noEmit",
+        "test:reference-plugins": "node scripts/check-reference-plugins.mjs --check",
         "test:types": "tsc -p tests/types/tsconfig.json --noEmit",
         "test:e2e": "playwright test tests/browser/e2e --project=chromium",
         "test:e2e:all": "playwright test tests/browser/e2e",
@@ -115,27 +311,47 @@
         "test:browser": "playwright test tests/browser --project=chromium",
         "test:browser:release": "npm run test:e2e:all && npm run test:visual",
         "test:browser:all": "npm run test:browser:release",
-        "release:gate": "node scripts/release-gate.mjs",
-        "release:check": "npm run build && npm run package:check && npm run test:package-entries && npm run test:packed-entries && npm run test:package-types && npm run release:gate && npm pack --dry-run",
+        "test:umd": "npm run build && npm run check:full-umd && node --test tests/umd/full-umd.test.mjs && playwright test tests/browser/umd --project=chromium",
+        "test:comparison": "node scripts/run-node-tests.mjs tests/examples",
+        "test:provenance": "node --test tests/bundle-provenance.test.mjs",
+        "check:release": "node scripts/check-release.mjs",
+        "release:gate": "npm run check:release",
+        "check:release-readiness": "node scripts/check-release.mjs --engineering",
+        "release:check": "npm run check:release",
         "typecheck": "tsc -p tsconfig.json --noEmit",
-        "check:architecture": "node scripts/check-architecture.mjs && node scripts/check-full-facade-ownership.mjs --check && node scripts/check-public-api-compatibility.mjs --check",
-        "generate:full-facade-ownership": "node scripts/check-full-facade-ownership.mjs --generate",
-        "generate:public-api-compatibility": "node scripts/check-public-api-compatibility.mjs --generate",
-        "check:bundle-provenance": "node scripts/check-bundle-provenance.mjs current",
-        "measure:bundle-current": "npm run build:esm && node scripts/check-bundle-size.mjs --update current --archive-stale-current",
-        "check:bundle-size": "npm run build:esm && node scripts/check-bundle-provenance.mjs current && node scripts/check-bundle-size.mjs --verify-current-head",
-        "check:refactor-baseline": "npm run check:architecture && npm run check:bundle-size && npm run test:plugin-kernel && npm run test:core-contract && npm run test:transform-plugin && npm run test:overlay-foundation && npm run test:mask-plugin && npm run test:history-plugin && npm run test:types",
+        "check:architecture": "node scripts/check-architecture.mjs",
+        "check:bundle:provenance": "node scripts/check-bundle-provenance.mjs check",
+        "check:bundle:measurement": "npm run build:esm && npm run build:reference-plugins && node scripts/check-bundle-size.mjs --verify-baseline platform-anchor --measurement-only",
+        "check:bundle-size": "npm run build:esm && node scripts/check-bundle-size.mjs",
+        "check:platform-budget": "node scripts/check-platform-budget.mjs",
+        "check:npm-pack-contents": "node scripts/check-npm-pack-contents.mjs",
+        "check:source-language": "node scripts/check-source-language.mjs",
+        "check:repository-docs": "node scripts/check-repository-docs.mjs",
+        "check:plugin-lint": "node scripts/check-plugin-conformance.mjs tests/fixtures/plugin-lint/passing --strict-best-effort",
+        "check:testing-isolation": "node scripts/check-testing-isolation.mjs",
+        "check:official-plugins": "node scripts/check-official-plugin-compliance.mjs --check",
+        "check:public-bundle-isolation": "node scripts/check-public-bundle-isolation.mjs --check",
+        "check:full-umd": "node scripts/check-full-umd.mjs --check",
+        "check:public-api": "node scripts/check-public-api.mjs --check",
+        "check:examples": "npm run build && node scripts/check-examples.mjs",
+        "check:comparison": "npm run build && node scripts/check-framework-comparison.mjs",
+        "check:deterministic-build": "node scripts/check-deterministic-build.mjs",
+        "check:performance": "node --expose-gc --import ./tests/helpers/register-ts-loader.mjs scripts/check-performance.mjs",
+        "check:security": "node scripts/check-security.mjs",
+        "check:test-scope": "node scripts/check-test-scope.mjs",
+        "check:reference-plugin-boundaries": "node scripts/check-reference-plugins.mjs --static",
+        "check:bundle-provenance": "npm run check:bundle:provenance",
+        "generate:platform-budget": "node scripts/check-platform-budget.mjs --generate",
+        "generate:public-api": "node scripts/check-public-api.mjs --generate",
+        "check:repository-baseline": "npm run check:architecture && npm run check:repository-docs && npm run check:bundle:measurement && npm run check:bundle:provenance && npm run check:platform-budget && npm run check:public-bundle-isolation && npm run check:reference-plugin-boundaries && npm run test:plugin-kernel && npm run test:sdk && npm run test:conformance && npm run test:core-contract && npm run test:transform-plugin && npm run test:overlay-foundation && npm run test:mask-plugin && npm run test:history-plugin && npm run test:filters-plugin && npm run test:crop-plugin && npm run test:mosaic-plugin && npm run test:annotation-foundation && npm run test:annotation-text && npm run test:annotation-shape && npm run test:annotation-draw && npm run test:annotation-integration && npm run test:overlay-state && npm run test:dom-controls && npm run test:presets && npm run test:types",
         "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
-        "ci": "npm run check && npm run check:refactor-baseline && npm run release:check"
+        "ci": "npm run check:release-readiness"
     },
     "peerDependencies": {
         "fabric": ">=7.4.0 <8"
     },
-    "dependencies": {
-        "semver": "^7.8.5",
-        "tslib": "^2.8.1"
-    },
     "devDependencies": {
+        "@types/node": "^26.0.0",
         "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.61.1",
         "@rollup/plugin-commonjs": "^29.0.3",
@@ -143,21 +359,23 @@
         "@rollup/plugin-terser": "^1.0.0",
         "@rollup/plugin-typescript": "^11.0.0",
         "@types/jsdom": "^21.1.7",
-        "@types/semver": "^7.7.1",
         "canvas": "^3.2.3",
-        "eslint": "^10.4.0",
+        "eslint": "^10.7.0",
         "eslint-config-prettier": "^10.1.8",
+        "expect-type": "^1.4.0",
         "fabric": ">=7.4.0 <8",
         "fast-check": "^3.23.0",
-        "globals": "^17.6.0",
+        "globals": "^17.7.0",
         "jsdom": "^26.1.0",
-        "prettier": "3.9.0",
+        "prettier": "3.9.5",
         "publint": "^0.3.21",
         "rimraf": "^6.1.3",
-        "rollup": "^4.0.0",
+        "rollup": "^4.62.2",
+        "semver": "7.8.5",
+        "tslib": "^2.8.1",
         "typescript": "^5.4.0",
-        "typescript-eslint": "^8.60.0",
-        "vite": "^8.1.0"
+        "typescript-eslint": "^8.64.0",
+        "vite": "^8.1.5"
     },
     "keywords": [
         "canvas",

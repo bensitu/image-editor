@@ -93,19 +93,19 @@ import type * as FabricNS from 'fabric';
 import type { MaskBackup, MaskObject, ResolvedOptions } from '../core/public-types.js';
 import { isMaskObject } from '../core/public-types.js';
 
-// ─── Constants — visual literals (match legacy verbatim) ─────────────────────────
+// ─── Visual constants ─────────────────────────────────────────────────────────────
 
-/** Selected-mask highlight stroke (legacy's `_handleSelectionChanged`). */
+/** Selected-mask highlight stroke. */
 const SELECTED_STROKE = '#ff0000';
 /** Selected-mask highlight stroke width. */
 const SELECTED_STROKE_WIDTH = 1;
-/** Hover highlight stroke (legacy's `_rebindMaskEvents`). */
+/** Hover highlight stroke. */
 const HOVER_STROKE = '#ff5500';
 /** Hover highlight stroke width. */
 const HOVER_STROKE_WIDTH = 2;
 /** Hover bumps opacity by this much, capped at 1. */
 const HOVER_OPACITY_BUMP = 0.2;
-/** Default fallback stroke when `mask.originalStroke` is unset (legacy: `#ccc`). */
+/** Default fallback stroke when `mask.originalStroke` is unset. */
 const DEFAULT_STROKE_FALLBACK = '#ccc';
 /** Default fallback stroke width when `mask.originalStrokeWidth` is unset. */
 const DEFAULT_STROKE_WIDTH_FALLBACK = 1;
@@ -128,7 +128,7 @@ export interface MaskStyleContext {
     canvas: FabricNS.Canvas | null;
     /**
      * Fully resolved editor options. Only consulted by helpers that need
-     * the export-bake-in fill (`#000` matches legacy) or the crop visibility
+     * the export-bake-in fill or the crop visibility
      * defaults; most helpers operate on the per-mask `original*` fields
      * and do not need this slot.
      */
@@ -137,8 +137,7 @@ export interface MaskStyleContext {
 
 /**
  * The "normal" (non-hover, non-selected) style of a mask, computed from
- * its persisted `original*` fields. Matches the shape returned by legacy's
- * `_getMaskNormalStyle`.
+ * its persisted `original*` fields.
  */
 export interface MaskNormalStyle {
     stroke: FabricNS.TFiller | string | null;
@@ -149,7 +148,7 @@ export interface MaskNormalStyle {
 /**
  * Tag attached to a mask by {@link attachMaskHoverHandlers} so
  * {@link reattachMaskHoverHandlers} can drop the prior pair before
- * binding fresh ones (matches legacy's `imageEditorMaskHandlers`).
+ * binding fresh ones.
  *
  */
 interface MaskHoverHandlerTag {
@@ -166,9 +165,9 @@ type MaskWithHoverTag = MaskObject & {
 
 /**
  * Compute the "normal" (non-hover, non-selected) style of `mask` from its
- * persisted `original*` fields, with legacy-identical fallbacks.
+ * persisted `original*` fields.
  *
- * - `stroke` → `mask.originalStroke`, falling back to `'#ccc'` (legacy).
+ * - `stroke` → `mask.originalStroke`, falling back to `'#ccc'`.
  * - `strokeWidth` → `Number(mask.originalStrokeWidth)` if finite, else `1`.
  * - `opacity` → `Number(mask.originalAlpha)` if finite, else `0.5`.
  *
@@ -194,9 +193,9 @@ export function getMaskNormalStyle(mask: MaskObject): MaskNormalStyle {
 /**
  * Compute the "hover" style for `mask`, derived from its normal style.
  *
- * - `stroke` → `'#ff5500'` (legacy).
- * - `strokeWidth` → `2` (legacy).
- * - `opacity` → `min(originalAlpha + 0.2, 1)` (legacy).
+ * - `stroke` → `'#ff5500'`.
+ * - `strokeWidth` → `2`.
+ * - `opacity` → `min(originalAlpha + 0.2, 1)`.
  *
  * @param mask - The mask to inspect.
  * @returns A style patch ready to pass to `mask.set(...)`.
@@ -211,11 +210,10 @@ export function getMaskHoverStyle(mask: MaskObject): MaskNormalStyle {
     };
 }
 
-// ─── Selection styling (legacy _handleSelectionChanged) ──────────────────────────
+// ─── Selection styling ────────────────────────────────────────────────────────────
 
 /**
- * Apply the selected-mask highlight stroke. Matches legacy's literal
- * (`stroke: '#ff0000'`, `strokeWidth: 1`).
+ * Apply the selected-mask highlight stroke.
  *
  * Does NOT change opacity — the selection highlight only modifies the
  * outline so the user can still see the mask's tinted fill.
@@ -229,7 +227,7 @@ export function applyMaskSelectedStyle(mask: MaskObject): void {
 /**
  * Restore the un-highlighted stroke on `mask` after selection moves to a
  * different object. Reads the per-mask `originalStroke`/`originalStrokeWidth`
- * (matching legacy's `_handleSelectionChanged`) so the value is the one the
+ * so the value is the one the
  * mask carried before any selection-time mutation.
  *
  * Does NOT touch `opacity` — the un-highlighted state retains the live
@@ -249,10 +247,10 @@ export function applyMaskUnselectedStyle(mask: MaskObject): void {
 // ─── Hover handler attach / reattach ─────────────────────────────────────────
 
 /**
- * Bind `mouseover`/`mouseout` handlers on `mask` that toggle the legacy hover
+ * Bind `mouseover`/`mouseout` handlers on `mask` that toggle the hover
  * highlight. The handlers re-read `mask.originalAlpha` /
  * `mask.originalStroke` / `mask.originalStrokeWidth` on each event so they
- * track any post-attach mutation (matching legacy's `_rebindMaskEvents`).
+ * track any post-attach mutation.
  *
  * Handlers are tagged on `mask.imageEditorMaskHandlers` so
  * {@link reattachMaskHoverHandlers} can drop them before binding a new
@@ -290,9 +288,8 @@ export function attachMaskHoverHandlers(mask: MaskObject): void {
  * so masks restored from history have lost their hover styling. The
  * orchestrator re-runs this helper for every restored mask.
  *
- * Also re-asserts the persisted `original*` metadata when missing — legacy's
- * `_rebindMaskEvents` did the same so a snapshot from an older format that
- * happens to lack `originalStroke`/`originalStrokeWidth` still hovers
+ * Also re-asserts the persisted `original*` metadata when missing so a snapshot
+ * that lacks `originalStroke`/`originalStrokeWidth` still hovers
  * correctly. Current snapshots always serialize `originalAlpha`, but we
  * defend against partial payloads here too.
  *
@@ -301,7 +298,7 @@ export function attachMaskHoverHandlers(mask: MaskObject): void {
 export function reattachMaskHoverHandlers(mask: MaskObject): void {
     const tagged = mask as MaskWithHoverTag;
 
-    // Drop the previous pair if present. Fabric v7's `off(event, callback)`
+    // Drop the previous pair if present. Fabric's `off(event, callback)`
     // removes that specific handler; `off(event)` removes every handler
     // for the event. We use the specific form so callers that bind their
     // own listeners outside this module are not affected.
@@ -315,10 +312,8 @@ export function reattachMaskHoverHandlers(mask: MaskObject): void {
         delete tagged.imageEditorMaskHandlers;
     }
 
-    // Re-assert persisted metadata when missing so the freshly-bound
-    // handlers can read sensible originals. legacy did this in
-    // `_rebindMaskEvents` to defend against snapshots without the custom
-    // keys.
+    // Re-assert persisted metadata when missing so freshly bound handlers can
+    // read sensible originals from snapshots without the custom keys.
     const patch: Partial<{
         originalAlpha: number;
         originalStroke: FabricNS.TFiller | string | null;
@@ -383,7 +378,7 @@ export function detachMaskHoverHandlers(mask: MaskObject): void {
  *   set `maskRotatable: true` and the rotation lock is part of the
  *   per-mask state.
  *
- * Defaults match legacy: missing `opacity` → `1`, missing `selectable` →
+ * Defaults: missing `opacity` → `1`, missing `selectable` →
  * `true`, missing `lockRotation` → `false`. They never override a
  * caller-supplied value because the snapshot reads from the live mask.
  *
@@ -412,7 +407,7 @@ export function captureMaskStyleBackup(mask: MaskObject): MaskBackup {
  * mask removed after the backup was captured but before the restore
  * finally block ran) does not break callers iterating multiple backups.
  * After a successful restore, `setCoords` is called to keep Fabric's
- * cached bounding rect in sync (matching legacy's mergeMasks restore).
+ * cached bounding rect in sync.
  *
  * @param backup - The backup produced by {@link captureMaskStyleBackup}.
  *
@@ -454,7 +449,7 @@ interface NormalizedStylePatch {
  * persisted "normal" style ({@link getMaskNormalStyle}), then restore each
  * mutated field inside a `finally` block.
  *
- * Mirrors legacy's `_withNormalizedMaskStyles`. The two callers are:
+ * The two callers are:
  *
  * - The pre-snapshot pass in some history paths that wants the snapshot
  *   to capture a "clean" un-hovered, un-selected canvas regardless of the

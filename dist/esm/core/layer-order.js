@@ -1,5 +1,5 @@
 import { isBaseImageObject, isEditableOverlayObject, isSessionObject, } from './public-types.js';
-function isLegacySessionObject(object) {
+function isPropertyMarkedSessionObject(object) {
     const candidate = object;
     return (candidate.isCropRect === true ||
         candidate.maskLabel === true ||
@@ -28,7 +28,7 @@ function withoutObject(canvas, object) {
     return canvas.getObjects().filter((candidate) => candidate !== object);
 }
 function findFirstSessionIndex(objects) {
-    return objects.findIndex((object) => isSessionObject(object) || isLegacySessionObject(object));
+    return objects.findIndex((object) => isSessionObject(object) || isPropertyMarkedSessionObject(object));
 }
 function getOrderedGroups(canvas) {
     const baseImages = [];
@@ -42,7 +42,7 @@ function getOrderedGroups(canvas) {
         else if (isEditableOverlayObject(object)) {
             overlays.push(object);
         }
-        else if (isSessionObject(object) || isLegacySessionObject(object)) {
+        else if (isSessionObject(object) || isPropertyMarkedSessionObject(object)) {
             sessions.push(object);
         }
         else {

@@ -1,139 +1,158 @@
 # Overlay State
 
-Non-destructive overlay persistence stores the original image and editable
-overlays separately. Applications can keep the image file in object storage, a
-CDN, or a database, then store the overlay JSON beside it. Re-open the same
-image later, import the overlay JSON, continue editing masks and annotations,
-and export a final raster only when needed.
+`@bensitu/image-editor/plugins/overlay-state` persists editable overlays as
+renderer-independent JSON. Keep the original image separately, export the
+overlay document, and import it after loading that image again.
 
-This API is not Fabric.js JSON and is not the editor's `saveState()` snapshot.
-It is a stable, versioned wire format with `schema:
-'image-editor.overlay-state'`, `version: 1`, `coordinateSpace:
-'image-normalized'`, one ordered `overlays[]` array, and optional
-`baseImageTransform` metadata. Here `version: 1` means overlay-state schema
-version 1, independent from the npm package version. Package v2.x may still use
-overlay-state schema version 1.
+Overlay State is intentionally different from a full editor Snapshot. A
+Snapshot captures editor-owned runtime state for undo, redo, and exact editor
+restoration. Overlay State contains portable persistent overlays only; it
+excludes selection, handles, labels, previews, active tools, editing cursors,
+and in-progress strokes.
 
-## Methods
+## Installation
 
-| Method                                | Description                                                                    |
-| ------------------------------------- | ------------------------------------------------------------------------------ |
-| `exportOverlayState(options?)`        | Return pure JSON-compatible `OverlayState` for editable overlays only.         |
-| `validateOverlayState(input)`         | Validate and normalize unknown overlay JSON without mutating the editor.       |
-| `importOverlayState(input, options?)` | Validate, then atomically import overlays. Returns a structured import result. |
-
-## Basic Flow
+Overlay State depends on the public Overlay Foundation. Install both before
+calling `editor.init()`:
 
 ```ts
-const overlayState = editor.exportOverlayState({
-    includeHidden: true,
-    includeLocked: true,
-    includeMetadata: true,
-});
+import * as fabric from 'fabric';
+import { ImageEditorCore } from '@bensitu/image-editor/core';
+import { overlayFoundationPlugin } from '@bensitu/image-editor/plugins/overlay';
+import { overlayStatePlugin } from '@bensitu/image-editor/plugins/overlay-state';
 
-localStorage.setItem('image-123-overlays', JSON.stringify(overlayState));
+const editor = new ImageEditorCore(fabric);
+const [overlays, overlayState] = editor.install([overlayFoundationPlugin(), overlayStatePlugin()]);
+
+await editor.init({ canvas: 'canvas', canvasContainer: 'container' });
+await editor.loadImage(imageDataUrl);
 ```
 
-```ts
-const parsed = JSON.parse(localStorage.getItem('image-123-overlays') ?? 'null');
-const validation = editor.validateOverlayState(parsed);
+Official Mask, Text, Shape, and Draw Plugins register their persistence codecs
+with the Overlay Foundation. Third-party overlay kinds can register codecs in
+the same way.
 
+## Wire format
+
+Every exported document has these fixed identifiers:
+
+```ts
+{
+    schema: 'image-editor.overlay-state',
+    version: 1,
+    coordinateSpace: 'image-normalized',
+    image: { naturalWidth, naturalHeight, mimeType?, sourceId?, checksum? },
+    overlays: [
+        {
+            id,
+            kind,
+            codec: { type, version },
+            geometry,
+            layer,
+            hidden,
+            locked,
+            metadata?,
+            data,
+        },
+    ],
+    metadata?,
+}
+```
+
+`version` is the Overlay State wire version. It is independent from the npm
+package version and the Plugin API version.
+
+Coordinates are normalized against the original image dimensions. An x value
+of `0.25` denotes one quarter of the natural image width regardless of canvas
+layout, display scale, zoom, or current base-image transform. Import maps those
+coordinates through the target image geometry.
+
+The payload never contains Fabric objects, Fabric class names, canvas JSON, or
+renderer instances.
+
+## Export and validation
+
+```ts
+const document = overlayState.exportState({
+    includeHidden: true,
+    kinds: ['mask', 'annotation:text'],
+    metadata: { projectId: 'image-42' },
+});
+
+const validation = overlayState.validate(JSON.parse(storedJson));
 if (!validation.valid) {
     console.error(validation.errors);
 }
 ```
 
+Export is deterministic for the same image and overlay state. Object keys and
+overlay layers use stable ordering, and the returned document is detached from
+runtime objects.
+
+`validate()` never mutates the editor. It rejects unknown fields, accessors,
+cycles, functions, symbols, non-finite numbers, dangerous object keys, malformed
+identifiers, unsupported wire versions, and values beyond configured limits.
+
+`migrate()` validates the input and returns the current document shape. A future
+wire adapter can be added without changing `importState()` callers.
+
+## Atomic import
+
 ```ts
-await editor.loadImage(originalImageDataUrl);
-
-const result = await editor.importOverlayState(parsed, {
+const result = await overlayState.importState(document, {
     mode: 'replace',
-    idStrategy: 'regenerate',
-    saveHistory: true,
+    idConflict: 'regenerate',
+    missingKindPolicy: 'error',
 });
-
-console.log(result.importedOverlays, result.warnings);
 ```
 
-## Import Behavior
+- `mode: 'replace'` removes existing persistent overlays and installs the
+  imported document.
+- `mode: 'append'` keeps existing overlays and appends imported layers in their
+  relative order.
+- `idConflict: 'error'` rejects duplicate or occupied persistent IDs.
+- `idConflict: 'regenerate'` creates new IDs and returns an immutable `idMap`.
+- `missingKindPolicy: 'error'` rejects a missing or incompatible codec.
+- `missingKindPolicy: 'skip'` omits those items and increments `skipped`.
 
-`mode: 'replace'` removes existing editable overlays and imports the new
-ordered `overlays[]` array as one transaction. `mode: 'append'` keeps existing
-overlays and appends imported overlays above them while preserving imported
-relative order. Import creates one undoable history entry by default; pass
-`saveHistory: false` for silent programmatic restores.
+Validation, decoding, object creation, layer placement, and replacement form
+one Overlay Document Mutation. If any codec or validation step fails, the
+previous overlay document is restored and no partial import remains.
 
-`idStrategy: 'regenerate'` is the default and creates fresh runtime IDs while
-returning `regeneratedIds`. `idStrategy: 'preserve'` keeps stable overlay IDs
-when they cannot collide; runtime counters remain editor-owned.
+When History is installed and enabled, a successful import creates one History
+record. Undo and redo operate on the complete imported overlay document. If
+History is absent or disabled, the same atomic import succeeds without adding a
+record.
 
-## Coordinates and Base Transforms
+## Custom kinds
 
-Coordinates are original image pixel coordinates normalized to `[0, 1]`.
-`{ x: 0.25, y: 0.4 }` means source pixel
-`x = 0.25 * naturalWidth`, `y = 0.4 * naturalHeight`, independent of canvas
-layout, zoom, scroll, and display scaling. `baseImageTransform` records
-base-image `flipX`, `flipY`, and arbitrary-degree `rotation`; transform order
-is `flipX`, then `flipY`, then `rotation`, around the original image center.
-Overlay `angle` remains local to the overlay. Conceptually, visual rotation is
-`baseImageTransform.rotation + overlay.angle`.
+A persistent third-party Overlay kind supplies `stateCodec` through its public
+Overlay kind registration. The codec owns only data for that kind; the Overlay
+State Plugin owns the common ID, geometry, layer, visibility, lock, metadata,
+validation, and transaction rules.
 
-With the default transform-binding options, interactive image transforms remain
-base-image-only and do not move existing overlays. When mask or annotation
-binding is enabled, live overlays follow the image while remaining stable in
-this same source-pixel coordinate space. Overlay persistence continues to record
-the base-image flip state and map imported coordinates through the persisted
-transform; its schema is unchanged. See
-[Overlay Transform Binding](./overlay-transform-binding.md).
+Use stable namespaced kind and codec identifiers. Changing codec data requires
+a new codec version and a compatible decode policy. Import defaults to an error
+for an unavailable codec so data is not silently lost.
 
-## Excluded Session State
+## Default limits
 
-The exporter excludes transient/session state: selection, hover highlights, mask
-labels, crop rectangles, Mosaic previews, active text cursor/editing state,
-in-progress Draw strokes, Shape previews, transform handles, and other
-session-only objects. Mask style export reads stable normal fields such as
-`originalAlpha`, `originalStroke`, and `originalStrokeWidth`, so hover or
-selection styling does not leak into persisted JSON.
+| Limit                |   Default |
+| -------------------- | --------: |
+| Payload bytes        | 5,000,000 |
+| Nesting depth        |        32 |
+| Array length         |   100,000 |
+| Overlay count        |       500 |
+| Metadata keys        |       256 |
+| Metadata depth       |         8 |
+| String length        |    10,000 |
+| Identifier length    |       128 |
+| Codec payload bytes  | 1,000,000 |
+| Coordinates          |   200,000 |
+| Coordinate magnitude | 1,000,000 |
+| Draw points          |   100,000 |
+| Path commands        |   100,000 |
 
-## Validation Limits
-
-Validation limits protect browser responsiveness:
-
-| Limit                    | Default  |
-| ------------------------ | -------- |
-| `maxOverlays`            | `500`    |
-| `maxPolygonPoints`       | `1000`   |
-| `maxDrawStrokes`         | `500`    |
-| `maxDrawPointsPerStroke` | `5000`   |
-| `maxDrawTotalPoints`     | `100000` |
-| `maxTextLength`          | `10000`  |
-| `maxMetadataDepth`       | `4`      |
-| `maxMetadataBytes`       | `65536`  |
-
-Raise these through `OverlayValidationOptions` for specialized domains such as
-medical imaging, maps, or CAD-like annotation tools. Defaults are conservative
-for general-purpose browser UI and accidental or malicious oversized JSON.
-
-## Colors, Fonts, and Custom Overlays
-
-Persistent colors are canonical `#RRGGBB` or `#RRGGBBAA`. Import also accepts
-common `rgb()` and `rgba()` strings and normalizes them before creating runtime
-objects. Overlay-level opacity fields win for object opacity; alpha in
-`#RRGGBBAA` belongs to that color channel and is not silently multiplied by
-object opacity.
-
-If a text overlay requests a font that the host runtime cannot render, import
-still succeeds. The requested `fontFamily` is preserved under `core.font`
-metadata and runtime rendering falls back to the editor's configured default
-font or the browser's deterministic fallback.
-
-Custom overlays use namespaced `customType` values:
-`builtin.<name>`, `app.<name>.<type>`, or `plugin.<name>.<type>`. Unknown custom
-overlay types are skipped with warnings instead of crashing import. Metadata
-namespaces follow the same collision-avoidance pattern: `core.*` is reserved,
-`app.*` belongs to host applications, and `plugin.*` belongs to plugins.
-
-Future overlay-state schema work is intentionally outside schema version 1:
-partial/diff export for collaboration, binary encodings such as CBOR or
-MessagePack for very large Draw data, native group overlays, a richer public
-custom overlay registry, and domain-specific higher payload limits.
+Override limits through `overlayStatePlugin({ limits })` or the per-call
+validation/import options. Keep host limits bounded when accepting untrusted
+JSON.

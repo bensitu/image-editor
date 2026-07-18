@@ -1,56 +1,88 @@
 # SSR, Next.js, and Nuxt
 
-`@bensitu/image-editor` depends on browser DOM, canvas, and Fabric.js runtime APIs when an `ImageEditor` instance is created or initialized. Server environments do not provide those APIs, so editor creation and `init()` must run only in the browser.
-
-Type-only imports are safe in SSR code:
+Public type imports are server-safe. Creating an editor, importing a browser
+Fabric runtime, initializing Canvas, loading images, and exporting must run in
+client code.
 
 ```ts
-import type { ImageEditorOptions, ImageEditorState } from '@bensitu/image-editor';
+import type { ImageEditorCore } from '@bensitu/image-editor';
+import type { RedactionPresetResult } from '@bensitu/image-editor/presets/redaction';
+
+let editor: ImageEditorCore | null = null;
+let preset: RedactionPresetResult<null> | null = null;
 ```
 
-Runtime imports and instance creation should happen from client-only code.
+The DOM Controls entry is also safe to import on a server because module
+evaluation does not read DOM globals. Its `ownerDocument` and initialization
+still belong in client code.
 
 ## Next.js
 
-Use a client component:
+Use a client component and dynamically load both Fabric and the chosen Preset
+inside `useEffect`:
 
 ```tsx
 'use client';
 
-import * as fabric from 'fabric';
-import { ImageEditor } from '@bensitu/image-editor';
+import { useEffect, useRef } from 'react';
+import type { ImageEditorCore } from '@bensitu/image-editor';
 
-// Create and initialize ImageEditor inside useEffect.
+export function EditorPanel() {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+    useEffect(() => {
+        let disposed = false;
+        let ownedEditor: ImageEditorCore | null = null;
+
+        async function setup() {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const [fabric, presets] = await Promise.all([
+                import('fabric'),
+                import('@bensitu/image-editor/presets/redaction'),
+            ]);
+            if (disposed) return;
+
+            const preset = presets.createRedactionPreset(fabric, {
+                masks: { label: false },
+            });
+            ownedEditor = preset.editor;
+            await preset.editor.init({ canvas });
+            if (disposed) {
+                ownedEditor = null;
+                await preset.editor.disposeAsync();
+            }
+        }
+
+        void setup();
+        return () => {
+            disposed = true;
+            const current = ownedEditor;
+            ownedEditor = null;
+            void current?.disposeAsync().catch(console.error);
+        };
+    }, []);
+
+    return <canvas ref={canvasRef} />;
+}
 ```
 
-Alternatively, dynamically import the component that owns the editor with SSR disabled:
-
-```tsx
-import dynamic from 'next/dynamic';
-
-const ImageEditorPanel = dynamic(() => import('./ImageEditorPanel'), {
-    ssr: false,
-});
-```
+The runnable [Next.js example](../../examples/next-client-only) also retains
+Mask, Crop, and History APIs and calls them from React handlers. Its page can be
+statically rendered because runtime imports stay inside the client effect.
 
 ## Nuxt
 
-Wrap the editor UI in `<ClientOnly>` and initialize from `onMounted`:
+Render the editor component inside `<ClientOnly>` and create the Preset from
+`onMounted`. Dispose the editor in `onBeforeUnmount`.
 
 ```vue
 <template>
     <ClientOnly>
-        <ImageEditorPanel />
+        <EditorPanel />
     </ClientOnly>
 </template>
 ```
 
-Inside the panel, create the editor in `onMounted` and dispose it in `onBeforeUnmount`.
-
-## General rules
-
-- Importing public types is safe on the server.
-- Creating `new ImageEditor(...)` should happen only in client code.
-- Calling `editor.init(...)`, loading images, resizing canvas, and exporting require browser DOM/canvas availability.
-- Do not reuse an editor instance after `dispose()`.
-- For hidden tabs or dialogs, call `resizeToContainer()` or `relayout()` after the editor becomes visible.
+Never reuse an editor after disposal. If setup finishes after a component has
+unmounted, immediately dispose the newly created editor.

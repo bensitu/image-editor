@@ -36,12 +36,22 @@ type StringLookupInference = Expect<Equal<typeof byId, unknown | null>>;
 
 const maskPlugin: EditorPlugin<MaskApi> = {
     ref: maskRef,
-    version: '1.0.0',
+    manifest: {
+        id: maskRef.id,
+        version: '1.0.0',
+        apiVersion: maskRef.apiVersion,
+        engine: '^3.0.0',
+    },
     setup: () => ({ kind: 'mask', create: () => undefined }),
 };
 const otherPlugin: EditorPlugin<OtherApi> = {
     ref: otherRef,
-    version: '1.0.0',
+    manifest: {
+        id: otherRef.id,
+        version: '1.0.0',
+        apiVersion: otherRef.apiVersion,
+        engine: '^3.0.0',
+    },
     setup: () => ({ kind: 'other', remove: () => undefined }),
 };
 const compositeRef = definePluginRef<{ readonly mask: MaskApi; readonly other: OtherApi }>(

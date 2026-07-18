@@ -8,7 +8,6 @@ import {
     SnapshotService,
     StateSliceRegistry,
     TransientObjectRegistry,
-    migrateV2SnapshotToV3,
 } from '../../src/core-runtime/state/index.js';
 
 function createSnapshotHarness(warnings = []) {
@@ -131,15 +130,4 @@ test('snapshot validation rejects prototype keys, excessive depth, and unknown v
         }),
         SnapshotValidationError,
     );
-});
-
-test('v2 migration dispatch preserves the legacy canvas and accepts feature hooks', () => {
-    const source = { objects: [], _editorState: { currentScale: 2 } };
-    const result = migrateV2SnapshotToV3(source, () => ({
-        '@bensitu/transform': { version: 1, data: { scale: 2 } },
-    }));
-    assert.equal(result.snapshot.version, 3);
-    assert.deepEqual(result.snapshot.core.canvas.objects, []);
-    assert.equal(result.snapshot.plugins['@bensitu/transform'].data.scale, 2);
-    assert.equal(result.warnings.length, 1);
 });

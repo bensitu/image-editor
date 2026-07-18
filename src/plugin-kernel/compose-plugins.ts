@@ -50,7 +50,12 @@ export function composePlugins<
     const plugins = Object.freeze([...options.plugins]) as TPlugins;
     return Object.freeze({
         ref: options.ref,
-        version: options.version,
+        manifest: Object.freeze({
+            id: options.ref.id,
+            version: options.version,
+            apiVersion: options.ref.apiVersion,
+            engine: '^3.0.0',
+        }),
         async setup(context: PluginSetupContext<TEvents>): Promise<TApi> {
             const childApis: unknown[] = [];
             for (const plugin of plugins) {

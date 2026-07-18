@@ -2,7 +2,7 @@
  * Metadata markers for objects owned by the editor runtime.
  *
  * All base images, masks, annotations, and session-only objects should be
- * marked through these helpers so public type guards can reject legacy
+ * marked through these helpers so public type guards can reject unmarked
  * duck-typed objects reliably.
  *
  * @module

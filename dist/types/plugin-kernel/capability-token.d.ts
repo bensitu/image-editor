@@ -2,8 +2,8 @@ declare const capabilityTokenBrand: unique symbol;
 export interface CapabilityToken<TPort> {
     readonly id: string;
     readonly version: string;
-    /** Phantom invariant type. Runtime code never reads this field. */
-    readonly __portType?: (port: TPort) => TPort;
+    /** Phantom Port type. Runtime code never reads this field. */
+    readonly __type?: TPort;
     readonly [capabilityTokenBrand]: true;
 }
 export interface CapabilityIdentity {

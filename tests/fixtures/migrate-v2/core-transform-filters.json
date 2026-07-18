@@ -1,0 +1,46 @@
+{
+    "version": "7.4.0",
+    "width": 64,
+    "height": 48,
+    "background": "#ffffff",
+    "objects": [
+        {
+            "type": "Image",
+            "version": "7.4.0",
+            "originX": "left",
+            "originY": "top",
+            "left": 0,
+            "top": 0,
+            "width": 1,
+            "height": 1,
+            "scaleX": 64,
+            "scaleY": 48,
+            "angle": 90,
+            "flipX": true,
+            "flipY": false,
+            "opacity": 1,
+            "visible": true,
+            "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "crossOrigin": null,
+            "filters": [],
+            "editorObjectKind": "baseImage"
+        }
+    ],
+    "_editorState": {
+        "currentScale": 1.25,
+        "currentRotation": 90,
+        "baseImageScale": 0.75,
+        "currentImageMimeType": "image/png",
+        "imageFilterConfig": {
+            "brightness": 0.2,
+            "contrast": 0,
+            "saturation": 0,
+            "blur": 0,
+            "sharpen": 0,
+            "grayscale": true,
+            "sepia": false,
+            "vintage": false
+        },
+        "activeObjectKind": null
+    }
+}

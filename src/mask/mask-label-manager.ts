@@ -69,7 +69,7 @@ import { markSessionObject } from '../core/editor-object-kind.js';
  * runtime.
  */
 export interface MaskLabelManagerContext {
-    /** Injected Fabric.js v7 module used to construct the label text. */
+    /** Injected Fabric.js module used to construct the label text. */
     fabric: FabricModule;
     /** The live Fabric canvas the label overlay is added to. */
     canvas: FabricNS.Canvas;
@@ -165,8 +165,8 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
     // ── 2) Default builder ────────────────────────────────────────────────
     //    Used when there is no `label.create` or it returned `null`.
     if (!labelTextObject) {
-        // index is the stable creation index, not the
-        // live list position. legacy passed `this.maskCounter` here.
+        // The label callback receives the stable creation index, not the
+        // live list position.
         const indexForGetText = Math.max(0, mask.maskId - 1);
         let labelText = mask.maskName;
         if (typeof options.label.getText === 'function') {
@@ -203,7 +203,7 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
 
     mask.labelObject = labelTextObject;
     canvas.add(labelTextObject);
-    // v7: bringObjectToFront (renamed from v5 `bringToFront`).
+    // The supported Canvas API exposes `bringObjectToFront`.
     canvas.bringObjectToFront(labelTextObject);
 
     syncMaskLabel(context, mask);
@@ -218,7 +218,7 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
  * handlers (`object:moving`, `object:scaling`, `object:rotating`,
  * `object:modified`) without checking those guards at every call site.
  *
- * Geometry (matches legacy):
+ * Geometry:
  *
  * - The label's top-left is placed `options.maskLabelOffset` pixels from
  *   the mask's top-left corner, along the vector from the top-left to the

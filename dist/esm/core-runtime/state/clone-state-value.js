@@ -98,6 +98,35 @@ export function cloneStateValue(value) {
         throw new StateCloneError('State could not be cloned safely.', error);
     }
 }
+export function assertSafeImmutableReference(value, path = '$', seen = new WeakSet()) {
+    var _a, _b;
+    if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+        throw new StateCloneError(`Reference state at ${path} contains an unsupported ${typeof value}.`);
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+        throw new StateCloneError(`Reference state at ${path} contains a non-finite number.`);
+    }
+    if (!isObject(value))
+        return;
+    if (seen.has(value)) {
+        throw new StateCloneError(`Reference state at ${path} contains a cyclic reference.`);
+    }
+    if (!Object.isFrozen(value)) {
+        throw new StateCloneError(`Reference state at ${path} must be frozen.`);
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
+        throw new StateCloneError(`Reference state at ${path} contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
+    }
+    seen.add(value);
+    for (const key of Object.keys(value)) {
+        if (dangerousKeys.has(key)) {
+            throw new StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
+        }
+        assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
+    }
+    seen.delete(value);
+}
 export function isDangerousStateKey(key) {
     return dangerousKeys.has(key);
 }

@@ -1,5 +1,6 @@
-import { CoreRuntimeError } from '../../core-runtime/errors.js';
-import { createMask as createLegacyMask } from '../../mask/mask-factory.js';
+import { CoreRuntimeError, } from '../../core/index.js';
+import { captureOverlayStateBounds, isOverlayStateBoundsGeometry, restoreOverlayStateBounds, } from '../../foundations/overlay/index.js';
+import { createMask as createMaskFromFactory, } from '../../mask/mask-factory.js';
 import { hideAllMaskLabels, removeLabelForMask, showLabelForMask, syncMaskLabel, } from '../../mask/mask-label-manager.js';
 import { applyMaskSelectedStyle, applyMaskUnselectedStyle, detachMaskHoverHandlers, reattachMaskHoverHandlers, } from '../../mask/mask-style.js';
 const MASK_PLUGIN_ID = '@bensitu/mask';
@@ -64,31 +65,97 @@ function isSerializedMaskData(value) {
         typeof candidate.originalAlpha === 'number' &&
         Number.isFinite(candidate.originalAlpha));
 }
+function isPlainRecord(value) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+        return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+function maskStateKind(object) {
+    var _a;
+    const kind = String((_a = object.type) !== null && _a !== void 0 ? _a : '').toLowerCase();
+    if (kind === 'rect' || kind === 'circle' || kind === 'ellipse' || kind === 'polygon') {
+        return kind;
+    }
+    throw new CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
+}
+function normalizedPolygonPoints(object) {
+    const points = object
+        .points;
+    if (!Array.isArray(points) || points.length < 3 || points.length > 4096)
+        return null;
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    const width = Math.max(...xs) - left;
+    const height = Math.max(...ys) - top;
+    if (!(width > 0) || !(height > 0))
+        return null;
+    return Object.freeze(points.map((point) => Object.freeze({ x: (point.x - left) / width, y: (point.y - top) / height })));
+}
+function isMaskStateData(value) {
+    if (!isPlainRecord(value) || value.version !== 1)
+        return false;
+    const validKind = value.kind === 'rect' ||
+        value.kind === 'circle' ||
+        value.kind === 'ellipse' ||
+        value.kind === 'polygon';
+    const validPoints = value.points === null ||
+        (Array.isArray(value.points) &&
+            value.points.length >= 3 &&
+            value.points.length <= 4096 &&
+            value.points.every((point) => isPlainRecord(point) &&
+                typeof point.x === 'number' &&
+                Number.isFinite(point.x) &&
+                typeof point.y === 'number' &&
+                Number.isFinite(point.y)));
+    return (validKind &&
+        Number.isSafeInteger(value.maskId) &&
+        Number(value.maskId) > 0 &&
+        typeof value.name === 'string' &&
+        value.name.length > 0 &&
+        value.name.length <= 128 &&
+        typeof value.fill === 'string' &&
+        value.fill.length <= 128 &&
+        typeof value.opacity === 'number' &&
+        Number.isFinite(value.opacity) &&
+        value.opacity >= 0 &&
+        value.opacity <= 1 &&
+        (value.stroke === null ||
+            (typeof value.stroke === 'string' && value.stroke.length <= 128)) &&
+        typeof value.strokeWidth === 'number' &&
+        Number.isFinite(value.strokeWidth) &&
+        value.strokeWidth >= 0 &&
+        (value.strokeDashArray === null ||
+            (Array.isArray(value.strokeDashArray) &&
+                value.strokeDashArray.length <= 32 &&
+                value.strokeDashArray.every((entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0))) &&
+        typeof value.cornerRadiusX === 'number' &&
+        Number.isFinite(value.cornerRadiusX) &&
+        value.cornerRadiusX >= 0 &&
+        typeof value.cornerRadiusY === 'number' &&
+        Number.isFinite(value.cornerRadiusY) &&
+        value.cornerRadiusY >= 0 &&
+        validPoints &&
+        (value.kind === 'polygon' ? value.points !== null : value.points === null) &&
+        typeof value.hasControls === 'boolean' &&
+        typeof value.selectable === 'boolean' &&
+        typeof value.evented === 'boolean');
+}
 export class MaskPluginController {
-    constructor(host, state, overlay, operations, options) {
+    constructor(host, state, overlay, options) {
         Object.defineProperty(this, "host", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: host
         });
-        Object.defineProperty(this, "state", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: state
-        });
         Object.defineProperty(this, "overlay", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: overlay
-        });
-        Object.defineProperty(this, "operations", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: operations
         });
         Object.defineProperty(this, "options", {
             enumerable: true,
@@ -126,30 +193,32 @@ export class MaskPluginController {
             writable: true,
             value: null
         });
+        Object.defineProperty(this, "mutationSequence", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: 0
+        });
+        Object.defineProperty(this, "lastInteractionNotification", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: null
+        });
         Object.defineProperty(this, "registrations", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: []
         });
-        Object.defineProperty(this, "legacyOptions", {
+        Object.defineProperty(this, "factoryOptions", {
             enumerable: true,
             configurable: true,
             writable: true,
             value: void 0
         });
-        Object.defineProperty(this, "onObjectTransform", {
-            enumerable: true,
-            configurable: true,
-            writable: true,
-            value: (event) => {
-                if (event.target && isMaskObject(event.target)) {
-                    syncMaskLabel(this.labelContext(), event.target);
-                }
-            }
-        });
-        this.legacyOptions = Object.freeze({
-            ...host.options,
+        this.factoryOptions = Object.freeze({
+            layoutMode: host.layoutMode,
             defaultMaskWidth: options.defaultWidth,
             defaultMaskHeight: options.defaultHeight,
             defaultMaskConfig: options.defaultConfig,
@@ -170,22 +239,122 @@ export class MaskPluginController {
                 if (isMaskObject(object))
                     object.maskUid = id;
             },
+            persistence: {
+                mode: 'persistent',
+                codec: {
+                    type: 'mask',
+                    version: '1.0.0',
+                    serialize: (object) => this.serializeMask(object),
+                    validate: isSerializedMaskData,
+                    deserialize: (data, context) => this.deserializeMask(data, context.fabric),
+                },
+            },
+            stateCodec: {
+                type: 'mask',
+                version: '1.0.0',
+                serialize: (object, context) => {
+                    if (!isMaskObject(object)) {
+                        throw new CoreRuntimeError('[ImageEditor] Mask State Codec received a non-mask.');
+                    }
+                    const kind = maskStateKind(object);
+                    const metadata = object
+                        .overlayMetadata;
+                    return Object.freeze({
+                        geometry: captureOverlayStateBounds(object, context),
+                        metadata: isPlainRecord(metadata)
+                            ? Object.freeze({ ...metadata })
+                            : Object.freeze({}),
+                        data: Object.freeze({
+                            version: 1,
+                            kind,
+                            maskId: object.maskId,
+                            name: object.maskName,
+                            fill: typeof object.fill === 'string' ? object.fill : '#000000',
+                            opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
+                            stroke: typeof object.stroke === 'string' ? object.stroke : null,
+                            strokeWidth: context.toImageNormalizedScalar(Number(object.strokeWidth) || 0),
+                            strokeDashArray: Array.isArray(object.strokeDashArray)
+                                ? Object.freeze(object.strokeDashArray.map((entry) => context.toImageNormalizedScalar(entry)))
+                                : null,
+                            cornerRadiusX: context.toImageNormalizedScalar(Number(Reflect.get(object, 'rx')) || 0),
+                            cornerRadiusY: context.toImageNormalizedScalar(Number(Reflect.get(object, 'ry')) || 0),
+                            points: kind === 'polygon' ? normalizedPolygonPoints(object) : null,
+                            hasControls: object.hasControls === true,
+                            selectable: object.selectable !== false,
+                            evented: object.evented !== false,
+                        }),
+                    });
+                },
+                validate: (value) => isOverlayStateBoundsGeometry(value.geometry) &&
+                    isMaskStateData(value.data) &&
+                    isPlainRecord(value.metadata),
+                deserialize: (value, context) => {
+                    if (!isOverlayStateBoundsGeometry(value.geometry) ||
+                        !isMaskStateData(value.data) ||
+                        !isPlainRecord(value.metadata)) {
+                        throw new CoreRuntimeError('[ImageEditor] Serialized Mask State data is malformed.');
+                    }
+                    const data = value.data;
+                    const common = {
+                        left: 0,
+                        top: 0,
+                        originX: 'left',
+                        originY: 'top',
+                        fill: data.fill,
+                        opacity: data.opacity,
+                        stroke: data.stroke,
+                        strokeWidth: context.toCanvasScalar(data.strokeWidth),
+                        strokeDashArray: data.strokeDashArray
+                            ? data.strokeDashArray.map((entry) => context.toCanvasScalar(entry))
+                            : undefined,
+                        hasControls: data.hasControls,
+                        selectable: data.selectable,
+                        evented: data.evented,
+                        strokeUniform: true,
+                    };
+                    let object;
+                    if (data.kind === 'circle') {
+                        object = new this.host.fabric.Circle({ ...common, radius: 0.5 });
+                    }
+                    else if (data.kind === 'ellipse') {
+                        object = new this.host.fabric.Ellipse({ ...common, rx: 0.5, ry: 0.5 });
+                    }
+                    else if (data.kind === 'polygon') {
+                        object = new this.host.fabric.Polygon(data.points.map((point) => ({ x: point.x, y: point.y })), common);
+                    }
+                    else {
+                        object = new this.host.fabric.Rect({
+                            ...common,
+                            width: 1,
+                            height: 1,
+                            rx: context.toCanvasScalar(data.cornerRadiusX),
+                            ry: context.toCanvasScalar(data.cornerRadiusY),
+                        });
+                    }
+                    const mask = object;
+                    mask.editorObjectKind = 'mask';
+                    mask.maskId = data.maskId;
+                    mask.maskUid = `mask-state-${data.maskId}`;
+                    mask.maskName = data.name;
+                    mask.originalAlpha = data.opacity;
+                    mask.originalStroke = data.stroke;
+                    mask.originalStrokeWidth = context.toCanvasScalar(data.strokeWidth);
+                    mask.overlayMetadata = Object.freeze({ ...value.metadata });
+                    mask.lockRotation = !this.options.rotatable;
+                    restoreOverlayStateBounds(mask, value.geometry, context, this.host.fabric);
+                    reattachMaskHoverHandlers(mask);
+                    return mask;
+                },
+            },
         }));
         this.registrations.push(overlay.registerGeometryPolicy({
             id: `${MASK_PLUGIN_ID}:geometry`,
             kind: 'mask',
             ownerPluginId: MASK_PLUGIN_ID,
-            supports: (mutation) => options.bindToImageTransform && mutation.kind === 'transform',
+            supports: (mutation) => mutation.kind === 'crop' ||
+                (options.bindToImageTransform && mutation.kind === 'transform'),
             prepare: () => this.captureSelectionBeforeGeometry(),
             synchronize: () => this.synchronizeAfterGeometry(),
-        }));
-        this.registrations.push(overlay.registerSerializer({
-            id: `${MASK_PLUGIN_ID}:serializer`,
-            kind: 'mask',
-            ownerPluginId: MASK_PLUGIN_ID,
-            serialize: (object) => this.serializeMask(object),
-            validate: isSerializedMaskData,
-            deserialize: (data, context) => this.deserializeMask(data, context.fabric),
         }));
         this.registrations.push(overlay.registerExportRenderer({
             id: `${MASK_PLUGIN_ID}:renderer`,
@@ -206,13 +375,32 @@ export class MaskPluginController {
                 targetCanvas.add(clone);
             },
         }));
-        this.registrations.push(state.transientObjects.register(MASK_PLUGIN_ID, (object) => {
+        this.registrations.push(overlay.registerInteractionPolicy({
+            id: `${MASK_PLUGIN_ID}:interaction`,
+            kind: 'mask',
+            ownerPluginId: MASK_PLUGIN_ID,
+            preview: (object) => {
+                if (isMaskObject(object))
+                    syncMaskLabel(this.labelContext(), object);
+            },
+            synchronize: (object, context) => {
+                if (isMaskObject(object) && object.labelObject) {
+                    syncMaskLabel(this.labelContext(), object);
+                }
+                if (this.lastInteractionNotification !== context.descriptor.id) {
+                    this.lastInteractionNotification = context.descriptor.id;
+                    this.notifyChange();
+                }
+            },
+        }));
+        this.registrations.push(state.registerTransientObject(MASK_PLUGIN_ID, (object) => {
             const candidate = object;
             return candidate.maskLabel === true;
         }));
-        this.registrations.push(state.slices.register({
+        this.registrations.push(state.registerSlice({
             id: MASK_PLUGIN_ID,
             version: 1,
+            capturePolicy: 'always',
             capture: () => Object.freeze({ counter: this.counter }),
             validate: (value) => {
                 const counter = value === null || value === void 0 ? void 0 : value.counter;
@@ -241,31 +429,27 @@ export class MaskPluginController {
         this.assertActive('attach Mask plugin');
         if (this.attached)
             return;
-        const canvas = this.host.requireCanvas('attach Mask plugin');
-        if (typeof canvas.on === 'function') {
-            for (const eventName of [
-                'object:moving',
-                'object:scaling',
-                'object:rotating',
-                'object:modified',
-            ]) {
-                canvas.on(eventName, this.onObjectTransform);
-            }
-        }
         this.attached = true;
         this.reattachRuntimeState();
     }
     create(config = {}) {
-        return this.operations.run('mask:create', () => {
-            this.synchronizeCounterFromCanvas();
-            const before = this.state.mementos.capture();
-            const mask = createLegacyMask(this.createContext(), config);
-            if (!mask)
-                throw new CoreRuntimeError('[ImageEditor] Mask configuration is invalid.');
-            this.commitHistory('mask:create', before);
-            this.notifyChange();
-            this.synchronizeSelection();
-            return mask;
+        return this.overlay.mutate({
+            id: `mask:create:${++this.mutationSequence}`,
+            operationId: 'mask:create',
+            action: 'create',
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+            mutate: () => {
+                this.synchronizeCounterFromCanvas();
+                const mask = createMaskFromFactory(this.createContext(), config);
+                if (!mask) {
+                    throw new CoreRuntimeError('[ImageEditor] Mask configuration is invalid.');
+                }
+                return mask;
+            },
+            affectedObjects: (mask) => [mask],
+            synchronize: () => {
+                this.synchronizeSelection();
+            },
         });
     }
     getAll() {
@@ -277,15 +461,17 @@ export class MaskPluginController {
         return Object.freeze(masks);
     }
     remove(id) {
-        this.operations.run('mask:remove', () => {
-            const object = this.overlay.getByPersistentId(id);
-            if (!object || !isMaskObject(object)) {
-                throw new CoreRuntimeError(`[ImageEditor] Mask "${id}" was not found.`);
-            }
-            const before = this.state.mementos.capture();
-            this.removeMaskObject(object);
-            this.commitHistory('mask:remove', before);
-            this.notifyChange();
+        const object = this.overlay.getByPersistentId(id);
+        if (!object || !isMaskObject(object)) {
+            return Promise.reject(new CoreRuntimeError(`[ImageEditor] Mask "${id}" was not found.`));
+        }
+        return this.overlay.mutate({
+            id: `mask:remove:${++this.mutationSequence}`,
+            operationId: 'mask:remove',
+            action: 'delete',
+            objectIds: [id],
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+            mutate: () => this.removeMaskObject(object),
         });
     }
     removeSelected() {
@@ -293,22 +479,25 @@ export class MaskPluginController {
             const object = this.overlay.getByPersistentId(id);
             return object ? isMaskObject(object) : false;
         });
-        if (selectedId)
-            this.remove(selectedId);
+        return selectedId ? this.remove(selectedId) : Promise.resolve();
     }
     removeAll(options = {}) {
-        this.operations.run('mask:remove-all', () => {
-            const masks = [...this.getAll()];
-            if (masks.length === 0)
-                return;
-            const before = this.state.mementos.capture();
-            for (const mask of masks)
-                this.removeMaskObject(mask);
-            this.counter = 0;
-            this.lastMask = null;
-            if (options.saveHistory !== false)
-                this.commitHistory('mask:remove-all', before);
-            this.notifyChange();
+        void options;
+        const masks = [...this.getAll()];
+        if (masks.length === 0)
+            return Promise.resolve();
+        return this.overlay.mutate({
+            id: `mask:remove-all:${++this.mutationSequence}`,
+            operationId: 'mask:remove-all',
+            action: 'delete',
+            objectIds: masks.map((mask) => mask.maskUid),
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID, objectCount: masks.length }),
+            mutate: () => {
+                for (const mask of masks)
+                    this.removeMaskObject(mask);
+                this.counter = 0;
+                this.lastMask = null;
+            },
         });
     }
     flatten(options) {
@@ -331,16 +520,6 @@ export class MaskPluginController {
         if (this.disposed)
             return;
         const canvas = this.host.getCanvas();
-        if (canvas && typeof canvas.off === 'function') {
-            for (const eventName of [
-                'object:moving',
-                'object:scaling',
-                'object:rotating',
-                'object:modified',
-            ]) {
-                canvas.off(eventName, this.onObjectTransform);
-            }
-        }
         this.removeLabels();
         for (const object of (_a = canvas === null || canvas === void 0 ? void 0 : canvas.getObjects()) !== null && _a !== void 0 ? _a : []) {
             if (isMaskObject(object))
@@ -368,7 +547,7 @@ export class MaskPluginController {
         return {
             fabric: this.host.fabric,
             canvas: this.host.requireCanvas('create a mask'),
-            options: this.legacyOptions,
+            options: this.factoryOptions,
             getLastMask: () => this.lastMask,
             setLastMask: (mask) => {
                 this.lastMask = mask;
@@ -379,20 +558,20 @@ export class MaskPluginController {
             },
             updateMaskList: () => undefined,
             saveCanvasState: () => undefined,
-            expandCanvasIfNeeded: (width, height) => this.host.setCanvasSize(width, height),
+            expandCanvasIfNeeded: (width, height) => this.host.resizeCanvas(width, height),
         };
     }
     labelContext() {
         return {
             fabric: this.host.fabric,
             canvas: this.host.requireCanvas('synchronize mask labels'),
-            options: this.legacyOptions,
+            options: this.factoryOptions,
         };
     }
     serializeMask(object) {
         if (!isMaskObject(object))
             throw new CoreRuntimeError('[ImageEditor] Mask serializer received a non-mask.');
-        const compatibility = object;
+        const serializedMask = object;
         return Object.freeze({
             object: object.toObject(MASK_SERIALIZED_OBJECT_PROPERTIES),
             maskId: object.maskId,
@@ -401,8 +580,8 @@ export class MaskPluginController {
             originalAlpha: object.originalAlpha,
             originalStroke: object.originalStroke,
             originalStrokeWidth: object.originalStrokeWidth,
-            overlayPersistentId: compatibility.overlayPersistentId,
-            overlayMetadata: compatibility.overlayMetadata,
+            overlayPersistentId: serializedMask.overlayPersistentId,
+            overlayMetadata: serializedMask.overlayMetadata,
         });
     }
     async deserializeMask(data, fabricModule) {
@@ -423,9 +602,9 @@ export class MaskPluginController {
         mask.originalAlpha = data.originalAlpha;
         mask.originalStroke = data.originalStroke;
         mask.originalStrokeWidth = data.originalStrokeWidth;
-        const compatibility = mask;
-        compatibility.overlayPersistentId = data.overlayPersistentId;
-        compatibility.overlayMetadata = data.overlayMetadata;
+        const serializedMask = mask;
+        serializedMask.overlayPersistentId = data.overlayPersistentId;
+        serializedMask.overlayMetadata = data.overlayMetadata;
         mask.lockRotation = !this.options.rotatable;
         reattachMaskHoverHandlers(mask);
         return mask;
@@ -484,7 +663,7 @@ export class MaskPluginController {
         hideAllMaskLabels({
             fabric: this.host.fabric,
             canvas,
-            options: this.legacyOptions,
+            options: this.factoryOptions,
         });
     }
     reattachRuntimeState() {
@@ -520,13 +699,6 @@ export class MaskPluginController {
             this.lastMask = (_b = masks[masks.length - 1]) !== null && _b !== void 0 ? _b : null;
         }
         this.host.requestRender();
-    }
-    commitHistory(operationId, before) {
-        const record = this.state.captureHistoryRecord(operationId, before);
-        const result = this.state.commitHistory(record);
-        if (result instanceof Promise) {
-            void result.catch((error) => this.host.reportError(error, `History commit for "${operationId}" failed.`));
-        }
     }
     notifyChange() {
         var _a, _b;

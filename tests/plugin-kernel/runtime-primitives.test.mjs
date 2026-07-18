@@ -15,14 +15,27 @@ import {
 test('OperationRegistry supports open ids, ownership, reentrancy guards, and disposal', () => {
     const registry = new OperationRegistry();
     const registration = registry.register(
-        { id: 'third-party.example/analyze', mode: 'busy' },
+        {
+            id: 'third-party.example/analyze',
+            mode: 'busy',
+            conflictDomains: ['document'],
+            reentrancy: 'reject',
+        },
         'plugin.owner',
     );
 
     assert.equal(registry.get('third-party.example/analyze')?.mode, 'busy');
     assert.throws(
         () =>
-            registry.register({ id: 'third-party.example/analyze', mode: 'idle' }, 'plugin.other'),
+            registry.register(
+                {
+                    id: 'third-party.example/analyze',
+                    mode: 'busy',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                },
+                'plugin.other',
+            ),
         OperationRegistrationError,
     );
     assert.throws(

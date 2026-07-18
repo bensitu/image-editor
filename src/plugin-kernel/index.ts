@@ -1,4 +1,4 @@
-/** Internal Phase 1 Plugin Kernel entry. Not exported from the package root. */
+/** Internal Plugin Kernel entry. Not exported from the package root. */
 
 export {
     CapabilityRegistry,
@@ -40,18 +40,25 @@ export {
 } from './disposable.js';
 export {
     CapabilityConflictError,
+    CapabilityMissingError,
+    CapabilityVersionError,
     InvalidCapabilityVersionError,
     InvalidPluginDefinitionError,
     OperationConflictError,
     OperationRegistrationError,
     PluginAggregateError,
     PluginAlreadyInstalledError,
+    PluginBatchInstallError,
     PluginCapabilityError,
+    PluginDefinitionConflictError,
+    PluginDependencyCycleError,
+    PluginDependencyError,
     PluginError,
     PluginKernelDisposedError,
     PluginKernelStateError,
     PluginLifecycleError,
     PluginNotInstalledError,
+    PluginPermissionError,
     PluginSetupError,
     PluginVersionMismatchError,
     ToolRegistrationError,
@@ -61,9 +68,13 @@ export {
 } from './errors.js';
 export {
     OperationRegistry,
+    type OperationConflictDomain,
     type OperationDefinition,
+    type OperationExecutionContext,
     type OperationId,
     type OperationMode,
+    type OperationReentrancy,
+    type OperationRunOptions,
     type OperationToken,
 } from './operation-registry.js';
 export {
@@ -77,6 +88,7 @@ export { PluginStateStore, type ScopedPluginStateStore } from './plugin-state-st
 export type {
     EditorPlugin,
     EditorPluginDefinition,
+    CapabilityProviderOptions,
     PluginCapabilityReader,
     PluginCapabilitySetupAccess,
     PluginCommittedEventAccess,

@@ -1,194 +1,44 @@
-/**
- * Type:
- *   Smoke test
- *
- * Purpose:
- *   Inspects src/index.ts as source text to verify the package root exports only the
- *   intended runtime values and public types. It avoids loading the rest of the
- *   source tree so the test remains stable while internal modules are being edited.
- *
- * Scope:
- *   - ImageEditor is exported as both default and named export.
- *   - Editor object guards are the only additional runtime exports.
- *   - Public type exports are present and internal helpers do not leak through the
- *     barrel.
- *
- * Out of scope:
- *   - feature behavior inside ImageEditor methods
- *   - browser rendering behavior
- *   - private implementation refactors
- *
- * Environment:
- *   - Node.js ESM
- *   - filesystem or built-artifact inspection
- *   - Fabric/canvas behavior is mocked where needed
- *
- * Run:
- *   node --test tests/barrel-exports.test.mjs
- *
- * Notes:
- *   - Prefer behavior-level assertions over implementation-detail checks.
- *   - Keep this file focused on canonical public API barrel only.
- */
-
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import test from 'node:test';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const indexPath = path.resolve(__dirname, '..', 'src', 'index.ts');
+import ImageEditorDefault, {
+    ImageEditor,
+    ImageEditorCore,
+    CoreRuntimeError,
+    definePluginRef,
+} from '../src/index.ts';
+import { ImageEditorCore as CoreEntry } from '../src/core/index.js';
 
-async function readBarrel() {
-    return fs.readFile(indexPath, 'utf8');
-}
-
-test('barrel exports ImageEditor as both named and default', async () => {
-    const source = await readBarrel();
-
-    assert.match(
-        source,
-        /export\s*\{\s*ImageEditor(?:\s*,\s*ImageEditor\s+as\s+default)?\s*\}\s+from\s+['"]\.\/image-editor\.js['"]/,
-        'barrel must contain `export { ImageEditor }` (named export)',
-    );
-    assert.match(
-        source,
-        /ImageEditor\s+as\s+default/,
-        'barrel must re-export ImageEditor as the default export',
-    );
-    assert.doesNotMatch(
-        source,
-        /import\s*\{\s*ImageEditor\s*\}\s+from\s+['"]\.\/image-editor\.js['"]/,
-        'barrel should not import ImageEditor just to re-export it',
-    );
+test('package root and Core entry resolve one Core class identity', () => {
+    assert.equal(ImageEditor, ImageEditorCore);
+    assert.equal(ImageEditorDefault, ImageEditorCore);
+    assert.equal(CoreEntry, ImageEditorCore);
 });
 
-test('barrel exports editor object runtime guards', async () => {
-    const source = await readBarrel();
+test('package root exposes the Core Framework primitives', () => {
+    assert.equal(typeof ImageEditor, 'function');
+    assert.equal(typeof CoreRuntimeError, 'function');
+    assert.equal(typeof definePluginRef, 'function');
+});
 
-    for (const guard of [
-        'isAnnotationObject',
-        'isBaseImageObject',
-        'isDrawAnnotationObject',
-        'isEditableOverlayObject',
-        'isMaskObject',
-        'isSessionObject',
-        'isShapeAnnotationObject',
-        'isTextAnnotationObject',
+test('package root does not expose removed facade runtime values', async () => {
+    const root = await import('../src/index.ts');
+    for (const name of [
+        'EditorRuntime',
+        'DeferredHistoryPort',
+        'PluginHistoryAdapter',
+        'definePlugin',
+        'createPluginTestHost',
+        'runPluginConformance',
+        'overlayFoundationPlugin',
+        'transformPlugin',
+        'historyPlugin',
+        'maskPlugin',
+        'annotationFoundationPlugin',
+        'textAnnotationPlugin',
+        'shapeAnnotationPlugin',
+        'drawAnnotationPlugin',
     ]) {
-        assert.match(source, new RegExp(`\\b${guard}\\b`), `barrel must export \`${guard}\``);
-    }
-});
-
-test('barrel re-exports documented public type names', async () => {
-    const source = await readBarrel();
-
-    const expectedTypeNames = [
-        'ImageEditorOptions',
-        'ResolvedOptions',
-        'LayoutMode',
-        'EditorObjectKind',
-        'EditorToolMode',
-        'AnnotationType',
-        'SessionObjectType',
-        'EditorObjectMeta',
-        'LabelConfig',
-        'CropConfig',
-        'CropAspectRatioPreset',
-        'CropAspectRatio',
-        'CropModeOptions',
-        'CropExportFileType',
-        'MosaicConfig',
-        'ResolvedMosaicConfig',
-        'MosaicOutputFileType',
-        'TextAnnotationConfig',
-        'ResolvedTextAnnotationConfig',
-        'DrawConfig',
-        'ResolvedDrawConfig',
-        'DrawSubMode',
-        'EraserConfig',
-        'ResolvedEraserConfig',
-        'ImageFilterConfig',
-        'ResolvedImageFilterConfig',
-        'ShapeAnnotationConfig',
-        'ResolvedShapeAnnotationConfig',
-        'ShapeAnnotationKind',
-        'OverlayNumericProp',
-        'DefaultMaskConfig',
-        'MaskConfig',
-        'MaskObject',
-        'MaskNumericProp',
-        'MaskShapeKind',
-        'ResolvedMaskConfig',
-        'BaseImageObject',
-        'SessionObject',
-        'AnnotationObject',
-        'TextAnnotationObject',
-        'DrawAnnotationObject',
-        'ShapeAnnotationObject',
-        'AnnotationUpdateConfig',
-        'RemoveAllAnnotationsOptions',
-        'ExportArea',
-        'ImageExportOptions',
-        'ImageInfo',
-        'ImageEditorState',
-        'ImageEditorSelection',
-        'ImageEditorCallbackContext',
-        'ImageEditorOperation',
-        'ElementTarget',
-        'ElementMap',
-        'ElementIdMap',
-        'ResizeToContainerOptions',
-        'RelayoutOptions',
-        'FabricModule',
-        'ExportOverlayStateOptions',
-        'ImportOverlayStateOptions',
-        'ImportOverlayStateResult',
-        'OverlayBaseImageTransform',
-        'OverlayImageInfo',
-        'OverlayImportWarning',
-        'OverlayMetadata',
-        'OverlayState',
-        'OverlayValidationError',
-        'OverlayValidationOptions',
-        'OverlayValidationResult',
-        'SerializedCustomOverlay',
-        'SerializedDrawAnnotationOverlay',
-        'SerializedMaskOverlay',
-        'SerializedOverlay',
-        'SerializedShapeAnnotationOverlay',
-        'SerializedTextAnnotationOverlay',
-    ];
-
-    for (const name of expectedTypeNames) {
-        const pattern = new RegExp(`\\b${name}\\b`);
-        assert.match(
-            source,
-            pattern,
-            `barrel must re-export the documented public type \`${name}\``,
-        );
-    }
-});
-
-test('barrel does not export internal helpers', async () => {
-    const source = await readBarrel();
-
-    const forbiddenInternalExports = [
-        /export\s*\{\s*AnimationQueue\b/,
-        /export\s*\{\s*Command\b/,
-        /export\s*\{\s*HistoryManager\b/,
-        // Any controllers, services, managers should not be value-exported
-        /export\s*\{\s*[A-Za-z]+Controller\b/,
-        /export\s*\{\s*[A-Za-z]+Service\b/,
-        /export\s*\{\s*[A-Za-z]+Manager\b/,
-    ];
-
-    for (const pattern of forbiddenInternalExports) {
-        assert.equal(
-            pattern.test(source),
-            false,
-            `barrel must not match ${pattern} (internal helper leaked to root)`,
-        );
+        assert.equal(name in root, false, `${name} must not be exported from the package root`);
     }
 });

@@ -1,10 +1,12 @@
 import type * as FabricNS from 'fabric';
+import type { DocumentMutationDescriptor } from './mutation/index.js';
 export type FabricModule = Omit<typeof FabricNS, 'default'> & {
     readonly default?: unknown;
 };
 export type LayoutMode = 'fit' | 'cover' | 'expand';
 export type ImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 export type ExportArea = 'image' | 'canvas';
+export type EditorLifecycleState = 'configured' | 'initializing' | 'initialized' | 'disposing' | 'disposed' | 'faulted';
 export type ElementTarget<TElement extends HTMLElement = HTMLElement> = string | TElement | null;
 export interface CoreElementMap {
     readonly canvas: ElementTarget<HTMLCanvasElement>;
@@ -45,6 +47,8 @@ export interface ResolvedImageEditorCoreOptions {
 }
 export interface LoadImageOptions {
     readonly preserveScroll?: boolean;
+    readonly signal?: AbortSignal;
+    readonly concurrency?: 'replace-pending';
 }
 export interface CoreExportOptions {
     readonly area?: ExportArea;
@@ -63,6 +67,7 @@ export interface CoreImageInfo {
     readonly geometryRevision: number;
 }
 export interface CoreEventMap {
+    readonly 'document:committed': DocumentMutationDescriptor;
     readonly 'geometry:committed': unknown;
     readonly 'image:loaded': CoreImageInfo;
     readonly 'image:cleared': Readonly<{

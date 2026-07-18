@@ -4,16 +4,19 @@
 [![npm](https://img.shields.io/npm/v/@bensitu/image-editor.svg)](https://www.npmjs.com/package/@bensitu/image-editor)
 [![](https://data.jsdelivr.com/v1/package/npm/@bensitu/image-editor/badge)](https://www.jsdelivr.com/package/npm/@bensitu/image-editor)
 
-A TypeScript-first image editor built on [Fabric.js](https://fabricjs.com/) v7.
-It provides a focused canvas editing API for loading images, transforming the
-base image, creating masks and annotations, applying crop and mosaic operations,
-maintaining undo/redo history, and exporting edited output as Base64, `File`, or
-downloadable image assets.
+A TypeScript-first Core Framework and public Plugin SDK built on
+[Fabric.js](https://fabricjs.com/) v7. The current major release separates canvas
+lifecycle from typed Feature Plugins for transforms, history, redaction,
+annotations, persistence, and optional DOM controls.
 
-The package is framework-agnostic and works from plain browser pages, bundled
-ESM applications, CommonJS consumers, and UMD/CDN environments. React, Vue,
-Next.js, and Nuxt integrations should create and dispose the editor inside
-client-side lifecycle hooks.
+> **Release candidate status:** this branch prepares `3.0.0-rc.1`, a breaking
+> major release. The candidate is not a stable release and has not been
+> published. Applications on the maintained 2.x line should remain on that line
+> until they complete the [migration guide](docs/migration-from-v2.md).
+
+Fabric `>=7.4.0 <8` is a peer dependency and is never bundled. Core composition
+is DOM-independent and safe to import in SSR/headless code; canvas initialization
+and browser image operations still require a compatible Fabric/DOM environment.
 
 [![ImageEditor demo landing page showing selectable masks, filters, mosaic-style redaction, and annotations](https://raw.githubusercontent.com/bensitu/image-editor/main/docs/assets/demo-screenshot.jpg)](https://bensitu.github.io/image-editor/)
 
@@ -21,7 +24,9 @@ Click the screenshot to open the live demo.
 
 ## Contents
 
-- [Quick Start](#quick-start)
+- [Preset Quick Start](#preset-quick-start)
+- [Core + Plugins](#core--plugins)
+- [Plugin Authoring](#plugin-authoring)
 - [Features](#features)
 - [Demo and Examples](#demo-and-examples)
 - [Documentation](#documentation)
@@ -34,7 +39,7 @@ Click the screenshot to open the live demo.
 - [Development](#development)
 - [License](#license)
 
-## Quick Start
+## Preset Quick Start
 
 ### Install
 
@@ -56,12 +61,6 @@ uses the same Fabric version as your application.
     <canvas id="canvas"></canvas>
 </div>
 
-<button id="zoomInButton">Zoom In</button>
-<button id="rotateRightButton">Rotate Right</button>
-<button id="enterCropModeButton">Crop</button>
-<button id="downloadImageButton">Download</button>
-<button id="undoButton">Undo</button>
-<button id="redoButton">Redo</button>
 <input id="imageInput" type="file" accept="image/*" />
 ```
 
@@ -69,37 +68,78 @@ uses the same Fabric version as your application.
 
 ```ts
 import * as fabric from 'fabric';
-import { ImageEditor } from '@bensitu/image-editor';
+import { createRedactionPreset } from '@bensitu/image-editor/presets/redaction';
 
-const editor = new ImageEditor(fabric, {
-    canvasWidth: 800,
-    canvasHeight: 600,
-    defaultLayoutMode: 'fit',
-    backgroundColor: '#ffffff',
+const preset = createRedactionPreset(fabric, {
+    core: {
+        canvasWidth: 800,
+        canvasHeight: 600,
+        defaultLayoutMode: 'fit',
+    },
+    transform: { animationDuration: 0 },
+    masks: { label: false },
 });
 
-editor.init({
+await preset.editor.init({
     canvas: 'canvas',
     canvasContainer: 'editorContainer',
-    zoomInButton: 'zoomInButton',
-    rotateRightButton: 'rotateRightButton',
-    enterCropModeButton: 'enterCropModeButton',
-    downloadImageButton: 'downloadImageButton',
-    undoButton: 'undoButton',
-    redoButton: 'redoButton',
-    imageInput: 'imageInput',
 });
 
-await editor.loadImage('data:image/jpeg;base64,...');
+await preset.editor.loadImage('data:image/jpeg;base64,...');
+await preset.masks.create({ left: 120, top: 80, width: 160, height: 96 });
+await preset.transform.rotate(90);
 
-editor.createMask({ shape: 'rect', width: 120, height: 80, left: '25%', top: '25%' });
-editor.createTextAnnotation({ text: 'Label', left: 120, top: 80 });
+if (preset.history.canUndo()) await preset.history.undo();
 
-const dataUrl = await editor.exportImageBase64({ fileType: 'png' });
+const dataUrl = await preset.editor.exportImageBase64({ format: 'png', area: 'image' });
+await preset.editor.disposeAsync();
 ```
 
-The demo pages show larger DOM maps with image filters, masks, annotations,
-crop controls, mosaic controls, lists, and layer actions.
+Preset factories install Plugins but do not initialize the editor. Their result
+keeps lifecycle operations on `editor` and exposes each Feature through its own
+typed Plugin API. See [Presets](docs/presets.md) for the four compositions and
+[DOM Controls](docs/dom-controls.md) when an imperative DOM binding layer is
+useful.
+
+## Core + Plugins
+
+Use direct composition when the application needs a smaller or custom Feature
+set. Install every Plugin before `init()`; Core does not forward Feature methods.
+
+```ts
+import * as fabric from 'fabric';
+import { ImageEditorCore } from '@bensitu/image-editor/core';
+import { historyPlugin } from '@bensitu/image-editor/plugins/history';
+import { transformPlugin } from '@bensitu/image-editor/plugins/transform';
+
+const editor = new ImageEditorCore(fabric, { defaultLayoutMode: 'fit' });
+const [transform, history] = editor.install([
+    transformPlugin({ animationDuration: 0 }),
+    historyPlugin({ maxSize: 50 }),
+]);
+
+await editor.init({ canvas: 'canvas', canvasContainer: 'editorContainer' });
+await editor.loadImage(source);
+await transform.rotate(90);
+await history.undo();
+await editor.disposeAsync();
+```
+
+Core owns lifecycle, image/layout state, Snapshot loading, and export. Plugins
+receive narrowly scoped Capabilities and own their transactions, state slices,
+tools, overlays, and cleanup.
+
+## Plugin Authoring
+
+Third-party Plugins use only `@bensitu/image-editor/sdk`, documented Core types,
+and public Feature contracts. `PluginRef<TApi>` preserves method-level inference;
+manifests declare engine/API versions, dependencies, Capabilities, and privileged
+permissions. Setup is transactional and every owned registration belongs in the
+Plugin disposable scope.
+
+Start with the [Plugin Author Guide](docs/plugin-author-guide.md), then inspect
+the independently packable [reference Plugins](examples/reference-plugins) and
+run the public [Conformance Kit](docs/api.md#testing-and-conformance).
 
 ## Features
 
@@ -135,20 +175,26 @@ crop controls, mosaic controls, lists, and layer actions.
 
 ### Integration
 
-- One public `ImageEditor` class exported as both default and named.
+- `ImageEditorCore` owns canvas, image, lifecycle, export, and Plugin installation.
+- Formal Plugin subpaths expose typed Feature APIs without method forwarding.
+- Minimal, Redaction, Annotation, and Full Presets provide typed compositions.
 - Fabric.js v7 is a peer dependency; the package does not bundle Fabric.
-- ESM, CommonJS, UMD, and TypeScript declaration outputs are published.
-- DOM binding accepts string IDs, HTMLElement refs, or `null` for unmanaged
-  optional controls.
+- Core, Plugin, and Preset entries publish ESM, CommonJS, and TypeScript declarations.
+- Optional DOM Controls accept selectors or element instances in section-based options.
 - `dispose()` and `disposeAsync()` support framework lifecycle cleanup.
 
 ## Demo and Examples
 
 - [Demo landing page](https://bensitu.github.io/image-editor/)
 - [Integrated editor demo](docs/integrated-editor.html)
+- [Vanilla Core + Plugins](examples/vanilla-core)
+- [Vanilla DOM Controls](examples/vanilla-dom-controls)
 - [React basic example](examples/react-basic)
 - [Vue basic example](examples/vue-basic)
 - [Next.js client-only example](examples/next-client-only)
+- [Third-party Plugin template](examples/plugin-template)
+- [Watermark, Metadata, Grid/Guide, and Blur Region reference Plugins](examples/reference-plugins)
+- [Pure Fabric versus Framework redaction comparison](examples/fabric-vs-framework-redaction)
 
 ## Documentation
 
@@ -156,75 +202,73 @@ crop controls, mosaic controls, lists, and layer actions.
 - [Options reference](docs/options.md)
 - [Overlay transform binding](docs/overlay-transform-binding.md)
 - [Overlay-state persistence](docs/overlay-state.md)
+- [DOM Controls](docs/dom-controls.md)
+- [Typed Presets](docs/presets.md)
+- [History recording control](docs/history.md)
+- [Filters Plugin](docs/filters.md)
+- [Crop Plugin](docs/crop.md)
+- [Mosaic Plugin](docs/mosaic.md)
+- [Annotation Foundation](docs/annotations.md)
+- [Text Annotation Plugin](docs/annotation-text.md)
+- [Shape Annotation Plugin](docs/annotation-shape.md)
+- [Draw Annotation and Eraser](docs/annotation-draw.md)
+- [Plugin Author Guide](docs/plugin-author-guide.md)
+- [Migration from 2.x](docs/migration-from-v2.md)
+- [2.x maintenance policy](docs/v2-maintenance-policy.md)
+- [3.0.0-rc.1 release notes](docs/release-notes/3.0.0-rc.1.md)
 - [Contributing and local checks](docs/contributing.md)
 - [Changelog](CHANGELOG.md)
 
 ## Framework Integration
 
-The core editor is framework-agnostic and can be mounted with string IDs or
-HTMLElement refs. React, Vue, Next.js, Nuxt, and other frameworks should create
-and dispose the editor inside client-side lifecycle hooks.
+The Core editor is framework-agnostic and accepts string targets or element
+instances for its canvas and container. React, Vue, Next.js, Nuxt, and other
+frameworks should create one Preset or Plugin composition inside a client-side
+lifecycle hook, retain its Plugin APIs, and dispose its editor during cleanup.
+Framework handlers call Plugin APIs directly; DOM Controls is not required.
 
 - [React integration](docs/frameworks/react.md)
 - [Vue integration](docs/frameworks/vue.md)
 - [SSR / Next.js / Nuxt](docs/frameworks/ssr.md)
 
-SSR guidance is strict: runtime imports, `new ImageEditor(...)`, `init()`, image
-loading, canvas resizing, and export all require browser DOM/canvas APIs. Type
-imports are safe in server code.
+Runtime Fabric imports, editor creation, `init()`, image loading, canvas resizing,
+and export belong in client code. Public type imports are safe in server code.
 
 ## API Overview
 
-`ImageEditor` is the only public class. Public types and editor object guards are
-re-exported from the package root.
+Core owns lifecycle, image/layout state, Plugin installation, and image export.
+Feature behavior is provided by typed Plugin APIs:
 
-| Area                  | Core APIs                                                                                                                                             |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lifecycle             | `init()`, `dispose()`, `disposeAsync()`                                                                                                               |
-| Image and layout      | `loadImage()`, `isImageLoaded()`, `isBusy()`, `isProcessing()`, `setLayoutMode()`, `setCanvasSize()`, `resizeToContainer()`, `relayout()`             |
-| State snapshots       | `getEditorState()`, `getImageInfo()`, `getMasks()`, `getAnnotations()`, `getSelection()`, `getActiveToolMode()`                                       |
-| Transforms            | `scaleImage()`, `rotateImage()`, `flipHorizontal()`, `flipVertical()`, `resetImageTransform()`                                                        |
-| Image filters         | `setImageFilterConfig()`, `getImageFilterConfig()`, `resetImageFilterConfig()`, `clearImageFilters()`, `commitImageFilters()`                         |
-| Masks                 | `createMask()`, `removeSelectedMask()`, `removeAllMasks()`                                                                                            |
-| Crop                  | `enterCropMode()`, `setCropAspectRatio()`, `applyCrop()`, `cancelCrop()`                                                                              |
-| Mosaic                | `enterMosaicMode()`, `exitMosaicMode()`, `getMosaicConfig()`, `setMosaicConfig()`, `resetMosaicConfig()`                                              |
-| Text, Shape, Draw     | `enterTextMode()`, `createTextAnnotation()`, `enterShapeMode()`, `createShapeAnnotation()`, `enterDrawMode()`, `setDrawSubMode()`, update/delete APIs |
-| Layer operations      | `bringSelectedObjectForward()`, `sendSelectedObjectBackward()`, `bringSelectedObjectToFront()`, `sendSelectedObjectToBack()`                          |
-| Export and merge      | `exportImageBase64()`, `exportImageFile()`, `downloadImage()`, `mergeMasks()`, `mergeAnnotations()`                                                   |
-| Overlay persistence   | `exportOverlayState()`, `validateOverlayState()`, `importOverlayState()`                                                                              |
-| History and snapshots | `saveState()`, `loadFromState()`, `undo()`, `redo()`                                                                                                  |
+| Entry                                 | API responsibility                                         |
+| ------------------------------------- | ---------------------------------------------------------- |
+| `./core`                              | Canvas lifecycle, image loading, layout, state, and export |
+| `./plugins/transform`                 | Scale, rotate, flip, and reset operations                  |
+| `./plugins/history`                   | Undo/redo state and recording control                      |
+| `./plugins/mask`, `./plugins/filters` | Redaction overlays and raster filters                      |
+| `./plugins/crop`, `./plugins/mosaic`  | Crop and mosaic sessions                                   |
+| `./plugins/annotation-*`              | Text, Shape, and Draw/Eraser annotations                   |
+| `./plugins/overlay-state`             | Renderer-independent overlay persistence                   |
+| `./plugins/dom-controls`              | Optional DOM event and status binding                      |
+| `./presets/*`                         | Typed Plugin compositions                                  |
 
-See [API reference](docs/api.md) for method behavior, state payloads, export
-options, object metadata, and guard semantics.
+The focused Plugin documents linked above describe Feature behavior and options.
 
 ## Configuration
 
-Pass `ImageEditorOptions` to the constructor:
+Preset options are namespaced by owner:
 
 ```ts
-const editor = new ImageEditor(fabric, {
-    canvasWidth: 960,
-    canvasHeight: 640,
-    defaultLayoutMode: 'fit',
-    maxHistorySize: 25,
-    exportAreaByDefault: 'image',
-    mergeMasksByDefault: true,
-    mergeAnnotationsByDefault: true,
-    defaultMaskConfig: {
-        color: 'rgba(255, 0, 0, 0.35)',
-        alpha: 0.35,
-        styles: {
-            stroke: '#ff0000',
-            strokeWidth: 2,
-        },
-    },
+const preset = createRedactionPreset(fabric, {
+    core: { canvasWidth: 960, canvasHeight: 640, defaultLayoutMode: 'fit' },
+    transform: { animationDuration: 0 },
+    history: { maxSize: 25 },
+    masks: { label: false },
+    crop: { paddingPx: 0 },
 });
 ```
 
-Common options include canvas sizing, layout mode, downsampling, input/export
-limits, history size, default mask/text/draw/shape/mosaic config, export
-defaults, DOM list order, and lifecycle callbacks. See
-[Options reference](docs/options.md) for the full table.
+Direct composition passes the same option objects to each Plugin factory. See
+the linked Feature documents and declaration files for their complete contracts.
 
 ## Requirements
 
@@ -242,38 +286,41 @@ Older runtime targets must be transpiled by the consumer.
 
 ## Module Formats
 
-The package ships one public entry resolved through the `exports` map:
+Every exported Core, SDK, Plugin, Testing, and Preset subpath resolves to ESM,
+CommonJS, ESM declarations, and CommonJS declarations. NodeNext and strict
+TypeScript consumers resolve the same public subpaths. Fabric remains external.
 
-| Consumer                              | Resolves to                    |
-| ------------------------------------- | ------------------------------ |
-| ESM (`import`)                        | `dist/esm/index.js`            |
-| CommonJS (`require`)                  | `dist/cjs/index.cjs`           |
-| TypeScript (`types`)                  | `dist/types/index.d.ts`        |
-| UMD (`<script>`, `unpkg`, `jsdelivr`) | `dist/umd/image-editor.umd.js` |
-| `default` fallback                    | `dist/esm/index.js`            |
-
-The constructor accepts Fabric explicitly in bundled apps:
+The Core constructor accepts Fabric explicitly in bundled applications:
 
 ```ts
 import * as fabric from 'fabric';
-import { ImageEditor } from '@bensitu/image-editor';
+import { ImageEditorCore } from '@bensitu/image-editor/core';
 
-const editor = new ImageEditor(fabric, options);
+const editor = new ImageEditorCore(fabric, options);
 ```
 
-UMD consumers can load Fabric and the editor as globals:
+The distribution keeps the existing Core-level UMD and adds one Full Preset UMD.
+There are no per-Plugin UMD files. CDN metadata selects the minified Full build,
+whose global is `ImageEditorFull`. Fabric remains a separate script and is passed
+explicitly; the Full Preset does not install DOM Controls unless requested.
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/fabric@7/dist/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@bensitu/image-editor/dist/umd/image-editor.full.umd.min.js"></script>
 <script>
-    const editor = new ImageEditor.ImageEditor({ canvasWidth: 800, canvasHeight: 600 });
+    (async () => {
+        const kit = ImageEditorFull.createFullPreset(fabric, {
+            core: { canvasWidth: 800, canvasHeight: 600 },
+        });
+        await kit.editor.init({ canvas: 'canvas', canvasContainer: 'editorContainer' });
+    })().catch(console.error);
 </script>
 ```
 
-`require('@bensitu/image-editor')` returns a namespace object with `ImageEditor`,
-`default`, and editor object guards; it does not return the constructor
-directly.
+For explicit DOM bindings, pass a factory such as
+`domControls: () => ImageEditorFull.domControlsPlugin(options)`.
+
+CommonJS `require()` returns a namespace object for the requested public entry.
 
 ## Runtime Guarantees
 
@@ -289,6 +336,18 @@ directly.
   restore the previous canvas state where applicable.
 - Lifecycle callback exceptions are caught and logged so host callback failures
   do not replace the editor operation.
+
+## Migration and maintenance
+
+The optional `@bensitu/image-editor/migrate-v2` entry detects and converts
+supported frozen maintenance Snapshots. Core never migrates implicitly. The
+separate `@bensitu/image-editor-codemod` CLI rewrites common integrations and
+reports ambiguous patterns without changing them.
+
+The maintained 2.9 baseline lives on `legacy/v2.9-freeze`; the pre-existing
+`legacy/v2` branch is historical and is not the same maintenance baseline.
+Maintenance is limited to security and critical correctness fixes, with a
+separate release process and no automatic merges from `develop`.
 
 ## Development
 

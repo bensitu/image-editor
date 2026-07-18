@@ -5,6 +5,7 @@ import {
     GeometryMutationCoordinator,
     IDENTITY_AFFINE_MATRIX,
 } from '../../src/core-runtime/geometry/index.js';
+import { createDocumentMutationEnvironment } from '../helpers/document-mutation-environment.mjs';
 
 function geometry(revision, matrix = IDENTITY_AFFINE_MATRIX) {
     return {
@@ -20,7 +21,6 @@ function createHarness({ historyAvailable = true, onRender = () => undefined } =
     const calls = [];
     let currentGeometry = geometry(1);
     let stateValue = 1;
-    let active = false;
     let disposed = false;
     const history = [];
     const events = [];
@@ -39,20 +39,6 @@ function createHarness({ historyAvailable = true, onRender = () => undefined } =
             matches: (memento) =>
                 stateValue === memento.stateValue &&
                 currentGeometry.revision === memento.currentGeometry.revision,
-        },
-        operations: {
-            has: (id) => id === 'test:mutate',
-            acquire: (id) => {
-                assert.equal(active, false);
-                active = true;
-                calls.push(`operation:acquire:${id}`);
-                return {
-                    dispose: () => {
-                        active = false;
-                        calls.push(`operation:release:${id}`);
-                    },
-                };
-            },
         },
         state: {
             captureGeometry: () => currentGeometry,
@@ -79,7 +65,22 @@ function createHarness({ historyAvailable = true, onRender = () => undefined } =
         warningSink: (warning) => warnings.push(warning),
         errorSink: (error) => errors.push(error),
     };
-    const coordinator = new GeometryMutationCoordinator(options);
+    const { mutations } = createDocumentMutationEnvironment({
+        operationIds: ['test:mutate'],
+        mementos: options.mementos,
+        state: options.state,
+        history: options.history,
+        events: options.events,
+        warningSink: options.warningSink,
+        onOperationStart: (id) => calls.push(`operation:acquire:${id}`),
+        onOperationEnd: (id) => calls.push(`operation:release:${id}`),
+    });
+    const coordinator = new GeometryMutationCoordinator({
+        mutations,
+        state: options.state,
+        warningSink: options.warningSink,
+        errorSink: options.errorSink,
+    });
     return {
         coordinator,
         calls,
@@ -222,7 +223,7 @@ test('reentrant and duplicate mutation IDs are rejected', async () => {
     );
     await assert.rejects(
         harness.coordinator.run(request(harness, { id: 'mutation-2' })),
-        /another geometry mutation is active/,
+        /conflicts with active operation/,
     );
     release();
     await pending;

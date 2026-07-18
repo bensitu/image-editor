@@ -14,10 +14,26 @@ const typesDir = path.resolve('dist', 'types');
 const cjsEntries = [
     'index',
     'core/index',
+    'sdk/index',
+    'testing/index',
+    'migrate-v2/index',
     'foundations/overlay/index',
+    'foundations/annotation/index',
     'plugins/transform/index',
     'plugins/mask/index',
     'plugins/history/index',
+    'plugins/filters/index',
+    'plugins/crop/index',
+    'plugins/mosaic/index',
+    'plugins/annotation-text/index',
+    'plugins/annotation-shape/index',
+    'plugins/annotation-draw/index',
+    'plugins/overlay-state/index',
+    'plugins/dom-controls/index',
+    'presets/minimal/index',
+    'presets/redaction/index',
+    'presets/annotation/index',
+    'presets/full/index',
 ];
 
 await mkdir(typesDir, { recursive: true });

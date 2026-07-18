@@ -1,6 +1,6 @@
 import { createDisposable, type Disposable } from '../plugin-kernel/disposable.js';
 import { CoreRuntimeError } from './errors.js';
-import type { GeometryHistoryCommitPort, HistoryRecordDraft } from './geometry/index.js';
+import type { DocumentMutationHistoryPort } from './mutation/index.js';
 import type { CoreMemento } from './state/index.js';
 
 export interface CoreHistoryRecord {
@@ -21,7 +21,7 @@ const unavailableHistory: CoreHistoryCommitPort = Object.freeze({
     commit: () => undefined,
 });
 
-export class HistoryCommitRouter implements GeometryHistoryCommitPort {
+export class HistoryCommitRouter implements CoreHistoryCommitPort, DocumentMutationHistoryPort {
     private provider: CoreHistoryCommitPort = unavailableHistory;
     private owner: string | null = null;
 
@@ -47,13 +47,13 @@ export class HistoryCommitRouter implements GeometryHistoryCommitPort {
         return this.provider.isAvailable();
     }
 
-    commit(record: HistoryRecordDraft | CoreHistoryRecord): void | Promise<void> {
+    commit(record: CoreHistoryRecord): void | Promise<void> {
         const coreRecord: CoreHistoryRecord = Object.freeze({
             operationId: record.operationId,
             before: record.before,
             after: record.after,
             timestamp: record.timestamp,
-            detail: 'descriptor' in record ? record.descriptor : record.detail,
+            detail: record.detail,
         });
         return this.provider.commit(coreRecord);
     }

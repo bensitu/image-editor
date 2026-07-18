@@ -1,0 +1,13 @@
+{
+    "name": "example-image-editor-plugin",
+    "version": "1.0.0",
+    "type": "module",
+    "peerDependencies": {
+        "@bensitu/image-editor": ">=3.0.0 <4",
+        "fabric": ">=7.4.0 <8"
+    },
+    "devDependencies": {
+        "@bensitu/image-editor": "3.0.0",
+        "fabric": "7.4.0"
+    }
+}

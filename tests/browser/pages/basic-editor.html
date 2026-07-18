@@ -3,13 +3,18 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>ImageEditor browser test harness</title>
+        <title>ImageEditor Core browser harness</title>
         <style>
+            * {
+                box-sizing: border-box;
+            }
+
             html,
             body {
                 margin: 0;
                 min-height: 100%;
-                background: #f8fafc;
+                background: #eef2ff;
+                color: #172554;
                 font-family: Arial, Helvetica, sans-serif;
             }
 
@@ -19,39 +24,48 @@
 
             #editor-root {
                 display: grid;
-                gap: 16px;
-                width: 420px;
+                gap: 14px;
+                width: 370px;
+                padding: 18px;
+                border: 1px solid #a5b4fc;
+                border-radius: 12px;
+                background: #ffffff;
+                box-shadow: 0 10px 24px rgb(30 64 175 / 12%);
+            }
+
+            h1 {
+                margin: 0;
+                font-size: 20px;
+            }
+
+            #status {
+                margin: 0;
+                color: #4338ca;
+                font-size: 13px;
             }
 
             #canvas-container {
-                width: max-content;
-                min-width: 320px;
-                min-height: 240px;
-                background: #ffffff;
-                border: 1px solid #cbd5e1;
+                width: 322px;
+                min-height: 242px;
+                overflow: hidden;
+                border: 1px solid #c7d2fe;
+                background: #f8fafc;
             }
 
             #export-preview {
                 display: block;
-                width: auto;
-                height: auto;
-                image-rendering: pixelated;
-            }
-
-            .hidden-controls {
-                display: none;
+                max-width: 322px;
+                border: 1px solid #c7d2fe;
+                image-rendering: auto;
             }
         </style>
     </head>
     <body>
         <main id="editor-root">
-            <div id="image-placeholder" aria-hidden="true"></div>
-            <div id="canvas-container">
-                <canvas id="editor-canvas"></canvas>
-            </div>
-            <img id="export-preview" alt="Latest exported output" />
-            <ul id="mask-list" class="hidden-controls"></ul>
-            <ul id="annotation-list" class="hidden-controls"></ul>
+            <h1>Core Framework</h1>
+            <p id="status">configured</p>
+            <div id="canvas-container"><canvas id="editor-canvas"></canvas></div>
+            <img id="export-preview" alt="Export preview" hidden />
         </main>
         <script type="module" src="./basic-editor.ts"></script>
     </body>

@@ -1,71 +1,39 @@
 {
     "schemaVersion": 1,
-    "policy": "Active budgets allow five percent headroom over the measured baseline. Pending Phase 2+ entries have no numeric budget.",
+    "policy": "Active budgets allow five percent headroom over the locked platform measurement.",
     "fixtures": {
         "full-root": {
             "status": "active",
-            "baseline": "current",
+            "baseline": "platform-anchor",
             "maximum": {
-                "rawBytes": 726364,
-                "minifiedBytes": 346395,
-                "gzipBytes": 81936,
-                "brotliBytes": 66866,
-                "moduleCount": 91
+                "rawBytes": 345481,
+                "minifiedBytes": 171276,
+                "gzipBytes": 39585,
+                "brotliBytes": 33907,
+                "moduleCount": 44
             }
         },
         "public-api": {
             "status": "active",
-            "baseline": "current",
+            "baseline": "platform-anchor",
             "maximum": {
-                "rawBytes": 726566,
-                "minifiedBytes": 346629,
-                "gzipBytes": 82010,
-                "brotliBytes": 66908,
-                "moduleCount": 91
+                "rawBytes": 348128,
+                "minifiedBytes": 173187,
+                "gzipBytes": 40244,
+                "brotliBytes": 34498,
+                "moduleCount": 44
             }
         },
         "plugin-kernel": {
             "status": "active",
-            "baseline": "after-phase-1",
+            "baseline": "platform-anchor",
             "maximum": {
-                "rawBytes": 152707,
-                "minifiedBytes": 63146,
-                "gzipBytes": 16565,
-                "brotliBytes": 14626,
-                "moduleCount": 67
+                "rawBytes": 151578,
+                "minifiedBytes": 73803,
+                "gzipBytes": 16501,
+                "brotliBytes": 14653,
+                "moduleCount": 24
             }
-        },
-        "core-only": {
-            "status": "pending",
-            "phase": 2
-        },
-        "core-transform": {
-            "status": "pending",
-            "phase": 3
-        },
-        "core-mask": {
-            "status": "pending",
-            "phase": 4
-        },
-        "core-transform-mask": {
-            "status": "pending",
-            "phase": 4
-        },
-        "minimal-preset": {
-            "status": "pending",
-            "phase": 8
-        },
-        "redaction-preset": {
-            "status": "pending",
-            "phase": 8
-        },
-        "annotation-preset": {
-            "status": "pending",
-            "phase": 8
-        },
-        "full-preset": {
-            "status": "pending",
-            "phase": 8
         }
     }
 }

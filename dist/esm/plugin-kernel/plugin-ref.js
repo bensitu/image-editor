@@ -1,11 +1,10 @@
 import { InvalidPluginDefinitionError } from './errors.js';
+import { assertPluginIdentifier } from './plugin-identifier.js';
 import { isValidSemVer } from './semver.js';
 const pluginRefBrand = Symbol('ImageEditorPluginRef');
 export function definePluginRef(id, apiVersion) {
-    if (id.trim().length === 0 || id.trim() !== id) {
-        throw new InvalidPluginDefinitionError('PluginRef id must be a non-empty trimmed string.');
-    }
-    if (!isValidSemVer(apiVersion)) {
+    assertPluginIdentifier(id, 'PluginRef id');
+    if (apiVersion.length > 64 || !isValidSemVer(apiVersion)) {
         throw new InvalidPluginDefinitionError(`PluginRef "${id}" has invalid API SemVer "${apiVersion}".`, id);
     }
     const ref = {

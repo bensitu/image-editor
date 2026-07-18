@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DOM Controls browser harness</title>
+    </head>
+    <body>
+        <main>
+            <div id="canvas-container"><canvas id="editor-canvas"></canvas></div>
+            <label>Scale <input id="scale" type="number" /></label>
+            <button id="zoom-in" type="button">Zoom in</button>
+            <button id="undo" type="button">Undo</button>
+            <button id="redo" type="button">Redo</button>
+        </main>
+        <script type="module" src="./dom-controls.ts"></script>
+    </body>
+</html>

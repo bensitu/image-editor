@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    CapabilityMissingError,
     InvalidPluginDefinitionError,
     PluginAggregateError,
     PluginAlreadyInstalledError,
@@ -173,7 +174,7 @@ test('required capabilities resolve before setup and undeclared capability acces
             return {};
         },
     });
-    await assert.rejects(manager.install(missing), PluginCapabilityError);
+    await assert.rejects(manager.install(missing), CapabilityMissingError);
     assert.equal(setupCalled, false);
 
     const provider = pluginDefinition('example.test/provider', {

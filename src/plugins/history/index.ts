@@ -1,14 +1,13 @@
+import type { CoreEventMap, CoreHistoryRecord } from '../../core/index.js';
 import {
-    CORE_HOST_CAPABILITY,
-    CORE_STATE_CAPABILITY,
-} from '../../core-runtime/internal-capabilities.js';
-import type { CoreEventMap } from '../../core-runtime/public-types.js';
-import {
+    CORE_DIAGNOSTICS_CAPABILITY,
+    MEMENTO_HISTORY_CAPABILITY,
     createCapabilityToken,
+    definePlugin,
     definePluginRef,
     type PluginSetupContext,
     type SynchronousEditorPlugin,
-} from '../../plugin-kernel/index.js';
+} from '../../sdk/index.js';
 import {
     HistoryPluginController,
     type HistoryPluginOptions,
@@ -22,40 +21,82 @@ export function historyPlugin(
     options: HistoryPluginOptions = {},
 ): SynchronousEditorPlugin<HistoryPort, CoreEventMap> {
     let controller: HistoryPluginController | null = null;
-    return Object.freeze({
+    return definePlugin({
         ref: historyPluginRef,
-        version: '1.0.0',
+        manifest: {
+            id: historyPluginRef.id,
+            version: '1.0.0',
+            apiVersion: historyPluginRef.apiVersion,
+            engine: '^3.0.0',
+            requires: [
+                { token: CORE_DIAGNOSTICS_CAPABILITY, range: '^1.0.0' },
+                { token: MEMENTO_HISTORY_CAPABILITY, range: '^1.0.0' },
+            ],
+        },
         setupMode: 'sync',
-        requires: [
-            { token: CORE_HOST_CAPABILITY, range: '^1.0.0' },
-            { token: CORE_STATE_CAPABILITY, range: '^1.0.0' },
-        ],
         setup(context: PluginSetupContext<CoreEventMap>) {
-            const host = context.capabilities.require(CORE_HOST_CAPABILITY);
-            const state = context.capabilities.require(CORE_STATE_CAPABILITY);
-            context.operations.register({ id: 'history:undo', mode: 'busy' });
-            context.operations.register({ id: 'history:redo', mode: 'busy' });
+            const diagnostics = context.capabilities.require(CORE_DIAGNOSTICS_CAPABILITY);
+            const state = context.capabilities.require(MEMENTO_HISTORY_CAPABILITY);
+            context.operations.register({
+                id: 'history:undo',
+                mode: 'mutation',
+                conflictDomains: [
+                    'document',
+                    'base-image',
+                    'geometry',
+                    'raster',
+                    'overlay',
+                    'state',
+                ],
+                reentrancy: 'queue',
+            });
+            context.operations.register({
+                id: 'history:redo',
+                mode: 'mutation',
+                conflictDomains: [
+                    'document',
+                    'base-image',
+                    'geometry',
+                    'raster',
+                    'overlay',
+                    'state',
+                ],
+                reentrancy: 'queue',
+            });
+            for (const operationId of ['history:enable', 'history:disable']) {
+                context.operations.register({
+                    id: operationId,
+                    mode: 'mutation',
+                    conflictDomains: [
+                        'document',
+                        'base-image',
+                        'geometry',
+                        'raster',
+                        'overlay',
+                        'state',
+                    ],
+                    reentrancy: 'queue',
+                });
+            }
             controller = new HistoryPluginController(
                 state,
                 {
-                    run: async (operationId, body) => {
-                        const token = context.operations.begin(operationId);
-                        try {
-                            await body();
-                        } finally {
-                            await token.dispose();
-                        }
-                    },
+                    run: (operationId, body) =>
+                        context.operations.run(operationId, null, () => body()),
                 },
                 options,
-                (error, message) => host.reportWarning(error, message),
+                (error, message) => diagnostics.reportWarning(error, message),
             );
-            context.addDisposable(state.registerHistoryProvider(historyPluginRef.id, controller));
-            context.capabilities.provide(HISTORY_CAPABILITY, controller);
+            context.disposables.add(
+                state.registerHistoryProvider(historyPluginRef.id, {
+                    isAvailable: () => controller?.isEnabled ?? false,
+                    commit: (record) => controller?.commit(record),
+                }),
+            );
+            context.capabilities.provide(HISTORY_CAPABILITY, controller, {
+                version: HISTORY_CAPABILITY.version,
+            });
             return controller;
-        },
-        onImageLoaded() {
-            controller?.clear();
         },
         onDispose() {
             controller?.dispose();
@@ -66,7 +107,10 @@ export function historyPlugin(
 
 export type {
     HistoryAvailability,
+    HistoryDisableOptions,
+    HistoryEnableOptions,
     HistoryPluginOptions,
     HistoryPort,
+    HistoryStatus,
 } from './history-controller.js';
-export type { CoreHistoryRecord as HistoryRecord } from '../../core-runtime/history-commit-router.js';
+export type HistoryRecord = CoreHistoryRecord;

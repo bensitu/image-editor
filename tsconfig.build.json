@@ -9,8 +9,8 @@
  *                             `dist/types/` so consumers see types.
  *   - rollup.config.mjs    -> reads `dist/esm/` as input for CJS / UMD.
  *
- * The decomposed source tree under `src/` is preserved one-to-one under `dist/esm/`
- * because `rootDir` is `src`.
+ * Only formal package entries and the Full UMD build entry are roots. Their
+ * transitive runtime dependencies retain the source layout under `dist/esm/`.
  */
 {
     "extends": "./tsconfig.json",
@@ -34,6 +34,31 @@
         /* -- Comments -------------------------------------------------- */
         "removeComments": true
     },
-    "include": ["src/**/*.ts"],
+    "files": [
+        "src/index.ts",
+        "src/core/index.ts",
+        "src/sdk/index.ts",
+        "src/testing/index.ts",
+        "src/migrate-v2/index.ts",
+        "src/foundations/overlay/index.ts",
+        "src/foundations/annotation/index.ts",
+        "src/plugins/transform/index.ts",
+        "src/plugins/mask/index.ts",
+        "src/plugins/history/index.ts",
+        "src/plugins/filters/index.ts",
+        "src/plugins/crop/index.ts",
+        "src/plugins/mosaic/index.ts",
+        "src/plugins/annotation-text/index.ts",
+        "src/plugins/annotation-shape/index.ts",
+        "src/plugins/annotation-draw/index.ts",
+        "src/plugins/overlay-state/index.ts",
+        "src/plugins/dom-controls/index.ts",
+        "src/presets/minimal/index.ts",
+        "src/presets/redaction/index.ts",
+        "src/presets/annotation/index.ts",
+        "src/presets/full/index.ts",
+        "src/umd/full.ts"
+    ],
+    "include": [],
     "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

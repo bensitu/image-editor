@@ -1,9 +1,35 @@
 import type * as FabricNS from 'fabric';
 
-import { CoreRuntimeError } from '../../core-runtime/errors.js';
-import type { CoreHostPort, CoreStatePort } from '../../core-runtime/internal-capabilities.js';
-import type { OverlayFoundationApi } from '../../foundations/overlay/index.js';
-import { createMask as createLegacyMask, type CreateMaskContext } from '../../mask/mask-factory.js';
+import {
+    CoreRuntimeError,
+    type DefaultMaskConfig,
+    type LabelConfig,
+    type MaskConfig,
+    type MaskObject,
+    type OverlayListOrder,
+} from '../../core/index.js';
+import type {
+    CanvasReadPort,
+    CanvasResizePort,
+    CoreDiagnosticsPort,
+    CorePresentationPort,
+    Disposable,
+    FabricRuntimePort,
+    RenderRequestPort,
+    SnapshotRegistrationPort,
+} from '../../sdk/index.js';
+import {
+    captureOverlayStateBounds,
+    isOverlayStateBoundsGeometry,
+    restoreOverlayStateBounds,
+    type OverlayFoundationApi,
+    type OverlayStateBoundsGeometry,
+    type OverlayStatePoint,
+} from '../../foundations/overlay/index.js';
+import {
+    createMask as createMaskFromFactory,
+    type CreateMaskContext,
+} from '../../mask/mask-factory.js';
 import {
     hideAllMaskLabels,
     removeLabelForMask,
@@ -17,15 +43,6 @@ import {
     detachMaskHoverHandlers,
     reattachMaskHoverHandlers,
 } from '../../mask/mask-style.js';
-import type {
-    DefaultMaskConfig,
-    LabelConfig,
-    MaskConfig,
-    MaskObject,
-    OverlayListOrder,
-    ResolvedOptions,
-} from '../../core/public-types.js';
-import type { Disposable } from '../../plugin-kernel/index.js';
 
 export interface MaskPluginOptions {
     readonly defaultWidth?: number;
@@ -58,11 +75,11 @@ export interface RemoveAllOptions {
 }
 
 export interface MaskPluginApi {
-    create(config?: MaskConfig): MaskObject;
+    create(config?: MaskConfig): Promise<MaskObject>;
     getAll(): readonly MaskObject[];
-    remove(id: string): void;
-    removeSelected(): void;
-    removeAll(options?: RemoveAllOptions): void;
+    remove(id: string): Promise<void>;
+    removeSelected(): Promise<void>;
+    removeAll(options?: RemoveAllOptions): Promise<void>;
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void>;
 }
 
@@ -78,11 +95,34 @@ interface SerializedMaskData {
     readonly overlayMetadata?: unknown;
 }
 
-interface MaskOperationAccess {
-    run<TResult>(operationId: string, body: () => TResult): TResult;
+type MaskStateKind = 'rect' | 'circle' | 'ellipse' | 'polygon';
+
+interface MaskStateData {
+    readonly version: 1;
+    readonly kind: MaskStateKind;
+    readonly maskId: number;
+    readonly name: string;
+    readonly fill: string;
+    readonly opacity: number;
+    readonly stroke: string | null;
+    readonly strokeWidth: number;
+    readonly strokeDashArray: readonly number[] | null;
+    readonly cornerRadiusX: number;
+    readonly cornerRadiusY: number;
+    readonly points: readonly OverlayStatePoint[] | null;
+    readonly hasControls: boolean;
+    readonly selectable: boolean;
+    readonly evented: boolean;
 }
 
 const MASK_PLUGIN_ID = '@bensitu/mask';
+
+type MaskCoreAccess = CoreDiagnosticsPort &
+    CorePresentationPort &
+    FabricRuntimePort &
+    CanvasReadPort &
+    RenderRequestPort &
+    CanvasResizePort;
 const MASK_SERIALIZED_OBJECT_PROPERTIES = [
     'hasControls',
     'selectable',
@@ -155,30 +195,117 @@ function isSerializedMaskData(value: unknown): value is SerializedMaskData {
     );
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
+function maskStateKind(object: FabricNS.FabricObject): MaskStateKind {
+    const kind = String(object.type ?? '').toLowerCase();
+    if (kind === 'rect' || kind === 'circle' || kind === 'ellipse' || kind === 'polygon') {
+        return kind;
+    }
+    throw new CoreRuntimeError(`[ImageEditor] Mask kind "${kind}" cannot be persisted.`);
+}
+
+function normalizedPolygonPoints(
+    object: FabricNS.FabricObject,
+): readonly OverlayStatePoint[] | null {
+    const points = (object as FabricNS.FabricObject & { points?: readonly OverlayStatePoint[] })
+        .points;
+    if (!Array.isArray(points) || points.length < 3 || points.length > 4_096) return null;
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    const width = Math.max(...xs) - left;
+    const height = Math.max(...ys) - top;
+    if (!(width > 0) || !(height > 0)) return null;
+    return Object.freeze(
+        points.map((point) =>
+            Object.freeze({ x: (point.x - left) / width, y: (point.y - top) / height }),
+        ),
+    );
+}
+
+function isMaskStateData(value: unknown): value is MaskStateData {
+    if (!isPlainRecord(value) || value.version !== 1) return false;
+    const validKind =
+        value.kind === 'rect' ||
+        value.kind === 'circle' ||
+        value.kind === 'ellipse' ||
+        value.kind === 'polygon';
+    const validPoints =
+        value.points === null ||
+        (Array.isArray(value.points) &&
+            value.points.length >= 3 &&
+            value.points.length <= 4_096 &&
+            value.points.every(
+                (point) =>
+                    isPlainRecord(point) &&
+                    typeof point.x === 'number' &&
+                    Number.isFinite(point.x) &&
+                    typeof point.y === 'number' &&
+                    Number.isFinite(point.y),
+            ));
+    return (
+        validKind &&
+        Number.isSafeInteger(value.maskId) &&
+        Number(value.maskId) > 0 &&
+        typeof value.name === 'string' &&
+        value.name.length > 0 &&
+        value.name.length <= 128 &&
+        typeof value.fill === 'string' &&
+        value.fill.length <= 128 &&
+        typeof value.opacity === 'number' &&
+        Number.isFinite(value.opacity) &&
+        value.opacity >= 0 &&
+        value.opacity <= 1 &&
+        (value.stroke === null ||
+            (typeof value.stroke === 'string' && value.stroke.length <= 128)) &&
+        typeof value.strokeWidth === 'number' &&
+        Number.isFinite(value.strokeWidth) &&
+        value.strokeWidth >= 0 &&
+        (value.strokeDashArray === null ||
+            (Array.isArray(value.strokeDashArray) &&
+                value.strokeDashArray.length <= 32 &&
+                value.strokeDashArray.every(
+                    (entry) => typeof entry === 'number' && Number.isFinite(entry) && entry >= 0,
+                ))) &&
+        typeof value.cornerRadiusX === 'number' &&
+        Number.isFinite(value.cornerRadiusX) &&
+        value.cornerRadiusX >= 0 &&
+        typeof value.cornerRadiusY === 'number' &&
+        Number.isFinite(value.cornerRadiusY) &&
+        value.cornerRadiusY >= 0 &&
+        validPoints &&
+        (value.kind === 'polygon' ? value.points !== null : value.points === null) &&
+        typeof value.hasControls === 'boolean' &&
+        typeof value.selectable === 'boolean' &&
+        typeof value.evented === 'boolean'
+    );
+}
+
 export class MaskPluginController implements MaskPluginApi, Disposable {
     private counter = 0;
     private lastMask: MaskObject | null = null;
     private attached = false;
     private disposed = false;
     private selectedMaskBeforeGeometry: string | null = null;
+    private mutationSequence = 0;
+    private lastInteractionNotification: string | null = null;
     private readonly registrations: Disposable[] = [];
-    private readonly legacyOptions: ResolvedOptions;
-
-    private readonly onObjectTransform = (event: { target?: FabricNS.FabricObject }): void => {
-        if (event.target && isMaskObject(event.target)) {
-            syncMaskLabel(this.labelContext(), event.target);
-        }
-    };
+    private readonly factoryOptions: CreateMaskContext['options'];
 
     constructor(
-        private readonly host: CoreHostPort,
-        private readonly state: CoreStatePort,
+        private readonly host: MaskCoreAccess,
+        state: SnapshotRegistrationPort,
         private readonly overlay: OverlayFoundationApi,
-        private readonly operations: MaskOperationAccess,
         readonly options: ResolvedMaskPluginOptions,
     ) {
-        this.legacyOptions = Object.freeze({
-            ...host.options,
+        this.factoryOptions = Object.freeze({
+            layoutMode: host.layoutMode,
             defaultMaskWidth: options.defaultWidth,
             defaultMaskHeight: options.defaultHeight,
             defaultMaskConfig: options.defaultConfig,
@@ -189,7 +316,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             maskListOrder: options.listOrder,
             label: options.label === false ? DEFAULT_LABEL : options.label,
             onWarning: (error: unknown, message: string) => host.reportWarning(error, message),
-        } as ResolvedOptions);
+        } as CreateMaskContext['options']);
 
         this.registrations.push(
             overlay.registerKind({
@@ -201,6 +328,135 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 setPersistentId: (object, id) => {
                     if (isMaskObject(object)) object.maskUid = id;
                 },
+                persistence: {
+                    mode: 'persistent',
+                    codec: {
+                        type: 'mask',
+                        version: '1.0.0',
+                        serialize: (object) => this.serializeMask(object),
+                        validate: isSerializedMaskData,
+                        deserialize: (data, context) => this.deserializeMask(data, context.fabric),
+                    },
+                },
+                stateCodec: {
+                    type: 'mask',
+                    version: '1.0.0',
+                    serialize: (object, context) => {
+                        if (!isMaskObject(object)) {
+                            throw new CoreRuntimeError(
+                                '[ImageEditor] Mask State Codec received a non-mask.',
+                            );
+                        }
+                        const kind = maskStateKind(object);
+                        const metadata = (object as MaskObject & { overlayMetadata?: unknown })
+                            .overlayMetadata;
+                        return Object.freeze({
+                            geometry: captureOverlayStateBounds(object, context),
+                            metadata: isPlainRecord(metadata)
+                                ? Object.freeze({ ...metadata })
+                                : Object.freeze({}),
+                            data: Object.freeze({
+                                version: 1,
+                                kind,
+                                maskId: object.maskId,
+                                name: object.maskName,
+                                fill: typeof object.fill === 'string' ? object.fill : '#000000',
+                                opacity: Number.isFinite(object.opacity) ? object.opacity : 1,
+                                stroke: typeof object.stroke === 'string' ? object.stroke : null,
+                                strokeWidth: context.toImageNormalizedScalar(
+                                    Number(object.strokeWidth) || 0,
+                                ),
+                                strokeDashArray: Array.isArray(object.strokeDashArray)
+                                    ? Object.freeze(
+                                          object.strokeDashArray.map((entry) =>
+                                              context.toImageNormalizedScalar(entry),
+                                          ),
+                                      )
+                                    : null,
+                                cornerRadiusX: context.toImageNormalizedScalar(
+                                    Number(Reflect.get(object, 'rx')) || 0,
+                                ),
+                                cornerRadiusY: context.toImageNormalizedScalar(
+                                    Number(Reflect.get(object, 'ry')) || 0,
+                                ),
+                                points: kind === 'polygon' ? normalizedPolygonPoints(object) : null,
+                                hasControls: object.hasControls === true,
+                                selectable: object.selectable !== false,
+                                evented: object.evented !== false,
+                            } satisfies MaskStateData),
+                        });
+                    },
+                    validate: (value) =>
+                        isOverlayStateBoundsGeometry(value.geometry) &&
+                        isMaskStateData(value.data) &&
+                        isPlainRecord(value.metadata),
+                    deserialize: (value, context) => {
+                        if (
+                            !isOverlayStateBoundsGeometry(value.geometry) ||
+                            !isMaskStateData(value.data) ||
+                            !isPlainRecord(value.metadata)
+                        ) {
+                            throw new CoreRuntimeError(
+                                '[ImageEditor] Serialized Mask State data is malformed.',
+                            );
+                        }
+                        const data = value.data;
+                        const common = {
+                            left: 0,
+                            top: 0,
+                            originX: 'left' as const,
+                            originY: 'top' as const,
+                            fill: data.fill,
+                            opacity: data.opacity,
+                            stroke: data.stroke,
+                            strokeWidth: context.toCanvasScalar(data.strokeWidth),
+                            strokeDashArray: data.strokeDashArray
+                                ? data.strokeDashArray.map((entry) => context.toCanvasScalar(entry))
+                                : undefined,
+                            hasControls: data.hasControls,
+                            selectable: data.selectable,
+                            evented: data.evented,
+                            strokeUniform: true,
+                        };
+                        let object: FabricNS.FabricObject;
+                        if (data.kind === 'circle') {
+                            object = new this.host.fabric.Circle({ ...common, radius: 0.5 });
+                        } else if (data.kind === 'ellipse') {
+                            object = new this.host.fabric.Ellipse({ ...common, rx: 0.5, ry: 0.5 });
+                        } else if (data.kind === 'polygon') {
+                            object = new this.host.fabric.Polygon(
+                                data.points!.map((point) => ({ x: point.x, y: point.y })),
+                                common,
+                            );
+                        } else {
+                            object = new this.host.fabric.Rect({
+                                ...common,
+                                width: 1,
+                                height: 1,
+                                rx: context.toCanvasScalar(data.cornerRadiusX),
+                                ry: context.toCanvasScalar(data.cornerRadiusY),
+                            });
+                        }
+                        const mask = object as MaskObject & { overlayMetadata?: unknown };
+                        mask.editorObjectKind = 'mask';
+                        mask.maskId = data.maskId;
+                        mask.maskUid = `mask-state-${data.maskId}`;
+                        mask.maskName = data.name;
+                        mask.originalAlpha = data.opacity;
+                        mask.originalStroke = data.stroke;
+                        mask.originalStrokeWidth = context.toCanvasScalar(data.strokeWidth);
+                        mask.overlayMetadata = Object.freeze({ ...value.metadata });
+                        mask.lockRotation = !this.options.rotatable;
+                        restoreOverlayStateBounds(
+                            mask,
+                            value.geometry as OverlayStateBoundsGeometry,
+                            context,
+                            this.host.fabric,
+                        );
+                        reattachMaskHoverHandlers(mask);
+                        return mask;
+                    },
+                },
             }),
         );
         this.registrations.push(
@@ -209,19 +465,10 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 kind: 'mask',
                 ownerPluginId: MASK_PLUGIN_ID,
                 supports: (mutation) =>
-                    options.bindToImageTransform && mutation.kind === 'transform',
+                    mutation.kind === 'crop' ||
+                    (options.bindToImageTransform && mutation.kind === 'transform'),
                 prepare: () => this.captureSelectionBeforeGeometry(),
                 synchronize: () => this.synchronizeAfterGeometry(),
-            }),
-        );
-        this.registrations.push(
-            overlay.registerSerializer({
-                id: `${MASK_PLUGIN_ID}:serializer`,
-                kind: 'mask',
-                ownerPluginId: MASK_PLUGIN_ID,
-                serialize: (object) => this.serializeMask(object),
-                validate: isSerializedMaskData,
-                deserialize: (data, context) => this.deserializeMask(data, context.fabric),
             }),
         );
         this.registrations.push(
@@ -246,15 +493,35 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             }),
         );
         this.registrations.push(
-            state.transientObjects.register(MASK_PLUGIN_ID, (object) => {
+            overlay.registerInteractionPolicy({
+                id: `${MASK_PLUGIN_ID}:interaction`,
+                kind: 'mask',
+                ownerPluginId: MASK_PLUGIN_ID,
+                preview: (object) => {
+                    if (isMaskObject(object)) syncMaskLabel(this.labelContext(), object);
+                },
+                synchronize: (object, context) => {
+                    if (isMaskObject(object) && object.labelObject) {
+                        syncMaskLabel(this.labelContext(), object);
+                    }
+                    if (this.lastInteractionNotification !== context.descriptor.id) {
+                        this.lastInteractionNotification = context.descriptor.id;
+                        this.notifyChange();
+                    }
+                },
+            }),
+        );
+        this.registrations.push(
+            state.registerTransientObject(MASK_PLUGIN_ID, (object) => {
                 const candidate = object as FabricNS.FabricObject & { maskLabel?: boolean };
                 return candidate.maskLabel === true;
             }),
         );
         this.registrations.push(
-            state.slices.register({
+            state.registerSlice({
                 id: MASK_PLUGIN_ID,
                 version: 1,
+                capturePolicy: 'always',
                 capture: () => Object.freeze({ counter: this.counter }),
                 validate: (value) => {
                     const counter = (value as { counter?: unknown } | null)?.counter;
@@ -282,31 +549,28 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
     attach(): void {
         this.assertActive('attach Mask plugin');
         if (this.attached) return;
-        const canvas = this.host.requireCanvas('attach Mask plugin');
-        if (typeof canvas.on === 'function') {
-            for (const eventName of [
-                'object:moving',
-                'object:scaling',
-                'object:rotating',
-                'object:modified',
-            ] as const) {
-                canvas.on(eventName, this.onObjectTransform);
-            }
-        }
         this.attached = true;
         this.reattachRuntimeState();
     }
 
-    create(config: MaskConfig = {}): MaskObject {
-        return this.operations.run('mask:create', () => {
-            this.synchronizeCounterFromCanvas();
-            const before = this.state.mementos.capture();
-            const mask = createLegacyMask(this.createContext(), config);
-            if (!mask) throw new CoreRuntimeError('[ImageEditor] Mask configuration is invalid.');
-            this.commitHistory('mask:create', before);
-            this.notifyChange();
-            this.synchronizeSelection();
-            return mask;
+    create(config: MaskConfig = {}): Promise<MaskObject> {
+        return this.overlay.mutate({
+            id: `mask:create:${++this.mutationSequence}`,
+            operationId: 'mask:create',
+            action: 'create',
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+            mutate: () => {
+                this.synchronizeCounterFromCanvas();
+                const mask = createMaskFromFactory(this.createContext(), config);
+                if (!mask) {
+                    throw new CoreRuntimeError('[ImageEditor] Mask configuration is invalid.');
+                }
+                return mask;
+            },
+            affectedObjects: (mask) => [mask],
+            synchronize: () => {
+                this.synchronizeSelection();
+            },
         });
     }
 
@@ -318,37 +582,46 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         return Object.freeze(masks);
     }
 
-    remove(id: string): void {
-        this.operations.run('mask:remove', () => {
-            const object = this.overlay.getByPersistentId(id);
-            if (!object || !isMaskObject(object)) {
-                throw new CoreRuntimeError(`[ImageEditor] Mask "${id}" was not found.`);
-            }
-            const before = this.state.mementos.capture();
-            this.removeMaskObject(object);
-            this.commitHistory('mask:remove', before);
-            this.notifyChange();
+    remove(id: string): Promise<void> {
+        const object = this.overlay.getByPersistentId(id);
+        if (!object || !isMaskObject(object)) {
+            return Promise.reject(
+                new CoreRuntimeError(`[ImageEditor] Mask "${id}" was not found.`),
+            );
+        }
+        return this.overlay.mutate({
+            id: `mask:remove:${++this.mutationSequence}`,
+            operationId: 'mask:remove',
+            action: 'delete',
+            objectIds: [id],
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID }),
+            mutate: () => this.removeMaskObject(object),
         });
     }
 
-    removeSelected(): void {
+    removeSelected(): Promise<void> {
         const selectedId = this.overlay.getSelection().ids.find((id) => {
             const object = this.overlay.getByPersistentId(id);
             return object ? isMaskObject(object) : false;
         });
-        if (selectedId) this.remove(selectedId);
+        return selectedId ? this.remove(selectedId) : Promise.resolve();
     }
 
-    removeAll(options: RemoveAllOptions = {}): void {
-        this.operations.run('mask:remove-all', () => {
-            const masks = [...this.getAll()];
-            if (masks.length === 0) return;
-            const before = this.state.mementos.capture();
-            for (const mask of masks) this.removeMaskObject(mask);
-            this.counter = 0;
-            this.lastMask = null;
-            if (options.saveHistory !== false) this.commitHistory('mask:remove-all', before);
-            this.notifyChange();
+    removeAll(options: RemoveAllOptions = {}): Promise<void> {
+        void options;
+        const masks = [...this.getAll()];
+        if (masks.length === 0) return Promise.resolve();
+        return this.overlay.mutate({
+            id: `mask:remove-all:${++this.mutationSequence}`,
+            operationId: 'mask:remove-all',
+            action: 'delete',
+            objectIds: masks.map((mask) => mask.maskUid),
+            metadata: Object.freeze({ pluginId: MASK_PLUGIN_ID, objectCount: masks.length }),
+            mutate: () => {
+                for (const mask of masks) this.removeMaskObject(mask);
+                this.counter = 0;
+                this.lastMask = null;
+            },
         });
     }
 
@@ -371,16 +644,6 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
     dispose(): void {
         if (this.disposed) return;
         const canvas = this.host.getCanvas();
-        if (canvas && typeof canvas.off === 'function') {
-            for (const eventName of [
-                'object:moving',
-                'object:scaling',
-                'object:rotating',
-                'object:modified',
-            ] as const) {
-                canvas.off(eventName, this.onObjectTransform);
-            }
-        }
         this.removeLabels();
         for (const object of canvas?.getObjects() ?? []) {
             if (isMaskObject(object)) detachMaskHoverHandlers(object);
@@ -409,7 +672,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         return {
             fabric: this.host.fabric as CreateMaskContext['fabric'],
             canvas: this.host.requireCanvas('create a mask'),
-            options: this.legacyOptions,
+            options: this.factoryOptions,
             getLastMask: () => this.lastMask,
             setLastMask: (mask) => {
                 this.lastMask = mask;
@@ -420,7 +683,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             },
             updateMaskList: () => undefined,
             saveCanvasState: () => undefined,
-            expandCanvasIfNeeded: (width, height) => this.host.setCanvasSize(width, height),
+            expandCanvasIfNeeded: (width, height) => this.host.resizeCanvas(width, height),
         };
     }
 
@@ -428,14 +691,14 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         return {
             fabric: this.host.fabric as MaskLabelManagerContext['fabric'],
             canvas: this.host.requireCanvas('synchronize mask labels'),
-            options: this.legacyOptions,
+            options: this.factoryOptions,
         };
     }
 
     private serializeMask(object: FabricNS.FabricObject): SerializedMaskData {
         if (!isMaskObject(object))
             throw new CoreRuntimeError('[ImageEditor] Mask serializer received a non-mask.');
-        const compatibility = object as MaskObject & {
+        const serializedMask = object as MaskObject & {
             overlayPersistentId?: string;
             overlayMetadata?: unknown;
         };
@@ -447,14 +710,14 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             originalAlpha: object.originalAlpha,
             originalStroke: object.originalStroke,
             originalStrokeWidth: object.originalStrokeWidth,
-            overlayPersistentId: compatibility.overlayPersistentId,
-            overlayMetadata: compatibility.overlayMetadata,
+            overlayPersistentId: serializedMask.overlayPersistentId,
+            overlayMetadata: serializedMask.overlayMetadata,
         });
     }
 
     private async deserializeMask(
         data: unknown,
-        fabricModule: CoreHostPort['fabric'],
+        fabricModule: FabricRuntimePort['fabric'],
     ): Promise<MaskObject> {
         if (!isSerializedMaskData(data)) {
             throw new CoreRuntimeError('[ImageEditor] Serialized Mask data is malformed.');
@@ -473,12 +736,12 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         mask.originalAlpha = data.originalAlpha;
         mask.originalStroke = data.originalStroke;
         mask.originalStrokeWidth = data.originalStrokeWidth;
-        const compatibility = mask as MaskObject & {
+        const serializedMask = mask as MaskObject & {
             overlayPersistentId?: string;
             overlayMetadata?: unknown;
         };
-        compatibility.overlayPersistentId = data.overlayPersistentId;
-        compatibility.overlayMetadata = data.overlayMetadata;
+        serializedMask.overlayPersistentId = data.overlayPersistentId;
+        serializedMask.overlayMetadata = data.overlayMetadata;
         mask.lockRotation = !this.options.rotatable;
         reattachMaskHoverHandlers(mask);
         return mask;
@@ -534,7 +797,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         hideAllMaskLabels({
             fabric: this.host.fabric as MaskLabelManagerContext['fabric'],
             canvas,
-            options: this.legacyOptions,
+            options: this.factoryOptions,
         });
     }
 
@@ -573,19 +836,6 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             this.lastMask = masks[masks.length - 1] ?? null;
         }
         this.host.requestRender();
-    }
-
-    private commitHistory(
-        operationId: string,
-        before: ReturnType<CoreStatePort['mementos']['capture']>,
-    ): void {
-        const record = this.state.captureHistoryRecord(operationId, before);
-        const result = this.state.commitHistory(record);
-        if (result instanceof Promise) {
-            void result.catch((error: unknown) =>
-                this.host.reportError(error, `History commit for "${operationId}" failed.`),
-            );
-        }
     }
 
     private notifyChange(): void {

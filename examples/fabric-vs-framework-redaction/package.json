@@ -1,0 +1,19 @@
+{
+    "name": "@bensitu/image-editor-redaction-comparison",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@bensitu/image-editor": "file:../..",
+        "fabric": "^7.4.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.4.0"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

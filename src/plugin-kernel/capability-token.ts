@@ -2,13 +2,15 @@ import { InvalidCapabilityVersionError, InvalidPluginDefinitionError } from './e
 import { isValidSemVer, isValidSemVerRange } from './semver.js';
 
 const capabilityTokenBrand: unique symbol = Symbol('ImageEditorCapabilityToken');
+const MAX_CAPABILITY_ID_LENGTH = 128;
+const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/u;
+const prohibitedCapabilitySegments = new Set(['__proto__', 'constructor', 'prototype']);
 
 export interface CapabilityToken<TPort> {
     readonly id: string;
     readonly version: string;
-    /** Phantom invariant type. Runtime code never reads this field. */
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Proposal-compatible phantom field.
-    readonly __portType?: (port: TPort) => TPort;
+    /** Phantom Port type. Runtime code never reads this field. */
+    readonly __type?: TPort;
     readonly [capabilityTokenBrand]: true;
 }
 
@@ -27,9 +29,16 @@ export interface CapabilityRequirement<TPort = unknown> extends CapabilityRequir
 }
 
 export function createCapabilityToken<TPort>(id: string, version: string): CapabilityToken<TPort> {
-    if (id.trim().length === 0 || id.trim() !== id) {
+    if (
+        typeof id !== 'string' ||
+        id.length === 0 ||
+        id.length > MAX_CAPABILITY_ID_LENGTH ||
+        id.trim() !== id ||
+        !CAPABILITY_ID_PATTERN.test(id) ||
+        id.split(/[.:/]/u).some((segment) => prohibitedCapabilitySegments.has(segment))
+    ) {
         throw new InvalidPluginDefinitionError(
-            'CapabilityToken id must be a non-empty trimmed string.',
+            `CapabilityToken id must be a safe, trimmed identifier no longer than ${MAX_CAPABILITY_ID_LENGTH} characters.`,
         );
     }
     if (!isValidSemVer(version)) {

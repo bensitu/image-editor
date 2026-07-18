@@ -1,5 +1,5 @@
-import type { GeometryMutationCoordinator } from '../../core-runtime/geometry/index.js';
-import type { CoreHostPort } from '../../core-runtime/internal-capabilities.js';
+import type { DocumentMutationContext, GeometryMutationPort } from '../../core/index.js';
+import type { BaseImageReadPort, CoreStatusPort, FabricRuntimePort, RenderRequestPort } from '../../sdk/index.js';
 export interface TransformPluginOptions {
     readonly animationDuration?: number;
     readonly minScale?: number;
@@ -20,24 +20,28 @@ export interface TransformPluginState {
     readonly flipX: boolean;
     readonly flipY: boolean;
 }
+export interface TransformMutationOptions {
+    readonly parent?: DocumentMutationContext;
+}
 export declare function resolveTransformOptions(options?: TransformPluginOptions): ResolvedTransformPluginOptions;
 export declare class TransformPluginController {
-    private readonly host;
+    private readonly environment;
+    private readonly baseImage;
+    private readonly render;
     private readonly geometry;
     readonly options: ResolvedTransformPluginOptions;
-    private readonly guard;
-    private readonly queue;
+    private readonly animations;
     private readonly state;
     private mutationSequence;
-    constructor(host: CoreHostPort, geometry: GeometryMutationCoordinator, options: ResolvedTransformPluginOptions);
-    scale(factor: number): Promise<void>;
+    constructor(environment: CoreStatusPort & FabricRuntimePort, baseImage: BaseImageReadPort, render: RenderRequestPort, geometry: GeometryMutationPort, options: ResolvedTransformPluginOptions);
+    scale(factor: number, options?: TransformMutationOptions): Promise<void>;
     private scaleWithOperation;
-    zoomIn(): Promise<void>;
-    zoomOut(): Promise<void>;
-    rotate(degrees: number): Promise<void>;
-    flipHorizontal(): Promise<void>;
-    flipVertical(): Promise<void>;
-    resetImageTransform(): Promise<void>;
+    zoomIn(options?: TransformMutationOptions): Promise<void>;
+    zoomOut(options?: TransformMutationOptions): Promise<void>;
+    rotate(degrees: number, options?: TransformMutationOptions): Promise<void>;
+    flipHorizontal(options?: TransformMutationOptions): Promise<void>;
+    flipVertical(options?: TransformMutationOptions): Promise<void>;
+    resetImageTransform(options?: TransformMutationOptions): Promise<void>;
     getState(): TransformPluginState;
     restoreState(state: TransformPluginState): void;
     resetStateFromImage(): void;
@@ -50,4 +54,5 @@ export declare class TransformPluginController {
     private restoreRollback;
     private computeTopLeftPoint;
     private throwIfAborted;
+    private runAnimation;
 }

@@ -216,3 +216,85 @@ test('restore abort and rollback failure are surfaced instead of swallowed', asy
         second.service.restore(second.service.capture(), { signal: controller.signal }),
     );
 });
+
+test('reference capture policy retains only validated deeply immutable structural sharing', async () => {
+    const harness = createHarness();
+    const immutable = Object.freeze({ nested: Object.freeze([1, 2, 3]) });
+    let current = immutable;
+    let restored;
+    harness.registry.register({
+        id: 'example/reference',
+        version: 1,
+        capturePolicy: 'reference',
+        capture: () => current,
+        validate: (value) =>
+            value === immutable
+                ? { valid: true, value }
+                : { valid: false, message: 'Unexpected reference.' },
+        restore: (value) => {
+            restored = value;
+            current = value;
+        },
+    });
+
+    const memento = harness.service.capture();
+    current = Object.freeze({ nested: Object.freeze([9]) });
+    await harness.service.restore(memento);
+
+    assert.equal(memento.plugins['example/reference'].data, immutable);
+    assert.equal(restored, immutable);
+});
+
+test('reference capture policy rejects mutable arrays, maps, functions, and unvalidated values', () => {
+    for (const [label, value, validate] of [
+        ['array', [1, 2], (candidate) => ({ valid: true, value: candidate })],
+        ['map', new Map([['key', 'value']]), (candidate) => ({ valid: true, value: candidate })],
+        [
+            'function',
+            Object.freeze({ callback: () => undefined }),
+            (candidate) => ({ valid: true, value: candidate }),
+        ],
+        [
+            'unvalidated',
+            Object.freeze({ safe: true }),
+            () => ({ valid: false, message: 'rejected' }),
+        ],
+    ]) {
+        const harness = createHarness();
+        harness.registry.register({
+            id: `example/reference-${label}`,
+            version: 1,
+            capturePolicy: 'reference',
+            capture: () => value,
+            validate,
+            restore: () => undefined,
+        });
+        assert.throws(() => harness.service.capture(), MementoCaptureError);
+    }
+});
+
+test('always capture policy never stores a mutable Map payload', () => {
+    const harness = createHarness();
+    harness.registry.register({
+        id: 'example/always-map',
+        version: 1,
+        capture: () => new Map([['key', 'value']]),
+        validate: (value) => valid(value),
+        restore: () => undefined,
+    });
+
+    assert.throws(() => harness.service.capture(), MementoCaptureError);
+});
+
+test('State Slice registration accepts only always and reference capture policies', () => {
+    const harness = createHarness();
+    const definition = {
+        id: 'example/invalid-policy',
+        version: 1,
+        capturePolicy: 'dirty',
+        capture: () => ({}),
+        validate: (value) => valid(value),
+        restore: () => undefined,
+    };
+    assert.throws(() => harness.registry.register(definition), StateRegistrationError);
+});

@@ -1,0 +1,9 @@
+{
+    "name": "example-image-editor-plugin-invalid",
+    "version": "1.0.0",
+    "type": "module",
+    "dependencies": {
+        "@bensitu/image-editor": "3.0.0",
+        "fabric": "7.4.0"
+    }
+}

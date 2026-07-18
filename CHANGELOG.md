@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `ImageEditorCore` with explicit lifecycle, document transactions, Mementos,
+  Snapshot validation, Plugin installation, and rollback-safe image/export APIs.
+- Add the public Plugin SDK with typed Plugin references, validated manifests,
+  dependency-aware plans, versioned Capabilities, permissions, Operations,
+  Tools, State Slices, disposable ownership, and committed events.
+- Add public Overlay and Annotation Foundations plus official Transform, History,
+  Mask, Filters, Crop, Mosaic, Text, Shape, Draw/Eraser, Overlay State, and DOM
+  Controls Plugins.
+- Add typed Minimal, Redaction, Annotation, and Full Presets with optional DOM
+  Controls factories and method-level result inference.
+- Add the isolated public Testing entry, conformance profile `3.0`, deterministic
+  host fixtures, package/bundle assertions, and independently packable Watermark,
+  Metadata, Grid/Guide, and Blur Region reference Plugins.
+- Add explicit unsupported-Snapshot detection and generic Snapshot migration
+  handlers that revalidate migrated output before mutation.
+- Add the isolated `@bensitu/image-editor/migrate-v2` entry for strict detection,
+  conversion, explicit loading, lossy-warning opt-in, and bounded frozen fixtures.
+- Add the separate `@bensitu/image-editor-codemod` package and `v2-to-v3` CLI with
+  dry-run, diff, write, idempotency, and unresolved-pattern reporting.
+- Add ESM, CommonJS, ESM declarations, CommonJS declarations, and NodeNext
+  conditions for every formal package entry.
+- Add a Full Preset UMD under the `ImageEditorFull` global while keeping Fabric
+  external, plus browser smoke coverage and permanent size attribution.
+- Add public Vanilla, React, Vue, and Next examples, a Plugin package template,
+  and an executable pure-Fabric versus Framework redaction comparison.
+- Add permanent candidate-readiness, deterministic-build, performance, memory,
+  hostile-input, audit, and package-content checks for local release review.
+
+### Changed
+
+- Replace the monolithic root facade with a Core-only public root. Feature methods
+  are available through installed Plugin APIs or typed Preset results.
+- Require applications to pass the Fabric module explicitly and split flat
+  configuration by Core or Feature ownership.
+- Accept the current `image-editor.state@3` Snapshot schema in Core; recognizable
+  older schemas require an explicitly imported migration handler.
+- Require persistent Overlay kinds to install versioned Codecs atomically and
+  privileged Capability consumers to declare exact permissions before setup.
+- Publish the Full Preset UMD as the CDN default; per-Plugin UMD files are not
+  produced and DOM Controls remain opt-in.
+- Require Fabric `>=7.4.0 <8` as an external peer.
+- Remove the unused `compare-versions` runtime dependency and keep `tslib` as a
+  build-only dependency.
+- Update compatible lint, type assertion, formatting, Rollup, and Vite tooling.
+
+### Security
+
+- Validate Snapshot, Overlay State, migration, Codec, image, raster, and package
+  inputs against resource limits and dangerous object keys before mutation.
+- Keep failed setup, image load, State restore, geometry, raster, Overlay, Crop,
+  Mosaic, and migration operations atomic with zero committed partial state.
+- Keep Testing, migration conversion, Codemod, DOM, Preset, and Fabric runtime
+  modules out of entries that do not select them.
+
+### Deprecated
+
+- None. Removed facade methods and private controller paths have no runtime
+  compatibility aliases; use the migration guide and Codemod report instead.
+
 ## [2.9.0] - 2026-07-11
 
 ### Added

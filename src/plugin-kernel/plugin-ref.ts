@@ -1,4 +1,5 @@
 import { InvalidPluginDefinitionError } from './errors.js';
+import { assertPluginIdentifier } from './plugin-identifier.js';
 import { isValidSemVer } from './semver.js';
 
 const pluginRefBrand: unique symbol = Symbol('ImageEditorPluginRef');
@@ -9,17 +10,14 @@ export interface PluginIdentity {
 }
 
 export interface PluginRef<TApi> extends PluginIdentity {
-    /** Phantom invariant type. Runtime code never reads this field. */
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Proposal-compatible phantom field.
-    readonly __apiType?: (api: TApi) => TApi;
+    /** Phantom API type. Runtime code never reads this field. */
+    readonly __apiType?: TApi;
     readonly [pluginRefBrand]: true;
 }
 
 export function definePluginRef<TApi>(id: string, apiVersion: string): PluginRef<TApi> {
-    if (id.trim().length === 0 || id.trim() !== id) {
-        throw new InvalidPluginDefinitionError('PluginRef id must be a non-empty trimmed string.');
-    }
-    if (!isValidSemVer(apiVersion)) {
+    assertPluginIdentifier(id, 'PluginRef id');
+    if (apiVersion.length > 64 || !isValidSemVer(apiVersion)) {
         throw new InvalidPluginDefinitionError(
             `PluginRef "${id}" has invalid API SemVer "${apiVersion}".`,
             id,

@@ -8,3 +8,8 @@ release-notes.md
 CHANGELOG.md
 examples/*/dist
 examples/*/.next
+config/bundle/platform-budget.json
+config/release/public-api.json
+examples/next-client-only/next-env.d.ts
+tests/bundle/baselines/platform-anchor.json
+tests/codemod/fixtures

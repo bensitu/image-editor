@@ -22,9 +22,12 @@ export interface StateRestoreContext {
     readonly signal: AbortSignal;
 }
 
+export type MementoCapturePolicy = 'always' | 'reference';
+
 export interface StateSliceDefinition<TState = unknown> {
     readonly id: string;
     readonly version: number;
+    readonly capturePolicy?: MementoCapturePolicy;
     capture(context: StateCaptureContext): TState;
     validate(value: unknown, context: StateValidationContext): StateValidationResult<TState>;
     restore(state: TState, context: StateRestoreContext): MaybePromise<void>;
@@ -36,6 +39,10 @@ export interface PluginMementoEntry {
     readonly data: unknown;
 }
 
+export interface MementoPluginEntry extends PluginMementoEntry {
+    readonly capturePolicy: MementoCapturePolicy;
+}
+
 declare const coreMementoBrand: unique symbol;
 
 /** Trusted internal state. Only MementoService can create a runtime-valid instance. */
@@ -43,7 +50,7 @@ export interface CoreMemento {
     readonly revision: number;
     readonly capturedAt: number;
     readonly core: Readonly<Record<string, unknown>>;
-    readonly plugins: Readonly<Record<string, PluginMementoEntry>>;
+    readonly plugins: Readonly<Record<string, MementoPluginEntry>>;
     readonly [coreMementoBrand]: true;
 }
 
@@ -56,11 +63,24 @@ export interface CoreStateAdapter {
     validateSnapshot(value: unknown): StateValidationResult<Readonly<Record<string, unknown>>>;
 }
 
-export interface EditorSnapshotV3 {
+export interface EditorSnapshot {
     readonly schema: 'image-editor.state';
     readonly version: 3;
     readonly core: Readonly<Record<string, unknown>>;
     readonly plugins: Readonly<Record<string, PluginMementoEntry>>;
+}
+
+export type EditorSnapshotSchema = 'image-editor.state@3';
+
+export interface SnapshotMigrationContext {
+    readonly signal?: AbortSignal;
+}
+
+export interface SnapshotMigration {
+    readonly sourceSchema: string;
+    readonly targetSchema: EditorSnapshotSchema;
+    canMigrate(input: unknown): boolean;
+    migrate(input: unknown, context: SnapshotMigrationContext): MaybePromise<unknown>;
 }
 
 export type MissingPluginPolicy = 'warn-and-skip' | 'preserve-opaque' | 'error';

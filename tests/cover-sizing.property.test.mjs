@@ -4,7 +4,7 @@
  *
  * Purpose:
  *   Verifies src/image/layout-manager.ts computeCoverLayout for arbitrary image and
- *   viewport dimensions. Cover should follow the v1.4.2-derived behavior: scale
+ *   viewport dimensions. Cover should follow the established behavior: scale
  *   large images down until one viewport axis is filled, do not upscale small
  *   images, and expand the canvas only on axes that need a real scroll range.
  *

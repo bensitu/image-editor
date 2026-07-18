@@ -1,15 +1,30 @@
 import { assertCapabilityRequirement, isCapabilityToken, } from './capability-token.js';
 import { createDisposable, createNoopDisposable, } from './disposable.js';
-import { CapabilityConflictError, InvalidCapabilityVersionError, InvalidPluginDefinitionError, PluginCapabilityError, PluginKernelDisposedError, } from './errors.js';
+import { CapabilityMissingError, CapabilityConflictError, CapabilityVersionError, InvalidCapabilityVersionError, InvalidPluginDefinitionError, PluginCapabilityError, PluginKernelDisposedError, } from './errors.js';
 import { reportWarningSafely } from './reporting.js';
 import { isValidSemVer, satisfiesSemVer } from './semver.js';
-function validateProvider(token, implementation, providerPluginId) {
+import { isPluginPermission } from './plugin-manifest.js';
+function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
     var _a, _b;
     if (!isCapabilityToken(token) || !isValidSemVer(token.version)) {
         throw new InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
     }
     if (providerPluginId.trim().length === 0 || providerPluginId.trim() !== providerPluginId) {
         throw new InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must be a non-empty trimmed string.`, providerPluginId);
+    }
+    if (!isValidSemVer(providerVersion)) {
+        throw new InvalidCapabilityVersionError(token.id, providerVersion, 'version');
+    }
+    if (providerVersion !== token.version) {
+        throw new CapabilityVersionError({
+            capabilityId: token.id,
+            expectedRange: token.version,
+            actualVersion: providerVersion,
+            providerPluginId,
+        });
+    }
+    if (requiredPermission !== undefined && !isPluginPermission(requiredPermission)) {
+        throw new InvalidPluginDefinitionError(`Capability "${token.id}" requires an unsupported Plugin permission.`, providerPluginId);
     }
     if (implementation === null || implementation === undefined) {
         throw new PluginCapabilityError({
@@ -43,25 +58,26 @@ export class CapabilityRegistry {
             value: false
         });
     }
-    provide(token, implementation, providerPluginId) {
-        const registration = this.providePending(token, implementation, providerPluginId, Symbol(`capability:${token.id}`));
+    provide(token, implementation, providerPluginId, requiredPermission) {
+        const registration = this.providePending(token, implementation, providerPluginId, Symbol(`capability:${token.id}`), token.version, requiredPermission);
         registration.commit();
         return registration;
     }
-    provideHost(token, implementation, providerPluginId = '@bensitu/core') {
+    provideHost(token, implementation, providerPluginId = '@bensitu/core', requiredPermission) {
         if (!isCapabilityToken(token)) {
             throw new InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
         }
-        return this.provide(token, implementation, providerPluginId);
+        return this.provide(token, implementation, providerPluginId, requiredPermission);
     }
-    providePending(token, implementation, providerPluginId, transactionId) {
+    providePending(token, implementation, providerPluginId, transactionId, providerVersion = token.version, requiredPermission) {
         this.assertActive('provide a capability');
-        validateProvider(token, implementation, providerPluginId);
+        validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission);
         const existing = this.providers.get(token.id);
         if (existing) {
             const isSameTransaction = existing.providerPluginId === providerPluginId &&
                 existing.transactionId === transactionId &&
-                existing.token.version === token.version &&
+                existing.version === providerVersion &&
+                existing.requiredPermission === requiredPermission &&
                 Object.is(existing.implementation, implementation);
             if (isSameTransaction) {
                 const noop = createNoopDisposable();
@@ -76,6 +92,8 @@ export class CapabilityRegistry {
         }
         const record = {
             token,
+            version: providerVersion,
+            requiredPermission,
             implementation,
             providerPluginId,
             transactionId,
@@ -102,11 +120,11 @@ export class CapabilityRegistry {
         const value = this.resolve(requirement, consumerPluginId, true);
         return value;
     }
-    requireDefinition(requirement, consumerPluginId) {
-        return this.resolve(requirement, consumerPluginId, false);
+    requireDefinition(requirement, consumerPluginId, visibleTransactions) {
+        return this.resolve(requirement, consumerPluginId, false, visibleTransactions);
     }
-    optionalDefinition(requirement, consumerPluginId) {
-        return this.resolve(requirement, consumerPluginId, true);
+    optionalDefinition(requirement, consumerPluginId, visibleTransactions) {
+        return this.resolve(requirement, consumerPluginId, true, visibleTransactions);
     }
     getProviderInfo(tokenOrId) {
         this.assertActive('inspect a capability provider');
@@ -116,13 +134,23 @@ export class CapabilityRegistry {
             return null;
         return Object.freeze({
             capabilityId: record.token.id,
-            version: record.token.version,
+            version: record.version,
             providerPluginId: record.providerPluginId,
+            requiredPermission: record.requiredPermission,
             complete: record.complete,
         });
     }
     has(tokenOrId) {
         return this.getProviderInfo(tokenOrId) !== null;
+    }
+    getRequiredPermission(capabilityId, visibleTransactions) {
+        this.assertActive('inspect a Capability permission');
+        const record = this.providers.get(capabilityId);
+        if (!record)
+            return undefined;
+        if (!record.complete && !(visibleTransactions === null || visibleTransactions === void 0 ? void 0 : visibleTransactions.has(record.transactionId)))
+            return undefined;
+        return record.requiredPermission;
     }
     dispose() {
         if (this.disposed)
@@ -130,7 +158,7 @@ export class CapabilityRegistry {
         this.providers.clear();
         this.disposed = true;
     }
-    resolve(requirement, consumerPluginId, optional) {
+    resolve(requirement, consumerPluginId, optional, visibleTransactions) {
         var _a, _b, _c;
         this.assertActive('resolve a capability');
         try {
@@ -149,44 +177,43 @@ export class CapabilityRegistry {
         if (!record) {
             if (optional)
                 return null;
-            throw new PluginCapabilityError({
+            throw new CapabilityMissingError({
                 consumerPluginId,
                 capabilityId: requirement.token.id,
                 requestedRange: requirement.range,
-                reason: 'missing',
+                availableProviders: this.describeProviders(),
             });
         }
-        if (!record.complete) {
+        if (!record.complete && !(visibleTransactions === null || visibleTransactions === void 0 ? void 0 : visibleTransactions.has(record.transactionId))) {
             if (optional)
                 return null;
             throw new PluginCapabilityError({
                 consumerPluginId,
                 capabilityId: requirement.token.id,
                 requestedRange: requirement.range,
-                installedVersion: record.token.version,
+                installedVersion: record.version,
                 providerPluginId: record.providerPluginId,
                 reason: 'incomplete',
             });
         }
-        if (!satisfiesSemVer(record.token.version, requirement.range)) {
+        if (!satisfiesSemVer(record.version, requirement.range)) {
             if (!optional) {
-                throw new PluginCapabilityError({
-                    consumerPluginId,
+                throw new CapabilityVersionError({
                     capabilityId: requirement.token.id,
-                    requestedRange: requirement.range,
-                    installedVersion: record.token.version,
+                    expectedRange: requirement.range,
+                    actualVersion: record.version,
                     providerPluginId: record.providerPluginId,
-                    reason: 'incompatible',
+                    consumerPluginId,
                 });
             }
             reportWarningSafely(this.options.warningSink, this.options.errorSink, {
                 code: 'OPTIONAL_CAPABILITY_INCOMPATIBLE',
-                message: `Optional integration "${requirement.token.id}" was disabled for plugin "${consumerPluginId}" because installed version "${record.token.version}" does not satisfy "${requirement.range}".`,
+                message: `Optional integration "${requirement.token.id}" was disabled for plugin "${consumerPluginId}" because installed version "${record.version}" does not satisfy "${requirement.range}".`,
                 pluginId: consumerPluginId,
                 details: {
                     capabilityId: requirement.token.id,
                     requestedRange: requirement.range,
-                    installedVersion: record.token.version,
+                    installedVersion: record.version,
                     providerPluginId: record.providerPluginId,
                     optionalIntegrationDisabled: true,
                 },
@@ -194,6 +221,12 @@ export class CapabilityRegistry {
             return null;
         }
         return record.implementation;
+    }
+    describeProviders() {
+        return Object.freeze([...this.providers.values()]
+            .filter((record) => record.complete)
+            .map((record) => `${record.token.id}@${record.version} (${record.providerPluginId})`)
+            .sort());
     }
     assertActive(operation) {
         if (this.disposed)

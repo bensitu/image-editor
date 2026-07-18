@@ -16,7 +16,7 @@ import type * as FabricNS from 'fabric';
 // ─── Fabric module convenience ───────────────────────────────────────────────
 
 /**
- * The full Fabric.js v7 module type (i.e. `import * as fabric from 'fabric'`).
+ * The full supported Fabric.js module type (i.e. `import * as fabric from 'fabric'`).
  * Used when consumers need to type the value they pass into
  * `new ImageEditor(fabric, options)`.
  */
@@ -995,8 +995,7 @@ export type ElementTarget<TElement extends HTMLElement = HTMLElement> =
  * globally unique IDs. Any optional key may be omitted or set to `null`; unknown
  * or missing controls are ignored safely by `ui/dom-bindings.ts`.
  *
- * @deprecated The name is kept for backwards compatibility. Use
- * {@link ElementMap} in new code.
+ * @deprecated Use {@link ElementMap}.
  */
 export interface ElementIdMap {
     /** The `<canvas>` element. @default 'canvas' */

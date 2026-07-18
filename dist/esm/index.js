@@ -1,3 +1,3 @@
-export { ImageEditor, ImageEditor as default } from './image-editor.js';
-export { isAnnotationObject, isBaseImageObject, isDrawAnnotationObject, isEditableOverlayObject, isMaskObject, isSessionObject, isShapeAnnotationObject, isTextAnnotationObject, } from './core/public-types.js';
+export { ImageEditorCore as ImageEditor, ImageEditorCore as default } from './core/index.js';
+export * from './core/index.js';
 //# sourceMappingURL=index.js.map

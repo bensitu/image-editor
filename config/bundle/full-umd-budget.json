@@ -1,0 +1,47 @@
+{
+    "schemaVersion": 1,
+    "globalName": "ImageEditorFull",
+    "policy": {
+        "separateFromPlatformAnchor": true,
+        "fabricBundledModules": 0,
+        "testingModules": 0,
+        "migrationModules": 0,
+        "perPluginUmdArtifacts": 0
+    },
+    "artifacts": {
+        "development": {
+            "file": "dist/umd/image-editor.full.umd.js",
+            "rawBytes": 932030,
+            "gzipBytes": 149192,
+            "brotliBytes": 105306,
+            "sha256": "7b976418fbc3707990b64c0d5cc2781c3eb02451f07a85b55bda2f420b6ad12d",
+            "maximumGzipBytes": 174080,
+            "sourceModules": 100,
+            "attribution": {
+                "pluginKernel": 16,
+                "sdk": 3,
+                "coreFramework": 29,
+                "officialFeatures": 50,
+                "presetComposition": 2,
+                "unknown": 0
+            }
+        },
+        "minified": {
+            "file": "dist/umd/image-editor.full.umd.min.js",
+            "rawBytes": 418979,
+            "gzipBytes": 97229,
+            "brotliBytes": 79677,
+            "sha256": "9a5da4a5141f781344291ad91af2097ba255b9d2e02c7399a53014cc7828bef1",
+            "maximumGzipBytes": 110592,
+            "sourceModules": 100,
+            "attribution": {
+                "pluginKernel": 16,
+                "sdk": 3,
+                "coreFramework": 29,
+                "officialFeatures": 50,
+                "presetComposition": 2,
+                "unknown": 0
+            }
+        }
+    }
+}

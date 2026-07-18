@@ -1,161 +1,172 @@
 <script setup lang="ts">
-import { markRaw, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as fabric from 'fabric';
-import { ImageEditor } from '@bensitu/image-editor';
-import type {
-    EditorToolMode,
-    ImageEditorSelection,
-    ImageEditorState,
-    ImageInfo,
-} from '@bensitu/image-editor';
-
-const emptySelection: ImageEditorSelection = {
-    selectedMask: null,
-    selectedMasks: [],
-    selectedAnnotation: null,
-    selectedAnnotations: [],
-    selectedObjectKind: null,
-};
+import type { CoreImageInfo, ImageEditorCore } from '@bensitu/image-editor';
+import type { CropPluginApi } from '@bensitu/image-editor/plugins/crop';
+import type { HistoryPort, HistoryStatus } from '@bensitu/image-editor/plugins/history';
+import type { MaskPluginApi } from '@bensitu/image-editor/plugins/mask';
+import { createRedactionPreset } from '@bensitu/image-editor/presets/redaction';
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const containerRef = ref<HTMLElement | null>(null);
-const editorRef = shallowRef<ImageEditor | null>(null);
-const editorState = ref<ImageEditorState | null>(null);
-const imageInfo = ref<ImageInfo | null>(null);
-const selection = ref<ImageEditorSelection>(emptySelection);
-const activeToolMode = ref<EditorToolMode | null>(null);
-const historyState = ref({ canUndo: false, canRedo: false });
+const ready = ref(false);
+const running = ref(false);
+const imageInfo = ref<CoreImageInfo | null>(null);
 const maskCount = ref(0);
-const lastOperation = ref('none');
+const cropActive = ref(false);
+const historyState = ref<HistoryStatus>({
+    isEnabled: true,
+    canUndo: false,
+    canRedo: false,
+    length: 0,
+    size: 0,
+    position: 0,
+});
 const message = ref<string | null>(null);
+
+let editor: ImageEditorCore | null = null;
+let masks: MaskPluginApi | null = null;
+let crop: CropPluginApi | null = null;
+let history: HistoryPort | null = null;
+let mounted = false;
 
 function readFileAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-            if (typeof reader.result === 'string') {
-                resolve(reader.result);
-                return;
-            }
-            reject(new Error('FileReader did not return a data URL.'));
+            if (typeof reader.result === 'string') resolve(reader.result);
+            else reject(new Error('FileReader did not return a data URL.'));
         };
-        reader.onerror = () => {
-            reject(reader.error ?? new Error('Failed to read the selected file.'));
-        };
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read the file.'));
         reader.readAsDataURL(file);
     });
 }
 
-function getErrorMessage(error: unknown): string {
+function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
-function refreshPublicState(editor: ImageEditor) {
-    const nextState = editor.getEditorState();
-    editorState.value = nextState;
-    imageInfo.value = editor.getImageInfo();
-    selection.value = editor.getSelection();
-    activeToolMode.value = editor.getActiveToolMode();
-    historyState.value = { canUndo: nextState.canUndo, canRedo: nextState.canRedo };
-    maskCount.value = editor.getMasks().length;
+function refreshState() {
+    imageInfo.value = editor?.getImageInfo() ?? null;
+    maskCount.value = masks?.getAll().length ?? 0;
+    cropActive.value = crop?.isActive ?? false;
 }
 
 onMounted(() => {
-    if (!canvasRef.value) return;
-
-    const editor = markRaw(
-        new ImageEditor(fabric, {
+    mounted = true;
+    const canvas = canvasRef.value;
+    if (!canvas) return;
+    const preset = createRedactionPreset(fabric, {
+        core: {
             defaultLayoutMode: 'fit',
-            onImageChanged(state, context) {
-                editorState.value = state;
-                lastOperation.value = context.operation;
-                const currentEditor = editorRef.value;
-                if (currentEditor) {
-                    imageInfo.value = currentEditor.getImageInfo();
-                    selection.value = currentEditor.getSelection();
-                    maskCount.value = currentEditor.getMasks().length;
-                }
+            onError(error, detail) {
+                console.error(detail, error);
+                message.value = `Error: ${detail}`;
             },
-            onToolModeChange(activeToolModeValue, previousToolMode, context) {
-                activeToolMode.value = activeToolModeValue;
-                lastOperation.value = `${context.operation}: ${previousToolMode ?? 'none'} -> ${
-                    activeToolModeValue ?? 'none'
-                }`;
-            },
-            onHistoryChange(history, context) {
-                historyState.value = history;
-                lastOperation.value = context.operation;
-            },
-            onSelectionChange(selectionValue, context) {
-                selection.value = selectionValue;
-                lastOperation.value = context.operation;
-            },
-            onError(error, warningMessage) {
-                console.error(warningMessage, error);
-                message.value = `Error: ${warningMessage}`;
-            },
-            onWarning(error, warningMessage) {
-                console.warn(warningMessage, error);
-                message.value = `Warning: ${warningMessage}`;
-            },
-        }),
-    );
-
-    editorRef.value = editor;
-    editor.init({
-        canvas: canvasRef.value,
-        canvasContainer: containerRef.value,
+        },
+        transform: { animationDuration: 0 },
+        history: { onChange: (status) => (historyState.value = status) },
+        masks: { label: false },
+        crop: { paddingPx: 0 },
     });
-    refreshPublicState(editor);
+    editor = preset.editor;
+    masks = preset.masks;
+    crop = preset.crop;
+    history = preset.history;
+    void preset.editor
+        .init({ canvas, canvasContainer: containerRef.value })
+        .then(() => {
+            if (!mounted) return;
+            ready.value = true;
+            refreshState();
+        })
+        .catch((error: unknown) => {
+            if (mounted) message.value = `Initialization failed: ${errorMessage(error)}`;
+        });
 });
 
 onBeforeUnmount(() => {
-    editorRef.value?.dispose();
-    editorRef.value = null;
+    mounted = false;
+    ready.value = false;
+    const current = editor;
+    editor = null;
+    masks = null;
+    crop = null;
+    history = null;
+    void current?.disposeAsync().catch((error: unknown) => {
+        console.error('Editor disposal failed.', error);
+    });
 });
 
-async function runEditorAction(action: (editor: ImageEditor) => unknown | Promise<unknown>) {
-    const editor = editorRef.value;
-    if (!editor) return;
-
+async function run(action: () => Promise<unknown>) {
+    running.value = true;
     try {
-        await action(editor);
-        refreshPublicState(editor);
+        await action();
+        refreshState();
         message.value = null;
     } catch (error) {
-        console.error(error);
-        message.value = `Action failed: ${getErrorMessage(error)}`;
+        message.value = `Action failed: ${errorMessage(error)}`;
+    } finally {
+        running.value = false;
     }
 }
 
 async function handleFileChange(event: Event) {
-    const input = event.currentTarget as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    const editor = editorRef.value;
-    if (!file || !editor) return;
+    if (!(event.currentTarget instanceof HTMLInputElement)) return;
+    const file = event.currentTarget.files?.[0];
+    const current = editor;
+    if (!file || !current) return;
+    await run(async () => current.loadImage(await readFileAsDataUrl(file)));
+    event.currentTarget.value = '';
+}
 
-    try {
-        const dataUrl = await readFileAsDataUrl(file);
-        await editor.loadImage(dataUrl);
-        refreshPublicState(editor);
-        message.value = null;
-    } catch (error) {
-        console.error(error);
-        message.value = `Image load failed: ${getErrorMessage(error)}`;
-    } finally {
-        if (input) input.value = '';
-    }
+function addMask() {
+    const api = masks;
+    if (api) void run(() => api.create());
+}
+
+function enterCrop() {
+    const api = crop;
+    if (api) void run(() => api.enter());
+}
+
+function cancelCrop() {
+    const api = crop;
+    if (api) void run(() => api.cancel());
+}
+
+function undo() {
+    const api = history;
+    if (api) void run(() => api.undo());
+}
+
+function redo() {
+    const api = history;
+    if (api) void run(() => api.redo());
+}
+
+function exportImage(format: 'png' | 'jpeg') {
+    const current = editor;
+    if (!current) return;
+    void run(async () => {
+        const dataUrl = await current.exportImageBase64({ area: 'image', format });
+        const anchor = document.createElement('a');
+        anchor.href = dataUrl;
+        anchor.download = `vue-edited.${format === 'jpeg' ? 'jpg' : 'png'}`;
+        anchor.click();
+    });
 }
 </script>
 
 <template>
     <main class="app-shell">
         <header class="top-bar">
-            <h1>Vue ImageEditor</h1>
+            <h1>Vue redaction preset</h1>
             <input
                 aria-label="Load image"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                :disabled="!ready || running"
                 @change="handleFileChange"
             />
         </header>
@@ -167,54 +178,19 @@ async function handleFileChange(event: Event) {
 
             <aside class="side-panel" aria-label="Editor controls and state">
                 <div class="button-grid">
-                    <button
-                        :disabled="!editorRef || !editorState?.hasImage || editorState.isBusy"
-                        @click="runEditorAction((editor) => editor.createMask())"
-                    >
-                        Add mask
-                    </button>
-                    <button
-                        :disabled="!editorRef || !editorState?.hasImage || editorState.isBusy"
-                        @click="runEditorAction((editor) => editor.enterCropMode())"
-                    >
+                    <button :disabled="!imageInfo || running" @click="addMask">Add mask</button>
+                    <button :disabled="!imageInfo || cropActive || running" @click="enterCrop">
                         Enter crop
                     </button>
-                    <button
-                        :disabled="activeToolMode !== 'crop'"
-                        @click="runEditorAction((editor) => editor.cancelCrop())"
-                    >
+                    <button :disabled="!cropActive || running" @click="cancelCrop">
                         Cancel crop
                     </button>
-                    <button
-                        :disabled="!editorRef || !!editorState?.isBusy || !historyState.canUndo"
-                        @click="runEditorAction((editor) => editor.undo())"
-                    >
-                        Undo
-                    </button>
-                    <button
-                        :disabled="!editorRef || !!editorState?.isBusy || !historyState.canRedo"
-                        @click="runEditorAction((editor) => editor.redo())"
-                    >
-                        Redo
-                    </button>
-                    <button
-                        :disabled="!editorRef || !editorState?.hasImage || editorState.isBusy"
-                        @click="
-                            runEditorAction((editor) =>
-                                editor.downloadImage({ fileType: 'png', fileName: 'vue-edited' }),
-                            )
-                        "
-                    >
+                    <button :disabled="running || !historyState.canUndo" @click="undo">Undo</button>
+                    <button :disabled="running || !historyState.canRedo" @click="redo">Redo</button>
+                    <button :disabled="!imageInfo || running" @click="exportImage('png')">
                         Export PNG
                     </button>
-                    <button
-                        :disabled="!editorRef || !editorState?.hasImage || editorState.isBusy"
-                        @click="
-                            runEditorAction((editor) =>
-                                editor.downloadImage({ fileType: 'jpeg', fileName: 'vue-edited' }),
-                            )
-                        "
-                    >
+                    <button :disabled="!imageInfo || running" @click="exportImage('jpeg')">
                         Export JPEG
                     </button>
                 </div>
@@ -223,35 +199,20 @@ async function handleFileChange(event: Event) {
                     <div>
                         <dt>Image</dt>
                         <dd>
-                            {{ imageInfo ? `${imageInfo.width} x ${imageInfo.height}` : 'none' }}
+                            {{ imageInfo ? `${imageInfo.width} × ${imageInfo.height}` : 'none' }}
                         </dd>
                     </div>
                     <div>
-                        <dt>Tool mode</dt>
-                        <dd>{{ activeToolMode ?? 'none' }}</dd>
+                        <dt>Crop</dt>
+                        <dd>{{ cropActive ? 'active' : 'inactive' }}</dd>
                     </div>
                     <div>
                         <dt>Undo / redo</dt>
-                        <dd>
-                            {{ historyState.canUndo ? 'undo' : 'no undo' }} /
-                            {{ historyState.canRedo ? 'redo' : 'no redo' }}
-                        </dd>
+                        <dd>{{ historyState.position }} / {{ historyState.size }}</dd>
                     </div>
                     <div>
                         <dt>Masks</dt>
                         <dd>{{ maskCount }}</dd>
-                    </div>
-                    <div>
-                        <dt>Annotations</dt>
-                        <dd>{{ editorState?.annotationCount ?? 0 }}</dd>
-                    </div>
-                    <div>
-                        <dt>Selection</dt>
-                        <dd>{{ selection.selectedObjectKind ?? 'none' }}</dd>
-                    </div>
-                    <div>
-                        <dt>Last operation</dt>
-                        <dd>{{ lastOperation }}</dd>
                     </div>
                 </dl>
 

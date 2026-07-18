@@ -34,38 +34,35 @@ function registerRectKind(overlay) {
         setPersistentId: (object, id) => {
             object.editorOverlayId = id;
         },
-    });
-    const serializer = overlay.registerSerializer({
-        id: `${TEST_KIND}:serializer`,
-        kind: TEST_KIND,
-        ownerPluginId: TEST_OWNER,
-        serialize: (object) => ({
-            left: object.left,
-            top: object.top,
-            width: object.width,
-            height: object.height,
-            scaleX: object.scaleX,
-            scaleY: object.scaleY,
-            angle: object.angle,
-            flipX: object.flipX,
-            flipY: object.flipY,
-            fill: object.fill,
-        }),
-        validate: (value) =>
-            typeof value === 'object' &&
-            value !== null &&
-            Number.isFinite(value.left) &&
-            Number.isFinite(value.top) &&
-            Number.isFinite(value.width) &&
-            Number.isFinite(value.height),
-        deserialize: (value, context) => new context.fabric.Rect(value),
-    });
-    return {
-        dispose() {
-            serializer.dispose();
-            kind.dispose();
+        persistence: {
+            mode: 'persistent',
+            codec: {
+                type: TEST_KIND,
+                version: '1.0.0',
+                serialize: (object) => ({
+                    left: object.left,
+                    top: object.top,
+                    width: object.width,
+                    height: object.height,
+                    scaleX: object.scaleX,
+                    scaleY: object.scaleY,
+                    angle: object.angle,
+                    flipX: object.flipX,
+                    flipY: object.flipY,
+                    fill: object.fill,
+                }),
+                validate: (value) =>
+                    typeof value === 'object' &&
+                    value !== null &&
+                    Number.isFinite(value.left) &&
+                    Number.isFinite(value.top) &&
+                    Number.isFinite(value.width) &&
+                    Number.isFinite(value.height),
+                deserialize: (value, context) => new context.fabric.Rect(value),
+            },
         },
-    };
+    });
+    return kind;
 }
 
 function addRect(editor, id, options = {}) {
@@ -84,7 +81,7 @@ function addRect(editor, id, options = {}) {
 }
 
 async function initializeAndLoad(editor, ids) {
-    editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
+    await editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
     await editor.loadImage(makeImageDataUrl({ width: 120, height: 80 }));
 }
 
@@ -102,6 +99,7 @@ test('kind registry indexes persistent ids and isolates predicate and duplicate 
             throw new Error('predicate failed');
         },
         getPersistentId: () => null,
+        persistence: { mode: 'transient' },
     });
     const registration = registerRectKind(overlay);
     await initializeAndLoad(editor, ids);
@@ -126,12 +124,12 @@ test('selection, hidden, locked, and layer operations preserve the base-image bo
     const second = addRect(editor, 'rect:second', { left: 50 });
     const third = addRect(editor, 'rect:third', { left: 90 });
 
-    overlay.sendToBack('rect:third');
+    await overlay.sendToBack('rect:third');
     assert.deepEqual(
         overlay.list({ includeLocked: true }).map((object) => object.editorOverlayId),
         ['rect:third', 'rect:first', 'rect:second'],
     );
-    overlay.bringToFront('rect:third');
+    await overlay.bringToFront('rect:third');
     assert.equal(editor.getCanvas().getObjects()[0].editorObjectKind, 'baseImage');
     assert.deepEqual(
         overlay.list({ includeLocked: true }).map((object) => object.editorOverlayId),
@@ -142,16 +140,45 @@ test('selection, hidden, locked, and layer operations preserve the base-image bo
     const listener = overlay.onSelectionChange((state) => selections.push(state));
     overlay.select(['rect:first', 'rect:second']);
     assert.deepEqual(overlay.getSelection().ids, ['rect:first', 'rect:second']);
-    overlay.setLocked('rect:first', true);
+    await overlay.setLocked('rect:first', true);
     assert.equal(first.selectable, false);
     assert.equal(overlay.getSelection().ids.length, 0);
-    overlay.setHidden('rect:second', true);
+    await overlay.setHidden('rect:second', true);
     assert.equal(second.visible, false);
-    overlay.setHidden('rect:second', false);
+    await overlay.setHidden('rect:second', false);
     assert.equal(second.visible, true);
     assert.ok(selections.length >= 2);
     listener.dispose();
     assert.ok(third.canvas);
+    await dispose(editor);
+});
+
+test('preview visibility leases remain outside classification, Snapshot, and export', async () => {
+    const { editor, ids, overlay } = createEditor();
+    registerRectKind(overlay);
+    await initializeAndLoad(editor, ids);
+    const rect = addRect(editor, 'rect:preview-hidden', { left: 42, top: 31 });
+    const snapshot = editor.saveState();
+    const exported = await editor.exportImageBase64({ area: 'canvas', format: 'png' });
+
+    const firstLease = overlay.hideForPreview(['rect:preview-hidden']);
+    const secondLease = overlay.hideForPreview(['rect:preview-hidden']);
+    assert.equal(rect.visible, false);
+    assert.equal(overlay.classify(rect).hidden, false);
+    assert.equal(overlay.list().includes(rect), true);
+    assert.equal(editor.saveState(), snapshot);
+    assert.equal(await editor.exportImageBase64({ area: 'canvas', format: 'png' }), exported);
+
+    firstLease.dispose();
+    assert.equal(rect.visible, false);
+    secondLease.dispose();
+    assert.equal(rect.visible, true);
+
+    await overlay.setHidden('rect:preview-hidden', true);
+    const hiddenLease = overlay.hideForPreview(['rect:preview-hidden']);
+    hiddenLease.dispose();
+    assert.equal(rect.visible, false);
+    assert.equal(overlay.classify(rect).hidden, true);
     await dispose(editor);
 });
 
@@ -202,6 +229,19 @@ test('snapshot round-trip restores serialized overlays and rejects duplicate ids
     assert.ok(afterRejectedLoad);
     assert.equal(afterRejectedLoad.left, restored.left);
     assert.equal(afterRejectedLoad.angle, restored.angle);
+    await dispose(editor);
+});
+
+test('Snapshot rejects an unregistered object marked as a persistent Overlay', async () => {
+    const { editor, ids } = createEditor();
+    await initializeAndLoad(editor, ids);
+    const unsafe = new fabric.Rect({ left: 12, top: 16, width: 20, height: 18 });
+    unsafe.editorOverlayKind = 'example.test/unregistered-persistent-kind';
+    unsafe.editorOverlayId = 'unsafe:one';
+    editor.getCanvas().add(unsafe);
+
+    assert.throws(() => editor.saveState(), /Persistent overlay kind .* is not registered/);
+
     await dispose(editor);
 });
 
@@ -278,6 +318,6 @@ test('flatten replaces the raster once, removes only queried overlays, and keeps
 test('typed PluginRef retrieves the same Overlay Foundation API instance', async () => {
     const { editor, ids, overlay } = createEditor();
     assert.equal(editor.getPlugin(overlayFoundationRef), overlay);
-    editor.init({ canvas: ids.canvas });
+    await editor.init({ canvas: ids.canvas });
     await dispose(editor);
 });

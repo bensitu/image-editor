@@ -1,5 +1,5 @@
 /**
- * Enforces the Phase 0 dependency direction and emits a stable import graph.
+ * Enforces package dependency direction and entry-point isolation.
  *
  * TypeScript's resolver is used so relative `.js` source specifiers and any
  * future tsconfig path aliases are interpreted consistently on every OS.
@@ -8,7 +8,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -17,10 +17,10 @@ import ts from 'typescript';
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptsDir, '..');
-const reportRoot = path.join(repoRoot, 'tests', 'bundle', 'baselines');
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts', '.mjs', '.cjs']);
 const forbiddenCoreTargets = [
     ['src/plugins/', 'Feature plugins must depend on Core ports; Core must not import plugins.'],
+    ['src/presets/', 'Preset composition belongs above Core and must not be imported by Core.'],
     ['src/mask/', 'Move the dependency behind a capability instead of importing Mask from Core.'],
     ['src/crop/', 'Move the dependency behind a capability instead of importing Crop from Core.'],
     [
@@ -54,10 +54,18 @@ const featureMatchers = {
     transform: (file) =>
         file.startsWith('src/plugins/transform/') || file.startsWith('src/image/transform-'),
     overlayFoundation: (file) => file.startsWith('src/foundations/overlay/'),
+    annotationFoundation: (file) => file.startsWith('src/foundations/annotation/'),
     mask: (file) => file.startsWith('src/plugins/mask/') || file.startsWith('src/mask/'),
-    crop: (file) => file.startsWith('src/crop/'),
-    mosaic: (file) => file.startsWith('src/mosaic/'),
-    filters: (file) => file === 'src/image/image-filters.ts',
+    crop: (file) => file.startsWith('src/plugins/crop/') || file.startsWith('src/crop/'),
+    mosaic: (file) => file.startsWith('src/plugins/mosaic/') || file.startsWith('src/mosaic/'),
+    annotationText: (file) => file.startsWith('src/plugins/annotation-text/'),
+    annotationShape: (file) => file.startsWith('src/plugins/annotation-shape/'),
+    annotationDraw: (file) => file.startsWith('src/plugins/annotation-draw/'),
+    overlayState: (file) => file.startsWith('src/plugins/overlay-state/'),
+    domControls: (file) => file.startsWith('src/plugins/dom-controls/'),
+    presets: (file) => file.startsWith('src/presets/'),
+    filters: (file) =>
+        file.startsWith('src/plugins/filters/') || file === 'src/image/image-filters.ts',
     annotation: (file) => file.startsWith('src/annotation/'),
     domBindings: (file) => file.startsWith('src/ui/'),
 };
@@ -70,6 +78,7 @@ const featureImportRules = [
             'src/history/',
             'src/plugins/mask/',
             'src/plugins/history/',
+            'src/plugins/filters/',
             'src/foundations/',
         ],
         rule: 'transform-plugin-isolation',
@@ -79,6 +88,7 @@ const featureImportRules = [
     {
         source: 'src/foundations/overlay/',
         forbidden: [
+            'src/foundations/annotation/',
             'src/plugins/',
             'src/mask/',
             'src/annotation/',
@@ -91,10 +101,28 @@ const featureImportRules = [
             'Overlay Foundation must remain feature-neutral and must not import official Feature implementations.',
     },
     {
+        source: 'src/foundations/annotation/',
+        forbidden: [
+            'src/plugins/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+            'src/history/',
+            'src/image/image-filters',
+        ],
+        rule: 'annotation-foundation-isolation',
+        recommendation:
+            'Annotation Foundation must coordinate through public Overlay and Core capabilities without importing concrete Features.',
+    },
+    {
         source: 'src/plugins/mask/',
         forbidden: [
+            'src/foundations/annotation/',
+            'src/plugins/annotation-',
             'src/plugins/transform/',
             'src/plugins/history/',
+            'src/plugins/filters/',
             'src/annotation/',
             'src/crop/',
             'src/mosaic/',
@@ -107,8 +135,11 @@ const featureImportRules = [
     {
         source: 'src/plugins/history/',
         forbidden: [
+            'src/foundations/annotation/',
+            'src/plugins/annotation-',
             'src/plugins/transform/',
             'src/plugins/mask/',
+            'src/plugins/filters/',
             'src/foundations/',
             'src/mask/',
             'src/annotation/',
@@ -119,24 +150,147 @@ const featureImportRules = [
         recommendation:
             'History must consume Core Mementos and must not know concrete Feature state.',
     },
+    {
+        source: 'src/plugins/filters/',
+        forbidden: [
+            'src/foundations/annotation/',
+            'src/plugins/annotation-',
+            'src/plugins/transform/',
+            'src/plugins/history/',
+            'src/plugins/mask/',
+            'src/foundations/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+            'src/image/image-filters',
+        ],
+        rule: 'filters-plugin-isolation',
+        recommendation:
+            'Filters must coordinate through public Core and SDK capabilities without importing other Feature implementations.',
+    },
+    {
+        source: 'src/plugins/crop/',
+        forbidden: [
+            'src/foundations/annotation/',
+            'src/plugins/annotation-',
+            'src/plugins/transform/',
+            'src/plugins/history/',
+            'src/plugins/mask/',
+            'src/plugins/filters/',
+            'src/plugins/mosaic/',
+            'src/mask/',
+            'src/annotation/',
+            'src/mosaic/',
+            'src/image/image-filters',
+        ],
+        rule: 'crop-plugin-isolation',
+        recommendation:
+            'Crop must coordinate through public Core, SDK, and generic Overlay capabilities without importing concrete Features.',
+    },
+    {
+        source: 'src/plugins/mosaic/',
+        forbidden: [
+            'src/plugins/transform/',
+            'src/plugins/history/',
+            'src/plugins/mask/',
+            'src/plugins/filters/',
+            'src/plugins/crop/',
+            'src/foundations/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/image/image-filters',
+        ],
+        rule: 'mosaic-plugin-isolation',
+        recommendation:
+            'Mosaic must coordinate through public Core and SDK capabilities without importing concrete Features.',
+    },
+    {
+        source: 'src/plugins/annotation-text/',
+        forbidden: [
+            'src/plugins/annotation-shape/',
+            'src/plugins/annotation-draw/',
+            'src/plugins/mask/',
+            'src/plugins/crop/',
+            'src/plugins/mosaic/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+        ],
+        rule: 'annotation-text-isolation',
+        recommendation:
+            'Text Annotation must consume the public Annotation contract without importing sibling Features or Mask.',
+    },
+    {
+        source: 'src/plugins/annotation-shape/',
+        forbidden: [
+            'src/plugins/annotation-text/',
+            'src/plugins/annotation-draw/',
+            'src/plugins/mask/',
+            'src/plugins/crop/',
+            'src/plugins/mosaic/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+        ],
+        rule: 'annotation-shape-isolation',
+        recommendation:
+            'Shape Annotation must consume the public Annotation contract without importing sibling Features or Mask.',
+    },
+    {
+        source: 'src/plugins/annotation-draw/',
+        forbidden: [
+            'src/plugins/annotation-text/',
+            'src/plugins/annotation-shape/',
+            'src/plugins/mask/',
+            'src/plugins/crop/',
+            'src/plugins/mosaic/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+        ],
+        rule: 'annotation-draw-isolation',
+        recommendation:
+            'Draw Annotation must consume the public Annotation contract without importing sibling Features or Mask.',
+    },
+    {
+        source: 'src/plugins/overlay-state/',
+        forbidden: [
+            'src/foundations/annotation/',
+            'src/plugins/annotation-',
+            'src/plugins/transform/',
+            'src/plugins/history/',
+            'src/plugins/mask/',
+            'src/plugins/filters/',
+            'src/plugins/crop/',
+            'src/plugins/mosaic/',
+            'src/mask/',
+            'src/annotation/',
+            'src/crop/',
+            'src/mosaic/',
+            'src/overlay/',
+            'src/ui/',
+        ],
+        rule: 'overlay-state-isolation',
+        recommendation:
+            'Overlay State must resolve installed kinds through the public Overlay capability without importing Feature implementations.',
+    },
 ];
 
 function parseArguments(argv) {
-    const options = { packageRoot: repoRoot, reportName: null };
+    const options = { packageRoot: repoRoot };
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         if (argument === '--package-root') {
             options.packageRoot = path.resolve(argv[index + 1] ?? '');
             index += 1;
-        } else if (argument === '--update-report') {
-            options.reportName = argv[index + 1] ?? '';
-            index += 1;
         } else {
             throw new Error(`Unknown argument: ${argument}`);
         }
-    }
-    if (options.reportName && !/^[a-z0-9][a-z0-9.-]*$/i.test(options.reportName)) {
-        throw new Error(`Invalid report name: ${options.reportName}`);
     }
     return options;
 }
@@ -390,6 +544,36 @@ async function analyze(packageRoot) {
                         'Keep the internal Kernel test entry out of the package-root barrel.',
                 });
             }
+
+            if (
+                sourceRelative === 'src/index.ts' &&
+                targetRelative &&
+                ['src/plugins/overlay-state/', 'src/plugins/dom-controls/', 'src/presets/'].some(
+                    (prefix) => targetRelative.startsWith(prefix),
+                )
+            ) {
+                violations.push({
+                    sourceFile: sourceRelative,
+                    forbiddenImport: specifier,
+                    rule: 'integration-entry-isolation',
+                    recommendation:
+                        'Keep Overlay State, DOM Controls, and Presets behind their public subpath entries.',
+                });
+            }
+
+            if (
+                sourceRelative.startsWith('src/plugins/') &&
+                !sourceRelative.startsWith('src/plugins/dom-controls/') &&
+                targetRelative?.startsWith('src/plugins/dom-controls/')
+            ) {
+                violations.push({
+                    sourceFile: sourceRelative,
+                    forbiddenImport: specifier,
+                    rule: 'feature-dom-controls-isolation',
+                    recommendation:
+                        'Feature Plugins must remain independent from optional DOM Controls.',
+                });
+            }
         }
     }
 
@@ -416,7 +600,7 @@ async function analyze(packageRoot) {
                 }
             }
         } catch {
-            // The Phase 0 release baseline legitimately predates the Kernel fixture.
+            // The frozen maintenance baseline legitimately predates the Kernel fixture.
         }
     }
 
@@ -437,6 +621,15 @@ async function analyze(packageRoot) {
             ['overlay', path.join(sourceRoot, 'foundations', 'overlay', 'index.ts')],
             ['mask', path.join(sourceRoot, 'plugins', 'mask', 'index.ts')],
             ['history', path.join(sourceRoot, 'plugins', 'history', 'index.ts')],
+            ['filters', path.join(sourceRoot, 'plugins', 'filters', 'index.ts')],
+            ['crop', path.join(sourceRoot, 'plugins', 'crop', 'index.ts')],
+            ['mosaic', path.join(sourceRoot, 'plugins', 'mosaic', 'index.ts')],
+            ['overlayState', path.join(sourceRoot, 'plugins', 'overlay-state', 'index.ts')],
+            ['domControls', path.join(sourceRoot, 'plugins', 'dom-controls', 'index.ts')],
+            ['presetMinimal', path.join(sourceRoot, 'presets', 'minimal', 'index.ts')],
+            ['presetRedaction', path.join(sourceRoot, 'presets', 'redaction', 'index.ts')],
+            ['presetAnnotation', path.join(sourceRoot, 'presets', 'annotation', 'index.ts')],
+            ['presetFull', path.join(sourceRoot, 'presets', 'full', 'index.ts')],
         ].map(([name, entryPath]) => {
             const modules = getReachable(graph, entryPath);
             return [
@@ -488,16 +681,8 @@ async function analyze(packageRoot) {
     };
 }
 
-async function updateReport(name, report) {
-    const outputPath = path.join(reportRoot, `${name}.json`);
-    await mkdir(reportRoot, { recursive: true });
-    await writeFile(outputPath, `${JSON.stringify(report, null, 4)}\n`, 'utf8');
-    console.warn(`Updated architecture report: ${relativeTo(repoRoot, outputPath)}`);
-}
-
 const options = parseArguments(process.argv.slice(2));
 const report = await analyze(options.packageRoot);
-if (options.reportName) await updateReport(options.reportName, report);
 
 if (report.violations.length > 0) {
     console.error('Architecture check failed:');

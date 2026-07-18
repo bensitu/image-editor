@@ -1,4 +1,8 @@
-export { cloneStateValue, isDangerousStateKey } from './clone-state-value.js';
+export {
+    assertSafeImmutableReference,
+    cloneStateValue,
+    isDangerousStateKey,
+} from './clone-state-value.js';
 export { MementoService, type MementoRestoreOptions } from './memento-service.js';
 export {
     ObjectPropertyRegistry,
@@ -7,18 +11,22 @@ export {
 export {
     DEFAULT_SNAPSHOT_LIMITS,
     SnapshotService,
-    migrateV2SnapshotToV3,
+    type PreparedSnapshotLoad,
     type SnapshotLimits,
     type SnapshotLoadOptions,
-    type SnapshotMigrationResult,
 } from './snapshot-service.js';
 export { StateSliceRegistry } from './state-slice-registry.js';
 export type {
     CoreMemento,
     CoreStateAdapter,
-    EditorSnapshotV3,
+    EditorSnapshotSchema,
+    EditorSnapshot,
     MissingPluginPolicy,
+    MementoCapturePolicy,
+    MementoPluginEntry,
     PluginMementoEntry,
+    SnapshotMigration,
+    SnapshotMigrationContext,
     StateCaptureContext,
     StateCaptureMode,
     StateRestoreContext,

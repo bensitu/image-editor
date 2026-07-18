@@ -27,6 +27,16 @@ function assertDefinition(definition: StateSliceDefinition): void {
             definition.id,
         );
     }
+    if (
+        definition.capturePolicy !== undefined &&
+        definition.capturePolicy !== 'always' &&
+        definition.capturePolicy !== 'reference'
+    ) {
+        throw new StateRegistrationError(
+            `State slice "${definition.id}" capturePolicy must be "always" or "reference".`,
+            definition.id,
+        );
+    }
 }
 
 export class StateSliceRegistry implements Disposable {
@@ -42,7 +52,10 @@ export class StateSliceRegistry implements Disposable {
                 definition.id,
             );
         }
-        const stored = Object.freeze({ ...definition }) as StateSliceDefinition<TState>;
+        const stored = Object.freeze({
+            ...definition,
+            capturePolicy: definition.capturePolicy ?? 'always',
+        }) as StateSliceDefinition<TState>;
         this.definitions.set(definition.id, stored as StateSliceDefinition);
         return createDisposable(() => {
             if (this.definitions.get(definition.id) === stored) {
