@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-BONtSGqw.cjs');
+var pluginManifest = require('./plugin-manifest-BCkXHQr2.cjs');
 
 function definePlugin(definition) {
     if (typeof definition !== 'object' || definition === null) {
@@ -17,4 +17,4 @@ function definePlugin(definition) {
 }
 
 exports.definePlugin = definePlugin;
-//# sourceMappingURL=plugin-definition-BY3aZxqL.cjs.map
+//# sourceMappingURL=plugin-definition-B3UyurRp.cjs.map

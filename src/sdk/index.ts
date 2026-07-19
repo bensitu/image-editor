@@ -18,7 +18,7 @@ export {
     type Disposable,
     type MaybePromise,
 } from '../plugin-kernel/disposable.js';
-export { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
+export { isRuntimeIdentifier } from '../plugin-kernel/plugin-identifier.js';
 export { isValidSemVer } from '../plugin-kernel/semver.js';
 export {
     CapabilityConflictError,

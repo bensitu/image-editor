@@ -7,7 +7,7 @@
 import type * as FabricNS from 'fabric';
 
 import { createDisposable, type Disposable, type MaybePromise } from '../plugin-kernel/index.js';
-import { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../plugin-kernel/plugin-identifier.js';
 import { CoreRuntimeError } from './errors.js';
 import type { CoreExportOptions } from './public-types.js';
 
@@ -38,13 +38,11 @@ export class ExportContributorRegistry implements Disposable {
         this.assertActive('register an export contributor');
         if (!isRuntimeIdentifier(owner)) {
             throw new CoreRuntimeError(
-                '[ImageEditor] Export contributor owner must match "namespace:kebab-case".',
+                '[ImageEditor] Invalid Export contributor owner Runtime ID.',
             );
         }
         if (!isRuntimeIdentifier(contributor.id)) {
-            throw new CoreRuntimeError(
-                '[ImageEditor] Export contributor id must match "namespace:kebab-case".',
-            );
+            throw new CoreRuntimeError('[ImageEditor] Invalid Export contributor Runtime ID.');
         }
         if (!Number.isFinite(contributor.order)) {
             throw new CoreRuntimeError(

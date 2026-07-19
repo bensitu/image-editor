@@ -1,5 +1,5 @@
 import { createDisposable } from '../../plugin-kernel/disposable.js';
-import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/plugin-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 import { isDangerousStateKey } from './clone-state-value.js';
 function assertIdentifier(value, label) {
@@ -25,7 +25,7 @@ export class ObjectPropertyRegistry {
     register(registration) {
         this.assertActive();
         if (!isRuntimeIdentifier(registration.owner)) {
-            throw new StateRegistrationError('Object property owner must match "namespace:kebab-case".', registration.owner);
+            throw new StateRegistrationError('Invalid object property owner Runtime ID.', registration.owner);
         }
         if (registration.keys.length === 0) {
             throw new StateRegistrationError(`Object property registration for "${registration.owner}" must include a key.`);

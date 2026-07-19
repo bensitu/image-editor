@@ -1,7 +1,7 @@
 import { createDisposable } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
 import { reportWarningSafely } from './reporting.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 export class CommittedEventBus {
     constructor(options = {}) {
         Object.defineProperty(this, "options", {
@@ -87,7 +87,7 @@ export class CommittedEventBus {
     }
     assertEventName(eventName) {
         if (!isRuntimeIdentifier(eventName)) {
-            throw new InvalidPluginDefinitionError('Committed event name must match "namespace:kebab-case".');
+            throw new InvalidPluginDefinitionError('Invalid committed event Runtime ID.');
         }
     }
 }

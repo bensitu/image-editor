@@ -12,7 +12,7 @@ import {
 } from './disposable.js';
 import { PluginKernelDisposedError, ToolRegistrationError, ToolTransitionError } from './errors.js';
 import { reportErrorSafely, type PluginErrorSink } from './reporting.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 
 export type ToolId = string;
 export type ToolExitReason =
@@ -51,16 +51,10 @@ export class ToolCoordinator implements Disposable {
     register(definition: ToolDefinition, ownerPluginId: string): Disposable {
         this.assertActive('register a tool');
         if (!isRuntimeIdentifier(ownerPluginId)) {
-            throw new ToolRegistrationError(
-                'Tool owner Plugin id must match "namespace:kebab-case".',
-                ownerPluginId,
-            );
+            throw new ToolRegistrationError('Invalid Tool owner Runtime ID.', ownerPluginId);
         }
         if (!isRuntimeIdentifier(definition.id)) {
-            throw new ToolRegistrationError(
-                'Tool id must match "namespace:kebab-case".',
-                ownerPluginId,
-            );
+            throw new ToolRegistrationError('Invalid Tool Runtime ID.', ownerPluginId);
         }
         const existing = this.tools.get(definition.id);
         if (existing) {

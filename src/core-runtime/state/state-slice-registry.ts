@@ -5,16 +5,13 @@
  */
 
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
-import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/plugin-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 import type { StateSliceDefinition } from './state-types.js';
 
 function assertDefinition(definition: StateSliceDefinition): void {
     if (!isRuntimeIdentifier(definition.id)) {
-        throw new StateRegistrationError(
-            'State slice id must match "namespace:kebab-case".',
-            definition.id,
-        );
+        throw new StateRegistrationError('Invalid State Slice Runtime ID.', definition.id);
     }
     if (!Number.isSafeInteger(definition.version) || definition.version <= 0) {
         throw new StateRegistrationError(

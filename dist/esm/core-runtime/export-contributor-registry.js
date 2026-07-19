@@ -1,5 +1,5 @@
 import { createDisposable } from '../plugin-kernel/index.js';
-import { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../plugin-kernel/plugin-identifier.js';
 import { CoreRuntimeError } from './errors.js';
 export class ExportContributorRegistry {
     constructor() {
@@ -25,10 +25,10 @@ export class ExportContributorRegistry {
     register(owner, contributor) {
         this.assertActive('register an export contributor');
         if (!isRuntimeIdentifier(owner)) {
-            throw new CoreRuntimeError('[ImageEditor] Export contributor owner must match "namespace:kebab-case".');
+            throw new CoreRuntimeError('[ImageEditor] Invalid Export contributor owner Runtime ID.');
         }
         if (!isRuntimeIdentifier(contributor.id)) {
-            throw new CoreRuntimeError('[ImageEditor] Export contributor id must match "namespace:kebab-case".');
+            throw new CoreRuntimeError('[ImageEditor] Invalid Export contributor Runtime ID.');
         }
         if (!Number.isFinite(contributor.order)) {
             throw new CoreRuntimeError(`[ImageEditor] Export contributor "${contributor.id}" must use a finite order.`);

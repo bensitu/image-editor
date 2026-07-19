@@ -5,7 +5,7 @@
  */
 
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
-import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/plugin-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 import type { StateWarningSink } from './state-types.js';
 
@@ -25,9 +25,7 @@ export class TransientObjectRegistry<TObject = unknown> implements Disposable {
     register(owner: string, predicate: TransientObjectPredicate<TObject>): Disposable {
         this.assertActive();
         if (!isRuntimeIdentifier(owner)) {
-            throw new StateRegistrationError(
-                'Transient predicate owner must match "namespace:kebab-case".',
-            );
+            throw new StateRegistrationError('Invalid transient predicate owner Runtime ID.');
         }
         if (typeof predicate !== 'function') {
             throw new StateRegistrationError(

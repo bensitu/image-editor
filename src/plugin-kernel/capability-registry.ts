@@ -30,7 +30,7 @@ import {
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 import { isValidSemVer, satisfiesSemVer } from './semver.js';
 import { isPluginPermission } from './plugin-manifest.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 import type { PluginPermission } from './plugin-types.js';
 
 interface CapabilityProviderRecord {
@@ -72,7 +72,7 @@ function validateProvider<TPort>(
     }
     if (!isRuntimeIdentifier(providerPluginId)) {
         throw new InvalidPluginDefinitionError(
-            `Capability provider id for "${token.id}" must match "namespace:kebab-case".`,
+            `Invalid Capability provider Runtime ID for "${token.id}".`,
             providerPluginId,
         );
     }
@@ -246,9 +246,7 @@ export class CapabilityRegistry implements Disposable {
         this.assertActive('inspect a capability provider');
         const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
         if (!isRuntimeIdentifier(id)) {
-            throw new InvalidPluginDefinitionError(
-                'Capability id must match "namespace:kebab-case".',
-            );
+            throw new InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(id);
         if (!record) return null;
@@ -272,9 +270,7 @@ export class CapabilityRegistry implements Disposable {
     ): PluginPermission | undefined {
         this.assertActive('inspect a Capability permission');
         if (!isRuntimeIdentifier(capabilityId)) {
-            throw new InvalidPluginDefinitionError(
-                'Capability id must match "namespace:kebab-case".',
-            );
+            throw new InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(capabilityId);
         if (!record) return undefined;
@@ -297,7 +293,7 @@ export class CapabilityRegistry implements Disposable {
         this.assertActive('resolve a capability');
         if (!isRuntimeIdentifier(consumerPluginId)) {
             throw new InvalidPluginDefinitionError(
-                'Capability consumer Plugin id must match "namespace:kebab-case".',
+                'Invalid Capability consumer Runtime ID.',
                 consumerPluginId,
             );
         }

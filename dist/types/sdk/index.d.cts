@@ -7,7 +7,7 @@ export * from './core-capabilities.js';
 export * from './visible-raster-bake.js';
 export { createCapabilityToken, type CapabilityRequirement, type CapabilityToken, } from '../plugin-kernel/capability-token.js';
 export { createDisposable, disposeInReverseSync, type Disposable, type MaybePromise, } from '../plugin-kernel/disposable.js';
-export { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
+export { isRuntimeIdentifier } from '../plugin-kernel/plugin-identifier.js';
 export { isValidSemVer } from '../plugin-kernel/semver.js';
 export { CapabilityConflictError, CapabilityMissingError, CapabilityVersionError, PluginApiVersionError, PluginBatchInstallError, PluginDefinitionConflictError, PluginDependencyCycleError, PluginDependencyError, PluginEngineVersionError, PluginError, PluginIdentityConflictError, PluginManifestError, PluginNotInstalledError, PluginPermissionError, PluginSetupError, } from '../plugin-kernel/errors.js';
 export { definePluginRef, type PluginRef } from '../plugin-kernel/plugin-ref.js';

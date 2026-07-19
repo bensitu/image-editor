@@ -7,7 +7,7 @@
 import { createDisposable, type Disposable, type MaybePromise } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 
 export type PluginEventMap = Record<string, unknown>;
 export type CommittedEventListener<TPayload> = (payload: TPayload) => MaybePromise<void>;
@@ -89,9 +89,7 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
 
     private assertEventName(eventName: string): void {
         if (!isRuntimeIdentifier(eventName)) {
-            throw new InvalidPluginDefinitionError(
-                'Committed event name must match "namespace:kebab-case".',
-            );
+            throw new InvalidPluginDefinitionError('Invalid committed event Runtime ID.');
         }
     }
 }

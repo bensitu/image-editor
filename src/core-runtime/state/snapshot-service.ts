@@ -5,7 +5,7 @@
  */
 
 import type { Disposable } from '../../plugin-kernel/disposable.js';
-import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/plugin-identifier.js';
 import {
     SnapshotValidationError,
     SnapshotVersionUnsupportedError,

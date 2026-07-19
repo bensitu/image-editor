@@ -4229,7 +4229,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "df4e16301a18f7621848733c022eed3c137de47caeb459599c54f7446c5355ce",
+        "graphSha256": "483ac52af8c6e96fd4cb584fedf5850f1a55b0ac8376a32a3226b59ad1e5244a",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4384,6 +4384,10 @@
                 "sha256": "411507915cfbe7acc51c2ecc5160eff40ab59f87e9f6e4fd89888f7750f201ee"
             },
             {
+                "file": "dist/types/plugin-kernel/plugin-identifier.d.ts",
+                "sha256": "e6d7fdc8024c412cefb14172ec246d13674abda637223b0ce4e6d68a73023211"
+            },
+            {
                 "file": "dist/types/plugin-kernel/plugin-manager.d.ts",
                 "sha256": "a01fe72df160d0f886f56e2b7aa6e79b376c348ad314a299065547f9cd3d8939"
             },
@@ -4414,10 +4418,6 @@
             {
                 "file": "dist/types/plugin-kernel/reporting.d.ts",
                 "sha256": "858a40dc212162c1bc806986cb82691b56614d22c2b4792b38fd921ace1bc058"
-            },
-            {
-                "file": "dist/types/plugin-kernel/runtime-identifier.d.ts",
-                "sha256": "e6fd0db922a29b2d16797c434cc28d584cce1f42ee2aa561cd114e1df0817e0d"
             },
             {
                 "file": "dist/types/plugin-kernel/semver.d.ts",
@@ -4581,7 +4581,7 @@
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "852df0f8748e29f9e7967414f62810c237e92a1ba22dedad43ac6e4fac79af26"
+                "sha256": "43fb808862670e2697d95d06c2ceeec72e52b032501fb4a59f98dfee620f6957"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",

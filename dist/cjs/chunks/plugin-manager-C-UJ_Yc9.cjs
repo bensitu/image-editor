@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-BONtSGqw.cjs');
+var pluginManifest = require('./plugin-manifest-BCkXHQr2.cjs');
 var disposable = require('./disposable-Sj4tt6Lk.cjs');
 
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
@@ -9,7 +9,7 @@ function validateProvider(token, implementation, providerPluginId, providerVersi
         throw new pluginManifest.InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
     }
     if (!pluginManifest.isRuntimeIdentifier(providerPluginId)) {
-        throw new pluginManifest.InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must match "namespace:kebab-case".`, providerPluginId);
+        throw new pluginManifest.InvalidPluginDefinitionError(`Invalid Capability provider Runtime ID for "${token.id}".`, providerPluginId);
     }
     if (!pluginManifest.isValidSemVer(providerVersion)) {
         throw new pluginManifest.InvalidCapabilityVersionError(token.id, providerVersion, 'version');
@@ -129,7 +129,7 @@ class CapabilityRegistry {
         this.assertActive('inspect a capability provider');
         const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
         if (!pluginManifest.isRuntimeIdentifier(id)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+            throw new pluginManifest.InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(id);
         if (!record)
@@ -148,7 +148,7 @@ class CapabilityRegistry {
     getRequiredPermission(capabilityId, visibleTransactions) {
         this.assertActive('inspect a Capability permission');
         if (!pluginManifest.isRuntimeIdentifier(capabilityId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+            throw new pluginManifest.InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
         }
         const record = this.providers.get(capabilityId);
         if (!record)
@@ -167,7 +167,7 @@ class CapabilityRegistry {
         var _a, _b, _c;
         this.assertActive('resolve a capability');
         if (!pluginManifest.isRuntimeIdentifier(consumerPluginId)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Capability consumer Plugin id must match "namespace:kebab-case".', consumerPluginId);
+            throw new pluginManifest.InvalidPluginDefinitionError('Invalid Capability consumer Runtime ID.', consumerPluginId);
         }
         try {
             pluginManifest.assertCapabilityRequirement(requirement);
@@ -327,7 +327,7 @@ class CommittedEventBus {
     }
     assertEventName(eventName) {
         if (!pluginManifest.isRuntimeIdentifier(eventName)) {
-            throw new pluginManifest.InvalidPluginDefinitionError('Committed event name must match "namespace:kebab-case".');
+            throw new pluginManifest.InvalidPluginDefinitionError('Invalid committed event Runtime ID.');
         }
     }
 }
@@ -800,10 +800,10 @@ class OperationRegistry {
     }
     validateDefinition(definition, ownerPluginId) {
         if (!pluginManifest.isRuntimeIdentifier(ownerPluginId)) {
-            throw new pluginManifest.OperationRegistrationError('Operation owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+            throw new pluginManifest.OperationRegistrationError('Invalid Operation owner Runtime ID.', ownerPluginId);
         }
         if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
-            throw new pluginManifest.OperationRegistrationError('Operation id must match "namespace:kebab-case".', ownerPluginId);
+            throw new pluginManifest.OperationRegistrationError('Invalid Operation Runtime ID.', ownerPluginId);
         }
         if (!OPERATION_MODES.includes(definition.mode)) {
             throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
@@ -1139,10 +1139,10 @@ class ToolCoordinator {
     register(definition, ownerPluginId) {
         this.assertActive('register a tool');
         if (!pluginManifest.isRuntimeIdentifier(ownerPluginId)) {
-            throw new pluginManifest.ToolRegistrationError('Tool owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+            throw new pluginManifest.ToolRegistrationError('Invalid Tool owner Runtime ID.', ownerPluginId);
         }
         if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
-            throw new pluginManifest.ToolRegistrationError('Tool id must match "namespace:kebab-case".', ownerPluginId);
+            throw new pluginManifest.ToolRegistrationError('Invalid Tool Runtime ID.', ownerPluginId);
         }
         const existing = this.tools.get(definition.id);
         if (existing) {
@@ -2248,4 +2248,4 @@ class PluginManager {
 }
 
 exports.PluginManager = PluginManager;
-//# sourceMappingURL=plugin-manager-DNf8QQ99.cjs.map
+//# sourceMappingURL=plugin-manager-C-UJ_Yc9.cjs.map

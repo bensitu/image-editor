@@ -40,6 +40,8 @@ test('Runtime IDs use one lowercase namespace separator across capability bounda
         'example:test:extra',
         'example:test_name',
         'constructor:pollution',
+        'pollution:prototype',
+        '__proto__:pollution',
     ];
     for (const id of invalidIds) {
         assert.throws(() => definePluginRef(id, '1.0.0'), InvalidPluginDefinitionError);

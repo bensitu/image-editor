@@ -252,14 +252,19 @@
         }
     }
 
-    const MAX_RUNTIME_IDENTIFIER_LENGTH = 128;
     const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-    const prohibitedRuntimeIdentifierSegments = new Set(['__proto__', 'constructor', 'prototype']);
+    const PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT = /(^|:)(constructor|prototype)(:|$)/u;
     function isRuntimeIdentifier(value) {
         return (typeof value === 'string' &&
-            value.length <= MAX_RUNTIME_IDENTIFIER_LENGTH &&
+            value.length < 129 &&
             RUNTIME_IDENTIFIER_PATTERN.test(value) &&
-            !value.split(':').some((segment) => prohibitedRuntimeIdentifierSegments.has(segment)));
+            !PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT.test(value));
+    }
+    function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
+        if (!isRuntimeIdentifier(pluginId)) {
+            throw new InvalidPluginDefinitionError(`${fieldName} must use namespace:kebab-case and be at most 128 characters.`, typeof pluginId === 'string' ? pluginId : undefined);
+        }
+        return pluginId;
     }
 
     const numericIdentifier = '(?:0|[1-9]\\d*)';
@@ -455,7 +460,7 @@
     const capabilityTokenBrand = Symbol('ImageEditorCapabilityToken');
     function createCapabilityToken(id, version) {
         if (!isRuntimeIdentifier(id)) {
-            throw new InvalidPluginDefinitionError('CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.');
+            throw new InvalidPluginDefinitionError('CapabilityToken id must use namespace:kebab-case and be at most 128 characters.');
         }
         if (!isValidSemVer(version)) {
             throw new InvalidCapabilityVersionError(id, version, 'version');
@@ -592,13 +597,6 @@
             }
         }
         return errors;
-    }
-
-    function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
-        if (!isRuntimeIdentifier(pluginId)) {
-            throw new InvalidPluginDefinitionError(`${fieldName} must match "namespace:kebab-case" and be no longer than 128 characters.`, typeof pluginId === 'string' ? pluginId : undefined);
-        }
-        return pluginId;
     }
 
     const pluginRefBrand = Symbol('ImageEditorPluginRef');
@@ -759,7 +757,7 @@
             throw new InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
         }
         if (!isRuntimeIdentifier(providerPluginId)) {
-            throw new InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must match "namespace:kebab-case".`, providerPluginId);
+            throw new InvalidPluginDefinitionError(`Invalid Capability provider Runtime ID for "${token.id}".`, providerPluginId);
         }
         if (!isValidSemVer(providerVersion)) {
             throw new InvalidCapabilityVersionError(token.id, providerVersion, 'version');
@@ -879,7 +877,7 @@
             this.assertActive('inspect a capability provider');
             const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
             if (!isRuntimeIdentifier(id)) {
-                throw new InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+                throw new InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
             }
             const record = this.providers.get(id);
             if (!record)
@@ -898,7 +896,7 @@
         getRequiredPermission(capabilityId, visibleTransactions) {
             this.assertActive('inspect a Capability permission');
             if (!isRuntimeIdentifier(capabilityId)) {
-                throw new InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+                throw new InvalidPluginDefinitionError('Invalid Capability Runtime ID.');
             }
             const record = this.providers.get(capabilityId);
             if (!record)
@@ -917,7 +915,7 @@
             var _a, _b, _c;
             this.assertActive('resolve a capability');
             if (!isRuntimeIdentifier(consumerPluginId)) {
-                throw new InvalidPluginDefinitionError('Capability consumer Plugin id must match "namespace:kebab-case".', consumerPluginId);
+                throw new InvalidPluginDefinitionError('Invalid Capability consumer Runtime ID.', consumerPluginId);
             }
             try {
                 assertCapabilityRequirement(requirement);
@@ -1077,7 +1075,7 @@
         }
         assertEventName(eventName) {
             if (!isRuntimeIdentifier(eventName)) {
-                throw new InvalidPluginDefinitionError('Committed event name must match "namespace:kebab-case".');
+                throw new InvalidPluginDefinitionError('Invalid committed event Runtime ID.');
             }
         }
     }
@@ -1550,10 +1548,10 @@
         }
         validateDefinition(definition, ownerPluginId) {
             if (!isRuntimeIdentifier(ownerPluginId)) {
-                throw new OperationRegistrationError('Operation owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+                throw new OperationRegistrationError('Invalid Operation owner Runtime ID.', ownerPluginId);
             }
             if (!isRuntimeIdentifier(definition.id)) {
-                throw new OperationRegistrationError('Operation id must match "namespace:kebab-case".', ownerPluginId);
+                throw new OperationRegistrationError('Invalid Operation Runtime ID.', ownerPluginId);
             }
             if (!OPERATION_MODES.includes(definition.mode)) {
                 throw new OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
@@ -1889,10 +1887,10 @@
         register(definition, ownerPluginId) {
             this.assertActive('register a tool');
             if (!isRuntimeIdentifier(ownerPluginId)) {
-                throw new ToolRegistrationError('Tool owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+                throw new ToolRegistrationError('Invalid Tool owner Runtime ID.', ownerPluginId);
             }
             if (!isRuntimeIdentifier(definition.id)) {
-                throw new ToolRegistrationError('Tool id must match "namespace:kebab-case".', ownerPluginId);
+                throw new ToolRegistrationError('Invalid Tool Runtime ID.', ownerPluginId);
             }
             const existing = this.tools.get(definition.id);
             if (existing) {
@@ -3905,10 +3903,10 @@
         register(owner, contributor) {
             this.assertActive('register an export contributor');
             if (!isRuntimeIdentifier(owner)) {
-                throw new CoreRuntimeError('[ImageEditor] Export contributor owner must match "namespace:kebab-case".');
+                throw new CoreRuntimeError('[ImageEditor] Invalid Export contributor owner Runtime ID.');
             }
             if (!isRuntimeIdentifier(contributor.id)) {
-                throw new CoreRuntimeError('[ImageEditor] Export contributor id must match "namespace:kebab-case".');
+                throw new CoreRuntimeError('[ImageEditor] Invalid Export contributor Runtime ID.');
             }
             if (!Number.isFinite(contributor.order)) {
                 throw new CoreRuntimeError(`[ImageEditor] Export contributor "${contributor.id}" must use a finite order.`);
@@ -4521,7 +4519,7 @@
         }
         register(owner, provider) {
             if (!isRuntimeIdentifier(owner)) {
-                throw new CoreRuntimeError('[ImageEditor] History provider owner must match "namespace:kebab-case".');
+                throw new CoreRuntimeError('[ImageEditor] Invalid History provider owner Runtime ID.');
             }
             if (this.owner) {
                 throw new CoreRuntimeError(`[ImageEditor] History commit provider is already registered by "${this.owner}".`);
@@ -5370,7 +5368,7 @@
         register(registration) {
             this.assertActive();
             if (!isRuntimeIdentifier(registration.owner)) {
-                throw new StateRegistrationError('Object property owner must match "namespace:kebab-case".', registration.owner);
+                throw new StateRegistrationError('Invalid object property owner Runtime ID.', registration.owner);
             }
             if (registration.keys.length === 0) {
                 throw new StateRegistrationError(`Object property registration for "${registration.owner}" must include a key.`);
@@ -5953,7 +5951,7 @@
 
     function assertDefinition(definition) {
         if (!isRuntimeIdentifier(definition.id)) {
-            throw new StateRegistrationError('State slice id must match "namespace:kebab-case".', definition.id);
+            throw new StateRegistrationError('Invalid State Slice Runtime ID.', definition.id);
         }
         if (!Number.isSafeInteger(definition.version) || definition.version <= 0) {
             throw new StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);
@@ -6047,7 +6045,7 @@
         register(owner, predicate) {
             this.assertActive();
             if (!isRuntimeIdentifier(owner)) {
-                throw new StateRegistrationError('Transient predicate owner must match "namespace:kebab-case".');
+                throw new StateRegistrationError('Invalid transient predicate owner Runtime ID.');
             }
             if (typeof predicate !== 'function') {
                 throw new StateRegistrationError(`Transient predicate for "${owner}" must be a function.`);
@@ -9159,7 +9157,7 @@
         }
         assertRuntimeIdentifier(value, label) {
             if (!isRuntimeIdentifier(value)) {
-                throw new CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+                throw new CoreRuntimeError(`[ImageEditor] Invalid ${label} Runtime ID.`);
             }
         }
         assertOpaqueIdentifier(value, label) {

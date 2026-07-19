@@ -1,8 +1,8 @@
 'use strict';
 
-var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
 
 class DomControlsConfigurationError extends Error {
     constructor() {

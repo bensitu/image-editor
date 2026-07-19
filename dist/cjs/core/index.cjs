@@ -2,11 +2,11 @@
 
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-BONtSGqw.cjs');
-var pluginPlan = require('../chunks/plugin-plan-DhlAucLr.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-BCkXHQr2.cjs');
+var pluginPlan = require('../chunks/plugin-plan-CxkCZnUf.cjs');
 var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManager = require('../chunks/plugin-manager-DNf8QQ99.cjs');
-var coreCapabilities = require('../chunks/core-capabilities-D7bZJOAO.cjs');
+var pluginManager = require('../chunks/plugin-manager-C-UJ_Yc9.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-ewP5YPVJ.cjs');
 
 function forceReflow(element) {
     if (!element)
@@ -545,10 +545,10 @@ class ExportContributorRegistry {
     register(owner, contributor) {
         this.assertActive('register an export contributor');
         if (!pluginManifest.isRuntimeIdentifier(owner)) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Export contributor owner must match "namespace:kebab-case".');
+            throw new errors.CoreRuntimeError('[ImageEditor] Invalid Export contributor owner Runtime ID.');
         }
         if (!pluginManifest.isRuntimeIdentifier(contributor.id)) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Export contributor id must match "namespace:kebab-case".');
+            throw new errors.CoreRuntimeError('[ImageEditor] Invalid Export contributor Runtime ID.');
         }
         if (!Number.isFinite(contributor.order)) {
             throw new errors.CoreRuntimeError(`[ImageEditor] Export contributor "${contributor.id}" must use a finite order.`);
@@ -1108,7 +1108,7 @@ class HistoryCommitRouter {
     }
     register(owner, provider) {
         if (!pluginManifest.isRuntimeIdentifier(owner)) {
-            throw new errors.CoreRuntimeError('[ImageEditor] History provider owner must match "namespace:kebab-case".');
+            throw new errors.CoreRuntimeError('[ImageEditor] Invalid History provider owner Runtime ID.');
         }
         if (this.owner) {
             throw new errors.CoreRuntimeError(`[ImageEditor] History commit provider is already registered by "${this.owner}".`);
@@ -1940,7 +1940,7 @@ class ObjectPropertyRegistry {
     register(registration) {
         this.assertActive();
         if (!pluginManifest.isRuntimeIdentifier(registration.owner)) {
-            throw new errors.StateRegistrationError('Object property owner must match "namespace:kebab-case".', registration.owner);
+            throw new errors.StateRegistrationError('Invalid object property owner Runtime ID.', registration.owner);
         }
         if (registration.keys.length === 0) {
             throw new errors.StateRegistrationError(`Object property registration for "${registration.owner}" must include a key.`);
@@ -2523,7 +2523,7 @@ class SnapshotService {
 
 function assertDefinition(definition) {
     if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
-        throw new errors.StateRegistrationError('State slice id must match "namespace:kebab-case".', definition.id);
+        throw new errors.StateRegistrationError('Invalid State Slice Runtime ID.', definition.id);
     }
     if (!Number.isSafeInteger(definition.version) || definition.version <= 0) {
         throw new errors.StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);
@@ -2617,7 +2617,7 @@ class TransientObjectRegistry {
     register(owner, predicate) {
         this.assertActive();
         if (!pluginManifest.isRuntimeIdentifier(owner)) {
-            throw new errors.StateRegistrationError('Transient predicate owner must match "namespace:kebab-case".');
+            throw new errors.StateRegistrationError('Invalid transient predicate owner Runtime ID.');
         }
         if (typeof predicate !== 'function') {
             throw new errors.StateRegistrationError(`Transient predicate for "${owner}" must be a function.`);

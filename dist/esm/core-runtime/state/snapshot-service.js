@@ -1,4 +1,4 @@
-import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/plugin-identifier.js';
 import { SnapshotValidationError, SnapshotVersionUnsupportedError, StateRegistrationError, } from '../errors.js';
 import { cloneStateValue, isDangerousStateKey } from './clone-state-value.js';
 import { inspectEncodedImageDataUrl } from './image-data-url.js';

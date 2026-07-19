@@ -5,7 +5,7 @@
  */
 
 import { InvalidCapabilityVersionError, InvalidPluginDefinitionError } from './errors.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 import { isValidSemVer, isValidSemVerRange } from './semver.js';
 
 const capabilityTokenBrand: unique symbol = Symbol('ImageEditorCapabilityToken');
@@ -35,7 +35,7 @@ export interface CapabilityRequirement<TPort = unknown> extends CapabilityRequir
 export function createCapabilityToken<TPort>(id: string, version: string): CapabilityToken<TPort> {
     if (!isRuntimeIdentifier(id)) {
         throw new InvalidPluginDefinitionError(
-            'CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.',
+            'CapabilityToken id must use namespace:kebab-case and be at most 128 characters.',
         );
     }
     if (!isValidSemVer(version)) {

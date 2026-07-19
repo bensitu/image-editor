@@ -1,10 +1,10 @@
 import { InvalidCapabilityVersionError, InvalidPluginDefinitionError } from './errors.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 import { isValidSemVer, isValidSemVerRange } from './semver.js';
 const capabilityTokenBrand = Symbol('ImageEditorCapabilityToken');
 export function createCapabilityToken(id, version) {
     if (!isRuntimeIdentifier(id)) {
-        throw new InvalidPluginDefinitionError('CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.');
+        throw new InvalidPluginDefinitionError('CapabilityToken id must use namespace:kebab-case and be at most 128 characters.');
     }
     if (!isValidSemVer(version)) {
         throw new InvalidCapabilityVersionError(id, version, 'version');

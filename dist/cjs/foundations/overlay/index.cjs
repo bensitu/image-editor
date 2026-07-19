@@ -2,9 +2,9 @@
 
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
 
 function isFiniteTransformMatrix(matrix) {
     return matrix.length === 6 && matrix.every((value) => Number.isFinite(value));
@@ -1714,7 +1714,7 @@ class OverlayFoundationController {
     }
     assertRuntimeIdentifier(value, label) {
         if (!pluginManifest.isRuntimeIdentifier(value)) {
-            throw new errors.CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+            throw new errors.CoreRuntimeError(`[ImageEditor] Invalid ${label} Runtime ID.`);
         }
     }
     assertOpaqueIdentifier(value, label) {

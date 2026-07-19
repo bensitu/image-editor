@@ -5,7 +5,7 @@
  */
 
 import { createDisposable, type Disposable } from '../plugin-kernel/disposable.js';
-import { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
+import { isRuntimeIdentifier } from '../plugin-kernel/plugin-identifier.js';
 import { CoreRuntimeError } from './errors.js';
 import type { DocumentMutationHistoryPort } from './mutation/index.js';
 import type { CoreMemento } from './state/index.js';
@@ -34,9 +34,7 @@ export class HistoryCommitRouter implements CoreHistoryCommitPort, DocumentMutat
 
     register(owner: string, provider: CoreHistoryCommitPort): Disposable {
         if (!isRuntimeIdentifier(owner)) {
-            throw new CoreRuntimeError(
-                '[ImageEditor] History provider owner must match "namespace:kebab-case".',
-            );
+            throw new CoreRuntimeError('[ImageEditor] Invalid History provider owner Runtime ID.');
         }
         if (this.owner) {
             throw new CoreRuntimeError(

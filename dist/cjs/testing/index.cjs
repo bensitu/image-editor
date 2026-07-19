@@ -1,7 +1,7 @@
 'use strict';
 
-var pluginManager = require('../chunks/plugin-manager-DNf8QQ99.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginManager = require('../chunks/plugin-manager-C-UJ_Yc9.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-BCkXHQr2.cjs');
 require('../chunks/disposable-Sj4tt6Lk.cjs');
 
 function createDeferredOperation() {

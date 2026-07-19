@@ -1,6 +1,6 @@
 import { createDisposable } from './disposable.js';
 import { OperationConflictError, OperationRegistrationError, PluginKernelDisposedError, } from './errors.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 const OPERATION_MODES = ['read', 'busy', 'animation', 'mutation'];
 const REENTRANCY_POLICIES = [
     'reject',
@@ -469,10 +469,10 @@ export class OperationRegistry {
     }
     validateDefinition(definition, ownerPluginId) {
         if (!isRuntimeIdentifier(ownerPluginId)) {
-            throw new OperationRegistrationError('Operation owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+            throw new OperationRegistrationError('Invalid Operation owner Runtime ID.', ownerPluginId);
         }
         if (!isRuntimeIdentifier(definition.id)) {
-            throw new OperationRegistrationError('Operation id must match "namespace:kebab-case".', ownerPluginId);
+            throw new OperationRegistrationError('Invalid Operation Runtime ID.', ownerPluginId);
         }
         if (!OPERATION_MODES.includes(definition.mode)) {
             throw new OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);

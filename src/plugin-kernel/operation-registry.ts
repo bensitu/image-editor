@@ -10,7 +10,7 @@ import {
     OperationRegistrationError,
     PluginKernelDisposedError,
 } from './errors.js';
-import { isRuntimeIdentifier } from './runtime-identifier.js';
+import { isRuntimeIdentifier } from './plugin-identifier.js';
 
 export type OperationId = string;
 export type OperationMode = 'read' | 'busy' | 'animation' | 'mutation';
@@ -613,15 +613,12 @@ export class OperationRegistry implements Disposable {
     ): void {
         if (!isRuntimeIdentifier(ownerPluginId)) {
             throw new OperationRegistrationError(
-                'Operation owner Plugin id must match "namespace:kebab-case".',
+                'Invalid Operation owner Runtime ID.',
                 ownerPluginId,
             );
         }
         if (!isRuntimeIdentifier(definition.id)) {
-            throw new OperationRegistrationError(
-                'Operation id must match "namespace:kebab-case".',
-                ownerPluginId,
-            );
+            throw new OperationRegistrationError('Invalid Operation Runtime ID.', ownerPluginId);
         }
         if (!OPERATION_MODES.includes(definition.mode)) {
             throw new OperationRegistrationError(

@@ -1618,7 +1618,7 @@ export class OverlayFoundationController {
     }
     assertRuntimeIdentifier(value, label) {
         if (!isRuntimeIdentifier(value)) {
-            throw new CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+            throw new CoreRuntimeError(`[ImageEditor] Invalid ${label} Runtime ID.`);
         }
     }
     assertOpaqueIdentifier(value, label) {

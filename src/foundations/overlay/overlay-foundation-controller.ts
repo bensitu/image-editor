@@ -1861,7 +1861,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     private assertRuntimeIdentifier(value: string, label: string): void {
         if (!isRuntimeIdentifier(value)) {
-            throw new CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+            throw new CoreRuntimeError(`[ImageEditor] Invalid ${label} Runtime ID.`);
         }
     }
 

@@ -248,14 +248,19 @@ class PluginKernelStateError extends PluginError {
     }
 }
 
-const MAX_RUNTIME_IDENTIFIER_LENGTH = 128;
 const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const prohibitedRuntimeIdentifierSegments = new Set(['__proto__', 'constructor', 'prototype']);
+const PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT = /(^|:)(constructor|prototype)(:|$)/u;
 function isRuntimeIdentifier(value) {
     return (typeof value === 'string' &&
-        value.length <= MAX_RUNTIME_IDENTIFIER_LENGTH &&
+        value.length < 129 &&
         RUNTIME_IDENTIFIER_PATTERN.test(value) &&
-        !value.split(':').some((segment) => prohibitedRuntimeIdentifierSegments.has(segment)));
+        !PROHIBITED_RUNTIME_IDENTIFIER_SEGMENT.test(value));
+}
+function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
+    if (!isRuntimeIdentifier(pluginId)) {
+        throw new InvalidPluginDefinitionError(`${fieldName} must use namespace:kebab-case and be at most 128 characters.`, typeof pluginId === 'string' ? pluginId : undefined);
+    }
+    return pluginId;
 }
 
 const numericIdentifier = '(?:0|[1-9]\\d*)';
@@ -451,7 +456,7 @@ function satisfiesSemVer(version, range) {
 const capabilityTokenBrand = Symbol('ImageEditorCapabilityToken');
 function createCapabilityToken(id, version) {
     if (!isRuntimeIdentifier(id)) {
-        throw new InvalidPluginDefinitionError('CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.');
+        throw new InvalidPluginDefinitionError('CapabilityToken id must use namespace:kebab-case and be at most 128 characters.');
     }
     if (!isValidSemVer(version)) {
         throw new InvalidCapabilityVersionError(id, version, 'version');
@@ -478,13 +483,6 @@ function assertCapabilityRequirement(requirement) {
     if (!isValidSemVerRange(requirement.range)) {
         throw new InvalidCapabilityVersionError(token.id, requirement.range, 'range');
     }
-}
-
-function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
-    if (!isRuntimeIdentifier(pluginId)) {
-        throw new InvalidPluginDefinitionError(`${fieldName} must match "namespace:kebab-case" and be no longer than 128 characters.`, typeof pluginId === 'string' ? pluginId : undefined);
-    }
-    return pluginId;
 }
 
 const pluginRefBrand = Symbol('ImageEditorPluginRef');
@@ -679,4 +677,4 @@ exports.isRuntimeIdentifier = isRuntimeIdentifier;
 exports.isValidSemVer = isValidSemVer;
 exports.satisfiesSemVer = satisfiesSemVer;
 exports.validatePluginManifest = validatePluginManifest;
-//# sourceMappingURL=plugin-manifest-BONtSGqw.cjs.map
+//# sourceMappingURL=plugin-manifest-BCkXHQr2.cjs.map
