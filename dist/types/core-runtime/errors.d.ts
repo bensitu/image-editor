@@ -1,4 +1,8 @@
-/** Errors raised by the renderer-neutral Core runtime. */
+/**
+ * Errors raised by the renderer-neutral Core runtime.
+ *
+ * @module
+ */
 export type CoreErrorBehavior = 'recoverable-object' | 'recoverable-optional-capability' | 'operation-cancelled' | 'operation-conflict' | 'fatal-participant' | 'fatal-invariant' | 'fatal-rollback' | 'fatal-restore' | 'snapshot-validation' | 'lifecycle';
 export type CoreErrorSeverity = 'recoverable' | 'cancelled' | 'fatal';
 export interface CoreErrorClassification {

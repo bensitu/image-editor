@@ -1,3 +1,8 @@
+/**
+ * Owns the editor lifecycle, Canvas, Plugin host, image loading, document mutations, and export.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type PluginRef, type SynchronousEditorPlugin } from '../plugin-kernel/index.js';
 import { type PluginArrayApis, type PluginPlan } from '../plugin-kernel/plugin-plan.js';

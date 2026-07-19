@@ -1,3 +1,9 @@
+/**
+ * Publishes typed Plugin Plan composition contracts through the SDK.
+ *
+ * @module
+ */
+
 export {
     composePlugins,
     type PluginArrayApis,

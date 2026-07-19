@@ -1,3 +1,8 @@
+/**
+ * Creates isolated Plugin test hosts with injected Capability providers and lifecycle controls.
+ *
+ * @module
+ */
 import type { CapabilityToken, EditorPlugin, PluginPermission, PluginRef, SynchronousEditorPlugin } from '../sdk/index.js';
 export interface PluginTestCapabilityProvider<TPort = unknown> {
     readonly token: CapabilityToken<TPort>;

@@ -1,3 +1,9 @@
+/**
+ * Maps validated Filter definitions to Fabric filter instances and applies them to images.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { FabricModule } from '../../core/index.js';

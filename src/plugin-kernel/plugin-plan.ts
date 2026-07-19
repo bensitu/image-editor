@@ -1,3 +1,9 @@
+/**
+ * Builds typed Plugin Plans and resolves installed APIs from nested plan inputs.
+ *
+ * @module
+ */
+
 import { InvalidPluginDefinitionError } from './errors.js';
 import type { PluginRef } from './plugin-ref.js';
 import type { EditorPlugin } from './plugin-types.js';

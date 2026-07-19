@@ -14,7 +14,7 @@ test('blur region package requests the narrow raster boundary without Canvas acc
     assert.equal(
         plugin.manifest.requires.some(
             (entry) =>
-                entry.token.id === 'core.canvas-read' || entry.token.id === 'core.base-image-read',
+                entry.token.id === 'core:canvas-read' || entry.token.id === 'core:base-image-read',
         ),
         false,
     );

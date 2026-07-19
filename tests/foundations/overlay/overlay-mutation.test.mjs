@@ -11,8 +11,8 @@ import { historyPlugin } from '../../../src/plugins/history/index.js';
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
-const TEST_KIND = 'example.test/gesture-rect';
-const TEST_OWNER = 'example.test/gesture-plugin';
+const TEST_KIND = 'example-test:gesture-rect';
+const TEST_OWNER = 'example-test:gesture-plugin';
 
 async function createEditor({ transform = false } = {}) {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
@@ -29,7 +29,7 @@ async function createEditor({ transform = false } = {}) {
     const committed = [];
     const geometryCommitted = [];
     editor.use({
-        ref: definePluginRef('example.test/overlay-mutation-observer', '1.0.0'),
+        ref: definePluginRef('example-test:overlay-mutation-observer', '1.0.0'),
         version: '1.0.0',
         setupMode: 'sync',
         setup(context) {
@@ -221,7 +221,7 @@ test('fatal policy failure rolls back while a recoverable object failure still c
         const { committed, editor, errors, history, overlay, warnings } = await createEditor();
         const rect = addRect(editor, 'rect:fatal', { left: 22 });
         overlay.registerInteractionPolicy({
-            id: 'example.test/fatal-policy',
+            id: 'example-test:fatal-policy',
             kind: TEST_KIND,
             ownerPluginId: TEST_OWNER,
             synchronize: () => {
@@ -252,7 +252,7 @@ test('fatal policy failure rolls back while a recoverable object failure still c
         const { committed, editor, history, overlay, warnings } = await createEditor();
         const rect = addRect(editor, 'rect:recoverable', { left: 22 });
         overlay.registerInteractionPolicy({
-            id: 'example.test/recoverable-policy',
+            id: 'example-test:recoverable-policy',
             kind: TEST_KIND,
             ownerPluginId: TEST_OWNER,
             synchronize: () => {

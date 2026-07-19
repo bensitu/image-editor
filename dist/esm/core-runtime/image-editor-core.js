@@ -225,7 +225,7 @@ export class ImageEditorCore {
             this.reportWarning((_a = warning.details) === null || _a === void 0 ? void 0 : _a.cause, warning.message);
         });
         this.objectProperties.register({
-            owner: '@bensitu/core',
+            owner: 'core:host',
             keys: ['editorObjectKind'],
         });
         const stateAdapter = new CanvasCoreStateAdapter({

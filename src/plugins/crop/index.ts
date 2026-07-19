@@ -1,3 +1,9 @@
+/**
+ * Publishes the Crop Plugin factory, errors, geometry, session, and API contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import { OVERLAY_CAPABILITY } from '../../foundations/overlay/index.js';
 import {
@@ -39,7 +45,7 @@ const cropMutationDomains = [
     'state',
 ] as const;
 
-export const cropPluginRef = definePluginRef<CropPluginApi>('@bensitu/crop', '1.0.0');
+export const cropPluginRef = definePluginRef<CropPluginApi>('plugin:crop', '1.0.0');
 
 export function cropPlugin(
     options: CropPluginOptions = {},

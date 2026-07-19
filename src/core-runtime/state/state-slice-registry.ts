@@ -1,13 +1,18 @@
+/**
+ * Registers versioned Plugin state slices used by snapshot and memento workflows.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 import type { StateSliceDefinition } from './state-types.js';
 
-const sliceIdPattern = /^@?[a-z0-9][a-z0-9._:/@-]*$/i;
-
 function assertDefinition(definition: StateSliceDefinition): void {
-    if (!sliceIdPattern.test(definition.id) || definition.id.trim() !== definition.id) {
+    if (!isRuntimeIdentifier(definition.id)) {
         throw new StateRegistrationError(
-            'State slice ids must be non-empty, trimmed, and namespace-safe.',
+            'State slice id must match "namespace:kebab-case".',
             definition.id,
         );
     }

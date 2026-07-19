@@ -1,3 +1,9 @@
+/**
+ * Normalizes and interpolates draw points, builds curved Fabric paths, and performs path hit testing.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { AnnotationPoint } from './draw-annotation.js';

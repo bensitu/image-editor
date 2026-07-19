@@ -40,7 +40,7 @@ test('reverse cleanup continues after errors and reports each failure', async ()
     ];
 
     const errors = await disposeInReverse(disposables, {
-        pluginId: 'example.test/disposable',
+        pluginId: 'example-test:disposable',
         warningSink: (warning) => warnings.push(warning),
     });
     assert.deepEqual(order, ['third', 'second', 'first']);

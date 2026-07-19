@@ -1,4 +1,5 @@
 import { createDisposable } from '../../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 export class TransientObjectRegistry {
     constructor(warningSink) {
@@ -23,8 +24,8 @@ export class TransientObjectRegistry {
     }
     register(owner, predicate) {
         this.assertActive();
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
-            throw new StateRegistrationError('Transient predicate owner must be non-empty and trimmed.');
+        if (!isRuntimeIdentifier(owner)) {
+            throw new StateRegistrationError('Transient predicate owner must match "namespace:kebab-case".');
         }
         if (typeof predicate !== 'function') {
             throw new StateRegistrationError(`Transient predicate for "${owner}" must be a function.`);

@@ -1,3 +1,9 @@
+/**
+ * Defines Mosaic session, validation, and integration failures for callers and lifecycle control.
+ *
+ * @module
+ */
+
 export class MosaicError extends Error {
     override readonly name: string = 'MosaicError';
 }

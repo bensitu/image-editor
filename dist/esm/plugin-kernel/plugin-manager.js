@@ -38,11 +38,11 @@ function sameInstallationDefinition(left, right) {
         left.onDispose === right.onDispose);
 }
 const pluginPackageHints = new Map([
-    ['foundation.overlay', '@bensitu/image-editor/plugins/overlay'],
-    ['@bensitu/transform', '@bensitu/image-editor/plugins/transform'],
-    ['@bensitu/mask', '@bensitu/image-editor/plugins/mask'],
-    ['@bensitu/history', '@bensitu/image-editor/plugins/history'],
-    ['@bensitu/filters', '@bensitu/image-editor/plugins/filters'],
+    ['foundation:overlay', '@bensitu/image-editor/plugins/overlay'],
+    ['plugin:transform', '@bensitu/image-editor/plugins/transform'],
+    ['plugin:mask', '@bensitu/image-editor/plugins/mask'],
+    ['plugin:history', '@bensitu/image-editor/plugins/history'],
+    ['plugin:filters', '@bensitu/image-editor/plugins/filters'],
 ]);
 export class PluginManager {
     constructor(options = {}) {
@@ -206,7 +206,7 @@ export class PluginManager {
     }
     registerHostOperation(definition) {
         this.assertCanInstall();
-        return this.operationRegistry.register(definition, '@bensitu/core');
+        return this.operationRegistry.register(definition, 'core:host');
     }
     beginOperationForHost(operationId) {
         if (!this.toolCoordinator.canRunOperation(operationId)) {

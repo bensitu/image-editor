@@ -1,3 +1,8 @@
+/**
+ * Declares the visible-raster bake Capability used by raster-editing Plugins.
+ *
+ * @module
+ */
 import type { CoreImageInfo, DocumentMutationContext } from '../core/contracts.js';
 /** Encoding policy used when committed visual effects are folded into the Base Image. */
 export interface VisibleRasterBakeOptions {

@@ -1,3 +1,9 @@
+/**
+ * Publishes the Text Annotation Plugin factory and editing contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     ANNOTATION_AUTHORING_CAPABILITY,

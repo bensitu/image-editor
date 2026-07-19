@@ -1,3 +1,9 @@
+/**
+ * Implements affine matrix validation, composition, inversion, and bounds transformation for geometry mutations.
+ *
+ * @module
+ */
+
 import { GeometryMutationError } from '../errors.js';
 
 export type AffineMatrix = readonly [number, number, number, number, number, number];

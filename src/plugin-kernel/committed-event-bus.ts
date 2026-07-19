@@ -1,6 +1,13 @@
+/**
+ * Publishes committed runtime events while isolating listener failures.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable, type MaybePromise } from './disposable.js';
-import { PluginKernelDisposedError } from './errors.js';
+import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 
 export type PluginEventMap = Record<string, unknown>;
 export type CommittedEventListener<TPayload> = (payload: TPayload) => MaybePromise<void>;
@@ -21,6 +28,7 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
         listener: CommittedEventListener<TEvents[TKey]>,
     ): Disposable {
         this.assertActive('register a committed event listener');
+        this.assertEventName(eventName);
         let eventListeners = this.listeners.get(eventName);
         if (!eventListeners) {
             eventListeners = [];
@@ -42,6 +50,7 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
         payload: TEvents[TKey],
     ): Promise<void> {
         this.assertActive('emit a committed event');
+        this.assertEventName(eventName);
         const snapshot = [...(this.listeners.get(eventName) ?? [])];
         for (let index = 0; index < snapshot.length; index += 1) {
             try {
@@ -59,7 +68,10 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
 
     listenerCount(eventName?: keyof TEvents & string): number {
         this.assertActive('inspect committed event listeners');
-        if (eventName) return this.listeners.get(eventName)?.length ?? 0;
+        if (eventName) {
+            this.assertEventName(eventName);
+            return this.listeners.get(eventName)?.length ?? 0;
+        }
         let count = 0;
         for (const listeners of this.listeners.values()) count += listeners.length;
         return count;
@@ -73,5 +85,13 @@ export class CommittedEventBus<TEvents extends object = PluginEventMap> implemen
 
     private assertActive(operation: string): void {
         if (this.disposed) throw new PluginKernelDisposedError(operation);
+    }
+
+    private assertEventName(eventName: string): void {
+        if (!isRuntimeIdentifier(eventName)) {
+            throw new InvalidPluginDefinitionError(
+                'Committed event name must match "namespace:kebab-case".',
+            );
+        }
     }
 }

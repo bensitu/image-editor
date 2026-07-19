@@ -12,7 +12,7 @@ const cropMutationDomains = [
     'selection',
     'state',
 ];
-export const cropPluginRef = definePluginRef('@bensitu/crop', '1.0.0');
+export const cropPluginRef = definePluginRef('plugin:crop', '1.0.0');
 export function cropPlugin(options = {}) {
     const configuration = resolveCropConfiguration(options);
     let controller = null;

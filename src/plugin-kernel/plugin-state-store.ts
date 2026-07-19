@@ -1,5 +1,12 @@
+/**
+ * Isolates mutable Plugin state within installation-owned namespaces.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
+import { assertPluginIdentifier } from './plugin-identifier.js';
 
 export interface ScopedPluginStateStore {
     has(key: string): boolean;
@@ -29,6 +36,7 @@ export class PluginStateStore implements Disposable {
         isScopeActive: () => boolean,
     ): ScopedPluginStateStore {
         this.assertActive('create plugin state');
+        assertPluginIdentifier(pluginId, 'Plugin state owner id');
         if (this.activePluginIds.has(pluginId)) {
             throw new InvalidPluginDefinitionError(
                 `Plugin state scope "${pluginId}" is already active.`,

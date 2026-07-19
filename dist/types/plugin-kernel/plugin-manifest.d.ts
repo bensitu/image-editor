@@ -1,3 +1,8 @@
+/**
+ * Validates and freezes bounded Plugin manifests, dependencies, Capability requirements, and permissions.
+ *
+ * @module
+ */
 import { type PluginRef } from './plugin-ref.js';
 import type { PluginManifest, PluginPermission } from './plugin-types.js';
 export declare const CORE_API_VERSION = "3.0.0";

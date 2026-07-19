@@ -1,3 +1,9 @@
+/**
+ * Declares Overlay registration, persistence, mutation, interaction, export, and runtime API contracts.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {

@@ -4,13 +4,14 @@ import { CapabilityMissingError, CapabilityConflictError, CapabilityVersionError
 import { reportWarningSafely } from './reporting.js';
 import { isValidSemVer, satisfiesSemVer } from './semver.js';
 import { isPluginPermission } from './plugin-manifest.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
     var _a, _b;
     if (!isCapabilityToken(token) || !isValidSemVer(token.version)) {
         throw new InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
     }
-    if (providerPluginId.trim().length === 0 || providerPluginId.trim() !== providerPluginId) {
-        throw new InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must be a non-empty trimmed string.`, providerPluginId);
+    if (!isRuntimeIdentifier(providerPluginId)) {
+        throw new InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must match "namespace:kebab-case".`, providerPluginId);
     }
     if (!isValidSemVer(providerVersion)) {
         throw new InvalidCapabilityVersionError(token.id, providerVersion, 'version');
@@ -63,7 +64,7 @@ export class CapabilityRegistry {
         registration.commit();
         return registration;
     }
-    provideHost(token, implementation, providerPluginId = '@bensitu/core', requiredPermission) {
+    provideHost(token, implementation, providerPluginId = 'core:host', requiredPermission) {
         if (!isCapabilityToken(token)) {
             throw new InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
         }
@@ -129,6 +130,9 @@ export class CapabilityRegistry {
     getProviderInfo(tokenOrId) {
         this.assertActive('inspect a capability provider');
         const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
+        if (!isRuntimeIdentifier(id)) {
+            throw new InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+        }
         const record = this.providers.get(id);
         if (!record)
             return null;
@@ -145,6 +149,9 @@ export class CapabilityRegistry {
     }
     getRequiredPermission(capabilityId, visibleTransactions) {
         this.assertActive('inspect a Capability permission');
+        if (!isRuntimeIdentifier(capabilityId)) {
+            throw new InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+        }
         const record = this.providers.get(capabilityId);
         if (!record)
             return undefined;
@@ -161,6 +168,9 @@ export class CapabilityRegistry {
     resolve(requirement, consumerPluginId, optional, visibleTransactions) {
         var _a, _b, _c;
         this.assertActive('resolve a capability');
+        if (!isRuntimeIdentifier(consumerPluginId)) {
+            throw new InvalidPluginDefinitionError('Capability consumer Plugin id must match "namespace:kebab-case".', consumerPluginId);
+        }
         try {
             assertCapabilityRequirement(requirement);
         }

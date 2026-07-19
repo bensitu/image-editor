@@ -52,7 +52,7 @@ async function createEditor(controlled, { onImageLoaded, onError } = {}) {
         onError,
     });
     editor.use({
-        ref: definePluginRef(`example.test/load-observer-${crypto.randomUUID()}`, '1.0.0'),
+        ref: definePluginRef(`example-test:load-observer-${crypto.randomUUID()}`, '1.0.0'),
         version: '1.0.0',
         setupMode: 'sync',
         setup(context) {

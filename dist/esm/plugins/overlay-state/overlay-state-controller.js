@@ -1,10 +1,10 @@
+import { isRuntimeIdentifier } from '../../sdk/index.js';
 import { OverlayStateCodecError, OverlayStateIdConflictError, OverlayStatePluginDisposedError, OverlayStateValidationError, } from './overlay-state-errors.js';
 import { createOverlayStateContext } from './overlay-state-coordinate.js';
 import { OVERLAY_STATE_COORDINATE_SPACE, OVERLAY_STATE_SCHEMA, OVERLAY_STATE_WIRE_VERSION, } from './overlay-state-types.js';
 import { resolveOverlayStateLimits, validateOverlayStateDocument, } from './overlay-state-validation.js';
 const IMPORT_OPERATION_ID = 'overlay-state:import';
 const MAX_PERSISTENT_ID_LENGTH = 128;
-const CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 function invalidResult(issues) {
     return Object.freeze({ valid: false, errors: Object.freeze([...issues]) });
@@ -42,7 +42,7 @@ function resolveStateKind(overlay, kind) {
     if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== 'persistent' ||
         !codec ||
         typeof codec.type !== 'string' ||
-        !CODEC_TYPE_PATTERN.test(codec.type) ||
+        !isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !SEMVER_PATTERN.test(codec.version) ||
         typeof codec.serialize !== 'function' ||

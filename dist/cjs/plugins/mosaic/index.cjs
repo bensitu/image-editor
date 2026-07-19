@@ -1,10 +1,10 @@
 'use strict';
 
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-Ci8VnO_S.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DPzjbmmo.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 
 function isInsideCircle(x, y, centerX, centerY, radiusSquared) {
     const deltaX = x - centerX;
@@ -867,7 +867,7 @@ const mosaicMutationDomains = [
     'selection',
     'state',
 ];
-const mosaicPluginRef = pluginManifest.definePluginRef('@bensitu/mosaic', '1.0.0');
+const mosaicPluginRef = pluginManifest.definePluginRef('plugin:mosaic', '1.0.0');
 function mosaicPlugin(options = {}) {
     const configuration = resolveMosaicConfiguration(options);
     let controller = null;

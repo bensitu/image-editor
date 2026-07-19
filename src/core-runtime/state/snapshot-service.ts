@@ -1,4 +1,11 @@
+/**
+ * Captures, validates, migrates, and restores the versioned editor snapshot envelope.
+ *
+ * @module
+ */
+
 import type { Disposable } from '../../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import {
     SnapshotValidationError,
     SnapshotVersionUnsupportedError,
@@ -490,7 +497,7 @@ export class SnapshotService implements Disposable {
             PluginMementoEntry
         >;
         for (const [id, entry] of entries) {
-            if (id.trim().length === 0 || isDangerousStateKey(id)) {
+            if (!isRuntimeIdentifier(id) || isDangerousStateKey(id)) {
                 throw new SnapshotValidationError('plugin id is invalid.', `$.plugins.${id}`);
             }
             if (

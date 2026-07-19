@@ -1,3 +1,8 @@
+/**
+ * Coordinates Base Image scale, rotation, reflection, animation, state, and geometry mutations.
+ *
+ * @module
+ */
 import type { DocumentMutationContext, GeometryMutationPort } from '../../core/index.js';
 import type { BaseImageReadPort, CoreStatusPort, FabricRuntimePort, RenderRequestPort } from '../../sdk/index.js';
 export interface TransformPluginOptions {

@@ -9,8 +9,8 @@ import {
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
-const TEST_KIND = 'example.test/rect-overlay';
-const TEST_OWNER = 'example.test/rect-plugin';
+const TEST_KIND = 'example-test:rect-overlay';
+const TEST_OWNER = 'example-test:rect-plugin';
 
 function createEditor(options = {}) {
     const ids = resetEditorDom({ containerWidth: 320, containerHeight: 240 });
@@ -93,8 +93,8 @@ async function dispose(editor) {
 test('kind registry indexes persistent ids and isolates predicate and duplicate failures', async () => {
     const { editor, ids, overlay, warnings } = createEditor();
     const failingKind = overlay.registerKind({
-        id: 'example.test/failing-kind',
-        ownerPluginId: 'example.test/failing-owner',
+        id: 'example-test:failing-kind',
+        ownerPluginId: 'example-test:failing-owner',
         classify: () => {
             throw new Error('predicate failed');
         },
@@ -221,8 +221,8 @@ test('snapshot round-trip restores serialized overlays and rejects duplicate ids
     assert.equal(restored.angle, 17);
 
     const malformed = JSON.parse(snapshot);
-    malformed.plugins['foundation.overlay'].data.overlays.push({
-        ...malformed.plugins['foundation.overlay'].data.overlays[0],
+    malformed.plugins['foundation:overlay'].data.overlays.push({
+        ...malformed.plugins['foundation:overlay'].data.overlays[0],
     });
     await assert.rejects(editor.loadFromState(malformed), /Overlay Foundation state is malformed/);
     const afterRejectedLoad = overlay.getByPersistentId('rect:persisted');
@@ -236,7 +236,7 @@ test('Snapshot rejects an unregistered object marked as a persistent Overlay', a
     const { editor, ids } = createEditor();
     await initializeAndLoad(editor, ids);
     const unsafe = new fabric.Rect({ left: 12, top: 16, width: 20, height: 18 });
-    unsafe.editorOverlayKind = 'example.test/unregistered-persistent-kind';
+    unsafe.editorOverlayKind = 'example-test:unregistered-persistent-kind';
     unsafe.editorOverlayId = 'unsafe:one';
     editor.getCanvas().add(unsafe);
 
@@ -267,7 +267,7 @@ test('export contributors render from a copy and never mutate the live overlay',
     const rect = addRect(editor, 'rect:export', { left: 42, top: 31, angle: 11 });
     let renderCount = 0;
     const renderer = overlay.registerExportRenderer({
-        id: `${TEST_KIND}:renderer`,
+        id: `${TEST_KIND}-renderer`,
         kind: TEST_KIND,
         ownerPluginId: TEST_OWNER,
         order: 10,

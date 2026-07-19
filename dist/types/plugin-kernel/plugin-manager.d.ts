@@ -1,3 +1,8 @@
+/**
+ * Installs and initializes Plugins while enforcing dependencies, capabilities, permissions, operations, and rollback.
+ *
+ * @module
+ */
 import { type CapabilityIdentity } from './capability-token.js';
 import { type PluginEventMap } from './committed-event-bus.js';
 import { type Disposable } from './disposable.js';

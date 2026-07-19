@@ -1,3 +1,8 @@
+/**
+ * Captures and restores Core and Plugin mementos with abort-aware rollback semantics.
+ *
+ * @module
+ */
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import type { CoreMemento, CoreStateAdapter } from './state-types.js';
 import type { StateSliceRegistry } from './state-slice-registry.js';

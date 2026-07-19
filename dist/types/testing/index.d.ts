@@ -1,4 +1,8 @@
-/** Public deterministic helpers for Plugin contract testing. */
+/**
+ * Public deterministic helpers for Plugin contract testing.
+ *
+ * @module
+ */
 export { createControlledImageDecoder, createDeferredOperation, type ControlledImageDecoder, type DeferredOperation, } from './deferred-operation.js';
 export { createPluginTestFabric, type PluginTestFabric } from './fabric-test-harness.js';
 export { createPluginTestHost, type PluginTestCapabilityProvider, type PluginTestHost, type PluginTestHostOptions, type PluginTestHostState, } from './plugin-test-host.js';

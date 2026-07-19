@@ -1,3 +1,9 @@
+/**
+ * Publishes renderer-neutral Core construction, lifecycle, image, export, and event contracts.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { DocumentMutationDescriptor } from './mutation/index.js';

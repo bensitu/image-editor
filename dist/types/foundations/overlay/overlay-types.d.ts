@@ -1,3 +1,8 @@
+/**
+ * Declares Overlay registration, persistence, mutation, interaction, export, and runtime API contracts.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import type { CoreExportOptions, DocumentMutationContext, FabricModule, GeometryMutationDescriptor } from '../../core/index.js';
 import type { Disposable, MaybePromise } from '../../sdk/index.js';

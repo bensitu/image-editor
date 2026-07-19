@@ -1,9 +1,9 @@
 import { createDisposable } from '../../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import { StateRegistrationError } from '../errors.js';
-const sliceIdPattern = /^@?[a-z0-9][a-z0-9._:/@-]*$/i;
 function assertDefinition(definition) {
-    if (!sliceIdPattern.test(definition.id) || definition.id.trim() !== definition.id) {
-        throw new StateRegistrationError('State slice ids must be non-empty, trimmed, and namespace-safe.', definition.id);
+    if (!isRuntimeIdentifier(definition.id)) {
+        throw new StateRegistrationError('State slice id must match "namespace:kebab-case".', definition.id);
     }
     if (!Number.isSafeInteger(definition.version) || definition.version <= 0) {
         throw new StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);

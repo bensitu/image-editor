@@ -1,3 +1,9 @@
+/**
+ * Publishes the Filters Plugin factory, definitions, errors, bake options, and API contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap, DocumentMutationContext } from '../../core/index.js';
 import {
     BASE_IMAGE_READ_CAPABILITY,
@@ -30,7 +36,7 @@ import {
 import type { FilterDefinition } from './filter-definitions.js';
 import type { FilterBakeOptions } from './filtered-image-renderer.js';
 
-export const filtersPluginRef = definePluginRef<FiltersPluginApi>('@bensitu/filters', '1.0.0');
+export const filtersPluginRef = definePluginRef<FiltersPluginApi>('plugin:filters', '1.0.0');
 
 export function filtersPlugin(
     options: FiltersPluginOptions = {},

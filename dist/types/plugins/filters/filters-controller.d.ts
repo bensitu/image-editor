@@ -1,3 +1,8 @@
+/**
+ * Coordinates transactional Filter preview, commit, clear, bake, configuration, and state.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import type { CoreExportOptions, DocumentMutationContext, DocumentMutationPort, FabricModule, StateRestoreContext, StateValidationResult } from '../../core/index.js';
 import { type BaseImageReadPort, type CanvasReadPort, type CoreDiagnosticsPort, type CorePresentationPort, type CoreStatusPort, type Disposable, type ImageResourcePolicyPort, type RasterMutationPort, type RenderRequestPort, type VisibleRasterBakeOptions, type VisibleRasterBakeResult } from '../../sdk/index.js';

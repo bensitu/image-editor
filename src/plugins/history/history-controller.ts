@@ -1,3 +1,9 @@
+/**
+ * Owns bounded History capture, undo, redo, enablement, and availability state.
+ *
+ * @module
+ */
+
 import { CoreRuntimeError, type CoreHistoryRecord } from '../../core/index.js';
 import type { MementoHistoryPort } from '../../sdk/index.js';
 

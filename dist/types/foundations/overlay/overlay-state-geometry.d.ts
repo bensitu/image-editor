@@ -1,3 +1,8 @@
+/**
+ * Captures and restores Overlay bounds in normalized image space for portable state.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import type { FabricModule } from '../../core/index.js';
 import type { OverlayStateCodecContext, OverlayStatePoint } from './overlay-types.js';

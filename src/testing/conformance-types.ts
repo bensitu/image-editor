@@ -1,3 +1,9 @@
+/**
+ * Declares deterministic Plugin conformance assertion outcomes and status values.
+ *
+ * @module
+ */
+
 export type ConformanceAssertionStatus =
     'PASS' | 'PASS_WITH_DOWNGRADED_ISOLATION' | 'FAIL' | 'NOT_APPLICABLE' | 'NOT_AVAILABLE';
 

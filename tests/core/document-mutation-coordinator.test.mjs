@@ -80,7 +80,7 @@ function createHarness({ historyAvailable = true } = {}) {
                 conflictDomains: domains,
                 reentrancy: 'queue',
             },
-            '@bensitu/core',
+            'core:host',
         );
     }
 

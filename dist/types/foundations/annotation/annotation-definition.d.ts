@@ -1,3 +1,8 @@
+/**
+ * Declares Annotation Foundation feature, authoring, query, status, and Plugin API contracts.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import type { GeometryMutationDescriptor } from '../../core/index.js';
 import type { Disposable, MaybePromise } from '../../sdk/index.js';

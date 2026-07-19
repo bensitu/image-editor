@@ -184,7 +184,7 @@ export class CanvasCoreStateAdapter {
             return {
                 valid: false,
                 message: 'geometryRevision must be a non-negative integer.',
-                path: '$.core.geometryRevision',
+                path: '$.core:geometryRevision',
             };
         }
         if (!value.initialized) {

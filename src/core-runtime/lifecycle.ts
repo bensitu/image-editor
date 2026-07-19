@@ -1,3 +1,9 @@
+/**
+ * Validates editor lifecycle transitions and guards operations by the current state.
+ *
+ * @module
+ */
+
 import {
     CoreRuntimeError,
     EditorAlreadyInitializedError,

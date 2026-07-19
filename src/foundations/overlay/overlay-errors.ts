@@ -1,3 +1,9 @@
+/**
+ * Defines recoverable Overlay object failures isolated during geometry mutations.
+ *
+ * @module
+ */
+
 import { CoreRuntimeError } from '../../core/index.js';
 
 export class OverlayRecoverableObjectError extends CoreRuntimeError {

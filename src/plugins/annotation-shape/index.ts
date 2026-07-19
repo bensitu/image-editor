@@ -1,3 +1,9 @@
+/**
+ * Publishes the Shape Annotation Plugin factory and authoring contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     ANNOTATION_AUTHORING_CAPABILITY,

@@ -10,15 +10,15 @@ import {
     definePluginRef,
 } from '../../src/plugin-kernel/index.js';
 
-const rollbackToken = createCapabilityToken('example.test/rollback-matrix', '1.0.0');
+const rollbackToken = createCapabilityToken('example-test:rollback-matrix', '1.0.0');
 
 for (const failurePoint of [1, 2, 3, 4, 5]) {
     test(`setup rollback removes every registration after failure point ${failurePoint}`, async () => {
         const manager = new PluginManager();
-        const ref = definePluginRef(`example.test/rollback-${failurePoint}`, '1.0.0');
-        const operationId = `example.test/operation-${failurePoint}`;
-        const toolId = `example.test/tool-${failurePoint}`;
-        const eventId = `example.test/event-${failurePoint}`;
+        const ref = definePluginRef(`example-test:rollback-${failurePoint}`, '1.0.0');
+        const operationId = `example-test:operation-${failurePoint}`;
+        const toolId = `example-test:tool-${failurePoint}`;
+        const eventId = `example-test:event-${failurePoint}`;
         let failedListenerCalls = 0;
         let capturedState;
 
@@ -92,7 +92,7 @@ for (const failurePoint of [1, 2, 3, 4, 5]) {
 test('setup rollback preserves the primary error and aggregates cleanup failures in reverse order', async () => {
     const warnings = [];
     const manager = new PluginManager({ warningSink: (warning) => warnings.push(warning) });
-    const ref = definePluginRef('example.test/cleanup-errors', '1.0.0');
+    const ref = definePluginRef('example-test:cleanup-errors', '1.0.0');
     const cleanupOrder = [];
     const primary = new Error('primary setup error');
     const cleanupFailure = new Error('cleanup error');
@@ -126,7 +126,7 @@ test('setup rollback preserves the primary error and aggregates cleanup failures
 
 test('failed setup exits an active tool and clears an active operation token', async () => {
     const manager = new PluginManager();
-    const ref = definePluginRef('example.test/active-rollback', '1.0.0');
+    const ref = definePluginRef('example-test:active-rollback', '1.0.0');
     const exitReasons = [];
     let operationToken;
     const plugin = {
@@ -134,18 +134,18 @@ test('failed setup exits an active tool and clears an active operation token', a
         version: '1.0.0',
         async setup(context) {
             context.operations.register({
-                id: 'example.test/active-operation',
+                id: 'example-test:active-operation',
                 mode: 'busy',
                 conflictDomains: ['document'],
                 reentrancy: 'reject',
             });
-            operationToken = context.operations.begin('example.test/active-operation');
+            operationToken = context.operations.begin('example-test:active-operation');
             context.tools.register({
-                id: 'example.test/active-tool',
+                id: 'example-test:active-tool',
                 enter: () => undefined,
                 exit: (reason) => exitReasons.push(reason),
             });
-            await context.tools.enter('example.test/active-tool');
+            await context.tools.enter('example-test:active-tool');
             throw new Error('fail after activation');
         },
     };
@@ -159,13 +159,13 @@ test('failed setup exits an active tool and clears an active operation token', a
         version: '1.0.0',
         setup(context) {
             context.operations.register({
-                id: 'example.test/active-operation',
+                id: 'example-test:active-operation',
                 mode: 'busy',
                 conflictDomains: ['document'],
                 reentrancy: 'reject',
             });
             context.tools.register({
-                id: 'example.test/active-tool',
+                id: 'example-test:active-tool',
                 enter: () => undefined,
                 exit: () => undefined,
             });

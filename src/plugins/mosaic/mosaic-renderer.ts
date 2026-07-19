@@ -1,3 +1,9 @@
+/**
+ * Renders Mosaic commits and preserves Base Image presentation during replacement.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { CoreImageInfo, FabricModule } from '../../core/index.js';

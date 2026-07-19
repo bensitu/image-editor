@@ -1,3 +1,8 @@
+/**
+ * Publishes Overlay Foundation capabilities, Plugin factory, registration APIs, and public contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { OverlayFoundationApi, OverlayRegistrationPort, OverlayRuntimeApi } from './overlay-types.js';

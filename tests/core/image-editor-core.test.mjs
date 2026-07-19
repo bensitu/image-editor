@@ -45,7 +45,7 @@ test('ImageEditorCore installs typed plugins before init and loads a core-only i
 test('Transform plugin preserves scale clamp, zoom, rotation, flips, and one-mutation reset', async () => {
     const { editor, ids } = createCore();
     const descriptors = [];
-    const observerRef = definePluginRef('example.test/geometry-observer', '1.0.0');
+    const observerRef = definePluginRef('example-test:geometry-observer', '1.0.0');
     editor.use({
         ref: observerRef,
         version: '1.0.0',
@@ -118,7 +118,7 @@ test('Transform failure uses targeted rollback and emits no committed event', as
     const { editor, ids } = createCore();
     const descriptors = [];
     editor.use({
-        ref: definePluginRef('example.test/failure-observer', '1.0.0'),
+        ref: definePluginRef('example-test:failure-observer', '1.0.0'),
         version: '1.0.0',
         setupMode: 'sync',
         setup: (context) => {

@@ -1,9 +1,16 @@
+/**
+ * Registers operations and coordinates conflict, cancellation, and reentrancy policy.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable, type MaybePromise } from './disposable.js';
 import {
     OperationConflictError,
     OperationRegistrationError,
     PluginKernelDisposedError,
 } from './errors.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 
 export type OperationId = string;
 export type OperationMode = 'read' | 'busy' | 'animation' | 'mutation';
@@ -228,7 +235,7 @@ export class OperationRegistry implements Disposable {
     /** @internal Acquires a registered operation on behalf of a Core coordinator. */
     beginForHost(operationId: OperationId): OperationToken {
         this.assertActive('begin an operation');
-        const registered = this.requireRegistered(operationId, '@bensitu/core');
+        const registered = this.requireRegistered(operationId, 'core:host');
         return this.begin(operationId, registered.ownerPluginId);
     }
 
@@ -239,7 +246,7 @@ export class OperationRegistry implements Disposable {
         task: (args: TArgs, context: OperationExecutionContext) => MaybePromise<TResult>,
         options: OperationRunOptions = {},
     ): Promise<TResult> {
-        const registered = this.requireRegistered(operationId, '@bensitu/core');
+        const registered = this.requireRegistered(operationId, 'core:host');
         return this.run(operationId, registered.ownerPluginId, args, task, options);
     }
 
@@ -604,9 +611,15 @@ export class OperationRegistry implements Disposable {
         definition: OperationDefinition<TArgs>,
         ownerPluginId: string,
     ): void {
-        if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
+        if (!isRuntimeIdentifier(ownerPluginId)) {
             throw new OperationRegistrationError(
-                'Operation id must be a non-empty trimmed string.',
+                'Operation owner Plugin id must match "namespace:kebab-case".',
+                ownerPluginId,
+            );
+        }
+        if (!isRuntimeIdentifier(definition.id)) {
+            throw new OperationRegistrationError(
+                'Operation id must match "namespace:kebab-case".',
                 ownerPluginId,
             );
         }
@@ -636,6 +649,17 @@ export class OperationRegistry implements Disposable {
         if (definition.reentrancy === 'coalesce' && typeof definition.coalesce !== 'function') {
             throw new OperationRegistrationError(
                 `Operation "${definition.id}" must define coalesce().`,
+                ownerPluginId,
+            );
+        }
+        if (
+            definition.allowedDuringTool !== undefined &&
+            (!Array.isArray(definition.allowedDuringTool) ||
+                definition.allowedDuringTool.some((toolId) => !isRuntimeIdentifier(toolId)) ||
+                new Set(definition.allowedDuringTool).size !== definition.allowedDuringTool.length)
+        ) {
+            throw new OperationRegistrationError(
+                `Operation "${definition.id}" has invalid allowed Tool ids.`,
                 ownerPluginId,
             );
         }

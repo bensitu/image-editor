@@ -1,3 +1,8 @@
+/**
+ * Composes the Redaction preset and publishes its options, DOM bindings, and installed APIs.
+ *
+ * @module
+ */
 import { ImageEditorCore, type FabricModule, type ImageEditorCoreOptions } from '../../core/index.js';
 import { type OverlayFoundationApi } from '../../foundations/overlay/index.js';
 import type { DomControlsPluginApi, DomPluginBinding } from '../../plugins/dom-controls/index.js';

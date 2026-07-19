@@ -1,3 +1,8 @@
+/**
+ * Publishes the DOM Controls Plugin factory, configuration error, and binding contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type PluginRef, type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { DomControlsOptions, DomControlsPluginApi } from './dom-controls-types.js';

@@ -1,3 +1,9 @@
+/**
+ * Publishes Core state, snapshot, memento, slice, and transient-object contracts.
+ *
+ * @module
+ */
+
 export {
     assertSafeImmutableReference,
     cloneStateValue,

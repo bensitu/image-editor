@@ -1,3 +1,9 @@
+/**
+ * Normalizes bounded Filter definitions and compares their semantic configuration.
+ *
+ * @module
+ */
+
 import { FilterDefinitionError } from './filters-errors.js';
 
 export interface BrightnessFilter {

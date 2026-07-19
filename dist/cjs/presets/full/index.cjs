@@ -16,15 +16,15 @@ var plugins_overlayState_index = require('../../plugins/overlay-state/index.cjs'
 var plugins_transform_index = require('../../plugins/transform/index.cjs');
 var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
 var core_index = require('../../core/index.cjs');
-var pluginPlan = require('../../chunks/plugin-plan-4bgXTnNS.cjs');
+var pluginPlan = require('../../chunks/plugin-plan-DhlAucLr.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
-require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-require('../../chunks/core-capabilities-3osq1B3M.cjs');
+require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
-require('../../chunks/visible-raster-bake-Ci8VnO_S.cjs');
+require('../../chunks/visible-raster-bake-DPzjbmmo.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-require('../../chunks/plugin-manager-C4krd9Vr.cjs');
+require('../../chunks/plugin-manager-DNf8QQ99.cjs');
 
 function createFullPreset(fabric, options = {}) {
     const editor = new core_index.ImageEditorCore(fabric, options.core);

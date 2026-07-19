@@ -9,7 +9,7 @@ import {
 import { ImageEditorCore, definePluginRef } from '../../src/core/index.js';
 import { fabric, resetEditorDom } from '../helpers/fabric-environment.mjs';
 
-const pluginRef = definePluginRef('example.test/document-state-participant', '1.0.0');
+const pluginRef = definePluginRef('example-test:document-state-participant', '1.0.0');
 
 function stateParticipantPlugin() {
     let value = 0;
@@ -27,7 +27,7 @@ function stateParticipantPlugin() {
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             const mutations = context.capabilities.require(DOCUMENT_MUTATION_CAPABILITY);
             context.operations.register({
-                id: 'example.test:mutate-plugin-state',
+                id: 'example-test:mutate-plugin-state',
                 mode: 'mutation',
                 conflictDomains: ['document', 'state'],
                 reentrancy: 'reject',
@@ -57,9 +57,9 @@ function stateParticipantPlugin() {
                 getCommitted: () => [...committed],
                 mutate: (nextValue, fail = false) =>
                     mutations.run({
-                        id: `example.test:plugin-state-transaction:${++sequence}`,
+                        id: `example-test:plugin-state-transaction:${++sequence}`,
                         kind: 'plugin-state',
-                        operationId: 'example.test:mutate-plugin-state',
+                        operationId: 'example-test:mutate-plugin-state',
                         conflictDomains: ['document', 'state'],
                         mutate: () => {
                             value = nextValue;

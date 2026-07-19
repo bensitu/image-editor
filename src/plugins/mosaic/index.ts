@@ -1,3 +1,9 @@
+/**
+ * Publishes the Mosaic Plugin factory, session contracts, geometry helpers, and errors.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     BASE_IMAGE_READ_CAPABILITY,
@@ -39,7 +45,7 @@ const mosaicMutationDomains = [
     'state',
 ] as const;
 
-export const mosaicPluginRef = definePluginRef<MosaicPluginApi>('@bensitu/mosaic', '1.0.0');
+export const mosaicPluginRef = definePluginRef<MosaicPluginApi>('plugin:mosaic', '1.0.0');
 
 export function mosaicPlugin(
     options: MosaicPluginOptions = {},

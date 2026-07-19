@@ -1,3 +1,9 @@
+/**
+ * Owns Capability providers and resolves versioned requirements transactionally.
+ *
+ * @module
+ */
+
 import {
     assertCapabilityRequirement,
     isCapabilityToken,
@@ -24,6 +30,7 @@ import {
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 import { isValidSemVer, satisfiesSemVer } from './semver.js';
 import { isPluginPermission } from './plugin-manifest.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 import type { PluginPermission } from './plugin-types.js';
 
 interface CapabilityProviderRecord {
@@ -63,9 +70,9 @@ function validateProvider<TPort>(
             'version',
         );
     }
-    if (providerPluginId.trim().length === 0 || providerPluginId.trim() !== providerPluginId) {
+    if (!isRuntimeIdentifier(providerPluginId)) {
         throw new InvalidPluginDefinitionError(
-            `Capability provider id for "${token.id}" must be a non-empty trimmed string.`,
+            `Capability provider id for "${token.id}" must match "namespace:kebab-case".`,
             providerPluginId,
         );
     }
@@ -126,7 +133,7 @@ export class CapabilityRegistry implements Disposable {
     provideHost(
         token: CapabilityIdentity,
         implementation: unknown,
-        providerPluginId = '@bensitu/core',
+        providerPluginId = 'core:host',
         requiredPermission?: PluginPermission,
     ): Disposable {
         if (!isCapabilityToken(token)) {
@@ -238,6 +245,11 @@ export class CapabilityRegistry implements Disposable {
     ): CapabilityProviderInfo | null {
         this.assertActive('inspect a capability provider');
         const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
+        if (!isRuntimeIdentifier(id)) {
+            throw new InvalidPluginDefinitionError(
+                'Capability id must match "namespace:kebab-case".',
+            );
+        }
         const record = this.providers.get(id);
         if (!record) return null;
         return Object.freeze({
@@ -259,6 +271,11 @@ export class CapabilityRegistry implements Disposable {
         visibleTransactions?: ReadonlySet<symbol>,
     ): PluginPermission | undefined {
         this.assertActive('inspect a Capability permission');
+        if (!isRuntimeIdentifier(capabilityId)) {
+            throw new InvalidPluginDefinitionError(
+                'Capability id must match "namespace:kebab-case".',
+            );
+        }
         const record = this.providers.get(capabilityId);
         if (!record) return undefined;
         if (!record.complete && !visibleTransactions?.has(record.transactionId)) return undefined;
@@ -278,6 +295,12 @@ export class CapabilityRegistry implements Disposable {
         visibleTransactions?: ReadonlySet<symbol>,
     ): unknown | null {
         this.assertActive('resolve a capability');
+        if (!isRuntimeIdentifier(consumerPluginId)) {
+            throw new InvalidPluginDefinitionError(
+                'Capability consumer Plugin id must match "namespace:kebab-case".',
+                consumerPluginId,
+            );
+        }
         try {
             assertCapabilityRequirement(requirement);
         } catch (error) {

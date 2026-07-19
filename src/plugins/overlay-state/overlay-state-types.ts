@@ -1,3 +1,9 @@
+/**
+ * Declares the Overlay State wire schema, validation limits, import/export options, and Plugin API.
+ *
+ * @module
+ */
+
 export const OVERLAY_STATE_SCHEMA = 'image-editor.overlay-state' as const;
 export const OVERLAY_STATE_WIRE_VERSION = 1 as const;
 export const OVERLAY_STATE_COORDINATE_SPACE = 'image-normalized' as const;

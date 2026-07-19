@@ -1,10 +1,14 @@
+/**
+ * Creates typed Capability identities and validates their Runtime IDs and versions.
+ *
+ * @module
+ */
+
 import { InvalidCapabilityVersionError, InvalidPluginDefinitionError } from './errors.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 import { isValidSemVer, isValidSemVerRange } from './semver.js';
 
 const capabilityTokenBrand: unique symbol = Symbol('ImageEditorCapabilityToken');
-const MAX_CAPABILITY_ID_LENGTH = 128;
-const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/u;
-const prohibitedCapabilitySegments = new Set(['__proto__', 'constructor', 'prototype']);
 
 export interface CapabilityToken<TPort> {
     readonly id: string;
@@ -29,16 +33,9 @@ export interface CapabilityRequirement<TPort = unknown> extends CapabilityRequir
 }
 
 export function createCapabilityToken<TPort>(id: string, version: string): CapabilityToken<TPort> {
-    if (
-        typeof id !== 'string' ||
-        id.length === 0 ||
-        id.length > MAX_CAPABILITY_ID_LENGTH ||
-        id.trim() !== id ||
-        !CAPABILITY_ID_PATTERN.test(id) ||
-        id.split(/[.:/]/u).some((segment) => prohibitedCapabilitySegments.has(segment))
-    ) {
+    if (!isRuntimeIdentifier(id)) {
         throw new InvalidPluginDefinitionError(
-            `CapabilityToken id must be a safe, trimmed identifier no longer than ${MAX_CAPABILITY_ID_LENGTH} characters.`,
+            'CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.',
         );
     }
     if (!isValidSemVer(version)) {

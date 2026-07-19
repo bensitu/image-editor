@@ -1,4 +1,11 @@
+/**
+ * Registers Plugin-owned predicates that exclude transient Canvas objects from snapshots.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 import type { StateWarningSink } from './state-types.js';
 
@@ -17,9 +24,9 @@ export class TransientObjectRegistry<TObject = unknown> implements Disposable {
 
     register(owner: string, predicate: TransientObjectPredicate<TObject>): Disposable {
         this.assertActive();
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
+        if (!isRuntimeIdentifier(owner)) {
             throw new StateRegistrationError(
-                'Transient predicate owner must be non-empty and trimmed.',
+                'Transient predicate owner must match "namespace:kebab-case".',
             );
         }
         if (typeof predicate !== 'function') {

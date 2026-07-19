@@ -1,3 +1,9 @@
+/**
+ * Runs the public Plugin conformance profile for lifecycle, rollback, state, permissions, and packaging.
+ *
+ * @module
+ */
+
 import type { PluginLifecycleContext, PluginSetupContext } from '../plugin-kernel/plugin-types.js';
 import { isValidSemVer } from '../plugin-kernel/semver.js';
 import {

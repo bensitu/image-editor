@@ -8,7 +8,7 @@ test('grid and guide package declares only its required Fabric permissions', () 
     assert.equal(plugin.ref, gridGuidePluginRef);
     assert.deepEqual(plugin.manifest.permissions, ['fabric:objects', 'fabric:custom-class']);
     assert.equal(
-        plugin.manifest.requires.some((entry) => entry.token.id === 'core.snapshot-registration'),
+        plugin.manifest.requires.some((entry) => entry.token.id === 'core:snapshot-registration'),
         false,
     );
 });

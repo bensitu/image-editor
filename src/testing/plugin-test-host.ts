@@ -1,3 +1,9 @@
+/**
+ * Creates isolated Plugin test hosts with injected Capability providers and lifecycle controls.
+ *
+ * @module
+ */
+
 import { PluginManager } from '../plugin-kernel/plugin-manager.js';
 import type {
     CapabilityToken,

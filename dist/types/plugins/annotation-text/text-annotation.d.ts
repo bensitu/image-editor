@@ -1,3 +1,8 @@
+/**
+ * Declares Text Annotation configuration, editing session, status, update, and Plugin API contracts.
+ *
+ * @module
+ */
 import type { Disposable } from '../../sdk/index.js';
 import type { AnnotationId, AnnotationMetadata } from '../../foundations/annotation/index.js';
 export type TextReflectionBehavior = 'preserve-readable' | 'mirror';

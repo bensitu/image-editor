@@ -382,11 +382,11 @@ function maskRecord(object, index, context) {
             : {}),
     });
     return Object.freeze({
-        kind: 'mask',
+        kind: 'mask:object',
         persistentId: object.maskUid,
         hidden: object.visible === false,
         locked: false,
-        codec: Object.freeze({ type: 'mask', version: '1.0.0' }),
+        codec: Object.freeze({ type: 'mask:object', version: '1.0.0' }),
         data,
     });
 }
@@ -661,10 +661,10 @@ export function migrateV2Snapshot(input, options = {}) {
         objects: Object.freeze(canvasObject ? [canvasObject] : []),
     });
     const plugins = {
-        '@bensitu/transform': Object.freeze({ version: 1, data: transformState(state, base) }),
+        'plugin:transform': Object.freeze({ version: 1, data: transformState(state, base) }),
     };
     if (overlays.length > 0) {
-        plugins['foundation.overlay'] = Object.freeze({
+        plugins['foundation:overlay'] = Object.freeze({
             version: 1,
             data: Object.freeze({
                 version: 1,
@@ -674,13 +674,13 @@ export function migrateV2Snapshot(input, options = {}) {
         });
     }
     if (maxMaskId > 0) {
-        plugins['@bensitu/mask'] = Object.freeze({
+        plugins['plugin:mask'] = Object.freeze({
             version: 1,
             data: Object.freeze({ counter: maxMaskId }),
         });
     }
     if (filters.length > 0) {
-        plugins['@bensitu/filters'] = Object.freeze({
+        plugins['plugin:filters'] = Object.freeze({
             version: 1,
             data: Object.freeze({
                 schema: 'image-editor.filters',

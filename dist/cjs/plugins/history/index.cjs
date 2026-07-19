@@ -1,9 +1,9 @@
 'use strict';
 
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 
 function resolveMaxSize(value) {
     return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : 50;
@@ -263,8 +263,8 @@ class HistoryPluginController {
     }
 }
 
-const HISTORY_CAPABILITY = pluginManifest.createCapabilityToken('plugin.history', '1.0.0');
-const historyPluginRef = pluginManifest.definePluginRef('@bensitu/history', '1.0.0');
+const HISTORY_CAPABILITY = pluginManifest.createCapabilityToken('plugin:history', '1.0.0');
+const historyPluginRef = pluginManifest.definePluginRef('plugin:history', '1.0.0');
 function historyPlugin(options = {}) {
     let controller = null;
     return pluginDefinition.definePlugin({

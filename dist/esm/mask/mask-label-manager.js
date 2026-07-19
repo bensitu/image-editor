@@ -17,7 +17,7 @@ export function removeLabelForMask(context, mask) {
     catch {
     }
 }
-export function createLabelForMask(context, mask) {
+function createLabelForMask(context, mask) {
     var _a;
     const { canvas, options, fabric: fabricModule } = context;
     if (!canvas || !options.maskLabelOnSelect)

@@ -1,3 +1,8 @@
+/**
+ * Publishes the Draw Annotation Plugin factory and authoring contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { DrawAnnotationPluginApi, DrawAnnotationPluginOptions } from './draw-annotation.js';

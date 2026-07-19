@@ -1,3 +1,8 @@
+/**
+ * Owns Capability providers and resolves versioned requirements transactionally.
+ *
+ * @module
+ */
 import { type CapabilityRequirement, type CapabilityToken } from './capability-token.js';
 import { type Disposable } from './disposable.js';
 import { type PluginErrorSink, type PluginWarningSink } from './reporting.js';

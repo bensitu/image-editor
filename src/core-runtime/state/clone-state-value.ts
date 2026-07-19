@@ -1,3 +1,9 @@
+/**
+ * Clones and freezes Plugin state while rejecting dangerous keys and unsafe shared references.
+ *
+ * @module
+ */
+
 import { StateCloneError } from '../errors.js';
 
 const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);

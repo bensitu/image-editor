@@ -1,4 +1,8 @@
-/** Internal Plugin Kernel entry. Not exported from the package root. */
+/**
+ * Internal Plugin Kernel entry. Not exported from the package root.
+ *
+ * @module
+ */
 
 export {
     CapabilityRegistry,

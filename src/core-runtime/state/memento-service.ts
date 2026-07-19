@@ -1,3 +1,9 @@
+/**
+ * Captures and restores Core and Plugin mementos with abort-aware rollback semantics.
+ *
+ * @module
+ */
+
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import { MementoCaptureError, MementoRestoreError, StateRegistrationError } from '../errors.js';
 import { assertSafeImmutableReference, cloneStateValue } from './clone-state-value.js';

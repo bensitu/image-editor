@@ -3,9 +3,9 @@
 var foundations_annotation_index = require('../../foundations/annotation/index.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 const TEXT_ANNOTATION_KIND = 'annotation:text';

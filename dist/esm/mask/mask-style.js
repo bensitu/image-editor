@@ -1,4 +1,3 @@
-import { isMaskObject } from '../core/public-types.js';
 const SELECTED_STROKE = '#ff0000';
 const SELECTED_STROKE_WIDTH = 1;
 const HOVER_STROKE = '#ff5500';
@@ -7,7 +6,7 @@ const HOVER_OPACITY_BUMP = 0.2;
 const DEFAULT_STROKE_FALLBACK = '#ccc';
 const DEFAULT_STROKE_WIDTH_FALLBACK = 1;
 const DEFAULT_ALPHA_FALLBACK = 0.5;
-export function getMaskNormalStyle(mask) {
+function getMaskNormalStyle(mask) {
     var _a;
     const strokeWidth = Number(mask.originalStrokeWidth);
     const opacity = Number(mask.originalAlpha);
@@ -17,7 +16,7 @@ export function getMaskNormalStyle(mask) {
         opacity: Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK,
     };
 }
-export function getMaskHoverStyle(mask) {
+function getMaskHoverStyle(mask) {
     const opacity = Number(mask.originalAlpha);
     const baseAlpha = Number.isFinite(opacity) ? opacity : DEFAULT_ALPHA_FALLBACK;
     return {
@@ -92,91 +91,5 @@ export function detachMaskHoverHandlers(mask) {
     catch {
     }
     delete tagged.imageEditorMaskHandlers;
-}
-export function captureMaskStyleBackup(mask) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    return {
-        object: mask,
-        opacity: (_a = mask.opacity) !== null && _a !== void 0 ? _a : 1,
-        fill: ((_b = mask.fill) !== null && _b !== void 0 ? _b : null),
-        strokeWidth: (_c = mask.strokeWidth) !== null && _c !== void 0 ? _c : 0,
-        stroke: ((_d = mask.stroke) !== null && _d !== void 0 ? _d : null),
-        selectable: (_e = mask.selectable) !== null && _e !== void 0 ? _e : true,
-        evented: (_f = mask.evented) !== null && _f !== void 0 ? _f : true,
-        lockRotation: (_g = mask.lockRotation) !== null && _g !== void 0 ? _g : false,
-    };
-}
-export function restoreMaskStyleBackup(backup) {
-    try {
-        backup.object.set({
-            opacity: backup.opacity,
-            fill: backup.fill,
-            strokeWidth: backup.strokeWidth,
-            stroke: backup.stroke,
-            selectable: backup.selectable,
-            evented: backup.evented,
-            lockRotation: backup.lockRotation,
-        });
-        if (typeof backup.object.setCoords === 'function') {
-            backup.object.setCoords();
-        }
-    }
-    catch {
-    }
-}
-export function withNormalizedMaskStyles(context, callback) {
-    if (!context.canvas)
-        return callback();
-    const masks = context.canvas.getObjects().filter(isMaskObject);
-    const patches = [];
-    try {
-        for (const mask of masks) {
-            const normal = getMaskNormalStyle(mask);
-            const snapshot = {};
-            const stylePatch = {};
-            Object.keys(normal).forEach((key) => {
-                const live = mask[key];
-                if (live !== normal[key]) {
-                    snapshot[key] = live;
-                    stylePatch[key] = normal[key];
-                }
-            });
-            if (Object.keys(stylePatch).length === 0)
-                continue;
-            patches.push({ object: mask, snapshot });
-            mask.set(stylePatch);
-        }
-        return callback();
-    }
-    finally {
-        for (const patch of patches) {
-            try {
-                patch.object.set(patch.snapshot);
-            }
-            catch {
-            }
-        }
-    }
-}
-export async function withMaskStyleBackup(context, mutator, callback) {
-    if (!context.canvas)
-        return await callback();
-    const masks = context.canvas.getObjects().filter(isMaskObject);
-    const backups = masks.map(captureMaskStyleBackup);
-    try {
-        masks.forEach((mask, index) => mutator(mask, index));
-        return await callback();
-    }
-    finally {
-        for (const backup of backups)
-            restoreMaskStyleBackup(backup);
-    }
-}
-export function applyCropHideMaskStyle(mask) {
-    try {
-        mask.set({ opacity: 0, evented: false, selectable: false });
-    }
-    catch {
-    }
 }
 //# sourceMappingURL=mask-style.js.map

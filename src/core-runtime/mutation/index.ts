@@ -1,3 +1,9 @@
+/**
+ * Publishes the document mutation coordinator and contracts used by Core and Plugins.
+ *
+ * @module
+ */
+
 export { DocumentMutationCoordinator } from './document-mutation-coordinator.js';
 export type {
     DocumentMutationContext,

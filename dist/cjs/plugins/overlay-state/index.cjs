@@ -2,9 +2,9 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var affineMatrix = require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
 
@@ -156,7 +156,6 @@ const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
     maxDrawPoints: 100000,
     maxPathCommands: 100000,
 });
-const IDENTIFIER_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/;
 const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const SEMVER_PATTERN$1 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -362,7 +361,7 @@ function validIdentifier(value, path, limits, issues, persistent = false) {
     if (typeof value !== 'string' ||
         value.length === 0 ||
         value.length > limits.maxIdentifierLength ||
-        !(persistent ? PERSISTENT_ID_PATTERN : IDENTIFIER_PATTERN).test(value)) {
+        !(persistent ? PERSISTENT_ID_PATTERN.test(value) : pluginManifest.isRuntimeIdentifier(value))) {
         addIssue(issues, 'identifier.invalid', path, 'Identifier is invalid.');
         return false;
     }
@@ -581,7 +580,6 @@ function validateOverlayStateDocument(payload, limits) {
 
 const IMPORT_OPERATION_ID = 'overlay-state:import';
 const MAX_PERSISTENT_ID_LENGTH = 128;
-const CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 function invalidResult(issues) {
     return Object.freeze({ valid: false, errors: Object.freeze([...issues]) });
@@ -619,7 +617,7 @@ function resolveStateKind(overlay, kind) {
     if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== 'persistent' ||
         !codec ||
         typeof codec.type !== 'string' ||
-        !CODEC_TYPE_PATTERN.test(codec.type) ||
+        !pluginManifest.isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !SEMVER_PATTERN.test(codec.version) ||
         typeof codec.serialize !== 'function' ||

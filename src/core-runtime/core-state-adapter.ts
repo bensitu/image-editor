@@ -1,3 +1,9 @@
+/**
+ * Captures, validates, and restores the Core Canvas state used by snapshots and mementos.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import { SnapshotValidationError } from './errors.js';
@@ -208,7 +214,7 @@ export class CanvasCoreStateAdapter implements CoreStateAdapter {
             return {
                 valid: false,
                 message: 'geometryRevision must be a non-negative integer.',
-                path: '$.core.geometryRevision',
+                path: '$.core:geometryRevision',
             };
         }
         if (!value.initialized) {

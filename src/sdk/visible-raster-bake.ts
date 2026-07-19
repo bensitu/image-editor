@@ -1,3 +1,9 @@
+/**
+ * Declares the visible-raster bake Capability used by raster-editing Plugins.
+ *
+ * @module
+ */
+
 import type { CoreImageInfo, DocumentMutationContext } from '../core/contracts.js';
 import { createCapabilityToken } from '../plugin-kernel/capability-token.js';
 

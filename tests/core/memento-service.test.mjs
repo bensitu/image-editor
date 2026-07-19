@@ -55,7 +55,7 @@ test('state slices capture and restore in deterministic registration order', asy
     let first = { count: 1 };
     let second = { count: 2 };
     harness.registry.register({
-        id: 'example/first',
+        id: 'example:first',
         version: 1,
         capture: () => {
             calls.push('capture:first');
@@ -68,7 +68,7 @@ test('state slices capture and restore in deterministic registration order', asy
         },
     });
     harness.registry.register({
-        id: 'example/second',
+        id: 'example:second',
         version: 2,
         capture: () => {
             calls.push('capture:second');
@@ -95,7 +95,7 @@ test('state slices capture and restore in deterministic registration order', asy
 test('duplicate slices and invalid versions fail before registration mutates state', () => {
     const harness = createHarness();
     const definition = {
-        id: 'example/state',
+        id: 'example:state',
         version: 1,
         capture: () => ({}),
         validate: (value) => valid(value),
@@ -104,7 +104,7 @@ test('duplicate slices and invalid versions fail before registration mutates sta
     harness.registry.register(definition);
     assert.throws(() => harness.registry.register(definition), StateRegistrationError);
     assert.throws(
-        () => harness.registry.register({ ...definition, id: 'example/invalid', version: 0 }),
+        () => harness.registry.register({ ...definition, id: 'example:invalid', version: 0 }),
         StateRegistrationError,
     );
     assert.equal(harness.registry.list().length, 1);
@@ -113,7 +113,7 @@ test('duplicate slices and invalid versions fail before registration mutates sta
 test('slice capture failures identify the owning slice and return no partial memento', () => {
     const harness = createHarness();
     harness.registry.register({
-        id: 'example/failing-capture',
+        id: 'example:failing-capture',
         version: 1,
         capture: () => {
             throw new Error('capture failed');
@@ -124,7 +124,7 @@ test('slice capture failures identify the owning slice and return no partial mem
     assert.throws(
         () => harness.service.capture(),
         (error) =>
-            error instanceof MementoCaptureError && error.sliceId === 'example/failing-capture',
+            error instanceof MementoCaptureError && error.sliceId === 'example:failing-capture',
     );
 });
 
@@ -134,7 +134,7 @@ test('partial restore failure rolls core and earlier slices back to the pre-load
     let second = 2;
     let shouldFail = false;
     harness.registry.register({
-        id: 'example/first',
+        id: 'example:first',
         version: 1,
         capture: () => first,
         validate: (value) => valid(value),
@@ -143,7 +143,7 @@ test('partial restore failure rolls core and earlier slices back to the pre-load
         },
     });
     harness.registry.register({
-        id: 'example/second',
+        id: 'example:second',
         version: 1,
         capture: () => second,
         validate: (value) => valid(value),
@@ -160,7 +160,7 @@ test('partial restore failure rolls core and earlier slices back to the pre-load
 
     await assert.rejects(harness.service.restore(target), (error) => {
         assert.equal(error instanceof MementoRestoreError, true);
-        assert.equal(error.sliceId, 'example/second');
+        assert.equal(error.sliceId, 'example:second');
         return true;
     });
     assert.deepEqual(harness.getCore(), { value: 90 });
@@ -171,7 +171,7 @@ test('partial restore failure rolls core and earlier slices back to the pre-load
 test('trusted restore exposes the internal mode and disposal blocks later access', async () => {
     const harness = createHarness();
     harness.registry.register({
-        id: 'example/no-ui',
+        id: 'example:no-ui',
         version: 1,
         capture: () => ({ value: 1 }),
         validate: (value) => valid(value),
@@ -190,7 +190,7 @@ test('restore abort and rollback failure are surfaced instead of swallowed', asy
     let state = 1;
     let failRollback = false;
     harness.registry.register({
-        id: 'example/abort',
+        id: 'example:abort',
         version: 1,
         capture: () => state,
         validate: (value) => valid(value),
@@ -223,7 +223,7 @@ test('reference capture policy retains only validated deeply immutable structura
     let current = immutable;
     let restored;
     harness.registry.register({
-        id: 'example/reference',
+        id: 'example:reference',
         version: 1,
         capturePolicy: 'reference',
         capture: () => current,
@@ -241,7 +241,7 @@ test('reference capture policy retains only validated deeply immutable structura
     current = Object.freeze({ nested: Object.freeze([9]) });
     await harness.service.restore(memento);
 
-    assert.equal(memento.plugins['example/reference'].data, immutable);
+    assert.equal(memento.plugins['example:reference'].data, immutable);
     assert.equal(restored, immutable);
 });
 
@@ -262,7 +262,7 @@ test('reference capture policy rejects mutable arrays, maps, functions, and unva
     ]) {
         const harness = createHarness();
         harness.registry.register({
-            id: `example/reference-${label}`,
+            id: `example:reference-${label}`,
             version: 1,
             capturePolicy: 'reference',
             capture: () => value,
@@ -276,7 +276,7 @@ test('reference capture policy rejects mutable arrays, maps, functions, and unva
 test('always capture policy never stores a mutable Map payload', () => {
     const harness = createHarness();
     harness.registry.register({
-        id: 'example/always-map',
+        id: 'example:always-map',
         version: 1,
         capture: () => new Map([['key', 'value']]),
         validate: (value) => valid(value),
@@ -289,7 +289,7 @@ test('always capture policy never stores a mutable Map payload', () => {
 test('State Slice registration accepts only always and reference capture policies', () => {
     const harness = createHarness();
     const definition = {
-        id: 'example/invalid-policy',
+        id: 'example:invalid-policy',
         version: 1,
         capturePolicy: 'dirty',
         capture: () => ({}),

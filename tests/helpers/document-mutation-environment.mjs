@@ -32,7 +32,7 @@ export function createDocumentMutationEnvironment({
                 conflictDomains: ALL_MUTATION_DOMAINS,
                 reentrancy: 'reject',
             },
-            '@bensitu/core',
+            'core:host',
         );
     }
     const mutations = new DocumentMutationCoordinator({

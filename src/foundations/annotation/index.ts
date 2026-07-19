@@ -1,3 +1,9 @@
+/**
+ * Publishes Annotation Foundation capabilities, Plugin factory, errors, and authoring contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     CANVAS_READ_CAPABILITY,

@@ -42,9 +42,9 @@ type MarkedLine = FabricNS.Line & {
     referenceGridGuideId?: string;
 };
 
-const gridKind = '@bensitu/reference-grid-guide/grid';
-const guideKind = '@bensitu/reference-grid-guide/guide';
-const guideToolId = 'reference.grid-guide:guide-tool';
+const gridKind = 'reference-grid-guide:grid';
+const guideKind = 'reference-grid-guide:guide';
+const guideToolId = 'reference-grid-guide:guide-tool';
 const defaultConfiguration: GridGuideConfiguration = Object.freeze({
     spacing: 32,
     gridColor: 'rgba(64, 160, 255, 0.35)',
@@ -53,7 +53,7 @@ const defaultConfiguration: GridGuideConfiguration = Object.freeze({
 });
 
 export const gridGuidePluginRef = definePluginRef<GridGuidePluginApi>(
-    '@bensitu/reference-grid-guide',
+    'reference:grid-guide',
     '1.0.0',
 );
 

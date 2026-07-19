@@ -1,3 +1,9 @@
+/**
+ * Selects affected Overlays and applies Crop preview and commit policies.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { DocumentMutationContext } from '../../core/index.js';

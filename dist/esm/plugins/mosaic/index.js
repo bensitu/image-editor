@@ -11,7 +11,7 @@ const mosaicMutationDomains = [
     'selection',
     'state',
 ];
-export const mosaicPluginRef = definePluginRef('@bensitu/mosaic', '1.0.0');
+export const mosaicPluginRef = definePluginRef('plugin:mosaic', '1.0.0');
 export function mosaicPlugin(options = {}) {
     const configuration = resolveMosaicConfiguration(options);
     let controller = null;

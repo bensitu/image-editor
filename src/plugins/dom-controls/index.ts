@@ -1,3 +1,9 @@
+/**
+ * Publishes the DOM Controls Plugin factory, configuration error, and binding contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     CORE_DIAGNOSTICS_CAPABILITY,

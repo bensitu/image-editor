@@ -37,7 +37,7 @@ function pluginDefinition(id, overrides = {}) {
 
 test('PluginManager installs async plugins and provides typed-ref runtime queries', async () => {
     const manager = new PluginManager();
-    const plugin = pluginDefinition('example.test/async', {
+    const plugin = pluginDefinition('example-test:async', {
         setup: async () => {
             await Promise.resolve();
             return { answer: 42 };
@@ -52,19 +52,19 @@ test('PluginManager installs async plugins and provides typed-ref runtime querie
     assert.equal(manager.has(plugin.ref), true);
     assert.equal(manager.has(plugin.ref.id), true);
 
-    const missingRef = definePluginRef('example.test/missing', '1.0.0');
+    const missingRef = definePluginRef('example-test:missing', '1.0.0');
     assert.equal(manager.get(missingRef), null);
     assert.throws(() => manager.require(missingRef), PluginNotInstalledError);
     await manager.dispose();
 });
 
 test('PluginManager synchronous path supports host capabilities and sync lifecycle boundaries', () => {
-    const token = createCapabilityToken('core.example', '1.0.0');
+    const token = createCapabilityToken('core:example', '1.0.0');
     const calls = [];
     const manager = new PluginManager({
         hostCapabilities: [{ token, implementation: { answer: 42 } }],
     });
-    const ref = definePluginRef('example.test/sync', '1.0.0');
+    const ref = definePluginRef('example-test:sync', '1.0.0');
     const plugin = {
         ref,
         version: '1.0.0',
@@ -88,7 +88,7 @@ test('PluginManager synchronous path supports host capabilities and sync lifecyc
 test('synchronous install rejects a Promise setup and rolls registrations back', () => {
     const manager = new PluginManager();
     const plugin = {
-        ref: definePluginRef('example.test/invalid-sync', '1.0.0'),
+        ref: definePluginRef('example-test:invalid-sync', '1.0.0'),
         version: '1.0.0',
         setupMode: 'sync',
         setup: () => Promise.resolve({ invalid: true }),
@@ -100,12 +100,12 @@ test('synchronous install rejects a Promise setup and rolls registrations back',
 
 test('direct duplicate installation is strict and install after initialization is rejected', async () => {
     const manager = new PluginManager();
-    const plugin = pluginDefinition('example.test/duplicate');
+    const plugin = pluginDefinition('example-test:duplicate');
     await manager.install(plugin);
     await assert.rejects(manager.install(plugin), PluginAlreadyInstalledError);
     await manager.initialize();
     await assert.rejects(
-        manager.install(pluginDefinition('example.test/late')),
+        manager.install(pluginDefinition('example-test:late')),
         PluginKernelStateError,
     );
     await assert.rejects(manager.initialize(), PluginKernelStateError);
@@ -116,7 +116,7 @@ test('lifecycle callbacks use install order and dispose uses reverse order', asy
     const calls = [];
     const manager = new PluginManager();
     const createLifecyclePlugin = (name) =>
-        pluginDefinition(`example.test/${name}`, {
+        pluginDefinition(`example-test:${name}`, {
             setup: (context) => {
                 calls.push(`setup:${name}`);
                 context.addDisposable(createDisposable(() => calls.push(`cleanup:${name}`)));
@@ -156,7 +156,7 @@ test('lifecycle callbacks use install order and dispose uses reverse order', asy
 
 test('image lifecycle cannot run before initialization', async () => {
     const manager = new PluginManager();
-    await manager.install(pluginDefinition('example.test/lifecycle-guard'));
+    await manager.install(pluginDefinition('example-test:lifecycle-guard'));
     await assert.rejects(manager.notifyImageLoaded({}), PluginKernelStateError);
     await assert.rejects(manager.notifyImageCleared(), PluginKernelStateError);
     await manager.dispose();
@@ -164,10 +164,10 @@ test('image lifecycle cannot run before initialization', async () => {
 
 test('required capabilities resolve before setup and undeclared capability access is denied', async () => {
     const manager = new PluginManager();
-    const token = createCapabilityToken('example.test/declared-port', '1.2.0');
-    const undeclaredToken = createCapabilityToken('example.test/undeclared-port', '1.0.0');
+    const token = createCapabilityToken('example-test:declared-port', '1.2.0');
+    const undeclaredToken = createCapabilityToken('example-test:undeclared-port', '1.0.0');
     let setupCalled = false;
-    const missing = pluginDefinition('example.test/missing-consumer', {
+    const missing = pluginDefinition('example-test:missing-consumer', {
         requires: [{ token, range: '^1.0.0' }],
         setup: () => {
             setupCalled = true;
@@ -177,20 +177,20 @@ test('required capabilities resolve before setup and undeclared capability acces
     await assert.rejects(manager.install(missing), CapabilityMissingError);
     assert.equal(setupCalled, false);
 
-    const provider = pluginDefinition('example.test/provider', {
+    const provider = pluginDefinition('example-test:provider', {
         setup: (context) => {
             context.capabilities.provide(token, { value: 'port' });
             return { provider: true };
         },
     });
     await manager.install(provider);
-    const consumer = pluginDefinition('example.test/consumer', {
+    const consumer = pluginDefinition('example-test:consumer', {
         requires: [{ token, range: '^1.0.0' }],
         setup: (context) => ({ port: context.capabilities.require(token) }),
     });
     assert.deepEqual(await manager.install(consumer), { port: { value: 'port' } });
 
-    const unauthorized = pluginDefinition('example.test/unauthorized', {
+    const unauthorized = pluginDefinition('example-test:unauthorized', {
         setup: (context) => {
             context.capabilities.optional(undeclaredToken);
             return {};
@@ -206,8 +206,8 @@ test('required capabilities resolve before setup and undeclared capability acces
 
 test('setup failure rolls back registrations and never installs a partial API', async () => {
     const manager = new PluginManager();
-    const token = createCapabilityToken('example.test/rollback-port', '1.0.0');
-    const ref = definePluginRef('example.test/failing-setup', '1.0.0');
+    const token = createCapabilityToken('example-test:rollback-port', '1.0.0');
+    const ref = definePluginRef('example-test:failing-setup', '1.0.0');
     const primary = new Error('primary setup failure');
     let failedInitCalls = 0;
     const failing = pluginDefinition(ref.id, {
@@ -231,7 +231,7 @@ test('setup failure rolls back registrations and never installs a partial API', 
     assert.equal(manager.get(ref), null);
     assert.equal(manager.has(ref.id), false);
 
-    const replacement = pluginDefinition('example.test/replacement-provider', {
+    const replacement = pluginDefinition('example-test:replacement-provider', {
         setup: (context) => {
             context.capabilities.provide(token, { stale: false });
             return { installed: true };
@@ -245,7 +245,7 @@ test('setup failure rolls back registrations and never installs a partial API', 
 
 test('invalid setup API is rejected and rolled back', async () => {
     const manager = new PluginManager();
-    const plugin = pluginDefinition('example.test/invalid-api', { setup: () => undefined });
+    const plugin = pluginDefinition('example-test:invalid-api', { setup: () => undefined });
     await assert.rejects(
         manager.install(plugin),
         (error) =>
@@ -260,13 +260,13 @@ test('onInit failure disposes all installed plugins and preserves cleanup failur
     const calls = [];
     const manager = new PluginManager();
     await manager.install(
-        pluginDefinition('example.test/init-first', {
+        pluginDefinition('example-test:init-first', {
             onInit: () => calls.push('init:first'),
             onDispose: () => calls.push('dispose:first'),
         }),
     );
     await manager.install(
-        pluginDefinition('example.test/init-failing', {
+        pluginDefinition('example-test:init-failing', {
             onInit: () => {
                 calls.push('init:failing');
                 throw new Error('init failed');
@@ -294,12 +294,12 @@ test('dispose continues after plugin failures, aggregates them, and remains idem
     const calls = [];
     const manager = new PluginManager();
     await manager.install(
-        pluginDefinition('example.test/dispose-first', {
+        pluginDefinition('example-test:dispose-first', {
             onDispose: () => calls.push('dispose:first'),
         }),
     );
     await manager.install(
-        pluginDefinition('example.test/dispose-failing', {
+        pluginDefinition('example-test:dispose-failing', {
             onDispose: () => {
                 calls.push('dispose:failing');
                 throw new Error('dispose failed');
@@ -311,13 +311,13 @@ test('dispose continues after plugin failures, aggregates them, and remains idem
     assert.deepEqual(calls, ['dispose:failing', 'dispose:first']);
     assert.equal(manager.state, 'disposed');
     await manager.dispose();
-    assert.throws(() => manager.getById('example.test/dispose-first'), PluginKernelDisposedError);
+    assert.throws(() => manager.getById('example-test:dispose-first'), PluginKernelDisposedError);
 });
 
 test('importing the Kernel does not install plugins or create shared singleton state', async () => {
     const first = new PluginManager();
     const second = new PluginManager();
-    const plugin = pluginDefinition('example.test/instance-local');
+    const plugin = pluginDefinition('example-test:instance-local');
     await first.install(plugin);
 
     assert.equal(first.has(plugin.ref), true);
@@ -328,21 +328,21 @@ test('importing the Kernel does not install plugins or create shared singleton s
 
 test('PluginStateStore rejects colliding live plugin scopes and releases ids on disposal', async () => {
     const stateStore = new PluginStateStore();
-    const firstScope = new RegistrationScope('example.test/state-collision');
+    const firstScope = new RegistrationScope('example-test:state-collision');
     const createState = (scope) =>
         stateStore.createScoped(
-            'example.test/state-collision',
+            'example-test:state-collision',
             (disposable) => scope.add(disposable),
             (disposable) => scope.addFinalizer(disposable),
             () => scope.active,
         );
 
     createState(firstScope);
-    const secondScope = new RegistrationScope('example.test/state-collision');
+    const secondScope = new RegistrationScope('example-test:state-collision');
     assert.throws(() => createState(secondScope), InvalidPluginDefinitionError);
     await firstScope.dispose();
 
-    const thirdScope = new RegistrationScope('example.test/state-collision');
+    const thirdScope = new RegistrationScope('example-test:state-collision');
     const state = createState(thirdScope);
     state.set('value', 1);
     assert.equal(state.get('value'), 1);

@@ -227,7 +227,7 @@ test('Mask labels are transient, track object movement, and never enter Snapshot
 
 test('transform failure rolls Mask geometry and index back without replacing object identity', async () => {
     let failApply = false;
-    const failureRef = definePluginRef('example.test/mask-transform-failure', '1.0.0');
+    const failureRef = definePluginRef('example-test:mask-transform-failure', '1.0.0');
     const { editor, masks, overlay, transform } = await createEditor(
         { bindToImageTransform: true, label: false },
         {

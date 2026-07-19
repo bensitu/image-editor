@@ -1,4 +1,11 @@
+/**
+ * Coordinates ownership of additional Fabric object properties included in snapshots.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import { StateRegistrationError } from '../errors.js';
 import { isDangerousStateKey } from './clone-state-value.js';
 
@@ -24,7 +31,12 @@ export class ObjectPropertyRegistry implements Disposable {
 
     register(registration: ObjectPropertyRegistration): Disposable {
         this.assertActive();
-        assertIdentifier(registration.owner, 'Object property owner');
+        if (!isRuntimeIdentifier(registration.owner)) {
+            throw new StateRegistrationError(
+                'Object property owner must match "namespace:kebab-case".',
+                registration.owner,
+            );
+        }
         if (registration.keys.length === 0) {
             throw new StateRegistrationError(
                 `Object property registration for "${registration.owner}" must include a key.`,

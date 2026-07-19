@@ -1,3 +1,9 @@
+/**
+ * Publishes the internal geometry runtime surface used by Core and Plugin contracts.
+ *
+ * @module
+ */
+
 export {
     AFFINE_EPSILON,
     IDENTITY_AFFINE_MATRIX,

@@ -1,5 +1,6 @@
 import { createDisposable, disposeInReverse, disposeInReverseSync, } from './disposable.js';
 import { PluginAggregateError, PluginKernelStateError } from './errors.js';
+import { assertPluginIdentifier } from './plugin-identifier.js';
 export class RegistrationScope {
     constructor(pluginId, options = {}) {
         Object.defineProperty(this, "pluginId", {
@@ -38,6 +39,7 @@ export class RegistrationScope {
             writable: true,
             value: 'open'
         });
+        assertPluginIdentifier(pluginId, 'RegistrationScope Plugin id');
         this.transactionId = Symbol(`plugin-install:${pluginId}`);
     }
     get active() {

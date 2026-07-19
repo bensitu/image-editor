@@ -1,3 +1,9 @@
+/**
+ * Binds DOM and keyboard controls to installed Plugin APIs with deterministic cleanup.
+ *
+ * @module
+ */
+
 import type { CoreDiagnosticsPort, Disposable } from '../../sdk/index.js';
 import type { OverlayFoundationApi } from '../../foundations/overlay/index.js';
 import type { AnnotationPluginApi, AnnotationStatus } from '../../foundations/annotation/index.js';

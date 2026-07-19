@@ -77,8 +77,8 @@ type MarkedText = FabricNS.Text & {
     referenceWatermarkId?: string;
 };
 
-const watermarkKind = '@bensitu/reference-watermark/text';
-const stateSliceId = '@bensitu/reference-watermark/configuration';
+const watermarkKind = 'reference-watermark:text';
+const stateSliceId = 'reference-watermark:configuration';
 const defaultConfiguration: WatermarkConfiguration = Object.freeze({
     defaultOpacity: 0.65,
     defaultFontSize: 24,
@@ -86,7 +86,7 @@ const defaultConfiguration: WatermarkConfiguration = Object.freeze({
 });
 
 export const watermarkPluginRef = definePluginRef<WatermarkPluginApi>(
-    '@bensitu/reference-watermark',
+    'reference:watermark',
     '1.0.0',
 );
 
@@ -170,7 +170,7 @@ function createDefaultCodec(
     fabric: FabricModule,
 ): FabricObjectCodec<FabricNS.Text, SerializedWatermark> {
     return Object.freeze({
-        type: '@bensitu/reference-watermark/text',
+        type: 'reference-watermark:text',
         version: '1.0.0',
         serialize,
         validate: validateSerialized,
@@ -255,7 +255,7 @@ export function createWatermarkPlugin(
             );
             context.disposables.add(
                 registration.registerGeometryPolicy({
-                    id: '@bensitu/reference-watermark/geometry',
+                    id: 'reference-watermark:geometry',
                     kind: watermarkKind,
                     ownerPluginId: watermarkPluginRef.id,
                     preserveReadable: true,
@@ -264,7 +264,7 @@ export function createWatermarkPlugin(
             );
             context.disposables.add(
                 registration.registerExportRenderer({
-                    id: '@bensitu/reference-watermark/export',
+                    id: 'reference-watermark:export',
                     kind: watermarkKind,
                     ownerPluginId: watermarkPluginRef.id,
                     order: 500,

@@ -1,3 +1,9 @@
+/**
+ * Creates immutable branded Plugin references with Runtime ID and API-version validation.
+ *
+ * @module
+ */
+
 import { InvalidPluginDefinitionError } from './errors.js';
 import { assertPluginIdentifier } from './plugin-identifier.js';
 import { isValidSemVer } from './semver.js';

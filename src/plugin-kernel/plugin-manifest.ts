@@ -1,3 +1,9 @@
+/**
+ * Validates and freezes bounded Plugin manifests, dependencies, Capability requirements, and permissions.
+ *
+ * @module
+ */
+
 import {
     assertCapabilityRequirement,
     type CapabilityRequirementIdentity,

@@ -1,3 +1,9 @@
+/**
+ * Implements conformance proofs for bundle isolation, ownership, transactions, state migration, and Fabric mutation.
+ *
+ * @module
+ */
+
 import type { MaybePromise, PluginPermission } from '../sdk/index.js';
 import type {
     ConformanceAssertionResult,

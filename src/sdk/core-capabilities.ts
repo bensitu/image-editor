@@ -1,3 +1,9 @@
+/**
+ * Publishes typed Core Capability ports and their stable Runtime tokens for Plugin authors.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {
@@ -103,64 +109,64 @@ export interface ExportContributionPort {
     register(owner: string, contributor: CoreExportContributor): Disposable;
 }
 
-export const CORE_STATUS_CAPABILITY = createCapabilityToken<CoreStatusPort>('core.status', '1.0.0');
+export const CORE_STATUS_CAPABILITY = createCapabilityToken<CoreStatusPort>('core:status', '1.0.0');
 export const CORE_DIAGNOSTICS_CAPABILITY = createCapabilityToken<CoreDiagnosticsPort>(
-    'core.diagnostics',
+    'core:diagnostics',
     '1.0.0',
 );
 export const CORE_PRESENTATION_CAPABILITY = createCapabilityToken<CorePresentationPort>(
-    'core.presentation',
+    'core:presentation',
     '1.0.0',
 );
 export const FABRIC_RUNTIME_CAPABILITY = createCapabilityToken<FabricRuntimePort>(
-    'fabric.runtime',
+    'fabric:runtime',
     '1.0.0',
 );
 export const CANVAS_READ_CAPABILITY = createCapabilityToken<CanvasReadPort>(
-    'core.canvas-read',
+    'core:canvas-read',
     '1.0.0',
 );
 export const BASE_IMAGE_READ_CAPABILITY = createCapabilityToken<BaseImageReadPort>(
-    'core.base-image-read',
+    'core:base-image-read',
     '1.0.0',
 );
 export const BASE_IMAGE_INFO_CAPABILITY = createCapabilityToken<BaseImageInfoPort>(
-    'core.base-image-info',
+    'core:base-image-info',
     '1.0.0',
 );
 export const IMAGE_RESOURCE_POLICY_CAPABILITY = createCapabilityToken<ImageResourcePolicyPort>(
-    'core.image-resource-policy',
+    'core:image-resource-policy',
     '1.0.0',
 );
 export const RENDER_REQUEST_CAPABILITY = createCapabilityToken<RenderRequestPort>(
-    'core.render-request',
+    'core:render-request',
     '1.0.0',
 );
 export const CANVAS_RESIZE_CAPABILITY = createCapabilityToken<CanvasResizePort>(
-    'core.canvas-resize',
+    'core:canvas-resize',
     '1.0.0',
 );
 export const RASTER_MUTATION_CAPABILITY = createCapabilityToken<RasterMutationPort>(
-    'core.raster-mutation',
+    'core:raster-mutation',
     '1.0.0',
 );
 export const SNAPSHOT_REGISTRATION_CAPABILITY = createCapabilityToken<SnapshotRegistrationPort>(
-    'core.snapshot-registration',
+    'core:snapshot-registration',
     '1.0.0',
 );
 export const MEMENTO_HISTORY_CAPABILITY = createCapabilityToken<MementoHistoryPort>(
-    'core.memento-history',
+    'core:memento-history',
     '1.0.0',
 );
 export const GEOMETRY_MUTATION_CAPABILITY = createCapabilityToken<GeometryMutationPort>(
-    'core.geometry',
+    'core:geometry',
     '1.0.0',
 );
 export const DOCUMENT_MUTATION_CAPABILITY = createCapabilityToken<DocumentMutationPort>(
-    'core.document-mutation',
+    'core:document-mutation',
     '1.0.0',
 );
 export const EXPORT_CONTRIBUTION_CAPABILITY = createCapabilityToken<ExportContributionPort>(
-    'core.export',
+    'core:export',
     '1.0.0',
 );

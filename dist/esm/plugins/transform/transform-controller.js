@@ -225,7 +225,7 @@ export class TransformPluginController {
                 await mutate(signal);
             },
             rollbackBase: () => this.restoreRollback(image, rollback),
-            metadata: Object.freeze({ pluginId: '@bensitu/transform' }),
+            metadata: Object.freeze({ pluginId: 'plugin:transform' }),
         })
             .then(() => undefined);
     }

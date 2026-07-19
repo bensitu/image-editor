@@ -1,7 +1,7 @@
 import { CORE_DIAGNOSTICS_CAPABILITY, MEMENTO_HISTORY_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { HistoryPluginController, } from './history-controller.js';
-export const HISTORY_CAPABILITY = createCapabilityToken('plugin.history', '1.0.0');
-export const historyPluginRef = definePluginRef('@bensitu/history', '1.0.0');
+export const HISTORY_CAPABILITY = createCapabilityToken('plugin:history', '1.0.0');
+export const historyPluginRef = definePluginRef('plugin:history', '1.0.0');
 export function historyPlugin(options = {}) {
     let controller = null;
     return definePlugin({

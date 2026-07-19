@@ -1,3 +1,9 @@
+/**
+ * Normalizes and validates bounded Annotation names and recursive metadata.
+ *
+ * @module
+ */
+
 import { AnnotationValidationError } from './annotation-errors.js';
 import type { AnnotationMetadata, AnnotationMetadataValue } from './annotation-definition.js';
 

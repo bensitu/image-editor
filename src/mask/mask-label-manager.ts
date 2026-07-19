@@ -1,56 +1,8 @@
 /**
- * Per-mask label overlay creation, positioning, show/hide, and
- * removal.
+ * Creates and synchronizes session-only label objects for Mask Plugin overlays.
  *
- * The editor runtime owns the canvas and resolved options; this module
- * receives those dependencies through {@link MaskLabelManagerContext} so
- * label behavior can be tested without the full facade.
- *
- * ## Owned contracts
- *
- * - Label text is computed via
- *   `options.label.getText(mask, mask.maskId - 1)`. The index argument is
- *   the stable creation index (`maskId - 1`), NOT the live canvas list
- *   position. Earlier implementations passed `this.maskCounter` here,
- *   which drifted whenever masks were added or removed; the current
- *   contract pins the index to the
- *   mask's own identity so labels stay consistent across
- *   `createMask` / `removeSelectedMask` / `removeAllMasks` / `undo`/`redo`.
- *
- * - Every label-overlay text object SHALL be
- *   constructed with `originX: 'left'`, `originY: 'top'`, since the label
- *   is positioned by its top-left corner. The defaults injected by this
- *   module set those origins explicitly, and {@link syncMaskLabel}
- *   re-asserts them on every sync so an externally-mutated label still
- *   honors the contract.
- *
- * - **State serializer filter** — Every label object is
- *   tagged with `maskLabel = true` so `core/state-serializer.ts` can
- *   exclude it from history snapshots. Labels are session-only and never
- *   persisted.
- *
- * ## Out of scope (handled by sibling modules)
- *
- * - Mask creation, falsy-style preservation, polygon placement — see
- *   `mask/mask-factory.ts`.
- * - Mask list DOM rendering — see `mask/mask-list.ts`.
- * - Hover/selection appearance — see `mask/mask-style.ts`.
- *
- * ## Implementation notes
- *
- * - The editor runtime owns the canvas reference, resolved options, and
- *   Fabric module. The helpers in this module receive those slots through
- *   a {@link MaskLabelManagerContext} so the module is independent of the
- *   `ImageEditor` class shape and can be unit tested in isolation against
- *   a stub Fabric environment.
- * - When `options.label.create` is supplied, the user owns the full label
- *   build (it may even return `null` to opt out for a particular mask).
- *   When the factory returns `null` or the option is absent, this module
- *   falls back to a default Fabric text constructed from the deep-merged
- *   `options.label.textOptions`. The default already carries
- *   `originX: 'left'`/`originY: 'top'` via `core/default-options.ts`, but
- *   we set them explicitly here as well so the contract holds even when a
- *   caller bypasses `resolveOptions` (e.g. in unit tests).
+ * Label identity follows the owning mask, while Canvas and option ownership remain with the
+ * Plugin controller through {@link MaskLabelManagerContext}.
  *
  * @module
  */
@@ -142,7 +94,7 @@ export function removeLabelForMask(context: MaskLabelManagerContext, mask: MaskO
  * @param context - Orchestration context — see {@link MaskLabelManagerContext}.
  * @param mask - The mask the label overlay is being created for.
  */
-export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void {
+function createLabelForMask(context: MaskLabelManagerContext, mask: MaskObject): void {
     const { canvas, options, fabric: fabricModule } = context;
     if (!canvas || !options.maskLabelOnSelect) return;
 
@@ -178,13 +130,7 @@ export function createLabelForMask(context: MaskLabelManagerContext, mask: MaskO
             }
         }
 
-        // the label is positioned by its top-left corner,
-        // so `originX: 'left'` and `originY: 'top'` MUST be set. The
-        // resolved `options.label.textOptions` already carries these via
-        // `core/default-options.ts`, but we re-assert them so the contract
-        // holds even if a caller bypassed `resolveOptions`. The user's
-        // textOptions can override font/fill/etc. but the origin is
-        // re-pinned afterwards because syncMaskLabel positions by top-left.
+        // Pin origins after user options because synchronization positions labels by top-left.
         const textOptions: Partial<FabricNS.TextProps> = {
             left: 0,
             top: 0,

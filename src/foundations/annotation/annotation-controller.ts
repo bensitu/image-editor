@@ -1,3 +1,9 @@
+/**
+ * Coordinates Annotation feature registration, authoring sessions, Overlay persistence, metadata, and state.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {
@@ -541,7 +547,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             );
             registrations.push(
                 this.overlay.registerGeometryPolicy({
-                    id: `${normalizedDefinition.ownerPluginId}:geometry`,
+                    id: `${normalizedDefinition.kind}-geometry`,
                     kind: normalizedDefinition.kind,
                     ownerPluginId: normalizedDefinition.ownerPluginId,
                     supports: (mutation) =>
@@ -566,7 +572,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             );
             registrations.push(
                 this.overlay.registerExportRenderer({
-                    id: `${normalizedDefinition.ownerPluginId}:export`,
+                    id: `${normalizedDefinition.kind}-export`,
                     kind: normalizedDefinition.kind,
                     ownerPluginId: normalizedDefinition.ownerPluginId,
                     order: 200,
@@ -588,7 +594,7 @@ export class AnnotationController implements AnnotationPluginApi, AnnotationAuth
             );
             registrations.push(
                 this.overlay.registerInteractionPolicy({
-                    id: `${normalizedDefinition.ownerPluginId}:interaction`,
+                    id: `${normalizedDefinition.kind}-interaction`,
                     kind: normalizedDefinition.kind,
                     ownerPluginId: normalizedDefinition.ownerPluginId,
                     synchronize: (object, context) => {

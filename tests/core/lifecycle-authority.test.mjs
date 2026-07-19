@@ -29,7 +29,7 @@ function createCore(injectedFabric = fabric) {
 
 function lifecycleProbePlugin(onInit) {
     return {
-        ref: definePluginRef(`example.test/lifecycle-${crypto.randomUUID()}`, '1.0.0'),
+        ref: definePluginRef(`example-test:lifecycle-${crypto.randomUUID()}`, '1.0.0'),
         version: '1.0.0',
         setupMode: 'sync',
         setup: () => Object.freeze({}),

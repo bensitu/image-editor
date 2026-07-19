@@ -45,7 +45,7 @@ function snapshotWith(data) {
         schema: 'image-editor.state',
         version: 3,
         core: {},
-        plugins: { 'example.test/payload': { version: 1, data } },
+        plugins: { 'example-test:payload': { version: 1, data } },
     };
 }
 
@@ -199,8 +199,8 @@ test('Snapshot limits reject resource, structure, image, and source attacks', as
                 version: 3,
                 core: {},
                 plugins: {
-                    'example.test/one': { version: 1, data: {} },
-                    'example.test/two': { version: 1, data: {} },
+                    'example-test:one': { version: 1, data: {} },
+                    'example-test:two': { version: 1, data: {} },
                 },
             }),
             /plugin count exceeds/i,
@@ -251,7 +251,7 @@ test('Snapshot limits reject resource, structure, image, and source attacks', as
 test('Snapshot rejects an installed Slice version mismatch before mutation', async () => {
     const { snapshots, slices } = createSnapshotHarness();
     slices.register({
-        id: 'example.test/payload',
+        id: 'example-test:payload',
         version: 2,
         capture: () => ({}),
         validate: valid,
@@ -291,17 +291,17 @@ test('Snapshot rejects missing Overlay codecs and persistent ID collisions', asy
             const overlayKey = Object.keys(snapshot.plugins).find((key) => /overlay/.test(key));
             assert.ok(overlayKey);
             const record = {
-                kind: 'example.test/missing-codec',
+                kind: 'example-test:missing-codec',
                 persistentId: 'duplicate',
                 hidden: false,
                 locked: false,
-                codec: { type: 'example.test/missing-codec', version: '1.0.0' },
+                codec: { type: 'example-test:missing-codec', version: '1.0.0' },
                 data: {},
             };
             snapshot.plugins[overlayKey].data.overlays =
                 attack === 'missing-codec'
                     ? [record]
-                    : [record, { ...record, kind: 'example.test/another-missing-codec' }];
+                    : [record, { ...record, kind: 'example-test:another-missing-codec' }];
 
             await assert.rejects(editor.loadFromState(snapshot), (error) => {
                 assert.equal(error instanceof SnapshotValidationError, true);

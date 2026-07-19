@@ -1,4 +1,8 @@
-/** Errors raised by the renderer-neutral Core runtime. */
+/**
+ * Errors raised by the renderer-neutral Core runtime.
+ *
+ * @module
+ */
 
 export type CoreErrorBehavior =
     | 'recoverable-object'

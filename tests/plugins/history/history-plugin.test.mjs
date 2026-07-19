@@ -164,7 +164,7 @@ test('failed transforms create zero records while successful recovery remains un
 
 test('undo and redo failures rollback the attempted restore and keep the pointer unchanged', async () => {
     let failNextRestore = false;
-    const failureRef = definePluginRef('example.test/history-restore-failure', '1.0.0');
+    const failureRef = definePluginRef('example-test:history-restore-failure', '1.0.0');
     const stateFailure = {
         install(editor) {
             editor.use({

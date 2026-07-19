@@ -1,3 +1,9 @@
+/**
+ * Declares state slices, mementos, snapshots, migrations, restore modes, and warnings.
+ *
+ * @module
+ */
+
 import type { MaybePromise } from '../../plugin-kernel/disposable.js';
 
 export type StateCaptureMode = 'memento' | 'snapshot';

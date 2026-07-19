@@ -1,4 +1,8 @@
-/** Public deterministic helpers for Plugin contract testing. */
+/**
+ * Public deterministic helpers for Plugin contract testing.
+ *
+ * @module
+ */
 
 export {
     createControlledImageDecoder,

@@ -1,3 +1,8 @@
+/**
+ * Publishes the Overlay State Plugin factory, wire contracts, validation limits, and errors.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { OverlayStatePluginApi, OverlayStatePluginOptions } from './overlay-state-types.js';

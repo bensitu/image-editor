@@ -1,3 +1,9 @@
+/**
+ * Publishes the Mask Plugin factory, options, API, and selected mask contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     CANVAS_READ_CAPABILITY,
@@ -24,7 +30,7 @@ import {
     type MaskPluginOptions,
 } from './mask-controller.js';
 
-export const maskPluginRef = definePluginRef<MaskPluginApi>('@bensitu/mask', '1.0.0');
+export const maskPluginRef = definePluginRef<MaskPluginApi>('plugin:mask', '1.0.0');
 
 export function maskPlugin(
     options: MaskPluginOptions = {},

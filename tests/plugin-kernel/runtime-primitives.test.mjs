@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
     CommittedEventBus,
+    InvalidPluginDefinitionError,
     OperationConflictError,
     OperationRegistrationError,
     OperationRegistry,
@@ -12,42 +13,85 @@ import {
     ToolTransitionError,
 } from '../../src/plugin-kernel/index.js';
 
-test('OperationRegistry supports open ids, ownership, reentrancy guards, and disposal', () => {
-    const registry = new OperationRegistry();
-    const registration = registry.register(
-        {
-            id: 'third-party.example/analyze',
-            mode: 'busy',
-            conflictDomains: ['document'],
-            reentrancy: 'reject',
-        },
-        'plugin.owner',
-    );
-
-    assert.equal(registry.get('third-party.example/analyze')?.mode, 'busy');
+test('runtime registries reject identifiers outside namespace:kebab-case', () => {
+    const operations = new OperationRegistry();
     assert.throws(
         () =>
-            registry.register(
+            operations.register(
                 {
-                    id: 'third-party.example/analyze',
+                    id: 'invalid.operation',
                     mode: 'busy',
                     conflictDomains: ['document'],
                     reentrancy: 'reject',
                 },
-                'plugin.other',
+                'plugin:owner',
             ),
         OperationRegistrationError,
     );
     assert.throws(
-        () => registry.begin('third-party.example/analyze', 'plugin.other'),
+        () =>
+            operations.register(
+                {
+                    id: 'test:operation',
+                    mode: 'busy',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                },
+                'plugin.owner',
+            ),
+        OperationRegistrationError,
+    );
+
+    const tools = new ToolCoordinator();
+    assert.throws(
+        () =>
+            tools.register(
+                { id: 'invalid/tool', enter: () => undefined, exit: () => undefined },
+                'plugin:owner',
+            ),
+        ToolRegistrationError,
+    );
+
+    const events = new CommittedEventBus();
+    assert.throws(() => events.on('invalid.event', () => undefined), InvalidPluginDefinitionError);
+});
+
+test('OperationRegistry supports open ids, ownership, reentrancy guards, and disposal', () => {
+    const registry = new OperationRegistry();
+    const registration = registry.register(
+        {
+            id: 'third-party-example:analyze',
+            mode: 'busy',
+            conflictDomains: ['document'],
+            reentrancy: 'reject',
+        },
+        'plugin:owner',
+    );
+
+    assert.equal(registry.get('third-party-example:analyze')?.mode, 'busy');
+    assert.throws(
+        () =>
+            registry.register(
+                {
+                    id: 'third-party-example:analyze',
+                    mode: 'busy',
+                    conflictDomains: ['document'],
+                    reentrancy: 'reject',
+                },
+                'plugin:other',
+            ),
+        OperationRegistrationError,
+    );
+    assert.throws(
+        () => registry.begin('third-party-example:analyze', 'plugin:other'),
         OperationConflictError,
     );
 
-    const token = registry.begin('third-party.example/analyze', 'plugin.owner');
+    const token = registry.begin('third-party-example:analyze', 'plugin:owner');
     assert.equal(token.active, true);
-    assert.equal(registry.isActive('third-party.example/analyze'), true);
+    assert.equal(registry.isActive('third-party-example:analyze'), true);
     assert.throws(
-        () => registry.begin('third-party.example/analyze', 'plugin.owner'),
+        () => registry.begin('third-party-example:analyze', 'plugin:owner'),
         OperationConflictError,
     );
     token.dispose();
@@ -56,9 +100,9 @@ test('OperationRegistry supports open ids, ownership, reentrancy guards, and dis
     assert.equal(registry.isActive(), false);
 
     registration.dispose();
-    assert.equal(registry.get('third-party.example/analyze'), null);
+    assert.equal(registry.get('third-party-example:analyze'), null);
     registry.dispose();
-    assert.throws(() => registry.get('third-party.example/analyze'), PluginKernelDisposedError);
+    assert.throws(() => registry.get('third-party-example:analyze'), PluginKernelDisposedError);
 });
 
 test('ToolCoordinator switches tools in order and applies operation policy', async () => {
@@ -66,30 +110,30 @@ test('ToolCoordinator switches tools in order and applies operation policy', asy
     const coordinator = new ToolCoordinator();
     coordinator.register(
         {
-            id: 'third-party.example/first',
+            id: 'third-party-example:first',
             enter: () => calls.push('first:enter'),
             exit: (reason) => calls.push(`first:exit:${reason}`),
-            canRunOperation: (operationId) => operationId === 'allowed',
+            canRunOperation: (operationId) => operationId === 'test:allowed',
         },
-        'plugin.first',
+        'plugin:first',
     );
     coordinator.register(
         {
-            id: 'third-party.example/second',
+            id: 'third-party-example:second',
             enter: async () => {
                 await Promise.resolve();
                 calls.push('second:enter');
             },
             exit: (reason) => calls.push(`second:exit:${reason}`),
         },
-        'plugin.second',
+        'plugin:second',
     );
 
-    await coordinator.enter('third-party.example/first', 'plugin.first');
-    assert.equal(coordinator.canRunOperation('allowed'), true);
-    assert.equal(coordinator.canRunOperation('blocked'), false);
-    await coordinator.enter('third-party.example/second', 'plugin.second');
-    assert.equal(coordinator.getActiveToolId(), 'third-party.example/second');
+    await coordinator.enter('third-party-example:first', 'plugin:first');
+    assert.equal(coordinator.canRunOperation('test:allowed'), true);
+    assert.equal(coordinator.canRunOperation('test:blocked'), false);
+    await coordinator.enter('third-party-example:second', 'plugin:second');
+    assert.equal(coordinator.getActiveToolId(), 'third-party-example:second');
     assert.deepEqual(calls, ['first:enter', 'first:exit:switch', 'second:enter']);
     await coordinator.exit('requested');
     assert.equal(coordinator.getActiveToolId(), null);
@@ -100,29 +144,29 @@ test('ToolCoordinator rejects duplicates and failed enter never leaves active st
     const coordinator = new ToolCoordinator();
     coordinator.register(
         {
-            id: 'third-party.example/failing-enter',
+            id: 'third-party-example:failing-enter',
             enter: () => {
                 throw new Error('enter failed');
             },
             exit: () => undefined,
         },
-        'plugin.owner',
+        'plugin:owner',
     );
     assert.throws(
         () =>
             coordinator.register(
                 {
-                    id: 'third-party.example/failing-enter',
+                    id: 'third-party-example:failing-enter',
                     enter: () => undefined,
                     exit: () => undefined,
                 },
-                'plugin.other',
+                'plugin:other',
             ),
         ToolRegistrationError,
     );
 
     await assert.rejects(
-        coordinator.enter('third-party.example/failing-enter', 'plugin.owner'),
+        coordinator.enter('third-party-example:failing-enter', 'plugin:owner'),
         ToolTransitionError,
     );
     assert.equal(coordinator.getActiveToolId(), null);
@@ -133,15 +177,15 @@ test('ToolCoordinator clears active state and reports failed exits', async () =>
     const coordinator = new ToolCoordinator({ errorSink: (error) => errors.push(error) });
     coordinator.register(
         {
-            id: 'third-party.example/failing-exit',
+            id: 'third-party-example:failing-exit',
             enter: () => undefined,
             exit: () => {
                 throw new Error('exit failed');
             },
         },
-        'plugin.owner',
+        'plugin:owner',
     );
-    await coordinator.enter('third-party.example/failing-exit', 'plugin.owner');
+    await coordinator.enter('third-party-example:failing-exit', 'plugin:owner');
     await assert.rejects(coordinator.exit(), ToolTransitionError);
     assert.equal(coordinator.getActiveToolId(), null);
     assert.equal(errors.length, 1);
@@ -152,18 +196,18 @@ test('disposing an active tool registration exits it before removal', async () =
     const coordinator = new ToolCoordinator();
     const registration = coordinator.register(
         {
-            id: 'third-party.example/disposable',
+            id: 'third-party-example:disposable',
             enter: () => undefined,
             exit: (reason) => reasons.push(reason),
         },
-        'plugin.owner',
+        'plugin:owner',
     );
-    await coordinator.enter('third-party.example/disposable', 'plugin.owner');
+    await coordinator.enter('third-party-example:disposable', 'plugin:owner');
     await registration.dispose();
     assert.deepEqual(reasons, ['plugin-dispose']);
     assert.equal(coordinator.getActiveToolId(), null);
     await assert.rejects(
-        coordinator.enter('third-party.example/disposable', 'plugin.owner'),
+        coordinator.enter('third-party-example:disposable', 'plugin:owner'),
         ToolTransitionError,
     );
     await coordinator.dispose();
@@ -174,25 +218,25 @@ test('CommittedEventBus preserves registration order and isolates listener failu
     const calls = [];
     const warnings = [];
     const bus = new CommittedEventBus({ warningSink: (warning) => warnings.push(warning) });
-    const first = bus.on('committed', async (payload) => {
+    const first = bus.on('test:committed', async (payload) => {
         await Promise.resolve();
         calls.push(`first:${payload}`);
     });
-    bus.on('committed', () => {
+    bus.on('test:committed', () => {
         calls.push('second:throw');
         throw new Error('listener failed');
     });
-    bus.on('committed', (payload) => calls.push(`third:${payload}`));
+    bus.on('test:committed', (payload) => calls.push(`third:${payload}`));
 
-    await bus.emitCommitted('committed', 'one');
+    await bus.emitCommitted('test:committed', 'one');
     assert.deepEqual(calls, ['first:one', 'second:throw', 'third:one']);
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].code, 'COMMITTED_EVENT_LISTENER_FAILED');
 
     first.dispose();
     calls.length = 0;
-    await bus.emitCommitted('committed', 'two');
+    await bus.emitCommitted('test:committed', 'two');
     assert.deepEqual(calls, ['second:throw', 'third:two']);
     bus.dispose();
-    await assert.rejects(bus.emitCommitted('committed', 'three'), PluginKernelDisposedError);
+    await assert.rejects(bus.emitCommitted('test:committed', 'three'), PluginKernelDisposedError);
 });

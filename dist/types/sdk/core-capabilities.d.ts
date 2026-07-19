@@ -1,3 +1,8 @@
+/**
+ * Publishes typed Core Capability ports and their stable Runtime tokens for Plugin authors.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import type { CoreExportContributor, CoreHistoryCommitPort, CoreImageInfo, CoreMemento, DocumentMutationContext, DocumentMutationPort, FabricModule, GeometryMutationPort, LayoutMode, MementoRestoreOptions, ObjectPropertyRegistration, StateSliceDefinition, TransientObjectPredicate } from '../core/contracts.js';
 import type { Disposable } from '../plugin-kernel/disposable.js';

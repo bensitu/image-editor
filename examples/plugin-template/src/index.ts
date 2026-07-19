@@ -28,10 +28,7 @@ export interface StatusPluginOptions {
 
 const defaultConfiguration: StatusPluginConfiguration = Object.freeze({ label: 'Editor' });
 
-export const statusPluginRef = definePluginRef<StatusPluginApi>(
-    '@example/image-editor-status-plugin',
-    '1.0.0',
-);
+export const statusPluginRef = definePluginRef<StatusPluginApi>('example:status-plugin', '1.0.0');
 
 function validateConfiguration(value: StatusPluginConfiguration): StatusPluginConfiguration {
     if (typeof value.label !== 'string' || value.label.trim().length === 0) {

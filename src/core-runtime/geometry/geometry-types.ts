@@ -1,3 +1,9 @@
+/**
+ * Declares geometry mutation requests, participant contracts, snapshots, and diagnostics.
+ *
+ * @module
+ */
+
 import type { Disposable, MaybePromise } from '../../plugin-kernel/disposable.js';
 import type { DocumentMutationContext } from '../mutation/mutation-types.js';
 import type { AffineMatrix, Rect } from './affine-matrix.js';

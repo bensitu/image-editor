@@ -1,3 +1,8 @@
+/**
+ * Owns Plugin installation resources through commit, rollback, and disposal.
+ *
+ * @module
+ */
 import { type Disposable } from './disposable.js';
 import type { PluginErrorSink, PluginWarningSink } from './reporting.js';
 export interface RegistrationScopeOptions {

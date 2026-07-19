@@ -19,20 +19,6 @@ export function isAnnotationObject(object) {
         typeof candidate.annotationType === 'string' &&
         typeof candidate.annotationName === 'string');
 }
-export function isTextAnnotationObject(object) {
-    return isAnnotationObject(object) && object.annotationType === 'text';
-}
-export function isDrawAnnotationObject(object) {
-    return isAnnotationObject(object) && object.annotationType === 'draw';
-}
-export function isShapeAnnotationObject(object) {
-    const candidate = object;
-    return (isAnnotationObject(candidate) &&
-        candidate.annotationType === 'shape' &&
-        (candidate.shapeAnnotationKind === 'rect' ||
-            candidate.shapeAnnotationKind === 'line' ||
-            candidate.shapeAnnotationKind === 'arrow'));
-}
 export function isSessionObject(object) {
     const candidate = object;
     return (!!candidate &&

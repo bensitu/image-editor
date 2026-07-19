@@ -1,3 +1,9 @@
+/**
+ * Coordinates transactional Filter preview, commit, clear, bake, configuration, and state.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {

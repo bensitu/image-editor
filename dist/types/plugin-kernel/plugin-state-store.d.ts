@@ -1,3 +1,8 @@
+/**
+ * Isolates mutable Plugin state within installation-owned namespaces.
+ *
+ * @module
+ */
 import { type Disposable } from './disposable.js';
 export interface ScopedPluginStateStore {
     has(key: string): boolean;

@@ -1,3 +1,9 @@
+/**
+ * Publishes the History Capability, Plugin factory, records, options, and API contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap, CoreHistoryRecord } from '../../core/index.js';
 import {
     CORE_DIAGNOSTICS_CAPABILITY,
@@ -14,8 +20,8 @@ import {
     type HistoryPort,
 } from './history-controller.js';
 
-export const HISTORY_CAPABILITY = createCapabilityToken<HistoryPort>('plugin.history', '1.0.0');
-export const historyPluginRef = definePluginRef<HistoryPort>('@bensitu/history', '1.0.0');
+export const HISTORY_CAPABILITY = createCapabilityToken<HistoryPort>('plugin:history', '1.0.0');
+export const historyPluginRef = definePluginRef<HistoryPort>('plugin:history', '1.0.0');
 
 export function historyPlugin(
     options: HistoryPluginOptions = {},

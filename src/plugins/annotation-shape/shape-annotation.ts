@@ -1,3 +1,9 @@
+/**
+ * Declares Shape Annotation geometry, styling, session, configuration, and Plugin API contracts.
+ *
+ * @module
+ */
+
 import type { AnnotationId, AnnotationMetadata } from '../../foundations/annotation/index.js';
 
 export type ShapeAnnotationKind = 'rect' | 'line' | 'arrow';

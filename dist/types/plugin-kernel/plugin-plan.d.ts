@@ -1,3 +1,8 @@
+/**
+ * Builds typed Plugin Plans and resolves installed APIs from nested plan inputs.
+ *
+ * @module
+ */
 import type { PluginRef } from './plugin-ref.js';
 import type { EditorPlugin } from './plugin-types.js';
 declare const pluginPlanDefinition: unique symbol;

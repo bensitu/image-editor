@@ -1,3 +1,8 @@
+/**
+ * Normalizes Crop rectangles and aspect ratios and computes bounded rectangle intersections.
+ *
+ * @module
+ */
 export interface CropRect {
     readonly leftPx: number;
     readonly topPx: number;

@@ -35,7 +35,7 @@ import { forceReflow } from '../utils/dom.js';
  * Discriminator for the active layout strategy. Exactly one value is
  * returned by {@link selectLayoutStrategy} per `loadImage` call.
  */
-export type LayoutStrategy = LayoutMode;
+type LayoutStrategy = LayoutMode;
 
 /**
  * Choose the active layout strategy from the current layout mode.
@@ -54,15 +54,13 @@ export function selectLayoutStrategy(mode: LayoutMode): LayoutStrategy {
  * treats any axis of `0` as "hidden" and falls back to a cached or
  * default value.
  */
-export interface ViewportSize {
+interface ViewportSize {
     width: number;
     height: number;
 }
 
 /** Native scrollbar gutter size in CSS pixels. */
-export type ScrollbarSize = ViewportSize;
-
-export type OverflowAxis = 'horizontal' | 'vertical';
+type ScrollbarSize = ViewportSize;
 
 /**
  * Hidden-container viewport cache.
@@ -146,7 +144,7 @@ export class ViewportCache {
  * editor's anchor scale used when computing zoom factors — see
  * `image/transform-controller.ts` for how it is consumed.
  */
-export interface LayoutResult {
+interface LayoutResult {
     canvasWidth: number;
     canvasHeight: number;
     imageScale: number;

@@ -1,11 +1,11 @@
 'use strict';
 
-var coreCapabilities = require('../chunks/core-capabilities-3osq1B3M.cjs');
-var visibleRasterBake = require('../chunks/visible-raster-bake-Ci8VnO_S.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-Cap1WbD8.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-D7bZJOAO.cjs');
+var visibleRasterBake = require('../chunks/visible-raster-bake-DPzjbmmo.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-BONtSGqw.cjs');
 var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginDefinition = require('../chunks/plugin-definition-Zpkh5kaP.cjs');
-var pluginPlan = require('../chunks/plugin-plan-4bgXTnNS.cjs');
+var pluginDefinition = require('../chunks/plugin-definition-BY3aZxqL.cjs');
+var pluginPlan = require('../chunks/plugin-plan-DhlAucLr.cjs');
 
 
 
@@ -44,6 +44,7 @@ exports.PluginPermissionError = pluginManifest.PluginPermissionError;
 exports.PluginSetupError = pluginManifest.PluginSetupError;
 exports.createCapabilityToken = pluginManifest.createCapabilityToken;
 exports.definePluginRef = pluginManifest.definePluginRef;
+exports.isRuntimeIdentifier = pluginManifest.isRuntimeIdentifier;
 exports.isValidSemVer = pluginManifest.isValidSemVer;
 exports.validatePluginManifest = pluginManifest.validatePluginManifest;
 exports.createDisposable = disposable.createDisposable;

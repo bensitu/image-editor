@@ -9,7 +9,7 @@ test('Overlay State round-trips an image-normalized document in the browser', as
         schema: 'image-editor.overlay-state',
         version: 1,
         coordinateSpace: 'image-normalized',
-        kind: 'mask',
+        kind: 'mask:object',
         countAfterRemoval: 0,
         imported: 1,
         skipped: 0,

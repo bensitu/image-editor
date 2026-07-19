@@ -1,3 +1,9 @@
+/**
+ * Coordinates Crop sessions, Overlay previews, raster commits, cancellation, and rollback.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { GeometryMutationPort } from '../../core/index.js';

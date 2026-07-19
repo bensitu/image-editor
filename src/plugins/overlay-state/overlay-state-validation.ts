@@ -1,3 +1,11 @@
+/**
+ * Validates Overlay State wire documents against structural and resource limits.
+ *
+ * @module
+ */
+
+import { isRuntimeIdentifier } from '../../sdk/index.js';
+
 import {
     OVERLAY_STATE_COORDINATE_SPACE,
     OVERLAY_STATE_SCHEMA,
@@ -26,7 +34,6 @@ export const DEFAULT_OVERLAY_STATE_LIMITS: OverlayStateLimits = Object.freeze({
     maxPathCommands: 100_000,
 });
 
-const IDENTIFIER_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/;
 const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const SEMVER_PATTERN =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -333,7 +340,7 @@ function validIdentifier(
         typeof value !== 'string' ||
         value.length === 0 ||
         value.length > limits.maxIdentifierLength ||
-        !(persistent ? PERSISTENT_ID_PATTERN : IDENTIFIER_PATTERN).test(value)
+        !(persistent ? PERSISTENT_ID_PATTERN.test(value) : isRuntimeIdentifier(value))
     ) {
         addIssue(issues, 'identifier.invalid', path, 'Identifier is invalid.');
         return false;

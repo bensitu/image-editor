@@ -93,18 +93,13 @@ export type ErrorCallbackHost = Pick<ResolvedOptions, 'onError'>;
  */
 export function reportWarning(options: WarningCallbackHost, error: unknown, message: string): void {
     const warningCallback = options.onWarning;
-    // The default-options resolver coerces non-functions to `null`, but we
-    // re-check at the call site so this helper is safe to call even if a
-    // pipeline module is invoked outside the orchestrator's normal lifecycle.
+    // Validate at this boundary because partial hosts may omit or replace the optional callback.
     if (typeof warningCallback !== 'function') return;
 
     try {
         warningCallback(error, message);
     } catch (callbackError) {
-        // catch and log without changing editor state.
-        // We do NOT rethrow the callback's error: doing so would convert a
-        // recoverable warning into a hard failure inside whatever pipeline
-        // happened to be running.
+        // Warning callbacks are observational; their failures must not alter pipeline control flow.
         console.warn('[ImageEditor] onWarning callback threw', callbackError);
     }
 }

@@ -1,3 +1,9 @@
+/**
+ * Composes the Minimal preset and publishes its options, optional History, and installed APIs.
+ *
+ * @module
+ */
+
 import {
     ImageEditorCore,
     type FabricModule,

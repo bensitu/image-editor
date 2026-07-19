@@ -1,3 +1,9 @@
+/**
+ * Validates and freezes synchronous or asynchronous Plugin definitions for installation.
+ *
+ * @module
+ */
+
 import { InvalidPluginDefinitionError } from '../plugin-kernel/errors.js';
 import { isPluginRef } from '../plugin-kernel/plugin-ref.js';
 import type { EditorPlugin, SynchronousEditorPlugin } from '../plugin-kernel/plugin-types.js';

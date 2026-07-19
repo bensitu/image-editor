@@ -2,10 +2,10 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-Ci8VnO_S.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DPzjbmmo.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 class CropError extends Error {
@@ -898,7 +898,7 @@ const cropMutationDomains = [
     'selection',
     'state',
 ];
-const cropPluginRef = pluginManifest.definePluginRef('@bensitu/crop', '1.0.0');
+const cropPluginRef = pluginManifest.definePluginRef('plugin:crop', '1.0.0');
 function cropPlugin(options = {}) {
     const configuration = resolveCropConfiguration(options);
     let controller = null;

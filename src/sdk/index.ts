@@ -1,4 +1,8 @@
-/** Public Plugin authoring contracts and runtime factories. */
+/**
+ * Public Plugin authoring contracts and runtime factories.
+ *
+ * @module
+ */
 
 export * from './core-capabilities.js';
 export * from './visible-raster-bake.js';
@@ -14,6 +18,7 @@ export {
     type Disposable,
     type MaybePromise,
 } from '../plugin-kernel/disposable.js';
+export { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
 export { isValidSemVer } from '../plugin-kernel/semver.js';
 export {
     CapabilityConflictError,

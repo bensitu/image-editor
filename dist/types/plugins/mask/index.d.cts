@@ -1,3 +1,8 @@
+/**
+ * Publishes the Mask Plugin factory, options, API, and selected mask contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import { type MaskPluginApi, type MaskPluginOptions } from './mask-controller.js';

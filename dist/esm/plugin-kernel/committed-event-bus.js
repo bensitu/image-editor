@@ -1,6 +1,7 @@
 import { createDisposable } from './disposable.js';
-import { PluginKernelDisposedError } from './errors.js';
+import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
 import { reportWarningSafely } from './reporting.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 export class CommittedEventBus {
     constructor(options = {}) {
         Object.defineProperty(this, "options", {
@@ -24,6 +25,7 @@ export class CommittedEventBus {
     }
     on(eventName, listener) {
         this.assertActive('register a committed event listener');
+        this.assertEventName(eventName);
         let eventListeners = this.listeners.get(eventName);
         if (!eventListeners) {
             eventListeners = [];
@@ -45,6 +47,7 @@ export class CommittedEventBus {
     async emitCommitted(eventName, payload) {
         var _a, _b;
         this.assertActive('emit a committed event');
+        this.assertEventName(eventName);
         const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
         for (let index = 0; index < snapshot.length; index += 1) {
             try {
@@ -63,8 +66,10 @@ export class CommittedEventBus {
     listenerCount(eventName) {
         var _a, _b;
         this.assertActive('inspect committed event listeners');
-        if (eventName)
+        if (eventName) {
+            this.assertEventName(eventName);
             return (_b = (_a = this.listeners.get(eventName)) === null || _a === void 0 ? void 0 : _a.length) !== null && _b !== void 0 ? _b : 0;
+        }
         let count = 0;
         for (const listeners of this.listeners.values())
             count += listeners.length;
@@ -79,6 +84,11 @@ export class CommittedEventBus {
     assertActive(operation) {
         if (this.disposed)
             throw new PluginKernelDisposedError(operation);
+    }
+    assertEventName(eventName) {
+        if (!isRuntimeIdentifier(eventName)) {
+            throw new InvalidPluginDefinitionError('Committed event name must match "namespace:kebab-case".');
+        }
     }
 }
 //# sourceMappingURL=committed-event-bus.js.map

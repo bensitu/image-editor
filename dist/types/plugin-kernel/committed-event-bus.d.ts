@@ -1,3 +1,8 @@
+/**
+ * Publishes committed runtime events while isolating listener failures.
+ *
+ * @module
+ */
 import { type Disposable, type MaybePromise } from './disposable.js';
 import { type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 export type PluginEventMap = Record<string, unknown>;
@@ -16,4 +21,5 @@ export declare class CommittedEventBus<TEvents extends object = PluginEventMap> 
     listenerCount(eventName?: keyof TEvents & string): number;
     dispose(): void;
     private assertActive;
+    private assertEventName;
 }

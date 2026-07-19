@@ -1,5 +1,6 @@
 import { createDisposable } from './disposable.js';
 import { InvalidPluginDefinitionError, PluginKernelDisposedError } from './errors.js';
+import { assertPluginIdentifier } from './plugin-identifier.js';
 function assertStateKey(key) {
     if (key.trim().length === 0 || key.trim() !== key) {
         throw new InvalidPluginDefinitionError('Plugin state keys must be non-empty trimmed strings.');
@@ -28,6 +29,7 @@ export class PluginStateStore {
     }
     createScoped(pluginId, registerCleanup, registerFinalizer, isScopeActive) {
         this.assertActive('create plugin state');
+        assertPluginIdentifier(pluginId, 'Plugin state owner id');
         if (this.activePluginIds.has(pluginId)) {
             throw new InvalidPluginDefinitionError(`Plugin state scope "${pluginId}" is already active.`, pluginId);
         }

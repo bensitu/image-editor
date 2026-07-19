@@ -1,3 +1,8 @@
+/**
+ * Publishes the Mosaic Plugin factory, session contracts, geometry helpers, and errors.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { MosaicPluginApi, MosaicPluginOptions } from './mosaic-session.js';

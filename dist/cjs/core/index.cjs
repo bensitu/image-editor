@@ -2,11 +2,11 @@
 
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
-var pluginManifest = require('../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginPlan = require('../chunks/plugin-plan-4bgXTnNS.cjs');
+var pluginManifest = require('../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginPlan = require('../chunks/plugin-plan-DhlAucLr.cjs');
 var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManager = require('../chunks/plugin-manager-C4krd9Vr.cjs');
-var coreCapabilities = require('../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManager = require('../chunks/plugin-manager-DNf8QQ99.cjs');
+var coreCapabilities = require('../chunks/core-capabilities-D7bZJOAO.cjs');
 
 function forceReflow(element) {
     if (!element)
@@ -404,7 +404,7 @@ class CanvasCoreStateAdapter {
             return {
                 valid: false,
                 message: 'geometryRevision must be a non-negative integer.',
-                path: '$.core.geometryRevision',
+                path: '$.core:geometryRevision',
             };
         }
         if (!value.initialized) {
@@ -544,11 +544,11 @@ class ExportContributorRegistry {
     }
     register(owner, contributor) {
         this.assertActive('register an export contributor');
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Export contributor owner must be non-empty.');
+        if (!pluginManifest.isRuntimeIdentifier(owner)) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Export contributor owner must match "namespace:kebab-case".');
         }
-        if (contributor.id.trim().length === 0 || contributor.id.trim() !== contributor.id) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Export contributor id must be non-empty.');
+        if (!pluginManifest.isRuntimeIdentifier(contributor.id)) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Export contributor id must match "namespace:kebab-case".');
         }
         if (!Number.isFinite(contributor.order)) {
             throw new errors.CoreRuntimeError(`[ImageEditor] Export contributor "${contributor.id}" must use a finite order.`);
@@ -1107,8 +1107,8 @@ class HistoryCommitRouter {
         });
     }
     register(owner, provider) {
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
-            throw new errors.CoreRuntimeError('[ImageEditor] History provider owner must be non-empty.');
+        if (!pluginManifest.isRuntimeIdentifier(owner)) {
+            throw new errors.CoreRuntimeError('[ImageEditor] History provider owner must match "namespace:kebab-case".');
         }
         if (this.owner) {
             throw new errors.CoreRuntimeError(`[ImageEditor] History commit provider is already registered by "${this.owner}".`);
@@ -1137,7 +1137,7 @@ class HistoryCommitRouter {
     }
 }
 
-const CORE_ENVIRONMENT_CAPABILITY = pluginManifest.createCapabilityToken('core.environment', '1.0.0');
+const CORE_ENVIRONMENT_CAPABILITY = pluginManifest.createCapabilityToken('core:environment', '1.0.0');
 
 const ALLOWED_TRANSITIONS = {
     configured: ['initializing', 'disposing'],
@@ -1939,7 +1939,9 @@ class ObjectPropertyRegistry {
     }
     register(registration) {
         this.assertActive();
-        assertIdentifier(registration.owner, 'Object property owner');
+        if (!pluginManifest.isRuntimeIdentifier(registration.owner)) {
+            throw new errors.StateRegistrationError('Object property owner must match "namespace:kebab-case".', registration.owner);
+        }
         if (registration.keys.length === 0) {
             throw new errors.StateRegistrationError(`Object property registration for "${registration.owner}" must include a key.`);
         }
@@ -2496,7 +2498,7 @@ class SnapshotService {
         }
         const plugins = Object.create(null);
         for (const [id, entry] of entries) {
-            if (id.trim().length === 0 || isDangerousStateKey(id)) {
+            if (!pluginManifest.isRuntimeIdentifier(id) || isDangerousStateKey(id)) {
                 throw new errors.SnapshotValidationError('plugin id is invalid.', `$.plugins.${id}`);
             }
             if (!isRecord(entry) ||
@@ -2519,10 +2521,9 @@ class SnapshotService {
     }
 }
 
-const sliceIdPattern = /^@?[a-z0-9][a-z0-9._:/@-]*$/i;
 function assertDefinition(definition) {
-    if (!sliceIdPattern.test(definition.id) || definition.id.trim() !== definition.id) {
-        throw new errors.StateRegistrationError('State slice ids must be non-empty, trimmed, and namespace-safe.', definition.id);
+    if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
+        throw new errors.StateRegistrationError('State slice id must match "namespace:kebab-case".', definition.id);
     }
     if (!Number.isSafeInteger(definition.version) || definition.version <= 0) {
         throw new errors.StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);
@@ -2615,8 +2616,8 @@ class TransientObjectRegistry {
     }
     register(owner, predicate) {
         this.assertActive();
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
-            throw new errors.StateRegistrationError('Transient predicate owner must be non-empty and trimmed.');
+        if (!pluginManifest.isRuntimeIdentifier(owner)) {
+            throw new errors.StateRegistrationError('Transient predicate owner must match "namespace:kebab-case".');
         }
         if (typeof predicate !== 'function') {
             throw new errors.StateRegistrationError(`Transient predicate for "${owner}" must be a function.`);
@@ -2873,7 +2874,7 @@ class ImageEditorCore {
             this.reportWarning((_a = warning.details) === null || _a === void 0 ? void 0 : _a.cause, warning.message);
         });
         this.objectProperties.register({
-            owner: '@bensitu/core',
+            owner: 'core:host',
             keys: ['editorObjectKind'],
         });
         const stateAdapter = new CanvasCoreStateAdapter({

@@ -1,3 +1,8 @@
+/**
+ * Provides idempotent disposable primitives and reverse-order cleanup with error aggregation.
+ *
+ * @module
+ */
 import { type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 export type MaybePromise<T> = T | Promise<T>;
 export interface Disposable {

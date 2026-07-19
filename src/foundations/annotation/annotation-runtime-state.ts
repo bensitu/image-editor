@@ -1,3 +1,9 @@
+/**
+ * Captures and restores Annotation interaction flags on Fabric objects.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { AnnotationMetadata } from './annotation-definition.js';

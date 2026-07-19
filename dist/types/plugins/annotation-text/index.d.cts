@@ -1,3 +1,8 @@
+/**
+ * Publishes the Text Annotation Plugin factory and editing contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { TextAnnotationPluginApi, TextAnnotationPluginOptions } from './text-annotation.js';

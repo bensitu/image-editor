@@ -61,9 +61,9 @@ type MarkedRegion = FabricNS.Rect & {
     referenceBlurRegionId?: string;
 };
 
-const regionKind = '@bensitu/reference-blur-region/preview';
-const operationId = 'reference.blur-region:commit';
-const toolId = 'reference.blur-region:tool';
+const regionKind = 'reference-blur-region:preview';
+const operationId = 'reference-blur-region:commit';
+const toolId = 'reference-blur-region:tool';
 const defaultConfiguration: BlurRegionConfiguration = Object.freeze({
     intensity: 12,
     previewFill: 'rgba(32, 128, 255, 0.18)',
@@ -71,7 +71,7 @@ const defaultConfiguration: BlurRegionConfiguration = Object.freeze({
 });
 
 export const blurRegionPluginRef = definePluginRef<BlurRegionPluginApi>(
-    '@bensitu/reference-blur-region',
+    'reference:blur-region',
     '1.0.0',
 );
 
@@ -205,7 +205,7 @@ export function createBlurRegionPlugin(
                         metadata: Object.freeze({ regionId: id }),
                         participants: [
                             {
-                                id: '@bensitu/reference-blur-region/prepare',
+                                id: 'reference-blur-region:prepare',
                                 order: 10,
                                 prepare: () => inject('prepare'),
                             },

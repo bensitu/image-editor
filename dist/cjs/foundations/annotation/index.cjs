@@ -2,9 +2,9 @@
 
 var foundations_overlay_index = require('../overlay/index.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 
 function isFiniteMatrix(matrix) {
@@ -645,7 +645,7 @@ class AnnotationController {
                     : {}),
             }));
             registrations.push(this.overlay.registerGeometryPolicy({
-                id: `${normalizedDefinition.ownerPluginId}:geometry`,
+                id: `${normalizedDefinition.kind}-geometry`,
                 kind: normalizedDefinition.kind,
                 ownerPluginId: normalizedDefinition.ownerPluginId,
                 supports: (mutation) => {
@@ -669,7 +669,7 @@ class AnnotationController {
                 },
             }));
             registrations.push(this.overlay.registerExportRenderer({
-                id: `${normalizedDefinition.ownerPluginId}:export`,
+                id: `${normalizedDefinition.kind}-export`,
                 kind: normalizedDefinition.kind,
                 ownerPluginId: normalizedDefinition.ownerPluginId,
                 order: 200,
@@ -689,7 +689,7 @@ class AnnotationController {
                 },
             }));
             registrations.push(this.overlay.registerInteractionPolicy({
-                id: `${normalizedDefinition.ownerPluginId}:interaction`,
+                id: `${normalizedDefinition.kind}-interaction`,
                 kind: normalizedDefinition.kind,
                 ownerPluginId: normalizedDefinition.ownerPluginId,
                 synchronize: (object, context) => {

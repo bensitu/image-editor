@@ -1,3 +1,9 @@
+/**
+ * Declares Crop configuration, Overlay policy, session, status, and Plugin API contracts.
+ *
+ * @module
+ */
+
 import type { Disposable, VisibleRasterBakeOptions } from '../../sdk/index.js';
 import type { CropAspectRatio, CropRect } from './crop-geometry.js';
 

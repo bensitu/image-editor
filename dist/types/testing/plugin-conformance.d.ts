@@ -1,3 +1,8 @@
+/**
+ * Runs the public Plugin conformance profile for lifecycle, rollback, state, permissions, and packaging.
+ *
+ * @module
+ */
 import { type EditorPlugin } from '../sdk/index.js';
 import type { ConformanceAssertionResult } from './conformance-types.js';
 import { type PluginTestCapabilityProvider } from './plugin-test-host.js';

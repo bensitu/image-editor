@@ -1,3 +1,8 @@
+/**
+ * Creates an instrumented Fabric namespace for detecting Plugin global mutations in tests.
+ *
+ * @module
+ */
 export interface PluginTestFabric<TModule extends object> {
     readonly module: TModule;
     assertUnchanged(): void;

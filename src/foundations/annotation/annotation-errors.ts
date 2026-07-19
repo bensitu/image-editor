@@ -1,4 +1,8 @@
-/** Base error for Annotation Foundation operations. */
+/**
+ * Base error for Annotation Foundation operations.
+ *
+ * @module
+ */
 export class AnnotationError extends Error {
     constructor(message: string) {
         super(`[ImageEditor] ${message}`);

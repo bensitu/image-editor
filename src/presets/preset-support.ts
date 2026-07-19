@@ -1,3 +1,9 @@
+/**
+ * Creates optional DOM binding Plugins and maps their installed APIs for preset factories.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../core/index.js';
 import type { ImageEditorCore } from '../core/index.js';
 import type { DomControlsPluginApi, DomPluginBinding } from '../plugins/dom-controls/index.js';

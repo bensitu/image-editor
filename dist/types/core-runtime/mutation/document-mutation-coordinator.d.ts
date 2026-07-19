@@ -1,3 +1,8 @@
+/**
+ * Runs atomic document mutations with participant ordering, rollback, History, and committed events.
+ *
+ * @module
+ */
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import type { DocumentMutationContext, DocumentMutationCoordinatorOptions, DocumentMutationPort, DocumentMutationRequest } from './mutation-types.js';
 export declare class DocumentMutationCoordinator implements DocumentMutationPort, Disposable {

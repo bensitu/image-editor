@@ -1,4 +1,5 @@
 import { createDisposable } from '../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
 import { CoreRuntimeError } from './errors.js';
 const unavailableHistory = Object.freeze({
     isAvailable: () => false,
@@ -20,8 +21,8 @@ export class HistoryCommitRouter {
         });
     }
     register(owner, provider) {
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
-            throw new CoreRuntimeError('[ImageEditor] History provider owner must be non-empty.');
+        if (!isRuntimeIdentifier(owner)) {
+            throw new CoreRuntimeError('[ImageEditor] History provider owner must match "namespace:kebab-case".');
         }
         if (this.owner) {
             throw new CoreRuntimeError(`[ImageEditor] History commit provider is already registered by "${this.owner}".`);

@@ -252,6 +252,16 @@
         }
     }
 
+    const MAX_RUNTIME_IDENTIFIER_LENGTH = 128;
+    const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+    const prohibitedRuntimeIdentifierSegments = new Set(['__proto__', 'constructor', 'prototype']);
+    function isRuntimeIdentifier(value) {
+        return (typeof value === 'string' &&
+            value.length <= MAX_RUNTIME_IDENTIFIER_LENGTH &&
+            RUNTIME_IDENTIFIER_PATTERN.test(value) &&
+            !value.split(':').some((segment) => prohibitedRuntimeIdentifierSegments.has(segment)));
+    }
+
     const numericIdentifier = '(?:0|[1-9]\\d*)';
     const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
     const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, 'u');
@@ -443,17 +453,9 @@
     }
 
     const capabilityTokenBrand = Symbol('ImageEditorCapabilityToken');
-    const MAX_CAPABILITY_ID_LENGTH = 128;
-    const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/u;
-    const prohibitedCapabilitySegments = new Set(['__proto__', 'constructor', 'prototype']);
     function createCapabilityToken(id, version) {
-        if (typeof id !== 'string' ||
-            id.length === 0 ||
-            id.length > MAX_CAPABILITY_ID_LENGTH ||
-            id.trim() !== id ||
-            !CAPABILITY_ID_PATTERN.test(id) ||
-            id.split(/[.:/]/u).some((segment) => prohibitedCapabilitySegments.has(segment))) {
-            throw new InvalidPluginDefinitionError(`CapabilityToken id must be a safe, trimmed identifier no longer than ${MAX_CAPABILITY_ID_LENGTH} characters.`);
+        if (!isRuntimeIdentifier(id)) {
+            throw new InvalidPluginDefinitionError('CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.');
         }
         if (!isValidSemVer(version)) {
             throw new InvalidCapabilityVersionError(id, version, 'version');
@@ -592,20 +594,9 @@
         return errors;
     }
 
-    const MAX_PLUGIN_ID_LENGTH = 128;
-    const PROHIBITED_PROPERTY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-    const PLUGIN_ID_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/u;
     function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
-        if (typeof pluginId !== 'string' ||
-            pluginId.length === 0 ||
-            pluginId.length > MAX_PLUGIN_ID_LENGTH ||
-            pluginId.trim() !== pluginId ||
-            !PLUGIN_ID_PATTERN.test(pluginId)) {
-            throw new InvalidPluginDefinitionError(`${fieldName} must be a safe, trimmed identifier no longer than ${MAX_PLUGIN_ID_LENGTH} characters.`, typeof pluginId === 'string' ? pluginId : undefined);
-        }
-        const segments = pluginId.split(/[.:/]/u);
-        if (segments.some((segment) => PROHIBITED_PROPERTY_KEYS.has(segment))) {
-            throw new InvalidPluginDefinitionError(`${fieldName} contains a prohibited property key.`, pluginId);
+        if (!isRuntimeIdentifier(pluginId)) {
+            throw new InvalidPluginDefinitionError(`${fieldName} must match "namespace:kebab-case" and be no longer than 128 characters.`, typeof pluginId === 'string' ? pluginId : undefined);
         }
         return pluginId;
     }
@@ -767,8 +758,8 @@
         if (!isCapabilityToken(token) || !isValidSemVer(token.version)) {
             throw new InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
         }
-        if (providerPluginId.trim().length === 0 || providerPluginId.trim() !== providerPluginId) {
-            throw new InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must be a non-empty trimmed string.`, providerPluginId);
+        if (!isRuntimeIdentifier(providerPluginId)) {
+            throw new InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must match "namespace:kebab-case".`, providerPluginId);
         }
         if (!isValidSemVer(providerVersion)) {
             throw new InvalidCapabilityVersionError(token.id, providerVersion, 'version');
@@ -821,7 +812,7 @@
             registration.commit();
             return registration;
         }
-        provideHost(token, implementation, providerPluginId = '@bensitu/core', requiredPermission) {
+        provideHost(token, implementation, providerPluginId = 'core:host', requiredPermission) {
             if (!isCapabilityToken(token)) {
                 throw new InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
             }
@@ -887,6 +878,9 @@
         getProviderInfo(tokenOrId) {
             this.assertActive('inspect a capability provider');
             const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
+            if (!isRuntimeIdentifier(id)) {
+                throw new InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+            }
             const record = this.providers.get(id);
             if (!record)
                 return null;
@@ -903,6 +897,9 @@
         }
         getRequiredPermission(capabilityId, visibleTransactions) {
             this.assertActive('inspect a Capability permission');
+            if (!isRuntimeIdentifier(capabilityId)) {
+                throw new InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+            }
             const record = this.providers.get(capabilityId);
             if (!record)
                 return undefined;
@@ -919,6 +916,9 @@
         resolve(requirement, consumerPluginId, optional, visibleTransactions) {
             var _a, _b, _c;
             this.assertActive('resolve a capability');
+            if (!isRuntimeIdentifier(consumerPluginId)) {
+                throw new InvalidPluginDefinitionError('Capability consumer Plugin id must match "namespace:kebab-case".', consumerPluginId);
+            }
             try {
                 assertCapabilityRequirement(requirement);
             }
@@ -1015,6 +1015,7 @@
         }
         on(eventName, listener) {
             this.assertActive('register a committed event listener');
+            this.assertEventName(eventName);
             let eventListeners = this.listeners.get(eventName);
             if (!eventListeners) {
                 eventListeners = [];
@@ -1036,6 +1037,7 @@
         async emitCommitted(eventName, payload) {
             var _a, _b;
             this.assertActive('emit a committed event');
+            this.assertEventName(eventName);
             const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
             for (let index = 0; index < snapshot.length; index += 1) {
                 try {
@@ -1054,8 +1056,10 @@
         listenerCount(eventName) {
             var _a, _b;
             this.assertActive('inspect committed event listeners');
-            if (eventName)
+            if (eventName) {
+                this.assertEventName(eventName);
                 return (_b = (_a = this.listeners.get(eventName)) === null || _a === void 0 ? void 0 : _a.length) !== null && _b !== void 0 ? _b : 0;
+            }
             let count = 0;
             for (const listeners of this.listeners.values())
                 count += listeners.length;
@@ -1070,6 +1074,11 @@
         assertActive(operation) {
             if (this.disposed)
                 throw new PluginKernelDisposedError(operation);
+        }
+        assertEventName(eventName) {
+            if (!isRuntimeIdentifier(eventName)) {
+                throw new InvalidPluginDefinitionError('Committed event name must match "namespace:kebab-case".');
+            }
         }
     }
 
@@ -1234,11 +1243,11 @@
         }
         beginForHost(operationId) {
             this.assertActive('begin an operation');
-            const registered = this.requireRegistered(operationId, '@bensitu/core');
+            const registered = this.requireRegistered(operationId, 'core:host');
             return this.begin(operationId, registered.ownerPluginId);
         }
         runForHost(operationId, args, task, options = {}) {
-            const registered = this.requireRegistered(operationId, '@bensitu/core');
+            const registered = this.requireRegistered(operationId, 'core:host');
             return this.run(operationId, registered.ownerPluginId, args, task, options);
         }
         has(operationId) {
@@ -1540,8 +1549,11 @@
             }
         }
         validateDefinition(definition, ownerPluginId) {
-            if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
-                throw new OperationRegistrationError('Operation id must be a non-empty trimmed string.', ownerPluginId);
+            if (!isRuntimeIdentifier(ownerPluginId)) {
+                throw new OperationRegistrationError('Operation owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+            }
+            if (!isRuntimeIdentifier(definition.id)) {
+                throw new OperationRegistrationError('Operation id must match "namespace:kebab-case".', ownerPluginId);
             }
             if (!OPERATION_MODES.includes(definition.mode)) {
                 throw new OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
@@ -1557,6 +1569,12 @@
             }
             if (definition.reentrancy === 'coalesce' && typeof definition.coalesce !== 'function') {
                 throw new OperationRegistrationError(`Operation "${definition.id}" must define coalesce().`, ownerPluginId);
+            }
+            if (definition.allowedDuringTool !== undefined &&
+                (!Array.isArray(definition.allowedDuringTool) ||
+                    definition.allowedDuringTool.some((toolId) => !isRuntimeIdentifier(toolId)) ||
+                    new Set(definition.allowedDuringTool).size !== definition.allowedDuringTool.length)) {
+                throw new OperationRegistrationError(`Operation "${definition.id}" has invalid allowed Tool ids.`, ownerPluginId);
             }
         }
         conflictError(requested, active, ownerPluginId) {
@@ -1610,6 +1628,7 @@
         }
         createScoped(pluginId, registerCleanup, registerFinalizer, isScopeActive) {
             this.assertActive('create plugin state');
+            assertPluginIdentifier(pluginId, 'Plugin state owner id');
             if (this.activePluginIds.has(pluginId)) {
                 throw new InvalidPluginDefinitionError(`Plugin state scope "${pluginId}" is already active.`, pluginId);
             }
@@ -1734,6 +1753,7 @@
                 writable: true,
                 value: 'open'
             });
+            assertPluginIdentifier(pluginId, 'RegistrationScope Plugin id');
             this.transactionId = Symbol(`plugin-install:${pluginId}`);
         }
         get active() {
@@ -1868,8 +1888,11 @@
         }
         register(definition, ownerPluginId) {
             this.assertActive('register a tool');
-            if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
-                throw new ToolRegistrationError('Tool id must be a non-empty trimmed string.', ownerPluginId);
+            if (!isRuntimeIdentifier(ownerPluginId)) {
+                throw new ToolRegistrationError('Tool owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+            }
+            if (!isRuntimeIdentifier(definition.id)) {
+                throw new ToolRegistrationError('Tool id must match "namespace:kebab-case".', ownerPluginId);
             }
             const existing = this.tools.get(definition.id);
             if (existing) {
@@ -2051,11 +2074,11 @@
             left.onDispose === right.onDispose);
     }
     const pluginPackageHints = new Map([
-        ['foundation.overlay', '@bensitu/image-editor/plugins/overlay'],
-        ['@bensitu/transform', '@bensitu/image-editor/plugins/transform'],
-        ['@bensitu/mask', '@bensitu/image-editor/plugins/mask'],
-        ['@bensitu/history', '@bensitu/image-editor/plugins/history'],
-        ['@bensitu/filters', '@bensitu/image-editor/plugins/filters'],
+        ['foundation:overlay', '@bensitu/image-editor/plugins/overlay'],
+        ['plugin:transform', '@bensitu/image-editor/plugins/transform'],
+        ['plugin:mask', '@bensitu/image-editor/plugins/mask'],
+        ['plugin:history', '@bensitu/image-editor/plugins/history'],
+        ['plugin:filters', '@bensitu/image-editor/plugins/filters'],
     ]);
     class PluginManager {
         constructor(options = {}) {
@@ -2219,7 +2242,7 @@
         }
         registerHostOperation(definition) {
             this.assertCanInstall();
-            return this.operationRegistry.register(definition, '@bensitu/core');
+            return this.operationRegistry.register(definition, 'core:host');
         }
         beginOperationForHost(operationId) {
             if (!this.toolCoordinator.canRunOperation(operationId)) {
@@ -3741,7 +3764,7 @@
                 return {
                     valid: false,
                     message: 'geometryRevision must be a non-negative integer.',
-                    path: '$.core.geometryRevision',
+                    path: '$.core:geometryRevision',
                 };
             }
             if (!value.initialized) {
@@ -3881,11 +3904,11 @@
         }
         register(owner, contributor) {
             this.assertActive('register an export contributor');
-            if (owner.trim().length === 0 || owner.trim() !== owner) {
-                throw new CoreRuntimeError('[ImageEditor] Export contributor owner must be non-empty.');
+            if (!isRuntimeIdentifier(owner)) {
+                throw new CoreRuntimeError('[ImageEditor] Export contributor owner must match "namespace:kebab-case".');
             }
-            if (contributor.id.trim().length === 0 || contributor.id.trim() !== contributor.id) {
-                throw new CoreRuntimeError('[ImageEditor] Export contributor id must be non-empty.');
+            if (!isRuntimeIdentifier(contributor.id)) {
+                throw new CoreRuntimeError('[ImageEditor] Export contributor id must match "namespace:kebab-case".');
             }
             if (!Number.isFinite(contributor.order)) {
                 throw new CoreRuntimeError(`[ImageEditor] Export contributor "${contributor.id}" must use a finite order.`);
@@ -4497,8 +4520,8 @@
             });
         }
         register(owner, provider) {
-            if (owner.trim().length === 0 || owner.trim() !== owner) {
-                throw new CoreRuntimeError('[ImageEditor] History provider owner must be non-empty.');
+            if (!isRuntimeIdentifier(owner)) {
+                throw new CoreRuntimeError('[ImageEditor] History provider owner must match "namespace:kebab-case".');
             }
             if (this.owner) {
                 throw new CoreRuntimeError(`[ImageEditor] History commit provider is already registered by "${this.owner}".`);
@@ -4527,24 +4550,24 @@
         }
     }
 
-    const CORE_STATUS_CAPABILITY = createCapabilityToken('core.status', '1.0.0');
-    const CORE_DIAGNOSTICS_CAPABILITY = createCapabilityToken('core.diagnostics', '1.0.0');
-    const CORE_PRESENTATION_CAPABILITY = createCapabilityToken('core.presentation', '1.0.0');
-    const FABRIC_RUNTIME_CAPABILITY = createCapabilityToken('fabric.runtime', '1.0.0');
-    const CANVAS_READ_CAPABILITY = createCapabilityToken('core.canvas-read', '1.0.0');
-    const BASE_IMAGE_READ_CAPABILITY = createCapabilityToken('core.base-image-read', '1.0.0');
-    const BASE_IMAGE_INFO_CAPABILITY = createCapabilityToken('core.base-image-info', '1.0.0');
-    const IMAGE_RESOURCE_POLICY_CAPABILITY = createCapabilityToken('core.image-resource-policy', '1.0.0');
-    const RENDER_REQUEST_CAPABILITY = createCapabilityToken('core.render-request', '1.0.0');
-    const CANVAS_RESIZE_CAPABILITY = createCapabilityToken('core.canvas-resize', '1.0.0');
-    const RASTER_MUTATION_CAPABILITY = createCapabilityToken('core.raster-mutation', '1.0.0');
-    const SNAPSHOT_REGISTRATION_CAPABILITY = createCapabilityToken('core.snapshot-registration', '1.0.0');
-    const MEMENTO_HISTORY_CAPABILITY = createCapabilityToken('core.memento-history', '1.0.0');
-    const GEOMETRY_MUTATION_CAPABILITY = createCapabilityToken('core.geometry', '1.0.0');
-    const DOCUMENT_MUTATION_CAPABILITY = createCapabilityToken('core.document-mutation', '1.0.0');
-    const EXPORT_CONTRIBUTION_CAPABILITY = createCapabilityToken('core.export', '1.0.0');
+    const CORE_STATUS_CAPABILITY = createCapabilityToken('core:status', '1.0.0');
+    const CORE_DIAGNOSTICS_CAPABILITY = createCapabilityToken('core:diagnostics', '1.0.0');
+    const CORE_PRESENTATION_CAPABILITY = createCapabilityToken('core:presentation', '1.0.0');
+    const FABRIC_RUNTIME_CAPABILITY = createCapabilityToken('fabric:runtime', '1.0.0');
+    const CANVAS_READ_CAPABILITY = createCapabilityToken('core:canvas-read', '1.0.0');
+    const BASE_IMAGE_READ_CAPABILITY = createCapabilityToken('core:base-image-read', '1.0.0');
+    const BASE_IMAGE_INFO_CAPABILITY = createCapabilityToken('core:base-image-info', '1.0.0');
+    const IMAGE_RESOURCE_POLICY_CAPABILITY = createCapabilityToken('core:image-resource-policy', '1.0.0');
+    const RENDER_REQUEST_CAPABILITY = createCapabilityToken('core:render-request', '1.0.0');
+    const CANVAS_RESIZE_CAPABILITY = createCapabilityToken('core:canvas-resize', '1.0.0');
+    const RASTER_MUTATION_CAPABILITY = createCapabilityToken('core:raster-mutation', '1.0.0');
+    const SNAPSHOT_REGISTRATION_CAPABILITY = createCapabilityToken('core:snapshot-registration', '1.0.0');
+    const MEMENTO_HISTORY_CAPABILITY = createCapabilityToken('core:memento-history', '1.0.0');
+    const GEOMETRY_MUTATION_CAPABILITY = createCapabilityToken('core:geometry', '1.0.0');
+    const DOCUMENT_MUTATION_CAPABILITY = createCapabilityToken('core:document-mutation', '1.0.0');
+    const EXPORT_CONTRIBUTION_CAPABILITY = createCapabilityToken('core:export', '1.0.0');
 
-    const CORE_ENVIRONMENT_CAPABILITY = createCapabilityToken('core.environment', '1.0.0');
+    const CORE_ENVIRONMENT_CAPABILITY = createCapabilityToken('core:environment', '1.0.0');
 
     const ALLOWED_TRANSITIONS = {
         configured: ['initializing', 'disposing'],
@@ -5346,7 +5369,9 @@
         }
         register(registration) {
             this.assertActive();
-            assertIdentifier(registration.owner, 'Object property owner');
+            if (!isRuntimeIdentifier(registration.owner)) {
+                throw new StateRegistrationError('Object property owner must match "namespace:kebab-case".', registration.owner);
+            }
             if (registration.keys.length === 0) {
                 throw new StateRegistrationError(`Object property registration for "${registration.owner}" must include a key.`);
             }
@@ -5903,7 +5928,7 @@
             }
             const plugins = Object.create(null);
             for (const [id, entry] of entries) {
-                if (id.trim().length === 0 || isDangerousStateKey(id)) {
+                if (!isRuntimeIdentifier(id) || isDangerousStateKey(id)) {
                     throw new SnapshotValidationError('plugin id is invalid.', `$.plugins.${id}`);
                 }
                 if (!isRecord$9(entry) ||
@@ -5926,10 +5951,9 @@
         }
     }
 
-    const sliceIdPattern = /^@?[a-z0-9][a-z0-9._:/@-]*$/i;
     function assertDefinition(definition) {
-        if (!sliceIdPattern.test(definition.id) || definition.id.trim() !== definition.id) {
-            throw new StateRegistrationError('State slice ids must be non-empty, trimmed, and namespace-safe.', definition.id);
+        if (!isRuntimeIdentifier(definition.id)) {
+            throw new StateRegistrationError('State slice id must match "namespace:kebab-case".', definition.id);
         }
         if (!Number.isSafeInteger(definition.version) || definition.version <= 0) {
             throw new StateRegistrationError(`State slice "${definition.id}" must use a positive integer version.`, definition.id);
@@ -6022,8 +6046,8 @@
         }
         register(owner, predicate) {
             this.assertActive();
-            if (owner.trim().length === 0 || owner.trim() !== owner) {
-                throw new StateRegistrationError('Transient predicate owner must be non-empty and trimmed.');
+            if (!isRuntimeIdentifier(owner)) {
+                throw new StateRegistrationError('Transient predicate owner must match "namespace:kebab-case".');
             }
             if (typeof predicate !== 'function') {
                 throw new StateRegistrationError(`Transient predicate for "${owner}" must be a function.`);
@@ -6280,7 +6304,7 @@
                 this.reportWarning((_a = warning.details) === null || _a === void 0 ? void 0 : _a.cause, warning.message);
             });
             this.objectProperties.register({
-                owner: '@bensitu/core',
+                owner: 'core:host',
                 keys: ['editorObjectKind'],
             });
             const stateAdapter = new CanvasCoreStateAdapter({
@@ -7548,9 +7572,8 @@
             return 'scale';
         return 'move';
     }
-    const OVERLAY_STATE_ID = 'foundation.overlay';
+    const OVERLAY_STATE_ID = 'foundation:overlay';
     const OVERLAY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-    const OVERLAY_CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
     function isRecord$8(value) {
         return typeof value === 'object' && value !== null && !Array.isArray(value);
     }
@@ -7573,7 +7596,7 @@
         const codec = persistence.codec;
         if (!isRecord$8(codec) ||
             typeof codec.type !== 'string' ||
-            !OVERLAY_CODEC_TYPE_PATTERN.test(codec.type) ||
+            !isRuntimeIdentifier(codec.type) ||
             typeof codec.version !== 'string' ||
             !isValidSemVer(codec.version) ||
             typeof codec.serialize !== 'function' ||
@@ -7600,7 +7623,7 @@
             typeof value.locked === 'boolean' &&
             isRecord$8(value.codec) &&
             typeof value.codec.type === 'string' &&
-            OVERLAY_CODEC_TYPE_PATTERN.test(value.codec.type) &&
+            isRuntimeIdentifier(value.codec.type) &&
             typeof value.codec.version === 'string' &&
             isValidSemVer(value.codec.version) &&
             Object.prototype.hasOwnProperty.call(value, 'data'));
@@ -7936,8 +7959,8 @@
                         : undefined,
                 });
             }
-            this.assertIdentifier(definition.id, 'Overlay kind id');
-            this.assertIdentifier(definition.ownerPluginId, 'Overlay kind owner');
+            this.assertRuntimeIdentifier(definition.id, 'Overlay kind id');
+            this.assertRuntimeIdentifier(definition.ownerPluginId, 'Overlay kind owner');
             const persistence = freezePersistence(definition);
             const existing = this.kinds.get(definition.id);
             if (existing) {
@@ -7971,7 +7994,7 @@
         }
         registerGeometryPolicy(policy) {
             this.assertActive('register an overlay geometry policy');
-            this.assertIdentifier(policy.id, 'Overlay geometry policy id');
+            this.assertRuntimeIdentifier(policy.id, 'Overlay geometry policy id');
             this.requireKindOwner(policy.kind, policy.ownerPluginId);
             if (this.policies.has(policy.kind)) {
                 throw new CoreRuntimeError(`[ImageEditor] Overlay kind "${policy.kind}" already has a geometry policy.`);
@@ -7985,7 +8008,7 @@
         }
         registerInteractionPolicy(policy) {
             this.assertActive('register an overlay interaction policy');
-            this.assertIdentifier(policy.id, 'Overlay interaction policy id');
+            this.assertRuntimeIdentifier(policy.id, 'Overlay interaction policy id');
             this.requireKindOwner(policy.kind, policy.ownerPluginId);
             if (this.interactionPolicies.has(policy.kind)) {
                 throw new CoreRuntimeError(`[ImageEditor] Overlay kind "${policy.kind}" already has an interaction policy.`);
@@ -8000,7 +8023,7 @@
         }
         registerExportRenderer(renderer) {
             this.assertActive('register an overlay export renderer');
-            this.assertIdentifier(renderer.id, 'Overlay export renderer id');
+            this.assertRuntimeIdentifier(renderer.id, 'Overlay export renderer id');
             this.requireKindOwner(renderer.kind, renderer.ownerPluginId);
             if (!Number.isFinite(renderer.order)) {
                 throw new CoreRuntimeError('[ImageEditor] Overlay export renderer order must be finite.');
@@ -8165,9 +8188,9 @@
         async mutate(request) {
             var _a;
             this.assertActive('run an overlay mutation');
-            this.assertIdentifier(request.id, 'Overlay mutation id');
-            this.assertIdentifier(request.operationId, 'Overlay mutation operation id');
-            this.assertIdentifier(request.action, 'Overlay mutation action');
+            this.assertOpaqueIdentifier(request.id, 'Overlay mutation id');
+            this.assertRuntimeIdentifier(request.operationId, 'Overlay mutation operation id');
+            this.assertOpaqueIdentifier(request.action, 'Overlay mutation action');
             const initialTargets = this.resolveOverlayIds((_a = request.objectIds) !== null && _a !== void 0 ? _a : []);
             let affectedTargets = initialTargets;
             let descriptor = null;
@@ -9134,9 +9157,14 @@
                 Point: this.host.fabric.Point,
             };
         }
-        assertIdentifier(value, label) {
-            if (typeof value !== 'string' || value.trim().length === 0 || value.trim() !== value) {
-                throw new CoreRuntimeError(`[ImageEditor] ${label} must be non-empty and trimmed.`);
+        assertRuntimeIdentifier(value, label) {
+            if (!isRuntimeIdentifier(value)) {
+                throw new CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+            }
+        }
+        assertOpaqueIdentifier(value, label) {
+            if (!OVERLAY_ID_PATTERN.test(value)) {
+                throw new CoreRuntimeError(`[ImageEditor] ${label} must be a safe identifier no longer than 128 characters.`);
             }
         }
         assertActive(operation) {
@@ -9223,9 +9251,9 @@
         return Object.freeze({ x: a * x + c * y + e, y: b * x + d * y + f });
     }
 
-    const OVERLAY_CAPABILITY = createCapabilityToken('foundation.overlay', '1.0.0');
-    const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken('foundation.overlay.registration', '1.0.0');
-    const overlayFoundationRef = definePluginRef('foundation.overlay', '1.0.0');
+    const OVERLAY_CAPABILITY = createCapabilityToken('foundation:overlay', '1.0.0');
+    const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken('foundation:overlay-registration', '1.0.0');
+    const overlayFoundationRef = definePluginRef('foundation:overlay', '1.0.0');
     function createRuntimeApi(controller) {
         const bind = (method) => method.bind(controller);
         const api = {
@@ -10011,7 +10039,7 @@
                         : {}),
                 }));
                 registrations.push(this.overlay.registerGeometryPolicy({
-                    id: `${normalizedDefinition.ownerPluginId}:geometry`,
+                    id: `${normalizedDefinition.kind}-geometry`,
                     kind: normalizedDefinition.kind,
                     ownerPluginId: normalizedDefinition.ownerPluginId,
                     supports: (mutation) => {
@@ -10035,7 +10063,7 @@
                     },
                 }));
                 registrations.push(this.overlay.registerExportRenderer({
-                    id: `${normalizedDefinition.ownerPluginId}:export`,
+                    id: `${normalizedDefinition.kind}-export`,
                     kind: normalizedDefinition.kind,
                     ownerPluginId: normalizedDefinition.ownerPluginId,
                     order: 200,
@@ -10055,7 +10083,7 @@
                     },
                 }));
                 registrations.push(this.overlay.registerInteractionPolicy({
-                    id: `${normalizedDefinition.ownerPluginId}:interaction`,
+                    id: `${normalizedDefinition.kind}-interaction`,
                     kind: normalizedDefinition.kind,
                     ownerPluginId: normalizedDefinition.ownerPluginId,
                     synchronize: (object, context) => {
@@ -10845,7 +10873,7 @@
                     await mutate(signal);
                 },
                 rollbackBase: () => this.restoreRollback(image, rollback),
-                metadata: Object.freeze({ pluginId: '@bensitu/transform' }),
+                metadata: Object.freeze({ pluginId: 'plugin:transform' }),
             })
                 .then(() => undefined);
         }
@@ -10949,7 +10977,7 @@
         }
     }
 
-    const transformPluginRef = definePluginRef('@bensitu/transform', '1.0.0');
+    const transformPluginRef = definePluginRef('plugin:transform', '1.0.0');
     function isTransformState(value) {
         if (typeof value !== 'object' || value === null)
             return false;
@@ -11313,8 +11341,8 @@
         }
     }
 
-    const HISTORY_CAPABILITY = createCapabilityToken('plugin.history', '1.0.0');
-    const historyPluginRef = definePluginRef('@bensitu/history', '1.0.0');
+    const HISTORY_CAPABILITY = createCapabilityToken('plugin:history', '1.0.0');
+    const historyPluginRef = definePluginRef('plugin:history', '1.0.0');
     function historyPlugin(options = {}) {
         let controller = null;
         return definePlugin({
@@ -11393,21 +11421,6 @@
         });
     }
 
-    function isMaskObject$1(object) {
-        const candidate = object;
-        return (!!candidate &&
-            candidate.editorObjectKind === 'mask' &&
-            typeof candidate.maskId === 'number' &&
-            typeof candidate.maskUid === 'string' &&
-            typeof candidate.maskName === 'string');
-    }
-    function isSessionObject(object) {
-        const candidate = object;
-        return (!!candidate &&
-            candidate.editorObjectKind === 'session' &&
-            typeof candidate.sessionObjectType === 'string');
-    }
-
     function markMaskObject(object, meta) {
         const mask = object;
         mask.editorObjectKind = 'mask';
@@ -11427,6 +11440,21 @@
         sessionObject.editorObjectKind = 'session';
         sessionObject.sessionObjectType = sessionObjectType;
         return sessionObject;
+    }
+
+    function isMaskObject$1(object) {
+        const candidate = object;
+        return (!!candidate &&
+            candidate.editorObjectKind === 'mask' &&
+            typeof candidate.maskId === 'number' &&
+            typeof candidate.maskUid === 'string' &&
+            typeof candidate.maskName === 'string');
+    }
+    function isSessionObject(object) {
+        const candidate = object;
+        return (!!candidate &&
+            candidate.editorObjectKind === 'session' &&
+            typeof candidate.sessionObjectType === 'string');
     }
 
     function isPropertyMarkedSessionObject(object) {
@@ -11988,12 +12016,10 @@
         attachMaskHoverHandlers(maskObject);
         context.setLastMask(maskObject);
         placeMaskObject(canvas, maskObject);
-        context.updateMaskList();
         if (resolvedConfig.selectable !== false) {
             canvas.setActiveObject(maskObject);
         }
         canvas.renderAll();
-        context.saveCanvasState();
         if (typeof config.onCreate === 'function') {
             try {
                 config.onCreate(maskObject, canvas);
@@ -12124,7 +12150,7 @@
         });
     }
 
-    const MASK_PLUGIN_ID = '@bensitu/mask';
+    const MASK_PLUGIN_ID = 'plugin:mask';
     const MASK_SERIALIZED_OBJECT_PROPERTIES = [
         'hasControls',
         'selectable',
@@ -12352,7 +12378,7 @@
                 onWarning: (error, message) => host.reportWarning(error, message),
             });
             this.registrations.push(overlay.registerKind({
-                id: 'mask',
+                id: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 classify: isMaskObject,
                 getPersistentId: (object) => isMaskObject(object) && object.maskUid ? object.maskUid : null,
@@ -12363,7 +12389,7 @@
                 persistence: {
                     mode: 'persistent',
                     codec: {
-                        type: 'mask',
+                        type: 'mask:object',
                         version: '1.0.0',
                         serialize: (object) => this.serializeMask(object),
                         validate: isSerializedMaskData,
@@ -12371,7 +12397,7 @@
                     },
                 },
                 stateCodec: {
-                    type: 'mask',
+                    type: 'mask:object',
                     version: '1.0.0',
                     serialize: (object, context) => {
                         if (!isMaskObject(object)) {
@@ -12469,8 +12495,8 @@
                 },
             }));
             this.registrations.push(overlay.registerGeometryPolicy({
-                id: `${MASK_PLUGIN_ID}:geometry`,
-                kind: 'mask',
+                id: 'mask:geometry',
+                kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 supports: (mutation) => mutation.kind === 'crop' ||
                     (options.bindToImageTransform && mutation.kind === 'transform'),
@@ -12478,8 +12504,8 @@
                 synchronize: () => this.synchronizeAfterGeometry(),
             }));
             this.registrations.push(overlay.registerExportRenderer({
-                id: `${MASK_PLUGIN_ID}:renderer`,
-                kind: 'mask',
+                id: 'mask:export',
+                kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 order: 100,
                 render: async ({ source, targetCanvas }) => {
@@ -12497,8 +12523,8 @@
                 },
             }));
             this.registrations.push(overlay.registerInteractionPolicy({
-                id: `${MASK_PLUGIN_ID}:interaction`,
-                kind: 'mask',
+                id: 'mask:interaction',
+                kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 preview: (object) => {
                     if (isMaskObject(object))
@@ -12575,7 +12601,7 @@
         }
         getAll() {
             const masks = this.overlay
-                .list({ kinds: ['mask'], includeHidden: true, includeLocked: true })
+                .list({ kinds: ['mask:object'], includeHidden: true, includeLocked: true })
                 .filter(isMaskObject);
             if (this.options.listOrder === 'back-to-front')
                 masks.reverse();
@@ -12622,7 +12648,7 @@
         }
         flatten(options) {
             return this.overlay
-                .flatten({ kinds: ['mask'], includeHidden: false, includeLocked: true }, options)
+                .flatten({ kinds: ['mask:object'], includeHidden: false, includeLocked: true }, options)
                 .then(() => {
                 var _a;
                 const masks = this.getAll();
@@ -12676,8 +12702,6 @@
                 setMaskCounter: (counter) => {
                     this.counter = counter;
                 },
-                updateMaskList: () => undefined,
-                saveCanvasState: () => undefined,
                 expandCanvasIfNeeded: (width, height) => this.host.resizeCanvas(width, height),
             };
         }
@@ -12835,7 +12859,7 @@
         }
     }
 
-    const maskPluginRef = definePluginRef('@bensitu/mask', '1.0.0');
+    const maskPluginRef = definePluginRef('plugin:mask', '1.0.0');
     function maskPlugin(options = {}) {
         const resolved = resolveMaskPluginOptions(options);
         let controller = null;
@@ -13984,7 +14008,7 @@
         }
     }
 
-    const filtersPluginRef = definePluginRef('@bensitu/filters', '1.0.0');
+    const filtersPluginRef = definePluginRef('plugin:filters', '1.0.0');
     function filtersPlugin(options = {}) {
         let controller = null;
         return definePlugin({
@@ -15053,7 +15077,7 @@
         'selection',
         'state',
     ];
-    const cropPluginRef = definePluginRef('@bensitu/crop', '1.0.0');
+    const cropPluginRef = definePluginRef('plugin:crop', '1.0.0');
     function cropPlugin(options = {}) {
         const configuration = resolveCropConfiguration(options);
         let controller = null;
@@ -16065,7 +16089,7 @@
         'selection',
         'state',
     ];
-    const mosaicPluginRef = definePluginRef('@bensitu/mosaic', '1.0.0');
+    const mosaicPluginRef = definePluginRef('plugin:mosaic', '1.0.0');
     function mosaicPlugin(options = {}) {
         const configuration = resolveMosaicConfiguration(options);
         let controller = null;
@@ -18574,7 +18598,6 @@
         maxDrawPoints: 100000,
         maxPathCommands: 100000,
     });
-    const IDENTIFIER_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/;
     const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
     const SEMVER_PATTERN$1 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
     const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -18780,7 +18803,7 @@
         if (typeof value !== 'string' ||
             value.length === 0 ||
             value.length > limits.maxIdentifierLength ||
-            !(persistent ? PERSISTENT_ID_PATTERN : IDENTIFIER_PATTERN).test(value)) {
+            !(persistent ? PERSISTENT_ID_PATTERN.test(value) : isRuntimeIdentifier(value))) {
             addIssue(issues, 'identifier.invalid', path, 'Identifier is invalid.');
             return false;
         }
@@ -18999,7 +19022,6 @@
 
     const IMPORT_OPERATION_ID = 'overlay-state:import';
     const MAX_PERSISTENT_ID_LENGTH = 128;
-    const CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
     const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
     function invalidResult(issues) {
         return Object.freeze({ valid: false, errors: Object.freeze([...issues]) });
@@ -19037,7 +19059,7 @@
         if ((adapter === null || adapter === void 0 ? void 0 : adapter.persistence.mode) !== 'persistent' ||
             !codec ||
             typeof codec.type !== 'string' ||
-            !CODEC_TYPE_PATTERN.test(codec.type) ||
+            !isRuntimeIdentifier(codec.type) ||
             typeof codec.version !== 'string' ||
             !SEMVER_PATTERN.test(codec.version) ||
             typeof codec.serialize !== 'function' ||
@@ -20227,6 +20249,7 @@
     exports.historyPlugin = historyPlugin;
     exports.historyPluginRef = historyPluginRef;
     exports.isOverlayStateBoundsGeometry = isOverlayStateBoundsGeometry;
+    exports.isRuntimeIdentifier = isRuntimeIdentifier;
     exports.isValidSemVer = isValidSemVer;
     exports.maskPlugin = maskPlugin;
     exports.maskPluginRef = maskPluginRef;

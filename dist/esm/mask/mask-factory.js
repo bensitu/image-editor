@@ -1,9 +1,8 @@
-import { isMaskObject } from '../core/public-types.js';
 import { markMaskObject } from '../core/editor-object-kind.js';
 import { placeMaskObject } from '../core/layer-order.js';
 import { reportWarning } from '../core/callback-reporter.js';
 import { copySafeOwnProperties } from '../core/safe-object-copy.js';
-import { attachMaskHoverHandlers, detachMaskHoverHandlers } from './mask-style.js';
+import { attachMaskHoverHandlers } from './mask-style.js';
 import { coercePoint, resolveNumeric } from '../utils/number.js';
 const POLYGON_AREA_EPSILON = 1e-6;
 const BUILT_IN_MASK_SHAPES = new Set(['rect', 'circle', 'ellipse', 'polygon']);
@@ -379,12 +378,10 @@ export function createMask(context, config = {}) {
     attachMaskHoverHandlers(maskObject);
     context.setLastMask(maskObject);
     placeMaskObject(canvas, maskObject);
-    context.updateMaskList();
     if (resolvedConfig.selectable !== false) {
         canvas.setActiveObject(maskObject);
     }
     canvas.renderAll();
-    context.saveCanvasState();
     if (typeof config.onCreate === 'function') {
         try {
             config.onCreate(maskObject, canvas);
@@ -394,56 +391,5 @@ export function createMask(context, config = {}) {
         }
     }
     return maskObject;
-}
-function isActiveSelectionObject(object) {
-    if (!object)
-        return false;
-    const type = typeof object.type === 'string' ? object.type.toLowerCase() : '';
-    if (type === 'activeselection')
-        return true;
-    const isType = object.isType;
-    return (typeof isType === 'function' &&
-        (isType.call(object, 'ActiveSelection') || isType.call(object, 'activeSelection')));
-}
-function getSelectedMaskObjects(canvas) {
-    const active = canvas.getActiveObject();
-    if (!active)
-        return [];
-    if (!isActiveSelectionObject(active))
-        return isMaskObject(active) ? [active] : [];
-    const getObjects = active.getObjects;
-    const objects = typeof getObjects === 'function' ? getObjects.call(active) : [];
-    return objects.filter(isMaskObject);
-}
-export function removeSelectedMask(context) {
-    const selectedMasks = getSelectedMaskObjects(context.canvas);
-    if (selectedMasks.length === 0)
-        return;
-    for (const mask of selectedMasks) {
-        context.removeLabelForMask(mask);
-        detachMaskHoverHandlers(mask);
-        context.canvas.remove(mask);
-    }
-    context.canvas.discardActiveObject();
-    context.updateMaskList();
-    context.canvas.renderAll();
-    context.saveCanvasState();
-}
-export function removeAllMasks(context, options = {}) {
-    const masks = context.canvas.getObjects().filter(isMaskObject);
-    if (masks.length === 0)
-        return;
-    for (const maskObject of masks) {
-        context.removeLabelForMask(maskObject);
-        detachMaskHoverHandlers(maskObject);
-        context.canvas.remove(maskObject);
-    }
-    context.canvas.discardActiveObject();
-    context.setLastMask(null);
-    context.updateMaskList();
-    context.canvas.renderAll();
-    if (options.saveHistory !== false) {
-        context.saveCanvasState();
-    }
 }
 //# sourceMappingURL=mask-factory.js.map

@@ -1,3 +1,8 @@
+/**
+ * Validates and freezes synchronous or asynchronous Plugin definitions for installation.
+ *
+ * @module
+ */
 import type { EditorPlugin, SynchronousEditorPlugin } from '../plugin-kernel/plugin-types.js';
 /** Defines an immutable synchronous Plugin contract with validated metadata. */
 export declare function definePlugin<TApi, TEvents extends object>(definition: SynchronousEditorPlugin<TApi, TEvents>): SynchronousEditorPlugin<TApi, TEvents>;

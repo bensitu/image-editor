@@ -125,7 +125,10 @@ test('manifest validation rejects identity, API, engine, and permission failures
     for (const scenario of scenarios) {
         await t.test(scenario.name, async () => {
             const manager = new PluginManager();
-            const ref = definePluginRef(`example:${scenario.name.replaceAll(' ', '-')}`, '1.0.0');
+            const ref = definePluginRef(
+                `example:${scenario.name.toLowerCase().replaceAll(' ', '-')}`,
+                '1.0.0',
+            );
             let setupCalls = 0;
             const plugin = {
                 ref,

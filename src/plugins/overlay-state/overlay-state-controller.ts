@@ -1,4 +1,12 @@
+/**
+ * Exports, validates, migrates, and imports portable Overlay State documents.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
+
+import { isRuntimeIdentifier } from '../../sdk/index.js';
 
 import type {
     OverlayRuntimeApi,
@@ -37,7 +45,6 @@ import {
 
 const IMPORT_OPERATION_ID = 'overlay-state:import';
 const MAX_PERSISTENT_ID_LENGTH = 128;
-const CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 const SEMVER_PATTERN =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
@@ -106,7 +113,7 @@ function resolveStateKind(overlay: OverlayRuntimeApi, kind: string): ResolvedSta
         adapter?.persistence.mode !== 'persistent' ||
         !codec ||
         typeof codec.type !== 'string' ||
-        !CODEC_TYPE_PATTERN.test(codec.type) ||
+        !isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !SEMVER_PATTERN.test(codec.version) ||
         typeof codec.serialize !== 'function' ||

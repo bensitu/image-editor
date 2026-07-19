@@ -1,8 +1,8 @@
 'use strict';
 
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 
 const ANIMATION_SETTLE_GRACE_MS = 1000;
 function animateProps(object, props, options, guard) {
@@ -319,7 +319,7 @@ class TransformPluginController {
                 await mutate(signal);
             },
             rollbackBase: () => this.restoreRollback(image, rollback),
-            metadata: Object.freeze({ pluginId: '@bensitu/transform' }),
+            metadata: Object.freeze({ pluginId: 'plugin:transform' }),
         })
             .then(() => undefined);
     }
@@ -423,7 +423,7 @@ class TransformPluginController {
     }
 }
 
-const transformPluginRef = pluginManifest.definePluginRef('@bensitu/transform', '1.0.0');
+const transformPluginRef = pluginManifest.definePluginRef('plugin:transform', '1.0.0');
 function isTransformState(value) {
     if (typeof value !== 'object' || value === null)
         return false;

@@ -1,3 +1,8 @@
+/**
+ * Validates and evaluates the SemVer versions and range forms supported by Plugin contracts.
+ *
+ * @module
+ */
 export declare function isValidSemVer(version: string): boolean;
 export declare function isValidSemVerRange(range: string): boolean;
 /**

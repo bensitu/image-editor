@@ -1,4 +1,8 @@
-/** Internal Plugin Kernel entry. Not exported from the package root. */
+/**
+ * Internal Plugin Kernel entry. Not exported from the package root.
+ *
+ * @module
+ */
 export { CapabilityRegistry, type CapabilityProviderInfo, type CapabilityRegistryOptions, } from './capability-registry.js';
 export { assertCapabilityRequirement, createCapabilityToken, isCapabilityToken, type CapabilityIdentity, type CapabilityRequirement, type CapabilityRequirementIdentity, type CapabilityToken, } from './capability-token.js';
 export { CommittedEventBus, type CommittedEventBusOptions, type CommittedEventListener, type PluginEventMap, } from './committed-event-bus.js';

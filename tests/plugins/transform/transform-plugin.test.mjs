@@ -96,19 +96,19 @@ test('queued non-zero-duration transforms serialize through one operation slot',
 test('active tool policy rejects a transform before any mutation', async () => {
     const ids = resetEditorDom();
     const editor = new ImageEditorCore(fabric);
-    const policyRef = definePluginRef('example.test/transform-policy', '1.0.0');
+    const policyRef = definePluginRef('example-test:transform-policy', '1.0.0');
     const policy = editor.use({
         ref: policyRef,
         version: '1.0.0',
         setupMode: 'sync',
         setup(context) {
             context.tools.register({
-                id: 'example.test/block-transform',
+                id: 'example-test:block-transform',
                 enter: () => undefined,
                 exit: () => undefined,
                 canRunOperation: (operationId) => !operationId.startsWith('transform:'),
             });
-            return { enter: () => context.tools.enter('example.test/block-transform') };
+            return { enter: () => context.tools.enter('example-test:block-transform') };
         },
     });
     const transform = editor.use(transformPlugin({ animationDuration: 0 }));
@@ -125,7 +125,7 @@ test('targeted rollback failure falls back to a trusted Core memento', async () 
     const ids = resetEditorDom();
     const editor = new ImageEditorCore(fabric);
     let transactionFailed = false;
-    const failureRef = definePluginRef('example.test/transform-rollback-failure', '1.0.0');
+    const failureRef = definePluginRef('example-test:transform-rollback-failure', '1.0.0');
     editor.use({
         ref: failureRef,
         version: '1.0.0',
@@ -177,7 +177,7 @@ test('targeted rollback failure falls back to a trusted Core memento', async () 
 test('failed transforms never reach the registered history provider', async () => {
     const ids = resetEditorDom();
     const editor = new ImageEditorCore(fabric);
-    const historyRef = definePluginRef('example.test/transform-history-observer', '1.0.0');
+    const historyRef = definePluginRef('example-test:transform-history-observer', '1.0.0');
     const history = editor.use({
         ref: historyRef,
         version: '1.0.0',

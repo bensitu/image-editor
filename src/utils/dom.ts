@@ -5,6 +5,8 @@
  * reflow primitive after canvas dimension changes, and exposing it as a
  * named utility lets layout, visibility, and crop flows share the same
  * documented contract.
+ *
+ * @module
  */
 
 /**

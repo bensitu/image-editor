@@ -1,6 +1,6 @@
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, CORE_STATUS_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, IMAGE_RESOURCE_POLICY_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, VISIBLE_RASTER_BAKE_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { FiltersController, } from './filters-controller.js';
-export const filtersPluginRef = definePluginRef('@bensitu/filters', '1.0.0');
+export const filtersPluginRef = definePluginRef('plugin:filters', '1.0.0');
 export function filtersPlugin(options = {}) {
     let controller = null;
     return definePlugin({

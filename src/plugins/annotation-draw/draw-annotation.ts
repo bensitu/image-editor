@@ -1,3 +1,9 @@
+/**
+ * Declares Draw Annotation brush, eraser, session, configuration, and Plugin API contracts.
+ *
+ * @module
+ */
+
 import type { AnnotationId } from '../../foundations/annotation/index.js';
 
 export interface AnnotationPoint {

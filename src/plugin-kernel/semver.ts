@@ -1,3 +1,9 @@
+/**
+ * Validates and evaluates the SemVer versions and range forms supported by Plugin contracts.
+ *
+ * @module
+ */
+
 interface ParsedRangeVersion {
     readonly major: number;
     readonly minor: number | null;

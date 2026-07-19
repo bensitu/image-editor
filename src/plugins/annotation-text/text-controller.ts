@@ -1,3 +1,9 @@
+/**
+ * Implements Text Annotation creation, editing, validation, codecs, and Foundation integration.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {

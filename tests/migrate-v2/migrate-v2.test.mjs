@@ -77,7 +77,7 @@ test('conversion is deterministic, immutable, and maps Core, Transform, and Filt
     assert.equal(first.core.canvas.objects.length, 1);
     assert.equal(first.core.canvas.objects[0].editorObjectKind, 'baseImage');
     assert.deepEqual(first.core.canvas.objects[0].filters, []);
-    assert.deepEqual(first.plugins['@bensitu/transform'], {
+    assert.deepEqual(first.plugins['plugin:transform'], {
         version: 1,
         data: {
             scale: 1.25,
@@ -86,7 +86,7 @@ test('conversion is deterministic, immutable, and maps Core, Transform, and Filt
             flipY: false,
         },
     });
-    assert.deepEqual(first.plugins['@bensitu/filters'], {
+    assert.deepEqual(first.plugins['plugin:filters'], {
         version: 1,
         data: {
             schema: 'image-editor.filters',
@@ -94,34 +94,34 @@ test('conversion is deterministic, immutable, and maps Core, Transform, and Filt
             filters: [{ type: 'brightness', value: 0.2 }, { type: 'grayscale' }],
         },
     });
-    assert.equal('foundation.overlay' in first.plugins, false);
-    assert.equal('@bensitu/history' in first.plugins, false);
+    assert.equal('foundation:overlay' in first.plugins, false);
+    assert.equal('plugin:history' in first.plugins, false);
 });
 
 test('conversion maps Mask and every Annotation codec with stable selection', async () => {
     const source = await fixture('overlays-and-selection');
     const snapshot = migrateV2Snapshot(source);
-    const overlay = snapshot.plugins['foundation.overlay'];
+    const overlay = snapshot.plugins['foundation:overlay'];
 
     assert.ok(overlay);
     assert.equal(overlay.version, 1);
     assert.deepEqual(
         overlay.data.overlays.map((record) => [record.kind, record.codec.type]),
         [
-            ['mask', 'mask'],
+            ['mask:object', 'mask:object'],
             ['annotation:text', 'annotation:textbox'],
             ['annotation:shape', 'annotation:shape-object'],
             ['annotation:draw', 'annotation:draw-path'],
         ],
     );
     assert.deepEqual(overlay.data.selectionIds, ['annotation:draw:13']);
-    assert.deepEqual(snapshot.plugins['@bensitu/mask'], {
+    assert.deepEqual(snapshot.plugins['plugin:mask'], {
         version: 1,
         data: { counter: 7 },
     });
-    assert.equal(snapshot.plugins['@bensitu/history'], undefined);
-    assert.equal(snapshot.plugins['@bensitu/crop'], undefined);
-    assert.equal(snapshot.plugins['@bensitu/mosaic'], undefined);
+    assert.equal(snapshot.plugins['plugin:history'], undefined);
+    assert.equal(snapshot.plugins['plugin:crop'], undefined);
+    assert.equal(snapshot.plugins['plugin:mosaic'], undefined);
 });
 
 test('unsupported persisted state is strict by default and explicit under lossy policy', async () => {
@@ -263,7 +263,7 @@ test('load helper reports missing Plugins before mutating the document', async (
         await preset.editor.init({ canvas: ids.canvas, canvasContainer: ids.canvasContainer });
         const before = preset.editor.saveState();
         const source = await fixture('core-transform-filters');
-        await assert.rejects(() => loadV2Snapshot(preset.editor, source), /@bensitu\/filters/);
+        await assert.rejects(() => loadV2Snapshot(preset.editor, source), /plugin:filters/);
         assert.equal(preset.editor.saveState(), before);
     } finally {
         await preset.editor.disposeAsync();
@@ -301,7 +301,7 @@ test('load helper restores every persistent overlay codec through the Full Prese
         assert.equal(preset.annotations.list().length, 3);
         assert.deepEqual(preset.overlays.getSelection().ids, ['annotation:draw:13']);
         const restored = JSON.parse(preset.editor.saveState());
-        assert.equal(restored.plugins['foundation.overlay'].data.overlays.length, 4);
+        assert.equal(restored.plugins['foundation:overlay'].data.overlays.length, 4);
     } finally {
         await preset.editor.disposeAsync();
         document.body.innerHTML = '';

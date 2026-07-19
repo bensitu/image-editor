@@ -248,6 +248,16 @@ class PluginKernelStateError extends PluginError {
     }
 }
 
+const MAX_RUNTIME_IDENTIFIER_LENGTH = 128;
+const RUNTIME_IDENTIFIER_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const prohibitedRuntimeIdentifierSegments = new Set(['__proto__', 'constructor', 'prototype']);
+function isRuntimeIdentifier(value) {
+    return (typeof value === 'string' &&
+        value.length <= MAX_RUNTIME_IDENTIFIER_LENGTH &&
+        RUNTIME_IDENTIFIER_PATTERN.test(value) &&
+        !value.split(':').some((segment) => prohibitedRuntimeIdentifierSegments.has(segment)));
+}
+
 const numericIdentifier = '(?:0|[1-9]\\d*)';
 const prereleaseIdentifier = `(?:${numericIdentifier}|\\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const semVerPattern = new RegExp(`^(${numericIdentifier})\\.(${numericIdentifier})\\.(${numericIdentifier})(?:-(${prereleaseIdentifier}(?:\\.${prereleaseIdentifier})*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, 'u');
@@ -439,17 +449,9 @@ function satisfiesSemVer(version, range) {
 }
 
 const capabilityTokenBrand = Symbol('ImageEditorCapabilityToken');
-const MAX_CAPABILITY_ID_LENGTH = 128;
-const CAPABILITY_ID_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/u;
-const prohibitedCapabilitySegments = new Set(['__proto__', 'constructor', 'prototype']);
 function createCapabilityToken(id, version) {
-    if (typeof id !== 'string' ||
-        id.length === 0 ||
-        id.length > MAX_CAPABILITY_ID_LENGTH ||
-        id.trim() !== id ||
-        !CAPABILITY_ID_PATTERN.test(id) ||
-        id.split(/[.:/]/u).some((segment) => prohibitedCapabilitySegments.has(segment))) {
-        throw new InvalidPluginDefinitionError(`CapabilityToken id must be a safe, trimmed identifier no longer than ${MAX_CAPABILITY_ID_LENGTH} characters.`);
+    if (!isRuntimeIdentifier(id)) {
+        throw new InvalidPluginDefinitionError('CapabilityToken id must match "namespace:kebab-case" and be no longer than 128 characters.');
     }
     if (!isValidSemVer(version)) {
         throw new InvalidCapabilityVersionError(id, version, 'version');
@@ -478,20 +480,9 @@ function assertCapabilityRequirement(requirement) {
     }
 }
 
-const MAX_PLUGIN_ID_LENGTH = 128;
-const PROHIBITED_PROPERTY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-const PLUGIN_ID_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]*$/u;
 function assertPluginIdentifier(pluginId, fieldName = 'Plugin id') {
-    if (typeof pluginId !== 'string' ||
-        pluginId.length === 0 ||
-        pluginId.length > MAX_PLUGIN_ID_LENGTH ||
-        pluginId.trim() !== pluginId ||
-        !PLUGIN_ID_PATTERN.test(pluginId)) {
-        throw new InvalidPluginDefinitionError(`${fieldName} must be a safe, trimmed identifier no longer than ${MAX_PLUGIN_ID_LENGTH} characters.`, typeof pluginId === 'string' ? pluginId : undefined);
-    }
-    const segments = pluginId.split(/[.:/]/u);
-    if (segments.some((segment) => PROHIBITED_PROPERTY_KEYS.has(segment))) {
-        throw new InvalidPluginDefinitionError(`${fieldName} contains a prohibited property key.`, pluginId);
+    if (!isRuntimeIdentifier(pluginId)) {
+        throw new InvalidPluginDefinitionError(`${fieldName} must match "namespace:kebab-case" and be no longer than 128 characters.`, typeof pluginId === 'string' ? pluginId : undefined);
     }
     return pluginId;
 }
@@ -678,12 +669,14 @@ exports.PluginVersionMismatchError = PluginVersionMismatchError;
 exports.ToolRegistrationError = ToolRegistrationError;
 exports.ToolTransitionError = ToolTransitionError;
 exports.assertCapabilityRequirement = assertCapabilityRequirement;
+exports.assertPluginIdentifier = assertPluginIdentifier;
 exports.createCapabilityToken = createCapabilityToken;
 exports.definePluginRef = definePluginRef;
 exports.isCapabilityToken = isCapabilityToken;
 exports.isPluginPermission = isPluginPermission;
 exports.isPluginRef = isPluginRef;
+exports.isRuntimeIdentifier = isRuntimeIdentifier;
 exports.isValidSemVer = isValidSemVer;
 exports.satisfiesSemVer = satisfiesSemVer;
 exports.validatePluginManifest = validatePluginManifest;
-//# sourceMappingURL=plugin-manifest-Cap1WbD8.cjs.map
+//# sourceMappingURL=plugin-manifest-BONtSGqw.cjs.map

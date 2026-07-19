@@ -1,3 +1,9 @@
+/**
+ * Computes and applies Fabric transform deltas to Overlay objects with reflection handling.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 export interface FabricUtilAccess {

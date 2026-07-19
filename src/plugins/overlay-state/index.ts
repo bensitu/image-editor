@@ -1,3 +1,9 @@
+/**
+ * Publishes the Overlay State Plugin factory, wire contracts, validation limits, and errors.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import { OVERLAY_CAPABILITY } from '../../foundations/overlay/index.js';
 import {

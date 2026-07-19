@@ -1,5 +1,5 @@
 import { CoreRuntimeError, } from '../../core/index.js';
-import { PluginManifestError, createDisposable, disposeInReverseSync, isValidSemVer, } from '../../sdk/index.js';
+import { PluginManifestError, createDisposable, disposeInReverseSync, isRuntimeIdentifier, isValidSemVer, } from '../../sdk/index.js';
 import { applyDeltaToObject } from './overlay-transform-delta.js';
 import { OverlayRecoverableObjectError } from './overlay-errors.js';
 function getActiveCanvasObjects(canvas) {
@@ -30,9 +30,8 @@ function gestureAction(value) {
         return 'scale';
     return 'move';
 }
-const OVERLAY_STATE_ID = 'foundation.overlay';
+const OVERLAY_STATE_ID = 'foundation:overlay';
 const OVERLAY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const OVERLAY_CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -55,7 +54,7 @@ function freezePersistence(definition) {
     const codec = persistence.codec;
     if (!isRecord(codec) ||
         typeof codec.type !== 'string' ||
-        !OVERLAY_CODEC_TYPE_PATTERN.test(codec.type) ||
+        !isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !isValidSemVer(codec.version) ||
         typeof codec.serialize !== 'function' ||
@@ -82,7 +81,7 @@ function isSerializedRecord(value) {
         typeof value.locked === 'boolean' &&
         isRecord(value.codec) &&
         typeof value.codec.type === 'string' &&
-        OVERLAY_CODEC_TYPE_PATTERN.test(value.codec.type) &&
+        isRuntimeIdentifier(value.codec.type) &&
         typeof value.codec.version === 'string' &&
         isValidSemVer(value.codec.version) &&
         Object.prototype.hasOwnProperty.call(value, 'data'));
@@ -418,8 +417,8 @@ export class OverlayFoundationController {
                     : undefined,
             });
         }
-        this.assertIdentifier(definition.id, 'Overlay kind id');
-        this.assertIdentifier(definition.ownerPluginId, 'Overlay kind owner');
+        this.assertRuntimeIdentifier(definition.id, 'Overlay kind id');
+        this.assertRuntimeIdentifier(definition.ownerPluginId, 'Overlay kind owner');
         const persistence = freezePersistence(definition);
         const existing = this.kinds.get(definition.id);
         if (existing) {
@@ -453,7 +452,7 @@ export class OverlayFoundationController {
     }
     registerGeometryPolicy(policy) {
         this.assertActive('register an overlay geometry policy');
-        this.assertIdentifier(policy.id, 'Overlay geometry policy id');
+        this.assertRuntimeIdentifier(policy.id, 'Overlay geometry policy id');
         this.requireKindOwner(policy.kind, policy.ownerPluginId);
         if (this.policies.has(policy.kind)) {
             throw new CoreRuntimeError(`[ImageEditor] Overlay kind "${policy.kind}" already has a geometry policy.`);
@@ -467,7 +466,7 @@ export class OverlayFoundationController {
     }
     registerInteractionPolicy(policy) {
         this.assertActive('register an overlay interaction policy');
-        this.assertIdentifier(policy.id, 'Overlay interaction policy id');
+        this.assertRuntimeIdentifier(policy.id, 'Overlay interaction policy id');
         this.requireKindOwner(policy.kind, policy.ownerPluginId);
         if (this.interactionPolicies.has(policy.kind)) {
             throw new CoreRuntimeError(`[ImageEditor] Overlay kind "${policy.kind}" already has an interaction policy.`);
@@ -482,7 +481,7 @@ export class OverlayFoundationController {
     }
     registerExportRenderer(renderer) {
         this.assertActive('register an overlay export renderer');
-        this.assertIdentifier(renderer.id, 'Overlay export renderer id');
+        this.assertRuntimeIdentifier(renderer.id, 'Overlay export renderer id');
         this.requireKindOwner(renderer.kind, renderer.ownerPluginId);
         if (!Number.isFinite(renderer.order)) {
             throw new CoreRuntimeError('[ImageEditor] Overlay export renderer order must be finite.');
@@ -647,9 +646,9 @@ export class OverlayFoundationController {
     async mutate(request) {
         var _a;
         this.assertActive('run an overlay mutation');
-        this.assertIdentifier(request.id, 'Overlay mutation id');
-        this.assertIdentifier(request.operationId, 'Overlay mutation operation id');
-        this.assertIdentifier(request.action, 'Overlay mutation action');
+        this.assertOpaqueIdentifier(request.id, 'Overlay mutation id');
+        this.assertRuntimeIdentifier(request.operationId, 'Overlay mutation operation id');
+        this.assertOpaqueIdentifier(request.action, 'Overlay mutation action');
         const initialTargets = this.resolveOverlayIds((_a = request.objectIds) !== null && _a !== void 0 ? _a : []);
         let affectedTargets = initialTargets;
         let descriptor = null;
@@ -1617,9 +1616,14 @@ export class OverlayFoundationController {
             Point: this.host.fabric.Point,
         };
     }
-    assertIdentifier(value, label) {
-        if (typeof value !== 'string' || value.trim().length === 0 || value.trim() !== value) {
-            throw new CoreRuntimeError(`[ImageEditor] ${label} must be non-empty and trimmed.`);
+    assertRuntimeIdentifier(value, label) {
+        if (!isRuntimeIdentifier(value)) {
+            throw new CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+        }
+    }
+    assertOpaqueIdentifier(value, label) {
+        if (!OVERLAY_ID_PATTERN.test(value)) {
+            throw new CoreRuntimeError(`[ImageEditor] ${label} must be a safe identifier no longer than 128 characters.`);
         }
     }
     assertActive(operation) {

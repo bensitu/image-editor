@@ -1,4 +1,8 @@
-/** Error raised when a public Filter definition cannot be validated. */
+/**
+ * Error raised when a public Filter definition cannot be validated.
+ *
+ * @module
+ */
 export declare class FilterDefinitionError extends TypeError {
     readonly path: string;
     readonly code = "FILTER_DEFINITION_INVALID";

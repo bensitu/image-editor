@@ -23,8 +23,8 @@ interface OtherApi {
     remove(): void;
 }
 
-const maskRef = definePluginRef<MaskApi>('example.test/types-mask', '1.0.0');
-const otherRef = definePluginRef<OtherApi>('example.test/types-other', '1.0.0');
+const maskRef = definePluginRef<MaskApi>('example-test:types-mask', '1.0.0');
+const otherRef = definePluginRef<OtherApi>('example-test:types-other', '1.0.0');
 const manager = new PluginManager();
 const optionalMask = manager.get(maskRef);
 const requiredMask = manager.require(maskRef);
@@ -55,7 +55,7 @@ const otherPlugin: EditorPlugin<OtherApi> = {
     setup: () => ({ kind: 'other', remove: () => undefined }),
 };
 const compositeRef = definePluginRef<{ readonly mask: MaskApi; readonly other: OtherApi }>(
-    'example.test/types-composite',
+    'example-test:types-composite',
     '1.0.0',
 );
 const composite = composePlugins({
@@ -70,7 +70,7 @@ type CompositeInference = Expect<
     Equal<typeof compositeInstall, Promise<{ readonly mask: MaskApi; readonly other: OtherApi }>>
 >;
 
-const capability = createCapabilityToken<{ read(): string }>('example.test/types-port', '1.0.0');
+const capability = createCapabilityToken<{ read(): string }>('example-test:types-port', '1.0.0');
 
 manager.has(maskRef);
 manager.has(maskRef.id);

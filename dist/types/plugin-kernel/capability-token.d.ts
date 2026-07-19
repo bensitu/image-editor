@@ -1,3 +1,8 @@
+/**
+ * Creates typed Capability identities and validates their Runtime IDs and versions.
+ *
+ * @module
+ */
 declare const capabilityTokenBrand: unique symbol;
 export interface CapabilityToken<TPort> {
     readonly id: string;

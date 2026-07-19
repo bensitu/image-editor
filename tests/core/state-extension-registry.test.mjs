@@ -32,16 +32,16 @@ function createSnapshotHarness(warnings = []) {
 
 test('object property registrations are ordered, idempotent per owner, and conflict-safe', async () => {
     const registry = new ObjectPropertyRegistry();
-    const first = registry.register({ owner: 'example/mask', keys: ['maskId', 'maskName'] });
-    const second = registry.register({ owner: 'example/mask', keys: ['maskId'] });
+    const first = registry.register({ owner: 'example:mask', keys: ['maskId', 'maskName'] });
+    const second = registry.register({ owner: 'example:mask', keys: ['maskId'] });
     assert.deepEqual(registry.listKeys(), ['maskId', 'maskName']);
-    assert.equal(registry.getOwner('maskId'), 'example/mask');
+    assert.equal(registry.getOwner('maskId'), 'example:mask');
     assert.throws(
-        () => registry.register({ owner: 'example/other', keys: ['maskId'] }),
+        () => registry.register({ owner: 'example:other', keys: ['maskId'] }),
         StateRegistrationError,
     );
     assert.throws(
-        () => registry.register({ owner: 'example/mask', keys: ['__proto__'] }),
+        () => registry.register({ owner: 'example:mask', keys: ['__proto__'] }),
         StateRegistrationError,
     );
     await second.dispose();
@@ -53,21 +53,21 @@ test('object property registrations are ordered, idempotent per owner, and confl
 test('transient predicate errors are isolated with owner-attributed warnings', () => {
     const warnings = [];
     const registry = new TransientObjectRegistry((warning) => warnings.push(warning));
-    registry.register('example/failing', () => {
+    registry.register('example:failing', () => {
         throw new Error('predicate failure');
     });
-    registry.register('example/preview', (object) => object.type === 'preview');
+    registry.register('example:preview', (object) => object.type === 'preview');
     assert.equal(registry.isTransient({ type: 'preview' }), true);
     assert.equal(registry.isTransient({ type: 'document' }), false);
     assert.equal(warnings.length, 2);
-    assert.equal(warnings[0].details.owner, 'example/failing');
+    assert.equal(warnings[0].details.owner, 'example:failing');
 });
 
 test('public snapshot round-trip validates slices and excludes configuration by contract', async () => {
     const harness = createSnapshotHarness();
     let state = { value: 1 };
     harness.slices.register({
-        id: 'example/plugin',
+        id: 'example:plugin',
         version: 1,
         capture: () => state,
         validate: (value) =>
@@ -93,7 +93,7 @@ test('missing plugin policies skip, preserve opaque data, or reject transactiona
         schema: 'image-editor.state',
         version: 3,
         core: { canvasWidth: 200, canvasHeight: 160 },
-        plugins: { 'missing/plugin': { version: 1, data: { retained: true } } },
+        plugins: { 'missing:plugin': { version: 1, data: { retained: true } } },
     };
 
     await harness.snapshots.load(snapshot, { missingPluginPolicy: 'warn-and-skip' });
@@ -102,8 +102,8 @@ test('missing plugin policies skip, preserve opaque data, or reject transactiona
 
     await harness.snapshots.load(snapshot, { missingPluginPolicy: 'preserve-opaque' });
     assert.deepEqual(
-        harness.snapshots.capture().plugins['missing/plugin'],
-        snapshot.plugins['missing/plugin'],
+        harness.snapshots.capture().plugins['missing:plugin'],
+        snapshot.plugins['missing:plugin'],
     );
 
     await assert.rejects(

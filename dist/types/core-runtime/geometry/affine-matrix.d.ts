@@ -1,3 +1,8 @@
+/**
+ * Implements affine matrix validation, composition, inversion, and bounds transformation for geometry mutations.
+ *
+ * @module
+ */
 export type AffineMatrix = readonly [number, number, number, number, number, number];
 export interface Point {
     readonly x: number;

@@ -1,3 +1,8 @@
+/**
+ * Registers mutually exclusive Tools and serializes their lifecycle transitions.
+ *
+ * @module
+ */
 import { type Disposable, type MaybePromise } from './disposable.js';
 import { type PluginErrorSink } from './reporting.js';
 export type ToolId = string;

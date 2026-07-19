@@ -115,10 +115,10 @@ async function createEditor({
 }
 
 function registerSyntheticAnnotationKind(overlay) {
-    const kind = 'example.test/annotation-like';
+    const kind = 'example-test:annotation-like';
     overlay.registerKind({
         id: kind,
-        ownerPluginId: 'example.test/annotation-owner',
+        ownerPluginId: 'example-test:annotation-owner',
         classify: (object) => object.syntheticOverlayKind === kind,
         getPersistentId: (object) => object.syntheticOverlayId ?? null,
         setPersistentId: (object, id) => {
@@ -313,7 +313,7 @@ test('Crop generic Overlay policies hide transiently and preserve only intersect
         overlayPolicy: {
             preview: 'hide-participating',
             apply: 'transform-intersecting',
-            kinds: ['mask'],
+            kinds: ['mask:object'],
         },
     });
     assert.equal(inside.visible, false);
@@ -330,7 +330,7 @@ test('Crop generic Overlay policies hide transiently and preserve only intersect
         overlayPolicy: {
             preview: 'keep',
             apply: 'transform-intersecting',
-            kinds: ['mask'],
+            kinds: ['mask:object'],
         },
     });
     await crop.apply();

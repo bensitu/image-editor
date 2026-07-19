@@ -1,3 +1,8 @@
+/**
+ * Publishes Core state, snapshot, memento, slice, and transient-object contracts.
+ *
+ * @module
+ */
 export { assertSafeImmutableReference, cloneStateValue, isDangerousStateKey, } from './clone-state-value.js';
 export { MementoService, type MementoRestoreOptions } from './memento-service.js';
 export { ObjectPropertyRegistry, type ObjectPropertyRegistration, } from './object-property-registry.js';

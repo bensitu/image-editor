@@ -1,3 +1,4 @@
+import { isRuntimeIdentifier } from '../../plugin-kernel/runtime-identifier.js';
 import { SnapshotValidationError, SnapshotVersionUnsupportedError, StateRegistrationError, } from '../errors.js';
 import { cloneStateValue, isDangerousStateKey } from './clone-state-value.js';
 import { inspectEncodedImageDataUrl } from './image-data-url.js';
@@ -373,7 +374,7 @@ export class SnapshotService {
         }
         const plugins = Object.create(null);
         for (const [id, entry] of entries) {
-            if (id.trim().length === 0 || isDangerousStateKey(id)) {
+            if (!isRuntimeIdentifier(id) || isDangerousStateKey(id)) {
                 throw new SnapshotValidationError('plugin id is invalid.', `$.plugins.${id}`);
             }
             if (!isRecord(entry) ||

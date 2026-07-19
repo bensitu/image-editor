@@ -1,3 +1,8 @@
+/**
+ * Publishes the Transform Plugin factory, configuration, mutation, state, and API contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import { type TransformMutationOptions, type TransformPluginOptions, type TransformPluginState } from './transform-controller.js';

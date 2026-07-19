@@ -1,3 +1,9 @@
+/**
+ * Installs and initializes Plugins while enforcing dependencies, capabilities, permissions, operations, and rollback.
+ *
+ * @module
+ */
+
 import { type CapabilityIdentity, type CapabilityToken } from './capability-token.js';
 import { CapabilityRegistry } from './capability-registry.js';
 import {
@@ -171,11 +177,11 @@ function sameInstallationDefinition<TEvents extends object>(
 }
 
 const pluginPackageHints = new Map<string, string>([
-    ['foundation.overlay', '@bensitu/image-editor/plugins/overlay'],
-    ['@bensitu/transform', '@bensitu/image-editor/plugins/transform'],
-    ['@bensitu/mask', '@bensitu/image-editor/plugins/mask'],
-    ['@bensitu/history', '@bensitu/image-editor/plugins/history'],
-    ['@bensitu/filters', '@bensitu/image-editor/plugins/filters'],
+    ['foundation:overlay', '@bensitu/image-editor/plugins/overlay'],
+    ['plugin:transform', '@bensitu/image-editor/plugins/transform'],
+    ['plugin:mask', '@bensitu/image-editor/plugins/mask'],
+    ['plugin:history', '@bensitu/image-editor/plugins/history'],
+    ['plugin:filters', '@bensitu/image-editor/plugins/filters'],
 ]);
 
 export class PluginManager<TEvents extends object = PluginEventMap> implements Disposable {
@@ -329,7 +335,7 @@ export class PluginManager<TEvents extends object = PluginEventMap> implements D
     /** @internal Registers host-owned Core operations before initialization. */
     registerHostOperation(definition: OperationDefinition): Disposable {
         this.assertCanInstall();
-        return this.operationRegistry.register(definition, '@bensitu/core');
+        return this.operationRegistry.register(definition, 'core:host');
     }
 
     /** @internal Used by Core coordinators to acquire a Feature-owned operation. */

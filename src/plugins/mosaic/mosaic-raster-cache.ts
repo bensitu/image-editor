@@ -1,3 +1,9 @@
+/**
+ * Creates and updates bounded Mosaic raster caches and preview Fabric images.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { FabricModule } from '../../core/index.js';

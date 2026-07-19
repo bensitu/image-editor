@@ -1,3 +1,9 @@
+/**
+ * Owns Overlay registration, persistence, interaction, geometry, and export coordination.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {
@@ -25,6 +31,7 @@ import {
     PluginManifestError,
     createDisposable,
     disposeInReverseSync,
+    isRuntimeIdentifier,
     isValidSemVer,
 } from '../../sdk/index.js';
 import { applyDeltaToObject, type FabricUtilAccess } from './overlay-transform-delta.js';
@@ -162,9 +169,8 @@ type OverlayCoreAccess = CoreDiagnosticsPort &
         runOperation(operationId: string, task: () => void | Promise<void>): Promise<void>;
     };
 
-const OVERLAY_STATE_ID = 'foundation.overlay';
+const OVERLAY_STATE_ID = 'foundation:overlay';
 const OVERLAY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const OVERLAY_CODEC_TYPE_PATTERN = /^[A-Za-z0-9@][A-Za-z0-9@._:/-]{0,127}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -194,7 +200,7 @@ function freezePersistence(
     if (
         !isRecord(codec) ||
         typeof codec.type !== 'string' ||
-        !OVERLAY_CODEC_TYPE_PATTERN.test(codec.type) ||
+        !isRuntimeIdentifier(codec.type) ||
         typeof codec.version !== 'string' ||
         !isValidSemVer(codec.version) ||
         typeof codec.serialize !== 'function' ||
@@ -226,7 +232,7 @@ function isSerializedRecord(value: unknown): value is SerializedOverlayRecord {
         typeof value.locked === 'boolean' &&
         isRecord(value.codec) &&
         typeof value.codec.type === 'string' &&
-        OVERLAY_CODEC_TYPE_PATTERN.test(value.codec.type) &&
+        isRuntimeIdentifier(value.codec.type) &&
         typeof value.codec.version === 'string' &&
         isValidSemVer(value.codec.version) &&
         Object.prototype.hasOwnProperty.call(value, 'data')
@@ -473,8 +479,8 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
                 },
             );
         }
-        this.assertIdentifier(definition.id, 'Overlay kind id');
-        this.assertIdentifier(definition.ownerPluginId, 'Overlay kind owner');
+        this.assertRuntimeIdentifier(definition.id, 'Overlay kind id');
+        this.assertRuntimeIdentifier(definition.ownerPluginId, 'Overlay kind owner');
         const persistence = freezePersistence(definition);
         const existing = this.kinds.get(definition.id);
         if (existing) {
@@ -507,7 +513,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     registerGeometryPolicy(policy: OverlayGeometryPolicy): Disposable {
         this.assertActive('register an overlay geometry policy');
-        this.assertIdentifier(policy.id, 'Overlay geometry policy id');
+        this.assertRuntimeIdentifier(policy.id, 'Overlay geometry policy id');
         this.requireKindOwner(policy.kind, policy.ownerPluginId);
         if (this.policies.has(policy.kind)) {
             throw new CoreRuntimeError(
@@ -523,7 +529,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     registerInteractionPolicy(policy: OverlayInteractionPolicy): Disposable {
         this.assertActive('register an overlay interaction policy');
-        this.assertIdentifier(policy.id, 'Overlay interaction policy id');
+        this.assertRuntimeIdentifier(policy.id, 'Overlay interaction policy id');
         this.requireKindOwner(policy.kind, policy.ownerPluginId);
         if (this.interactionPolicies.has(policy.kind)) {
             throw new CoreRuntimeError(
@@ -541,7 +547,7 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     registerExportRenderer(renderer: OverlayExportRenderer): Disposable {
         this.assertActive('register an overlay export renderer');
-        this.assertIdentifier(renderer.id, 'Overlay export renderer id');
+        this.assertRuntimeIdentifier(renderer.id, 'Overlay export renderer id');
         this.requireKindOwner(renderer.kind, renderer.ownerPluginId);
         if (!Number.isFinite(renderer.order)) {
             throw new CoreRuntimeError(
@@ -720,9 +726,9 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
 
     async mutate<TResult>(request: OverlayMutationRequest<TResult>): Promise<TResult> {
         this.assertActive('run an overlay mutation');
-        this.assertIdentifier(request.id, 'Overlay mutation id');
-        this.assertIdentifier(request.operationId, 'Overlay mutation operation id');
-        this.assertIdentifier(request.action, 'Overlay mutation action');
+        this.assertOpaqueIdentifier(request.id, 'Overlay mutation id');
+        this.assertRuntimeIdentifier(request.operationId, 'Overlay mutation operation id');
+        this.assertOpaqueIdentifier(request.action, 'Overlay mutation action');
         const initialTargets = this.resolveOverlayIds(request.objectIds ?? []);
         let affectedTargets = initialTargets;
         let descriptor: OverlayMutationDescriptor | null = null;
@@ -1853,9 +1859,17 @@ export class OverlayFoundationController implements OverlayFoundationApi, Dispos
         };
     }
 
-    private assertIdentifier(value: string, label: string): void {
-        if (typeof value !== 'string' || value.trim().length === 0 || value.trim() !== value) {
-            throw new CoreRuntimeError(`[ImageEditor] ${label} must be non-empty and trimmed.`);
+    private assertRuntimeIdentifier(value: string, label: string): void {
+        if (!isRuntimeIdentifier(value)) {
+            throw new CoreRuntimeError(`[ImageEditor] ${label} must match "namespace:kebab-case".`);
+        }
+    }
+
+    private assertOpaqueIdentifier(value: string, label: string): void {
+        if (!OVERLAY_ID_PATTERN.test(value)) {
+            throw new CoreRuntimeError(
+                `[ImageEditor] ${label} must be a safe identifier no longer than 128 characters.`,
+            );
         }
     }
 

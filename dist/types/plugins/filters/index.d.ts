@@ -1,3 +1,8 @@
+/**
+ * Publishes the Filters Plugin factory, definitions, errors, bake options, and API contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import { type FiltersPluginApi, type FiltersPluginOptions } from './filters-controller.js';

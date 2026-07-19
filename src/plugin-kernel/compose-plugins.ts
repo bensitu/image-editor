@@ -1,3 +1,9 @@
+/**
+ * Composes child Plugins into one installation unit with typed APIs and dependency rollback.
+ *
+ * @module
+ */
+
 import type { PluginEventMap } from './committed-event-bus.js';
 import { InvalidPluginDefinitionError } from './errors.js';
 import type { PluginRef } from './plugin-ref.js';

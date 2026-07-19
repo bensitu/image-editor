@@ -1,4 +1,11 @@
+/**
+ * Routes committed document mutations to the active History provider.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable } from '../plugin-kernel/disposable.js';
+import { isRuntimeIdentifier } from '../plugin-kernel/runtime-identifier.js';
 import { CoreRuntimeError } from './errors.js';
 import type { DocumentMutationHistoryPort } from './mutation/index.js';
 import type { CoreMemento } from './state/index.js';
@@ -26,8 +33,10 @@ export class HistoryCommitRouter implements CoreHistoryCommitPort, DocumentMutat
     private owner: string | null = null;
 
     register(owner: string, provider: CoreHistoryCommitPort): Disposable {
-        if (owner.trim().length === 0 || owner.trim() !== owner) {
-            throw new CoreRuntimeError('[ImageEditor] History provider owner must be non-empty.');
+        if (!isRuntimeIdentifier(owner)) {
+            throw new CoreRuntimeError(
+                '[ImageEditor] History provider owner must match "namespace:kebab-case".',
+            );
         }
         if (this.owner) {
             throw new CoreRuntimeError(

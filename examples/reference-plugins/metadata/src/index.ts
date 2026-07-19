@@ -38,8 +38,8 @@ interface StoredMetadata {
     readonly entries: Readonly<Record<string, string>>;
 }
 
-const stateSliceId = '@bensitu/reference-metadata/document';
-const operationId = 'reference.metadata:write';
+const stateSliceId = 'reference-metadata:document';
+const operationId = 'reference-metadata:write';
 const defaultConfiguration: MetadataConfiguration = Object.freeze({
     maximumEntries: 64,
     maximumValueLength: 4096,
@@ -55,10 +55,7 @@ export class MetadataSliceVersionError extends RangeError {
     }
 }
 
-export const metadataPluginRef = definePluginRef<MetadataPluginApi>(
-    '@bensitu/reference-metadata',
-    '1.0.0',
-);
+export const metadataPluginRef = definePluginRef<MetadataPluginApi>('reference:metadata', '1.0.0');
 
 function validateConfiguration(value: MetadataConfiguration): MetadataConfiguration {
     if (

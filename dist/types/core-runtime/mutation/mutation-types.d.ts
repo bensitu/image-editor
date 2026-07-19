@@ -1,3 +1,8 @@
+/**
+ * Declares document mutation participants, transaction contexts, ports, and diagnostic contracts.
+ *
+ * @module
+ */
 import type { MaybePromise } from '../../plugin-kernel/disposable.js';
 import type { OperationConflictDomain, OperationDefinition, OperationToken } from '../../plugin-kernel/operation-registry.js';
 import type { CoreMemento } from '../state/state-types.js';

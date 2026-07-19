@@ -1,3 +1,8 @@
+/**
+ * Orders and invokes Plugin-owned render contributions during image export.
+ *
+ * @module
+ */
 import type * as FabricNS from 'fabric';
 import { type Disposable, type MaybePromise } from '../plugin-kernel/index.js';
 import type { CoreExportOptions } from './public-types.js';

@@ -1,3 +1,8 @@
+/**
+ * Declares Mosaic configuration, session, commit, status, and Plugin API contracts.
+ *
+ * @module
+ */
 import type { Disposable } from '../../sdk/index.js';
 import type { DirtyRectangle, MosaicImagePoint } from './mosaic-brush.js';
 export type MosaicOutputFormat = 'source' | 'png' | 'jpeg' | 'webp';

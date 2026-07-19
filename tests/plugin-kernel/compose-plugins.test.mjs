@@ -21,7 +21,7 @@ function simplePlugin(ref, overrides = {}) {
 
 test('composed plugins ensure shared dependencies once while direct duplicate install remains strict', async () => {
     const manager = new PluginManager();
-    const foundationRef = definePluginRef('example.test/foundation', '1.0.0');
+    const foundationRef = definePluginRef('example-test:foundation', '1.0.0');
     let foundationSetups = 0;
     let foundationDisposals = 0;
     const foundation = simplePlugin(foundationRef, {
@@ -31,13 +31,13 @@ test('composed plugins ensure shared dependencies once while direct duplicate in
         },
     });
     const first = composePlugins({
-        ref: definePluginRef('example.test/composite-first', '1.0.0'),
+        ref: definePluginRef('example-test:composite-first', '1.0.0'),
         version: '1.0.0',
         plugins: [foundation],
         createApi: ([foundationApi]) => ({ foundation: foundationApi, composite: 'first' }),
     });
     const second = composePlugins({
-        ref: definePluginRef('example.test/composite-second', '1.0.0'),
+        ref: definePluginRef('example-test:composite-second', '1.0.0'),
         version: '1.0.0',
         plugins: [foundation],
         createApi: ([foundationApi]) => ({ foundation: foundationApi, composite: 'second' }),
@@ -54,9 +54,9 @@ test('composed plugins ensure shared dependencies once while direct duplicate in
 
 test('composed install failure removes only dependencies newly installed by that composition', async () => {
     const manager = new PluginManager();
-    const foundationRef = definePluginRef('example.test/preexisting-foundation', '1.0.0');
-    const childRef = definePluginRef('example.test/new-child', '1.0.0');
-    const failingRef = definePluginRef('example.test/failing-child', '1.0.0');
+    const foundationRef = definePluginRef('example-test:preexisting-foundation', '1.0.0');
+    const childRef = definePluginRef('example-test:new-child', '1.0.0');
+    const failingRef = definePluginRef('example-test:failing-child', '1.0.0');
     const foundation = simplePlugin(foundationRef);
     const disposeOrder = [];
     const child = simplePlugin(childRef, {
@@ -70,7 +70,7 @@ test('composed install failure removes only dependencies newly installed by that
     await manager.install(foundation);
 
     const composite = composePlugins({
-        ref: definePluginRef('example.test/failing-composite', '1.0.0'),
+        ref: definePluginRef('example-test:failing-composite', '1.0.0'),
         version: '1.0.0',
         plugins: [foundation, child, failing],
         createApi: () => ({ unreachable: true }),
@@ -89,12 +89,12 @@ test('composed install failure removes only dependencies newly installed by that
 test('createApi failure rolls back newly installed children in reverse order', async () => {
     const manager = new PluginManager();
     const disposeOrder = [];
-    const firstRef = definePluginRef('example.test/api-child-first', '1.0.0');
-    const secondRef = definePluginRef('example.test/api-child-second', '1.0.0');
+    const firstRef = definePluginRef('example-test:api-child-first', '1.0.0');
+    const secondRef = definePluginRef('example-test:api-child-second', '1.0.0');
     const first = simplePlugin(firstRef, { onDispose: () => disposeOrder.push('first') });
     const second = simplePlugin(secondRef, { onDispose: () => disposeOrder.push('second') });
     const composite = composePlugins({
-        ref: definePluginRef('example.test/api-failing-composite', '1.0.0'),
+        ref: definePluginRef('example-test:api-failing-composite', '1.0.0'),
         version: '1.0.0',
         plugins: [first, second],
         createApi: () => {
@@ -111,12 +111,12 @@ test('createApi failure rolls back newly installed children in reverse order', a
 
 test('ensure refuses an incompatible implementation version without replacing the provider', async () => {
     const manager = new PluginManager();
-    const foundationRef = definePluginRef('example.test/versioned-foundation', '1.0.0');
+    const foundationRef = definePluginRef('example-test:versioned-foundation', '1.0.0');
     const installed = simplePlugin(foundationRef, { version: '1.0.0' });
     const incompatible = simplePlugin(foundationRef, { version: '2.0.0' });
     await manager.install(installed);
     const composite = composePlugins({
-        ref: definePluginRef('example.test/versioned-composite', '1.0.0'),
+        ref: definePluginRef('example-test:versioned-composite', '1.0.0'),
         version: '1.0.0',
         plugins: [incompatible],
         createApi: ([api]) => api,
@@ -134,8 +134,8 @@ test('ensure refuses an incompatible implementation version without replacing th
 test('outer composition rollback removes dependencies installed by a nested composition', async () => {
     const manager = new PluginManager();
     const disposeOrder = [];
-    const foundationRef = definePluginRef('example.test/nested-foundation', '1.0.0');
-    const featureRef = definePluginRef('example.test/nested-feature', '1.0.0');
+    const foundationRef = definePluginRef('example-test:nested-foundation', '1.0.0');
+    const featureRef = definePluginRef('example-test:nested-feature', '1.0.0');
     const foundation = simplePlugin(foundationRef, {
         onDispose: () => disposeOrder.push('foundation'),
     });
@@ -143,13 +143,13 @@ test('outer composition rollback removes dependencies installed by a nested comp
         onDispose: () => disposeOrder.push('feature'),
     });
     const inner = composePlugins({
-        ref: definePluginRef('example.test/inner-composite', '1.0.0'),
+        ref: definePluginRef('example-test:inner-composite', '1.0.0'),
         version: '1.0.0',
         plugins: [foundation, feature],
         createApi: ([foundationApi, featureApi]) => ({ foundationApi, featureApi }),
     });
     const outer = composePlugins({
-        ref: definePluginRef('example.test/outer-composite', '1.0.0'),
+        ref: definePluginRef('example-test:outer-composite', '1.0.0'),
         version: '1.0.0',
         plugins: [inner],
         createApi: () => {

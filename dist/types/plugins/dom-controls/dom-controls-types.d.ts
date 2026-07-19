@@ -1,3 +1,8 @@
+/**
+ * Declares DOM targets, bindings, control groups, rendering adapters, status, and Plugin API contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap, MaskObject } from '../../core/index.js';
 import type { AnnotationDescriptor, AnnotationPluginApi, AnnotationStatus } from '../../foundations/annotation/index.js';
 import type { OverlayFoundationApi } from '../../foundations/overlay/index.js';

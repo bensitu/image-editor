@@ -1,3 +1,8 @@
+/**
+ * Publishes the formal Core package entry for runtime, state, geometry, mutation, and selected mask contracts.
+ *
+ * @module
+ */
 export { ImageEditorCore, type LoadStateOptions } from '../core-runtime/image-editor-core.js';
 export type { CoreElementMap, CoreEventMap, CoreExportOptions, CoreImageInfo, EditorLifecycleState, ElementTarget, ExportArea, FabricModule, ImageEditorCoreOptions, ImageMimeType, LayoutMode, LoadImageOptions, ResolvedImageEditorCoreOptions, } from '../core-runtime/public-types.js';
 export { CoreRuntimeError, DocumentMutationInvariantError, EmergencyResetError, EditorAlreadyInitializedError, EditorDisposedError, EditorDisposingError, EditorFaultedError, EditorInitializationInProgressError, SnapshotValidationError, SnapshotVersionUnsupportedError, classifyCoreError, type CoreDiagnostic, type CoreErrorBehavior, type CoreErrorClassification, type CoreErrorSeverity, } from '../core-runtime/errors.js';

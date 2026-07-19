@@ -1,3 +1,8 @@
+/**
+ * Routes committed document mutations to the active History provider.
+ *
+ * @module
+ */
 import { type Disposable } from '../plugin-kernel/disposable.js';
 import type { DocumentMutationHistoryPort } from './mutation/index.js';
 import type { CoreMemento } from './state/index.js';

@@ -1,5 +1,6 @@
 import { createDisposable } from './disposable.js';
 import { OperationConflictError, OperationRegistrationError, PluginKernelDisposedError, } from './errors.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 const OPERATION_MODES = ['read', 'busy', 'animation', 'mutation'];
 const REENTRANCY_POLICIES = [
     'reject',
@@ -161,11 +162,11 @@ export class OperationRegistry {
     }
     beginForHost(operationId) {
         this.assertActive('begin an operation');
-        const registered = this.requireRegistered(operationId, '@bensitu/core');
+        const registered = this.requireRegistered(operationId, 'core:host');
         return this.begin(operationId, registered.ownerPluginId);
     }
     runForHost(operationId, args, task, options = {}) {
-        const registered = this.requireRegistered(operationId, '@bensitu/core');
+        const registered = this.requireRegistered(operationId, 'core:host');
         return this.run(operationId, registered.ownerPluginId, args, task, options);
     }
     has(operationId) {
@@ -467,8 +468,11 @@ export class OperationRegistry {
         }
     }
     validateDefinition(definition, ownerPluginId) {
-        if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
-            throw new OperationRegistrationError('Operation id must be a non-empty trimmed string.', ownerPluginId);
+        if (!isRuntimeIdentifier(ownerPluginId)) {
+            throw new OperationRegistrationError('Operation owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+        }
+        if (!isRuntimeIdentifier(definition.id)) {
+            throw new OperationRegistrationError('Operation id must match "namespace:kebab-case".', ownerPluginId);
         }
         if (!OPERATION_MODES.includes(definition.mode)) {
             throw new OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
@@ -484,6 +488,12 @@ export class OperationRegistry {
         }
         if (definition.reentrancy === 'coalesce' && typeof definition.coalesce !== 'function') {
             throw new OperationRegistrationError(`Operation "${definition.id}" must define coalesce().`, ownerPluginId);
+        }
+        if (definition.allowedDuringTool !== undefined &&
+            (!Array.isArray(definition.allowedDuringTool) ||
+                definition.allowedDuringTool.some((toolId) => !isRuntimeIdentifier(toolId)) ||
+                new Set(definition.allowedDuringTool).size !== definition.allowedDuringTool.length)) {
+            throw new OperationRegistrationError(`Operation "${definition.id}" has invalid allowed Tool ids.`, ownerPluginId);
         }
     }
     conflictError(requested, active, ownerPluginId) {

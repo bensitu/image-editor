@@ -1,4 +1,8 @@
-/** A manually controlled Promise used by deterministic Plugin tests. */
+/**
+ * A manually controlled Promise used by deterministic Plugin tests.
+ *
+ * @module
+ */
 export interface DeferredOperation<TValue> {
     readonly promise: Promise<TValue>;
     readonly settled: boolean;

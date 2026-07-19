@@ -2,25 +2,10 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
-
-function isMaskObject$1(object) {
-    const candidate = object;
-    return (!!candidate &&
-        candidate.editorObjectKind === 'mask' &&
-        typeof candidate.maskId === 'number' &&
-        typeof candidate.maskUid === 'string' &&
-        typeof candidate.maskName === 'string');
-}
-function isSessionObject(object) {
-    const candidate = object;
-    return (!!candidate &&
-        candidate.editorObjectKind === 'session' &&
-        typeof candidate.sessionObjectType === 'string');
-}
 
 function markMaskObject(object, meta) {
     const mask = object;
@@ -41,6 +26,21 @@ function markSessionObject(object, sessionObjectType) {
     sessionObject.editorObjectKind = 'session';
     sessionObject.sessionObjectType = sessionObjectType;
     return sessionObject;
+}
+
+function isMaskObject$1(object) {
+    const candidate = object;
+    return (!!candidate &&
+        candidate.editorObjectKind === 'mask' &&
+        typeof candidate.maskId === 'number' &&
+        typeof candidate.maskUid === 'string' &&
+        typeof candidate.maskName === 'string');
+}
+function isSessionObject(object) {
+    const candidate = object;
+    return (!!candidate &&
+        candidate.editorObjectKind === 'session' &&
+        typeof candidate.sessionObjectType === 'string');
 }
 
 function isPropertyMarkedSessionObject(object) {
@@ -602,12 +602,10 @@ function createMask(context, config = {}) {
     attachMaskHoverHandlers(maskObject);
     context.setLastMask(maskObject);
     placeMaskObject(canvas, maskObject);
-    context.updateMaskList();
     if (resolvedConfig.selectable !== false) {
         canvas.setActiveObject(maskObject);
     }
     canvas.renderAll();
-    context.saveCanvasState();
     if (typeof config.onCreate === 'function') {
         try {
             config.onCreate(maskObject, canvas);
@@ -738,7 +736,7 @@ function hideAllMaskLabels(context) {
     });
 }
 
-const MASK_PLUGIN_ID = '@bensitu/mask';
+const MASK_PLUGIN_ID = 'plugin:mask';
 const MASK_SERIALIZED_OBJECT_PROPERTIES = [
     'hasControls',
     'selectable',
@@ -966,7 +964,7 @@ class MaskPluginController {
             onWarning: (error, message) => host.reportWarning(error, message),
         });
         this.registrations.push(overlay.registerKind({
-            id: 'mask',
+            id: 'mask:object',
             ownerPluginId: MASK_PLUGIN_ID,
             classify: isMaskObject,
             getPersistentId: (object) => isMaskObject(object) && object.maskUid ? object.maskUid : null,
@@ -977,7 +975,7 @@ class MaskPluginController {
             persistence: {
                 mode: 'persistent',
                 codec: {
-                    type: 'mask',
+                    type: 'mask:object',
                     version: '1.0.0',
                     serialize: (object) => this.serializeMask(object),
                     validate: isSerializedMaskData,
@@ -985,7 +983,7 @@ class MaskPluginController {
                 },
             },
             stateCodec: {
-                type: 'mask',
+                type: 'mask:object',
                 version: '1.0.0',
                 serialize: (object, context) => {
                     if (!isMaskObject(object)) {
@@ -1083,8 +1081,8 @@ class MaskPluginController {
             },
         }));
         this.registrations.push(overlay.registerGeometryPolicy({
-            id: `${MASK_PLUGIN_ID}:geometry`,
-            kind: 'mask',
+            id: 'mask:geometry',
+            kind: 'mask:object',
             ownerPluginId: MASK_PLUGIN_ID,
             supports: (mutation) => mutation.kind === 'crop' ||
                 (options.bindToImageTransform && mutation.kind === 'transform'),
@@ -1092,8 +1090,8 @@ class MaskPluginController {
             synchronize: () => this.synchronizeAfterGeometry(),
         }));
         this.registrations.push(overlay.registerExportRenderer({
-            id: `${MASK_PLUGIN_ID}:renderer`,
-            kind: 'mask',
+            id: 'mask:export',
+            kind: 'mask:object',
             ownerPluginId: MASK_PLUGIN_ID,
             order: 100,
             render: async ({ source, targetCanvas }) => {
@@ -1111,8 +1109,8 @@ class MaskPluginController {
             },
         }));
         this.registrations.push(overlay.registerInteractionPolicy({
-            id: `${MASK_PLUGIN_ID}:interaction`,
-            kind: 'mask',
+            id: 'mask:interaction',
+            kind: 'mask:object',
             ownerPluginId: MASK_PLUGIN_ID,
             preview: (object) => {
                 if (isMaskObject(object))
@@ -1189,7 +1187,7 @@ class MaskPluginController {
     }
     getAll() {
         const masks = this.overlay
-            .list({ kinds: ['mask'], includeHidden: true, includeLocked: true })
+            .list({ kinds: ['mask:object'], includeHidden: true, includeLocked: true })
             .filter(isMaskObject);
         if (this.options.listOrder === 'back-to-front')
             masks.reverse();
@@ -1236,7 +1234,7 @@ class MaskPluginController {
     }
     flatten(options) {
         return this.overlay
-            .flatten({ kinds: ['mask'], includeHidden: false, includeLocked: true }, options)
+            .flatten({ kinds: ['mask:object'], includeHidden: false, includeLocked: true }, options)
             .then(() => {
             var _a;
             const masks = this.getAll();
@@ -1290,8 +1288,6 @@ class MaskPluginController {
             setMaskCounter: (counter) => {
                 this.counter = counter;
             },
-            updateMaskList: () => undefined,
-            saveCanvasState: () => undefined,
             expandCanvasIfNeeded: (width, height) => this.host.resizeCanvas(width, height),
         };
     }
@@ -1449,7 +1445,7 @@ class MaskPluginController {
     }
 }
 
-const maskPluginRef = pluginManifest.definePluginRef('@bensitu/mask', '1.0.0');
+const maskPluginRef = pluginManifest.definePluginRef('plugin:mask', '1.0.0');
 function maskPlugin(options = {}) {
     const resolved = resolveMaskPluginOptions(options);
     let controller = null;

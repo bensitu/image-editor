@@ -1,3 +1,8 @@
+/**
+ * Composes the Minimal preset and publishes its options, optional History, and installed APIs.
+ *
+ * @module
+ */
 import { ImageEditorCore, type FabricModule, type ImageEditorCoreOptions } from '../../core/index.js';
 import { type HistoryPluginOptions, type HistoryPort } from '../../plugins/history/index.js';
 import type { DomControlsPluginApi, DomPluginBinding } from '../../plugins/dom-controls/index.js';

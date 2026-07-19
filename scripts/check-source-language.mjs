@@ -37,6 +37,8 @@ const comparisonPatterns = [
     /\b(?:old|new|next generation|previous generation)\b.{0,80}\b(?:architecture|implementation|path|repository|runtime|version)\b/giu,
     /\b(?:architecture|implementation|path|repository|runtime|version)\b.{0,80}\b(?:old|new|next generation|previous generation)\b/giu,
 ];
+const genericModuleSummaryPattern =
+    /^(?:contains?|defines?|handles?)\s+(?:common\s+)?(?:helpers?|logic|types|utilities)\.?$/iu;
 
 function toRepositoryPath(filePath) {
     return path.relative(repositoryRoot, filePath).replaceAll('\\', '/');
@@ -75,6 +77,60 @@ function lineNumberAt(sourceText, position) {
 function matchesFrom(pattern, value) {
     pattern.lastIndex = 0;
     return [...value.matchAll(pattern)];
+}
+
+function inspectModuleHeader(filePath, sourceText) {
+    const file = toRepositoryPath(filePath);
+    const normalized = sourceText.replace(/^\uFEFF/u, '');
+    const header = normalized.match(/^\/\*\*[\s\S]*?\*\//u)?.[0];
+    if (!header) {
+        return [
+            {
+                file,
+                scope: 'production',
+                kind: 'module-header',
+                term: 'missing',
+                text: 'A top-level responsibility comment is required.',
+                line: 1,
+                rule: 'MODULE_HEADER_MISSING',
+            },
+        ];
+    }
+    if (!/(?:^|\s)@module(?:\s|$)/u.test(header)) {
+        return [
+            {
+                file,
+                scope: 'production',
+                kind: 'module-header',
+                term: '@module',
+                text: header,
+                line: 1,
+                rule: 'MODULE_TAG_MISSING',
+            },
+        ];
+    }
+    const summary = header
+        .replace(/^\/\*\*/u, '')
+        .replace(/\*\/$/u, '')
+        .split(/\r?\n/u)
+        .map((line) => line.replace(/^\s*\*?\s?/u, '').trim())
+        .filter((line) => line.length > 0 && !line.startsWith('@'))
+        .join(' ')
+        .trim();
+    if (summary.length === 0 || genericModuleSummaryPattern.test(summary)) {
+        return [
+            {
+                file,
+                scope: 'production',
+                kind: 'module-header',
+                term: 'responsibility',
+                text: header,
+                line: 1,
+                rule: 'MODULE_RESPONSIBILITY_MISSING',
+            },
+        ];
+    }
+    return [];
 }
 
 function classifyToken(token) {
@@ -238,7 +294,11 @@ async function main() {
         const files = await collectSourceFiles(path.join(repositoryRoot, scope.root));
         filesByScope.set(scope.name, (filesByScope.get(scope.name) ?? 0) + files.length);
         for (const filePath of files) {
-            findings.push(...inspectFile(filePath, scope.name, await readFile(filePath, 'utf8')));
+            const sourceText = await readFile(filePath, 'utf8');
+            findings.push(...inspectFile(filePath, scope.name, sourceText));
+            if (scope.root === 'src' && path.extname(filePath) === '.ts') {
+                findings.push(...inspectModuleHeader(filePath, sourceText));
+            }
         }
     }
 
@@ -276,6 +336,7 @@ async function main() {
         (finding) => finding.scope === 'test' || finding.scope === 'example',
     );
     const reviewedExceptionHits = [...hitCounts.values()].reduce((sum, count) => sum + count, 0);
+    const moduleHeaderViolations = violations.filter((finding) => finding.kind === 'module-header');
 
     console.log('Source-language check');
     console.log(`production files scanned: ${filesByScope.get('production')}`);
@@ -291,6 +352,7 @@ async function main() {
     console.log(
         `active test/example identifiers containing version labels: ${testExampleIdentifierViolations.length}`,
     );
+    console.log(`main src TypeScript module-header violations: ${moduleHeaderViolations.length}`);
     console.log(`unreviewed exceptions: ${violations.length}`);
 
     if (violations.length > 0) {

@@ -1,3 +1,9 @@
+/**
+ * Publishes the Transform Plugin factory, configuration, mutation, state, and API contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     BASE_IMAGE_READ_CAPABILITY,
@@ -30,10 +36,7 @@ export interface TransformPluginApi {
     getState(): TransformPluginState;
 }
 
-export const transformPluginRef = definePluginRef<TransformPluginApi>(
-    '@bensitu/transform',
-    '1.0.0',
-);
+export const transformPluginRef = definePluginRef<TransformPluginApi>('plugin:transform', '1.0.0');
 
 function isTransformState(value: unknown): value is TransformPluginState {
     if (typeof value !== 'object' || value === null) return false;

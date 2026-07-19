@@ -231,7 +231,7 @@ test('transient Overlay Kind registration excludes persistence and removes owned
     assert.equal(overlay.getByPersistentId('example:transient-object'), transient);
 
     const snapshot = JSON.parse(editor.saveState());
-    const overlayState = snapshot.plugins['foundation.overlay'].data;
+    const overlayState = snapshot.plugins['foundation:overlay'].data;
     assert.equal(
         overlayState.overlays.some((record) => record.persistentId === 'example:transient-object'),
         false,

@@ -1,3 +1,9 @@
+/**
+ * Declares Plugin manifests, lifecycle contexts, setup access, capabilities, operations, tools, and definitions.
+ *
+ * @module
+ */
+
 import type { CapabilityRequirementIdentity, CapabilityToken } from './capability-token.js';
 import type { CommittedEventListener, PluginEventMap } from './committed-event-bus.js';
 import type { Disposable, MaybePromise } from './disposable.js';

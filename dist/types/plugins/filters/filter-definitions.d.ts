@@ -1,3 +1,8 @@
+/**
+ * Normalizes bounded Filter definitions and compares their semantic configuration.
+ *
+ * @module
+ */
 export interface BrightnessFilter {
     readonly type: 'brightness';
     readonly value: number;

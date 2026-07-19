@@ -1,4 +1,8 @@
-/** Renderer-neutral warning and error reporting contracts. */
+/**
+ * Renderer-neutral warning and error reporting contracts.
+ *
+ * @module
+ */
 
 export interface PluginKernelWarning {
     readonly code: string;

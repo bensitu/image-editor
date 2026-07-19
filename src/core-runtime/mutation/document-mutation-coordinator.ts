@@ -1,3 +1,9 @@
+/**
+ * Runs atomic document mutations with participant ordering, rollback, History, and committed events.
+ *
+ * @module
+ */
+
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import type { OperationToken } from '../../plugin-kernel/operation-registry.js';
 import {

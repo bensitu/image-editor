@@ -59,7 +59,7 @@ import type { MaskNumericProp, PolygonPoint, ResolvedOptions } from '../core/pub
  * - `'x'` → `canvas.getWidth`
  * - `'y'` → `canvas.getHeight`
  */
-export type Axis = 'x' | 'y';
+type Axis = 'x' | 'y';
 
 /**
  * Resolve a {@link MaskNumericProp} into a concrete pixel number.

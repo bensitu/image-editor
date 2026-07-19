@@ -1,3 +1,9 @@
+/**
+ * Coordinates Plugin geometry participants within atomic document mutations and rollback.
+ *
+ * @module
+ */
+
 import { createDisposable, type Disposable } from '../../plugin-kernel/disposable.js';
 import { DocumentMutationError, DocumentMutationUnrecoverableError } from '../errors.js';
 import type {

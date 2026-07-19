@@ -1,3 +1,9 @@
+/**
+ * Publishes Overlay Foundation capabilities, Plugin factory, registration APIs, and public contracts.
+ *
+ * @module
+ */
+
 import type { CoreEventMap } from '../../core/index.js';
 import {
     BASE_IMAGE_READ_CAPABILITY,
@@ -25,17 +31,17 @@ import type {
 } from './overlay-types.js';
 
 export const OVERLAY_CAPABILITY = createCapabilityToken<OverlayRuntimeApi>(
-    'foundation.overlay',
+    'foundation:overlay',
     '1.0.0',
 );
 
 export const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken<OverlayRegistrationPort>(
-    'foundation.overlay.registration',
+    'foundation:overlay-registration',
     '1.0.0',
 );
 
 export const overlayFoundationRef = definePluginRef<OverlayFoundationApi>(
-    'foundation.overlay',
+    'foundation:overlay',
     '1.0.0',
 );
 

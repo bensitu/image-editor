@@ -1,3 +1,9 @@
+/**
+ * Composes the Full preset and publishes its options, DOM bindings, and installed APIs.
+ *
+ * @module
+ */
+
 import {
     ImageEditorCore,
     type FabricModule,

@@ -1,3 +1,9 @@
+/**
+ * Implements draw and erase sessions, codecs, previews, and Annotation Foundation integration.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {

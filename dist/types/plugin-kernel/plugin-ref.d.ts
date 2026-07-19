@@ -1,3 +1,8 @@
+/**
+ * Creates immutable branded Plugin references with Runtime ID and API-version validation.
+ *
+ * @module
+ */
 declare const pluginRefBrand: unique symbol;
 export interface PluginIdentity {
     readonly id: string;

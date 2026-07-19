@@ -5,11 +5,11 @@ Object.defineProperty(exports, '__esModule', { value: true });
 var affineMatrix = require('./chunks/affine-matrix-DRJ0b89x.cjs');
 var errors = require('./chunks/errors-DeAfrgDC.cjs');
 var core_index = require('./core/index.cjs');
-var pluginManifest = require('./chunks/plugin-manifest-Cap1WbD8.cjs');
-require('./chunks/plugin-plan-4bgXTnNS.cjs');
+var pluginManifest = require('./chunks/plugin-manifest-BONtSGqw.cjs');
+require('./chunks/plugin-plan-DhlAucLr.cjs');
 require('./chunks/disposable-Sj4tt6Lk.cjs');
-require('./chunks/plugin-manager-C4krd9Vr.cjs');
-require('./chunks/core-capabilities-3osq1B3M.cjs');
+require('./chunks/plugin-manager-DNf8QQ99.cjs');
+require('./chunks/core-capabilities-D7bZJOAO.cjs');
 
 
 

@@ -1,3 +1,9 @@
+/**
+ * Interpolates Mosaic brush strokes, merges dirty rectangles, and mutates bounded circular pixel regions.
+ *
+ * @module
+ */
+
 export interface MosaicImagePoint {
     readonly xPx: number;
     readonly yPx: number;

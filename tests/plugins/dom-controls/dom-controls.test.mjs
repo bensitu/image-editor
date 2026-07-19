@@ -394,7 +394,7 @@ test('configured feature dependencies are required by exact PluginRef', () => {
                     },
                 }),
             ),
-        /requires Plugin "@bensitu\/transform"/,
+        /requires Plugin "plugin:transform"/,
     );
     assert.equal(editor.getPlugin(domControlsPluginRef), null);
 });

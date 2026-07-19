@@ -1,3 +1,8 @@
+/**
+ * Defines Crop session, validation, and integration failures for callers and lifecycle control.
+ *
+ * @module
+ */
 export declare class CropError extends Error {
     readonly name: string;
 }

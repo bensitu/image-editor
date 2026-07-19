@@ -1,12 +1,7 @@
 /**
- * Public interfaces and types for `@bensitu/image-editor`.
+ * Defines mask configuration and Fabric object contracts used by shared mask helpers.
  *
- * All types declared here are re-exported from the package root
- * (`src/index.ts`) so consumers can import them directly:
- *
- * ```ts
- * import type { ImageEditorOptions, MaskConfig } from '@bensitu/image-editor';
- * ```
+ * Public package entries expose only the explicitly selected mask contracts from this module.
  *
  * @module
  */
@@ -53,23 +48,12 @@ export type ImageFileType =
     'jpeg' | 'jpg' | 'png' | 'webp' | 'image/jpeg' | 'image/png' | 'image/webp';
 
 /**
- * Normalized format token after collapsing `'jpg'` to `'jpeg'` and stripping
- * the `image/` MIME prefix. Produced by `export/export-format.ts` and consumed
- * by Fabric's `format` argument.
- */
-export type NormalizedImageFormat = 'jpeg' | 'png' | 'webp';
-
-/**
  * Export region for base64, File, and download exports.
  *
  * - `'image'` clips to the current image bounding box.
  * - `'canvas'` exports the full Fabric canvas.
  */
 export type ExportArea = 'image' | 'canvas';
-
-// ─── Editor-owned object primitives ─────────────────────────────────────────
-
-export type EditorObjectKind = 'baseImage' | 'mask' | 'annotation' | 'session';
 
 export type AnnotationType = 'text' | 'draw' | 'shape';
 
@@ -92,10 +76,6 @@ export type EditorToolMode = 'crop' | 'mosaic' | 'text' | 'draw' | 'shape';
  * - 'back-to-front' follows Fabric object order from bottom to top.
  */
 export type OverlayListOrder = 'front-to-back' | 'back-to-front';
-
-export interface EditorObjectMeta {
-    editorObjectKind: EditorObjectKind;
-}
 
 export interface BaseImageObject extends FabricNS.FabricImage {
     editorObjectKind: 'baseImage';
@@ -128,21 +108,6 @@ export type CropAspectRatioPreset =
 
 export type CropAspectRatio =
     CropAspectRatioPreset | number | `${number}:${number}` | { width: number; height: number };
-
-export interface CropModeOptions {
-    /**
-     * Aspect ratio for the crop rectangle.
-     *
-     * - `'free'` means unconstrained crop.
-     * - Presets such as `'1:1'`, `'3:4'`, and `'16:9'` lock the crop rectangle.
-     * - A positive finite number is treated as width / height.
-     * - A string like `'2:1'` is parsed as width:height.
-     * - An object `{ width, height }` is parsed as width:height.
-     *
-     * @default options.crop.aspectRatio ?? 'free'
-     */
-    aspectRatio?: CropAspectRatio;
-}
 
 // ─── Mask object ─────────────────────────────────────────────────────────────
 
@@ -199,20 +164,7 @@ export interface AnnotationObject extends FabricNS.FabricObject {
     annotationEditable?: boolean;
 }
 
-export interface TextAnnotationObject extends AnnotationObject {
-    annotationType: 'text';
-}
-
-export interface DrawAnnotationObject extends AnnotationObject {
-    annotationType: 'draw';
-}
-
 export type ShapeAnnotationKind = 'rect' | 'line' | 'arrow';
-
-export interface ShapeAnnotationObject extends AnnotationObject {
-    annotationType: 'shape';
-    shapeAnnotationKind: ShapeAnnotationKind;
-}
 
 /**
  * Type guard — returns `true` when `object` carries the runtime mask metadata
@@ -246,25 +198,6 @@ export function isAnnotationObject(object: unknown): object is AnnotationObject 
         typeof candidate.annotationId === 'number' &&
         typeof candidate.annotationType === 'string' &&
         typeof candidate.annotationName === 'string'
-    );
-}
-
-export function isTextAnnotationObject(object: unknown): object is TextAnnotationObject {
-    return isAnnotationObject(object) && object.annotationType === 'text';
-}
-
-export function isDrawAnnotationObject(object: unknown): object is DrawAnnotationObject {
-    return isAnnotationObject(object) && object.annotationType === 'draw';
-}
-
-export function isShapeAnnotationObject(object: unknown): object is ShapeAnnotationObject {
-    const candidate = object as Partial<ShapeAnnotationObject> | null | undefined;
-    return (
-        isAnnotationObject(candidate) &&
-        candidate.annotationType === 'shape' &&
-        (candidate.shapeAnnotationKind === 'rect' ||
-            candidate.shapeAnnotationKind === 'line' ||
-            candidate.shapeAnnotationKind === 'arrow')
     );
 }
 
@@ -587,45 +520,6 @@ export interface ResolvedMosaicConfig {
     outputQuality?: number;
 }
 
-// ─── Image adjustment config primitives ─────────────────────────────────────
-
-export interface ImageFilterConfig {
-    /**
-     * Range: -1 to 1. 0 means no brightness adjustment.
-     */
-    brightness?: number;
-    /**
-     * Range: -1 to 1. 0 means no contrast adjustment.
-     */
-    contrast?: number;
-    /**
-     * Range: -1 to 1. 0 means no saturation adjustment.
-     */
-    saturation?: number;
-    /**
-     * Range: 0 to 1. 0 means no blur.
-     */
-    blur?: number;
-    /**
-     * Range: 0 to 1. 0 means no sharpening.
-     */
-    sharpen?: number;
-    grayscale?: boolean;
-    sepia?: boolean;
-    vintage?: boolean;
-}
-
-export interface ResolvedImageFilterConfig {
-    brightness: number;
-    contrast: number;
-    saturation: number;
-    blur: number;
-    sharpen: number;
-    grayscale: boolean;
-    sepia: boolean;
-    vintage: boolean;
-}
-
 // ─── Annotation config primitives ───────────────────────────────────────────
 
 export interface TextAnnotationConfig {
@@ -682,8 +576,6 @@ export interface DrawConfig {
     annotationLocked?: boolean;
 }
 
-export type DrawSubMode = 'brush' | 'erase';
-
 export interface ResolvedDrawConfig {
     brushSize: number;
     color: string;
@@ -714,43 +606,6 @@ export interface ResolvedEraserConfig {
     previewStrokeWidth: number;
     previewFill: string;
 }
-
-export interface CommonAnnotationUpdateConfig {
-    annotationHidden?: boolean;
-    annotationLocked?: boolean;
-    selectable?: boolean;
-    evented?: boolean;
-}
-
-export interface TextAnnotationUpdateConfig extends CommonAnnotationUpdateConfig {
-    text?: string;
-    fontSize?: number;
-    fontFamily?: string;
-    fontWeight?: string | number;
-    fill?: string;
-    backgroundColor?: string;
-    textAlign?: 'left' | 'center' | 'right' | 'justify';
-    width?: number;
-}
-
-export interface DrawAnnotationUpdateConfig extends CommonAnnotationUpdateConfig {
-    stroke?: string;
-    strokeWidth?: number;
-    opacity?: number;
-}
-
-export interface ShapeAnnotationUpdateConfig extends CommonAnnotationUpdateConfig {
-    stroke?: string;
-    strokeWidth?: number;
-    fill?: string;
-    opacity?: number;
-}
-
-export type AnnotationUpdateConfig =
-    | TextAnnotationUpdateConfig
-    | DrawAnnotationUpdateConfig
-    | ShapeAnnotationUpdateConfig
-    | CommonAnnotationUpdateConfig;
 
 export type OverlayNumericProp = MaskNumericProp;
 
@@ -938,294 +793,6 @@ export interface ResolvedMaskConfig extends MaskConfig {
     gap: number;
     angle: number;
     selectable: boolean;
-}
-
-// ─── loadImage / removeAllMasks options ──────────────────────────────────────
-
-/**
- * Options accepted by `ImageEditor.loadImage(imageBase64, options?)`.
- */
-export interface LoadImageOptions {
-    /**
-     * When `true`, the editor preserves the container's scroll position
-     * across both the successful load and rollback paths.
-     * @default false
-     */
-    preserveScroll?: boolean;
-}
-
-/**
- * Options accepted by `ImageEditor.removeAllMasks(options?)`.
- */
-export interface RemoveAllMasksOptions {
-    /**
-     * When `true`, push a single history entry for the bulk removal. When
-     * `false`, remove masks without creating a history entry — used by
-     * internal merge/crop pipelines that already record one enclosing entry.
-     * @default true
-     */
-    saveHistory?: boolean;
-}
-
-/**
- * Options accepted by `ImageEditor.removeAllAnnotations(options?)`.
- */
-export interface RemoveAllAnnotationsOptions {
-    saveHistory?: boolean;
-    force?: boolean;
-}
-
-// ─── Element targets ─────────────────────────────────────────────────────────
-
-/**
- * Public DOM target accepted by {@link ImageEditor.init}.
- *
- * String values are resolved as element IDs. HTMLElement values support
- * framework refs. `null` and `undefined` deliberately leave optional controls
- * unmanaged by the editor.
- */
-export type ElementTarget<TElement extends HTMLElement = HTMLElement> =
-    string | TElement | null | undefined;
-
-/**
- * Mapping from logical control names to DOM targets on the page.
- *
- * String IDs remain supported for plain HTML and UMD usage. HTMLElement values
- * let React, Vue, and other framework wrappers pass refs without generating
- * globally unique IDs. Any optional key may be omitted or set to `null`; unknown
- * or missing controls are ignored safely by `ui/dom-bindings.ts`.
- *
- * @deprecated Use {@link ElementMap}.
- */
-export interface ElementIdMap {
-    /** The `<canvas>` element. @default 'canvas' */
-    canvas?: ElementTarget<HTMLCanvasElement>;
-    /**
-     * Scrollable viewport container that wraps the canvas.
-     * Used to determine the visible size for canvas-sizing decisions.
-     * If omitted, `canvas.parentElement` is used.
-     */
-    canvasContainer?: ElementTarget<HTMLElement>;
-    /** Empty-state placeholder element. @default 'imagePlaceholder' */
-    imagePlaceholder?: ElementTarget<HTMLElement>;
-    /** Scale percentage input/display. @default 'scalePercentageInput' */
-    scalePercentageInput?: ElementTarget<HTMLInputElement>;
-    /** Brightness filter input. @default 'imageBrightnessInput' */
-    imageBrightnessInput?: ElementTarget<HTMLInputElement>;
-    /** Contrast filter input. @default 'imageContrastInput' */
-    imageContrastInput?: ElementTarget<HTMLInputElement>;
-    /** Saturation filter input. @default 'imageSaturationInput' */
-    imageSaturationInput?: ElementTarget<HTMLInputElement>;
-    /** Blur filter input. @default 'imageBlurInput' */
-    imageBlurInput?: ElementTarget<HTMLInputElement>;
-    /** Sharpen filter input. @default 'imageSharpenInput' */
-    imageSharpenInput?: ElementTarget<HTMLInputElement>;
-    /** Grayscale filter checkbox. @default 'imageGrayscaleInput' */
-    imageGrayscaleInput?: ElementTarget<HTMLInputElement>;
-    /** Sepia filter checkbox. @default 'imageSepiaInput' */
-    imageSepiaInput?: ElementTarget<HTMLInputElement>;
-    /** Vintage filter checkbox. @default 'imageVintageInput' */
-    imageVintageInput?: ElementTarget<HTMLInputElement>;
-    /** Commit current image-filter preview. @default 'applyImageFiltersButton' */
-    applyImageFiltersButton?: ElementTarget<HTMLButtonElement>;
-    /** Reset image-filter preview to the last committed state. @default 'resetImageFiltersButton' */
-    resetImageFiltersButton?: ElementTarget<HTMLButtonElement>;
-    /** Clear image filters and commit the cleared state. @default 'clearImageFiltersButton' */
-    clearImageFiltersButton?: ElementTarget<HTMLButtonElement>;
-    /** Left-rotation step input. @default 'rotateLeftDegreesInput' */
-    rotateLeftDegreesInput?: ElementTarget<HTMLInputElement>;
-    /** Right-rotation step input. @default 'rotateRightDegreesInput' */
-    rotateRightDegreesInput?: ElementTarget<HTMLInputElement>;
-    /** Rotate left button. @default 'rotateLeftButton' */
-    rotateLeftButton?: ElementTarget<HTMLButtonElement>;
-    /** Rotate right button. @default 'rotateRightButton' */
-    rotateRightButton?: ElementTarget<HTMLButtonElement>;
-    /** Flip base image horizontally. @default 'flipHorizontalButton' */
-    flipHorizontalButton?: ElementTarget<HTMLButtonElement>;
-    /** Flip base image vertically. @default 'flipVerticalButton' */
-    flipVerticalButton?: ElementTarget<HTMLButtonElement>;
-    /** Add mask button. @default 'createMaskButton' */
-    createMaskButton?: ElementTarget<HTMLButtonElement>;
-    /** Remove selected mask button. @default 'removeSelectedMaskButton' */
-    removeSelectedMaskButton?: ElementTarget<HTMLButtonElement>;
-    /** Remove all masks button. @default 'removeAllMasksButton' */
-    removeAllMasksButton?: ElementTarget<HTMLButtonElement>;
-    /** Merge masks into image button. @default 'mergeMasksButton' */
-    mergeMasksButton?: ElementTarget<HTMLButtonElement>;
-    /** Annotation list container (`<ul>` or `<ol>`). @default 'annotationList' */
-    annotationList?: ElementTarget<HTMLElement>;
-    /** Enter Text mode button. @default 'enterTextModeButton' */
-    enterTextModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Exit Text mode button. @default 'exitTextModeButton' */
-    exitTextModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Text color input. @default 'textColorInput' */
-    textColorInput?: ElementTarget<HTMLInputElement>;
-    /** Text font-size input. @default 'textFontSizeInput' */
-    textFontSizeInput?: ElementTarget<HTMLInputElement>;
-    /** Enter Draw mode button. @default 'enterDrawModeButton' */
-    enterDrawModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Exit Draw mode button. @default 'exitDrawModeButton' */
-    exitDrawModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Draw color input. @default 'drawColorInput' */
-    drawColorInput?: ElementTarget<HTMLInputElement>;
-    /** Draw brush-size input. @default 'drawBrushSizeInput' */
-    drawBrushSizeInput?: ElementTarget<HTMLInputElement>;
-    /** Switch Draw mode to brush sub-mode. @default 'drawBrushSubModeButton' */
-    drawBrushSubModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Switch Draw mode to erase sub-mode. @default 'drawEraseSubModeButton' */
-    drawEraseSubModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Draw eraser brush-size input. @default 'eraserBrushSizeInput' */
-    eraserBrushSizeInput?: ElementTarget<HTMLInputElement>;
-    /** Shape kind select. @default 'shapeKindSelect' */
-    shapeKindSelect?: ElementTarget<HTMLSelectElement | HTMLInputElement>;
-    /** Shape stroke color input. @default 'shapeStrokeInput' */
-    shapeStrokeInput?: ElementTarget<HTMLInputElement>;
-    /** Shape stroke-width input. @default 'shapeStrokeWidthInput' */
-    shapeStrokeWidthInput?: ElementTarget<HTMLInputElement>;
-    /** Shape fill color input. @default 'shapeFillInput' */
-    shapeFillInput?: ElementTarget<HTMLInputElement>;
-    /** Create Shape annotation button. @default 'createShapeAnnotationButton' */
-    createShapeAnnotationButton?: ElementTarget<HTMLButtonElement>;
-    /** Enter Shape mode button. @default 'enterShapeModeButton' */
-    enterShapeModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Exit Shape mode button. @default 'exitShapeModeButton' */
-    exitShapeModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Remove selected annotation button. @default 'removeSelectedAnnotationButton' */
-    removeSelectedAnnotationButton?: ElementTarget<HTMLButtonElement>;
-    /** Remove all annotations button. @default 'removeAllAnnotationsButton' */
-    removeAllAnnotationsButton?: ElementTarget<HTMLButtonElement>;
-    /** Delete selected mask or annotation button. @default 'deleteSelectedObjectButton' */
-    deleteSelectedObjectButton?: ElementTarget<HTMLButtonElement>;
-    /** Merge annotations into image button. @default 'mergeAnnotationsButton' */
-    mergeAnnotationsButton?: ElementTarget<HTMLButtonElement>;
-    /** Move selected editable overlay one layer forward. */
-    bringSelectedObjectForwardButton?: ElementTarget<HTMLButtonElement>;
-    /** Move selected editable overlay one layer backward. */
-    sendSelectedObjectBackwardButton?: ElementTarget<HTMLButtonElement>;
-    /** Move selected editable overlay to the front of overlays. */
-    bringSelectedObjectToFrontButton?: ElementTarget<HTMLButtonElement>;
-    /** Move selected editable overlay to the back of overlays. */
-    sendSelectedObjectToBackButton?: ElementTarget<HTMLButtonElement>;
-    /** Download image button. @default 'downloadImageButton' */
-    downloadImageButton?: ElementTarget<HTMLButtonElement>;
-    /** Mask list container (`<ul>` or `<ol>`). @default 'maskList' */
-    maskList?: ElementTarget<HTMLElement>;
-    /** Zoom in button. @default 'zoomInButton' */
-    zoomInButton?: ElementTarget<HTMLButtonElement>;
-    /** Zoom out button. @default 'zoomOutButton' */
-    zoomOutButton?: ElementTarget<HTMLButtonElement>;
-    /** Reset transform button. @default 'resetImageTransformButton' */
-    resetImageTransformButton?: ElementTarget<HTMLButtonElement>;
-    /** Undo button. @default 'undoButton' */
-    undoButton?: ElementTarget<HTMLButtonElement>;
-    /** Redo button. @default 'redoButton' */
-    redoButton?: ElementTarget<HTMLButtonElement>;
-    /** File input for image selection. @default 'imageInput' */
-    imageInput?: ElementTarget<HTMLInputElement>;
-    /** Enter crop mode button. @default 'enterCropModeButton' */
-    enterCropModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Crop aspect-ratio select/input. @default 'cropAspectRatioSelect' */
-    cropAspectRatioSelect?: ElementTarget<HTMLSelectElement | HTMLInputElement>;
-    /** Apply crop button. @default 'applyCropButton' */
-    applyCropButton?: ElementTarget<HTMLButtonElement>;
-    /** Cancel crop button. @default 'cancelCropButton' */
-    cancelCropButton?: ElementTarget<HTMLButtonElement>;
-    /** Enter Mosaic mode button. @default 'enterMosaicModeButton' */
-    enterMosaicModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Exit Mosaic mode button. @default 'exitMosaicModeButton' */
-    exitMosaicModeButton?: ElementTarget<HTMLButtonElement>;
-    /** Optional input/range control for Mosaic brush diameter. @default 'mosaicBrushSizeInput' */
-    mosaicBrushSizeInput?: ElementTarget<HTMLInputElement>;
-    /** Optional input/range control for Mosaic block size. @default 'mosaicBlockSizeInput' */
-    mosaicBlockSizeInput?: ElementTarget<HTMLInputElement>;
-    /** Clickable upload area (delegates to imageInput). @default 'uploadArea' */
-    uploadArea?: ElementTarget<HTMLElement>;
-}
-
-/** Mapping from logical control names to string IDs, HTMLElement refs, or null. */
-export type ElementMap = ElementIdMap;
-
-/** Options for {@link ImageEditor.resizeToContainer}. */
-export interface ResizeToContainerOptions {
-    /** Width to use when the container is hidden or reports zero width. */
-    fallbackWidth?: number;
-    /** Height to use when the container is hidden or reports zero height. */
-    fallbackHeight?: number;
-}
-
-/** Options for {@link ImageEditor.relayout}. */
-export interface RelayoutOptions {
-    /** Optional layout mode to set before measuring and resizing. */
-    mode?: LayoutMode;
-    /** Restore container scroll position after relayout when possible. */
-    preserveScroll?: boolean;
-}
-// ─── Export options ──────────────────────────────────────────────────────────
-
-export interface OverlayExportOptions {
-    /**
-     * Render masks into the exported output. This does not mutate editor state.
-     * @default options.mergeMasksByDefault
-     */
-    mergeMasks?: boolean;
-    /**
-     * Render annotations into the exported output. This does not mutate editor state.
-     * @default options.mergeAnnotationsByDefault
-     */
-    mergeAnnotations?: boolean;
-}
-
-export interface ImageExportOptions extends OverlayExportOptions {
-    /**
-     * Which region to export. `'image'` clips to the image bounding box;
-     * `'canvas'` exports the full canvas.
-     * @default 'image'
-     */
-    exportArea?: ExportArea;
-    /**
-     * Output format.
-     *
-     * Accepted values:
-     * - `'jpeg'`
-     * - `'jpg'`
-     * - `'png'`
-     * - `'webp'`
-     * - `'image/jpeg'`
-     * - `'image/png'`
-     * - `'image/webp'`
-     *
-     * @default 'jpeg'
-     */
-    fileType?: ImageFileType;
-
-    /**
-     * Alias for `fileType`.
-     *
-     * When both `fileType` and `format` are provided, `fileType` wins.
-     */
-    format?: ImageFileType;
-
-    /**
-     * Lossy quality from 0 to 1.
-     * Ignored for PNG.
-     *
-     * @default options.downsampleQuality
-     */
-    quality?: number;
-
-    /**
-     * Output resolution multiplier.
-     *
-     * @default options.exportMultiplier
-     */
-    multiplier?: number;
-
-    /**
-     * Filename for `exportImageFile()` and `downloadImage()`.
-     *
-     * Ignored by `exportImageBase64()`.
-     */
-    fileName?: string;
 }
 
 // ─── Main options ────────────────────────────────────────────────────────────
@@ -1598,37 +1165,4 @@ export interface ResolvedOptions extends Required<
         ((selection: ImageEditorSelection, context: ImageEditorCallbackContext) => void) | null;
     onError: ((error: unknown, message: string) => void) | null;
     onWarning: ((error: unknown, message: string) => void) | null;
-}
-
-// ─── Internal event handler bookkeeping (not re-exported from the barrel) ────
-
-/** DOM event subscription pair retained so teardown can remove the listener. */
-export interface BoundHandler {
-    event: string;
-    handler: EventListener;
-}
-
-/** Crop-session handler registry entry for crop rectangle events. */
-export interface CropHandler {
-    target: MaskObject | FabricNS.Rect;
-    handlers: Array<{ eventName: string; callback: () => void }>;
-}
-
-/** Previous Fabric interaction flags captured before crop mode freezes objects. */
-export interface CropPrevEvented {
-    object: FabricNS.FabricObject;
-    evented: boolean;
-    selectable: boolean;
-}
-
-/** Full mask style snapshot used to restore hover, selection, and crop styles. */
-export interface MaskBackup {
-    object: MaskObject;
-    opacity: number;
-    fill: FabricNS.TFiller | string | null;
-    strokeWidth: number;
-    stroke: FabricNS.TFiller | string | null;
-    selectable: boolean;
-    evented: boolean;
-    lockRotation: boolean;
 }

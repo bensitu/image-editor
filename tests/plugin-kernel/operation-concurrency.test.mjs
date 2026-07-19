@@ -25,20 +25,20 @@ function definition(id, overrides = {}) {
 
 test('reject policy and conflict domains prevent contradictory mutations', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:first'), 'plugin.first');
-    registry.register(definition('test:second'), 'plugin.second');
+    registry.register(definition('test:first'), 'plugin:first');
+    registry.register(definition('test:second'), 'plugin:second');
     registry.register(
         definition('test:independent', { conflictDomains: ['overlay'] }),
-        'plugin.third',
+        'plugin:third',
     );
     const gate = deferred();
-    const first = registry.run('test:first', 'plugin.first', null, () => gate.promise);
+    const first = registry.run('test:first', 'plugin:first', null, () => gate.promise);
 
     await assert.rejects(
-        registry.run('test:second', 'plugin.second', null, async () => undefined),
+        registry.run('test:second', 'plugin:second', null, async () => undefined),
         OperationConflictError,
     );
-    await registry.run('test:independent', 'plugin.third', null, async () => undefined);
+    await registry.run('test:independent', 'plugin:third', null, async () => undefined);
     gate.resolve();
     await first;
     registry.dispose();
@@ -46,16 +46,16 @@ test('reject policy and conflict domains prevent contradictory mutations', async
 
 test('queue policy preserves deterministic start and settlement order', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:queue', { reentrancy: 'queue' }), 'plugin.owner');
+    registry.register(definition('test:queue', { reentrancy: 'queue' }), 'plugin:owner');
     const firstGate = deferred();
     const calls = [];
-    const first = registry.run('test:queue', 'plugin.owner', 1, async (value) => {
+    const first = registry.run('test:queue', 'plugin:owner', 1, async (value) => {
         calls.push(`start:${value}`);
         await firstGate.promise;
         calls.push(`end:${value}`);
         return value;
     });
-    const second = registry.run('test:queue', 'plugin.owner', 2, async (value) => {
+    const second = registry.run('test:queue', 'plugin:owner', 2, async (value) => {
         calls.push(`start:${value}`);
         calls.push(`end:${value}`);
         return value;
@@ -76,21 +76,21 @@ test('coalesce policy combines pending arguments and settles every caller', asyn
             reentrancy: 'coalesce',
             coalesce: (previous, next) => previous + next,
         }),
-        'plugin.owner',
+        'plugin:owner',
     );
     const firstGate = deferred();
     const values = [];
-    const first = registry.run('test:coalesce', 'plugin.owner', 1, async (value) => {
+    const first = registry.run('test:coalesce', 'plugin:owner', 1, async (value) => {
         values.push(value);
         await firstGate.promise;
         return value;
     });
     await Promise.resolve();
-    const second = registry.run('test:coalesce', 'plugin.owner', 2, async (value) => {
+    const second = registry.run('test:coalesce', 'plugin:owner', 2, async (value) => {
         values.push(value);
         return value;
     });
-    const third = registry.run('test:coalesce', 'plugin.owner', 3, async () => {
+    const third = registry.run('test:coalesce', 'plugin:owner', 3, async () => {
         throw new Error('the coalesced request must keep one executor');
     });
 
@@ -102,17 +102,17 @@ test('coalesce policy combines pending arguments and settles every caller', asyn
 
 test('replace policy retires the active authority and suppresses its late result', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:replace', { reentrancy: 'replace' }), 'plugin.owner');
+    registry.register(definition('test:replace', { reentrancy: 'replace' }), 'plugin:owner');
     const firstGate = deferred();
     let firstSignal;
     let secondStarted = false;
-    const first = registry.run('test:replace', 'plugin.owner', 'first', async (_, context) => {
+    const first = registry.run('test:replace', 'plugin:owner', 'first', async (_, context) => {
         firstSignal = context.signal;
         await firstGate.promise;
         return 'late-first';
     });
     await Promise.resolve();
-    const second = registry.run('test:replace', 'plugin.owner', 'second', async () => {
+    const second = registry.run('test:replace', 'plugin:owner', 'second', async () => {
         secondStarted = true;
         return 'second';
     });
@@ -129,15 +129,15 @@ test('read operations sharing a domain remain compatible', async () => {
     const registry = new OperationRegistry();
     registry.register(
         definition('test:read-one', { mode: 'read', conflictDomains: ['state'] }),
-        'plugin.one',
+        'plugin:one',
     );
     registry.register(
         definition('test:read-two', { mode: 'read', conflictDomains: ['state'] }),
-        'plugin.two',
+        'plugin:two',
     );
     const gate = deferred();
-    const first = registry.run('test:read-one', 'plugin.one', null, () => gate.promise);
-    await registry.run('test:read-two', 'plugin.two', null, async () => undefined);
+    const first = registry.run('test:read-one', 'plugin:one', null, () => gate.promise);
+    await registry.run('test:read-two', 'plugin:two', null, async () => undefined);
     gate.resolve();
     await first;
     registry.dispose();
@@ -145,11 +145,11 @@ test('read operations sharing a domain remain compatible', async () => {
 
 test('nested child operations inherit top-level ownership without a second history owner', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:parent', { reentrancy: 'queue' }), 'plugin.parent');
-    registry.register(definition('test:child', { reentrancy: 'queue' }), 'plugin.child');
+    registry.register(definition('test:parent', { reentrancy: 'queue' }), 'plugin:parent');
+    registry.register(definition('test:child', { reentrancy: 'queue' }), 'plugin:child');
     const observations = [];
 
-    await registry.run('test:parent', 'plugin.parent', null, async (_, parentContext) => {
+    await registry.run('test:parent', 'plugin:parent', null, async (_, parentContext) => {
         observations.push({
             id: parentContext.token.id,
             ownsHistory: parentContext.ownsHistory,
@@ -157,7 +157,7 @@ test('nested child operations inherit top-level ownership without a second histo
         });
         await registry.run(
             'test:child',
-            'plugin.child',
+            'plugin:child',
             null,
             async (_, childContext) => {
                 observations.push({
@@ -185,13 +185,13 @@ test('nested child operations inherit top-level ownership without a second histo
 
 test('cancellation holds the conflict authority until cleanup settles', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:cancel', { reentrancy: 'queue' }), 'plugin.owner');
+    registry.register(definition('test:cancel', { reentrancy: 'queue' }), 'plugin:owner');
     const controller = new AbortController();
     const cleanupGate = deferred();
     const calls = [];
     const first = registry.run(
         'test:cancel',
-        'plugin.owner',
+        'plugin:owner',
         'first',
         async (value) => {
             calls.push(`start:${value}`);
@@ -201,7 +201,7 @@ test('cancellation holds the conflict authority until cleanup settles', async ()
         { signal: controller.signal },
     );
     void first.catch(() => undefined);
-    const second = registry.run('test:cancel', 'plugin.owner', 'second', async (value) => {
+    const second = registry.run('test:cancel', 'plugin:owner', 'second', async (value) => {
         calls.push(`start:${value}`);
     });
 
@@ -218,9 +218,9 @@ test('cancellation holds the conflict authority until cleanup settles', async ()
 
 test('suspension aborts active work and rejects all future operations', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:suspend', { reentrancy: 'queue' }), 'plugin.owner');
+    registry.register(definition('test:suspend', { reentrancy: 'queue' }), 'plugin:owner');
     const reason = new Error('Core is faulted.');
-    const running = registry.run('test:suspend', 'plugin.owner', null, (_, context) => {
+    const running = registry.run('test:suspend', 'plugin:owner', null, (_, context) => {
         return new Promise((resolve, reject) => {
             void resolve;
             context.signal.addEventListener('abort', () => reject(context.signal.reason), {
@@ -232,11 +232,11 @@ test('suspension aborts active work and rejects all future operations', async ()
     await registry.suspend(reason);
     await assert.rejects(running, (error) => error === reason);
     await assert.rejects(
-        registry.run('test:suspend', 'plugin.owner', null, async () => undefined),
+        registry.run('test:suspend', 'plugin:owner', null, async () => undefined),
         (error) => error === reason,
     );
     assert.throws(
-        () => registry.begin('test:suspend', 'plugin.owner'),
+        () => registry.begin('test:suspend', 'plugin:owner'),
         (error) => error === reason,
     );
     registry.dispose();
@@ -244,9 +244,9 @@ test('suspension aborts active work and rejects all future operations', async ()
 
 test('disposal aborts active work and waitForIdle observes its final settlement', async () => {
     const registry = new OperationRegistry();
-    registry.register(definition('test:dispose', { reentrancy: 'queue' }), 'plugin.owner');
+    registry.register(definition('test:dispose', { reentrancy: 'queue' }), 'plugin:owner');
     const gate = deferred();
-    const running = registry.run('test:dispose', 'plugin.owner', null, () => gate.promise);
+    const running = registry.run('test:dispose', 'plugin:owner', null, () => gate.promise);
     void running.catch(() => undefined);
 
     registry.dispose();

@@ -1,3 +1,8 @@
+/**
+ * Coordinates ownership of additional Fabric object properties included in snapshots.
+ *
+ * @module
+ */
 import { type Disposable } from '../../plugin-kernel/disposable.js';
 export interface ObjectPropertyRegistration {
     readonly owner: string;

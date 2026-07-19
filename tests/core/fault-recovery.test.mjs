@@ -15,7 +15,9 @@ import { historyPlugin, historyPluginRef } from '../../src/plugins/history/index
 import { fabric, makeImageDataUrl, resetEditorDom } from '../helpers/fabric-environment.mjs';
 
 function createFaultFixture({ shouldReplayFail = () => false } = {}) {
-    const ref = definePluginRef(`example.test/fault-${crypto.randomUUID()}`, '1.0.0');
+    const fixtureId = crypto.randomUUID();
+    const ref = definePluginRef(`example-test:fault-${fixtureId}`, '1.0.0');
+    const operationId = `example-test:fault-mutate-${fixtureId}`;
     let setupCount = 0;
     let failRestore = false;
     let value = 0;
@@ -36,7 +38,7 @@ function createFaultFixture({ shouldReplayFail = () => false } = {}) {
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             const mutations = context.capabilities.require(DOCUMENT_MUTATION_CAPABILITY);
             context.operations.register({
-                id: `${ref.id}:mutate`,
+                id: operationId,
                 mode: 'mutation',
                 conflictDomains: ['document', 'state'],
                 reentrancy: 'reject',
@@ -71,7 +73,7 @@ function createFaultFixture({ shouldReplayFail = () => false } = {}) {
                     return mutations.run({
                         id: `${ref.id}:transaction:${++sequence}`,
                         kind: 'plugin-state',
-                        operationId: `${ref.id}:mutate`,
+                        operationId,
                         conflictDomains: ['document', 'state'],
                         mutate: () => {
                             value += 1;

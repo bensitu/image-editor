@@ -1,6 +1,7 @@
 import { createDisposable, isPromiseLike, } from './disposable.js';
 import { PluginKernelDisposedError, ToolRegistrationError, ToolTransitionError } from './errors.js';
 import { reportErrorSafely } from './reporting.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 export class ToolCoordinator {
     constructor(options = {}) {
         Object.defineProperty(this, "options", {
@@ -36,8 +37,11 @@ export class ToolCoordinator {
     }
     register(definition, ownerPluginId) {
         this.assertActive('register a tool');
-        if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
-            throw new ToolRegistrationError('Tool id must be a non-empty trimmed string.', ownerPluginId);
+        if (!isRuntimeIdentifier(ownerPluginId)) {
+            throw new ToolRegistrationError('Tool owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+        }
+        if (!isRuntimeIdentifier(definition.id)) {
+            throw new ToolRegistrationError('Tool id must match "namespace:kebab-case".', ownerPluginId);
         }
         const existing = this.tools.get(definition.id);
         if (existing) {

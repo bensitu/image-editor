@@ -1,3 +1,8 @@
+/**
+ * Registers Plugin-owned predicates that exclude transient Canvas objects from snapshots.
+ *
+ * @module
+ */
 import { type Disposable } from '../../plugin-kernel/disposable.js';
 import type { StateWarningSink } from './state-types.js';
 export type TransientObjectPredicate<TObject = unknown> = (object: TObject) => boolean;

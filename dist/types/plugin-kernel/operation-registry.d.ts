@@ -1,3 +1,8 @@
+/**
+ * Registers operations and coordinates conflict, cancellation, and reentrancy policy.
+ *
+ * @module
+ */
 import { type Disposable, type MaybePromise } from './disposable.js';
 export type OperationId = string;
 export type OperationMode = 'read' | 'busy' | 'animation' | 'mutation';

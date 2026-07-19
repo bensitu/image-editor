@@ -1,3 +1,9 @@
+/**
+ * Applies Core affine geometry mutations to Annotation Fabric objects under the reflection policy.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { FabricModule, GeometryMutationDescriptor } from '../../core/index.js';

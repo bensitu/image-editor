@@ -1,3 +1,9 @@
+/**
+ * Owns the editor lifecycle, Canvas, Plugin host, image loading, document mutations, and export.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {
@@ -435,7 +441,7 @@ export class ImageEditorCore {
             this.reportWarning(warning.details?.cause, warning.message);
         });
         this.objectProperties.register({
-            owner: '@bensitu/core',
+            owner: 'core:host',
             keys: ['editorObjectKind'],
         });
         const stateAdapter = new CanvasCoreStateAdapter(

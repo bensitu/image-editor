@@ -1,3 +1,9 @@
+/**
+ * Provides idempotent disposable primitives and reverse-order cleanup with error aggregation.
+ *
+ * @module
+ */
+
 import { PluginAggregateError } from './errors.js';
 import { reportWarningSafely, type PluginErrorSink, type PluginWarningSink } from './reporting.js';
 

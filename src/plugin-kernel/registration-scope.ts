@@ -1,3 +1,9 @@
+/**
+ * Owns Plugin installation resources through commit, rollback, and disposal.
+ *
+ * @module
+ */
+
 import {
     createDisposable,
     disposeInReverse,
@@ -6,6 +12,7 @@ import {
     type Disposable,
 } from './disposable.js';
 import { PluginAggregateError, PluginKernelStateError } from './errors.js';
+import { assertPluginIdentifier } from './plugin-identifier.js';
 import type { PluginErrorSink, PluginWarningSink } from './reporting.js';
 
 interface RegistrationEntry {
@@ -28,6 +35,7 @@ export class RegistrationScope implements Disposable {
         public readonly pluginId: string,
         private readonly options: RegistrationScopeOptions = {},
     ) {
+        assertPluginIdentifier(pluginId, 'RegistrationScope Plugin id');
         this.transactionId = Symbol(`plugin-install:${pluginId}`);
     }
 

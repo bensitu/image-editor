@@ -1,3 +1,8 @@
+/**
+ * Owns Mask registration, Overlay persistence, labels, state, mutations, and public API behavior.
+ *
+ * @module
+ */
 import { type DefaultMaskConfig, type LabelConfig, type MaskConfig, type MaskObject, type OverlayListOrder } from '../../core/index.js';
 import type { CanvasReadPort, CanvasResizePort, CoreDiagnosticsPort, CorePresentationPort, Disposable, FabricRuntimePort, RenderRequestPort, SnapshotRegistrationPort } from '../../sdk/index.js';
 import { type OverlayFoundationApi } from '../../foundations/overlay/index.js';

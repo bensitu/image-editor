@@ -1,3 +1,9 @@
+/**
+ * Clones and bakes filtered Base Images with abort, decode, and resource-limit handling.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { FabricModule, ImageMimeType } from '../../core/index.js';

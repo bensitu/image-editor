@@ -1,3 +1,9 @@
+/**
+ * Implements Shape Annotation creation, updates, previews, codecs, and Foundation integration.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type {

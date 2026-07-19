@@ -1,3 +1,8 @@
+/**
+ * Registers versioned Plugin state slices used by snapshot and memento workflows.
+ *
+ * @module
+ */
 import { type Disposable } from '../../plugin-kernel/disposable.js';
 import type { StateSliceDefinition } from './state-types.js';
 export declare class StateSliceRegistry implements Disposable {

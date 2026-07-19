@@ -1,3 +1,9 @@
+/**
+ * Owns Mask registration, Overlay persistence, labels, state, mutations, and public API behavior.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import {
@@ -115,7 +121,7 @@ interface MaskStateData {
     readonly evented: boolean;
 }
 
-const MASK_PLUGIN_ID = '@bensitu/mask';
+const MASK_PLUGIN_ID = 'plugin:mask';
 
 type MaskCoreAccess = CoreDiagnosticsPort &
     CorePresentationPort &
@@ -320,7 +326,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
 
         this.registrations.push(
             overlay.registerKind({
-                id: 'mask',
+                id: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 classify: isMaskObject,
                 getPersistentId: (object) =>
@@ -331,7 +337,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                 persistence: {
                     mode: 'persistent',
                     codec: {
-                        type: 'mask',
+                        type: 'mask:object',
                         version: '1.0.0',
                         serialize: (object) => this.serializeMask(object),
                         validate: isSerializedMaskData,
@@ -339,7 +345,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
                     },
                 },
                 stateCodec: {
-                    type: 'mask',
+                    type: 'mask:object',
                     version: '1.0.0',
                     serialize: (object, context) => {
                         if (!isMaskObject(object)) {
@@ -461,8 +467,8 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         );
         this.registrations.push(
             overlay.registerGeometryPolicy({
-                id: `${MASK_PLUGIN_ID}:geometry`,
-                kind: 'mask',
+                id: 'mask:geometry',
+                kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 supports: (mutation) =>
                     mutation.kind === 'crop' ||
@@ -473,8 +479,8 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         );
         this.registrations.push(
             overlay.registerExportRenderer({
-                id: `${MASK_PLUGIN_ID}:renderer`,
-                kind: 'mask',
+                id: 'mask:export',
+                kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 order: 100,
                 render: async ({ source, targetCanvas }) => {
@@ -494,8 +500,8 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
         );
         this.registrations.push(
             overlay.registerInteractionPolicy({
-                id: `${MASK_PLUGIN_ID}:interaction`,
-                kind: 'mask',
+                id: 'mask:interaction',
+                kind: 'mask:object',
                 ownerPluginId: MASK_PLUGIN_ID,
                 preview: (object) => {
                     if (isMaskObject(object)) syncMaskLabel(this.labelContext(), object);
@@ -576,7 +582,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
 
     getAll(): readonly MaskObject[] {
         const masks = this.overlay
-            .list({ kinds: ['mask'], includeHidden: true, includeLocked: true })
+            .list({ kinds: ['mask:object'], includeHidden: true, includeLocked: true })
             .filter(isMaskObject);
         if (this.options.listOrder === 'back-to-front') masks.reverse();
         return Object.freeze(masks);
@@ -627,7 +633,7 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
 
     flatten(options?: import('../../foundations/overlay/index.js').FlattenOptions): Promise<void> {
         return this.overlay
-            .flatten({ kinds: ['mask'], includeHidden: false, includeLocked: true }, options)
+            .flatten({ kinds: ['mask:object'], includeHidden: false, includeLocked: true }, options)
             .then(() => {
                 const masks = this.getAll();
                 this.lastMask = masks[masks.length - 1] ?? null;
@@ -681,8 +687,6 @@ export class MaskPluginController implements MaskPluginApi, Disposable {
             setMaskCounter: (counter) => {
                 this.counter = counter;
             },
-            updateMaskList: () => undefined,
-            saveCanvasState: () => undefined,
             expandCanvasIfNeeded: (width, height) => this.host.resizeCanvas(width, height),
         };
     }

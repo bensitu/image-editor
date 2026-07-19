@@ -1,3 +1,9 @@
+/**
+ * Registers mutually exclusive Tools and serializes their lifecycle transitions.
+ *
+ * @module
+ */
+
 import {
     createDisposable,
     isPromiseLike,
@@ -6,6 +12,7 @@ import {
 } from './disposable.js';
 import { PluginKernelDisposedError, ToolRegistrationError, ToolTransitionError } from './errors.js';
 import { reportErrorSafely, type PluginErrorSink } from './reporting.js';
+import { isRuntimeIdentifier } from './runtime-identifier.js';
 
 export type ToolId = string;
 export type ToolExitReason =
@@ -43,9 +50,15 @@ export class ToolCoordinator implements Disposable {
 
     register(definition: ToolDefinition, ownerPluginId: string): Disposable {
         this.assertActive('register a tool');
-        if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
+        if (!isRuntimeIdentifier(ownerPluginId)) {
             throw new ToolRegistrationError(
-                'Tool id must be a non-empty trimmed string.',
+                'Tool owner Plugin id must match "namespace:kebab-case".',
+                ownerPluginId,
+            );
+        }
+        if (!isRuntimeIdentifier(definition.id)) {
+            throw new ToolRegistrationError(
+                'Tool id must match "namespace:kebab-case".',
                 ownerPluginId,
             );
         }

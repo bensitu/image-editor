@@ -1,3 +1,9 @@
+/**
+ * Coordinates Mosaic sessions, stroke replay, raster caches, commits, cancellation, and state.
+ *
+ * @module
+ */
+
 import type * as FabricNS from 'fabric';
 
 import type { GeometryMutationPort } from '../../core/index.js';

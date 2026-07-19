@@ -1,3 +1,9 @@
+/**
+ * Inspects encoded image data URLs and extracts MIME type and dimensions from bounded header probes.
+ *
+ * @module
+ */
+
 export interface EncodedImageInspection {
     readonly mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
     readonly encodedBytes: number;

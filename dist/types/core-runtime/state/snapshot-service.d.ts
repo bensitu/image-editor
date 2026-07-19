@@ -1,3 +1,8 @@
+/**
+ * Captures, validates, migrates, and restores the versioned editor snapshot envelope.
+ *
+ * @module
+ */
 import type { Disposable } from '../../plugin-kernel/disposable.js';
 import type { MementoService } from './memento-service.js';
 import type { CoreStateAdapter, EditorSnapshot, MissingPluginPolicy, PluginMementoEntry, SnapshotMigration, StateWarningSink } from './state-types.js';

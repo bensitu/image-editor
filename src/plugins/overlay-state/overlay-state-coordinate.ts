@@ -1,3 +1,9 @@
+/**
+ * Resolves portable Overlay State coordinate contexts against the current Base Image.
+ *
+ * @module
+ */
+
 import {
     affineDeterminant,
     applyAffineToPoint,

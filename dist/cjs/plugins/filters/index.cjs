@@ -1,10 +1,10 @@
 'use strict';
 
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
-var pluginManifest = require('../../chunks/plugin-manifest-Cap1WbD8.cjs');
-var pluginDefinition = require('../../chunks/plugin-definition-Zpkh5kaP.cjs');
-var coreCapabilities = require('../../chunks/core-capabilities-3osq1B3M.cjs');
-var visibleRasterBake = require('../../chunks/visible-raster-bake-Ci8VnO_S.cjs');
+var pluginManifest = require('../../chunks/plugin-manifest-BONtSGqw.cjs');
+var pluginDefinition = require('../../chunks/plugin-definition-BY3aZxqL.cjs');
+var coreCapabilities = require('../../chunks/core-capabilities-D7bZJOAO.cjs');
+var visibleRasterBake = require('../../chunks/visible-raster-bake-DPzjbmmo.cjs');
 
 class FilterDefinitionError extends TypeError {
     constructor(message, path = '$') {
@@ -1087,7 +1087,7 @@ class FiltersController {
     }
 }
 
-const filtersPluginRef = pluginManifest.definePluginRef('@bensitu/filters', '1.0.0');
+const filtersPluginRef = pluginManifest.definePluginRef('plugin:filters', '1.0.0');
 function filtersPlugin(options = {}) {
     let controller = null;
     return pluginDefinition.definePlugin({

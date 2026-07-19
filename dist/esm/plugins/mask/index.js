@@ -1,7 +1,7 @@
 import { CANVAS_READ_CAPABILITY, CANVAS_RESIZE_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OVERLAY_CAPABILITY, OVERLAY_REGISTRATION_CAPABILITY, overlayFoundationRef, } from '../../foundations/overlay/index.js';
 import { MaskPluginController, resolveMaskPluginOptions, } from './mask-controller.js';
-export const maskPluginRef = definePluginRef('@bensitu/mask', '1.0.0');
+export const maskPluginRef = definePluginRef('plugin:mask', '1.0.0');
 export function maskPlugin(options = {}) {
     const resolved = resolveMaskPluginOptions(options);
     let controller = null;

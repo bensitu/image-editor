@@ -1,3 +1,9 @@
+/**
+ * Defines Overlay State validation, image, codec, identity, and lifecycle failures.
+ *
+ * @module
+ */
+
 import type { OverlayStateValidationIssue } from './overlay-state-types.js';
 
 export class OverlayStateValidationError extends TypeError {

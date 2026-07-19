@@ -1,8 +1,8 @@
 import { BASE_IMAGE_READ_CAPABILITY, CANVAS_READ_CAPABILITY, CORE_DIAGNOSTICS_CAPABILITY, CORE_PRESENTATION_CAPABILITY, DOCUMENT_MUTATION_CAPABILITY, EXPORT_CONTRIBUTION_CAPABILITY, FABRIC_RUNTIME_CAPABILITY, GEOMETRY_MUTATION_CAPABILITY, RASTER_MUTATION_CAPABILITY, RENDER_REQUEST_CAPABILITY, SNAPSHOT_REGISTRATION_CAPABILITY, createCapabilityToken, definePlugin, definePluginRef, } from '../../sdk/index.js';
 import { OverlayFoundationController } from './overlay-foundation-controller.js';
-export const OVERLAY_CAPABILITY = createCapabilityToken('foundation.overlay', '1.0.0');
-export const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken('foundation.overlay.registration', '1.0.0');
-export const overlayFoundationRef = definePluginRef('foundation.overlay', '1.0.0');
+export const OVERLAY_CAPABILITY = createCapabilityToken('foundation:overlay', '1.0.0');
+export const OVERLAY_REGISTRATION_CAPABILITY = createCapabilityToken('foundation:overlay-registration', '1.0.0');
+export const overlayFoundationRef = definePluginRef('foundation:overlay', '1.0.0');
 function createRuntimeApi(controller) {
     const bind = (method) => method.bind(controller);
     const api = {

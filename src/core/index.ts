@@ -1,3 +1,9 @@
+/**
+ * Publishes the formal Core package entry for runtime, state, geometry, mutation, and selected mask contracts.
+ *
+ * @module
+ */
+
 export { ImageEditorCore, type LoadStateOptions } from '../core-runtime/image-editor-core.js';
 export type {
     CoreElementMap,

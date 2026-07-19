@@ -201,7 +201,7 @@ test('Overlay State round-trips mixed official and third-party kinds without ren
     );
     assert.deepEqual(
         first.overlays.map((item) => item.kind),
-        ['mask', 'annotation:text', 'annotation:shape', 'annotation:draw', customKind],
+        ['mask:object', 'annotation:text', 'annotation:shape', 'annotation:draw', customKind],
     );
     assert.equal(first.overlays.find((item) => item.id === textId).hidden, true);
     assert.equal(first.overlays.find((item) => item.id === shapeId).locked, true);
@@ -243,10 +243,10 @@ test('Overlay State round-trips mixed official and third-party kinds without ren
             layer,
         })),
     );
-    const originalMaskCorners = first.overlays.find((item) => item.kind === 'mask').geometry
+    const originalMaskCorners = first.overlays.find((item) => item.kind === 'mask:object').geometry
         .corners;
-    const importedMaskCorners = roundTrip.overlays.find((item) => item.kind === 'mask').geometry
-        .corners;
+    const importedMaskCorners = roundTrip.overlays.find((item) => item.kind === 'mask:object')
+        .geometry.corners;
     originalMaskCorners.forEach((point, index) => {
         assert.ok(Math.abs(point.x - importedMaskCorners[index].x) < 1e-8);
         assert.ok(Math.abs(point.y - importedMaskCorners[index].y) < 1e-8);

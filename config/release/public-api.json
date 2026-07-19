@@ -1675,6 +1675,12 @@
                     ]
                 },
                 {
+                    "name": "isRuntimeIdentifier",
+                    "kinds": [
+                        "FunctionDeclaration"
+                    ]
+                },
+                {
                     "name": "isValidSemVer",
                     "kinds": [
                         "FunctionDeclaration"
@@ -1931,6 +1937,7 @@
                 "definePlugin",
                 "definePluginRef",
                 "disposeInReverseSync",
+                "isRuntimeIdentifier",
                 "isValidSemVer",
                 "validatePluginManifest"
             ]
@@ -4222,119 +4229,119 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "9f16713147c2aad1d31dacd9e6c198ef40e30950566636eabf3ee02e77fa51bc",
+        "graphSha256": "df4e16301a18f7621848733c022eed3c137de47caeb459599c54f7446c5355ce",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
-                "sha256": "6fd538a1479a9662df992f0b05585b5417a5f78062572b7d1503636544398d06"
+                "sha256": "4036f3c5e44f7702bdf7264e57e0c572b55977886ae06ea6dd7bfbdc49717b17"
             },
             {
                 "file": "dist/types/core-runtime/export-contributor-registry.d.ts",
-                "sha256": "8598bfe6e3ee5a1683ed96b61f92eeeec80b816719ed522fd85bd9b7aa22b959"
+                "sha256": "92c11c5fb1ece8822ced7c324280f1090b818564ca0b07d4a0860a2964a76fc3"
             },
             {
                 "file": "dist/types/core-runtime/geometry/affine-matrix.d.ts",
-                "sha256": "e6187c14ccabfc1bac2d9c8b66f432534ceb1c7dae7a09b4569462db89f1aa1e"
+                "sha256": "aadfa2156df877523003d7391e99b5ef73771a0a7eacabc9366ae9c9eb2c47cf"
             },
             {
                 "file": "dist/types/core-runtime/geometry/geometry-types.d.ts",
-                "sha256": "fd005ed08c3083565dca30fdaf2fedb2ab89b9c1fe965d9adafffb6b5a2e407a"
+                "sha256": "4cf510c34b5d955bd376fbd326304330b5ef3237904988a21342e78f820bf78a"
             },
             {
                 "file": "dist/types/core-runtime/history-commit-router.d.ts",
-                "sha256": "8781e2c0a96cfbf80d9ac3d1e7fc77ac463fc55a3a346a598a4fb8f1aba44442"
+                "sha256": "25e10d1a3323a2e88f74e966db6083edbb0b488b1bdd9402f783c212f6f7eefc"
             },
             {
                 "file": "dist/types/core-runtime/image-editor-core.d.ts",
-                "sha256": "ee562d2fffda628dd352ec2475e533fe69b8a1e59d012f4b770bcdfcfebbef2b"
+                "sha256": "c43f093e616c1dd1685690277cfcc159598169e4416b160857264e675eef5501"
             },
             {
                 "file": "dist/types/core-runtime/mutation/document-mutation-coordinator.d.ts",
-                "sha256": "269c52615325a513d1994f61492bf851e5b26e34de10eb224ba15e57b8a30343"
+                "sha256": "5d97697e187d43c8549e41ecb2afd4f994d703d3f9a031a83c45797485be4589"
             },
             {
                 "file": "dist/types/core-runtime/mutation/index.d.ts",
-                "sha256": "cfd1eaf886585fd6114c344dfe557fe9ae070ad2aae74a030bece1c3ec3a6597"
+                "sha256": "a79c6ececf8ba89e8f85dc9e49e99dd19009fb799dcc12a85d1010b82d5c9a61"
             },
             {
                 "file": "dist/types/core-runtime/mutation/mutation-types.d.ts",
-                "sha256": "b0e16d9574b940dca8bb83c8d33878526b49bdd289cead0467d4c993fbf009a4"
+                "sha256": "b5cbf98fda3ecffafa822578d36e99ec69a651739b59c567195f36df44351002"
             },
             {
                 "file": "dist/types/core-runtime/public-types.d.ts",
-                "sha256": "f506277cf04ca1e72d499074a0a2a990166a456043678f33d7a3c61b762de49a"
+                "sha256": "0ba0acf2306f74dced204fa028f31abd3204a0ff6c30a7a38a6216dc21634270"
             },
             {
                 "file": "dist/types/core-runtime/state/clone-state-value.d.ts",
-                "sha256": "3e49d46f0c1ed6bb0e17f615a7076eceeb961bf8d78c4d26b11c34ab692fd013"
+                "sha256": "138f7c156677556a064db71d975054a6840155b303e2b497986b7d936093ff4e"
             },
             {
                 "file": "dist/types/core-runtime/state/index.d.ts",
-                "sha256": "7b5e38518e4e44f34ff031237fa654618105486898aa1c1ff774561e1145ee4b"
+                "sha256": "eccd4c1fd29ec67ab8a99ff837f36912c2cdadc4b8119c3b8725213fd7430775"
             },
             {
                 "file": "dist/types/core-runtime/state/memento-service.d.ts",
-                "sha256": "a2865a16965b04298a37daf0e1926850b4165d249ea26ee48c0a492068d37d7e"
+                "sha256": "45f64fb77c5d41955f73f447570d39a5be6ab03358397e475c3ccc5db58bd9d6"
             },
             {
                 "file": "dist/types/core-runtime/state/object-property-registry.d.ts",
-                "sha256": "396c5b72a3c43061f82153773c0375c0201bfabe9ae5b18c6ef5bd63e97afcd1"
+                "sha256": "5584b7fa4d114da19c1777162d634a8d8743f94eef8485775071312c298cd2ea"
             },
             {
                 "file": "dist/types/core-runtime/state/snapshot-service.d.ts",
-                "sha256": "9e3ecf4fab3763b6d25aefc09450fa8a37c41f0a037508648ac928ad870b23c8"
+                "sha256": "e0f95e11013f680cc53a638e842a71c4495243d7c681475b677955ad78b07253"
             },
             {
                 "file": "dist/types/core-runtime/state/state-slice-registry.d.ts",
-                "sha256": "9a817211ab1c1f5cd1a3110c2a6fb91d44b8e4f871008f2119d587d10a99c77c"
+                "sha256": "3f739bf770a56ea697e99f8c7f0f829a8ba966499c3cf972df31d9cfabf835c5"
             },
             {
                 "file": "dist/types/core-runtime/state/state-types.d.ts",
-                "sha256": "75fec6dcc2bfb4e7819ce80b9615f82e10b8d754ee6f610869761fd4c346d07f"
+                "sha256": "51cecf0232a3535061021913292fa0868e0eb1be5921472d9545308dc20e057b"
             },
             {
                 "file": "dist/types/core-runtime/state/transient-object-registry.d.ts",
-                "sha256": "f49ba9b49244c248fa779bfae4e06368342daacce75bc90764c986c206f25c93"
+                "sha256": "f74c7a12b8d167efeee091fa50e7fa2df3bd78b52287cc1d304c80fca4129ea6"
             },
             {
                 "file": "dist/types/core/contracts.d.ts",
-                "sha256": "7afb98986e8e6b2f4e5bc92c22b024210ae9254c13428d6f2490fe8f2e67195b"
+                "sha256": "45180f04b000262c88a4d043f0d9b970f61c6ee3b1fd121bde2f1a592a461440"
             },
             {
                 "file": "dist/types/core/index.d.ts",
-                "sha256": "61081728b2a07917382adfcaf18924843c46abe165a07a7e294237ccb38745a0"
+                "sha256": "6a6d14a50f58f73095b0d34c4983ed10281a52f3f827208b14ca01368b8aeeb4"
             },
             {
                 "file": "dist/types/core/public-types.d.ts",
-                "sha256": "0ebe516995f047b69f238867e9ab0005c3de7bcc54ab8cb427996ebbbea697b4"
+                "sha256": "a0aef5c11c551f330405b8be7090da69a340d2560af6c83eb722147b5212cf5d"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-definition.d.ts",
-                "sha256": "e0fa65a7ae9f3e3121a764a0162a84d00f57ecb3148d591f94e66ccd7e2a9ced"
+                "sha256": "a52342d467e4f129876fe12a3d5900ab407f94b8ce7b1f360df13cfbe94c8d49"
             },
             {
                 "file": "dist/types/foundations/annotation/annotation-errors.d.ts",
-                "sha256": "59182621c91009a74b600a3399cd16bb0b6e9045c1636d4fa53058e18299c262"
+                "sha256": "c6fb7f0f2488fcac0257a455d5eee0a3f78fdb9796494ba7caf8a8db6d2fe036"
             },
             {
                 "file": "dist/types/foundations/annotation/index.d.ts",
-                "sha256": "67841da8b190baa5dd768ddc281c841dd613d48118b0b6f6929c6b187264ce0d"
+                "sha256": "4e991851c321c9d757d3b432973a41582f36d73226a43b42e5dc956501316702"
             },
             {
                 "file": "dist/types/foundations/overlay/index.d.ts",
-                "sha256": "787b018acc3f0f809d1abf0310207e32354e4f5596925ce29b6e4692323606db"
+                "sha256": "29287a969cba818f28c5d770cd389c6bde7efe3fc3b493673847422e5969ef45"
             },
             {
                 "file": "dist/types/foundations/overlay/overlay-errors.d.ts",
-                "sha256": "f829ec9b7667d6c6d10a2f5ba2fdb3028a52d96553f4070db33265cb03d7d0a4"
+                "sha256": "bd514095ded665344eae9b4f5f4f98790e2aa567ec2d5e17409e04d621bc106e"
             },
             {
                 "file": "dist/types/foundations/overlay/overlay-state-geometry.d.ts",
-                "sha256": "deaef3590a8881906a369fd89bde3d0db4be3d9a56db927678a689adabd5d95d"
+                "sha256": "1e043d4e4bc96a4783073615506faa2c8c33863fc0909e23f92f26b77741f88d"
             },
             {
                 "file": "dist/types/foundations/overlay/overlay-types.d.ts",
-                "sha256": "0c0f2f2c0629df38ba8fbbc672c448eb571107db28696c9a2648d0cc85487c37"
+                "sha256": "8411c941fe51ae9f8da5cda3424fe696ac7e707ee56874945ae5d093e7d20810"
             },
             {
                 "file": "dist/types/index.d.ts",
@@ -4346,23 +4353,23 @@
             },
             {
                 "file": "dist/types/plugin-kernel/capability-registry.d.ts",
-                "sha256": "39ad92be1060e51b96d521a36a608f9125b4e76001bb0d6c4fc747eb449f72e3"
+                "sha256": "946ac0bdbff8d76162458e910a44d682dfb2b0323a3714643d660515f14be9c6"
             },
             {
                 "file": "dist/types/plugin-kernel/capability-token.d.ts",
-                "sha256": "43af2fd1b5303c454dbe8a9e5a14eccb4deaa4b48ddcc035d4ae18597ff816f5"
+                "sha256": "f5293e542a061e6c899fdfab653a80b624bee7351b4704709b541efa3aca5f6f"
             },
             {
                 "file": "dist/types/plugin-kernel/committed-event-bus.d.ts",
-                "sha256": "7f8366a14f90e1ac0c674989871ed84fad5c04bcec4c8def33a072af96effda0"
+                "sha256": "a0495d9e0d2166daac864011a8a3d5c18a3364ca7405d60e2387d88f17a59e10"
             },
             {
                 "file": "dist/types/plugin-kernel/compose-plugins.d.ts",
-                "sha256": "4b446b12dd549f705e812f1ad34e40966d26e37c8533e19cd7a8bc52b04615d0"
+                "sha256": "0758c2f54afef14180daf8361417120283d94953d4898b937c84dbc71e10270e"
             },
             {
                 "file": "dist/types/plugin-kernel/disposable.d.ts",
-                "sha256": "cd6680cabaea737a03bf996a0787a9d5e81e69d94580d2fe696b4678616e5299"
+                "sha256": "1421a34a72028891cb00c2735b57b6c93b2db0d889de4d766536d03135b91361"
             },
             {
                 "file": "dist/types/plugin-kernel/errors.d.ts",
@@ -4370,251 +4377,255 @@
             },
             {
                 "file": "dist/types/plugin-kernel/index.d.ts",
-                "sha256": "2feaf6a6ef4e2b0d3d581eea440a2d7f572ed702e826c07ca56e214f875fc201"
+                "sha256": "0b5366604ef402d321c1e403b4537340e4d1a55daa0c3453cb2e9b4800782671"
             },
             {
                 "file": "dist/types/plugin-kernel/operation-registry.d.ts",
-                "sha256": "694dd26ad7c188eaa0e9108d7079ae80218ce0abd1b39d35c706dbec0579524d"
+                "sha256": "411507915cfbe7acc51c2ecc5160eff40ab59f87e9f6e4fd89888f7750f201ee"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manager.d.ts",
-                "sha256": "9d140a962065c20438c23efc9afcd9bceffa7f97ae87a791f2016c9f3eb0cc58"
+                "sha256": "a01fe72df160d0f886f56e2b7aa6e79b376c348ad314a299065547f9cd3d8939"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manifest.d.ts",
-                "sha256": "d79f05ea6ca51bd76d8ba866ece7f745e4099c73a3830e3e2b1538257dbc29cd"
+                "sha256": "077696f86d660dd6d94bb4a613de68ddb0d6fcd6947e5ef3727e5a209b98f148"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-plan.d.ts",
-                "sha256": "5fbdcca7e5253467c2d25a2605d90c95678ce0fc1e98c4d250901f1811bd1427"
+                "sha256": "dad58b11f05dbdea8711e52e475ba450fe7f922d231198499bb649fe06da1007"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-ref.d.ts",
-                "sha256": "c526c9bfffe91c5a9aaabe0cf3f0ddce8f820ffc6b966534c204a276c9bc9e18"
+                "sha256": "9dd43c7dc7c29258d39eb2972084a0eb9dd9bbc73dc554ab081879d23af0f958"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-state-store.d.ts",
-                "sha256": "5279aa8b96de1366c864dbd764a4901ee232f01e2af9a6e21629904a32645c5a"
+                "sha256": "5c2af300662ebdfdb4f22cbccd58b9232cd25f7474b1ad4eb397196485598e12"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-types.d.ts",
-                "sha256": "78defd3c242922e08c5f20b35ed0c5368a370d7acc31dae027452b9f98e6cee3"
+                "sha256": "1bc209de4d547c847056b573d194a25017b034870cc2d6ee74933967eb5b00f5"
             },
             {
                 "file": "dist/types/plugin-kernel/registration-scope.d.ts",
-                "sha256": "988be7f7628bf4021b96dbed50f799277db18a46ff987f44a2369dedc46de0a7"
+                "sha256": "9a76d9c499eaad31e99b2b6614d81f98d1c4231046c9088574c56f84a7bb2b50"
             },
             {
                 "file": "dist/types/plugin-kernel/reporting.d.ts",
-                "sha256": "1acd759bd31435e14bda0ee859ae8e296bb9677068442d2e9e3043f45424c231"
+                "sha256": "858a40dc212162c1bc806986cb82691b56614d22c2b4792b38fd921ace1bc058"
+            },
+            {
+                "file": "dist/types/plugin-kernel/runtime-identifier.d.ts",
+                "sha256": "e6fd0db922a29b2d16797c434cc28d584cce1f42ee2aa561cd114e1df0817e0d"
             },
             {
                 "file": "dist/types/plugin-kernel/semver.d.ts",
-                "sha256": "06f082f55e8d812a14d038c96ca7e90032e2397f93423df25849bbac5fd000c4"
+                "sha256": "01d943032d6107efccd8b24f7640a44a9631fa58223be71e5ffbdbf87117eba4"
             },
             {
                 "file": "dist/types/plugin-kernel/tool-coordinator.d.ts",
-                "sha256": "11d7cbf1daab1d3f2ca1f4f7ce8b9f45c18a89e31322ab1f1bc2a3a2f7065ed6"
+                "sha256": "346a5e8d77a6cf99276908b78b564ad52eff1e4e33eb52a2457b37bbeb9755ae"
             },
             {
                 "file": "dist/types/plugins/annotation-draw/draw-annotation.d.ts",
-                "sha256": "7a81429d1401f7f983c978e797fc6487caa673682c88593efafdd67a5024eb62"
+                "sha256": "99a03f39b814972d2e7e4524ce652f47030948e54f7a565c675d1467fbc5f02a"
             },
             {
                 "file": "dist/types/plugins/annotation-draw/index.d.ts",
-                "sha256": "efbe4f8f7da6c5352a73c6c95aa55dd0494286d9f9c99a0c2dd89cce85474221"
+                "sha256": "6c18d6b225d9e268b5ea1c41e64cf7fed1f939509be55d6c57fc5e0b923a4ebf"
             },
             {
                 "file": "dist/types/plugins/annotation-shape/index.d.ts",
-                "sha256": "4eb5a39ab28e3f5c354a0660e0d8cf42dc603c05080efc6f6c8106b7f424ab16"
+                "sha256": "c4beb5058da01cbc3423746ec64c12086f2f69a917223c80d67652c6bfb05ed4"
             },
             {
                 "file": "dist/types/plugins/annotation-shape/shape-annotation.d.ts",
-                "sha256": "0923d3c67c4362befe204995d84203931d850659d44288ff4cf16599c6c1513b"
+                "sha256": "aedff83bf46416a6c5d438455d24ecaf2b9964317c6895fec547d82404982e4c"
             },
             {
                 "file": "dist/types/plugins/annotation-text/index.d.ts",
-                "sha256": "2d84b6fd96c87b1a0df5b68d1877bdbaed48ff3040045dfccfcf750e3c21476f"
+                "sha256": "7bd9e74bce8a732c2fed6d59fd031d343fff33accdea659aa33c177ca72789d3"
             },
             {
                 "file": "dist/types/plugins/annotation-text/text-annotation.d.ts",
-                "sha256": "b28e88f8979aafc78c762b5a62c2e5aa454f4e37578ea10cc01d965942e18306"
+                "sha256": "358f3f4ba34d02f9c71cdf00455bbd2795f4815492d059977241f24317b67d85"
             },
             {
                 "file": "dist/types/plugins/crop/crop-errors.d.ts",
-                "sha256": "dbd2cbc5b1d05cb22215b0f290b9177cfbf96098045cd5bec34f264c46f078a6"
+                "sha256": "b16b6d1e0ee40a60b11d83074aee37a198ff595d901f4d5685c97b0323f25e6a"
             },
             {
                 "file": "dist/types/plugins/crop/crop-geometry.d.ts",
-                "sha256": "b37ed8be3012abc3e763aa11d84034177401825774650218587f4276cf41460f"
+                "sha256": "51587f9ea023aa3ff73c23c80e37a3a6a432e1b0bde6e20f5ed5c61a4449a5e2"
             },
             {
                 "file": "dist/types/plugins/crop/crop-session.d.ts",
-                "sha256": "ca50a40aaf71fa58b8134a7a9735d2dae2cf76665e38a8843691936efe23bbe3"
+                "sha256": "0953c34cc7043934bbf7711c9f571f11ee68e71c7a62164935971e46a9357532"
             },
             {
                 "file": "dist/types/plugins/crop/index.d.ts",
-                "sha256": "34b3e041d0cc9dfe5d02663e126cb2ff72d45392a2dbfba21962b4edd45a75cc"
+                "sha256": "97f4bd6b38644f8bbdf7a3c231d24fd013251bdee5312588ad378c1811126e83"
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-controller.d.ts",
-                "sha256": "b48a31a816191bb01ce20b4b1aa25ee6bdf67581414f3a348073644e4e7de6b7"
+                "sha256": "bd0fa5f0f683bac7a33745b7e47e0a9b5bc9c0ef736ad688182155040dc02a69"
             },
             {
                 "file": "dist/types/plugins/dom-controls/dom-controls-types.d.ts",
-                "sha256": "ca28ecf6f0a3a274812fec17920e1f7189e295faefc0bfbe7a6ae56d9102a7d3"
+                "sha256": "e5cb63751f23ab71f4654366caf921c5493717d9e894fbe7fbc5508aa2e4eadd"
             },
             {
                 "file": "dist/types/plugins/dom-controls/index.d.ts",
-                "sha256": "2a78fe3f848074c0189f84f45b4b1607ebbe4ddea8949449cf948064ea4a15a7"
+                "sha256": "9fba76d7d7c4ca6c263aed7323f5305f49a79f84c829994e9404d3bb60b66229"
             },
             {
                 "file": "dist/types/plugins/filters/filter-definitions.d.ts",
-                "sha256": "bd1ea12a35e6dc3cf6485c7c443ba7dcef61d2e01b7dbd28bdab02a0d6243c78"
+                "sha256": "a5ca095cdddbbe83e2e09e7af107f523363b9b85f6caf8c6e645c0ce645e485d"
             },
             {
                 "file": "dist/types/plugins/filters/filtered-image-renderer.d.ts",
-                "sha256": "687c796dae34442ba07de365289210c2161d73ff3fc6b84b74f8046b4a9299c8"
+                "sha256": "e88b91f866ed920c56226b3692bbf203df54d1bb8c66788c922ac10cb4013ce1"
             },
             {
                 "file": "dist/types/plugins/filters/filters-controller.d.ts",
-                "sha256": "d5cd1216dbfd41bf95a13f3fc91fb4e6a2e20ecb6d6c22be0af2818d9e731274"
+                "sha256": "9f6e52662c6aca56392f049fbe6094db0a2481b05f45650aab3bbaba3e420911"
             },
             {
                 "file": "dist/types/plugins/filters/filters-errors.d.ts",
-                "sha256": "8298eca2364edfeb68d53050cc3c99dab6519888e29d1fef0d42a33949bf7e0c"
+                "sha256": "84f41ebde79d19dd0cc15193194528c04bc055643a49a6aa677f415e64d2bc74"
             },
             {
                 "file": "dist/types/plugins/filters/index.d.ts",
-                "sha256": "2dbd4928f6218fca65d0909772419da7bc6d7a8105489eed43d681e90371266e"
+                "sha256": "8bbd041d77a05a5852f8ceeba91fc665f712ee673ec97ba50a59942f7bb5ba7a"
             },
             {
                 "file": "dist/types/plugins/history/history-controller.d.ts",
-                "sha256": "94661eaa316f1dd2206767d2700cc686a927ce470d6ad77c5cb4a3fbfa34951b"
+                "sha256": "2e7318a00dfb1c50444c63f234384b7543659bb63eccd2669b3d6fc1245ae80d"
             },
             {
                 "file": "dist/types/plugins/history/index.d.ts",
-                "sha256": "cf6eea149367ac864a4c370cc40f57e5d548495aac64ed29484f9a24a7230b8e"
+                "sha256": "a28b4c96c7221f66d9eabfbba510239231c4f3ba24d225004685052a05115c2e"
             },
             {
                 "file": "dist/types/plugins/mask/index.d.ts",
-                "sha256": "e4185ec1395ae2b79a71d65dbae5f483b979f11d741fbed879ee4d18c171132a"
+                "sha256": "d7b9db7e68b175c7fc80948acf175d1dea16c36a02b6b48df997f572860f49fe"
             },
             {
                 "file": "dist/types/plugins/mask/mask-controller.d.ts",
-                "sha256": "82e3f26bc260bc0d616aa107f425e9e5eb54356e00695674ce58809443ecebf8"
+                "sha256": "11522b9337c37a8cdddf23e4a8261f0e048e6dd8e68bb387848bc0263301b531"
             },
             {
                 "file": "dist/types/plugins/mosaic/index.d.ts",
-                "sha256": "5403528b6a6f084552257d22b32a90bfd59691284314294202254c1865e31ba9"
+                "sha256": "3688491bff9ec9e86d49bf6594f98235956352b80766ad600ecef98e9f834a8b"
             },
             {
                 "file": "dist/types/plugins/mosaic/mosaic-brush.d.ts",
-                "sha256": "5367e8aafd8581f9d033479d10b97aa6c3cbc974eea4d7294bf0c51e1781d88e"
+                "sha256": "e07469ac5a8bf87e84a1decbe2af111293849a57dd9e8823ef5ccf9d3fedc631"
             },
             {
                 "file": "dist/types/plugins/mosaic/mosaic-errors.d.ts",
-                "sha256": "46d72f6246301dccefd6f6d94ffb11b6b18877a43fe6b385aa1e5e549da14941"
+                "sha256": "588d97670652997833ad0ade2c68ced2addf3abea1e525642b1aafd7d1b28eeb"
             },
             {
                 "file": "dist/types/plugins/mosaic/mosaic-session.d.ts",
-                "sha256": "e1dd7e01c90e202bdbe34594b4abf4d71ea82858b54c4e373bd911a9ee2b485c"
+                "sha256": "54715aebf18c38cf0ea70cc63f62bacb2d9934920f0aff485116277993ad01b7"
             },
             {
                 "file": "dist/types/plugins/overlay-state/index.d.ts",
-                "sha256": "338d357bd25047128e0af02d5a8ef1830bd37b403461653cd6c60499d8a6b825"
+                "sha256": "cb85b22e7e174a9c2889738ff147ccfbbf36f6307ed10375819a4bf64a890bf3"
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-errors.d.ts",
-                "sha256": "f3cba6268f68244ef035755317522ef64c267a7ac4198e5ddecab624c5fe87df"
+                "sha256": "5fc9b98d9d6bfa579f250e590d74ae958ba2b3292cb569962a8dbbce69a62f1d"
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-types.d.ts",
-                "sha256": "0f6be94bffc6d18db75cdfe79c7b71fad4f6c78dc1d1a623ae5da63fa1149982"
+                "sha256": "14694d5bad992bb6af470c55847112550a2471bad31df1b68f25f99cecf23d31"
             },
             {
                 "file": "dist/types/plugins/overlay-state/overlay-state-validation.d.ts",
-                "sha256": "c18159294a4df785a9ae5d4b8841578838729259b57c92e26ee991631277548f"
+                "sha256": "cf0b309f8a821e7d1779d68f34757db63fa9d56b43caa2cf88872dd9c557d1f9"
             },
             {
                 "file": "dist/types/plugins/transform/index.d.ts",
-                "sha256": "10b962917b5b3a37d880160f93c190408b37f954bd00c8343adc49c699fcfd22"
+                "sha256": "4788bdfedc3b2af28d207d2a4270570330d29277cf46d7592e31dc7a1574968c"
             },
             {
                 "file": "dist/types/plugins/transform/transform-controller.d.ts",
-                "sha256": "a322f766b4cd45b4d534f70ddf4e9af07df3ef4456d82be2411afe3c59073beb"
+                "sha256": "9698809dee414a171ece312b8262cbf89340384416a0b42a9c6d0fc77b8576f6"
             },
             {
                 "file": "dist/types/presets/annotation/index.d.ts",
-                "sha256": "309b75d07562131980001f26ac23fa30eb606182c3296f2e3bee3ba727a40935"
+                "sha256": "4b990ffcf9cc3983591a56dba76e8a6af10b02664d242a1e11d317056fcfbedb"
             },
             {
                 "file": "dist/types/presets/full/index.d.ts",
-                "sha256": "ab69c5e2ae81f8ac91d7bb55ab303df8f3c717b7e090390d9d1942b82164f901"
+                "sha256": "5abacaf8a9c77753a7849e74162cce46891124457e487dc9a726456b8b4e8da6"
             },
             {
                 "file": "dist/types/presets/minimal/index.d.ts",
-                "sha256": "8f4c39b5827c13993bd9495f482bd74140d0039f5ba9b0888abbc36d08c2d216"
+                "sha256": "19683ede5c9716a08bd8c814cf6a137445c2118af95240f1fd4e09b261e86f5d"
             },
             {
                 "file": "dist/types/presets/preset-support.d.ts",
-                "sha256": "2ecc90be4597d06ed108dd743b194f69d38746f8a7ec36a123ea315fec4bb996"
+                "sha256": "9bed9a01ecda975f10ab85c5666c0f73d6fe394ce2f15cecffc9ec6938777ce1"
             },
             {
                 "file": "dist/types/presets/redaction/index.d.ts",
-                "sha256": "a39cc291add2a35c5d7a12125504e11eb4e897fc60007c996282acfde852a51c"
+                "sha256": "383f141121656b0f3fca31c16788652f14217c56b3c7ac16d044d4d724848666"
             },
             {
                 "file": "dist/types/sdk/core-capabilities.d.ts",
-                "sha256": "58202297adf9226ad83e4444f195f79fd3023d1cb5c7fa63f871310c9b5f8524"
+                "sha256": "dae1e70aa47f480fd4501d6afe5b3aa4cbd4689401ac558dd1186548bbaf1304"
             },
             {
                 "file": "dist/types/sdk/index.d.ts",
-                "sha256": "2a84d62f1f8bb17e225f7ada25d7167c5f5ab83fb1a24bd05c997ecfde482eda"
+                "sha256": "852df0f8748e29f9e7967414f62810c237e92a1ba22dedad43ac6e4fac79af26"
             },
             {
                 "file": "dist/types/sdk/plugin-definition.d.ts",
-                "sha256": "02f708324af35f64d104080a1bcadb7620ff62fbcc9fed9d10481bf0bd9e29c1"
+                "sha256": "c00108867ff9c3c4cc3df7a54b9ad6ec4317649764ea32b12e77747512484ef7"
             },
             {
                 "file": "dist/types/sdk/plugin-manifest.d.ts",
-                "sha256": "ef3da36c64d8e18f3bc792128d6e6eee86bf5e0590dce7c5ffc230eed1f1d1dc"
+                "sha256": "4fc7de1e6956657c24672a66b1202fa88998e81bd622b9a3687281a49c9ae4cb"
             },
             {
                 "file": "dist/types/sdk/plugin-plan.d.ts",
-                "sha256": "fc80a8d0e32100bac8d631688c59285a28aad934a4ee9c33ce561f63ed7643c0"
+                "sha256": "ae1ce7d81eb485a688204d02ff7b13b3781bf05e8a94326111df657e2d688871"
             },
             {
                 "file": "dist/types/sdk/visible-raster-bake.d.ts",
-                "sha256": "357a8641ad85a3b90dc4be7dab1ff3cb345de27f9d8211acde6339ea18ebf5e1"
+                "sha256": "89452be018432ca1b45f534f4d7beb54df50a20377597d4933cef4a8499e7939"
             },
             {
                 "file": "dist/types/testing/conformance-types.d.ts",
-                "sha256": "2face8ce74f8d60d27eb67837e01160c297e8ca9afdbbd2611df10a64eb5a4de"
+                "sha256": "798f8eca6d6acae7369fb575579207368a1df4b735db84e5f843e664956b6540"
             },
             {
                 "file": "dist/types/testing/deferred-operation.d.ts",
-                "sha256": "137883ba947d0c06d89529ae05bf69bf26ea3cce737452d14688f209fd8fb9e7"
+                "sha256": "6f47a393997aae8fa117700cc59004de4b05e6f87313818abf99f9db6f197f65"
             },
             {
                 "file": "dist/types/testing/fabric-test-harness.d.ts",
-                "sha256": "d04245a8abf861e709ff79438407c29af570dbc6b21ce9df0f9e118cf5ef1e4c"
+                "sha256": "656dc01e4ec4d889ff75d61eac2d0f00fbed7870cbb128b637c0b01c2da0221b"
             },
             {
                 "file": "dist/types/testing/index.d.ts",
-                "sha256": "1b7ef0af878c1e3e94aedfcd432ca4f3d178153ca79f39cbefa73a98e830e400"
+                "sha256": "fc231fd14822761d7823c818bf57076614ed631b71ec07463a352d10afdbf957"
             },
             {
                 "file": "dist/types/testing/plugin-conformance.d.ts",
-                "sha256": "c54012576244202f6678929923595e9580fa258a5e9874fe165d62f760b9b1c1"
+                "sha256": "f505af7ef8679cba5a51ecae6f68a2552d4ae84f126c021f2ae6382c3f7d77a9"
             },
             {
                 "file": "dist/types/testing/plugin-test-host.d.ts",
-                "sha256": "2ef34699383dcb825dbf547fcaf3452b7052266e964565e33b0f90dcfc9e2916"
+                "sha256": "646ccf408226a794dfced8c2d81ec5ac29728db83d1f4619fd8f739e738e2a2a"
             },
             {
                 "file": "dist/types/testing/responsibility-assertions.d.ts",
-                "sha256": "32d8d708a27ff547e51d56511eb905743f54da8df8337cb8e2327d96a02a0800"
+                "sha256": "0100381f560ca8f2b2372a2f4ea806fdd689a4a40d53ea4f66ab9f46809efdcc"
             }
         ]
     },
@@ -4637,7 +4648,7 @@
             },
             {
                 "name": "cropPluginRef",
-                "id": "@bensitu/crop",
+                "id": "plugin:crop",
                 "apiVersion": "1.0.0"
             },
             {
@@ -4652,27 +4663,27 @@
             },
             {
                 "name": "filtersPluginRef",
-                "id": "@bensitu/filters",
+                "id": "plugin:filters",
                 "apiVersion": "1.0.0"
             },
             {
                 "name": "historyPluginRef",
-                "id": "@bensitu/history",
+                "id": "plugin:history",
                 "apiVersion": "1.0.0"
             },
             {
                 "name": "maskPluginRef",
-                "id": "@bensitu/mask",
+                "id": "plugin:mask",
                 "apiVersion": "1.0.0"
             },
             {
                 "name": "mosaicPluginRef",
-                "id": "@bensitu/mosaic",
+                "id": "plugin:mosaic",
                 "apiVersion": "1.0.0"
             },
             {
                 "name": "overlayFoundationRef",
-                "id": "foundation.overlay",
+                "id": "foundation:overlay",
                 "apiVersion": "1.0.0"
             },
             {
@@ -4692,7 +4703,7 @@
             },
             {
                 "name": "transformPluginRef",
-                "id": "@bensitu/transform",
+                "id": "plugin:transform",
                 "apiVersion": "1.0.0"
             }
         ],
@@ -4709,97 +4720,97 @@
             },
             {
                 "name": "BASE_IMAGE_INFO_CAPABILITY",
-                "id": "core.base-image-info",
+                "id": "core:base-image-info",
                 "version": "1.0.0"
             },
             {
                 "name": "BASE_IMAGE_READ_CAPABILITY",
-                "id": "core.base-image-read",
+                "id": "core:base-image-read",
                 "version": "1.0.0"
             },
             {
                 "name": "CANVAS_READ_CAPABILITY",
-                "id": "core.canvas-read",
+                "id": "core:canvas-read",
                 "version": "1.0.0"
             },
             {
                 "name": "CANVAS_RESIZE_CAPABILITY",
-                "id": "core.canvas-resize",
+                "id": "core:canvas-resize",
                 "version": "1.0.0"
             },
             {
                 "name": "CORE_DIAGNOSTICS_CAPABILITY",
-                "id": "core.diagnostics",
+                "id": "core:diagnostics",
                 "version": "1.0.0"
             },
             {
                 "name": "CORE_PRESENTATION_CAPABILITY",
-                "id": "core.presentation",
+                "id": "core:presentation",
                 "version": "1.0.0"
             },
             {
                 "name": "CORE_STATUS_CAPABILITY",
-                "id": "core.status",
+                "id": "core:status",
                 "version": "1.0.0"
             },
             {
                 "name": "DOCUMENT_MUTATION_CAPABILITY",
-                "id": "core.document-mutation",
+                "id": "core:document-mutation",
                 "version": "1.0.0"
             },
             {
                 "name": "EXPORT_CONTRIBUTION_CAPABILITY",
-                "id": "core.export",
+                "id": "core:export",
                 "version": "1.0.0"
             },
             {
                 "name": "FABRIC_RUNTIME_CAPABILITY",
-                "id": "fabric.runtime",
+                "id": "fabric:runtime",
                 "version": "1.0.0"
             },
             {
                 "name": "GEOMETRY_MUTATION_CAPABILITY",
-                "id": "core.geometry",
+                "id": "core:geometry",
                 "version": "1.0.0"
             },
             {
                 "name": "HISTORY_CAPABILITY",
-                "id": "plugin.history",
+                "id": "plugin:history",
                 "version": "1.0.0"
             },
             {
                 "name": "IMAGE_RESOURCE_POLICY_CAPABILITY",
-                "id": "core.image-resource-policy",
+                "id": "core:image-resource-policy",
                 "version": "1.0.0"
             },
             {
                 "name": "MEMENTO_HISTORY_CAPABILITY",
-                "id": "core.memento-history",
+                "id": "core:memento-history",
                 "version": "1.0.0"
             },
             {
                 "name": "OVERLAY_CAPABILITY",
-                "id": "foundation.overlay",
+                "id": "foundation:overlay",
                 "version": "1.0.0"
             },
             {
                 "name": "OVERLAY_REGISTRATION_CAPABILITY",
-                "id": "foundation.overlay.registration",
+                "id": "foundation:overlay-registration",
                 "version": "1.0.0"
             },
             {
                 "name": "RASTER_MUTATION_CAPABILITY",
-                "id": "core.raster-mutation",
+                "id": "core:raster-mutation",
                 "version": "1.0.0"
             },
             {
                 "name": "RENDER_REQUEST_CAPABILITY",
-                "id": "core.render-request",
+                "id": "core:render-request",
                 "version": "1.0.0"
             },
             {
                 "name": "SNAPSHOT_REGISTRATION_CAPABILITY",
-                "id": "core.snapshot-registration",
+                "id": "core:snapshot-registration",
                 "version": "1.0.0"
             },
             {
@@ -4902,6 +4913,7 @@
             "historyPlugin",
             "historyPluginRef",
             "isOverlayStateBoundsGeometry",
+            "isRuntimeIdentifier",
             "isValidSemVer",
             "maskPlugin",
             "maskPluginRef",
@@ -5879,6 +5891,12 @@
             },
             {
                 "name": "isOverlayStateBoundsGeometry",
+                "kinds": [
+                    "FunctionDeclaration"
+                ]
+            },
+            {
+                "name": "isRuntimeIdentifier",
                 "kinds": [
                     "FunctionDeclaration"
                 ]

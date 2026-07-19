@@ -47,7 +47,7 @@ async function dispose(editor) {
 }
 
 function captureProbePlugin() {
-    const ref = definePluginRef('example.test/history-capture-probe', '1.0.0');
+    const ref = definePluginRef('example-test:history-capture-probe', '1.0.0');
     let captures = 0;
     let failNext = false;
     return {
@@ -88,7 +88,7 @@ function captureProbePlugin() {
 }
 
 function controlledStatePlugin() {
-    const ref = definePluginRef('example.test/history-controlled-state', '1.0.0');
+    const ref = definePluginRef('example-test:history-controlled-state', '1.0.0');
     let value = 0;
     let sequence = 0;
     return {
@@ -103,7 +103,7 @@ function controlledStatePlugin() {
             const state = context.capabilities.require(SNAPSHOT_REGISTRATION_CAPABILITY);
             const mutations = context.capabilities.require(DOCUMENT_MUTATION_CAPABILITY);
             context.operations.register({
-                id: 'example.test:history-controlled-mutation',
+                id: 'example-test:history-controlled-mutation',
                 mode: 'mutation',
                 conflictDomains: ['document', 'state'],
                 reentrancy: 'queue',
@@ -129,9 +129,9 @@ function controlledStatePlugin() {
                 getValue: () => value,
                 mutate: (nextValue, gate) =>
                     mutations.run({
-                        id: `example.test:history-controlled-transaction:${++sequence}`,
+                        id: `example-test:history-controlled-transaction:${++sequence}`,
                         kind: 'plugin-state',
-                        operationId: 'example.test:history-controlled-mutation',
+                        operationId: 'example-test:history-controlled-mutation',
                         conflictDomains: ['document', 'state'],
                         mutate: async () => {
                             gate?.started.resolve();
@@ -238,7 +238,7 @@ test('failed baseline capture preserves disabled state and retained records', as
         history.enable({ baseline: 'current' }),
         (error) =>
             error?.code === 'MEMENTO_CAPTURE_ERROR' &&
-            error?.sliceId === 'example.test/history-capture-probe' &&
+            error?.sliceId === 'example-test:history-capture-probe' &&
             /synthetic baseline capture failure/u.test(error?.cause?.message),
     );
     assert.equal(history.isEnabled, false);

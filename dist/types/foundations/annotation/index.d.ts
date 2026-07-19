@@ -1,3 +1,8 @@
+/**
+ * Publishes Annotation Foundation capabilities, Plugin factory, errors, and authoring contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { AnnotationAuthoringPort, AnnotationFoundationOptions, AnnotationPluginApi } from './annotation-definition.js';

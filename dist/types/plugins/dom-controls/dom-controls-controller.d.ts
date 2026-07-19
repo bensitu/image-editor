@@ -1,3 +1,8 @@
+/**
+ * Binds DOM and keyboard controls to installed Plugin APIs with deterministic cleanup.
+ *
+ * @module
+ */
 import type { CoreDiagnosticsPort, Disposable } from '../../sdk/index.js';
 import type { DomControlsOptions, DomControlsStatus } from './dom-controls-types.js';
 export declare class DomControlsConfigurationError extends Error {

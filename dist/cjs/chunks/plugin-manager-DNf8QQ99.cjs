@@ -1,6 +1,6 @@
 'use strict';
 
-var pluginManifest = require('./plugin-manifest-Cap1WbD8.cjs');
+var pluginManifest = require('./plugin-manifest-BONtSGqw.cjs');
 var disposable = require('./disposable-Sj4tt6Lk.cjs');
 
 function validateProvider(token, implementation, providerPluginId, providerVersion, requiredPermission) {
@@ -8,8 +8,8 @@ function validateProvider(token, implementation, providerPluginId, providerVersi
     if (!pluginManifest.isCapabilityToken(token) || !pluginManifest.isValidSemVer(token.version)) {
         throw new pluginManifest.InvalidCapabilityVersionError((_a = token === null || token === void 0 ? void 0 : token.id) !== null && _a !== void 0 ? _a : 'unknown', (_b = token === null || token === void 0 ? void 0 : token.version) !== null && _b !== void 0 ? _b : '', 'version');
     }
-    if (providerPluginId.trim().length === 0 || providerPluginId.trim() !== providerPluginId) {
-        throw new pluginManifest.InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must be a non-empty trimmed string.`, providerPluginId);
+    if (!pluginManifest.isRuntimeIdentifier(providerPluginId)) {
+        throw new pluginManifest.InvalidPluginDefinitionError(`Capability provider id for "${token.id}" must match "namespace:kebab-case".`, providerPluginId);
     }
     if (!pluginManifest.isValidSemVer(providerVersion)) {
         throw new pluginManifest.InvalidCapabilityVersionError(token.id, providerVersion, 'version');
@@ -62,7 +62,7 @@ class CapabilityRegistry {
         registration.commit();
         return registration;
     }
-    provideHost(token, implementation, providerPluginId = '@bensitu/core', requiredPermission) {
+    provideHost(token, implementation, providerPluginId = 'core:host', requiredPermission) {
         if (!pluginManifest.isCapabilityToken(token)) {
             throw new pluginManifest.InvalidPluginDefinitionError('Host capability must use createCapabilityToken().');
         }
@@ -128,6 +128,9 @@ class CapabilityRegistry {
     getProviderInfo(tokenOrId) {
         this.assertActive('inspect a capability provider');
         const id = typeof tokenOrId === 'string' ? tokenOrId : tokenOrId.id;
+        if (!pluginManifest.isRuntimeIdentifier(id)) {
+            throw new pluginManifest.InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+        }
         const record = this.providers.get(id);
         if (!record)
             return null;
@@ -144,6 +147,9 @@ class CapabilityRegistry {
     }
     getRequiredPermission(capabilityId, visibleTransactions) {
         this.assertActive('inspect a Capability permission');
+        if (!pluginManifest.isRuntimeIdentifier(capabilityId)) {
+            throw new pluginManifest.InvalidPluginDefinitionError('Capability id must match "namespace:kebab-case".');
+        }
         const record = this.providers.get(capabilityId);
         if (!record)
             return undefined;
@@ -160,6 +166,9 @@ class CapabilityRegistry {
     resolve(requirement, consumerPluginId, optional, visibleTransactions) {
         var _a, _b, _c;
         this.assertActive('resolve a capability');
+        if (!pluginManifest.isRuntimeIdentifier(consumerPluginId)) {
+            throw new pluginManifest.InvalidPluginDefinitionError('Capability consumer Plugin id must match "namespace:kebab-case".', consumerPluginId);
+        }
         try {
             pluginManifest.assertCapabilityRequirement(requirement);
         }
@@ -256,6 +265,7 @@ class CommittedEventBus {
     }
     on(eventName, listener) {
         this.assertActive('register a committed event listener');
+        this.assertEventName(eventName);
         let eventListeners = this.listeners.get(eventName);
         if (!eventListeners) {
             eventListeners = [];
@@ -277,6 +287,7 @@ class CommittedEventBus {
     async emitCommitted(eventName, payload) {
         var _a, _b;
         this.assertActive('emit a committed event');
+        this.assertEventName(eventName);
         const snapshot = [...((_a = this.listeners.get(eventName)) !== null && _a !== void 0 ? _a : [])];
         for (let index = 0; index < snapshot.length; index += 1) {
             try {
@@ -295,8 +306,10 @@ class CommittedEventBus {
     listenerCount(eventName) {
         var _a, _b;
         this.assertActive('inspect committed event listeners');
-        if (eventName)
+        if (eventName) {
+            this.assertEventName(eventName);
             return (_b = (_a = this.listeners.get(eventName)) === null || _a === void 0 ? void 0 : _a.length) !== null && _b !== void 0 ? _b : 0;
+        }
         let count = 0;
         for (const listeners of this.listeners.values())
             count += listeners.length;
@@ -311,6 +324,11 @@ class CommittedEventBus {
     assertActive(operation) {
         if (this.disposed)
             throw new pluginManifest.PluginKernelDisposedError(operation);
+    }
+    assertEventName(eventName) {
+        if (!pluginManifest.isRuntimeIdentifier(eventName)) {
+            throw new pluginManifest.InvalidPluginDefinitionError('Committed event name must match "namespace:kebab-case".');
+        }
     }
 }
 
@@ -475,11 +493,11 @@ class OperationRegistry {
     }
     beginForHost(operationId) {
         this.assertActive('begin an operation');
-        const registered = this.requireRegistered(operationId, '@bensitu/core');
+        const registered = this.requireRegistered(operationId, 'core:host');
         return this.begin(operationId, registered.ownerPluginId);
     }
     runForHost(operationId, args, task, options = {}) {
-        const registered = this.requireRegistered(operationId, '@bensitu/core');
+        const registered = this.requireRegistered(operationId, 'core:host');
         return this.run(operationId, registered.ownerPluginId, args, task, options);
     }
     has(operationId) {
@@ -781,8 +799,11 @@ class OperationRegistry {
         }
     }
     validateDefinition(definition, ownerPluginId) {
-        if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
-            throw new pluginManifest.OperationRegistrationError('Operation id must be a non-empty trimmed string.', ownerPluginId);
+        if (!pluginManifest.isRuntimeIdentifier(ownerPluginId)) {
+            throw new pluginManifest.OperationRegistrationError('Operation owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+        }
+        if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
+            throw new pluginManifest.OperationRegistrationError('Operation id must match "namespace:kebab-case".', ownerPluginId);
         }
         if (!OPERATION_MODES.includes(definition.mode)) {
             throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid mode "${definition.mode}".`, ownerPluginId);
@@ -798,6 +819,12 @@ class OperationRegistry {
         }
         if (definition.reentrancy === 'coalesce' && typeof definition.coalesce !== 'function') {
             throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" must define coalesce().`, ownerPluginId);
+        }
+        if (definition.allowedDuringTool !== undefined &&
+            (!Array.isArray(definition.allowedDuringTool) ||
+                definition.allowedDuringTool.some((toolId) => !pluginManifest.isRuntimeIdentifier(toolId)) ||
+                new Set(definition.allowedDuringTool).size !== definition.allowedDuringTool.length)) {
+            throw new pluginManifest.OperationRegistrationError(`Operation "${definition.id}" has invalid allowed Tool ids.`, ownerPluginId);
         }
     }
     conflictError(requested, active, ownerPluginId) {
@@ -851,6 +878,7 @@ class PluginStateStore {
     }
     createScoped(pluginId, registerCleanup, registerFinalizer, isScopeActive) {
         this.assertActive('create plugin state');
+        pluginManifest.assertPluginIdentifier(pluginId, 'Plugin state owner id');
         if (this.activePluginIds.has(pluginId)) {
             throw new pluginManifest.InvalidPluginDefinitionError(`Plugin state scope "${pluginId}" is already active.`, pluginId);
         }
@@ -975,6 +1003,7 @@ class RegistrationScope {
             writable: true,
             value: 'open'
         });
+        pluginManifest.assertPluginIdentifier(pluginId, 'RegistrationScope Plugin id');
         this.transactionId = Symbol(`plugin-install:${pluginId}`);
     }
     get active() {
@@ -1109,8 +1138,11 @@ class ToolCoordinator {
     }
     register(definition, ownerPluginId) {
         this.assertActive('register a tool');
-        if (definition.id.trim().length === 0 || definition.id.trim() !== definition.id) {
-            throw new pluginManifest.ToolRegistrationError('Tool id must be a non-empty trimmed string.', ownerPluginId);
+        if (!pluginManifest.isRuntimeIdentifier(ownerPluginId)) {
+            throw new pluginManifest.ToolRegistrationError('Tool owner Plugin id must match "namespace:kebab-case".', ownerPluginId);
+        }
+        if (!pluginManifest.isRuntimeIdentifier(definition.id)) {
+            throw new pluginManifest.ToolRegistrationError('Tool id must match "namespace:kebab-case".', ownerPluginId);
         }
         const existing = this.tools.get(definition.id);
         if (existing) {
@@ -1292,11 +1324,11 @@ function sameInstallationDefinition(left, right) {
         left.onDispose === right.onDispose);
 }
 const pluginPackageHints = new Map([
-    ['foundation.overlay', '@bensitu/image-editor/plugins/overlay'],
-    ['@bensitu/transform', '@bensitu/image-editor/plugins/transform'],
-    ['@bensitu/mask', '@bensitu/image-editor/plugins/mask'],
-    ['@bensitu/history', '@bensitu/image-editor/plugins/history'],
-    ['@bensitu/filters', '@bensitu/image-editor/plugins/filters'],
+    ['foundation:overlay', '@bensitu/image-editor/plugins/overlay'],
+    ['plugin:transform', '@bensitu/image-editor/plugins/transform'],
+    ['plugin:mask', '@bensitu/image-editor/plugins/mask'],
+    ['plugin:history', '@bensitu/image-editor/plugins/history'],
+    ['plugin:filters', '@bensitu/image-editor/plugins/filters'],
 ]);
 class PluginManager {
     constructor(options = {}) {
@@ -1460,7 +1492,7 @@ class PluginManager {
     }
     registerHostOperation(definition) {
         this.assertCanInstall();
-        return this.operationRegistry.register(definition, '@bensitu/core');
+        return this.operationRegistry.register(definition, 'core:host');
     }
     beginOperationForHost(operationId) {
         if (!this.toolCoordinator.canRunOperation(operationId)) {
@@ -2216,4 +2248,4 @@ class PluginManager {
 }
 
 exports.PluginManager = PluginManager;
-//# sourceMappingURL=plugin-manager-C4krd9Vr.cjs.map
+//# sourceMappingURL=plugin-manager-DNf8QQ99.cjs.map

@@ -16,7 +16,7 @@ import {
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
 function installCommittedEventObserver(editor) {
-    const observerRef = definePluginRef('example.test/filters-event-observer', '1.0.0');
+    const observerRef = definePluginRef('example-test:filters-event-observer', '1.0.0');
     return editor.use({
         ref: observerRef,
         version: '1.0.0',
@@ -72,7 +72,7 @@ async function createEditor({
 }
 
 function installHistoryFailureProvider(editor, failingOperationId = 'filters:bake') {
-    const providerRef = definePluginRef('example.test/filters-history-failure', '1.0.0');
+    const providerRef = definePluginRef('example-test:filters-history-failure', '1.0.0');
     return editor.use(
         definePlugin({
             ref: providerRef,
@@ -107,7 +107,7 @@ function installHistoryFailureProvider(editor, failingOperationId = 'filters:bak
 }
 
 function installRollbackFailureSlice(editor) {
-    const sliceRef = definePluginRef('example.test/filters-rollback-failure', '1.0.0');
+    const sliceRef = definePluginRef('example-test:filters-rollback-failure', '1.0.0');
     let armed = false;
     return editor.use(
         definePlugin({
@@ -457,7 +457,7 @@ test('Snapshot round trip restores committed definitions and rejects invalid Sli
     const { editor, filters } = await createEditor();
     await filters.commit([{ type: 'brightness', value: 0.2 }, { type: 'grayscale' }]);
     const snapshot = JSON.parse(editor.saveState());
-    const slice = snapshot.plugins['@bensitu/filters'].data;
+    const slice = snapshot.plugins['plugin:filters'].data;
     assert.deepEqual(slice, {
         schema: 'image-editor.filters',
         version: 1,
@@ -470,12 +470,12 @@ test('Snapshot round trip restores committed definitions and rejects invalid Sli
     assert.deepEqual(filters.getState(), slice);
 
     const future = structuredClone(snapshot);
-    future.plugins['@bensitu/filters'].data.version = 2;
+    future.plugins['plugin:filters'].data.version = 2;
     await assert.rejects(editor.loadFromState(future), /version 2 is unsupported/i);
     assert.deepEqual(filters.getState(), slice);
 
     const incompatibleSlice = structuredClone(snapshot);
-    incompatibleSlice.plugins['@bensitu/filters'].version = 2;
+    incompatibleSlice.plugins['plugin:filters'].version = 2;
     await assert.rejects(
         editor.loadFromState(incompatibleSlice),
         /incompatible with installed version 1/i,
@@ -483,7 +483,7 @@ test('Snapshot round trip restores committed definitions and rejects invalid Sli
     assert.deepEqual(filters.getState(), slice);
 
     const unknown = structuredClone(snapshot);
-    unknown.plugins['@bensitu/filters'].data.filters = [{ type: 'arbitrary-fabric-class' }];
+    unknown.plugins['plugin:filters'].data.filters = [{ type: 'arbitrary-fabric-class' }];
     await assert.rejects(editor.loadFromState(unknown), /Unknown Filter type/i);
     assert.deepEqual(filters.getState(), slice);
 
@@ -509,7 +509,7 @@ test('missing Plugin policies skip or preserve opaque Filters Slice data without
     await editor.loadFromState(snapshot, { missingPluginPolicy: 'preserve-opaque' });
 
     const preserved = JSON.parse(editor.saveState());
-    assert.deepEqual(preserved.plugins['@bensitu/filters'].data.filters, [{ type: 'sepia' }]);
+    assert.deepEqual(preserved.plugins['plugin:filters'].data.filters, [{ type: 'sepia' }]);
     assert.deepEqual(preserved.core.canvas.objects[0].filters, []);
     assert.ok(warnings.some((warning) => /preserved opaquely/.test(warning.message)));
     await dispose(editor);

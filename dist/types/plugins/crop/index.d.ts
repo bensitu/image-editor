@@ -1,3 +1,8 @@
+/**
+ * Publishes the Crop Plugin factory, errors, geometry, session, and API contracts.
+ *
+ * @module
+ */
 import type { CoreEventMap } from '../../core/index.js';
 import { type SynchronousEditorPlugin } from '../../sdk/index.js';
 import type { CropPluginApi, CropPluginOptions } from './crop-session.js';
