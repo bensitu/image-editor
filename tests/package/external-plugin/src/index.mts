@@ -11,10 +11,7 @@ export interface PublicPluginApi {
     readonly ready: boolean;
 }
 
-export const publicPluginRef = definePluginRef<PublicPluginApi>(
-    '@image-editor-fixtures/public-plugin',
-    '1.0.0',
-);
+export const publicPluginRef = definePluginRef<PublicPluginApi>('fixture:public-plugin', '1.0.0');
 
 export function publicPlugin(): SynchronousEditorPlugin<PublicPluginApi, CoreEventMap> {
     return definePlugin({

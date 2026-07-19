@@ -8,7 +8,7 @@ export interface PublicPluginApi {
 }
 
 export const publicPluginRef = sdk.definePluginRef<PublicPluginApi>(
-    '@image-editor-fixtures/public-plugin',
+    'fixture:public-plugin',
     '1.0.0',
 );
 
