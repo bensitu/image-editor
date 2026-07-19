@@ -34,7 +34,7 @@ async function proveGridGuide() {
     await gridGuide.enterGuideTool();
     await gridGuide.exitGuideTool();
     const snapshot = editor.saveState();
-    assert.equal(snapshot.includes('@bensitu/reference-grid-guide'), false);
+    assert.equal(snapshot.includes('reference:grid-guide'), false);
     assert.equal(history.getState().size, 0);
     assert.equal(observer.getDescriptors().length, 0);
 

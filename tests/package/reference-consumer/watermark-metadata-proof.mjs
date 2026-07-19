@@ -169,8 +169,8 @@ async function proveMetadata() {
     const preserved = JSON.parse(receivingEditor.saveState()).plugins;
     const original = JSON.parse(opaqueSnapshot).plugins;
     assert.deepEqual(
-        preserved['@bensitu/reference-metadata/document'],
-        original['@bensitu/reference-metadata/document'],
+        preserved['reference-metadata:document'],
+        original['reference-metadata:document'],
     );
     await disposeEditor(receivingEditor);
 

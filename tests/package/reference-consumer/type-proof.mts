@@ -15,8 +15,8 @@ const blurRegion = createBlurRegionPlugin({
     },
 });
 
-const watermarkRef = definePluginRef<WatermarkPluginApi>('@bensitu/reference-watermark', '1.0.0');
-const metadataRef = definePluginRef<MetadataPluginApi>('@bensitu/reference-metadata', '1.0.0');
+const watermarkRef = definePluginRef<WatermarkPluginApi>('reference:watermark', '1.0.0');
+const metadataRef = definePluginRef<MetadataPluginApi>('reference:metadata', '1.0.0');
 
 declare const values: readonly [
     ImageEditorCore,
