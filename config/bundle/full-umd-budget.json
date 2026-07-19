@@ -11,10 +11,10 @@
     "artifacts": {
         "development": {
             "file": "dist/umd/image-editor.full.umd.js",
-            "rawBytes": 932030,
-            "gzipBytes": 149192,
-            "brotliBytes": 105306,
-            "sha256": "7b976418fbc3707990b64c0d5cc2781c3eb02451f07a85b55bda2f420b6ad12d",
+            "rawBytes": 932650,
+            "gzipBytes": 149052,
+            "brotliBytes": 105280,
+            "sha256": "c56208b2380cf23d9494109c7aaeae1811509d438dac0b8a91e9f64349d2bb3e",
             "maximumGzipBytes": 174080,
             "sourceModules": 100,
             "attribution": {
@@ -28,10 +28,10 @@
         },
         "minified": {
             "file": "dist/umd/image-editor.full.umd.min.js",
-            "rawBytes": 418979,
-            "gzipBytes": 97229,
-            "brotliBytes": 79677,
-            "sha256": "9a5da4a5141f781344291ad91af2097ba255b9d2e02c7399a53014cc7828bef1",
+            "rawBytes": 419028,
+            "gzipBytes": 97181,
+            "brotliBytes": 79788,
+            "sha256": "b90e6ee6418e4fdc67541e350d69f6023fd424f791abebaf55d4d14ee832cde7",
             "maximumGzipBytes": 110592,
             "sourceModules": 100,
             "attribution": {
