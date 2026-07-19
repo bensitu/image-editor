@@ -73,6 +73,15 @@ function collectImports(source) {
     return imports;
 }
 
+function hasModuleResponsibilityHeader(source) {
+    const header = source.match(/^\/\*\*[\s\S]*?\*\//u)?.[0];
+    return Boolean(
+        header &&
+        /^\/\*\*\r?\n \* \S/u.test(header) &&
+        /(?:^|\r?\n) \* @module(?:\r?\n|$)/u.test(header),
+    );
+}
+
 async function verifySources() {
     const files = await collectFiles(examplesRoot);
     for (const filePath of files) {
@@ -90,8 +99,8 @@ async function verifySources() {
             headerRoots.some((root) => relative.startsWith(`${root}/`))
         ) {
             assertCondition(
-                source.startsWith('/**\n * '),
-                `${relative} must begin with a module responsibility header.`,
+                hasModuleResponsibilityHeader(source),
+                `${relative} must begin with a module responsibility header containing @module.`,
             );
         }
     }
