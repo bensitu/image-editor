@@ -25,6 +25,7 @@ import {
     fingerprintMeasurementInputs,
     hashFile,
     latestMeasurementInputMtime,
+    normalizeBundleMeasurementText,
 } from './bundle-measurement-config.mjs';
 import { compareMeasurements } from './check-bundle-provenance.mjs';
 
@@ -387,8 +388,11 @@ async function measureFixture(fixture, packageRoot) {
                 ],
             }),
         );
-        const rawBuffer = Buffer.from(rawChunk.code, 'utf8');
-        const minifiedBuffer = Buffer.from(minifiedChunk.code, 'utf8');
+        const rawBuffer = Buffer.from(normalizeBundleMeasurementText(rawChunk.code), 'utf8');
+        const minifiedBuffer = Buffer.from(
+            normalizeBundleMeasurementText(minifiedChunk.code),
+            'utf8',
+        );
         const gzipBuffer = gzipSync(minifiedBuffer, {
             level: BUNDLE_MEASUREMENT_CONFIG.gzip.level,
         });

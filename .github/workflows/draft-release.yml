@@ -22,14 +22,14 @@ jobs:
 
         steps:
             - name: Check out repository
-              uses: actions/checkout@v6
+              uses: actions/checkout@v7
               with:
                   fetch-depth: 0
 
             - name: Set up Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@v7
               with:
-                  node-version: 22.14.0
+                  node-version: '24.x'
                   cache: npm
 
             - name: Install native canvas dependencies
@@ -86,13 +86,13 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
 
-            - name: Build, test, and pack release artifact
+            - name: Build, test, and pack release artifacts
               shell: bash
               run: |
                   npm run ci
 
-                  PACKAGE_TARBALL="$(
-                    npm pack --json | node -e '
+                  read_pack_filename() {
+                    node -e '
                       let input = "";
                       process.stdin.setEncoding("utf8");
                       process.stdin.on("data", (chunk) => input += chunk);
@@ -101,12 +101,31 @@ jobs:
                         console.log(packResult.filename);
                       });
                     '
+                  }
+
+                  MAIN_PACKAGE_TARBALL="$(npm pack --json | read_pack_filename)"
+                  CODEMOD_PACKAGE_TARBALL="$(
+                    npm pack --workspace @bensitu/image-editor-codemod --json |
+                      read_pack_filename
                   )"
-                  sha256sum "${PACKAGE_TARBALL}" > "${PACKAGE_TARBALL}.sha256"
+
+                  if [[ -z "${MAIN_PACKAGE_TARBALL}" || -z "${CODEMOD_PACKAGE_TARBALL}" ]]; then
+                    echo "Both v3 package tarballs must be generated." >&2
+                    exit 1
+                  fi
+                  if [[ "${MAIN_PACKAGE_TARBALL}" == "${CODEMOD_PACKAGE_TARBALL}" ]]; then
+                    echo "The main and Codemod tarballs must be distinct." >&2
+                    exit 1
+                  fi
+
+                  sha256sum "${MAIN_PACKAGE_TARBALL}" > "${MAIN_PACKAGE_TARBALL}.sha256"
+                  sha256sum "${CODEMOD_PACKAGE_TARBALL}" > "${CODEMOD_PACKAGE_TARBALL}.sha256"
 
                   {
-                    echo "PACKAGE_TARBALL=${PACKAGE_TARBALL}"
-                    echo "PACKAGE_CHECKSUM=${PACKAGE_TARBALL}.sha256"
+                    echo "MAIN_PACKAGE_TARBALL=${MAIN_PACKAGE_TARBALL}"
+                    echo "MAIN_PACKAGE_CHECKSUM=${MAIN_PACKAGE_TARBALL}.sha256"
+                    echo "CODEMOD_PACKAGE_TARBALL=${CODEMOD_PACKAGE_TARBALL}"
+                    echo "CODEMOD_PACKAGE_CHECKSUM=${CODEMOD_PACKAGE_TARBALL}.sha256"
                   } >> "${GITHUB_ENV}"
 
             - name: Extract changelog notes
@@ -134,7 +153,15 @@ jobs:
             - name: Create draft release
               shell: bash
               run: |
-                  if ! gh release create "${TAG_NAME}" "${PACKAGE_TARBALL}" "${PACKAGE_CHECKSUM}" --draft --title "${TAG_NAME}" --notes-file release-notes.md --target "${GITHUB_SHA}"; then
+                  if ! gh release create "${TAG_NAME}" \
+                    "${MAIN_PACKAGE_TARBALL}" \
+                    "${MAIN_PACKAGE_CHECKSUM}" \
+                    "${CODEMOD_PACKAGE_TARBALL}" \
+                    "${CODEMOD_PACKAGE_CHECKSUM}" \
+                    --draft \
+                    --title "${TAG_NAME}" \
+                    --notes-file release-notes.md \
+                    --target "${GITHUB_SHA}"; then
                     git push --delete origin "${TAG_NAME}" || true
                     git tag -d "${TAG_NAME}" || true
                     exit 1

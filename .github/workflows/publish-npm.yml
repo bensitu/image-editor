@@ -27,9 +27,9 @@ jobs:
 
         steps:
             - name: Set up Node.js
-              uses: actions/setup-node@v6
+              uses: actions/setup-node@v7
               with:
-                  node-version: 22.14.0
+                  node-version: '24.x'
                   registry-url: https://registry.npmjs.org
 
             - name: Use npm with trusted publishing support
@@ -66,47 +66,92 @@ jobs:
                   shopt -s nullglob
                   PACKAGE_TARBALLS=(*.tgz)
                   PACKAGE_CHECKSUMS=(*.sha256)
-                  if [[ "${#PACKAGE_TARBALLS[@]}" -ne 1 || "${#PACKAGE_CHECKSUMS[@]}" -ne 1 ]]; then
-                    echo "Release ${TAG_NAME} must contain exactly one .tgz package and one .sha256 checksum." >&2
+                  if [[ "${#PACKAGE_TARBALLS[@]}" -ne 2 || "${#PACKAGE_CHECKSUMS[@]}" -ne 2 ]]; then
+                    echo "Release ${TAG_NAME} must contain the main and Codemod tarballs with two checksums." >&2
                     exit 1
                   fi
 
-                  sha256sum -c "${PACKAGE_CHECKSUMS[0]}"
-                  echo "PACKAGE_TARBALL=${PACKAGE_TARBALLS[0]}" >> "${GITHUB_ENV}"
+                  for PACKAGE_CHECKSUM in "${PACKAGE_CHECKSUMS[@]}"; do
+                    sha256sum -c "${PACKAGE_CHECKSUM}"
+                  done
               env:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
 
-            - name: Validate release artifact metadata
+            - name: Validate release artifacts metadata
               shell: bash
               run: |
-                  tar -xOf "${PACKAGE_TARBALL}" package/package.json > package-from-tarball.json
-                  PACKAGE_NAME="$(node -p "require('./package-from-tarball.json').name")"
-                  PACKAGE_VERSION="$(node -p "require('./package-from-tarball.json').version")"
+                  MAIN_PACKAGE_NAME='@bensitu/image-editor'
+                  CODEMOD_PACKAGE_NAME='@bensitu/image-editor-codemod'
+                  MAIN_PACKAGE_TARBALL=''
+                  CODEMOD_PACKAGE_TARBALL=''
 
-                  echo "Package: ${PACKAGE_NAME}@${PACKAGE_VERSION}"
-                  if [[ "${PACKAGE_VERSION}" != "${VERSION}" ]]; then
-                    echo "Package artifact version (${PACKAGE_VERSION}) must match requested version (${VERSION})." >&2
+                  for PACKAGE_TARBALL in ./*.tgz; do
+                    PACKAGE_JSON="$(tar -xOf "${PACKAGE_TARBALL}" package/package.json)"
+                    PACKAGE_NAME="$(
+                      node -e 'console.log(JSON.parse(process.argv[1]).name)' "${PACKAGE_JSON}"
+                    )"
+                    PACKAGE_VERSION="$(
+                      node -e 'console.log(JSON.parse(process.argv[1]).version)' "${PACKAGE_JSON}"
+                    )"
+
+                    echo "Package: ${PACKAGE_NAME}@${PACKAGE_VERSION} (${PACKAGE_TARBALL})"
+                    if [[ "${PACKAGE_VERSION}" != "${VERSION}" ]]; then
+                      echo "Package artifact version (${PACKAGE_VERSION}) must match requested version (${VERSION})." >&2
+                      exit 1
+                    fi
+
+                    case "${PACKAGE_NAME}" in
+                      "${MAIN_PACKAGE_NAME}")
+                        if [[ -n "${MAIN_PACKAGE_TARBALL}" ]]; then
+                          echo "The release contains a duplicate main package artifact." >&2
+                          exit 1
+                        fi
+                        MAIN_PACKAGE_TARBALL="${PACKAGE_TARBALL}"
+                        ;;
+                      "${CODEMOD_PACKAGE_NAME}")
+                        if [[ -n "${CODEMOD_PACKAGE_TARBALL}" ]]; then
+                          echo "The release contains a duplicate Codemod package artifact." >&2
+                          exit 1
+                        fi
+                        CODEMOD_PACKAGE_TARBALL="${PACKAGE_TARBALL}"
+                        ;;
+                      *)
+                        echo "Unexpected package artifact: ${PACKAGE_NAME}." >&2
+                        exit 1
+                        ;;
+                    esac
+                  done
+
+                  if [[ -z "${MAIN_PACKAGE_TARBALL}" || -z "${CODEMOD_PACKAGE_TARBALL}" ]]; then
+                    echo "The release must contain both v3 package artifacts." >&2
                     exit 1
                   fi
 
                   {
-                    echo "PACKAGE_NAME=${PACKAGE_NAME}"
-                    echo "PACKAGE_VERSION=${PACKAGE_VERSION}"
-                  } >> "${GITHUB_ENV}"
+                    printf '%s\t%s\t%s\n' \
+                      "${CODEMOD_PACKAGE_TARBALL}" "${CODEMOD_PACKAGE_NAME}" "${VERSION}"
+                    printf '%s\t%s\t%s\n' \
+                      "${MAIN_PACKAGE_TARBALL}" "${MAIN_PACKAGE_NAME}" "${VERSION}"
+                  } > package-artifacts.tsv
 
-            - name: Check npm version availability
+            - name: Check npm package versions availability
               shell: bash
               run: |
-                  if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
-                    echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
-                    exit 1
-                  fi
+                  while IFS=$'\t' read -r PACKAGE_TARBALL PACKAGE_NAME PACKAGE_VERSION; do
+                    if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version --registry https://registry.npmjs.org >/dev/null 2>&1; then
+                      echo "${PACKAGE_NAME}@${PACKAGE_VERSION} already exists on npm." >&2
+                      exit 1
+                    fi
+                  done < package-artifacts.tsv
 
-            - name: Publish release artifact to npm
+            - name: Publish release artifacts to npm
               shell: bash
               env:
                   WORKFLOW_NPM_TAG: ${{ github.event.inputs.npm_tag }}
               run: |
                   NPM_TAG="${WORKFLOW_NPM_TAG:-latest}"
-                  npm publish "./${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}" --provenance
+                  while IFS=$'\t' read -r PACKAGE_TARBALL PACKAGE_NAME PACKAGE_VERSION; do
+                    echo "Publishing ${PACKAGE_NAME}@${PACKAGE_VERSION} with dist-tag ${NPM_TAG}."
+                    npm publish "${PACKAGE_TARBALL}" --access public --tag "${NPM_TAG}" --provenance
+                  done < package-artifacts.tsv

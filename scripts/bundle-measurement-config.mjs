@@ -3,7 +3,8 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 export const BUNDLE_MEASUREMENT_CONFIG = Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
+    output: Object.freeze({ lineEndings: 'lf' }),
     rollup: Object.freeze({
         format: 'es',
         exports: 'named',
@@ -23,6 +24,11 @@ export const BUNDLE_MEASUREMENT_CONFIG = Object.freeze({
     brotli: Object.freeze({ quality: 11, mode: 'text' }),
     externalDependencies: Object.freeze(['fabric']),
 });
+
+/** Converts generated bundle text to the cross-platform measurement form. */
+export function normalizeBundleMeasurementText(value) {
+    return value.replace(/\r\n?/gu, '\n');
+}
 
 function canonicalize(value) {
     if (Array.isArray(value)) return value.map(canonicalize);
