@@ -41,9 +41,7 @@
         "gzipBytes": 197,
         "brotliBytes": 155,
         "moduleCount": 1,
-        "modules": [
-            "dist/esm/index.js"
-        ],
+        "modules": ["dist/esm/index.js"],
         "moduleListHash": "8dc0f114e9595409066e130d4ce7985aed3a53d578e0d61eb3d38695c4694e88"
     },
     "measurement": {
