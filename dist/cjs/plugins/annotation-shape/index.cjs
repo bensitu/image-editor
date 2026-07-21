@@ -5,6 +5,7 @@ var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
+require('../../chunks/safe-object-key-WmIq_B8a.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
 require('../../chunks/errors-DeAfrgDC.cjs');
 

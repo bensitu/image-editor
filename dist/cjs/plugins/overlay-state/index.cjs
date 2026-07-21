@@ -2,6 +2,7 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var affineMatrix = require('../../chunks/affine-matrix-DRJ0b89x.cjs');
+var safeObjectKey = require('../../chunks/safe-object-key-WmIq_B8a.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
@@ -158,7 +159,6 @@ const DEFAULT_OVERLAY_STATE_LIMITS = Object.freeze({
 });
 const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const SEMVER_PATTERN$1 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const ROOT_KEYS = new Set([
     'schema',
     'version',
@@ -306,7 +306,7 @@ function cloneJsonValue(value, path, depth, context) {
         let ok = accountBytes(context, 2, path);
         for (const key of keys) {
             const childPath = `${path}.${key}`;
-            if (DANGEROUS_KEYS.has(key)) {
+            if (safeObjectKey.isUnsafeObjectKey(key)) {
                 addIssue(context.issues, 'object.dangerousKey', childPath, 'Key is not allowed.');
                 ok = false;
                 continue;

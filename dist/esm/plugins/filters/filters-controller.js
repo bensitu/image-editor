@@ -1,4 +1,5 @@
 import { createDisposable, } from '../../sdk/index.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { MAX_SUPPORTED_FILTER_COUNT, areFilterDefinitionsEqual, normalizeFilterDefinitions, } from './filter-definitions.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { copyBaseImagePresentation, createFilteredImageClone, disposeFabricImage, normalizeFilterBakeOptions, renderBakedImage, } from './filtered-image-renderer.js';
@@ -40,7 +41,7 @@ function isRecord(value) {
 }
 function validateStateKeys(value) {
     for (const key of Object.keys(value)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        if (isUnsafeObjectKey(key)) {
             return `Filters state contains dangerous key "${key}".`;
         }
         if (key !== 'schema' && key !== 'version' && key !== 'filters') {
@@ -505,7 +506,7 @@ export class FiltersController {
             throw new TypeError('[ImageEditor] Filters configuration patch must be a plain object.');
         }
         for (const key of Object.keys(patch)) {
-            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            if (isUnsafeObjectKey(key)) {
                 throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
             }
             if (key !== 'maxFilterCount') {

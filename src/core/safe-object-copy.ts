@@ -4,10 +4,10 @@
  * @module
  */
 
-const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+import { isUnsafeObjectKey } from '../utils/safe-object-key.js';
 
 export function canCopySafeObjectKey(key: string): boolean {
-    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+    return !isUnsafeObjectKey(key);
 }
 
 export function copySafeOwnProperties<T extends object>(value: unknown): Partial<T> {

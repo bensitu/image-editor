@@ -28,6 +28,7 @@ import {
     type VisibleRasterBakeOptions,
     type VisibleRasterBakeResult,
 } from '../../sdk/index.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import {
     MAX_SUPPORTED_FILTER_COUNT,
     areFilterDefinitionsEqual,
@@ -144,7 +145,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function validateStateKeys(value: Record<string, unknown>): string | null {
     for (const key of Object.keys(value)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        if (isUnsafeObjectKey(key)) {
             return `Filters state contains dangerous key "${key}".`;
         }
         if (key !== 'schema' && key !== 'version' && key !== 'filters') {
@@ -570,7 +571,7 @@ export class FiltersController {
             );
         }
         for (const key of Object.keys(patch)) {
-            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            if (isUnsafeObjectKey(key)) {
                 throw new TypeError(
                     `[ImageEditor] Filters configuration contains dangerous key "${key}".`,
                 );

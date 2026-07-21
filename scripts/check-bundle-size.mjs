@@ -583,9 +583,9 @@ async function updateFreezeBaseline(name, measurement, packageRoot) {
     const outputPath = path.join(baselinesRoot, `${name}.json`);
     const deterministic = {
         schemaVersion: 2,
-        kind: 'V2_FREEZE_BUNDLE_MEASUREMENT',
+        kind: 'V2_MAINTENANCE_BUNDLE_MEASUREMENT',
         source: {
-            ref: 'legacy/v2.9-freeze',
+            ref: 'legacy/v2',
             head: await getGitCommit(packageRoot),
             tree: await getGitTree(packageRoot),
         },

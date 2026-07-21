@@ -19,6 +19,7 @@ require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 require('../../chunks/plugin-definition-B3UyurRp.cjs');
 require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
 require('../../chunks/visible-raster-bake-B7dAdnmC.cjs');
+require('../../chunks/safe-object-key-WmIq_B8a.cjs');
 require('../../chunks/affine-matrix-DRJ0b89x.cjs');
 require('../../chunks/plugin-manager-C-UJ_Yc9.cjs');
 

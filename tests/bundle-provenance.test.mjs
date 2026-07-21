@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
     createWorkingTreeIdentity,
+    gitReferenceCandidates,
     hashTrackedBlobManifest,
     packageVersionFromLockfile,
     validateBundleProvenance,
@@ -18,9 +19,9 @@ function provenance() {
     const measurementModules = ['dist/esm/index.js', 'tests/bundle/fixtures/full-root/index.mjs'];
     return {
         schemaVersion: 2,
-        baseline: 'v2.9-freeze',
+        baseline: 'v2',
         source: {
-            ref: 'legacy/v2.9-freeze',
+            ref: 'legacy/v2',
             head: commit,
             tree: 'c'.repeat(40),
             clean: true,
@@ -39,8 +40,6 @@ function provenance() {
         inputs: {
             packageLockHash: hash,
             rollupConfigHash: hash,
-            fixtureHash: hash,
-            measurementConfigHash: hash,
         },
         artifact: {
             entry: 'dist/esm/index.js',
@@ -53,7 +52,7 @@ function provenance() {
             moduleListHash: '',
         },
         measurement: {
-            baseline: 'tests/bundle/baselines/v2.9-freeze.json',
+            baseline: 'tests/bundle/baselines/v2.json',
             baselineHash: hash,
             fixture: 'full-root',
             entryPath: 'tests/bundle/fixtures/full-root/index.mjs',
@@ -87,6 +86,15 @@ test('committed identity is unchanged by LF or CRLF checkout bytes', () => {
     const crlfCheckout = Buffer.from('export const value = 1;\r\n');
     assert.notDeepEqual(lfCheckout, crlfCheckout);
     assert.equal(hashTrackedBlobManifest(records), hashTrackedBlobManifest(records));
+});
+
+test('published branch resolution prefers the remote tracking ref', () => {
+    assert.deepEqual(gitReferenceCandidates('legacy/v2'), [
+        'refs/remotes/origin/legacy/v2',
+        'refs/heads/legacy/v2',
+        'legacy/v2',
+    ]);
+    assert.deepEqual(gitReferenceCandidates(commit), [commit]);
 });
 
 test('toolchain dependency identity comes from committed lockfile data', () => {

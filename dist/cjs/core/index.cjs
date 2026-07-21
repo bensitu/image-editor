@@ -3,6 +3,7 @@
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
 var pluginManifest = require('../chunks/plugin-manifest-BCkXHQr2.cjs');
+var safeObjectKey = require('../chunks/safe-object-key-WmIq_B8a.cjs');
 var pluginPlan = require('../chunks/plugin-plan-CxkCZnUf.cjs');
 var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
 var pluginManager = require('../chunks/plugin-manager-C-UJ_Yc9.cjs');
@@ -604,7 +605,6 @@ class ExportContributorRegistry {
     }
 }
 
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 function isObject(value) {
     return typeof value === 'object' && value !== null;
 }
@@ -656,7 +656,7 @@ function cloneFallback(value, seen) {
     const result = Object.create(null);
     seen.set(value, result);
     for (const key of Object.keys(value)) {
-        if (dangerousKeys.has(key)) {
+        if (safeObjectKey.isUnsafeObjectKey(key)) {
             throw new errors.StateCloneError(`State contains dangerous key "${key}".`);
         }
         result[key] = cloneFallback(value[key], seen);
@@ -725,7 +725,7 @@ function assertSafeImmutableReference(value, path = '$', seen = new WeakSet()) {
     }
     seen.add(value);
     for (const key of Object.keys(value)) {
-        if (dangerousKeys.has(key)) {
+        if (safeObjectKey.isUnsafeObjectKey(key)) {
             throw new errors.StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
         }
         assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
@@ -733,7 +733,7 @@ function assertSafeImmutableReference(value, path = '$', seen = new WeakSet()) {
     seen.delete(value);
 }
 function isDangerousStateKey(key) {
-    return dangerousKeys.has(key);
+    return safeObjectKey.isUnsafeObjectKey(key);
 }
 
 function assertIdentifier$2(value, label) {
@@ -3792,7 +3792,16 @@ class ImageEditorCore {
     setCanvasSize(width, height) {
         if (!this.canvas)
             return;
-        applyCanvasDimensions(this.canvas, Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)), this.containerElement);
+        const nextWidth = Math.max(1, Math.ceil(width));
+        const nextHeight = Math.max(1, Math.ceil(height));
+        if (!Number.isSafeInteger(nextWidth) ||
+            !Number.isSafeInteger(nextHeight) ||
+            nextWidth > this.options.maxExportDimension ||
+            nextHeight > this.options.maxExportDimension ||
+            nextWidth * nextHeight > this.options.maxExportPixels) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Canvas dimensions exceed the configured resource budget.');
+        }
+        applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
     async runExport(options) {
         var _a, _b, _c, _d;

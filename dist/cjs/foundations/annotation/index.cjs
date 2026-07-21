@@ -1,6 +1,7 @@
 'use strict';
 
 var foundations_overlay_index = require('../overlay/index.cjs');
+var safeObjectKey = require('../../chunks/safe-object-key-WmIq_B8a.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
@@ -100,7 +101,6 @@ const MAX_ANNOTATION_NAME_LENGTH = 128;
 const MAX_ANNOTATION_METADATA_DEPTH = 4;
 const MAX_ANNOTATION_METADATA_KEYS = 32;
 const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 function isPlainRecord$1(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
         return false;
@@ -150,7 +150,7 @@ function cloneMetadataValue(value, depth, budget) {
         }
         const clone = {};
         for (const [key, entry] of entries) {
-            if (dangerousKeys.has(key) || key.length === 0 || key.length > 128) {
+            if (safeObjectKey.isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
             budget.stringBytes += new TextEncoder().encode(key).byteLength;

@@ -1546,12 +1546,20 @@ export class ImageEditorCore {
 
     private setCanvasSize(width: number, height: number): void {
         if (!this.canvas) return;
-        applyCanvasDimensions(
-            this.canvas,
-            Math.max(1, Math.ceil(width)),
-            Math.max(1, Math.ceil(height)),
-            this.containerElement,
-        );
+        const nextWidth = Math.max(1, Math.ceil(width));
+        const nextHeight = Math.max(1, Math.ceil(height));
+        if (
+            !Number.isSafeInteger(nextWidth) ||
+            !Number.isSafeInteger(nextHeight) ||
+            nextWidth > this.options.maxExportDimension ||
+            nextHeight > this.options.maxExportDimension ||
+            nextWidth * nextHeight > this.options.maxExportPixels
+        ) {
+            throw new CoreRuntimeError(
+                '[ImageEditor] Canvas dimensions exceed the configured resource budget.',
+            );
+        }
+        applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
 
     private async runExport(options: CoreExportOptions): Promise<string> {

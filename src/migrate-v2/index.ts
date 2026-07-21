@@ -13,6 +13,7 @@ import type {
     SnapshotMigration,
     SnapshotMigrationContext,
 } from '../core/index.js';
+import { isUnsafeObjectKey } from '../utils/safe-object-key.js';
 
 const SOURCE_SCHEMA = 'image-editor.canvas@2';
 const TARGET_SCHEMA = 'image-editor.state@3' as const;
@@ -210,7 +211,7 @@ function inspectJsonValue(
     }
     ancestors.add(value);
     for (const key of Object.keys(value)) {
-        if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
+        if (isUnsafeObjectKey(key)) {
             throw new SnapshotMigrationError(
                 'input.key',
                 `Snapshot contains dangerous key "${key}".`,

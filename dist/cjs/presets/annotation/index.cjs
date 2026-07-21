@@ -13,6 +13,7 @@ var plugins_transform_index = require('../../plugins/transform/index.cjs');
 var presetSupport = require('../../chunks/preset-support-BlNeXlGM.cjs');
 var core_index = require('../../core/index.cjs');
 var pluginPlan = require('../../chunks/plugin-plan-CxkCZnUf.cjs');
+require('../../chunks/safe-object-key-WmIq_B8a.cjs');
 require('../../chunks/disposable-Sj4tt6Lk.cjs');
 require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 require('../../chunks/plugin-definition-B3UyurRp.cjs');

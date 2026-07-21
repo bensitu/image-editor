@@ -1,6 +1,6 @@
-const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+import { isUnsafeObjectKey } from '../utils/safe-object-key.js';
 export function canCopySafeObjectKey(key) {
-    return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+    return !isUnsafeObjectKey(key);
 }
 export function copySafeOwnProperties(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value))

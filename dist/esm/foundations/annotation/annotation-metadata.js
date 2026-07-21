@@ -1,9 +1,9 @@
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { AnnotationValidationError } from './annotation-errors.js';
 export const MAX_ANNOTATION_NAME_LENGTH = 128;
 export const MAX_ANNOTATION_METADATA_DEPTH = 4;
 export const MAX_ANNOTATION_METADATA_KEYS = 32;
 export const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 function isPlainRecord(value) {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
         return false;
@@ -53,7 +53,7 @@ function cloneMetadataValue(value, depth, budget) {
         }
         const clone = {};
         for (const [key, entry] of entries) {
-            if (dangerousKeys.has(key) || key.length === 0 || key.length > 128) {
+            if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
             budget.stringBytes += new TextEncoder().encode(key).byteLength;

@@ -5,9 +5,8 @@ The 3.0 candidate is a breaking major release. The former monolithic
 and typed Presets. Existing applications can migrate incrementally, but must not
 expect old source code or Snapshots to load automatically.
 
-The maintained 2.9 baseline is `legacy/v2.9-freeze`. The pre-existing
-`legacy/v2` branch is a separate historical branch and is not the 2.9
-maintenance baseline. See the [2.x maintenance policy](./v2-maintenance-policy.md).
+The maintained 2.9 baseline is the published `legacy/v2` branch. See the
+[2.x maintenance policy](./v2-maintenance-policy.md).
 
 ## Choose a composition
 

@@ -6,6 +6,7 @@ var affineMatrix = require('./chunks/affine-matrix-DRJ0b89x.cjs');
 var errors = require('./chunks/errors-DeAfrgDC.cjs');
 var core_index = require('./core/index.cjs');
 var pluginManifest = require('./chunks/plugin-manifest-BCkXHQr2.cjs');
+require('./chunks/safe-object-key-WmIq_B8a.cjs');
 require('./chunks/plugin-plan-CxkCZnUf.cjs');
 require('./chunks/disposable-Sj4tt6Lk.cjs');
 require('./chunks/plugin-manager-C-UJ_Yc9.cjs');

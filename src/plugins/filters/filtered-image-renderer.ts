@@ -8,6 +8,7 @@ import type * as FabricNS from 'fabric';
 
 import type { FabricModule, ImageMimeType } from '../../core/index.js';
 import type { BaseImageInfoPort, ImageResourcePolicyPort } from '../../sdk/index.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import type { FilterDefinition } from './filter-definitions.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';
@@ -94,7 +95,7 @@ export function normalizeFilterBakeOptions(
     }
     const record = (options ?? {}) as Record<string, unknown>;
     for (const key of Object.keys(record)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        if (isUnsafeObjectKey(key)) {
             throw new FilterBakeValidationError(
                 `Filter bake options contain dangerous key "${key}".`,
             );

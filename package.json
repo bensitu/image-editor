@@ -15,7 +15,6 @@
     "type": "module",
     "workspaces": [
         "examples/fabric-vs-framework-redaction",
-        "examples/next-client-only",
         "examples/react-basic",
         "examples/reference-plugins/*",
         "examples/vanilla-core",

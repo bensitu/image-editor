@@ -11,12 +11,16 @@ import { maskPlugin, maskPluginRef } from '../../../src/plugins/mask/index.js';
 import { transformPlugin } from '../../../src/plugins/transform/index.js';
 import { fabric, makeImageDataUrl, resetEditorDom } from '../../helpers/fabric-environment.mjs';
 
-async function createEditor(maskOptions = {}, { transformOptions = null, beforeMask } = {}) {
+async function createEditor(
+    maskOptions = {},
+    { transformOptions = null, beforeMask, coreOptions = {} } = {},
+) {
     const ids = resetEditorDom({ containerWidth: 360, containerHeight: 260 });
     const warnings = [];
     const editor = new ImageEditorCore(fabric, {
         canvasWidth: 360,
         canvasHeight: 260,
+        ...coreOptions,
         onWarning: (error, message) => warnings.push({ error, message }),
     });
     const overlay = editor.use(overlayFoundationPlugin());
@@ -76,6 +80,39 @@ test('Mask Plugin creates every built-in shape and custom Fabric generators with
     assert.equal(overlay.getByPersistentId('mask-5'), custom);
     assert.equal(changes.length, 5);
     await dispose(editor);
+});
+
+test('Mask creation rejects canvas expansion beyond configured resource budgets', async () => {
+    const scenarios = [
+        {
+            coreOptions: { maxExportDimension: 400, maxExportPixels: 1_000_000 },
+            config: { left: 390, top: 10, width: 20, height: 20 },
+        },
+        {
+            coreOptions: { maxExportDimension: 1_000, maxExportPixels: 95_000 },
+            config: { left: 350, top: 240, width: 20, height: 20 },
+        },
+    ];
+
+    for (const { coreOptions, config } of scenarios) {
+        const { editor, ids, masks } = await createEditor({ label: false }, { coreOptions });
+        try {
+            await load(editor);
+            const canvas = document.getElementById(ids.canvas);
+            assert.ok(canvas instanceof HTMLCanvasElement);
+            const before = { width: canvas.width, height: canvas.height };
+
+            await assert.rejects(
+                masks.create(config),
+                /Canvas dimensions exceed the configured resource budget/,
+            );
+
+            assert.deepEqual({ width: canvas.width, height: canvas.height }, before);
+            assert.equal(masks.getAll().length, 0);
+        } finally {
+            await dispose(editor);
+        }
+    }
 });
 
 test('create, remove, removeSelected, and removeAll maintain counter and list ordering', async () => {

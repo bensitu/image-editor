@@ -1,3 +1,4 @@
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';
 function abortError(message) {
@@ -60,7 +61,7 @@ export function normalizeFilterBakeOptions(options, sourceMimeType) {
     }
     const record = (options !== null && options !== void 0 ? options : {});
     for (const key of Object.keys(record)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        if (isUnsafeObjectKey(key)) {
             throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
         }
         if (key !== 'format' && key !== 'quality') {

@@ -1,5 +1,6 @@
 'use strict';
 
+var safeObjectKey = require('../../chunks/safe-object-key-WmIq_B8a.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
@@ -98,7 +99,6 @@ const SUPPORTED_FILTER_TYPES = Object.freeze([
     'blur',
     'sharpen',
 ]);
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 const numericRanges = Object.freeze({
     brightness: [-1, 1],
     contrast: [-1, 1],
@@ -117,7 +117,7 @@ function validateKeys(value, allowed, path) {
         if (typeof key !== 'string') {
             throw new FilterDefinitionError('Filter definition contains an unsupported symbol key.', path);
         }
-        if (dangerousKeys.has(key)) {
+        if (safeObjectKey.isUnsafeObjectKey(key)) {
             throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
         }
         if (!allowed.includes(key)) {
@@ -331,7 +331,7 @@ function normalizeFilterBakeOptions(options, sourceMimeType) {
     }
     const record = (options !== null && options !== void 0 ? options : {});
     for (const key of Object.keys(record)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        if (safeObjectKey.isUnsafeObjectKey(key)) {
             throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
         }
         if (key !== 'format' && key !== 'quality') {
@@ -470,7 +470,7 @@ function isRecord(value) {
 }
 function validateStateKeys(value) {
     for (const key of Object.keys(value)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        if (safeObjectKey.isUnsafeObjectKey(key)) {
             return `Filters state contains dangerous key "${key}".`;
         }
         if (key !== 'schema' && key !== 'version' && key !== 'filters') {
@@ -933,7 +933,7 @@ class FiltersController {
             throw new TypeError('[ImageEditor] Filters configuration patch must be a plain object.');
         }
         for (const key of Object.keys(patch)) {
-            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            if (safeObjectKey.isUnsafeObjectKey(key)) {
                 throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
             }
             if (key !== 'maxFilterCount') {

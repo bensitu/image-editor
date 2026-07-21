@@ -5,6 +5,7 @@
  */
 
 import { isRuntimeIdentifier } from '../../sdk/index.js';
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 
 import {
     OVERLAY_STATE_COORDINATE_SPACE,
@@ -37,7 +38,6 @@ export const DEFAULT_OVERLAY_STATE_LIMITS: OverlayStateLimits = Object.freeze({
 const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const SEMVER_PATTERN =
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const ROOT_KEYS = new Set([
     'schema',
     'version',
@@ -254,7 +254,7 @@ function cloneJsonValue(
         let ok = accountBytes(context, 2, path);
         for (const key of keys) {
             const childPath = `${path}.${key}`;
-            if (DANGEROUS_KEYS.has(key)) {
+            if (isUnsafeObjectKey(key)) {
                 addIssue(context.issues, 'object.dangerousKey', childPath, 'Key is not allowed.');
                 ok = false;
                 continue;

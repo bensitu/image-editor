@@ -222,26 +222,26 @@
             "reason": "The CommonJS package consumer verifies all required public migration functions."
         },
         {
-            "id": "freeze-baseline-labels",
+            "id": "maintenance-baseline-labels",
             "path": "tests/bundle-provenance.test.mjs",
             "kind": "literal",
-            "term": "v2.9",
-            "sourcePattern": "v2\\.9-freeze",
-            "minimumHits": 3,
-            "maximumHits": 3,
+            "term": "v2",
+            "sourcePattern": "(?:['\"]v2['\"]|legacy/v2|baselines/v2\\.json)",
+            "minimumHits": 7,
+            "maximumHits": 7,
             "category": "GOVERNANCE_FIXTURE",
-            "reason": "The provenance negative fixture must identify the immutable freeze baseline exactly."
+            "reason": "The provenance fixtures must identify the published v2 maintenance baseline exactly."
         },
         {
-            "id": "freeze-branch-label",
+            "id": "maintenance-branch-labels",
             "path": "tests/bundle-provenance.test.mjs",
             "kind": "literal",
             "term": "legacy",
-            "sourcePattern": "legacy/v2\\.9-freeze",
-            "minimumHits": 1,
-            "maximumHits": 1,
+            "sourcePattern": "legacy/v2",
+            "minimumHits": 5,
+            "maximumHits": 5,
             "category": "GOVERNANCE_FIXTURE",
-            "reason": "The provenance negative fixture must identify the immutable freeze branch exactly."
+            "reason": "The provenance fixtures must identify the published maintenance branch exactly."
         },
         {
             "id": "provenance-schema-label",

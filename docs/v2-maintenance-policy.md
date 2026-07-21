@@ -1,10 +1,8 @@
 # 2.x Maintenance Policy
 
-The official 2.9 maintenance baseline is the `legacy/v2.9-freeze` branch. The
-pre-existing `legacy/v2` branch is retained as historical state and is not the
-same maintenance baseline.
+The official published 2.9 maintenance baseline is the `legacy/v2` branch.
 
-Maintenance on `legacy/v2.9-freeze` is limited to security fixes and critical
+Maintenance on `legacy/v2` is limited to security fixes and critical
 correctness fixes for the supported 2.9 line. It does not receive the current
 Plugin architecture, new Features, new Presets, or ordinary enhancements.
 

@@ -18,17 +18,11 @@ import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:z
 const execFileAsync = promisify(execFile);
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = path.resolve(scriptsDir, '..');
-const defaultRecordPath = path.join(
-    defaultRepoRoot,
-    'tests',
-    'bundle',
-    'provenance',
-    'v2.9-freeze.json',
-);
-const defaultRef = 'legacy/v2.9-freeze';
-const defaultBaseline = 'v2.9-freeze';
+const defaultRecordPath = path.join(defaultRepoRoot, 'tests', 'bundle', 'provenance', 'v2.json');
+const defaultRef = 'legacy/v2';
+const defaultBaseline = 'v2';
 const artifactEntry = 'dist/esm/index.js';
-const defaultBaselinePath = 'tests/bundle/baselines/v2.9-freeze.json';
+const defaultBaselinePath = 'tests/bundle/baselines/v2.json';
 const defaultMeasurementPath = path.join(defaultRepoRoot, ...defaultBaselinePath.split('/'));
 const measurementFixture = 'full-root';
 const sourcePathspecs = [
@@ -36,11 +30,9 @@ const sourcePathspecs = [
     'package.json',
     'package-lock.json',
     'rollup.config.mjs',
-    'scripts/bundle-measurement-config.mjs',
     'tsconfig.json',
     'tsconfig.build.json',
     'tsconfig.types.json',
-    'tests/bundle/fixtures',
     'dist/esm',
 ];
 const measuredFields = ['rawBytes', 'minifiedBytes', 'gzipBytes', 'brotliBytes', 'moduleCount'];
@@ -75,6 +67,25 @@ async function run(command, args, cwd) {
 
 async function git(repoRoot, args) {
     return (await run('git', args, repoRoot)).trim();
+}
+
+/** Returns deterministic local candidates for a published or exact Git reference. */
+export function gitReferenceCandidates(ref) {
+    if (ref.startsWith('refs/') || /^[0-9a-f]{7,40}$/iu.test(ref)) return [ref];
+    return [`refs/remotes/origin/${ref}`, `refs/heads/${ref}`, ref];
+}
+
+async function resolveCommit(repoRoot, ref) {
+    for (const candidate of gitReferenceCandidates(ref)) {
+        try {
+            return await git(repoRoot, ['rev-parse', '--verify', candidate]);
+        } catch {
+            // Try the next deterministic candidate without mutating repository refs.
+        }
+    }
+    throw new Error(
+        `Git reference ${ref} is unavailable. Fetch published branches before checking.`,
+    );
 }
 
 async function committedBytes(repoRoot, commit, filePath) {
@@ -181,16 +192,9 @@ async function committedHash(repoRoot, commit, filePath) {
 }
 
 async function createInputIdentity(repoRoot, commit) {
-    const fixtureRecords = await treeRecords(repoRoot, commit, ['tests/bundle/fixtures']);
     return {
         packageLockHash: await committedHash(repoRoot, commit, 'package-lock.json'),
         rollupConfigHash: await committedHash(repoRoot, commit, 'rollup.config.mjs'),
-        fixtureHash: hashTrackedBlobManifest(fixtureRecords),
-        measurementConfigHash: await committedHash(
-            repoRoot,
-            commit,
-            'scripts/bundle-measurement-config.mjs',
-        ),
     };
 }
 
@@ -270,7 +274,7 @@ export async function createBundleProvenance({
     baseline = defaultBaseline,
     measurementPath = defaultMeasurementPath,
 } = {}) {
-    const head = await git(repoRoot, ['rev-parse', ref]);
+    const head = await resolveCommit(repoRoot, ref);
     const tree = await git(repoRoot, ['rev-parse', `${head}^{tree}`]);
     const records = await treeRecords(repoRoot, head, sourcePathspecs);
     return {
@@ -326,8 +330,6 @@ const exactFields = [
     'toolchain.typescript',
     'inputs.packageLockHash',
     'inputs.rollupConfigHash',
-    'inputs.fixtureHash',
-    'inputs.measurementConfigHash',
     'artifact.entry',
     'artifact.rawHash',
     'artifact.rawBytes',

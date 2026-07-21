@@ -4015,7 +4015,11 @@
         return sanitizeAffineMatrix(multiplyAffine(after, invertAffine(before)));
     }
 
-    const dangerousKeys$2 = new Set(['__proto__', 'constructor', 'prototype']);
+    const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+    function isUnsafeObjectKey(key) {
+        return UNSAFE_OBJECT_KEYS.has(key);
+    }
+
     function isObject$1(value) {
         return typeof value === 'object' && value !== null;
     }
@@ -4067,7 +4071,7 @@
         const result = Object.create(null);
         seen.set(value, result);
         for (const key of Object.keys(value)) {
-            if (dangerousKeys$2.has(key)) {
+            if (isUnsafeObjectKey(key)) {
                 throw new StateCloneError(`State contains dangerous key "${key}".`);
             }
             result[key] = cloneFallback(value[key], seen);
@@ -4136,7 +4140,7 @@
         }
         seen.add(value);
         for (const key of Object.keys(value)) {
-            if (dangerousKeys$2.has(key)) {
+            if (isUnsafeObjectKey(key)) {
                 throw new StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
             }
             assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
@@ -4144,7 +4148,7 @@
         seen.delete(value);
     }
     function isDangerousStateKey(key) {
-        return dangerousKeys$2.has(key);
+        return isUnsafeObjectKey(key);
     }
 
     function assertIdentifier$2(value, label) {
@@ -7220,7 +7224,16 @@
         setCanvasSize(width, height) {
             if (!this.canvas)
                 return;
-            applyCanvasDimensions(this.canvas, Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)), this.containerElement);
+            const nextWidth = Math.max(1, Math.ceil(width));
+            const nextHeight = Math.max(1, Math.ceil(height));
+            if (!Number.isSafeInteger(nextWidth) ||
+                !Number.isSafeInteger(nextHeight) ||
+                nextWidth > this.options.maxExportDimension ||
+                nextHeight > this.options.maxExportDimension ||
+                nextWidth * nextHeight > this.options.maxExportPixels) {
+                throw new CoreRuntimeError('[ImageEditor] Canvas dimensions exceed the configured resource budget.');
+            }
+            applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
         }
         async runExport(options) {
             var _a, _b, _c, _d;
@@ -9492,7 +9505,6 @@
     const MAX_ANNOTATION_METADATA_DEPTH = 4;
     const MAX_ANNOTATION_METADATA_KEYS = 32;
     const MAX_ANNOTATION_METADATA_STRING_BYTES = 8 * 1024;
-    const dangerousKeys$1 = new Set(['__proto__', 'constructor', 'prototype']);
     function isPlainRecord$6(value) {
         if (typeof value !== 'object' || value === null || Array.isArray(value))
             return false;
@@ -9542,7 +9554,7 @@
             }
             const clone = {};
             for (const [key, entry] of entries) {
-                if (dangerousKeys$1.has(key) || key.length === 0 || key.length > 128) {
+                if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
                     throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
                 }
                 budget.stringBytes += new TextEncoder().encode(key).byteLength;
@@ -11505,9 +11517,8 @@
         }
     }
 
-    const UNSAFE_OBJECT_COPY_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
     function canCopySafeObjectKey(key) {
-        return !UNSAFE_OBJECT_COPY_KEYS.has(key);
+        return !isUnsafeObjectKey(key);
     }
     function copySafeOwnProperties(value) {
         if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -13017,7 +13028,6 @@
         'blur',
         'sharpen',
     ]);
-    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
     const numericRanges = Object.freeze({
         brightness: [-1, 1],
         contrast: [-1, 1],
@@ -13036,7 +13046,7 @@
             if (typeof key !== 'string') {
                 throw new FilterDefinitionError('Filter definition contains an unsupported symbol key.', path);
             }
-            if (dangerousKeys.has(key)) {
+            if (isUnsafeObjectKey(key)) {
                 throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
             }
             if (!allowed.includes(key)) {
@@ -13250,7 +13260,7 @@
         }
         const record = (options !== null && options !== void 0 ? options : {});
         for (const key of Object.keys(record)) {
-            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            if (isUnsafeObjectKey(key)) {
                 throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
             }
             if (key !== 'format' && key !== 'quality') {
@@ -13389,7 +13399,7 @@
     }
     function validateStateKeys(value) {
         for (const key of Object.keys(value)) {
-            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+            if (isUnsafeObjectKey(key)) {
                 return `Filters state contains dangerous key "${key}".`;
             }
             if (key !== 'schema' && key !== 'version' && key !== 'filters') {
@@ -13852,7 +13862,7 @@
                 throw new TypeError('[ImageEditor] Filters configuration patch must be a plain object.');
             }
             for (const key of Object.keys(patch)) {
-                if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+                if (isUnsafeObjectKey(key)) {
                     throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
                 }
                 if (key !== 'maxFilterCount') {
@@ -18598,7 +18608,6 @@
     });
     const PERSISTENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
     const SEMVER_PATTERN$1 = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-    const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
     const ROOT_KEYS = new Set([
         'schema',
         'version',
@@ -18746,7 +18755,7 @@
             let ok = accountBytes(context, 2, path);
             for (const key of keys) {
                 const childPath = `${path}.${key}`;
-                if (DANGEROUS_KEYS.has(key)) {
+                if (isUnsafeObjectKey(key)) {
                     addIssue(context.issues, 'object.dangerousKey', childPath, 'Key is not allowed.');
                     ok = false;
                     continue;

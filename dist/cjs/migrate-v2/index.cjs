@@ -1,5 +1,7 @@
 'use strict';
 
+var safeObjectKey = require('../chunks/safe-object-key-WmIq_B8a.cjs');
+
 const SOURCE_SCHEMA = 'image-editor.canvas@2';
 const TARGET_SCHEMA = 'image-editor.state@3';
 const MAX_INPUT_BYTES = 16 * 1024 * 1024;
@@ -135,7 +137,7 @@ function inspectJsonValue(value, limits, path = '$', depth = 0, ancestors = new 
     }
     ancestors.add(value);
     for (const key of Object.keys(value)) {
-        if (key === '__proto__' || key === 'prototype' || key === 'constructor') {
+        if (safeObjectKey.isUnsafeObjectKey(key)) {
             throw new SnapshotMigrationError('input.key', `Snapshot contains dangerous key "${key}".`, `${path}.${key}`);
         }
         inspectJsonValue(value[key], limits, Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, depth + 1, ancestors, counter);

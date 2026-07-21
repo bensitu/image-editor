@@ -1,3 +1,4 @@
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { FilterDefinitionError } from './filters-errors.js';
 export const MAX_SUPPORTED_FILTER_COUNT = 8;
 export const SUPPORTED_FILTER_TYPES = Object.freeze([
@@ -10,7 +11,6 @@ export const SUPPORTED_FILTER_TYPES = Object.freeze([
     'blur',
     'sharpen',
 ]);
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 const numericRanges = Object.freeze({
     brightness: [-1, 1],
     contrast: [-1, 1],
@@ -29,7 +29,7 @@ function validateKeys(value, allowed, path) {
         if (typeof key !== 'string') {
             throw new FilterDefinitionError('Filter definition contains an unsupported symbol key.', path);
         }
-        if (dangerousKeys.has(key)) {
+        if (isUnsafeObjectKey(key)) {
             throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
         }
         if (!allowed.includes(key)) {

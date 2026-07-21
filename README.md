@@ -344,8 +344,7 @@ supported frozen maintenance Snapshots. Core never migrates implicitly. The
 separate `@bensitu/image-editor-codemod` CLI rewrites common integrations and
 reports ambiguous patterns without changing them.
 
-The maintained 2.9 baseline lives on `legacy/v2.9-freeze`; the pre-existing
-`legacy/v2` branch is historical and is not the same maintenance baseline.
+The maintained 2.9 baseline lives on the published `legacy/v2` branch.
 Maintenance is limited to security and critical correctness fixes, with a
 separate release process and no automatic merges from `develop`.
 

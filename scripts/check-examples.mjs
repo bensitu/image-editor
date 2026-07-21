@@ -31,6 +31,9 @@ const buildWorkspaces = Object.freeze([
     '@bensitu/image-editor-next-client-only-example',
     '@bensitu/image-editor-redaction-comparison',
 ]);
+const isolatedExampleRoots = new Map([
+    ['@bensitu/image-editor-next-client-only-example', path.join(examplesRoot, 'next-client-only')],
+]);
 
 function assertCondition(condition, message) {
     if (!condition) throw new Error(message);
@@ -131,6 +134,21 @@ async function verifyTemplatePackage() {
 
 await verifySources();
 for (const workspace of buildWorkspaces) {
+    const isolatedRoot = isolatedExampleRoots.get(workspace);
+    if (isolatedRoot) {
+        const lockPath = path.join(isolatedRoot, 'package-lock.json');
+        const lockBefore = await readFile(lockPath, 'utf8');
+        console.log(`Installing ${workspace} from its audited lockfile.`);
+        await npm(['install', '--ignore-scripts', '--no-audit', '--no-fund'], isolatedRoot);
+        const lockAfter = await readFile(lockPath, 'utf8');
+        assertCondition(
+            lockAfter === lockBefore,
+            `${workspace} installation changed its committed lockfile.`,
+        );
+        console.log(`Building ${workspace}.`);
+        await npm(['run', 'build'], isolatedRoot);
+        continue;
+    }
     console.log(`Building ${workspace}.`);
     await npm(['run', 'build', '--workspace', workspace]);
 }

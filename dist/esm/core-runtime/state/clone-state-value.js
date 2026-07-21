@@ -1,5 +1,5 @@
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { StateCloneError } from '../errors.js';
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 function isObject(value) {
     return typeof value === 'object' && value !== null;
 }
@@ -51,7 +51,7 @@ function cloneFallback(value, seen) {
     const result = Object.create(null);
     seen.set(value, result);
     for (const key of Object.keys(value)) {
-        if (dangerousKeys.has(key)) {
+        if (isUnsafeObjectKey(key)) {
             throw new StateCloneError(`State contains dangerous key "${key}".`);
         }
         result[key] = cloneFallback(value[key], seen);
@@ -120,7 +120,7 @@ export function assertSafeImmutableReference(value, path = '$', seen = new WeakS
     }
     seen.add(value);
     for (const key of Object.keys(value)) {
-        if (dangerousKeys.has(key)) {
+        if (isUnsafeObjectKey(key)) {
             throw new StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
         }
         assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
@@ -128,6 +128,6 @@ export function assertSafeImmutableReference(value, path = '$', seen = new WeakS
     seen.delete(value);
 }
 export function isDangerousStateKey(key) {
-    return dangerousKeys.has(key);
+    return isUnsafeObjectKey(key);
 }
 //# sourceMappingURL=clone-state-value.js.map

@@ -4,6 +4,7 @@
  * @module
  */
 
+import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
 import { FilterDefinitionError } from './filters-errors.js';
 
 export interface BrightnessFilter {
@@ -73,7 +74,6 @@ export const SUPPORTED_FILTER_TYPES: readonly FilterType[] = Object.freeze([
     'sharpen',
 ]);
 
-const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 const numericRanges: Readonly<
     Record<
         Extract<FilterType, 'brightness' | 'contrast' | 'saturation' | 'blur' | 'sharpen'>,
@@ -105,7 +105,7 @@ function validateKeys(
                 path,
             );
         }
-        if (dangerousKeys.has(key)) {
+        if (isUnsafeObjectKey(key)) {
             throw new FilterDefinitionError(
                 `Filter definition contains dangerous key "${key}".`,
                 path,
