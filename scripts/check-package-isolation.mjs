@@ -5,25 +5,17 @@
  */
 
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 
 const execFileAsync = promisify(execFile);
 const scriptsDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsDirectory, '..');
 const fixtureRoot = path.join(repositoryRoot, 'tests', 'package', 'external-plugin');
-const evidencePath = path.join(
-    repositoryRoot,
-    'docs',
-    'refactor',
-    'stage-2',
-    'evidence',
-    'package-isolation.generated.json',
-);
 const requiredEntries = [
     '.',
     './core',
@@ -85,12 +77,6 @@ async function extract(tarball, destination) {
     return path.join(destination, 'package');
 }
 
-async function sha256(filePath) {
-    return createHash('sha256')
-        .update(await readFile(filePath))
-        .digest('hex');
-}
-
 async function collectFiles(directory) {
     const entries = await readdir(directory, { withFileTypes: true });
     const files = [];
@@ -123,13 +109,17 @@ async function collectPackageInstances(nodeModulesRoot, packageName) {
     return instances.sort();
 }
 
-function assertPeerPolicy(manifest) {
+function assertPeerPolicy(manifest, mainManifest) {
+    const imageEditorRange = manifest.peerDependencies?.['@bensitu/image-editor'];
     assertCondition(
-        manifest.peerDependencies?.['@bensitu/image-editor'] === '^3.0.0-0',
+        semver.validRange(imageEditorRange) !== null &&
+            semver.satisfies(mainManifest.version, imageEditorRange, {
+                includePrerelease: true,
+            }),
         'External Plugin must declare the Image Editor package as a compatible peer.',
     );
     assertCondition(
-        manifest.peerDependencies?.fabric === '>=7.4.0 <8',
+        manifest.peerDependencies?.fabric === mainManifest.peerDependencies.fabric,
         'External Plugin must declare Fabric as a compatible peer.',
     );
     for (const name of ['@bensitu/image-editor', 'fabric']) {
@@ -336,10 +326,10 @@ async function execute() {
         const externalManifest = JSON.parse(
             await readFile(path.join(externalInstall, 'package.json'), 'utf8'),
         );
-        assertPeerPolicy(externalManifest);
+        assertPeerPolicy(externalManifest, mainManifest);
         assertCondition(
-            mainManifest.peerDependencies?.fabric === '>=7.4.0 <8',
-            'Main package Fabric peer range changed unexpectedly.',
+            semver.validRange(mainManifest.peerDependencies?.fabric) !== null,
+            'Main package Fabric peer range is invalid.',
         );
         for (const entry of requiredEntries) {
             assertCondition(
@@ -414,7 +404,6 @@ async function execute() {
                 version: mainPack.version,
                 files: mainPack.files.length,
                 bytes: mainPack.size,
-                sha256: await sha256(mainPack.path),
                 entries: Object.freeze(requiredEntries),
             }),
             externalPlugin: Object.freeze({
@@ -422,7 +411,6 @@ async function execute() {
                 version: externalPack.version,
                 files: externalPack.files.length,
                 bytes: externalPack.size,
-                sha256: await sha256(externalPack.path),
                 peerDependencies: externalManifest.peerDependencies,
                 privateImports: 0,
                 bundledDependencies: 0,
@@ -443,12 +431,6 @@ async function execute() {
 }
 
 const mode = process.argv[2] ?? '--check';
-if (!['--check', '--generate'].includes(mode) || process.argv.length > 3) {
-    throw new Error('Use --check or --generate.');
-}
+if (mode !== '--check' || process.argv.length > 3) throw new Error('Use --check.');
 const result = await execute();
-if (mode === '--generate') {
-    await mkdir(path.dirname(evidencePath), { recursive: true });
-    await writeFile(evidencePath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-}
 process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

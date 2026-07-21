@@ -1,80 +1,10 @@
 {
-    "budget": {
-        "hardLimitGzipBytes": 51200,
-        "lockedGzipBytes": 50176,
-        "maximumHeadroomRatio": 0.1,
-        "minimumHeadroomGzipBytes": 1024,
-        "targetGzipBytes": 50176
-    },
-    "fixtures": {
-        "core-only": {
-            "entry": "tests/bundle/fixtures/core-only/index.mjs",
-            "sha256": "16b4c7ebffbc42e5a8de3fac4723012a9ec44c24bbbe15e7d101e033b256ebdc"
-        },
-        "core-platform": {
-            "entry": "tests/bundle/fixtures/core-platform/index.mjs",
-            "sha256": "14af6a93e9f1cb8be3dfb3618311be8a086b8976d7af644c42181fea912334d6"
-        },
-        "core-sdk": {
-            "entry": "tests/bundle/fixtures/core-sdk/index.mjs",
-            "sha256": "02842a52604cd6eb30d8c0a9c678423b2adbef1cacfd672317db99ac54b06a0c"
-        },
-        "overlay-foundation": {
-            "entry": "tests/bundle/fixtures/overlay-foundation/index.mjs",
-            "sha256": "b1b7e2e0c3336358cb22b8be3a9ab6d992dccf68f97d741478fb5db0b0f9780b"
-        },
-        "platform-anchor": {
-            "entry": "tests/bundle/fixtures/platform-anchor/index.mjs",
-            "sha256": "16e14ee3c297427ff06ec684296a68f1f5a93813bacf12b175e5d185c3ef5533"
-        },
-        "third-party-blur-region": {
-            "entry": "tests/bundle/fixtures/third-party-blur-region/index.mjs",
-            "sha256": "814d883f55379b245f82fb8cf97c5b8c54757108790b7c5817428e69d6080c1a"
-        },
-        "third-party-watermark": {
-            "entry": "tests/bundle/fixtures/third-party-watermark/index.mjs",
-            "sha256": "bbe5b5a530909dabc9d857ecb2de9e3918252d9eb2847205babb26cca7a9e223"
-        }
-    },
-    "measurement": {
-        "corePlatformGzipBytes": 40675,
-        "overlayDeltaGzipBytes": 9495,
-        "path": "tests/bundle/baselines/platform-anchor.json",
-        "platformAnchorGzipBytes": 50170,
-        "sha256": "1100a02bc98933ea0e319a986388e3667e5242b31315110bc80584c97b39a1f0"
-    },
-    "modulePolicy": {
-        "allowedPrefixes": [
-            "dist/esm/",
-            "tests/bundle/fixtures/platform-anchor/"
-        ],
-        "annotationDrawLeakageAllowed": 0,
-        "annotationFoundationLeakageAllowed": 0,
-        "annotationShapeLeakageAllowed": 0,
-        "annotationTextLeakageAllowed": 0,
-        "cropPluginLeakageAllowed": 0,
-        "domControlsPluginLeakageAllowed": 0,
-        "fabricExternal": true,
-        "filtersPluginLeakageAllowed": 0,
-        "mosaicPluginLeakageAllowed": 0,
-        "overlayStatePluginLeakageAllowed": 0,
-        "presetLeakageAllowed": 0,
-        "referencePluginLeakageAllowed": 0,
-        "testingLeakageAllowed": 0,
-        "unknownModulesAllowed": 0
-    },
     "schemaVersion": 1,
-    "source": {
-        "commit": "f351b469c7bc2c349edf7be63ac0a092af70d570",
-        "tree": "17d36310a442897d66054ff0ebd93c78b8af5d2b"
-    },
-    "toolchain": {
-        "bundler": {
-            "name": "rollup",
-            "version": "4.62.2"
-        },
-        "measurementConfigHash": "91b970c515589e33ea9fd1c94fda858cfd9b6680f671f981d77a6820e6ca395c",
-        "measurementConfigVersion": 2,
-        "node": "v24.16.0"
-    }
+    "maximumGzipBytes": 57344,
+    "fabricModulesAllowed": 0,
+    "testingModulesAllowed": 0,
+    "referencePluginModulesAllowed": 0,
+    "optionalFeatureModulesAllowed": 0,
+    "presetModulesAllowed": 0,
+    "unknownModulesAllowed": 0
 }

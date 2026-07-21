@@ -145,6 +145,4 @@ examples/*/dist/
 
 # Internal engineering artifacts
 /docs/refactor/
-/.internal/implementation/
-/.internal/release-candidate/
-/.internal/release-check-worktree/
+/.internal/

@@ -4,19 +4,6 @@
  * @module
  */
 
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-
-const scriptsDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = path.resolve(scriptsDirectory, '..');
-const measurementPath = path.join(
-    repositoryRoot,
-    'tests',
-    'bundle',
-    'baselines',
-    'platform-anchor.json',
-);
 const expectedFixtures = [
     'sdk/core-only',
     'sdk/sdk-runtime',
@@ -123,8 +110,7 @@ function assertCondition(condition, message) {
     if (!condition) throw new Error(message);
 }
 
-export async function inspectPublicBundleIsolation() {
-    const measurement = JSON.parse(await readFile(measurementPath, 'utf8'));
+export async function inspectPublicBundleIsolation(measurement) {
     const fixtures = {};
     let unknownModules = 0;
     let testingRuntimeLeakage = 0;
@@ -518,7 +504,7 @@ export async function inspectPublicBundleIsolation() {
     return Object.freeze({
         schemaVersion: 1,
         result: 'PASS',
-        measurement: path.relative(repositoryRoot, measurementPath).replaceAll('\\', '/'),
+        measurement: 'live',
         fixtures: Object.freeze(fixtures),
         summary: Object.freeze({
             fixturesMeasured: expectedFixtures.length,
@@ -529,20 +515,5 @@ export async function inspectPublicBundleIsolation() {
             unattributedDuplicateHelpers,
             unknownModules,
         }),
-    });
-}
-
-async function main() {
-    if ((process.argv[2] ?? '--check') !== '--check' || process.argv.length > 3) {
-        throw new Error('Use --check.');
-    }
-    const result = await inspectPublicBundleIsolation();
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-}
-
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-    main().catch((error) => {
-        process.stderr.write(`${error.stack ?? error}\n`);
-        process.exitCode = 1;
     });
 }

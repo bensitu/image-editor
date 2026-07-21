@@ -28,7 +28,8 @@ be reached through a formal package contract.
 npm test
 ```
 
-`npm test` runs the Node-based unit and property tests under `tests/`.
+`npm test` builds the Codemod package and runs every Node-based product, unit,
+property, migration, and Codemod test under `tests/`.
 
 ## Browser Tests
 
@@ -37,12 +38,11 @@ npm run test:e2e
 npm run test:e2e:all
 npm run test:browser
 npm run test:browser:release
-npm run test:browser:all
 ```
 
 `npm run test:e2e` is the fast local E2E check and runs Chromium only.
 `npm run test:e2e:all` runs the full Playwright E2E suite in Chromium, Firefox,
-and WebKit, matching CI browser coverage. Local developers do not need system
+and WebKit for the Release profile. Local developers do not need system
 Firefox or Safari installed; Playwright downloads and manages its own browser
 binaries. Install the full local browser set when needed with:
 
@@ -52,8 +52,7 @@ npx playwright install chromium firefox webkit
 
 `npm run test:browser` keeps the broader browser suite Chromium-only for local
 iteration. `npm run test:browser:release` runs cross-browser E2E plus the
-Chromium-only visual suite. `npm run test:browser:all` is kept as an alias for
-that release browser matrix.
+Chromium-only visual suite.
 
 ## Visual Regression Tests
 
@@ -67,22 +66,26 @@ Visual tests compare deterministic exported-image screenshots. Run
 the updated snapshots before committing them. Visual tests are intentionally
 Chromium-only unless browser-specific snapshots are added.
 
-## Release Checks
+## Validation Profiles
 
-For the full local candidate check, run:
+For pull-request responsibilities, run:
+
+```bash
+npm run check:pr
+```
+
+This profile runs source formatting, linting, type checking, every Node product
+test, architecture and repository policies, official Plugin checks, public type
+fixtures, and Chromium E2E. CI runs this profile on Node.js 24 with Chromium.
+
+For distribution and release responsibilities, run from a clean commit:
 
 ```bash
 npm run check:release
 ```
 
-`check:release` requires a clean candidate commit on `develop`, `main`, or a
-`release/*` branch. It verifies candidate metadata, deterministic output, all
-formal package entries, public API and bundle policies, packed consumers,
-cross-browser and visual behavior, UMD, migration, Codemod, performance, and
-security. It only validates local readiness and does not change external release
-state. `release:gate` and `release:check` remain aliases for this command.
-
-`npm run ci` uses the engineering subset through `check:release-readiness`; the
-workflow runs its browser matrix separately. A clean checkout does not need a
-pre-existing `dist/` because the checks build generated artifacts before package
-validation.
+`check:release` verifies generic semantic-version and peer-range alignment,
+builds the distribution once, validates package/API/bundle/UMD consumers, audits
+dependencies, runs Chromium/Firefox/WebKit E2E and Chromium visual tests, and
+checks deterministic output. It does not create tags, publish packages, or alter
+external release state. `npm run ci` is the single alias for `check:pr`.

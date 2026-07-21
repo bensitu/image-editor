@@ -5,20 +5,12 @@
  */
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import ts from 'typescript';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const evidencePath = path.join(
-    repositoryRoot,
-    'docs',
-    'refactor',
-    'stage-2',
-    'evidence',
-    'official-plugin-imports.generated.json',
-);
 const sourceRoots = [
     'src/plugins/transform',
     'src/plugins/history',
@@ -402,14 +394,8 @@ export async function inspectOfficialPlugins() {
 
 async function main() {
     const mode = process.argv[2] ?? '--check';
-    if (!['--check', '--generate'].includes(mode) || process.argv.length > 3) {
-        throw new Error('Use --check or --generate.');
-    }
+    if (mode !== '--check' || process.argv.length > 3) throw new Error('Use --check.');
     const result = await inspectOfficialPlugins();
-    if (mode === '--generate') {
-        await mkdir(path.dirname(evidencePath), { recursive: true });
-        await writeFile(evidencePath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-    }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     if (result.result !== 'PASS') process.exitCode = 1;
 }

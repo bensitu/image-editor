@@ -586,21 +586,17 @@ async function analyze(packageRoot) {
             'plugin-kernel',
             'index.mjs',
         );
-        try {
-            const fixtureText = await readFile(kernelFixture, 'utf8');
-            for (const specifier of collectSpecifiers(fixtureText, kernelFixture)) {
-                if (specifier !== '@bensitu/image-editor/plugin-kernel-internal') {
-                    violations.push({
-                        sourceFile: relativeTo(repoRoot, kernelFixture),
-                        forbiddenImport: specifier,
-                        rule: 'kernel-fixture-entry-isolation',
-                        recommendation:
-                            'The fixture may import only the internal Plugin Kernel test alias, never a root or feature entry.',
-                    });
-                }
+        const fixtureText = await readFile(kernelFixture, 'utf8');
+        for (const specifier of collectSpecifiers(fixtureText, kernelFixture)) {
+            if (specifier !== '@bensitu/image-editor/plugin-kernel-internal') {
+                violations.push({
+                    sourceFile: relativeTo(repoRoot, kernelFixture),
+                    forbiddenImport: specifier,
+                    rule: 'kernel-fixture-entry-isolation',
+                    recommendation:
+                        'The fixture may import only the internal Plugin Kernel test alias, never a root or feature entry.',
+                });
             }
-        } catch {
-            // The frozen maintenance baseline legitimately predates the Kernel fixture.
         }
     }
 

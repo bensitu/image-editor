@@ -5,41 +5,14 @@ not claim that a purpose-built Fabric adapter and a general Plugin framework
 provide the same breadth of behavior. Both run the exact shared scenario; the
 differences below explain what each adapter owns.
 
-## Reproduce
+## Scope
 
-From the repository root:
-
-```bash
-npm run test:comparison
-npm run check:comparison
-```
-
-The measurement command bundles each adapter as ESM, minifies it, compresses it
-with gzip level 9, and keeps the shared `fabric` peer external. Application glue
-LOC counts non-blank, non-comment physical lines in each adapter; the common
-scenario is excluded from both counts. The checked ceilings live in
-`config/release/framework-comparison.json`.
-
-## Measured result
-
-| Metric                      | Pure Fabric | Image Editor Framework |
-| --------------------------- | ----------- | ---------------------- |
-| Application glue LOC        | 122         | 39                     |
-| Development bundle          | 4,054 bytes | 666,230 bytes          |
-| Minified bundle             | 1,667 bytes | 328,434 bytes          |
-| Minified gzip               | 893 bytes   | 79,632 bytes           |
-| Modules, excluding Fabric   | 1           | 95                     |
-| Direct comparison scenarios | 1           | 1                      |
-| Fabric bundled modules      | 0           | 0                      |
-| Failed-load mutation count  | 0           | 0                      |
-
-The framework measurement intentionally includes the complete Redaction Preset,
-including Filters, Crop, Mosaic, Overlay State, and their coordination code even
-though the shared scenario uses only Transform, History, and Mask. The pure
-Fabric number contains only the narrow adapter. Treat the 78,739-byte gzip
-difference as the cost of that broader composition and its contracts, not as a
-like-for-like mask primitive overhead. Applications can choose direct Plugin
-composition when they do not need the complete Preset.
+Both adapters remain buildable examples and use the same shared scenario. The
+framework adapter intentionally includes the complete Redaction Preset, including
+Filters, Crop, Mosaic, Overlay State, and their coordination code, while the pure
+Fabric adapter contains only the narrow behavior required by the scenario. The
+example documents that ownership tradeoff; it is not a pinned performance, line
+count, or bundle-size Gate.
 
 ## Ownership comparison
 

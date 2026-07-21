@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 import ts from 'typescript';
 
 const execFileAsync = promisify(execFile);
@@ -14,6 +15,7 @@ const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
 const packagesRoot = path.join(repositoryRoot, 'examples', 'reference-plugins');
 const consumerFixtureRoot = path.join(repositoryRoot, 'tests', 'package', 'reference-consumer');
+const rootManifest = JSON.parse(await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'));
 const packageDescriptors = Object.freeze([
     Object.freeze({
         key: 'watermark',
@@ -128,12 +130,16 @@ function assertPeerPolicy(manifest, descriptor) {
         manifest.name === descriptor.name,
         `${descriptor.directory} has the wrong name.`,
     );
+    const imageEditorRange = manifest.peerDependencies?.['@bensitu/image-editor'];
     assertCondition(
-        manifest.peerDependencies?.['@bensitu/image-editor'] === '^3.0.0-0',
-        `${descriptor.name} must declare the supported Image Editor peer range.`,
+        semver.validRange(imageEditorRange) !== null &&
+            semver.satisfies(rootManifest.version, imageEditorRange, {
+                includePrerelease: true,
+            }),
+        `${descriptor.name} must accept Image Editor ${rootManifest.version}.`,
     );
     assertCondition(
-        manifest.peerDependencies?.fabric === '>=7.4.0 <8',
+        manifest.peerDependencies?.fabric === rootManifest.peerDependencies.fabric,
         `${descriptor.name} must declare the supported Fabric peer range.`,
     );
     assertCondition(
@@ -473,8 +479,7 @@ async function execute(mode) {
         const buildsRoot = path.join(temporaryRoot, 'builds');
         await mkdir(artifactsRoot, { recursive: true });
         await mkdir(buildsRoot, { recursive: true });
-        console.log('Building the public package artifact.');
-        await npm(['run', 'build'], repositoryRoot);
+        console.log('Packing the current public package artifact.');
         const mainArtifact = await pack(repositoryRoot, artifactsRoot);
         const pluginBuilds = [];
         for (const source of sources) {

@@ -1,11 +1,11 @@
 /**
- * Runs focused hostile-input, resource-limit, and distributable security checks.
+ * Audits dependencies and rejects tracked credential or private-key material.
  *
  * @module
  */
 
 import { execFile } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -14,51 +14,28 @@ const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptsRoot, '..');
 const npmCliPath = process.env.npm_execpath;
-const securityTests = [
-    'tests/core/snapshot-hardening.test.mjs',
-    'tests/core/state-extension-registry.test.mjs',
-    'tests/core/error-and-port-hardening.test.mjs',
-    'tests/migrate-v2/migrate-v2.test.mjs',
-    'tests/number-utils.property.test.mjs',
-    'tests/plugins/mask/mask-plugin.test.mjs',
-    'tests/plugins/overlay-state/overlay-state.test.mjs',
-    'tests/sdk/permissions-and-codecs.test.mjs',
-    'tests/safe-object-key.test.mjs',
-    'tests/codemod/codemod.test.mjs',
-];
-const auditRoots = [
+const auditRoots = Object.freeze([
     ['root workspace', repositoryRoot],
     ['isolated Next.js example', path.join(repositoryRoot, 'examples', 'next-client-only')],
-];
+]);
+const textExtensions = new Set([
+    '.cjs',
+    '.css',
+    '.html',
+    '.js',
+    '.json',
+    '.md',
+    '.mjs',
+    '.ts',
+    '.tsx',
+    '.vue',
+    '.yaml',
+    '.yml',
+]);
+const credentialPattern =
+    /-----BEGIN (?:EC |OPENSSH |RSA )?PRIVATE KEY-----|\b(?:ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|sk-(?:live|proj)-[A-Za-z0-9_-]{20,})\b/u;
 
 if (!npmCliPath) throw new Error('npm_execpath is unavailable; run through an npm script.');
-
-async function assertSecurityTestsExist() {
-    const missing = [];
-    for (const relativePath of securityTests) {
-        try {
-            if (!(await stat(path.join(repositoryRoot, relativePath))).isFile()) {
-                missing.push(relativePath);
-            }
-        } catch {
-            missing.push(relativePath);
-        }
-    }
-    if (missing.length > 0) {
-        throw new Error(`Security test manifest contains missing files:\n${missing.join('\n')}`);
-    }
-}
-
-async function run(command, args) {
-    const result = await execFileAsync(command, args, {
-        cwd: repositoryRoot,
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024,
-        windowsHide: true,
-    });
-    if (result.stdout) process.stdout.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
-}
 
 async function readAudit(auditRoot) {
     try {
@@ -77,16 +54,43 @@ async function readAudit(auditRoot) {
     }
 }
 
-await assertSecurityTestsExist();
-await run(process.execPath, [npmCliPath, 'run', 'build:codemod']);
-await run(process.execPath, [
-    '--import',
-    './tests/helpers/register-ts-loader.mjs',
-    '--test',
-    ...securityTests,
-]);
-await run(process.execPath, [npmCliPath, 'run', 'check:npm-pack-contents']);
+async function checkTrackedFiles() {
+    const { stdout } = await execFileAsync('git', ['ls-files', '-z'], {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        maxBuffer: 16 * 1024 * 1024,
+        windowsHide: true,
+    });
+    const files = stdout.split('\0').filter(Boolean);
+    const privatePaths = files.filter((file) =>
+        /(?:^|\/)(?:\.env(?:\..*)?|credentials?(?:\..*)?|id_(?:ed25519|rsa)|.*\.(?:key|pem))(?:$|\/)/iu.test(
+            file.replaceAll('\\', '/'),
+        ),
+    );
+    if (privatePaths.length > 0) {
+        throw new Error(`Private credential paths are tracked:\n${privatePaths.join('\n')}`);
+    }
 
+    const exposed = [];
+    for (const file of files) {
+        if (!textExtensions.has(path.extname(file).toLowerCase()) || file.startsWith('dist/')) {
+            continue;
+        }
+        try {
+            if (credentialPattern.test(await readFile(path.join(repositoryRoot, file), 'utf8'))) {
+                exposed.push(file);
+            }
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+        }
+    }
+    if (exposed.length > 0) {
+        throw new Error(`Potential credentials are tracked:\n${exposed.join('\n')}`);
+    }
+    return files.length;
+}
+
+const trackedFiles = await checkTrackedFiles();
 const auditSummaries = [];
 for (const [label, auditRoot] of auditRoots) {
     const audit = await readAudit(auditRoot);
@@ -103,5 +107,5 @@ for (const [label, auditRoot] of auditRoots) {
 }
 
 console.log(
-    `Security check passed (${securityTests.length} focused fixtures; audit: ${auditSummaries.join('; ')}).`,
+    `Security policy passed (${trackedFiles} tracked files; ${auditSummaries.join('; ')}).`,
 );

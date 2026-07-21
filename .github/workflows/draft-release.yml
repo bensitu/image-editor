@@ -16,21 +16,22 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
-    draft-release:
-        name: Create tag and draft release
+    minimum-node:
+        name: Minimum Node compatibility (Node 20)
         runs-on: ubuntu-latest
 
         steps:
             - name: Check out repository
               uses: actions/checkout@v7
-              with:
-                  fetch-depth: 0
 
             - name: Set up Node.js
               uses: actions/setup-node@v7
               with:
-                  node-version: '24.x'
+                  node-version: '20.x'
                   cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      examples/next-client-only/package-lock.json
 
             - name: Install native canvas dependencies
               run: |
@@ -46,13 +47,56 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
+            - name: Check types
+              run: npm run typecheck
+
+            - name: Run Node product tests
+              run: npm test
+
+    draft-release:
+        name: Release gate and draft artifacts (Node 24)
+        needs: minimum-node
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: '24.x'
+                  cache: npm
+                  cache-dependency-path: |
+                      package-lock.json
+                      examples/next-client-only/package-lock.json
+
+            - name: Install native canvas dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                    build-essential \
+                    libcairo2-dev \
+                    libpango1.0-dev \
+                    libjpeg-dev \
+                    libgif-dev \
+                    librsvg2-dev
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Install Playwright browsers
+              run: npx playwright install --with-deps chromium firefox webkit
+
             - name: Validate requested version
               shell: bash
               run: |
                   VERSION="${{ github.event.inputs.version }}"
                   VERSION="${VERSION#v}"
 
-                  if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+                  if ! node -e "process.exit(require('semver').valid(process.argv[1]) ? 0 : 1)" "${VERSION}"; then
                     echo "Version must be a semantic version. Prefix with v is optional." >&2
                     exit 1
                   fi
@@ -86,10 +130,10 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
 
-            - name: Build, test, and pack release artifacts
+            - name: Run release gate and pack artifacts
               shell: bash
               run: |
-                  npm run ci
+                  npm run check:release
 
                   read_pack_filename() {
                     node -e '
@@ -110,7 +154,7 @@ jobs:
                   )"
 
                   if [[ -z "${MAIN_PACKAGE_TARBALL}" || -z "${CODEMOD_PACKAGE_TARBALL}" ]]; then
-                    echo "Both v3 package tarballs must be generated." >&2
+                    echo "Both package tarballs must be generated." >&2
                     exit 1
                   fi
                   if [[ "${MAIN_PACKAGE_TARBALL}" == "${CODEMOD_PACKAGE_TARBALL}" ]]; then

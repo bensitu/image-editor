@@ -1,47 +1,11 @@
 {
     "schemaVersion": 1,
     "globalName": "ImageEditorFull",
-    "policy": {
-        "separateFromPlatformAnchor": true,
-        "fabricBundledModules": 0,
-        "testingModules": 0,
-        "migrationModules": 0,
-        "perPluginUmdArtifacts": 0
-    },
-    "artifacts": {
-        "development": {
-            "file": "dist/umd/image-editor.full.umd.js",
-            "rawBytes": 932585,
-            "gzipBytes": 149006,
-            "brotliBytes": 105247,
-            "sha256": "48ec02768b16026b17de8648a352ecddaacb7d0e412afc693365b119c7724a68",
-            "maximumGzipBytes": 174080,
-            "sourceModules": 100,
-            "attribution": {
-                "pluginKernel": 16,
-                "sdk": 3,
-                "coreFramework": 29,
-                "officialFeatures": 50,
-                "presetComposition": 2,
-                "unknown": 0
-            }
-        },
-        "minified": {
-            "file": "dist/umd/image-editor.full.umd.min.js",
-            "rawBytes": 418805,
-            "gzipBytes": 97081,
-            "brotliBytes": 79780,
-            "sha256": "af99dc163881e4733d26540eb2b6f817d379e3227189d95cf6e2210e9f616539",
-            "maximumGzipBytes": 110592,
-            "sourceModules": 100,
-            "attribution": {
-                "pluginKernel": 16,
-                "sdk": 3,
-                "coreFramework": 29,
-                "officialFeatures": 50,
-                "presetComposition": 2,
-                "unknown": 0
-            }
-        }
-    }
+    "maximumMinifiedGzipBytes": 131072,
+    "approvedArtifacts": [
+        "image-editor.full.umd.js",
+        "image-editor.full.umd.js.map",
+        "image-editor.full.umd.min.js",
+        "image-editor.full.umd.min.js.map"
+    ]
 }

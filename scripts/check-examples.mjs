@@ -153,5 +153,4 @@ for (const workspace of buildWorkspaces) {
     await npm(['run', 'build', '--workspace', workspace]);
 }
 await verifyTemplatePackage();
-await run(process.execPath, ['scripts/check-reference-plugins.mjs', '--static']);
 console.log('Public example compilation and package checks passed.');

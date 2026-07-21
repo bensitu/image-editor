@@ -18,19 +18,15 @@ These fixtures measure consumer imports with Rollup. They do not measure files i
 - `sdk/core-history-overlay-mask-filters-mosaic` measures Mosaic with its optional maintained
   integrations.
 
-Fabric remains external in every fixture, matching the package peer dependency and release build. Raw size is the generated ESM chunk before minification. Minified, gzip, and brotli sizes are all calculated from the same deterministic minified ESM chunk; compression uses Node's built-in `zlib` implementation.
+Fabric remains external in every fixture, matching the package peer dependency and release build. Raw size is the generated ESM chunk before minification. Minified, gzip, and brotli sizes are calculated from the same live minified ESM chunk with Node's built-in `zlib` implementation.
 
-Run the check after emitting ESM:
+Run the Release-profile check after emitting ESM:
 
 ```sh
 npm run build:esm
 npm run check:bundle-size
 ```
 
-Committed baselines are never overwritten by the default check. A deliberate update uses `--update`:
-
-```sh
-node scripts/check-bundle-size.mjs --update platform-anchor
-```
-
-The `--package-root` and `--fixtures` options allow the same harness to measure an isolated release worktree without changing the active workspace.
+The check measures every fixture once. It enforces public-entry feature isolation and a
+57,344-byte maximum gzip size for `platform-anchor`; other reported sizes are diagnostic
+and are not pinned to a commit, tool version, hash, or historical baseline.

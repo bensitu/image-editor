@@ -9,12 +9,11 @@ This comparison runs one shared scenario against two public implementations:
 
 The scenario loads an image, rotates it, adds a mask, undoes the mask, captures
 state, verifies a failed load does not mutate state, and disposes all resources.
-Run the permanent proof and measurement from the repository root:
+Build the maintained example from the repository root:
 
 ```bash
-npm run test:comparison
-npm run check:comparison
+npm run check:examples
 ```
 
-See [comparison-report.md](comparison-report.md) for the metric definitions and
-trade-offs.
+See [comparison-report.md](comparison-report.md) for the ownership trade-offs.
+The example does not pin comparative metrics as a release Gate.

@@ -124,7 +124,7 @@ jobs:
                   done
 
                   if [[ -z "${MAIN_PACKAGE_TARBALL}" || -z "${CODEMOD_PACKAGE_TARBALL}" ]]; then
-                    echo "The release must contain both v3 package artifacts." >&2
+                    echo "The release must contain both package artifacts." >&2
                     exit 1
                   fi
 
