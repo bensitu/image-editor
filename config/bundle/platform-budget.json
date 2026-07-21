@@ -13,35 +13,35 @@
         },
         "core-platform": {
             "entry": "tests/bundle/fixtures/core-platform/index.mjs",
-            "sha256": "14af6a93e9f1cb8be3dfb3618311be8a086b8976d7af644c42181fea912334d6"
+            "sha256": "1de8f2bd36b44bf7faa64f9446b905a6b672fb6d8d378422786c9248f5a7109c"
         },
         "core-sdk": {
             "entry": "tests/bundle/fixtures/core-sdk/index.mjs",
-            "sha256": "02842a52604cd6eb30d8c0a9c678423b2adbef1cacfd672317db99ac54b06a0c"
+            "sha256": "47e2c83aa304c667179027efa1b7ffb19414eb384b08fe4e72d67aa077d1b948"
         },
         "overlay-foundation": {
             "entry": "tests/bundle/fixtures/overlay-foundation/index.mjs",
-            "sha256": "b1b7e2e0c3336358cb22b8be3a9ab6d992dccf68f97d741478fb5db0b0f9780b"
+            "sha256": "48dffb1f865b7614681b7c9eda4c54e946cbecce8be01779c2aa22f94bcaf6ae"
         },
         "platform-anchor": {
             "entry": "tests/bundle/fixtures/platform-anchor/index.mjs",
-            "sha256": "16e14ee3c297427ff06ec684296a68f1f5a93813bacf12b175e5d185c3ef5533"
+            "sha256": "ce4e3b300a1364d31ea6068ea24e09667cecaacd807520e78934c691ea188238"
         },
         "third-party-blur-region": {
             "entry": "tests/bundle/fixtures/third-party-blur-region/index.mjs",
-            "sha256": "814d883f55379b245f82fb8cf97c5b8c54757108790b7c5817428e69d6080c1a"
+            "sha256": "a33b4f1914bdb94f80984218f3736fe1f32acc5f7ca4f80a74d0f21b47f19373"
         },
         "third-party-watermark": {
             "entry": "tests/bundle/fixtures/third-party-watermark/index.mjs",
-            "sha256": "bbe5b5a530909dabc9d857ecb2de9e3918252d9eb2847205babb26cca7a9e223"
+            "sha256": "b038da5aedabeb9b9d6e3e1fb324fe50000e859b8da443893c8827ff3db9f88d"
         }
     },
     "measurement": {
-        "corePlatformGzipBytes": 40657,
-        "overlayDeltaGzipBytes": 9503,
+        "corePlatformGzipBytes": 40681,
+        "overlayDeltaGzipBytes": 9495,
         "path": "tests/bundle/baselines/platform-anchor.json",
-        "platformAnchorGzipBytes": 50160,
-        "sha256": "b5c6f9dc1c21664ff81a5218cd55cbd575409baaa568706c95d8ae5212d02712"
+        "platformAnchorGzipBytes": 50176,
+        "sha256": "018793fcc5cdc0fdfdacbd63bdb5c0b1c4aec0a2e99a63b0fea523a12d22ea52"
     },
     "modulePolicy": {
         "allowedPrefixes": [
@@ -65,8 +65,8 @@
     },
     "schemaVersion": 1,
     "source": {
-        "commit": "a66c540b51382dffbf45c8eb13daf4992d48b140",
-        "tree": "80efa2caf9a462561274ef3f2c6e704ecb56ad4a"
+        "commit": "0631e490e37e219e6496b2ab8da8e4ad7a635ee5",
+        "tree": "4e33ebae42bddbf0169b0e7f415deb2e8ead70ba"
     },
     "toolchain": {
         "bundler": {
