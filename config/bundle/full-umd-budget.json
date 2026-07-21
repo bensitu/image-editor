@@ -11,16 +11,16 @@
     "artifacts": {
         "development": {
             "file": "dist/umd/image-editor.full.umd.js",
-            "rawBytes": 932784,
-            "gzipBytes": 149034,
-            "brotliBytes": 105316,
-            "sha256": "762989124d1e536f73b06e163c3712f59ca9784a6b43e8dafdd6b770d7f31788",
+            "rawBytes": 932634,
+            "gzipBytes": 149015,
+            "brotliBytes": 105295,
+            "sha256": "061f406cf900497f32f59fb155607196b7360ec89ee386961b7534e54a1aa725",
             "maximumGzipBytes": 174080,
-            "sourceModules": 101,
+            "sourceModules": 100,
             "attribution": {
                 "pluginKernel": 16,
                 "sdk": 3,
-                "coreFramework": 30,
+                "coreFramework": 29,
                 "officialFeatures": 50,
                 "presetComposition": 2,
                 "unknown": 0
@@ -28,16 +28,16 @@
         },
         "minified": {
             "file": "dist/umd/image-editor.full.umd.min.js",
-            "rawBytes": 418943,
-            "gzipBytes": 97133,
-            "brotliBytes": 79820,
-            "sha256": "7e99c503692d1edd0d92c1fa86f2b52bdef428e0444e56b0bb5c19084a16b0e5",
+            "rawBytes": 418847,
+            "gzipBytes": 97107,
+            "brotliBytes": 79806,
+            "sha256": "4f1652c864b6fdd7b6e829ff82b7aa2a2b2580249cf1f57a3eac92e3bbb1ab10",
             "maximumGzipBytes": 110592,
-            "sourceModules": 101,
+            "sourceModules": 100,
             "attribution": {
                 "pluginKernel": 16,
                 "sdk": 3,
-                "coreFramework": 30,
+                "coreFramework": 29,
                 "officialFeatures": 50,
                 "presetComposition": 2,
                 "unknown": 0

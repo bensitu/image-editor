@@ -1,4 +1,4 @@
-import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';
 function abortError(message) {

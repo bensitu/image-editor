@@ -2,7 +2,7 @@
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
 var affineMatrix = require('../../chunks/affine-matrix-DRJ0b89x.cjs');
-var safeObjectKey = require('../../chunks/safe-object-key-WmIq_B8a.cjs');
+var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
 var coreCapabilities = require('../../chunks/core-capabilities-ewP5YPVJ.cjs');
@@ -306,7 +306,7 @@ function cloneJsonValue(value, path, depth, context) {
         let ok = accountBytes(context, 2, path);
         for (const key of keys) {
             const childPath = `${path}.${key}`;
-            if (safeObjectKey.isUnsafeObjectKey(key)) {
+            if (cloneStateValue.isDangerousStateKey(key)) {
                 addIssue(context.issues, 'object.dangerousKey', childPath, 'Key is not allowed.');
                 ok = false;
                 continue;

@@ -1,7 +1,7 @@
 'use strict';
 
 var foundations_overlay_index = require('../overlay/index.cjs');
-var safeObjectKey = require('../../chunks/safe-object-key-WmIq_B8a.cjs');
+var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
 var disposable = require('../../chunks/disposable-Sj4tt6Lk.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
@@ -150,7 +150,7 @@ function cloneMetadataValue(value, depth, budget) {
         }
         const clone = {};
         for (const [key, entry] of entries) {
-            if (safeObjectKey.isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
+            if (cloneStateValue.isDangerousStateKey(key) || key.length === 0 || key.length > 128) {
                 throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
             }
             budget.stringBytes += new TextEncoder().encode(key).byteLength;

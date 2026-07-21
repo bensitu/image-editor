@@ -1,7 +1,7 @@
 'use strict';
 
 var foundations_overlay_index = require('../../foundations/overlay/index.cjs');
-var safeObjectKey = require('../../chunks/safe-object-key-WmIq_B8a.cjs');
+var cloneStateValue = require('../../chunks/clone-state-value-CnsEsCNe.cjs');
 var errors = require('../../chunks/errors-DeAfrgDC.cjs');
 var pluginManifest = require('../../chunks/plugin-manifest-BCkXHQr2.cjs');
 var pluginDefinition = require('../../chunks/plugin-definition-B3UyurRp.cjs');
@@ -95,7 +95,7 @@ function reportWarning(options, error, message) {
 }
 
 function canCopySafeObjectKey(key) {
-    return !safeObjectKey.isUnsafeObjectKey(key);
+    return !cloneStateValue.isDangerousStateKey(key);
 }
 function copySafeOwnProperties(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value))

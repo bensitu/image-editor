@@ -1,5 +1,8 @@
+'use strict';
+
+var errors = require('./errors-DeAfrgDC.cjs');
+
 const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
-import { StateCloneError } from '../errors.js';
 function isObject(value) {
     return typeof value === 'object' && value !== null;
 }
@@ -7,7 +10,7 @@ function cloneFallback(value, seen) {
     var _a, _b;
     if (!isObject(value)) {
         if (typeof value === 'function' || typeof value === 'symbol') {
-            throw new StateCloneError(`State contains an unsupported ${typeof value} value.`);
+            throw new errors.StateCloneError(`State contains an unsupported ${typeof value} value.`);
         }
         return value;
     }
@@ -46,13 +49,13 @@ function cloneFallback(value, seen) {
     }
     const prototype = Object.getPrototypeOf(value);
     if (prototype !== Object.prototype && prototype !== null) {
-        throw new StateCloneError(`State contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
+        throw new errors.StateCloneError(`State contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
     }
     const result = Object.create(null);
     seen.set(value, result);
     for (const key of Object.keys(value)) {
         if (isDangerousStateKey(key)) {
-            throw new StateCloneError(`State contains dangerous key "${key}".`);
+            throw new errors.StateCloneError(`State contains dangerous key "${key}".`);
         }
         result[key] = cloneFallback(value[key], seen);
     }
@@ -84,7 +87,7 @@ function deepFreeze(value, seen = new WeakSet()) {
     }
     return value;
 }
-export function cloneStateValue(value) {
+function cloneStateValue(value) {
     try {
         const structuredCloneFunction = globalThis.structuredClone;
         const cloned = typeof structuredCloneFunction === 'function'
@@ -93,41 +96,45 @@ export function cloneStateValue(value) {
         return deepFreeze(cloned);
     }
     catch (error) {
-        if (error instanceof StateCloneError)
+        if (error instanceof errors.StateCloneError)
             throw error;
-        throw new StateCloneError('State could not be cloned safely.', error);
+        throw new errors.StateCloneError('State could not be cloned safely.', error);
     }
 }
-export function assertSafeImmutableReference(value, path = '$', seen = new WeakSet()) {
+function assertSafeImmutableReference(value, path = '$', seen = new WeakSet()) {
     var _a, _b;
     if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
-        throw new StateCloneError(`Reference state at ${path} contains an unsupported ${typeof value}.`);
+        throw new errors.StateCloneError(`Reference state at ${path} contains an unsupported ${typeof value}.`);
     }
     if (typeof value === 'number' && !Number.isFinite(value)) {
-        throw new StateCloneError(`Reference state at ${path} contains a non-finite number.`);
+        throw new errors.StateCloneError(`Reference state at ${path} contains a non-finite number.`);
     }
     if (!isObject(value))
         return;
     if (seen.has(value)) {
-        throw new StateCloneError(`Reference state at ${path} contains a cyclic reference.`);
+        throw new errors.StateCloneError(`Reference state at ${path} contains a cyclic reference.`);
     }
     if (!Object.isFrozen(value)) {
-        throw new StateCloneError(`Reference state at ${path} must be frozen.`);
+        throw new errors.StateCloneError(`Reference state at ${path} must be frozen.`);
     }
     const prototype = Object.getPrototypeOf(value);
     if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
-        throw new StateCloneError(`Reference state at ${path} contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
+        throw new errors.StateCloneError(`Reference state at ${path} contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
     }
     seen.add(value);
     for (const key of Object.keys(value)) {
         if (isDangerousStateKey(key)) {
-            throw new StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
+            throw new errors.StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
         }
         assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
     }
     seen.delete(value);
 }
-export function isDangerousStateKey(key) {
+function isDangerousStateKey(key) {
     return dangerousKeys.has(key);
 }
-//# sourceMappingURL=clone-state-value.js.map
+
+exports.assertSafeImmutableReference = assertSafeImmutableReference;
+exports.cloneStateValue = cloneStateValue;
+exports.isDangerousStateKey = isDangerousStateKey;
+//# sourceMappingURL=clone-state-value-CnsEsCNe.cjs.map

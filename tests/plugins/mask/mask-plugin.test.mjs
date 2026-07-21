@@ -102,10 +102,7 @@ test('Mask creation rejects canvas expansion beyond configured resource budgets'
             assert.ok(canvas instanceof HTMLCanvasElement);
             const before = { width: canvas.width, height: canvas.height };
 
-            await assert.rejects(
-                masks.create(config),
-                /Canvas dimensions exceed the configured resource budget/,
-            );
+            await assert.rejects(masks.create(config), /Dimensions exceed the configured budget/);
 
             assert.deepEqual({ width: canvas.width, height: canvas.height }, before);
             assert.equal(masks.getAll().length, 0);

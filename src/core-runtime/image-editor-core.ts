@@ -1548,16 +1548,13 @@ export class ImageEditorCore {
         if (!this.canvas) return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
+        const nextPixels = nextWidth * nextHeight;
         if (
-            !Number.isSafeInteger(nextWidth) ||
-            !Number.isSafeInteger(nextHeight) ||
-            nextWidth > this.options.maxExportDimension ||
-            nextHeight > this.options.maxExportDimension ||
-            nextWidth * nextHeight > this.options.maxExportPixels
+            !Number.isSafeInteger(nextPixels) ||
+            Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
+            nextPixels > this.options.maxExportPixels
         ) {
-            throw new CoreRuntimeError(
-                '[ImageEditor] Canvas dimensions exceed the configured resource budget.',
-            );
+            throw new CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
         }
         applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
@@ -1590,7 +1587,7 @@ export class ImageEditorCore {
                 width * height * multiplier * multiplier > this.options.maxExportPixels
             ) {
                 throw new CoreRuntimeError(
-                    '[ImageEditor] Export dimensions exceed the configured budget.',
+                    '[ImageEditor] Dimensions exceed the configured budget.',
                 );
             }
             const exportElement = this.canvasElement?.ownerDocument.createElement('canvas');

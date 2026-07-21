@@ -28,7 +28,7 @@ import {
     type VisibleRasterBakeOptions,
     type VisibleRasterBakeResult,
 } from '../../sdk/index.js';
-import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
 import {
     MAX_SUPPORTED_FILTER_COUNT,
     areFilterDefinitionsEqual,

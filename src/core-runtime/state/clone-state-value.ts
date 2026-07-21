@@ -4,7 +4,7 @@
  * @module
  */
 
-import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
+const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
 import { StateCloneError } from '../errors.js';
 
 function isObject(value: unknown): value is object {
@@ -57,7 +57,7 @@ function cloneFallback(value: unknown, seen: Map<object, unknown>): unknown {
     const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     seen.set(value, result);
     for (const key of Object.keys(value)) {
-        if (isUnsafeObjectKey(key)) {
+        if (isDangerousStateKey(key)) {
             throw new StateCloneError(`State contains dangerous key "${key}".`);
         }
         result[key] = cloneFallback((value as Record<string, unknown>)[key], seen);
@@ -132,7 +132,7 @@ export function assertSafeImmutableReference(
     }
     seen.add(value);
     for (const key of Object.keys(value)) {
-        if (isUnsafeObjectKey(key)) {
+        if (isDangerousStateKey(key)) {
             throw new StateCloneError(
                 `Reference state at ${path} contains dangerous key "${key}".`,
             );
@@ -147,5 +147,5 @@ export function assertSafeImmutableReference(
 }
 
 export function isDangerousStateKey(key: string): boolean {
-    return isUnsafeObjectKey(key);
+    return dangerousKeys.has(key);
 }

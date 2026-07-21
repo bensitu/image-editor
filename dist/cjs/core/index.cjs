@@ -2,8 +2,8 @@
 
 var errors = require('../chunks/errors-DeAfrgDC.cjs');
 var affineMatrix = require('../chunks/affine-matrix-DRJ0b89x.cjs');
+var cloneStateValue = require('../chunks/clone-state-value-CnsEsCNe.cjs');
 var pluginManifest = require('../chunks/plugin-manifest-BCkXHQr2.cjs');
-var safeObjectKey = require('../chunks/safe-object-key-WmIq_B8a.cjs');
 var pluginPlan = require('../chunks/plugin-plan-CxkCZnUf.cjs');
 var disposable = require('../chunks/disposable-Sj4tt6Lk.cjs');
 var pluginManager = require('../chunks/plugin-manager-C-UJ_Yc9.cjs');
@@ -605,137 +605,6 @@ class ExportContributorRegistry {
     }
 }
 
-function isObject(value) {
-    return typeof value === 'object' && value !== null;
-}
-function cloneFallback(value, seen) {
-    var _a, _b;
-    if (!isObject(value)) {
-        if (typeof value === 'function' || typeof value === 'symbol') {
-            throw new errors.StateCloneError(`State contains an unsupported ${typeof value} value.`);
-        }
-        return value;
-    }
-    const existing = seen.get(value);
-    if (existing !== undefined)
-        return existing;
-    if (value instanceof Date)
-        return new Date(value.getTime());
-    if (value instanceof ArrayBuffer)
-        return value.slice(0);
-    if (ArrayBuffer.isView(value)) {
-        const source = value;
-        return new Uint8Array(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
-    }
-    if (value instanceof Map) {
-        const result = new Map();
-        seen.set(value, result);
-        for (const [key, entry] of value) {
-            result.set(cloneFallback(key, seen), cloneFallback(entry, seen));
-        }
-        return result;
-    }
-    if (value instanceof Set) {
-        const result = new Set();
-        seen.set(value, result);
-        for (const entry of value)
-            result.add(cloneFallback(entry, seen));
-        return result;
-    }
-    if (Array.isArray(value)) {
-        const result = [];
-        seen.set(value, result);
-        for (const entry of value)
-            result.push(cloneFallback(entry, seen));
-        return result;
-    }
-    const prototype = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) {
-        throw new errors.StateCloneError(`State contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
-    }
-    const result = Object.create(null);
-    seen.set(value, result);
-    for (const key of Object.keys(value)) {
-        if (safeObjectKey.isUnsafeObjectKey(key)) {
-            throw new errors.StateCloneError(`State contains dangerous key "${key}".`);
-        }
-        result[key] = cloneFallback(value[key], seen);
-    }
-    return result;
-}
-function deepFreeze(value, seen = new WeakSet()) {
-    if (!isObject(value) || seen.has(value))
-        return value;
-    seen.add(value);
-    if (value instanceof Map) {
-        for (const [key, entry] of value) {
-            deepFreeze(key, seen);
-            deepFreeze(entry, seen);
-        }
-    }
-    else if (value instanceof Set) {
-        for (const entry of value)
-            deepFreeze(entry, seen);
-    }
-    else {
-        for (const key of Object.keys(value)) {
-            deepFreeze(value[key], seen);
-        }
-    }
-    try {
-        Object.freeze(value);
-    }
-    catch {
-    }
-    return value;
-}
-function cloneStateValue(value) {
-    try {
-        const structuredCloneFunction = globalThis.structuredClone;
-        const cloned = typeof structuredCloneFunction === 'function'
-            ? structuredCloneFunction(value)
-            : cloneFallback(value, new Map());
-        return deepFreeze(cloned);
-    }
-    catch (error) {
-        if (error instanceof errors.StateCloneError)
-            throw error;
-        throw new errors.StateCloneError('State could not be cloned safely.', error);
-    }
-}
-function assertSafeImmutableReference(value, path = '$', seen = new WeakSet()) {
-    var _a, _b;
-    if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
-        throw new errors.StateCloneError(`Reference state at ${path} contains an unsupported ${typeof value}.`);
-    }
-    if (typeof value === 'number' && !Number.isFinite(value)) {
-        throw new errors.StateCloneError(`Reference state at ${path} contains a non-finite number.`);
-    }
-    if (!isObject(value))
-        return;
-    if (seen.has(value)) {
-        throw new errors.StateCloneError(`Reference state at ${path} contains a cyclic reference.`);
-    }
-    if (!Object.isFrozen(value)) {
-        throw new errors.StateCloneError(`Reference state at ${path} must be frozen.`);
-    }
-    const prototype = Object.getPrototypeOf(value);
-    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) {
-        throw new errors.StateCloneError(`Reference state at ${path} contains unsupported object type "${(_b = (_a = prototype === null || prototype === void 0 ? void 0 : prototype.constructor) === null || _a === void 0 ? void 0 : _a.name) !== null && _b !== void 0 ? _b : 'unknown'}".`);
-    }
-    seen.add(value);
-    for (const key of Object.keys(value)) {
-        if (safeObjectKey.isUnsafeObjectKey(key)) {
-            throw new errors.StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
-        }
-        assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
-    }
-    seen.delete(value);
-}
-function isDangerousStateKey(key) {
-    return safeObjectKey.isUnsafeObjectKey(key);
-}
-
 function assertIdentifier$2(value, label) {
     if (value.trim().length === 0 || value.trim() !== value) {
         throw new errors.GeometryMutationError(value || 'unknown', `${label} must be non-empty and trimmed.`);
@@ -897,7 +766,7 @@ class GeometryMutationCoordinator {
     }
     async performRun(request, signal) {
         var _a, _b, _c;
-        const metadata = cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
+        const metadata = cloneStateValue.cloneStateValue((_a = request.metadata) !== null && _a !== void 0 ? _a : {});
         let before = null;
         let provisional = null;
         const participantSnapshot = Object.freeze([...this.participants.values()].sort((left, right) => left.participant.order - right.participant.order ||
@@ -1260,7 +1129,7 @@ function assertIdentifier$1(value, label) {
     }
 }
 function immutableMetadata(value) {
-    const cloned = cloneStateValue(value !== null && value !== void 0 ? value : {});
+    const cloned = cloneStateValue.cloneStateValue(value !== null && value !== void 0 ? value : {});
     if (typeof cloned !== 'object' || cloned === null || Array.isArray(cloned)) {
         throw new errors.DocumentMutationRegistrationError('Mutation metadata must be an object.');
     }
@@ -1828,8 +1697,8 @@ class MementoService {
         const context = Object.freeze({ mode: 'memento', capturedAt });
         let core;
         try {
-            core = cloneStateValue(this.coreAdapter.capture(context));
-            assertSafeImmutableReference(core);
+            core = cloneStateValue.cloneStateValue(this.coreAdapter.capture(context));
+            cloneStateValue.assertSafeImmutableReference(core);
         }
         catch (error) {
             throw new errors.MementoCaptureError('core', error);
@@ -1851,18 +1720,18 @@ class MementoService {
                                 ? 'Reference validation must preserve the captured identity.'
                                 : validation.message);
                         }
-                        assertSafeImmutableReference(captured);
+                        cloneStateValue.assertSafeImmutableReference(captured);
                         data = captured;
                     }
                     else {
-                        data = cloneStateValue(captured);
+                        data = cloneStateValue.cloneStateValue(captured);
                         capturePolicy = 'always';
                     }
                 }
                 else {
-                    data = cloneStateValue(captured);
+                    data = cloneStateValue.cloneStateValue(captured);
                 }
-                assertSafeImmutableReference(data);
+                cloneStateValue.assertSafeImmutableReference(data);
                 plugins[slice.id] = Object.freeze({
                     version: slice.version,
                     capturePolicy,
@@ -1887,7 +1756,7 @@ class MementoService {
         const context = Object.freeze({ mode, signal });
         throwIfAborted(signal);
         try {
-            await this.coreAdapter.restore(cloneStateValue(memento.core), context);
+            await this.coreAdapter.restore(cloneStateValue.cloneStateValue(memento.core), context);
         }
         catch (error) {
             throw new errors.MementoRestoreError('core', mode === 'rollback' ? 'rollback' : 'restore', error);
@@ -1903,7 +1772,7 @@ class MementoService {
                 if (entry.version !== slice.version) {
                     throw new Error(`Captured version ${entry.version} does not match installed version ${slice.version}.`);
                 }
-                await slice.restore(entry.capturePolicy === 'reference' ? entry.data : cloneStateValue(entry.data), context);
+                await slice.restore(entry.capturePolicy === 'reference' ? entry.data : cloneStateValue.cloneStateValue(entry.data), context);
             }
             catch (error) {
                 throw new errors.MementoRestoreError(slice.id, mode === 'rollback' ? 'rollback' : 'restore', error);
@@ -1948,7 +1817,7 @@ class ObjectPropertyRegistry {
         const keys = [...new Set(registration.keys)];
         for (const key of keys) {
             assertIdentifier(key, 'Object property key');
-            if (isDangerousStateKey(key)) {
+            if (cloneStateValue.isDangerousStateKey(key)) {
                 throw new errors.StateRegistrationError(`Object property key "${key}" is forbidden.`);
             }
             const existing = this.properties.get(key);
@@ -2195,7 +2064,7 @@ function inspectTree(value, limits, path = '$', depth = 0, ancestors = new WeakS
     }
     ancestors.add(value);
     for (const key of Object.keys(value)) {
-        if (isDangerousStateKey(key)) {
+        if (cloneStateValue.isDangerousStateKey(key)) {
             throw new errors.SnapshotValidationError(`dangerous key "${key}" is forbidden.`, `${path}.${key}`);
         }
         inspectTree(value[key], limits, `${path}.${key}`, depth + 1, ancestors, counter, key);
@@ -2327,17 +2196,17 @@ class SnapshotService {
         const context = Object.freeze({ mode: 'snapshot', capturedAt });
         const plugins = Object.create(null);
         for (const [id, entry] of this.opaque)
-            plugins[id] = cloneStateValue(entry);
+            plugins[id] = cloneStateValue.cloneStateValue(entry);
         for (const slice of this.slices.list()) {
             plugins[slice.id] = Object.freeze({
                 version: slice.version,
-                data: cloneStateValue(slice.capture(context)),
+                data: cloneStateValue.cloneStateValue(slice.capture(context)),
             });
         }
         return Object.freeze({
             schema: 'image-editor.state',
             version: 3,
-            core: cloneStateValue(this.coreAdapter.capture(context)),
+            core: cloneStateValue.cloneStateValue(this.coreAdapter.capture(context)),
             plugins: Object.freeze(plugins),
         });
     }
@@ -2361,7 +2230,7 @@ class SnapshotService {
             (isRecord(parsed) && parsed.schema === 'image-editor.state' && parsed.version === 3)) {
             return this.prepareParsed(parsed, options);
         }
-        const immutableInput = cloneStateValue(parsed);
+        const immutableInput = cloneStateValue.cloneStateValue(parsed);
         const migration = options.migrations.find((candidate) => candidate.canMigrate(immutableInput));
         if (!migration)
             return this.prepareParsed(parsed, options);
@@ -2390,7 +2259,7 @@ class SnapshotService {
                     throw new errors.SnapshotValidationError('required plugin is not installed.', `$.plugins.${id}`);
                 }
                 if (policy === 'preserve-opaque') {
-                    opaqueSlices.push(Object.freeze({ id, entry: cloneStateValue(entry) }));
+                    opaqueSlices.push(Object.freeze({ id, entry: cloneStateValue.cloneStateValue(entry) }));
                 }
                 (_c = this.warningSink) === null || _c === void 0 ? void 0 : _c.call(this, {
                     code: 'SNAPSHOT_PLUGIN_MISSING',
@@ -2409,10 +2278,10 @@ class SnapshotService {
             if (!validation.valid) {
                 throw new errors.SnapshotValidationError(validation.message, (_d = validation.path) !== null && _d !== void 0 ? _d : `$.plugins.${id}.data`);
             }
-            validatedSlices.push(Object.freeze({ id, value: cloneStateValue(validation.value) }));
+            validatedSlices.push(Object.freeze({ id, value: cloneStateValue.cloneStateValue(validation.value) }));
         }
         const prepared = Object.freeze({
-            core: cloneStateValue(coreValidation.value),
+            core: cloneStateValue.cloneStateValue(coreValidation.value),
             validatedSlices: Object.freeze(validatedSlices),
             opaqueSlices: Object.freeze(opaqueSlices),
         });
@@ -2438,7 +2307,7 @@ class SnapshotService {
         const validatedSlices = new Map(prepared.validatedSlices.map(({ id, value }) => [id, value]));
         const nextOpaque = new Map(prepared.opaqueSlices.map(({ id, entry }) => [id, entry]));
         try {
-            await this.coreAdapter.restore(cloneStateValue(prepared.core), context);
+            await this.coreAdapter.restore(cloneStateValue.cloneStateValue(prepared.core), context);
             for (const slice of this.slices.list()) {
                 if (validatedSlices.has(slice.id)) {
                     await slice.restore(validatedSlices.get(slice.id), context);
@@ -2498,7 +2367,7 @@ class SnapshotService {
         }
         const plugins = Object.create(null);
         for (const [id, entry] of entries) {
-            if (!pluginManifest.isRuntimeIdentifier(id) || isDangerousStateKey(id)) {
+            if (!pluginManifest.isRuntimeIdentifier(id) || cloneStateValue.isDangerousStateKey(id)) {
                 throw new errors.SnapshotValidationError('plugin id is invalid.', `$.plugins.${id}`);
             }
             if (!isRecord(entry) ||
@@ -2511,7 +2380,7 @@ class SnapshotService {
         return Object.freeze({
             schema: 'image-editor.state',
             version: 3,
-            core: cloneStateValue(value.core),
+            core: cloneStateValue.cloneStateValue(value.core),
             plugins: Object.freeze(plugins),
         });
     }
@@ -3794,12 +3663,11 @@ class ImageEditorCore {
             return;
         const nextWidth = Math.max(1, Math.ceil(width));
         const nextHeight = Math.max(1, Math.ceil(height));
-        if (!Number.isSafeInteger(nextWidth) ||
-            !Number.isSafeInteger(nextHeight) ||
-            nextWidth > this.options.maxExportDimension ||
-            nextHeight > this.options.maxExportDimension ||
-            nextWidth * nextHeight > this.options.maxExportPixels) {
-            throw new errors.CoreRuntimeError('[ImageEditor] Canvas dimensions exceed the configured resource budget.');
+        const nextPixels = nextWidth * nextHeight;
+        if (!Number.isSafeInteger(nextPixels) ||
+            Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
+            nextPixels > this.options.maxExportPixels) {
+            throw new errors.CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
         }
         applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
     }
@@ -3829,7 +3697,7 @@ class ImageEditorCore {
             if (width * multiplier > this.options.maxExportDimension ||
                 height * multiplier > this.options.maxExportDimension ||
                 width * height * multiplier * multiplier > this.options.maxExportPixels) {
-                throw new errors.CoreRuntimeError('[ImageEditor] Export dimensions exceed the configured budget.');
+                throw new errors.CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
             }
             const exportElement = (_d = this.canvasElement) === null || _d === void 0 ? void 0 : _d.ownerDocument.createElement('canvas');
             if (!exportElement) {
@@ -4038,6 +3906,9 @@ exports.isFiniteAffineMatrix = affineMatrix.isFiniteAffineMatrix;
 exports.multiplyAffine = affineMatrix.multiplyAffine;
 exports.sanitizeAffineMatrix = affineMatrix.sanitizeAffineMatrix;
 exports.transformRectBounds = affineMatrix.transformRectBounds;
+exports.assertSafeImmutableReference = cloneStateValue.assertSafeImmutableReference;
+exports.cloneStateValue = cloneStateValue.cloneStateValue;
+exports.isDangerousStateKey = cloneStateValue.isDangerousStateKey;
 exports.createCapabilityToken = pluginManifest.createCapabilityToken;
 exports.definePluginRef = pluginManifest.definePluginRef;
 exports.DEFAULT_SNAPSHOT_LIMITS = DEFAULT_SNAPSHOT_LIMITS;
@@ -4047,7 +3918,4 @@ exports.ObjectPropertyRegistry = ObjectPropertyRegistry;
 exports.SnapshotService = SnapshotService;
 exports.StateSliceRegistry = StateSliceRegistry;
 exports.TransientObjectRegistry = TransientObjectRegistry;
-exports.assertSafeImmutableReference = assertSafeImmutableReference;
-exports.cloneStateValue = cloneStateValue;
-exports.isDangerousStateKey = isDangerousStateKey;
 //# sourceMappingURL=index.cjs.map

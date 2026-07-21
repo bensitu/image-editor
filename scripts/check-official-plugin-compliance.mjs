@@ -45,7 +45,7 @@ const publicSafeUtilities = new Set([
     'src/mask/mask-factory.ts',
     'src/mask/mask-label-manager.ts',
     'src/mask/mask-style.ts',
-    'src/utils/safe-object-key.ts',
+    'src/core-runtime/state/clone-state-value.ts',
 ]);
 const permissionRequirements = new Map([
     ['FABRIC_RUNTIME_CAPABILITY', 'fabric:objects'],

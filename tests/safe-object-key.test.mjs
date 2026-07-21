@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isUnsafeObjectKey } from '../src/utils/safe-object-key.ts';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../src/core-runtime/state/clone-state-value.ts';
 
 test('unsafe object key policy rejects prototype mutation keys only', () => {
     for (const key of ['__proto__', 'constructor', 'prototype']) {

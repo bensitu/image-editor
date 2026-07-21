@@ -8,7 +8,7 @@ import type * as FabricNS from 'fabric';
 
 import type { FabricModule, ImageMimeType } from '../../core/index.js';
 import type { BaseImageInfoPort, ImageResourcePolicyPort } from '../../sdk/index.js';
-import { isUnsafeObjectKey } from '../../utils/safe-object-key.js';
+import { isDangerousStateKey as isUnsafeObjectKey } from '../../core-runtime/state/clone-state-value.js';
 import type { FilterDefinition } from './filter-definitions.js';
 import { applyFilterDefinitions } from './fabric-filter-factory.js';
 import { FilterBakeValidationError } from './filters-errors.js';

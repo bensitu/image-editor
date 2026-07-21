@@ -4015,11 +4015,7 @@
         return sanitizeAffineMatrix(multiplyAffine(after, invertAffine(before)));
     }
 
-    const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-    function isUnsafeObjectKey(key) {
-        return UNSAFE_OBJECT_KEYS.has(key);
-    }
-
+    const dangerousKeys = new Set(['__proto__', 'constructor', 'prototype']);
     function isObject$1(value) {
         return typeof value === 'object' && value !== null;
     }
@@ -4071,7 +4067,7 @@
         const result = Object.create(null);
         seen.set(value, result);
         for (const key of Object.keys(value)) {
-            if (isUnsafeObjectKey(key)) {
+            if (isDangerousStateKey(key)) {
                 throw new StateCloneError(`State contains dangerous key "${key}".`);
             }
             result[key] = cloneFallback(value[key], seen);
@@ -4140,7 +4136,7 @@
         }
         seen.add(value);
         for (const key of Object.keys(value)) {
-            if (isUnsafeObjectKey(key)) {
+            if (isDangerousStateKey(key)) {
                 throw new StateCloneError(`Reference state at ${path} contains dangerous key "${key}".`);
             }
             assertSafeImmutableReference(value[key], Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`, seen);
@@ -4148,7 +4144,7 @@
         seen.delete(value);
     }
     function isDangerousStateKey(key) {
-        return isUnsafeObjectKey(key);
+        return dangerousKeys.has(key);
     }
 
     function assertIdentifier$2(value, label) {
@@ -7226,12 +7222,11 @@
                 return;
             const nextWidth = Math.max(1, Math.ceil(width));
             const nextHeight = Math.max(1, Math.ceil(height));
-            if (!Number.isSafeInteger(nextWidth) ||
-                !Number.isSafeInteger(nextHeight) ||
-                nextWidth > this.options.maxExportDimension ||
-                nextHeight > this.options.maxExportDimension ||
-                nextWidth * nextHeight > this.options.maxExportPixels) {
-                throw new CoreRuntimeError('[ImageEditor] Canvas dimensions exceed the configured resource budget.');
+            const nextPixels = nextWidth * nextHeight;
+            if (!Number.isSafeInteger(nextPixels) ||
+                Math.max(nextWidth, nextHeight) > this.options.maxExportDimension ||
+                nextPixels > this.options.maxExportPixels) {
+                throw new CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
             }
             applyCanvasDimensions(this.canvas, nextWidth, nextHeight, this.containerElement);
         }
@@ -7261,7 +7256,7 @@
                 if (width * multiplier > this.options.maxExportDimension ||
                     height * multiplier > this.options.maxExportDimension ||
                     width * height * multiplier * multiplier > this.options.maxExportPixels) {
-                    throw new CoreRuntimeError('[ImageEditor] Export dimensions exceed the configured budget.');
+                    throw new CoreRuntimeError('[ImageEditor] Dimensions exceed the configured budget.');
                 }
                 const exportElement = (_d = this.canvasElement) === null || _d === void 0 ? void 0 : _d.ownerDocument.createElement('canvas');
                 if (!exportElement) {
@@ -9554,7 +9549,7 @@
             }
             const clone = {};
             for (const [key, entry] of entries) {
-                if (isUnsafeObjectKey(key) || key.length === 0 || key.length > 128) {
+                if (isDangerousStateKey(key) || key.length === 0 || key.length > 128) {
                     throw new AnnotationValidationError('Annotation metadata contains an unsafe key.');
                 }
                 budget.stringBytes += new TextEncoder().encode(key).byteLength;
@@ -11518,7 +11513,7 @@
     }
 
     function canCopySafeObjectKey(key) {
-        return !isUnsafeObjectKey(key);
+        return !isDangerousStateKey(key);
     }
     function copySafeOwnProperties(value) {
         if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -13046,7 +13041,7 @@
             if (typeof key !== 'string') {
                 throw new FilterDefinitionError('Filter definition contains an unsupported symbol key.', path);
             }
-            if (isUnsafeObjectKey(key)) {
+            if (isDangerousStateKey(key)) {
                 throw new FilterDefinitionError(`Filter definition contains dangerous key "${key}".`, path);
             }
             if (!allowed.includes(key)) {
@@ -13260,7 +13255,7 @@
         }
         const record = (options !== null && options !== void 0 ? options : {});
         for (const key of Object.keys(record)) {
-            if (isUnsafeObjectKey(key)) {
+            if (isDangerousStateKey(key)) {
                 throw new FilterBakeValidationError(`Filter bake options contain dangerous key "${key}".`);
             }
             if (key !== 'format' && key !== 'quality') {
@@ -13399,7 +13394,7 @@
     }
     function validateStateKeys(value) {
         for (const key of Object.keys(value)) {
-            if (isUnsafeObjectKey(key)) {
+            if (isDangerousStateKey(key)) {
                 return `Filters state contains dangerous key "${key}".`;
             }
             if (key !== 'schema' && key !== 'version' && key !== 'filters') {
@@ -13862,7 +13857,7 @@
                 throw new TypeError('[ImageEditor] Filters configuration patch must be a plain object.');
             }
             for (const key of Object.keys(patch)) {
-                if (isUnsafeObjectKey(key)) {
+                if (isDangerousStateKey(key)) {
                     throw new TypeError(`[ImageEditor] Filters configuration contains dangerous key "${key}".`);
                 }
                 if (key !== 'maxFilterCount') {
@@ -18755,7 +18750,7 @@
             let ok = accountBytes(context, 2, path);
             for (const key of keys) {
                 const childPath = `${path}.${key}`;
-                if (isUnsafeObjectKey(key)) {
+                if (isDangerousStateKey(key)) {
                     addIssue(context.issues, 'object.dangerousKey', childPath, 'Key is not allowed.');
                     ok = false;
                     continue;
