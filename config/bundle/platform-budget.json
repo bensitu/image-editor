@@ -41,7 +41,7 @@
         "overlayDeltaGzipBytes": 9503,
         "path": "tests/bundle/baselines/platform-anchor.json",
         "platformAnchorGzipBytes": 50160,
-        "sha256": "16511b1c314d6e80a1cb2602694e44d1360aecf8f1135e5c4e5f4d1539f0ad05"
+        "sha256": "b5c6f9dc1c21664ff81a5218cd55cbd575409baaa568706c95d8ae5212d02712"
     },
     "modulePolicy": {
         "allowedPrefixes": [
@@ -65,16 +65,16 @@
     },
     "schemaVersion": 1,
     "source": {
-        "commit": "b545e73b85061bdc07a297be8666232a85419e2d",
-        "tree": "2c46bd906c99bc02d8f77018025b6b7ebdfe326c"
+        "commit": "a66c540b51382dffbf45c8eb13daf4992d48b140",
+        "tree": "80efa2caf9a462561274ef3f2c6e704ecb56ad4a"
     },
     "toolchain": {
         "bundler": {
             "name": "rollup",
             "version": "4.62.2"
         },
-        "measurementConfigHash": "a702acde06218d0ca103f15fa9a527c65e9c1f9e54e4410ff37eb7f32dc724f8",
-        "measurementConfigVersion": 1,
+        "measurementConfigHash": "91b970c515589e33ea9fd1c94fda858cfd9b6680f671f981d77a6820e6ca395c",
+        "measurementConfigVersion": 2,
         "node": "v24.16.0"
     }
 }
