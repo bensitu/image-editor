@@ -4229,7 +4229,7 @@
         "undocumentedFormalEntries": []
     },
     "declarations": {
-        "graphSha256": "483ac52af8c6e96fd4cb584fedf5850f1a55b0ac8376a32a3226b59ad1e5244a",
+        "graphSha256": "b18e4a398084da54fc48bf476f44159fd0a300d55612908106563e9bca28dc88",
         "files": [
             {
                 "file": "dist/types/core-runtime/errors.d.ts",
@@ -4273,7 +4273,7 @@
             },
             {
                 "file": "dist/types/core-runtime/state/clone-state-value.d.ts",
-                "sha256": "138f7c156677556a064db71d975054a6840155b303e2b497986b7d936093ff4e"
+                "sha256": "db20bd079046241d1008a3b33509f752a3fd6d33c99344ef907858eb6890c9c8"
             },
             {
                 "file": "dist/types/core-runtime/state/index.d.ts",
@@ -4385,7 +4385,7 @@
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-identifier.d.ts",
-                "sha256": "e6d7fdc8024c412cefb14172ec246d13674abda637223b0ce4e6d68a73023211"
+                "sha256": "ca191acecbbd8ae952b76fd7c97b41e1ca6b45cb44cbb8e36a2fdbbfd6c7bbb8"
             },
             {
                 "file": "dist/types/plugin-kernel/plugin-manager.d.ts",
