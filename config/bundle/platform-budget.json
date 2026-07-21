@@ -9,31 +9,31 @@
     "fixtures": {
         "core-only": {
             "entry": "tests/bundle/fixtures/core-only/index.mjs",
-            "sha256": "c010e6ce14736328af291c4ed28add56fb28fcf52dd9a8955b25c7daff0f836f"
+            "sha256": "16b4c7ebffbc42e5a8de3fac4723012a9ec44c24bbbe15e7d101e033b256ebdc"
         },
         "core-platform": {
             "entry": "tests/bundle/fixtures/core-platform/index.mjs",
-            "sha256": "1de8f2bd36b44bf7faa64f9446b905a6b672fb6d8d378422786c9248f5a7109c"
+            "sha256": "14af6a93e9f1cb8be3dfb3618311be8a086b8976d7af644c42181fea912334d6"
         },
         "core-sdk": {
             "entry": "tests/bundle/fixtures/core-sdk/index.mjs",
-            "sha256": "47e2c83aa304c667179027efa1b7ffb19414eb384b08fe4e72d67aa077d1b948"
+            "sha256": "02842a52604cd6eb30d8c0a9c678423b2adbef1cacfd672317db99ac54b06a0c"
         },
         "overlay-foundation": {
             "entry": "tests/bundle/fixtures/overlay-foundation/index.mjs",
-            "sha256": "48dffb1f865b7614681b7c9eda4c54e946cbecce8be01779c2aa22f94bcaf6ae"
+            "sha256": "b1b7e2e0c3336358cb22b8be3a9ab6d992dccf68f97d741478fb5db0b0f9780b"
         },
         "platform-anchor": {
             "entry": "tests/bundle/fixtures/platform-anchor/index.mjs",
-            "sha256": "ce4e3b300a1364d31ea6068ea24e09667cecaacd807520e78934c691ea188238"
+            "sha256": "16e14ee3c297427ff06ec684296a68f1f5a93813bacf12b175e5d185c3ef5533"
         },
         "third-party-blur-region": {
             "entry": "tests/bundle/fixtures/third-party-blur-region/index.mjs",
-            "sha256": "a33b4f1914bdb94f80984218f3736fe1f32acc5f7ca4f80a74d0f21b47f19373"
+            "sha256": "814d883f55379b245f82fb8cf97c5b8c54757108790b7c5817428e69d6080c1a"
         },
         "third-party-watermark": {
             "entry": "tests/bundle/fixtures/third-party-watermark/index.mjs",
-            "sha256": "b038da5aedabeb9b9d6e3e1fb324fe50000e859b8da443893c8827ff3db9f88d"
+            "sha256": "bbe5b5a530909dabc9d857ecb2de9e3918252d9eb2847205babb26cca7a9e223"
         }
     },
     "measurement": {

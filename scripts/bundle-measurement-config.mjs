@@ -30,6 +30,11 @@ export function normalizeBundleMeasurementText(value) {
     return value.replace(/\r\n?/gu, '\n');
 }
 
+/** Hashes text after normalizing checkout-dependent line endings. */
+export function hashNormalizedText(value) {
+    return createHash('sha256').update(normalizeBundleMeasurementText(value)).digest('hex');
+}
+
 function canonicalize(value) {
     if (Array.isArray(value)) return value.map(canonicalize);
     if (!value || typeof value !== 'object') return value;

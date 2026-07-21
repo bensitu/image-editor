@@ -1,11 +1,12 @@
 /** Creates and validates the tracked platform bundle budget. */
 
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+
+import { hashNormalizedText } from './bundle-measurement-config.mjs';
 
 const execFileAsync = promisify(execFile);
 const scriptsRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -49,10 +50,6 @@ function canonicalText(value) {
     return `${JSON.stringify(canonicalize(value), null, 4)}\n`;
 }
 
-function sha256(value) {
-    return createHash('sha256').update(value).digest('hex');
-}
-
 async function git(args) {
     const { stdout } = await execFileAsync('git', args, {
         cwd: repositoryRoot,
@@ -69,7 +66,9 @@ async function fixtureDefinitions() {
         const relativePath = `tests/bundle/fixtures/${name}/index.mjs`;
         definitions[name] = Object.freeze({
             entry: relativePath,
-            sha256: sha256(await readFile(path.join(repositoryRoot, ...relativePath.split('/')))),
+            sha256: hashNormalizedText(
+                await readFile(path.join(repositoryRoot, ...relativePath.split('/')), 'utf8'),
+            ),
         });
     }
     return Object.freeze(definitions);
@@ -222,7 +221,7 @@ async function createPolicy() {
         source: Object.freeze({ commit, tree }),
         measurement: Object.freeze({
             path: 'tests/bundle/baselines/platform-anchor.json',
-            sha256: sha256(await readFile(measurementPath)),
+            sha256: hashNormalizedText(await readFile(measurementPath, 'utf8')),
             corePlatformGzipBytes: corePlatform.gzipBytes,
             overlayDeltaGzipBytes: anchor.gzipBytes - corePlatform.gzipBytes,
             platformAnchorGzipBytes: anchor.gzipBytes,
@@ -263,8 +262,8 @@ async function createPolicy() {
 
 async function checkPolicy() {
     const policy = JSON.parse(await readFile(policyPath, 'utf8'));
-    const measurementBytes = await readFile(measurementPath);
-    const measurement = JSON.parse(measurementBytes);
+    const measurementText = await readFile(measurementPath, 'utf8');
+    const measurement = JSON.parse(measurementText);
     const inspection = validateMeasurement(measurement);
     assertCondition(policy.schemaVersion === 1, 'Platform budget schema is invalid.');
     assertCondition(
@@ -276,7 +275,7 @@ async function checkPolicy() {
         'Platform measurement does not identify the locked source commit.',
     );
     assertCondition(
-        sha256(measurementBytes) === policy.measurement.sha256,
+        hashNormalizedText(measurementText) === policy.measurement.sha256,
         'Platform measurement hash changed.',
     );
     assertCondition(

@@ -9,6 +9,7 @@ import test from 'node:test';
 
 import {
     BUNDLE_MEASUREMENT_CONFIG,
+    hashNormalizedText,
     normalizeBundleMeasurementText,
 } from '../scripts/bundle-measurement-config.mjs';
 
@@ -18,5 +19,9 @@ test('bundle measurement text normalizes CRLF and CR to LF', () => {
     assert.equal(
         normalizeBundleMeasurementText('first\r\nsecond\rthird\n'),
         'first\nsecond\nthird\n',
+    );
+    assert.equal(
+        hashNormalizedText('first\r\nsecond\rthird\n'),
+        hashNormalizedText('first\nsecond\nthird\n'),
     );
 });
